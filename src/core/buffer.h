@@ -70,14 +70,14 @@ class buffer_t {
   ~buffer_t() { free_mem(); }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T> operator[](
-      size_t n) const {
+  std::enable_if_t<M != MemoryModel::device_only, T>
+  operator[](size_t n) const {
     return host_ptr()[n];
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
-      size_t n) {
+  std::enable_if_t<M != MemoryModel::device_only, T&>
+  operator[](size_t n) {
     return host_ptr()[n];
   }
 
@@ -104,28 +104,30 @@ class buffer_t {
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr()
-      const {
+  std::enable_if_t<M != MemoryModel::device_only, const T*>
+  host_ptr() const {
     if (!m_host_valid && m_dev_valid) copy_to_host();
     return m_data_h;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T*> host_ptr() {
+  std::enable_if_t<M != MemoryModel::device_only, T*>
+  host_ptr() {
     m_host_valid = true;
     m_dev_valid = false;
     return m_data_h;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, const T*> dev_ptr()
-      const {
+  std::enable_if_t<M != MemoryModel::host_only, const T*>
+  dev_ptr() const {
     if (!m_dev_valid && m_host_valid) copy_to_device();
     return m_data_d;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, T*> dev_ptr() {
+  std::enable_if_t<M != MemoryModel::host_only, T*>
+  dev_ptr() {
     m_dev_valid = true;
     m_host_valid = false;
     return m_data_d;

@@ -15,6 +15,8 @@ enum class MemoryModel : char {
   device_only,
 };
 
+/// A class for linear buffers that manages resources both on the host and the
+/// device.
 template <typename T, MemoryModel Model = MemoryModel::host_only>
 class buffer_t {
  private:
@@ -102,6 +104,9 @@ class buffer_t {
     else
       return nullptr;
   }
+
+  // TODO: This kind of valid check can potentially cause unnecessary memcpy
+  // between the host and device. Is there a better way to handle this???
 
   template <MemoryModel M = Model>
   std::enable_if_t<M != MemoryModel::device_only, const T*>

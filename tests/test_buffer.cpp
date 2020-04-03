@@ -28,14 +28,16 @@ TEST_CASE("Host device buffer", "[buffer]") {
 
   auto ptr = buf.data();
   ptr[300] = 3.0;
-  buf.copy_to_device();
-
   REQUIRE(ptr[300] == 3.0);
 
+#ifdef CUDA_ENABLED
+  // Test coping to device and back
+  buf.copy_to_device();
   ptr[300] = 6.0;
   REQUIRE(ptr[300] == 6.0);
   buf.copy_to_host();
   REQUIRE(ptr[300] == 3.0);
+#endif
 }
 
 TEST_CASE("Managed buffer", "[buffer]") {

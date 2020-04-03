@@ -6,154 +6,115 @@
 namespace Aperture {
 
 template <class T = uint32_t>
-struct index_column_major_t {
+struct idx_flat_t {
   T key = 0;
   T inc_y = 0;
   T inc_z = 0;
 
-  typedef index_column_major_t<T> self_type;
+  typedef idx_flat_t<T> self_type;
 
-  inline explicit index_column_major_t(T k) : key(k) {}
+  inline idx_flat_t(T k) : key(k) {}
+  inline idx_flat_t(T k, T dy) : key(k), inc_y(dy) {}
+  inline idx_flat_t(T k, T dy, T dz) : key(k), inc_y(dy), inc_z(dz) {}
 
-  inline index_column_major_t(T x, T y, T dim0) {
-    key = x + y * dim0;
-    inc_y = dim0;
-  }
-
-  inline index_column_major_t(T x, T y, T z, T dim0, T dim1) {
-    key = x + (y + z * dim1) * dim0;
-    inc_y = dim0;
-    inc_z = dim0 * dim1;
-  }
-
-  inline index_column_major_t(const self_type& idx) {
+  inline idx_flat_t(const self_type& idx) {
     key = idx.key;
     inc_y = idx.inc_y;
     inc_z = idx.inc_z;
   }
 
-  inline void decode(T& x) const {
-    x = key;
-  }
-
-  inline void decode(T& x, T& y) const {
-    x = key % inc_y;
-    y = key / inc_y;
-  }
-
-  inline void decode(T& x, T& y, T& z) const {
-    x = key % inc_y;
-    y = (key % inc_z) / inc_y;
-    z = key / inc_z;
-  }
-
-  inline self_type incX() const {
+  inline self_type incX(int n = 1) const {
     self_type result(*this);
-    result.key += 1;
+    result.key += n;
     return result;
   }
 
-  inline self_type incY() const {
+  inline self_type incY(int n = 1) const {
     self_type result(*this);
-    result.key += inc_y;
+    result.key += n * inc_y;
     return result;
   }
 
-  inline self_type incZ() const {
+  inline self_type incZ(int n = 1) const {
     self_type result(*this);
-    result.key += inc_z;
+    result.key += n * inc_z;
     return result;
   }
 
-  inline self_type decX() const {
+  inline self_type decX(int n = 1) const {
     self_type result(*this);
-    result.key += 1;
+    result.key -= n;
     return result;
   }
 
-  inline self_type decY() const {
+  inline self_type decY(int n = 1) const {
     self_type result(*this);
-    result.key -= inc_y;
+    result.key -= n * inc_y;
     return result;
   }
 
-  inline self_type decZ() const {
+  inline self_type decZ(int n = 1) const {
     self_type result(*this);
-    result.key -= inc_z;
+    result.key -= n * inc_z;
     return result;
   }
 };
 
 template <class T = uint32_t>
-struct index_row_major_t {
-  T key;
-  T inc_y = 0;
-  T inc_z = 0;
+struct idx_col_major_t : public idx_flat_t<T> {
+  typedef idx_flat_t<T> base_type;
+  typedef idx_col_major_t<T> self_type;
 
-  typedef index_row_major_t<T> self_type;
+  inline explicit idx_col_major_t(T k) : base_type(k) {}
 
-  inline explicit index_row_major_t(T k) : key(k) {}
+  inline idx_col_major_t(T x, T y, T dim0)
+      : base_type(x + y * dim0, dim0) {}
 
-  inline index_row_major_t(T y, T x, T dim0) {
-    key = x + y * dim0;
-    inc_y = dim0;
+  inline idx_col_major_t(T x, T y, T z, T dim0, T dim1)
+      : base_type(x + (y + z * dim1) * dim0, dim0, dim0 * dim1) {}
+
+  inline idx_col_major_t(const self_type& idx) : base_type(idx) {}
+
+  inline void decode(T& x) const { x = this->key; }
+
+  inline void decode(T& x, T& y) const {
+    x = this->key % this->inc_y;
+    y = this->key / this->inc_y;
   }
 
-  inline index_row_major_t(T z, T y, T x, T dim0, T dim1) {
-    key = x + (y + z * dim1) * dim0;
-    inc_y = dim0;
-    inc_z = dim0 * dim1;
+  inline void decode(T& x, T& y, T& z) const {
+    x = this->key % this->inc_y;
+    y = (this->key % this->inc_z) / this->inc_y;
+    z = this->key / this->inc_z;
   }
+};
 
-  inline void decode(T& x) const {
-    x = key;
-  }
+template <class T = uint32_t>
+struct idx_row_major_t : public idx_flat_t<T> {
+  typedef idx_flat_t<T> base_type;
+  typedef idx_row_major_t<T> self_type;
+
+  inline explicit idx_row_major_t(T k) : base_type(k) {}
+
+  inline idx_row_major_t(T y, T x, T dim0)
+      : base_type(x + y * dim0, dim0) {}
+
+  inline idx_row_major_t(T z, T y, T x, T dim0, T dim1)
+      : base_type(x + (y + z * dim1) * dim0, dim0, dim0 * dim1) {}
+
+  inline idx_row_major_t(const self_type& idx) : base_type(idx) {}
+
+  inline void decode(T& x) const { x = this->key; }
 
   inline void decode(T& y, T& x) const {
-    x = key % inc_y;
-    y = key / inc_y;
+    x = this->key % this->inc_y;
+    y = this->key / this->inc_y;
   }
 
   inline void decode(T& z, T& y, T& x) const {
-    x = key % inc_y;
-    y = (key % inc_z) / inc_y;
-    z = key / inc_z;
-  }
-
-  inline self_type incX() const {
-    self_type result(*this);
-    result.key += 1;
-    return result;
-  }
-
-  inline self_type incY() const {
-    self_type result(*this);
-    result.key += inc_y;
-    return result;
-  }
-
-  inline self_type incZ() const {
-    self_type result(*this);
-    result.key += inc_z;
-    return result;
-  }
-
-  inline self_type decX() const {
-    self_type result(*this);
-    result.key -= 1;
-    return result;
-  }
-
-  inline self_type decY() const {
-    self_type result(*this);
-    result.key -= inc_y;
-    return result;
-  }
-
-  inline self_type decZ() const {
-    self_type result(*this);
-    result.key -= inc_z;
-    return result;
+    x = this->key % this->inc_y;
+    y = (this->key % this->inc_z) / this->inc_y;
+    z = this->key / this->inc_z;
   }
 };
 

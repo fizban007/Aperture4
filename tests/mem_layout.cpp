@@ -1,5 +1,6 @@
 #include "morton2d.h"
 #include "morton3d.h"
+#include "core/index.h"
 #include "utils/timer.h"
 #include <iostream>
 #include <random>
@@ -31,23 +32,43 @@ interp(double* f, double x, double y, double z, uint64_t idx,
   return x * f1 + (1.0 - x) * f0;
 }
 
+template <typename Index_t>
 double
-interp_morton(double* f, double x, double y, double z, morton3& m) {
-  double f11 = (1.0 - z) * f[m.incX().incY().key] +
-               z * f[m.incX().incY().incZ().key];
-  double f10 = (1.0 - z) * f[m.incX().key] + z * f[m.incX().incZ().key];
-  double f01 = (1.0 - z) * f[m.incY().key] + z * f[m.incY().incZ().key];
-  double f00 = (1.0 - z) * f[m.key] + z * f[m.incZ().key];
+interp(double* f, double x, double y, double z, const Index_t& idx) {
+  int di_m = 0;
+  int di_p = 1;
+  int dj_m = 0;
+  int dj_p = 1;
+  int dk_m = 0;
+  int dk_p = 1;
+
+  double f11 = (1.0 - z) * f[idx.incX().incY().key] +
+               z * f[idx.incX().incY().incZ().key];
+  double f10 = (1.0 - z) * f[idx.incX().key] + z * f[idx.incX().incZ().key];
+  double f01 = (1.0 - z) * f[idx.incY().key] + z * f[idx.incY().incZ().key];
+  double f00 = (1.0 - z) * f[idx.key] + z * f[idx.incZ().key];
   double f1 = y * f11 + (1.0 - y) * f10;
   double f0 = y * f01 + (1.0 - y) * f00;
   return x * f1 + (1.0 - x) * f0;
 }
 
+// double
+// interp_morton(double* f, double x, double y, double z, morton3& m) {
+//   double f11 = (1.0 - z) * f[m.incX().incY().key] +
+//                z * f[m.incX().incY().incZ().key];
+//   double f10 = (1.0 - z) * f[m.incX().key] + z * f[m.incX().incZ().key];
+//   double f01 = (1.0 - z) * f[m.incY().key] + z * f[m.incY().incZ().key];
+//   double f00 = (1.0 - z) * f[m.key] + z * f[m.incZ().key];
+//   double f1 = y * f11 + (1.0 - y) * f10;
+//   double f0 = y * f01 + (1.0 - y) * f00;
+//   return x * f1 + (1.0 - x) * f0;
+// }
+
 int
 main(int argc, char* argv[]) {
   std::default_random_engine g;
   std::uniform_real_distribution<double> dist(0.0, 1.0);
-  std::uniform_int_distribution<int> dN(3, 58);
+  std::uniform_int_distribution<int> dN(1, 63);
 
   // uint32_t N = 2048 * 2048;
   uint32_t N1 = 512;
@@ -68,7 +89,7 @@ main(int argc, char* argv[]) {
     }
   }
 
-  int M = 100;
+  int M = 1000;
   vector<double> xs(M);
   vector<double> ys(M);
   vector<double> zs(M);
@@ -79,16 +100,17 @@ main(int argc, char* argv[]) {
   }
 
   timer::stamp();
-  for (int t = 0; t < 100; t++) {
+  for (int t = 0; t < 10; t++) {
     int k0 = dN(g) * 8, j0 = dN(g) * 8, i0 = dN(g) * 8;
     for (int k = k0; k < k0 + 8; k++) {
       for (int j = j0; j < j0 + 8; j++) {
         for (int i = i0; i < i0 + 8; i++) {
           // Do interpolation M times
-          uint64_t idx = i + j * N1 + k * N1 * N2;
+          // uint64_t idx = i + j * N1 + k * N1 * N2;
+          index_column_major_t<> idx(i, j, k, N1, N2);
           for (int n = 0; n < M; n++) {
-            u[idx] =
-                interp(v2.data(), xs[n], ys[n], zs[n], idx, N1, N2);
+            u[idx.key] =
+                interp(v2.data(), xs[n], ys[n], zs[n], idx);
           }
         }
       }
@@ -97,14 +119,14 @@ main(int argc, char* argv[]) {
   timer::show_duration_since_stamp("normal indexing", "ms");
 
   timer::stamp();
-  for (int t = 0; t < 100; t++) {
+  for (int t = 0; t < 10; t++) {
     int k0 = dN(g) * 8, j0 = dN(g) * 8, i0 = dN(g) * 8;
     for (int k = k0; k < k0 + 8; k++) {
       for (int j = j0; j < j0 + 8; j++) {
         for (int i = i0; i < i0 + 8; i++) {
           morton3 m = morton3(i, j, k);
           for (int n = 0; n < M; n++) {
-            u[m.key] = interp_morton(v1.data(), xs[n], ys[n], zs[n], m);
+            u[m.key] = interp(v1.data(), xs[n], ys[n], zs[n], m);
           }
         }
       }

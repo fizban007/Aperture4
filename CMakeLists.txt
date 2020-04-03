@@ -1,11 +1,16 @@
 cmake_minimum_required(VERSION 3.8)
-project(Aperture LANGUAGES C CXX)
+project(Aperture LANGUAGES CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
 message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
+option(use_cuda "Include the GPU part of the code" OFF)
+
+if(POLICY CMP0076)
+  cmake_policy(SET CMP0076 NEW)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
@@ -18,12 +23,39 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 # Set include directories
 set(FMT_INCLUDE_DIR deps/fmt/include)
+set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(MORTON_INCLUDE_DIR deps/mortonlib/include)
 
 include_directories(
   ${FMT_INCLUDE_DIR}
+  ${CATCH_INCLUDE_DIR}
   ${MORTON_INCLUDE_DIR}
   src)
+
+# Check for cuda support
+if(use_cuda)
+  message("Checking cuda support")
+  include(CheckLanguage)
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    add_definitions(-DCUDA_ENABLED)
+    message(
+      "Enabling Cuda, ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${CUDA_INCLUDE_DIRS}"
+    )
+    include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+                        ${CUDA_INCLUDE_DIRS})
+    set(CMAKE_CUDA_FLAGS
+        "--expt-extended-lambda --expt-relaxed-constexpr \
+      -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
+      -Xcudafe --diag_suppress=code_is_unreachable -ccbin=${CMAKE_CXX_COMPILER}"
+    )
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+    find_library(CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+  endif()
+endif()
 
 add_subdirectory(deps/fmt)
 add_subdirectory(src)

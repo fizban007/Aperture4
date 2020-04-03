@@ -1,7 +1,6 @@
 #ifndef _LOGGER_H_
 #define _LOGGER_H_
 
-#define FMT_HEADER_ONLY
 // #include "core/enum_types.h"
 #include <cstdio>
 #include <fmt/core.h>

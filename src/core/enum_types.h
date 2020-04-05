@@ -12,6 +12,10 @@ enum class FieldType : char { face_centered = 0, edge_centered = 1 };
 /// Particle types
 enum class PtcType : unsigned char { electron = 0, positron, ion };
 
+// This defines the maximum number of bits in the particle flag to represent the
+// particle type
+constexpr int max_ptc_type_bits = 3;
+
 inline std::string ptc_type_name(int type) {
   if (type == (int)PtcType::electron) {
     return "electron";

@@ -1,11 +1,8 @@
 #ifndef __PARTICLE_STRUCTS_H_
 #define __PARTICLE_STRUCTS_H_
 
-#include <limits>
-#include "typedefs.h"
+#include "typedefs_and_constants.h"
 #include "detail/macro_trickery.h"
-
-#define MAX_CELL std::numeric_limits<uint32_t>::max()
 
 namespace Aperture {
 
@@ -55,7 +52,7 @@ DEF_PARTICLE_STRUCT(ptc,
                     (Aperture::Scalar, p3, 0.0)
                     (Aperture::Scalar, E, 0.0)
                     (Aperture::Scalar, weight, 0.0)
-                    (uint32_t, cell, MAX_CELL)
+                    (uint32_t, cell, empty_cell)
                     (uint64_t, id, 0)
                     (uint32_t, flag, 0));
 
@@ -74,7 +71,7 @@ DEF_PARTICLE_STRUCT(ph,
                     (Aperture::Scalar, E, 0.0)
                     (Aperture::Scalar, weight, 0.0)
                     (Aperture::Scalar, path_left, 0.0)
-                    (uint32_t, cell, MAX_CELL)
+                    (uint32_t, cell, empty_cell)
                     (uint64_t, id, 0)
                     (uint32_t, flag, 0));
 

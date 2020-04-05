@@ -2,7 +2,7 @@
 #define _UTIL_FUNCTIONS_H_
 
 #include "core/cuda_control.h"
-#include "core/typedefs.h"
+#include "core/typedefs_and_constants.h"
 #include "core/enum_types.h"
 #include <string>
 
@@ -65,19 +65,19 @@ toggle_flag(uint32_t& flag, Flag... bits) {
 // Get an integer representing particle type from a given flag
 HD_INLINE int
 get_ptc_type(uint32_t flag) {
-  return (int)(flag >> 29);
+  return (int)(flag >> (32 - max_ptc_type_bits));
 }
 
 // Generate a particle flag from a give particle type
 HD_INLINE uint32_t
 gen_ptc_type_flag(PtcType type) {
-  return ((uint32_t)type << 29);
+  return ((uint32_t)type << (32 - max_ptc_type_bits));
 }
 
 // Set a given flag such that it now represents given particle type
 HD_INLINE uint32_t
 set_ptc_type_flag(uint32_t flag, PtcType type) {
-  return (flag & ((uint32_t)-1 >> 3)) | gen_ptc_type_flag(type);
+  return (flag & ((uint32_t)-1 >> max_ptc_type_bits)) | gen_ptc_type_flag(type);
 }
 
 }  // namespace Aperture

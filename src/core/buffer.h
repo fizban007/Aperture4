@@ -120,26 +120,17 @@ class buffer_t {
   size_t size() { return m_size; }
 
   const T* data() const {
-    if (m_host_allocated)
+    if constexpr (Model == MemoryModel::host_only || Model == MemoryModel::host_device)
       return host_ptr();
-    else if (m_dev_allocated)
-      return dev_ptr();
     else
-      return nullptr;
+      return dev_ptr();
   }
-
   T* data() {
-    if (m_host_allocated)
+    if constexpr (Model == MemoryModel::host_only || Model == MemoryModel::host_device)
       return host_ptr();
-    else if (m_dev_allocated)
-      return dev_ptr();
     else
-      return nullptr;
+      return dev_ptr();
   }
-
-  // TODO: This kind of valid check can potentially cause unnecessary
-  // memcpy between the host and device. Is there a better way to handle
-  // this???
 
   template <MemoryModel M = Model>
   std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr()

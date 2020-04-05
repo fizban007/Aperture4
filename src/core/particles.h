@@ -12,6 +12,9 @@ class particles_base : public BufferType {
   size_t m_size = 0;
   size_t m_number = 0;
 
+  buffer_t<size_t, BufferType::model()> m_index;
+  buffer_t<double, BufferType::model()> m_tmp_data;
+
  public:
   typedef BufferType base_type;
   typedef particles_base<BufferType> self_type;
@@ -23,6 +26,7 @@ class particles_base : public BufferType {
   ~particles_base();
 
   self_type& operator=(const self_type& other) = delete;
+  self_type& operator=(self_type&& other) = default;
 
   void resize(size_t size);
   void init();

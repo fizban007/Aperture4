@@ -43,6 +43,13 @@ particles_base<BufferType>::copy_to_device() {
                          });
 }
 
+template <typename BufferType>
+void
+particles_base<BufferType>::set_num(size_t num) {
+  // Can't set a number larger than maximum size
+  m_number = std::min(num, m_size);
+}
+
 // Explicit instantiation
 template class particles_base<ptc_buffer<MemoryModel::host_only>>;
 template class particles_base<ptc_buffer<MemoryModel::host_device>>;

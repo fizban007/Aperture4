@@ -96,6 +96,8 @@
                                                                        \
   template <MemoryModel Model = MemoryModel::host_only>                \
   struct name##_buffer {                                               \
+    static constexpr MemoryModel model() { return Model; }             \
+                                                                       \
     BOOST_PP_SEQ_FOR_EACH(DEF_BUF_ENTRY, _,                            \
                           GLK_PP_SEQ_DOUBLE_PARENS(content))           \
                                                                        \

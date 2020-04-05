@@ -3,6 +3,7 @@ add_custom_target(check)
 add_executable(tests "test.cpp")
 target_sources(tests PUBLIC
   "test_buffer.cpp"
+  "test_particles.cpp"
 )
 target_link_libraries(tests Aperture)
 
@@ -15,11 +16,10 @@ add_dependencies(check run_tests)
 add_executable(mem_layout "mem_layout.cpp")
 target_link_libraries(mem_layout Aperture)
 
-add_executable(test_di "test_di.cpp")
-target_link_libraries(test_di Aperture)
-
 add_executable(playground "playground.cpp")
 target_link_libraries(playground Aperture)
 
+if (use_cuda)
 add_executable(playground_gpu "playground.cu")
 target_link_libraries(playground_gpu Aperture)
+endif()

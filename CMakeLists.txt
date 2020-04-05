@@ -6,7 +6,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
+
 option(use_cuda "Include the GPU part of the code" OFF)
+option(use_double "Use double precision" OFF)
 
 if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
@@ -25,11 +27,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(MORTON_INCLUDE_DIR deps/mortonlib/include)
+set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
 
 include_directories(
   ${FMT_INCLUDE_DIR}
   ${CATCH_INCLUDE_DIR}
   ${MORTON_INCLUDE_DIR}
+  ${VISIT_STRUCT_INCLUDE_DIR}
   src)
 
 # Check for cuda support
@@ -51,10 +55,14 @@ if(use_cuda)
       -Xcudafe --diag_suppress=code_is_unreachable -ccbin=${CMAKE_CXX_COMPILER}"
     )
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     find_library(CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
   endif()
+endif()
+
+if(use_double)
+  add_definitions(-DUSE_DOUBLE)
 endif()
 
 add_subdirectory(deps/fmt)

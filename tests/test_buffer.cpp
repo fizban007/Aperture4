@@ -57,3 +57,14 @@ TEST_CASE("Managed buffer", "[buffer]") {
   }
 #endif
 }
+
+#ifdef CUDA_ENABLED
+TEST_CASE("Device only buffer", "[buffer]") {
+  uint32_t N = 1000;
+
+  buffer_t<double, MemoryModel::device_only> buf(N);
+
+  REQUIRE(buf.host_allocated() == false);
+  REQUIRE(buf.dev_allocated() == true);
+}
+#endif

@@ -21,7 +21,7 @@ class Logger {
   Logger() {}
   ~Logger();
 
-  static void init(int rank, LogLevel level, std::string log_file);
+  static void init(int rank, LogLevel level, std::string log_file = "");
   static bool open_log_file();
 
   template <typename... Args>

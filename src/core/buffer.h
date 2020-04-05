@@ -15,8 +15,8 @@ enum class MemoryModel : char {
   device_only,
 };
 
-/// A class for linear buffers that manages resources both on the host and the
-/// device.
+/// A class for linear buffers that manages resources both on the host
+/// and the device.
 template <typename T, MemoryModel Model = MemoryModel::host_only>
 class buffer_t {
  private:
@@ -24,8 +24,8 @@ class buffer_t {
 
   mutable T* m_data_h = nullptr;
   mutable T* m_data_d = nullptr;
-  mutable bool m_host_valid = true;
-  mutable bool m_dev_valid = true;
+  // mutable bool m_host_valid = true;
+  // mutable bool m_dev_valid = true;
   bool m_host_allocated = false;
   bool m_dev_allocated = false;
 
@@ -48,6 +48,7 @@ class buffer_t {
     }
 #endif
     m_size = size;
+    Logger::print_debug("Allocated {} bytes", size * sizeof(T));
   }
 
   void free_mem() {
@@ -66,21 +67,52 @@ class buffer_t {
   }
 
  public:
+  typedef buffer_t<T, Model> self_type;
+
   buffer_t() {}
   buffer_t(size_t size) { alloc_mem(size); }
+  buffer_t(const self_type& other) = delete;
+  buffer_t(self_type&& other) {
+    *this = std::move(other);
+  }
 
   ~buffer_t() { free_mem(); }
 
+  self_type& operator=(const self_type& other) = delete;
+  self_type& operator=(self_type&& other) {
+    m_size = other.m_size;
+    m_host_allocated = other.m_host_allocated;
+    m_dev_allocated = other.m_dev_allocated;
+    other.m_host_allocated = false;
+    other.m_dev_allocated = false;
+
+    m_data_h = other.m_data_h;
+    m_data_d = other.m_data_d;
+    other.m_data_h = nullptr;
+    other.m_data_d = nullptr;
+
+    return *this;
+  }
+
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T>
-  operator[](size_t n) const {
+  std::enable_if_t<M != MemoryModel::device_only, T> operator[](
+      size_t n) const {
     return host_ptr()[n];
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T&>
-  operator[](size_t n) {
+  std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
+      size_t n) {
     return host_ptr()[n];
+  }
+
+  void resize(size_t size) {
+    if (m_host_allocated || m_dev_allocated) {
+      free_mem();
+    }
+    alloc_mem(size);
+    // m_host_valid = true;
+    // m_dev_valid = true;
   }
 
   bool host_allocated() { return m_host_allocated; }
@@ -105,41 +137,40 @@ class buffer_t {
       return nullptr;
   }
 
-  // TODO: This kind of valid check can potentially cause unnecessary memcpy
-  // between the host and device. Is there a better way to handle this???
+  // TODO: This kind of valid check can potentially cause unnecessary
+  // memcpy between the host and device. Is there a better way to handle
+  // this???
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, const T*>
-  host_ptr() const {
-    if (!m_host_valid && m_dev_valid) copy_to_host();
+  std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr()
+      const {
+    // if (!m_host_valid && m_dev_valid) copy_to_host();
     return m_data_h;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T*>
-  host_ptr() {
-    m_host_valid = true;
-    m_dev_valid = false;
+  std::enable_if_t<M != MemoryModel::device_only, T*> host_ptr() {
+    // m_host_valid = true;
+    // m_dev_valid = false;
     return m_data_h;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, const T*>
-  dev_ptr() const {
-    if (!m_dev_valid && m_host_valid) copy_to_device();
+  std::enable_if_t<M != MemoryModel::host_only, const T*> dev_ptr()
+      const {
+    // if (!m_dev_valid && m_host_valid) copy_to_device();
     return m_data_d;
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, T*>
-  dev_ptr() {
-    m_dev_valid = true;
-    m_host_valid = false;
+  std::enable_if_t<M != MemoryModel::host_only, T*> dev_ptr() {
+    // m_dev_valid = true;
+    // m_host_valid = false;
     return m_data_d;
   }
 
   void copy_to_host() {
-    m_host_valid = true;
+    // m_host_valid = true;
     if constexpr (Model == MemoryModel::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_h, m_data_d, m_size * sizeof(T),
@@ -149,7 +180,7 @@ class buffer_t {
   }
 
   void copy_to_device() {
-    m_dev_valid = true;
+    // m_dev_valid = true;
     if constexpr (Model == MemoryModel::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_d, m_data_h, m_size * sizeof(T),

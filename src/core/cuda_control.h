@@ -11,6 +11,7 @@
 
 #if defined(CUDA_ENABLED)
 #include <cuda_runtime.h>
+#include <cstdlib>
 
 #define CUDA_ERROR_CHECK  //!< Defines whether to check error
 #define CudaSafeCall(err) \
@@ -32,7 +33,7 @@ __cudaCheckError(const char *file, const int line) {
   if (cudaSuccess != err) {
     fprintf(stderr, "cudaCheckError() failed at %s:%i : %s\n", file,
             line, cudaGetErrorString(err));
-    exit(-1);
+    std::exit(-1);
   }
 
   // More careful checking. However, this will affect performance.
@@ -42,7 +43,7 @@ __cudaCheckError(const char *file, const int line) {
   if (cudaSuccess != err) {
     fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
             file, line, cudaGetErrorString(err));
-    exit(-1);
+    std::exit(-1);
   }
 #endif
 

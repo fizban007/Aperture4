@@ -1,9 +1,9 @@
 #ifndef __BUFFER_H_
 #define __BUFFER_H_
 
-#include "cuda_control.h"
-#include "typedefs_and_constants.h"
-#include "enum_types.h"
+#include "core/cuda_control.h"
+#include "core/typedefs_and_constants.h"
+#include "core/enum_types.h"
 #include "utils/logger.h"
 #include <cstdlib>
 #include <type_traits>

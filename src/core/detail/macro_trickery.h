@@ -73,7 +73,7 @@
 
 #ifndef __CUDACC__
 
-#include "core/buffer.h"
+#include "utils/buffer.h"
 
 #define DEF_PARTICLE_STRUCT(name, content)                             \
   namespace Aperture {                                                 \

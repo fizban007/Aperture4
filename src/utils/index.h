@@ -19,7 +19,7 @@ struct idx_flat_t {
   T inc_y = 0;
   T inc_z = 0;
 
-  typedef idx_flat_t<T> self_type;
+  typedef idx_flat_t<Derived, T> self_type;
 
   HD_INLINE idx_flat_t() {}
   HD_INLINE idx_flat_t(T k) : key(k) {}
@@ -67,6 +67,46 @@ struct idx_flat_t {
     Derived result(*this);
     result.key -= n * inc_z;
     return result;
+  }
+
+  HD_INLINE T x() const {
+    return key % inc_y;
+  }
+
+  HD_INLINE T y() const {
+    return (key % inc_z) / inc_y;
+  }
+
+  HD_INLINE T z() const {
+    return key / inc_z;
+  }
+
+  HD_INLINE Derived& operator++() {
+    ++key;
+    return (Derived&)(*this);
+  }
+
+  HD_INLINE Derived operator++(int) {
+    Derived result(*this);
+    ++result.key;
+    return result;
+  }
+
+  HD_INLINE Derived& operator+=(T x) {
+    key += x;
+    return (Derived&)(*this);
+  }
+
+  HD_INLINE bool operator==(const self_type& other) const {
+    return key == other.key;
+  }
+
+  HD_INLINE bool operator>=(const self_type& other) const {
+    return key >= other.key;
+  }
+
+  HD_INLINE bool operator<(const self_type& other) const {
+    return key < other.key;
   }
 };
 
@@ -149,22 +189,22 @@ struct idx_row_major_t : public idx_flat_t<idx_row_major_t<T>, T> {
 };
 
 template <class T = uint32_t>
-struct idx_zorder {
+struct idx_zorder_t {
   uint64_t key = 0;
   int dim;
 
-  typedef idx_zorder<T> self_type;
+  typedef idx_zorder_t<T> self_type;
 
-  HD_INLINE idx_zorder(uint64_t k, int d) : key(k), dim(d) {}
+  HD_INLINE idx_zorder_t(uint64_t k, int d) : key(k), dim(d) {}
 
-  HD_INLINE idx_zorder(T x, const Extent& ext) : key(x), dim(1) {}
+  HD_INLINE idx_zorder_t(T x, const Extent& ext) : key(x), dim(1) {}
 
-  HD_INLINE idx_zorder(T x, T y, const Extent& ext) {
+  HD_INLINE idx_zorder_t(T x, T y, const Extent& ext) {
     key = morton2d<T>(x, y).key;
     dim = 2;
   }
 
-  HD_INLINE idx_zorder(T x, T y, T z, const Extent& ext) {
+  HD_INLINE idx_zorder_t(T x, T y, T z, const Extent& ext) {
     key = morton3d<T>(x, y, z).key;
     dim = 3;
   }
@@ -242,6 +282,34 @@ struct idx_zorder {
     } else {
       return *this;
     }
+  }
+
+  HD_INLINE self_type& operator++() {
+    ++key;
+    return (self_type&)(*this);
+  }
+
+  HD_INLINE self_type operator++(int) {
+    self_type result(*this);
+    ++result.key;
+    return result;
+  }
+
+  HD_INLINE self_type& operator+=(T x) {
+    key += x;
+    return (self_type&)(*this);
+  }
+
+  HD_INLINE bool operator==(const self_type& other) const {
+    return key == other.key;
+  }
+
+  HD_INLINE bool operator>=(const self_type& other) const {
+    return key >= other.key;
+  }
+
+  HD_INLINE bool operator<(const self_type& other) const {
+    return key < other.key;
   }
 };
 

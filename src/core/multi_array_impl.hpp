@@ -15,7 +15,7 @@ multi_array<T, Model, Index_t>::multi_array(uint32_t width,
                                             uint32_t height,
                                             uint32_t depth)
     : base_type(width * height * depth), m_ext(width, height, depth) {
-  if constexpr (std::is_same_v<Index_t, idx_zorder<>>) {
+  if constexpr (std::is_same_v<Index_t, idx_zorder_t<>>) {
     if (((width != 1) && (width & (width - 1))) ||
         ((height != 1) && (height & (height - 1))) ||
         ((depth != 1) && (depth & (depth - 1)))) {

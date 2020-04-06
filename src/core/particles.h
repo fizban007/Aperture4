@@ -1,7 +1,7 @@
 #ifndef __PARTICLES_H_
 #define __PARTICLES_H_
 
-#include "buffer.h"
+#include "utils/buffer.h"
 #include "particle_structs.h"
 
 namespace Aperture {

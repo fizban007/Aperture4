@@ -2,7 +2,8 @@
 #define __MULTI_ARRAY_H_
 
 #include "typedefs_and_constants.h"
-#include "buffer.h"
+#include "utils/buffer.h"
+#include "utils/range.hpp"
 #include "utils/index.h"
 #include "utils/ndptr.h"
 #include "utils/vec3.h"
@@ -16,7 +17,7 @@ namespace Aperture {
 /// in the definition. Other functions are implemented in the
 /// implementation header file.
 template <typename T, MemoryModel Model = default_memory_model,
-          typename Index_t = idx_col_major_t<>>
+          typename Index_t = default_index_t>
 class multi_array : public buffer_t<T, Model> {
  private:
   Extent m_ext;
@@ -62,21 +63,10 @@ class multi_array : public buffer_t<T, Model> {
     m_ext = other.m_ext;
     other.m_ext = Extent(0, 0, 0);
     return *this;
-  }
+  }  
 
   /// Use the base operator[] for simple uint32_t indexing.
   using base_type::operator[];
-
-  /// Vector indexing operator using an @ref Index object, read only
-  inline T operator[](const Index& index) const {
-    return this->data()[get_idx(index).key];
-  }
-
-  /// Vector indexing operator using an @ref Index object, read and
-  /// write
-  inline T& operator[](const Index& index) {
-    return this->data()[get_idx(index).key];
-  }
 
   /// Vector indexing operator using an @ref Index_t object, read only
   inline T operator[](const idx_type& idx) const {
@@ -138,6 +128,10 @@ class multi_array : public buffer_t<T, Model> {
     return idx_type(index.x, index.y, index.z, m_ext);
   }
 
+  inline idx_type idx_at(uint32_t idx) const {
+    return Index_t(idx, m_ext);
+  }
+
   inline ptr_type get_ptr() { return ptr_type(this->m_data_d); }
 
   inline const_ptr_type get_const_ptr() const {
@@ -145,6 +139,10 @@ class multi_array : public buffer_t<T, Model> {
   }
 
   inline const Extent& extent() const { return m_ext; }
+
+  inline range_proxy<Index_t> indices() const {
+    return range(idx_at(0), idx_at(this->m_size));
+  }
 };
 
 }  // namespace Aperture

@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "core/buffer.h"
+#include "utils/buffer.h"
 
 using namespace Aperture;
 

@@ -107,7 +107,7 @@ main(int argc, char* argv[]) {
         for (int i = i0; i < i0 + 8; i++) {
           // Do interpolation M times
           // uint64_t idx = i + j * N1 + k * N1 * N2;
-          idx_col_major_t<> idx(i, j, k, N1, N2);
+          idx_col_major_t<> idx(i, j, k, Extent{N1, N2, 1u});
           for (int n = 0; n < M; n++) {
             u[idx.key] =
                 interp(v2.data(), xs[n], ys[n], zs[n], idx);

@@ -6,6 +6,13 @@
 
 namespace Aperture {
 
+enum class MemoryModel : char {
+  host_only = 0,
+  host_device,
+  device_managed,
+  device_only,
+};
+
 /// Field staggering type
 enum class FieldType : char { face_centered = 0, edge_centered = 1 };
 

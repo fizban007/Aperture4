@@ -4,6 +4,7 @@ add_executable(tests "test.cpp")
 target_sources(tests PUBLIC
   "test_buffer.cpp"
   "test_particles.cpp"
+  "test_multi_array.cpp"
 )
 target_link_libraries(tests Aperture)
 

@@ -2,24 +2,19 @@
 #define __BUFFER_H_
 
 #include "cuda_control.h"
+#include "typedefs_and_constants.h"
+#include "enum_types.h"
 #include "utils/logger.h"
 #include <cstdlib>
 #include <type_traits>
 
 namespace Aperture {
 
-enum class MemoryModel : char {
-  host_only = 0,
-  host_device,
-  device_managed,
-  device_only,
-};
-
 /// A class for linear buffers that manages resources both on the host
 /// and the device.
-template <typename T, MemoryModel Model = MemoryModel::host_only>
+template <typename T, MemoryModel Model = default_memory_model>
 class buffer_t {
- private:
+ protected:
   size_t m_size = 0;
 
   mutable T* m_data_h = nullptr;
@@ -81,6 +76,8 @@ class buffer_t {
   self_type& operator=(const self_type& other) = delete;
   self_type& operator=(self_type&& other) {
     m_size = other.m_size;
+    other.m_size = 0;
+
     m_host_allocated = other.m_host_allocated;
     m_dev_allocated = other.m_dev_allocated;
     other.m_host_allocated = false;
@@ -95,13 +92,13 @@ class buffer_t {
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T> operator[](
+  inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
       size_t n) const {
     return host_ptr()[n];
   }
 
   template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
+  inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
       size_t n) {
     return host_ptr()[n];
   }

@@ -112,9 +112,9 @@ class buffer_t {
     // m_dev_valid = true;
   }
 
-  bool host_allocated() { return m_host_allocated; }
-  bool dev_allocated() { return m_dev_allocated; }
-  size_t size() { return m_size; }
+  bool host_allocated() const { return m_host_allocated; }
+  bool dev_allocated() const { return m_dev_allocated; }
+  size_t size() const { return m_size; }
 
   const T* data() const {
     if constexpr (Model == MemoryModel::host_only || Model == MemoryModel::host_device)

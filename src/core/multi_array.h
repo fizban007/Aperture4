@@ -3,9 +3,9 @@
 
 #include "typedefs_and_constants.h"
 #include "buffer.h"
-#include "index.h"
-#include "ndptr.h"
-#include "vec3.h"
+#include "utils/index.h"
+#include "utils/ndptr.h"
+#include "utils/vec3.h"
 #include <cstdlib>
 
 namespace Aperture {
@@ -64,6 +64,7 @@ class multi_array : public buffer_t<T, Model> {
     return *this;
   }
 
+  /// Use the base operator[] for simple uint32_t indexing.
   using base_type::operator[];
 
   /// Vector indexing operator using an @ref Index object, read only

@@ -1,8 +1,8 @@
 #ifndef __NDPTR_H_
 #define __NDPTR_H_
 
-#include "cuda_control.h"
-#include "index.h"
+#include "core/cuda_control.h"
+#include "utils/index.h"
 
 namespace Aperture {
 

@@ -1,7 +1,7 @@
 #ifndef __DOUBLE_BUFFER_H_
 #define __DOUBLE_BUFFER_H_
 
-#include "cuda_control.h"
+#include "core/cuda_control.h"
 
 namespace Aperture {
 

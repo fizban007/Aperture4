@@ -3,7 +3,7 @@
 
 #include <cmath>
 #include <iostream>
-#include "cuda_control.h"
+#include "core/cuda_control.h"
 
 namespace Aperture {
 

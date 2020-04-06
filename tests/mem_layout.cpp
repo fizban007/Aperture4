@@ -1,6 +1,6 @@
 #include "morton2d.h"
 #include "morton3d.h"
-#include "core/index.h"
+#include "utils/index.h"
 #include "utils/timer.h"
 #include <iostream>
 #include <random>

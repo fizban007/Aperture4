@@ -1,7 +1,7 @@
 #ifndef __INDEX_H_
 #define __INDEX_H_
 
-#include "cuda_control.h"
+#include "core/cuda_control.h"
 #include "morton2d.h"
 #include "morton3d.h"
 #include "vec3.h"

@@ -80,6 +80,18 @@ set_ptc_type_flag(uint32_t flag, PtcType type) {
   return (flag & ((uint32_t)-1 >> max_ptc_type_bits)) | gen_ptc_type_flag(type);
 }
 
+template <typename T>
+HD_INLINE bool
+not_power_of_two(T num) {
+  return (num != 1) && (num & (num - 1));
+}
+
+template <typename T>
+HD_INLINE bool
+is_power_of_two(T num) {
+  return !not_power_of_two(num);
+}
+
 }  // namespace Aperture
 
 #endif  // _UTIL_FUNCTIONS_H_

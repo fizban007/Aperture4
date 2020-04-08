@@ -2,8 +2,8 @@
 #define __INDEX_H_
 
 #include "core/cuda_control.h"
-#include "morton2d.h"
-#include "morton3d.h"
+// #include "morton2d.h"
+#include "utils/morton.h"
 #include "vec.hpp"
 #include <type_traits>
 

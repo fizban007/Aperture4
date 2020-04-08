@@ -1,7 +1,8 @@
 set(Aperture_src
   "utils/logger.cpp"
   "utils/timer.cpp"
-  "core/particles.cpp")
+  "core/particles.cpp"
+  "core/constant_mem.cu")
 
 add_library(Aperture ${Aperture_src})
 target_link_libraries(Aperture fmt::fmt)

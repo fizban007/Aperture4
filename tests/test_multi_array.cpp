@@ -315,7 +315,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 TEST_CASE("Performance of interpolation on CPU",
           "[multi_array][interpolation]") {
   Logger::print_info("3d interpolation");
-  uint32_t N = 128;
+  uint32_t N = 8;
   uint32_t N1 = N, N2 = N, N3 = N;
   std::default_random_engine g;
   std::uniform_real_distribution<float> dist(0.0, 1.0);
@@ -363,8 +363,8 @@ TEST_CASE("Performance of interpolation on CPU",
     result1[n] = 0.0f;
     result2[n] = 0.0f;
   }
-  std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
-  std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
+  // std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
+  // std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
 
   auto interp_kernel = [N1, N2, N3, M](const auto& f, float* result,
                                        float* xs, float* ys, float* zs,
@@ -390,9 +390,9 @@ TEST_CASE("Performance of interpolation on CPU",
                 zs.host_ptr(), cells2.host_ptr(), ext);
   timer::show_duration_since_stamp("morton indexing", "ms");
 
-  // for (auto idx : range(0ul, result1.size())) {
-  //   REQUIRE(result1[idx] == result2[idx]);
-  // }
+  for (auto idx : range(0ul, result1.size())) {
+    REQUIRE(result1[idx] == result2[idx]);
+  }
 }
 
 TEST_CASE("Performance of laplacian on CPU, 3d",

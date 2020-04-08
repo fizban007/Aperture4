@@ -58,7 +58,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
 #endif
 
   SECTION("Move assignment and constructor") {
-    buffer_t<double, MemoryModel::host_device> buf1 = std::move(buf);
+    auto buf1 = std::move(buf);
 
     REQUIRE(buf.host_allocated() == false);
 #ifdef CUDA_ENABLED
@@ -69,7 +69,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
     REQUIRE(buf1.size() == N);
     REQUIRE(buf1.host_allocated() == true);
 
-    buffer_t<double, MemoryModel::host_device> buf2(std::move(buf1));
+    auto buf2(std::move(buf1));
 
     REQUIRE(buf1.host_allocated() == false);
     REQUIRE(buf1.host_ptr() == nullptr);

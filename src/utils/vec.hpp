@@ -82,7 +82,7 @@ class vec_t {
 
   constexpr int rank() const { return Rank; }
 
-  T size() const {
+  HD_INLINE T size() const {
     T result = memory[0];
 #pragma unroll
     for (int i = 1; i < Rank; i++)
@@ -100,8 +100,20 @@ vec(Args... args) {
 template <int Rank>
 using extent_t = vec_t<uint32_t, Rank>;
 
+template <typename... Args>
+HD_INLINE auto
+extent(Args... args) {
+  return extent_t<sizeof...(Args)>(uint32_t(args)...);
+}
+
 template <int Rank>
 using index_t = vec_t<uint32_t, Rank>;
+
+template <typename... Args>
+HD_INLINE auto
+index(Args... args) {
+  return index_t<sizeof...(Args)>(uint32_t(args)...);
+}
 
 template <int Rank>
 bool not_power_of_two(const extent_t<Rank>& ext) {

@@ -20,8 +20,8 @@ add_dependencies(check run_tests)
 # add_executable(mem_layout "mem_layout.cpp")
 # target_link_libraries(mem_layout Aperture)
 
-add_executable(playground "playground.cpp")
-target_link_libraries(playground Aperture)
+# add_executable(playground "playground.cpp")
+# target_link_libraries(playground Aperture)
 
 if(use_cuda)
   add_executable(playground_gpu "playground.cu")

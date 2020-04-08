@@ -171,7 +171,7 @@ indices(std::initializer_list<T>&& cont) {
 template<typename T>
 using step_range = typename range_proxy<T>::step_range_proxy;
 
-#ifdef __CUDA_ARCH__
+#ifdef __CUDACC__
 
 template <typename T>
 __device__ __forceinline__

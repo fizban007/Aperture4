@@ -1,8 +1,8 @@
 #ifndef __PARTICLE_STRUCTS_H_
 #define __PARTICLE_STRUCTS_H_
 
-#include "typedefs_and_constants.h"
-#include "detail/macro_trickery.h"
+#include "core/typedefs_and_constants.h"
+#include "core/detail/macro_trickery.h"
 
 namespace Aperture {
 

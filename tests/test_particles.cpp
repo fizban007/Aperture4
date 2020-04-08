@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "core/particles.h"
+#include "components/particles.h"
 #include "utils/util_functions.h"
 
 using namespace Aperture;

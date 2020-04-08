@@ -1,7 +1,7 @@
 set(Aperture_src
   "utils/logger.cpp"
   "utils/timer.cpp"
-  "core/particles.cpp"
+  "components/particles.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)

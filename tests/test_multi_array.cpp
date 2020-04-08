@@ -45,7 +45,7 @@ TEST_CASE("Morton incX and incY", "[morton]") {
     REQUIRE(n[1] == 10);
 
     idx_zorder_t<3> idx2(index(10, 15, 8), extent(32, 32, 32));
-    auto m = idx2.dec<0>(4).inc<1>(9).inc<2>(4).get_pos();
+    auto m = idx2.dec_x(4).inc_y(9).inc_z(4).get_pos();
     REQUIRE(m[0] == 6);
     REQUIRE(m[1] == 24);
     REQUIRE(m[2] == 12);

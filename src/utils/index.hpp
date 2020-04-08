@@ -43,6 +43,30 @@ struct idx_base_t {
   HD_INLINE bool operator<(const Derived& other) const {
     return linear < other.linear;
   }
+
+  HD_INLINE Derived inc_x(int n = 1) const {
+    return ((Derived&)*this).template inc<0>(n);
+  }
+
+  HD_INLINE Derived inc_y(int n = 1) const {
+    return ((Derived&)*this).template inc<1>(n);
+  }
+
+  HD_INLINE Derived inc_z(int n = 1) const {
+    return ((Derived&)*this).template inc<2>(n);
+  }
+
+  HD_INLINE Derived dec_x(int n = 1) const {
+    return ((Derived&)*this).template dec<0>(n);
+  }
+
+  HD_INLINE Derived dec_y(int n = 1) const {
+    return ((Derived&)*this).template dec<1>(n);
+  }
+
+  HD_INLINE Derived dec_z(int n = 1) const {
+    return ((Derived&)*this).template dec<2>(n);
+  }
 };
 
 template <int Rank>

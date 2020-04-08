@@ -28,6 +28,10 @@ struct ndptr {
     return Index_t(idx, ext);
   }
 
+  HD_INLINE idx_type idx_at(const index_t<Rank>& idx, const extent_t<Rank>& ext) const {
+    return Index_t(idx, ext);
+  }
+
   HD_INLINE range_proxy<Index_t> indices(const extent_t<Rank>& ext) const {
     return range(Index_t(0, ext), Index_t(ext.size(), ext));
   }
@@ -48,6 +52,10 @@ struct ndptr_const {
   }
 
   HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {
+    return Index_t(idx, ext);
+  }
+
+  HD_INLINE idx_type idx_at(const index_t<Rank>& idx, const extent_t<Rank>& ext) const {
     return Index_t(idx, ext);
   }
 

@@ -83,7 +83,8 @@ struct idx_col_major_t
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_strides(const vec_t<uint32_t, Rank>& extent) {
+  HD_INLINE vec_t<uint32_t, Rank> get_strides(
+      const vec_t<uint32_t, Rank>& extent) {
     auto result = vec_t<uint32_t, Rank>{};
 
     result[0] = 1;
@@ -94,9 +95,11 @@ struct idx_col_major_t
     return result;
   }
 
+  // template <int Dir>
+  //     HD_INLINE std::enable_if_t <
+  //     Dir<Rank, self_type> inc(int n = 1) const {
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> inc(int n = 1) const {
+  HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += strides[Dir];
@@ -126,7 +129,8 @@ struct idx_row_major_t
     this->linear = linear;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_strides(const vec_t<uint32_t, Rank>& extent) {
+  HD_INLINE vec_t<uint32_t, Rank> get_strides(
+      const vec_t<uint32_t, Rank>& extent) {
     auto result = vec_t<uint32_t, Rank>{};
 
     if (Rank > 0) result[Rank - 1] = 1;
@@ -154,8 +158,9 @@ struct idx_row_major_t
   }
 
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> inc(int n = 1) const {
+  //     HD_INLINE std::enable_if_t <
+  //     Dir<Rank, self_type> inc(int n = 1) const {
+  HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += strides[Dir];
@@ -164,12 +169,10 @@ struct idx_row_major_t
 };
 
 template <int Rank>
-struct idx_zorder_t
-    : public idx_base_t<idx_zorder_t<Rank>, Rank> {};
+struct idx_zorder_t : public idx_base_t<idx_zorder_t<Rank>, Rank> {};
 
 template <>
-struct idx_zorder_t<2>
-    : public idx_base_t<idx_zorder_t<2>, 2> {
+struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
   typedef idx_base_t<idx_zorder_t<2>, 2> base_type;
   typedef idx_zorder_t<2> self_type;
 
@@ -233,8 +236,7 @@ idx_zorder_t<2>::inc<1>(int n) const {
 }
 
 template <>
-struct idx_zorder_t<3>
-    : public idx_base_t<idx_zorder_t<3>, 3> {
+struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
   typedef idx_base_t<idx_zorder_t<3>, 3> base_type;
   typedef idx_zorder_t<3> self_type;
 

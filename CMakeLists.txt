@@ -21,7 +21,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
 else()
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 endif()
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
 
 # Set include directories
 set(FMT_INCLUDE_DIR deps/fmt/include)

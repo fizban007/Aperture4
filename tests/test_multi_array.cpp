@@ -358,4 +358,8 @@ TEST_CASE("Performance of interpolation on CPU",
   interp_kernel(v2, result2.host_ptr(), xs.host_ptr(), ys.host_ptr(),
                 zs.host_ptr(), cells2.host_ptr(), ext);
   timer::show_duration_since_stamp("morton indexing", "ms");
+
+  // for (auto idx : range(0ul, result1.size())) {
+  //   REQUIRE(result1[idx] == result2[idx]);
+  // }
 }

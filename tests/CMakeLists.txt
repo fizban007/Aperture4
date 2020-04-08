@@ -5,9 +5,14 @@ target_sources(tests PUBLIC
   "test_buffer.cpp"
   "test_particles.cpp"
   "test_multi_array.cpp"
-  "test_multi_array.cu"
-  "test_vec.cu"
   )
+if (use_cuda AND CMAKE_CUDA_COMPILER)
+  target_sources(tests PUBLIC
+    "test_multi_array.cu"
+    "test_vec.cu"
+    )
+endif()
+
 target_link_libraries(tests Aperture)
 
 add_custom_target(
@@ -23,7 +28,7 @@ add_dependencies(check run_tests)
 # add_executable(playground "playground.cpp")
 # target_link_libraries(playground Aperture)
 
-if(use_cuda)
+if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(playground_gpu "playground.cu")
   target_link_libraries(playground_gpu Aperture)
 endif()

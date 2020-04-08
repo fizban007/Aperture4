@@ -95,14 +95,23 @@ struct idx_col_major_t
     return result;
   }
 
-  // template <int Dir>
-  //     HD_INLINE std::enable_if_t <
-  //     Dir<Rank, self_type> inc(int n = 1) const {
   template <int Dir>
-  HD_INLINE self_type inc(int n = 1) const {
+      HD_INLINE std::enable_if_t <
+      Dir<Rank, self_type> inc(int n = 1) const {
+    // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += strides[Dir];
+    return result;
+  }
+
+  template <int Dir>
+      HD_INLINE std::enable_if_t <
+      Dir<Rank, self_type> dec(int n = 1) const {
+    // HD_INLINE self_type inc(int n = 1) const {
+    auto result = *this;
+    // result.pos[Dir] += n;
+    result.linear -= strides[Dir];
     return result;
   }
 };
@@ -158,12 +167,22 @@ struct idx_row_major_t
   }
 
   template <int Dir>
-  //     HD_INLINE std::enable_if_t <
-  //     Dir<Rank, self_type> inc(int n = 1) const {
-  HD_INLINE self_type inc(int n = 1) const {
+      HD_INLINE std::enable_if_t <
+      Dir<Rank, self_type> inc(int n = 1) const {
+    // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += strides[Dir];
+    return result;
+  }
+
+  template <int Dir>
+      HD_INLINE std::enable_if_t <
+      Dir<Rank, self_type> dec(int n = 1) const {
+    // HD_INLINE self_type inc(int n = 1) const {
+    auto result = *this;
+    // result.pos[Dir] += n;
+    result.linear -= strides[Dir];
     return result;
   }
 };
@@ -203,6 +222,9 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
 
   template <int Dir>
   HD_INLINE self_type inc(int n = 1) const;
+
+  template <int Dir>
+  HD_INLINE self_type dec(int n = 1) const;
 };
 
 template <>
@@ -210,12 +232,7 @@ HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::inc<0>(int n) const {
   auto result = *this;
   // result.pos[0] += n;
-  auto m = morton2d<uint32_t>(result.linear);
-  if (n > 0) {
-    for (int i = 0; i < n; i++) m = m.incX();
-  } else {
-    for (int i = 0; i > n; i--) m = m.decX();
-  }
+  auto m = morton2(result.linear).incX(n);
   result.linear = m.key;
   return result;
 }
@@ -225,12 +242,7 @@ HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::inc<1>(int n) const {
   auto result = *this;
   // result.pos[1] += n;
-  auto m = morton2d<uint32_t>(result.linear);
-  if (n > 0) {
-    for (int i = 0; i < n; i++) m = m.incY();
-  } else {
-    for (int i = 0; i > n; i--) m = m.decY();
-  }
+  auto m = morton2(result.linear).incY(n);
   result.linear = m.key;
   return result;
 }
@@ -268,6 +280,9 @@ struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
 
   template <int Dir>
   HD_INLINE self_type inc(int n = 1) const;
+
+  template <int Dir>
+  HD_INLINE self_type dec(int n = 1) const;
 };
 
 template <>
@@ -275,12 +290,7 @@ HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<0>(int n) const {
   auto result = *this;
   // result.pos[0] += n;
-  auto m = morton3d<uint32_t>(result.linear);
-  if (n > 0) {
-    for (int i = 0; i < n; i++) m = m.incX();
-  } else {
-    for (int i = 0; i > n; i--) m = m.decX();
-  }
+  auto m = morton3(result.linear).incX(n);
   result.linear = m.key;
   return result;
 }
@@ -290,12 +300,7 @@ HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<1>(int n) const {
   auto result = *this;
   // result.pos[1] += n;
-  auto m = morton3d<uint32_t>(result.linear);
-  if (n > 0) {
-    for (int i = 0; i < n; i++) m = m.incY();
-  } else {
-    for (int i = 0; i > n; i--) m = m.decY();
-  }
+  auto m = morton3(result.linear).incY(n);
   result.linear = m.key;
   return result;
 }
@@ -305,12 +310,7 @@ HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<2>(int n) const {
   auto result = *this;
   // result.pos[2] += n;
-  auto m = morton3d<uint32_t>(result.linear);
-  if (n > 0) {
-    for (int i = 0; i < n; i++) m = m.incZ();
-  } else {
-    for (int i = 0; i > n; i--) m = m.decZ();
-  }
+  auto m = morton3(result.linear).incZ(n);
   result.linear = m.key;
   return result;
 }

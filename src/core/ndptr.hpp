@@ -22,7 +22,7 @@ struct ndptr {
   HOST_DEVICE ndptr(T* p_) : p(p_) {}
 
   HD_INLINE T& operator[](size_t idx) { return p[idx]; }
-  HD_INLINE T& operator[](const Index_t& idx) { return p[idx.key]; }
+  HD_INLINE T& operator[](const Index_t& idx) { return p[idx.linear]; }
 
   HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {
     return Index_t(idx, ext);
@@ -48,7 +48,7 @@ struct ndptr_const {
   // Cannot use this operator to change the underlying data
   HD_INLINE T operator[](size_t idx) const { return p[idx]; }
   HD_INLINE T operator[](const Index_t& idx) const {
-    return p[idx.key];
+    return p[idx.linear];
   }
 
   HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {

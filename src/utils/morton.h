@@ -263,41 +263,65 @@ public:
 	   morton3(4,5,6).incX() == morton3(5,5,6);
 
 	   Ref : http://bitmath.blogspot.fr/2012/11/tesseral-arithmetic-useful-snippets.html */
-	HD_INLINE morton3d incX() const
+	HD_INLINE morton3d incX(int n = 1) const
 	{
-		const T x_sum = static_cast<T>((this->key | yz3_mask) + 4);
+#ifdef __CUDA_ARCH__
+		const T x_sum = static_cast<T>((this->key | yz3_mask) + (morton3dLUT_dev[n] << 2));
+#else
+		const T x_sum = static_cast<T>((this->key | yz3_mask) + (morton3dLUT[n] << 2));
+#endif
 		return morton3d<T>((x_sum & x3_mask) | (this->key & yz3_mask));
 	}
 
-	HD_INLINE morton3d incY() const
+	HD_INLINE morton3d incY(int n = 1) const
 	{
-		const T y_sum = static_cast<T>((this->key | xz3_mask) + 2);
+#ifdef __CUDA_ARCH__
+		const T y_sum = static_cast<T>((this->key | xz3_mask) + (morton3dLUT_dev[n] << 1));
+#else
+		const T y_sum = static_cast<T>((this->key | xz3_mask) + (morton3dLUT[n] << 1));
+#endif
 		return morton3d<T>((y_sum & y3_mask) | (this->key & xz3_mask));
 	}
 
-	HD_INLINE morton3d incZ() const
+	HD_INLINE morton3d incZ(int n = 1) const
 	{
-		const T z_sum = static_cast<T>((this->key | xy3_mask) + 1);
+#ifdef __CUDA_ARCH__
+		const T z_sum = static_cast<T>((this->key | xy3_mask) + morton3dLUT_dev[n]);
+#else
+		const T z_sum = static_cast<T>((this->key | xy3_mask) + morton3dLUT[n]);
+#endif
 		return morton3d<T>((z_sum & z3_mask) | (this->key & xy3_mask));
 	}
 
 	/* Decrement X part of a morton3 code (xyz interleaving)
 	   morton3(4,5,6).decX() == morton3(3,5,6); */
-	HD_INLINE morton3d decX() const
+	HD_INLINE morton3d decX(int n = 1) const
 	{
-		const T x_diff = (this->key & x3_mask) - 4;
+#ifdef __CUDA_ARCH__
+		const T x_diff = (this->key & x3_mask) - (morton3dLUT_dev[n] << 2);
+#else
+		const T x_diff = (this->key & x3_mask) - (morton3dLUT[n] << 2);
+#endif
 		return morton3d<T>((x_diff & x3_mask) | (this->key & yz3_mask));
 	}
 
-	HD_INLINE morton3d decY() const
+	HD_INLINE morton3d decY(int n = 1) const
 	{
-		const T y_diff = (this->key & y3_mask) - 2;
+#ifdef __CUDA_ARCH__
+		const T y_diff = (this->key & y3_mask) - (morton3dLUT_dev[n] << 1);
+#else
+		const T y_diff = (this->key & y3_mask) - (morton3dLUT[n] << 1);
+#endif
 		return morton3d<T>((y_diff & y3_mask) | (this->key & xz3_mask));
 	}
 
-	HD_INLINE morton3d decZ() const
+	HD_INLINE morton3d decZ(int n = 1) const
 	{
-		const T z_diff = (this->key & z3_mask) - 1;
+#ifdef __CUDA_ARCH__
+		const T z_diff = (this->key & z3_mask) - morton3dLUT_dev[n];
+#else
+		const T z_diff = (this->key & z3_mask) - morton3dLUT[n];
+#endif
 		return morton3d<T>((z_diff & z3_mask) | (this->key & xy3_mask));
 	}
 
@@ -505,27 +529,43 @@ public:
 	morton2(4,5).incX() == morton2(5,5);
 
 	Ref : http://bitmath.blogspot.fr/2012/11/tesseral-arithmetic-useful-snippets.html */
-	HD_INLINE morton2d incX() const
+	HD_INLINE morton2d incX(int n = 1) const
 	{
-		const T x_sum = static_cast<T>((this->key | y2_mask) + 2);
+#ifdef __CUDA_ARCH__
+		const T x_sum = static_cast<T>((this->key | y2_mask) + (morton2dLUT_dev[n] << 1));
+#else
+		const T x_sum = static_cast<T>((this->key | y2_mask) + (morton2dLUT[n] << 1));
+#endif
 		return morton2d<T>((x_sum & x2_mask) | (this->key & y2_mask));
 	}
 
-	HD_INLINE morton2d incY() const
+	HD_INLINE morton2d incY(int n = 1) const
 	{
-		const T y_sum = static_cast<T>((this->key | x2_mask) + 1);
+#ifdef __CUDA_ARCH__
+		const T y_sum = static_cast<T>((this->key | x2_mask) + morton2dLUT_dev[n]);
+#else
+		const T y_sum = static_cast<T>((this->key | x2_mask) + morton2dLUT[n]);
+#endif
 		return morton2d<T>((y_sum & y2_mask) | (this->key & x2_mask));
 	}
 
-	HD_INLINE morton2d decX() const
+	HD_INLINE morton2d decX(int n = 1) const
 	{
-		const T x_diff = static_cast<T>((this->key & x2_mask) - 2);
+#ifdef __CUDA_ARCH__
+		const T x_diff = static_cast<T>((this->key & x2_mask) - (morton2dLUT_dev[n] << 1));
+#else
+		const T x_diff = static_cast<T>((this->key & x2_mask) - (morton2dLUT[n] << 1));
+#endif
 		return morton2d<T>((x_diff & x2_mask) | (this->key & y2_mask));
 	}
 
-	HD_INLINE morton2d decY() const
+	HD_INLINE morton2d decY(int n = 1) const
 	{
-		const T y_diff = static_cast<T>((this->key & y2_mask) - 1);
+#ifdef __CUDA_ARCH__
+		const T y_diff = static_cast<T>((this->key & y2_mask) - morton2dLUT_dev[n]);
+#else
+		const T y_diff = static_cast<T>((this->key & y2_mask) - morton2dLUT[n]);
+#endif
 		return morton2d<T>((y_diff & y2_mask) | (this->key & x2_mask));
 	}
 

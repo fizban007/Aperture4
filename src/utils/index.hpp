@@ -101,7 +101,7 @@ struct idx_col_major_t
     // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear += strides[Dir];
+    result.linear += n * strides[Dir];
     return result;
   }
 
@@ -111,7 +111,7 @@ struct idx_col_major_t
     // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear -= strides[Dir];
+    result.linear -= n * strides[Dir];
     return result;
   }
 };
@@ -172,7 +172,7 @@ struct idx_row_major_t
     // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear += strides[Dir];
+    result.linear += n * strides[Dir];
     return result;
   }
 
@@ -182,7 +182,7 @@ struct idx_row_major_t
     // HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear -= strides[Dir];
+    result.linear -= n * strides[Dir];
     return result;
   }
 };
@@ -243,6 +243,26 @@ idx_zorder_t<2>::inc<1>(int n) const {
   auto result = *this;
   // result.pos[1] += n;
   auto m = morton2(result.linear).incY(n);
+  result.linear = m.key;
+  return result;
+}
+
+template <>
+HD_INLINE idx_zorder_t<2>
+idx_zorder_t<2>::dec<0>(int n) const {
+  auto result = *this;
+  // result.pos[0] += n;
+  auto m = morton2(result.linear).decX(n);
+  result.linear = m.key;
+  return result;
+}
+
+template <>
+HD_INLINE idx_zorder_t<2>
+idx_zorder_t<2>::dec<1>(int n) const {
+  auto result = *this;
+  // result.pos[1] += n;
+  auto m = morton2(result.linear).decY(n);
   result.linear = m.key;
   return result;
 }
@@ -311,6 +331,36 @@ idx_zorder_t<3>::inc<2>(int n) const {
   auto result = *this;
   // result.pos[2] += n;
   auto m = morton3(result.linear).incZ(n);
+  result.linear = m.key;
+  return result;
+}
+
+template <>
+HD_INLINE idx_zorder_t<3>
+idx_zorder_t<3>::dec<0>(int n) const {
+  auto result = *this;
+  // result.pos[0] += n;
+  auto m = morton3(result.linear).decX(n);
+  result.linear = m.key;
+  return result;
+}
+
+template <>
+HD_INLINE idx_zorder_t<3>
+idx_zorder_t<3>::dec<1>(int n) const {
+  auto result = *this;
+  // result.pos[1] += n;
+  auto m = morton3(result.linear).decY(n);
+  result.linear = m.key;
+  return result;
+}
+
+template <>
+HD_INLINE idx_zorder_t<3>
+idx_zorder_t<3>::dec<2>(int n) const {
+  auto result = *this;
+  // result.pos[2] += n;
+  auto m = morton3(result.linear).decZ(n);
   result.linear = m.key;
   return result;
 }

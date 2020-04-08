@@ -43,30 +43,6 @@ struct idx_base_t {
   HD_INLINE bool operator<(const Derived& other) const {
     return linear < other.linear;
   }
-
-  HD_INLINE Derived inc_x(int n = 1) const {
-    return ((Derived&)*this).template inc<0>(n);
-  }
-
-  HD_INLINE Derived inc_y(int n = 1) const {
-    return ((Derived&)*this).template inc<1>(n);
-  }
-
-  HD_INLINE Derived inc_z(int n = 1) const {
-    return ((Derived&)*this).template inc<2>(n);
-  }
-
-  HD_INLINE Derived dec_x(int n = 1) const {
-    return ((Derived&)*this).template dec<0>(n);
-  }
-
-  HD_INLINE Derived dec_y(int n = 1) const {
-    return ((Derived&)*this).template dec<1>(n);
-  }
-
-  HD_INLINE Derived dec_z(int n = 1) const {
-    return ((Derived&)*this).template dec<2>(n);
-  }
 };
 
 template <int Rank>
@@ -120,9 +96,9 @@ struct idx_col_major_t
   }
 
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> inc(int n = 1) const {
-    // HD_INLINE self_type inc(int n = 1) const {
+  // HD_INLINE std::enable_if_t <
+  // Dir<Rank, self_type> inc(int n = 1) const {
+  HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += n * strides[Dir];
@@ -130,14 +106,26 @@ struct idx_col_major_t
   }
 
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> dec(int n = 1) const {
-    // HD_INLINE self_type inc(int n = 1) const {
+  // HD_INLINE std::enable_if_t <
+  // Dir<Rank, self_type> dec(int n = 1) const {
+  HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear -= n * strides[Dir];
     return result;
   }
+
+  HD_INLINE self_type inc_x(int n = 1) const { return inc<0>(n); }
+
+  HD_INLINE self_type inc_y(int n = 1) const { return inc<1>(n); }
+
+  HD_INLINE self_type inc_z(int n = 1) const { return inc<2>(n); }
+
+  HD_INLINE self_type dec_x(int n = 1) const { return dec<0>(n); }
+
+  HD_INLINE self_type dec_y(int n = 1) const { return dec<1>(n); }
+
+  HD_INLINE self_type dec_z(int n = 1) const { return dec<2>(n); }
 };
 
 template <int Rank>
@@ -191,9 +179,9 @@ struct idx_row_major_t
   }
 
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> inc(int n = 1) const {
-    // HD_INLINE self_type inc(int n = 1) const {
+  // HD_INLINE std::enable_if_t <
+  // Dir<Rank, self_type> inc(int n = 1) const {
+  HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear += n * strides[Dir];
@@ -201,13 +189,37 @@ struct idx_row_major_t
   }
 
   template <int Dir>
-      HD_INLINE std::enable_if_t <
-      Dir<Rank, self_type> dec(int n = 1) const {
-    // HD_INLINE self_type inc(int n = 1) const {
+  // HD_INLINE std::enable_if_t <
+  // Dir<Rank, self_type> dec(int n = 1) const {
+  HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
     result.linear -= n * strides[Dir];
     return result;
+  }
+
+  HD_INLINE self_type inc_x(int n = 1) const {
+    return inc<Rank - 1>(n);
+  }
+
+  HD_INLINE self_type inc_y(int n = 1) const {
+    return inc<Rank - 2>(n);
+  }
+
+  HD_INLINE self_type inc_z(int n = 1) const {
+    return inc<Rank - 3>(n);
+  }
+
+  HD_INLINE self_type dec_x(int n = 1) const {
+    return dec<Rank - 1>(n);
+  }
+
+  HD_INLINE self_type dec_y(int n = 1) const {
+    return dec<Rank - 2>(n);
+  }
+
+  HD_INLINE self_type dec_z(int n = 1) const {
+    return dec<Rank - 3>(n);
   }
 };
 
@@ -249,46 +261,62 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
 
   template <int Dir>
   HD_INLINE self_type dec(int n = 1) const;
+
+  HD_INLINE self_type inc_x(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton2(result.linear).incX(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type inc_y(int n = 1) const {
+    auto result = *this;
+    // result.pos[1] += n;
+    auto m = morton2(result.linear).incY(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type dec_x(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton2(result.linear).decX(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type dec_y(int n = 1) const {
+    auto result = *this;
+    // result.pos[1] += n;
+    auto m = morton2(result.linear).decY(n);
+    result.linear = m.key;
+    return result;
+  }
 };
 
 template <>
 HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::inc<0>(int n) const {
-  auto result = *this;
-  // result.pos[0] += n;
-  auto m = morton2(result.linear).incX(n);
-  result.linear = m.key;
-  return result;
+  return inc_x(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::inc<1>(int n) const {
-  auto result = *this;
-  // result.pos[1] += n;
-  auto m = morton2(result.linear).incY(n);
-  result.linear = m.key;
-  return result;
+  return inc_y(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::dec<0>(int n) const {
-  auto result = *this;
-  // result.pos[0] += n;
-  auto m = morton2(result.linear).decX(n);
-  result.linear = m.key;
-  return result;
+  return dec_x(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<2>
 idx_zorder_t<2>::dec<1>(int n) const {
-  auto result = *this;
-  // result.pos[1] += n;
-  auto m = morton2(result.linear).decY(n);
-  result.linear = m.key;
-  return result;
+  return dec_y(n);
 }
 
 template <>
@@ -327,66 +355,90 @@ struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
 
   template <int Dir>
   HD_INLINE self_type dec(int n = 1) const;
+
+  HD_INLINE self_type inc_x(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).incX(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type inc_y(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).incY(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type inc_z(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).incZ(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type dec_x(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).decX(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type dec_y(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).decY(n);
+    result.linear = m.key;
+    return result;
+  }
+
+  HD_INLINE self_type dec_z(int n = 1) const {
+    auto result = *this;
+    // result.pos[0] += n;
+    auto m = morton3(result.linear).decZ(n);
+    result.linear = m.key;
+    return result;
+  }
 };
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<0>(int n) const {
-  auto result = *this;
-  // result.pos[0] += n;
-  auto m = morton3(result.linear).incX(n);
-  result.linear = m.key;
-  return result;
+  return inc_x(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<1>(int n) const {
-  auto result = *this;
-  // result.pos[1] += n;
-  auto m = morton3(result.linear).incY(n);
-  result.linear = m.key;
-  return result;
+  return inc_y(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::inc<2>(int n) const {
-  auto result = *this;
-  // result.pos[2] += n;
-  auto m = morton3(result.linear).incZ(n);
-  result.linear = m.key;
-  return result;
+  return inc_z(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::dec<0>(int n) const {
-  auto result = *this;
-  // result.pos[0] += n;
-  auto m = morton3(result.linear).decX(n);
-  result.linear = m.key;
-  return result;
+  return dec_x(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::dec<1>(int n) const {
-  auto result = *this;
-  // result.pos[1] += n;
-  auto m = morton3(result.linear).decY(n);
-  result.linear = m.key;
-  return result;
+  return dec_y(n);
 }
 
 template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::dec<2>(int n) const {
-  auto result = *this;
-  // result.pos[2] += n;
-  auto m = morton3(result.linear).decZ(n);
-  result.linear = m.key;
-  return result;
+  return dec_z(n);
 }
 
 }  // namespace Aperture

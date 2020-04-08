@@ -62,7 +62,7 @@ TEST_CASE("row and col major inc and dec", "[index]") {
 
   idx_row_major_t<3> idr(index(3, 7, 9), extent(10, 10, 10));
 
-  pos = idr.inc<0>(4).dec<1>(2).dec<2>(5).get_pos();
+  pos = idr.inc_z(4).dec_y(2).dec_x(5).get_pos();
   REQUIRE(pos[0] == 7);
   REQUIRE(pos[1] == 5);
   REQUIRE(pos[2] == 4);
@@ -324,7 +324,7 @@ TEST_CASE("Performance of interpolation on CPU",
   auto ext = extent(N1, N2, N3);
 
   auto v1 =
-      make_multi_array<float, MemoryModel::host_only, idx_row_major_t>(
+      make_multi_array<float, MemoryModel::host_only, idx_col_major_t>(
           ext);
   auto v2 =
       make_multi_array<float, MemoryModel::host_only, idx_zorder_t>(

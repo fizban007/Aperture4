@@ -67,7 +67,6 @@ TEST_CASE("row and col major inc and dec", "[index]") {
   REQUIRE(pos[1] == 5);
   REQUIRE(pos[2] == 4);
   // REQUIRE(idr.strides[0] == 10 * 10);
-
 }
 
 TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
@@ -315,6 +314,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
 TEST_CASE("Performance of interpolation on CPU",
           "[multi_array][interpolation]") {
+  Logger::print_info("3d interpolation");
   uint32_t N = 128;
   uint32_t N1 = N, N2 = N, N3 = N;
   std::default_random_engine g;
@@ -395,21 +395,22 @@ TEST_CASE("Performance of interpolation on CPU",
   // }
 }
 
-TEST_CASE("Performance of laplacian on CPU",
+TEST_CASE("Performance of laplacian on CPU, 3d",
           "[multi_array][finite_diff]") {
+  Logger::print_info("3d grid based");
   uint32_t N = 256;
   uint32_t N1 = N, N2 = N, N3 = N;
 
   auto ext = extent(N1, N2, N3);
 
   auto v1 =
-      make_multi_array<float, MemoryModel::host_only, idx_col_major_t>(
+      make_multi_array<float, MemoryModel::host_only, idx_row_major_t>(
           ext);
   auto v2 =
       make_multi_array<float, MemoryModel::host_only, idx_zorder_t>(
           ext);
   auto u1 =
-      make_multi_array<float, MemoryModel::host_only, idx_col_major_t>(
+      make_multi_array<float, MemoryModel::host_only, idx_row_major_t>(
           ext);
   auto u2 =
       make_multi_array<float, MemoryModel::host_only, idx_zorder_t>(
@@ -436,12 +437,14 @@ TEST_CASE("Performance of laplacian on CPU",
       auto pos = idx.get_pos();
       if (pos[0] > 1 && pos[1] > 1 && pos[2] > 1 && pos[0] < N1 - 2 &&
           pos[1] < N2 - 2 && pos[2] < N3 - 2) {
-        u[idx] = 0.1f * (f[idx.template inc<0>()] +
-                         f[idx.template dec<0>(2)] - 2.0f * f[idx]);
-        u[idx] += 0.15f * (f[idx.template inc<2>(2)] +
-                           f[idx.template dec<2>()] - 2.0f * f[idx]);
-        u[idx] += 0.2f * (f[idx.template inc<1>(2)] -
-                          f[idx.template dec<1>(2)]);
+        u[idx] =
+            0.2f * (f[idx.template inc<1>(2)] -
+                    f[idx.template dec<1>(2)]) +
+            0.15f *
+                (f[idx.template inc<2>(2)] + f[idx.template dec<2>()]) +
+            0.1f *
+                (f[idx.template inc<0>()] - f[idx.template dec<0>()]) -
+            0.5f * f[idx];
       }
     }
   };
@@ -458,5 +461,74 @@ TEST_CASE("Performance of laplacian on CPU",
     auto pos = idx.get_pos();
     REQUIRE(u1(pos[0], pos[1], pos[2]) ==
             Approx(u2(pos[0], pos[1], pos[2])));
+  }
+}
+
+TEST_CASE("Performance of laplacian on CPU, 2d",
+          "[multi_array][finite_diff]") {
+  Logger::print_info("2d grid based");
+  uint32_t N = 2048;
+  uint32_t N1 = N, N2 = N;
+
+  auto ext = extent(N1, N2);
+
+  auto v1 =
+      make_multi_array<float, MemoryModel::host_only, idx_row_major_t>(
+          ext);
+  auto v2 =
+      make_multi_array<float, MemoryModel::host_only, idx_zorder_t>(
+          ext);
+  auto u1 =
+      make_multi_array<float, MemoryModel::host_only, idx_row_major_t>(
+          ext);
+  auto u2 =
+      make_multi_array<float, MemoryModel::host_only, idx_zorder_t>(
+          ext);
+
+  for (auto idx : v1.indices()) {
+    auto pos = idx.get_pos();
+    v1[idx] = float(0.3 * pos[0] + 0.4 * pos[1]);
+    u1[idx] = 0.0f;
+  }
+  for (auto idx : v2.indices()) {
+    auto pos = idx.get_pos();
+    v2[idx] = float(0.3 * pos[0] + 0.4 * pos[1]);
+    u2[idx] = 0.0f;
+  }
+  for (auto idx : v1.indices()) {
+    auto pos = idx.get_pos();
+    REQUIRE(v1(pos[0], pos[1]) == v2(pos[0], pos[1]));
+    REQUIRE(u1(pos[0], pos[1]) == u2(pos[0], pos[1]));
+  }
+
+  auto diff_kernel = [N1, N2](const auto& f, auto& u) {
+    for (auto idx : u.indices()) {
+      auto pos = idx.get_pos();
+      if (pos[0] > 1 && pos[1] > 1 && pos[0] < N1 - 2 &&
+          pos[1] < N2 - 2) {
+        u[idx] = 0.2f * (f[idx.template inc<0>(2)] -
+                         f[idx.template inc<0>(1)] +
+                         f[idx.template dec<0>(1)] -
+                         f[idx.template dec<0>(2)]) +
+                 0.1f * (f[idx.template inc<1>(2)] -
+                         f[idx.template inc<1>(1)] +
+                         f[idx.template dec<1>(1)] -
+                         f[idx.template dec<1>(2)]) -
+                 0.5f * f[idx];
+      }
+    }
+  };
+
+  timer::stamp();
+  diff_kernel(v1, u1);
+  timer::show_duration_since_stamp("normal indexing", "ms");
+
+  timer::stamp();
+  diff_kernel(v2, u2);
+  timer::show_duration_since_stamp("morton indexing", "ms");
+
+  for (auto idx : u1.indices()) {
+    auto pos = idx.get_pos();
+    REQUIRE(u1(pos[0], pos[1]) == Approx(u2(pos[0], pos[1])));
   }
 }

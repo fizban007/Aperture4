@@ -48,7 +48,6 @@ Some instructions are not available for Microsoft Visual Studio older than 2013.
 #define USE_BMI2
 #endif
 
-#ifndef USE_BMI2
 //mortonkey(x+1) = (mortonkey(x) - MAXMORTONKEY) & MAXMORTONKEY
 // static const uint32_t morton3dLUT[256] =
 constexpr uint32_t morton3dLUT[256] =
@@ -122,8 +121,6 @@ constexpr uint32_t morton2dLUT[256] =
   0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555
 };
 
-#endif
-
 constexpr uint64_t x3_mask = 0x4924924924924924; // 0b...00100100
 constexpr uint64_t y3_mask = 0x2492492492492492; // 0b...10010010
 constexpr uint64_t z3_mask = 0x9249249249249249; // 0b...01001001
@@ -151,9 +148,6 @@ public:
     // Honestly the morton3dLUT_dev array needs to be initialized, but the
     // compiler seems to be able to inline the correct array, so that it is not
     // really necessary.
-#ifdef USE_BMI2
-		key = static_cast<T>(_pdep_u64(z, z3_mask) | _pdep_u64(y, y3_mask) | _pdep_u64(x, x3_mask));
-#else
 #ifdef __CUDA_ARCH__
 		key = morton3dLUT_dev[(x >> 16) & 0xFF] << 2 |
 			morton3dLUT_dev[(y >> 16) & 0xFF] << 1 |
@@ -166,6 +160,9 @@ public:
 			morton3dLUT_dev[x & 0xFF] << 2 |
 			morton3dLUT_dev[y & 0xFF] << 1 |
 			morton3dLUT_dev[z & 0xFF];
+#else
+#ifdef USE_BMI2
+		key = static_cast<T>(_pdep_u64(z, z3_mask) | _pdep_u64(y, y3_mask) | _pdep_u64(x, x3_mask));
 #else
 		key = morton3dLUT[(x >> 16) & 0xFF] << 2 |
 			morton3dLUT[(y >> 16) & 0xFF] << 1 |
@@ -184,7 +181,7 @@ public:
 
 	HD_INLINE void decode(uint64_t& x, uint64_t& y, uint64_t& z) const
 	{
-#ifdef USE_BMI2
+#if (defined(USE_BMI2) && !defined(__CUDA_ARCH__))
 		x = _pext_u64(this->key, x3_mask);
 		y = _pext_u64(this->key, y3_mask);
 		z = _pext_u64(this->key, z3_mask);
@@ -244,7 +241,6 @@ public:
 		this->key = ((x_diff & x3_mask) | (y_diff & y3_mask) | (z_diff & z3_mask));
 	}
 
-#ifndef USE_BMI2
 	/* Fast encode of morton3 code when BMI2 instructions aren't available.
 	This does not work for values greater than 256.
 
@@ -257,7 +253,6 @@ public:
 			morton3dLUT[z];
 		return morton3d(key);
 	}
-#endif
 
 	/* Increment X part of a morton3 code (xyz interleaving)
 	   morton3(4,5,6).incX() == morton3(5,5,6);
@@ -438,9 +433,6 @@ public:
 	/* If BMI2 intrinsics are not available, we rely on a look up table of precomputed morton codes. */
 	HD_INLINE morton2d(const uint32_t x, const uint32_t y) : key(0) {
 
-#ifdef USE_BMI2
-		key = static_cast<T>(_pdep_u64(y, y2_mask) | _pdep_u64(x, x2_mask));
-#else
 #ifdef __CUDA_ARCH__
 		key = morton2dLUT_dev[(x >> 24) & 0xFF] << 1 |
 			morton2dLUT_dev[(y >> 24) & 0xFF];
@@ -453,6 +445,9 @@ public:
 		key = key << 16 |
 			morton2dLUT_dev[x & 0xFF] << 1 |
         morton2dLUT_dev[y & 0xFF];
+#else
+#ifdef USE_BMI2
+		key = static_cast<T>(_pdep_u64(y, y2_mask) | _pdep_u64(x, x2_mask));
 #else
 		key = morton2dLUT[(x >> 24) & 0xFF] << 1 |
 			morton2dLUT[(y >> 24) & 0xFF];
@@ -471,7 +466,7 @@ public:
 
 	HD_INLINE constexpr void decode(uint64_t& x, uint64_t& y) const
 	{
-#ifdef USE_BMI2
+#if defined(USE_BMI2) && !defined(__CUDA_ARCH__)
 		x = _pext_u64(this->key, x2_mask);
 		y = _pext_u64(this->key, y2_mask);
 #else
@@ -594,7 +589,6 @@ public:
 		return morton2d<T>(std::max(lhsX, rhsX) + std::max(lhsY, rhsY));
 	}
 
-#ifndef USE_BMI2
 
 	/* Fast encode of morton2 code when BMI2 instructions aren't available.
 	This does not work for values greater than 256.
@@ -624,7 +618,6 @@ private:
 		n = (n ^ (n >> 16)) & 0x00000000ffffffff;
 		return n;
 	}
-#endif
 
 };
 

@@ -55,6 +55,7 @@ TEST_CASE("Morton incX and incY", "[morton]") {
 TEST_CASE("row and col major inc and dec", "[index]") {
   idx_col_major_t<3> idc(index(3, 7, 9), extent(10, 10, 10));
 
+  // Col major is z y x index order
   auto pos = idc.inc<0>(4).dec<1>(2).dec<2>(5).get_pos();
   REQUIRE(pos[0] == 7);
   REQUIRE(pos[1] == 5);
@@ -62,6 +63,7 @@ TEST_CASE("row and col major inc and dec", "[index]") {
 
   idx_row_major_t<3> idr(index(3, 7, 9), extent(10, 10, 10));
 
+  // Row major is z y x index order
   pos = idr.inc_z(4).dec_y(2).dec_x(5).get_pos();
   REQUIRE(pos[0] == 7);
   REQUIRE(pos[1] == 5);

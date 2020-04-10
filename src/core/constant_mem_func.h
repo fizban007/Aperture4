@@ -5,7 +5,10 @@
 
 namespace Aperture {
 
+struct sim_params;
+
 void init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]);
+void init_dev_params(const sim_params& params);
 
 }
 

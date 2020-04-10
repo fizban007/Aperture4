@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(Aperture LANGUAGES CXX)
+project(Aperture LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -23,17 +23,23 @@ else()
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
 
+# Find required packages
+find_package(MPI REQUIRED)
+find_package(HDF5 REQUIRED)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
+
 # Set include directories
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
-set(MORTON_INCLUDE_DIR deps/mortonlib/include)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
+set(CPPTOML_INCLUDE_DIR deps/cpptoml/include)
 
 include_directories(
+  ${MPI_INCLUDE_PATH}
   ${FMT_INCLUDE_DIR}
   ${CATCH_INCLUDE_DIR}
-  ${MORTON_INCLUDE_DIR}
   ${VISIT_STRUCT_INCLUDE_DIR}
+  ${CPPTOML_INCLUDE_DIR}
   src)
 
 # Check for cuda support

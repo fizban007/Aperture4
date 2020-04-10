@@ -5,11 +5,13 @@ target_sources(tests PUBLIC
   "test_buffer.cpp"
   "test_particles.cpp"
   "test_multi_array.cpp"
+  "test_params.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC
     "test_multi_array.cu"
     "test_vec.cu"
+    "test_params.cu"
     )
 endif()
 

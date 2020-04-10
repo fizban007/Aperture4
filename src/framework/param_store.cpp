@@ -16,8 +16,10 @@ class param_store::param_store_impl {
   void parse(const std::string& filename) {
     parse_config(filename, m_params);
 
+    Logger::print_debug("=== Begin parsing parameter file ===");
     auto table = cpptoml::parse_file(filename);
     read_table(*table, m_param_map);
+    Logger::print_debug("=== End parsing parameter file ===");
   }
 
   template <typename T>

@@ -33,6 +33,7 @@ set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
 set(CPPTOML_INCLUDE_DIR deps/cpptoml/include)
+set(CXXOPT_INCLUDE_DIR deps/cxxopts/include)
 
 include_directories(
   ${MPI_INCLUDE_PATH}
@@ -40,6 +41,7 @@ include_directories(
   ${CATCH_INCLUDE_DIR}
   ${VISIT_STRUCT_INCLUDE_DIR}
   ${CPPTOML_INCLUDE_DIR}
+  ${CXXOPT_INCLUDE_DIR}
   src)
 
 # Check for cuda support

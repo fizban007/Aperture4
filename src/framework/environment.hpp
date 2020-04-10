@@ -4,10 +4,16 @@
 #include "data.h"
 #include "system.h"
 #include "utils/logger.h"
+#include "framework/param_store.hpp"
 #include <any>
 #include <map>
 #include <memory>
 #include <string>
+
+namespace cxxopts {
+class Options;
+class ParseResult;
+}
 
 namespace Aperture {
 
@@ -22,6 +28,7 @@ class event_handler_t {
   void invoke_callback(const std::string& name, Args&... args) const {
     auto it = event_map.find(name);
     if (it == event_map.end()) {
+      Logger::print_err("Failed to find callback '{}'", name);
       return;
     } else {
       for (auto& any_p : it->second) {
@@ -29,7 +36,7 @@ class event_handler_t {
           auto f = std::any_cast<std::function<void(Args&...)>>(any_p);
           f(args...);
         } catch (const std::bad_any_cast& e) {
-          Logger::print_err("Failed to find callback '{}': {}", name, e.what());
+          Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
         }
       }
     }
@@ -71,6 +78,7 @@ class data_store_t {
 
 class sim_environment {
  private:
+  // Registry for systems and data
   std::unordered_map<std::string, std::shared_ptr<data_t>>
       m_data_map;
   std::unordered_map<std::string, std::shared_ptr<system_t>>
@@ -78,8 +86,16 @@ class sim_environment {
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
 
+  // Modules that manage events, shared pointers, and parameters
   event_handler_t m_event_handler;
   data_store_t m_shared_data;
+  param_store m_params;
+
+  // Information about commandline arguments
+  std::unique_ptr<cxxopts::Options> m_options;
+  std::unique_ptr<cxxopts::ParseResult> m_commandline_args;
+  int* m_argc;
+  char*** m_argv;
 
  public:
   sim_environment(int* argc, char*** argv);
@@ -129,6 +145,8 @@ class sim_environment {
     m_data_order.push_back(name);
   }
 
+  void parse_options();
+
   std::shared_ptr<system_t> get_system(const std::string& name) {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
@@ -150,7 +168,12 @@ class sim_environment {
   }
 
   data_store_t& shared_data() { return m_shared_data; }
+  const data_store_t& shared_data() const { return m_shared_data; }
   event_handler_t& event_handler() { return m_event_handler; }
+  const event_handler_t& event_handler() const { return m_event_handler; }
+  param_store& params() { return m_params; }
+  const param_store& params() const { return m_params; }
+  const cxxopts::ParseResult& commandline_args() const { return *m_commandline_args; }
 
   void init();
   void destroy();

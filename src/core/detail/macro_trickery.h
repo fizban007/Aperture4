@@ -71,8 +71,6 @@
 
 ////////////////////////////////////////////////////////////////////
 
-#ifndef __CUDACC__
-
 #include "utils/buffer.h"
 
 #define DEF_PARTICLE_STRUCT(name, content)                             \
@@ -152,49 +150,5 @@
       Aperture::name##_ptrs,                                           \
       BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH( \
           GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))))
-
-#else
-
-#define DEF_PARTICLE_STRUCT(name, content)                             \
-  namespace Aperture {                                                 \
-                                                                       \
-  struct single_##name##_t {                                           \
-    BOOST_PP_SEQ_FOR_EACH(DEF_ENTRY, _,                                \
-                          GLK_PP_SEQ_DOUBLE_PARENS(content))           \
-  };                                                                   \
-                                                                       \
-  struct name##_ptrs {                                                 \
-    BOOST_PP_SEQ_FOR_EACH(DEF_PTR_ENTRY, _,                            \
-                          GLK_PP_SEQ_DOUBLE_PARENS(content))           \
-    enum {                                                             \
-      size = BOOST_PP_SEQ_FOLD_RIGHT(                                  \
-          ADD_SIZEOF, 0,                                               \
-          BOOST_PP_SEQ_FOR_EACH(GET_TYPE, _,                           \
-                                GLK_PP_SEQ_DOUBLE_PARENS(content)))    \
-    };                                                                 \
-  };                                                                   \
-                                                                       \
-  template <>                                                          \
-  struct ptc_array_type<single_##name##_t> {                           \
-    typedef name##_ptrs type;                                          \
-  };                                                                   \
-                                                                       \
-  HD_INLINE void assign_ptc(name##_ptrs array_1, size_t idx_1,         \
-                            name##_ptrs array_2, size_t idx_2) {       \
-    BOOST_PP_SEQ_FOR_EACH(ASSIGN_ENTRY,                                \
-                          (array_1)(idx_1)(array_2)(idx_2),            \
-                          GLK_PP_SEQ_DOUBLE_PARENS(content))           \
-  }                                                                    \
-  }                                                                    \
-  VISITABLE_STRUCT(                                                    \
-      Aperture::single_##name##_t,                                     \
-      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH( \
-          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));          \
-  VISITABLE_STRUCT(                                                    \
-      Aperture::name##_ptrs,                                           \
-      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH( \
-          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))))
-
-#endif
 
 #endif  // _MACRO_TRICKERY_H_

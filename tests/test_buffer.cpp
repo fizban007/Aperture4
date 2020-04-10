@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "utils/buffer.h"
+#include "utils/range.hpp"
 
 using namespace Aperture;
 
@@ -108,3 +109,40 @@ TEST_CASE("Device only buffer", "[buffer]") {
   REQUIRE(buf.dev_allocated() == true);
 }
 #endif
+
+TEST_CASE("Assign and copy buffer", "[buffer]") {
+  uint32_t N = 1000;
+
+  SECTION("Host only") {
+    buffer_t<float, MemoryModel::host_only> buf(N);
+
+    buf.assign(5.0f);
+    for (auto i : range(0ul, buf.size())) {
+      REQUIRE(buf[i] == 5.0f);
+    }
+
+    buffer_t<float, MemoryModel::host_only> buf2(N);
+    buf2.copy_from(buf);
+    for (auto i : range(0ul, buf.size())) {
+      REQUIRE(buf2[i] == 5.0f);
+    }
+  }
+
+#ifdef CUDA_ENABLED
+  SECTION("Host and device") {
+    buffer_t<float, MemoryModel::host_device> buf(N);
+    buf.assign(5.0f);
+    buf.copy_to_host();
+    for (auto i : range(0ul, buf.size())) {
+      REQUIRE(buf[i] == 5.0f);
+    }
+
+    buffer_t<float, MemoryModel::host_device> buf2(N);
+    buf2.copy_from(buf);
+    buf2.copy_to_host();
+    for (auto i : range(0ul, buf.size())) {
+      REQUIRE(buf2[i] == 5.0f);
+    }
+  }
+#endif
+}

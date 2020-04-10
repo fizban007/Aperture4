@@ -1,8 +1,8 @@
 #ifndef __MULTI_ARRAY_H_
 #define __MULTI_ARRAY_H_
 
-#include "typedefs_and_constants.h"
 #include "ndptr.hpp"
+#include "typedefs_and_constants.h"
 #include "utils/buffer.h"
 #include "utils/index.hpp"
 #include "utils/range.hpp"
@@ -49,6 +49,22 @@ class multi_array : public buffer_t<T, Model> {
   }
 
   ~multi_array() {}
+
+  void assign(const T& value) { base_type::assign(value); }
+
+  void copy_from(const self_type& other) {
+    base_type::copy_from(other);
+  }
+
+  void resize(const extent_t<Rank>& ext) {
+    m_ext = ext;
+    base_type::resize(ext.size());
+  }
+
+  template <typename... Args>
+  void resize(Args... args) {
+    resize(extent(args...));
+  }
 
   void check_dimension() {
     if (std::is_same<Index_t, idx_zorder_t<Rank>>::value) {
@@ -123,10 +139,8 @@ make_multi_array(Args... args) {
                      default_index_t<sizeof...(Args)>>(args...);
 }
 
-template <typename T,
-          MemoryModel Model = default_memory_model,
-          template <int> class Index_t = default_index_t,
-          int Rank>
+template <typename T, MemoryModel Model = default_memory_model,
+          template <int> class Index_t = default_index_t, int Rank>
 auto
 make_multi_array(const extent_t<Rank>& ext) {
   return multi_array<T, Rank, Model, Index_t<Rank>>(ext);

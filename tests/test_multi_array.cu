@@ -75,7 +75,7 @@ TEST_CASE("Different indexing on multi_array",
 }
 
 TEST_CASE("Performance of different indexing schemes",
-          "[multi_array][interpolation][kernel]") {
+          "[multi_array][performance][kernel][.]") {
   init_morton(morton2dLUT, morton3dLUT);
   uint32_t N = 128;
   uint32_t N1 = N, N2 = N, N3 = N;
@@ -173,5 +173,17 @@ TEST_CASE("Performance of different indexing schemes",
     REQUIRE(result1[idx] == result2[idx]);
   }
 }
+
+TEST_CASE("Assign and copy on device", "[multi_array][kernel]") {
+  auto v1 = make_multi_array<float, MemoryModel::host_device>(30, 30);
+  auto v2 = make_multi_array<float, MemoryModel::host_device>(30, 30);
+
+  v1.assign(3.0f);
+  v1.copy_to_host();
+  for (auto idx : v1.indices()) {
+    REQUIRE(v1[idx] == 3.0f);
+  }
+}
+
 
 #endif

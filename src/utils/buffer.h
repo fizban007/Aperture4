@@ -1,12 +1,19 @@
 #ifndef __BUFFER_H_
 #define __BUFFER_H_
 
+#include "buffer_impl.hpp"
 #include "core/cuda_control.h"
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/logger.h"
 #include <cstdlib>
 #include <type_traits>
+
+#ifdef CUDA_ENABLED
+#include <thrust/copy.h>
+#include <thrust/device_ptr.h>
+#include <thrust/fill.h>
+#endif
 
 namespace Aperture {
 
@@ -92,16 +99,19 @@ class buffer_t {
     return *this;
   }
 
-  // template <MemoryModel M = Model>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T>
-  // operator[](
-  //     size_t n) const {
-  inline T operator[](size_t n) const { return host_ptr()[n]; }
+  template <MemoryModel M = Model>
+  inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
+      size_t n) const {
+    // inline T operator[](size_t n) const { return host_ptr()[n]; }
+    return host_ptr()[n];
+  }
 
-  // template <MemoryModel M = Model>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T&>
-  // operator[](
-  inline T& operator[](size_t n) { return host_ptr()[n]; }
+  template <MemoryModel M = Model>
+  inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
+      size_t n) {
+    // inline T& operator[](size_t n) { return host_ptr()[n]; }
+    return host_ptr()[n];
+  }
 
   void resize(size_t size) {
     if (m_host_allocated || m_dev_allocated) {
@@ -110,6 +120,39 @@ class buffer_t {
     alloc_mem(size);
     // m_host_valid = true;
     // m_dev_valid = true;
+  }
+
+  void assign(size_t start, size_t end, const T& value) {
+    // Do not go further than the array size
+    end = std::min(m_size, end);
+    start = std::min(start, end);
+    if (Model == MemoryModel::host_only) {
+      if (m_host_allocated)
+        ptr_assign(m_data_h, start, end, value);
+    } else {
+      if (m_dev_allocated)
+        ptr_assign_dev(m_data_d, start, end, value);
+    }
+  }
+
+  void assign(const T& value) { assign(0, m_size, value); }
+
+  void copy_from(const self_type& other, size_t num, size_t src_pos = 0,
+                 size_t dest_pos = 0) {
+    // Sanitize input
+    if (dest_pos + num > m_size) num = m_size - dest_pos;
+    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
+    if (Model == MemoryModel::host_only) {
+      if (m_host_allocated && other.m_host_allocated)
+        ptr_copy(other.m_data_h, m_data_h, num, src_pos, dest_pos);
+    } else {
+      if (m_dev_allocated && other.m_dev_allocated)
+        ptr_copy_dev(other.m_data_d, m_data_d, num, src_pos, dest_pos);
+    }
+  }
+
+  void copy_from(const self_type& other) {
+    copy_from(other, other.m_size, 0, 0);
   }
 
   bool host_allocated() const { return m_host_allocated; }

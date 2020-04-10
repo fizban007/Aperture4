@@ -315,7 +315,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 }
 
 TEST_CASE("Performance of interpolation on CPU",
-          "[multi_array][interpolation]") {
+          "[multi_array][performance][.]") {
   Logger::print_info("3d interpolation");
   uint32_t N = 8;
   uint32_t N1 = N, N2 = N, N3 = N;
@@ -398,7 +398,7 @@ TEST_CASE("Performance of interpolation on CPU",
 }
 
 TEST_CASE("Performance of laplacian on CPU, 3d",
-          "[multi_array][finite_diff]") {
+          "[multi_array][performance][.]") {
   Logger::print_info("3d grid based");
   uint32_t N = 256;
   uint32_t N1 = N, N2 = N, N3 = N;
@@ -467,7 +467,7 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
 }
 
 TEST_CASE("Performance of laplacian on CPU, 2d",
-          "[multi_array][finite_diff]") {
+          "[multi_array][performance][.]") {
   Logger::print_info("2d grid based");
   uint32_t N = 2048;
   uint32_t N1 = N, N2 = N;
@@ -532,5 +532,17 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
   for (auto idx : u1.indices()) {
     auto pos = idx.get_pos();
     REQUIRE(u1(pos[0], pos[1]) == Approx(u2(pos[0], pos[1])));
+  }
+}
+
+TEST_CASE("Assign and copy", "[multi_array]") {
+  SECTION("host only") {
+    auto v1 = make_multi_array<float, MemoryModel::host_only>(30, 30);
+    auto v2 = make_multi_array<float, MemoryModel::host_only>(30, 30);
+
+    v1.assign(3.0f);
+    for (auto idx : v1.indices()) {
+      REQUIRE(v1[idx] == 3.0f);
+    }
   }
 }

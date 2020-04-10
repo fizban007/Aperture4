@@ -1,0 +1,28 @@
+# double
+dt = 0.01
+
+# int
+steps = 10000
+
+# bool
+enable_cooling = true
+
+# string
+coordinate = "Cartesian"
+
+# array of bools
+periodic_boundary = [true, true, true]
+
+# Sectioning
+[Grid]
+
+# array of ints
+N = [24, 24, 24]
+
+# array of floats
+size = [100.0, 10.0, 2.0]
+
+[Simulation]
+
+# array of strings
+names = ["Alex", "Yajie"]

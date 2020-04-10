@@ -9,6 +9,13 @@
 
 namespace Aperture {
 
+template <int Rank> struct idx_col_major_t;
+template <int Rank> struct idx_row_major_t;
+template <int Rank> struct idx_zorder_t;
+
+template <int Rank>
+using default_index_t = idx_col_major_t<Rank>;
+
 template <class Derived, int Rank>
 struct idx_base_t {
   uint64_t linear;

@@ -7,9 +7,6 @@
 
 namespace Aperture {
 
-template <int Rank>
-using default_index_t = idx_col_major_t<Rank>;
-
 /// An thin wrapper around a naked pointer, purely to facilitate device access
 /// to the underlying memory. Since one can't pass a multi_array directly to a
 /// cuda kernel, this is the next best thing.

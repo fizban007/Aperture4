@@ -12,7 +12,7 @@ namespace Aperture {
 ///  be maintained in the config and be passed around as reference to
 ///  determine how the simulation will unfold.
 /////////////////////////////////////////////////////////////////////////
-struct sim_params_base {
+struct sim_params {
   float dt = 0.01;
 
   uint64_t max_steps = 10000; ///< Total number of timesteps
@@ -25,15 +25,6 @@ struct sim_params_base {
   // float size[3] = {1.0, 1.0, 1.0};
   // uint32_t tile_size[3] = {1, 1, 1};
   // uint32_t nodes[3] = {1, 1, 1};
-};
-
-// Rest of the parameters that should not go onto the gpu, e.g. strings
-struct sim_params : public sim_params_base {
-  std::string data_dir = "Data/";
-  std::string conf_file = "config.toml";
-
-  bool is_restart = false;
-  int random_seed = 43210;
 };
 
 sim_params parse_config(const std::string& filename);

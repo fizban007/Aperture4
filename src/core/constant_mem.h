@@ -10,7 +10,7 @@ namespace Aperture {
 
 extern __constant__ uint32_t morton2dLUT_dev[256];
 extern __constant__ uint32_t morton3dLUT_dev[256];
-extern __constant__ sim_params_base dev_params;
+extern __constant__ sim_params dev_params;
 
 #endif
 

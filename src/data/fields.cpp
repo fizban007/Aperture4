@@ -1,51 +1,48 @@
 #include "fields.hpp"
-#include "systems/grid.hpp"
-#include "framework/environment.hpp"
 #include "framework/config.h"
+#include "framework/environment.hpp"
+#include "systems/grid.hpp"
 #include <exception>
 
 namespace Aperture {
 
-template <typename Conf>
+template <int N, typename Conf>
 void
-vector_field<Conf>::init(const sim_environment& env) {
-  auto grid = std::dynamic_pointer_cast<const grid_t<Conf>>(
-      env.get_system("grid"));
+field_t<N, Conf>::init(const std::string& name,
+                       const sim_environment& env) {
+  auto grid = env.shared_data().get<const Grid<Conf::dim>>("grid");
   if (grid == nullptr)
     throw std::runtime_error("No grid system defined!");
 
-  auto ext = grid->extent();
-  v1.resize(ext);
-  v2.resize(ext);
-  v3.resize(ext);
+  init(grid->extent());
+
+  // Find the initial condition for this data component. If found, then use it
+  // to initialize this class with the given values
+  env.event_handler().invoke_callback("initial " + name, *this, *grid);
 }
 
-template <typename Conf>
+template <int N, typename Conf>
 void
-scalar_field<Conf>::init(const sim_environment& env) {
-  auto grid = std::dynamic_pointer_cast<const grid_t<Conf>>(
-      env.get_system("grid"));
-  if (grid == nullptr)
-    throw std::runtime_error("No grid system defined!");
-
-  auto ext = grid->extent();
-  v.resize(ext);
+field_t<N, Conf>::init(const extent_t<Conf::dim>& ext) {
+  for (int i = 0; i < N; i++) {
+    m_data[i].resize(ext);
+  }
 }
 
 ///////////////////////////////////////////////////////
 // Explicitly instantiate some fields
-template class vector_field<Config<1, float>>;
-template class vector_field<Config<2, float>>;
-template class vector_field<Config<3, float>>;
-template class vector_field<Config<1, double>>;
-template class vector_field<Config<2, double>>;
-template class vector_field<Config<3, double>>;
+template class field_t<3, Config<1, float>>;
+template class field_t<3, Config<2, float>>;
+template class field_t<3, Config<3, float>>;
+template class field_t<3, Config<1, double>>;
+template class field_t<3, Config<2, double>>;
+template class field_t<3, Config<3, double>>;
 
-template class scalar_field<Config<1, float>>;
-template class scalar_field<Config<2, float>>;
-template class scalar_field<Config<3, float>>;
-template class scalar_field<Config<1, double>>;
-template class scalar_field<Config<2, double>>;
-template class scalar_field<Config<3, double>>;
+template class field_t<1, Config<1, float>>;
+template class field_t<1, Config<2, float>>;
+template class field_t<1, Config<3, float>>;
+template class field_t<1, Config<1, double>>;
+template class field_t<1, Config<2, double>>;
+template class field_t<1, Config<3, double>>;
 
-}
+}  // namespace Aperture

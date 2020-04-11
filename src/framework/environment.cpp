@@ -6,6 +6,9 @@
 
 namespace Aperture {
 
+sim_environment::sim_environment() :
+    sim_environment(nullptr, nullptr) {}
+
 sim_environment::sim_environment(int* argc, char*** argv) {
   // Parse options
   m_options = std::unique_ptr<cxxopts::Options>(
@@ -51,6 +54,7 @@ sim_environment::parse_options() {
     m_commandline_args.reset(
         new cxxopts::ParseResult(m_options->parse(*m_argc, *m_argv)));
     auto& result = *m_commandline_args;
+    m_shared_data.save("commandline_args", result);
 
     if (result["help"].as<bool>()) {
       std::cout << m_options->help() << std::endl;
@@ -87,7 +91,7 @@ sim_environment::init() {
   for (auto name : m_data_order) {
     auto& c = m_data_map[name];
     Logger::print_info("Initializing data '{}'", name);
-    c->init(*this);
+    c->init(name, *this);
   }
 }
 

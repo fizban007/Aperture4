@@ -38,6 +38,7 @@ grid_t<Conf>::init() {
     this->lower[i] = vec_lower[i];
     this->delta[i] = vec_size[i] / vec_N[i];
     this->inv_delta[i] = 1.0 / this->delta[i];
+    // TODO: the z-order case is very weird. Is there a better way?
     if (Conf::is_zorder) {
       this->skirt[i] = 8;
       this->dims[i] = vec_N[i];
@@ -63,6 +64,9 @@ grid_t<Conf>::init() {
     }
   }
 
+  // Save a pointer to the grid struct in shared data
+  m_env->shared_data().save("grid", *(Grid<Conf::dim>*)this);
+
   // Copy the grid parameters to gpu
 #ifdef CUDA_ENABLED
   init_dev_grid<Conf::dim>(*this);
@@ -72,7 +76,8 @@ grid_t<Conf>::init() {
 template <typename Conf>
 void
 grid_t<Conf>::register_dependencies(sim_environment &env) {
-  // env.register_system<domain_comm>(m_conf);
+  // If we are initializing the communicator system, it should be done before
+  // initializing this one
   depends_on("communicator");
 }
 

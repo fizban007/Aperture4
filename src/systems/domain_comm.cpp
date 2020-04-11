@@ -74,8 +74,8 @@ domain_comm<Conf>::setup_domain() {
   MPI_Cart_coords(m_cart, m_rank, Conf::dim, m_domain_info.mpi_coord);
 
   // Figure out if the current rank is at any boundary
-  int left, right;
-  int rank;
+  int left = 0, right = 0;
+  int rank = 0;
   for (int n = 0; n < Conf::dim; n++) {
     MPI_Cart_shift(m_cart, n, -1, &rank, &left);
     MPI_Cart_shift(m_cart, n, 1, &rank, &right);

@@ -6,6 +6,7 @@ target_sources(tests PUBLIC
   "test_particles.cpp"
   "test_multi_array.cpp"
   "test_params.cpp"
+  "test_fields.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC

@@ -5,27 +5,27 @@
 
 namespace Aperture {
 
-class Stagger {
+class stagger_t {
  private:
   unsigned char stagger;
 
  public:
   /// Default constructor, initialize the stagger in each direction to be 0.
-  HOST_DEVICE Stagger() : stagger(0) {}
+  HOST_DEVICE stagger_t() : stagger(0) {}
 
   /// Constructor using an unsigned char. The recommended way to use this is to do
   ///
-  ///     Stagger st(0b001);
+  ///     stagger_t st(0b001);
   ///
   /// This will initialize the lowest bit to 1, and upper bits to 0. This is
   /// means staggered in x, but not staggered in y and z directions.
-  HOST_DEVICE Stagger(unsigned char s) : stagger(s){};
+  HOST_DEVICE stagger_t(unsigned char s) : stagger(s){};
 
   /// Copy constructor, simply copy the stagger of the given input.
-  HOST_DEVICE Stagger(const Stagger& s) : stagger(s.stagger) {}
+  HOST_DEVICE stagger_t(const stagger_t& s) : stagger(s.stagger) {}
 
   /// Assignment, copy the stagger of the input.
-  HD_INLINE Stagger& operator=(const Stagger& s) {
+  HD_INLINE stagger_t& operator=(const stagger_t& s) {
     stagger = s.stagger;
     return *this;
   }
@@ -36,14 +36,14 @@ class Stagger {
   ///
   /// This will initialize the lowest bit to 1, and upper bits to 0. This is
   /// means staggered in x, but not staggered in y and z directions.
-  HD_INLINE Stagger& operator=(const unsigned char s) {
+  HD_INLINE stagger_t& operator=(const unsigned char s) {
     stagger = s;
     return *this;
   }
 
   /// Subscript operator. Use this to take the stagger of a given direction. For example,
   ///
-  ///     Stagger st(0b110);
+  ///     stagger_t st(0b110);
   ///     assert(st[0] == 1);
   ///     assert(st[1] == 1);
   ///     assert(st[2] == 1);
@@ -61,7 +61,7 @@ class Stagger {
   HD_INLINE void flip(int n) { stagger ^= (1UL << n); }
 
   /// Return the complement of this stagger configuration.
-  HD_INLINE Stagger complement() { return Stagger(~stagger); }
+  HD_INLINE stagger_t complement() { return stagger_t(~stagger); }
 };
 
 }  // namespace Aperture

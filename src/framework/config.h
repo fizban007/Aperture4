@@ -34,6 +34,7 @@ class Config {
     return multi_array_t(args...);
   }
 
+  Config() {}
   Config(const sim_environment& env) {}
   Config(const Config& other) = delete;
   Config(Config&& other) = default;

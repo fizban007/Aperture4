@@ -35,12 +35,14 @@ class event_handler_t {
       return;
     } else {
       auto& any_p = it->second;
+      std::function<void(Args & ...)> f;
       try {
-        auto f = std::any_cast<std::function<void(Args & ...)>>(any_p);
-        f(args...);
+        f = std::any_cast<std::function<void(Args & ...)>>(any_p);
       } catch (const std::bad_any_cast& e) {
         Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
+        return;
       }
+      f(args...);
     }
   }
 
@@ -105,6 +107,7 @@ class sim_environment {
   void resolve_dependencies(const system_t& system, const std::string& name);
 
  public:
+  sim_environment();
   sim_environment(int* argc, char*** argv);
   ~sim_environment();
 

@@ -2,9 +2,13 @@ set(Aperture_src
   "utils/logger.cpp"
   "utils/timer.cpp"
   "utils/buffer_impl.cpp"
+  "utils/mpi_helper.cpp"
   "core/params.cpp"
   "framework/environment.cpp"
   "framework/param_store.cpp"
+  "systems/domain_comm.cpp"
+  "systems/grid.cpp"
+  "data/fields.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)

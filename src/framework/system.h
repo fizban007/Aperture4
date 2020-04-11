@@ -2,6 +2,7 @@
 #define __SYSTEM_H_
 
 #include <cstdint>
+#include <set>
 #include <string>
 
 namespace Aperture {
@@ -17,15 +18,24 @@ class system_t {
     register_callbacks(env);
   }
 
-  virtual void register_dependencies(sim_environment&) = 0;
+  // virtual std::string name() = 0;
   virtual void init() = 0;
-  virtual void update(double, uint32_t) = 0;
-  virtual void destroy() = 0;
+  virtual void register_dependencies(sim_environment&) {}
+  virtual void update(double, uint32_t) {}
+  virtual void destroy() {}
+  virtual void register_callbacks(sim_environment&) {}
 
-  virtual void register_callbacks(sim_environment&) = 0;
+  const std::set<std::string>& dependencies() const {
+    return m_dependencies;
+  }
 
  protected:
+  void depends_on(const std::string& name) {
+    m_dependencies.insert(name);
+  }
+
   sim_environment* m_env;
+  std::set<std::string> m_dependencies;
 };
 
 }  // namespace Aperture

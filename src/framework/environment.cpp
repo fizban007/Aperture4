@@ -1,5 +1,6 @@
 #include "environment.hpp"
 #include "cxxopts.hpp"
+#include <algorithm>
 #include <iostream>
 #include <mpi.h>
 
@@ -44,6 +45,8 @@ sim_environment::~sim_environment() {
 void
 sim_environment::parse_options() {
   // Read command line arguments
+  if (m_argc == nullptr || m_argv == nullptr)
+    return;
   try {
     m_commandline_args.reset(
         new cxxopts::ParseResult(m_options->parse(*m_argc, *m_argv)));
@@ -65,16 +68,26 @@ sim_environment::parse_options() {
 
 void
 sim_environment::init() {
-  // for (auto& c : m_data_map) {
+  parse_options();
+  m_params.parse(m_params.get<std::string>("config_file", "config.toml"));
+
+  // First resolve initialization order
+  for (auto& it : m_system_map) {
+    resolve_dependencies(*it.second, it.first);
+  }
+
+  // Initialize systems following dependencies
+  for (auto& name : m_init_order) {
+    auto& s = m_system_map[name];
+    Logger::print_info("Initializing system '{}'", name);
+    s->init_system(*this);
+  }
+
+  // Initialize all data
   for (auto name : m_data_order) {
     auto& c = m_data_map[name];
     Logger::print_info("Initializing data '{}'", name);
     c->init(*this);
-  }
-  for (auto& name : m_system_order) {
-    auto& s = m_system_map[name];
-    Logger::print_info("Initializing system '{}'", name);
-    s->init_system(*this);
   }
 }
 
@@ -89,12 +102,30 @@ sim_environment::destroy() {
 void
 sim_environment::run() {
   uint32_t max_steps = m_params.get<int64_t>("max_steps", 1l);
-  for (uint32_t step = 0; step < 1; step++) {
+  for (uint32_t step = 0; step < max_steps; step++) {
     Logger::print_info("=== Time step {}", step);
     for (auto& name : m_system_order) {
       m_system_map[name]->update(0.1, step);
     }
   }
+}
+
+void
+sim_environment::resolve_dependencies(const system_t &system, const std::string& name) {
+  m_unresolved.insert(name);
+  for (auto& n : system.dependencies()) {
+    if (std::find(m_init_order.begin(), m_init_order.end(), n)
+        == m_init_order.end()) {
+      if (m_unresolved.count(n) > 0)
+        throw std::runtime_error("Circular dependency in the given list of systems!");
+      if (m_system_map.find(n) != m_system_map.end())
+        resolve_dependencies(*m_system_map[n], n);
+    }
+  }
+  if (std::find(m_init_order.begin(), m_init_order.end(), name)
+      == m_init_order.end())
+    m_init_order.push_back(name);
+  m_unresolved.erase(name);
 }
 
 }  // namespace Aperture

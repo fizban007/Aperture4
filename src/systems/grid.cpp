@@ -73,6 +73,7 @@ template <typename Conf>
 void
 grid_t<Conf>::register_dependencies(sim_environment &env) {
   // env.register_system<domain_comm>(m_conf);
+  depends_on("communicator");
 }
 
 template class grid_t<Config<1>>;

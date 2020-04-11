@@ -31,13 +31,11 @@ class domain_comm : public system_t {
   std::vector<typename Conf::ph_t> m_ph_buffers;
 
  public:
-  static std::string name() { return "domain communicator"; }
+  static std::string name() { return "communicator"; }
 
   domain_comm(const Conf& conf) : m_conf(conf) {}
 
   void init();
-  void update(double, uint32_t) {}
-  void destroy() {}
   void register_dependencies(sim_environment& env);
   void register_callbacks(sim_environment& env);
 

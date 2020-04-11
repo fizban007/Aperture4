@@ -1,27 +1,30 @@
 #ifndef __ENVIRONMENT_H_
 #define __ENVIRONMENT_H_
 
-#include "data.h"
-#include "system.h"
-#include "utils/logger.h"
-#include "framework/param_store.hpp"
 #include <any>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
+
+#include "data.h"
+#include "framework/param_store.hpp"
+#include "system.h"
+#include "utils/logger.h"
 
 namespace cxxopts {
 class Options;
 class ParseResult;
-}
+}  // namespace cxxopts
 
 namespace Aperture {
 
 class event_handler_t {
  public:
   template <typename Func>
-  void push_callback(const std::string& name, const Func& func) {
-    event_map[name].push_back(func);
+  void register_callback(const std::string& name, const Func& func) {
+    // event_map[name].push_back(func);
+    event_map.insert({name, func});
   }
 
   template <typename... Args>
@@ -31,20 +34,19 @@ class event_handler_t {
       Logger::print_err("Failed to find callback '{}'", name);
       return;
     } else {
-      for (auto& any_p : it->second) {
-        try {
-          auto f = std::any_cast<std::function<void(Args&...)>>(any_p);
-          f(args...);
-        } catch (const std::bad_any_cast& e) {
-          Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
-        }
+      auto& any_p = it->second;
+      try {
+        auto f = std::any_cast<std::function<void(Args & ...)>>(any_p);
+        f(args...);
+      } catch (const std::bad_any_cast& e) {
+        Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
       }
     }
   }
 
  private:
-  std::unordered_map<std::string, std::vector<std::any>>
-      event_map;
+  // std::unordered_map<std::string, std::vector<std::any>> event_map;
+  std::unordered_map<std::string, std::any> event_map;
 };
 
 class data_store_t {
@@ -64,7 +66,8 @@ class data_store_t {
         try {
           ptr = std::any_cast<const T*>(any_p);
         } catch (const std::bad_any_cast& e) {
-          Logger::print_err("Failed to find shared_data '{}': {}", name, e.what());
+          Logger::print_err("Failed to find shared_data '{}': {}", name,
+                            e.what());
         }
         return ptr;
       }
@@ -79,10 +82,8 @@ class data_store_t {
 class sim_environment {
  private:
   // Registry for systems and data
-  std::unordered_map<std::string, std::shared_ptr<data_t>>
-      m_data_map;
-  std::unordered_map<std::string, std::shared_ptr<system_t>>
-      m_system_map;
+  std::unordered_map<std::string, std::shared_ptr<data_t>> m_data_map;
+  std::unordered_map<std::string, std::shared_ptr<system_t>> m_system_map;
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
 
@@ -96,6 +97,12 @@ class sim_environment {
   std::unique_ptr<cxxopts::ParseResult> m_commandline_args;
   int* m_argc;
   char*** m_argv;
+
+  // Data related to dependency resolution
+  std::vector<std::string> m_init_order;
+  std::set<std::string> m_unresolved;
+
+  void resolve_dependencies(const system_t& system, const std::string& name);
 
  public:
   sim_environment(int* argc, char*** argv);
@@ -128,8 +135,8 @@ class sim_environment {
   void register_data(const std::string& name, Args&&... args) {
     // Check if the data component has already been installed
     if (m_data_map.find(name) != m_data_map.end()) return;
-    m_data_map.insert({name, std::make_shared<Data>(
-                                      std::forward<Args>(args)...)});
+    m_data_map.insert(
+        {name, std::make_shared<Data>(std::forward<Args>(args)...)});
     m_data_order.push_back(name);
   }
 
@@ -139,15 +146,24 @@ class sim_environment {
                      Args&&... args) {
     // Check if the data component has already been installed
     if (m_data_map.find(name) != m_data_map.end()) return;
-    m_data_map.insert(
-        {name, std::make_shared<Data<Conf, Args...>>(
-                   conf, std::forward<Args>(args)...)});
+    m_data_map.insert({name, std::make_shared<Data<Conf, Args...>>(
+                                 conf, std::forward<Args>(args)...)});
     m_data_order.push_back(name);
   }
 
   void parse_options();
 
   std::shared_ptr<system_t> get_system(const std::string& name) {
+    auto it = m_system_map.find(name);
+    if (it != m_system_map.end()) {
+      return it->second;
+    } else {
+      Logger::print_err("Failed to get system '{}'", name);
+      return nullptr;
+    }
+  }
+
+  std::shared_ptr<const system_t> get_system(const std::string& name) const {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
       return it->second;
@@ -173,7 +189,9 @@ class sim_environment {
   const event_handler_t& event_handler() const { return m_event_handler; }
   param_store& params() { return m_params; }
   const param_store& params() const { return m_params; }
-  const cxxopts::ParseResult& commandline_args() const { return *m_commandline_args; }
+  const cxxopts::ParseResult& commandline_args() const {
+    return *m_commandline_args;
+  }
 
   void init();
   void destroy();

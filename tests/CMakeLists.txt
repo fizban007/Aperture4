@@ -12,6 +12,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_multi_array.cu"
     "test_vec.cu"
     "test_params.cu"
+    "test_grid.cu"
     )
 endif()
 

@@ -33,8 +33,9 @@ class Logger {
 
   template <typename... Args>
   static void err(const char* str, Args&&... args) {
-    fmt::print(stderr, str, std::forward<Args>(args)...);
-    fmt::print("\n");
+    if (m_rank == 0) {
+      fmt::print(stderr, str, std::forward<Args>(args)...);
+    }
   }
 
   template <typename... Args>
@@ -43,6 +44,12 @@ class Logger {
       fmt::print(stderr, str, std::forward<Args>(args)...);
       fmt::print("\n");
     }
+  }
+
+  template <typename... Args>
+  static void print_err_all(const char* str, Args&&... args) {
+    fmt::print(stderr, str, std::forward<Args>(args)...);
+    fmt::print("\n");
   }
 
   template <typename... Args>

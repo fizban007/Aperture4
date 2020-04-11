@@ -3,6 +3,7 @@
 
 #include "core/enum_types.h"
 #include "core/multi_array.hpp"
+#include "core/particles.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/index.hpp"
 #include "utils/logger.h"
@@ -18,10 +19,15 @@ class Config {
  public:
   static constexpr int dim = Dim;
   static constexpr MemoryModel default_mem_model = MemModel;
+  static constexpr bool is_zorder =
+      std::is_same<Index_t<Dim>, idx_zorder_t<Dim>>::value;
+
   typedef FloatT value_type;
   typedef Index_t<Dim> index_type;
   typedef multi_array<FloatT, Dim, MemModel, Index_t<Dim>>
       multi_array_t;
+  typedef particles_t<MemModel> ptc_t;
+  typedef photons_t<MemModel> ph_t;
 
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {
@@ -33,7 +39,6 @@ class Config {
   Config(Config&& other) = default;
   Config& operator=(const Config& other) = delete;
   Config& operator=(Config&& other) = default;
-
 };
 
 }  // namespace Aperture

@@ -32,6 +32,12 @@ class exec_policy {
         m_shared_mem_bytes(0),
         m_stream((cudaStream_t)0) {}
 
+  exec_policy(int gridSize, int blockSize)
+      : m_state(0), m_stream(0) {
+    set_grid_size(gridSize);
+    set_block_size(blockSize);
+  }
+
   exec_policy(int gridSize, int blockSize, size_t sharedMemBytes)
       : m_state(0), m_stream(0) {
     set_grid_size(gridSize);

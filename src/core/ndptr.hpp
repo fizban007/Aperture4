@@ -16,6 +16,7 @@ struct ndptr {
 
   T* p = nullptr;
 
+  HOST_DEVICE ndptr() {}
   HOST_DEVICE ndptr(T* p_) : p(p_) {}
 
   HD_INLINE T& operator[](size_t idx) { return p[idx]; }
@@ -40,6 +41,7 @@ struct ndptr_const {
 
   const T* p = nullptr;
 
+  HOST_DEVICE ndptr_const() {}
   HOST_DEVICE ndptr_const(const T* p_) : p(p_) {}
 
   // Cannot use this operator to change the underlying data

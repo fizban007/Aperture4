@@ -9,15 +9,12 @@ namespace Aperture {
 // The system that is responsible for setting up the computational grid
 template <typename Conf>
 class grid_t : public system_t, public Grid<Conf::dim> {
- private:
-  const Conf& m_conf;
-
  public:
   static std::string name() { return "grid"; }
 
   typedef Grid<Conf::dim> base_type;
 
-  grid_t(const Conf& conf) : m_conf(conf) {}
+  grid_t(const Conf& conf) {}
 
   void init();
   void register_dependencies(sim_environment& env);

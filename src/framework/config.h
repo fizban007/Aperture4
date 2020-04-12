@@ -3,6 +3,7 @@
 
 #include "core/enum_types.h"
 #include "core/multi_array.hpp"
+#include "core/ndptr.hpp"
 #include "core/particles.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/index.hpp"
@@ -26,8 +27,16 @@ class Config {
   typedef Index_t<Dim> index_type;
   typedef multi_array<FloatT, Dim, MemModel, Index_t<Dim>>
       multi_array_t;
-  typedef particles_t<MemModel> ptc_t;
-  typedef photons_t<MemModel> ph_t;
+  typedef ndptr<FloatT, Dim, Index_t<Dim>> ndptr_t;
+  typedef ndptr_const<FloatT, Dim, Index_t<Dim>> ndptr_const_t;
+
+#ifdef CUDA_ENABLED
+  typedef particles_t<MemoryModel::device_only> ptc_t;
+  typedef photons_t<MemoryModel::device_only> ph_t;
+#else
+  typedef particles_t<MemoryModel::host_only> ptc_t;
+  typedef photons_t<MemoryModel::host_only> ph_t;
+#endif
 
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {

@@ -2,11 +2,19 @@
 #define __FIELDS_H_
 
 #include "core/grid.hpp"
+#include "core/ndptr.hpp"
 #include "framework/data.h"
 #include "utils/stagger.h"
 #include <array>
 
 namespace Aperture {
+
+enum field_type : char {
+  face_centered,
+  edge_centered,
+  cell_centered,
+  vert_centered
+};
 
 template <int N, typename Conf>
 class field_t : public data_t {
@@ -19,6 +27,21 @@ class field_t : public data_t {
   field_t(const Conf& conf) : m_conf(conf) {}
   field_t(const Conf& conf, const std::array<stagger_t, N> st)
       : m_conf(conf), m_stagger(st) {}
+  field_t(const Conf& conf, field_type type) : m_conf(conf) {
+    if (type == field_type::face_centered) {
+      m_stagger[0] = stagger_t(0b001);
+      m_stagger[1] = stagger_t(0b010);
+      m_stagger[2] = stagger_t(0b100);
+    } else if (type == field_type::edge_centered) {
+      m_stagger[0] = stagger_t(0b110);
+      m_stagger[1] = stagger_t(0b101);
+      m_stagger[2] = stagger_t(0b011);
+    } else if (type == field_type::cell_centered) {
+      m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b000);
+    } else if (type == field_type::vert_centered) {
+      m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b111);
+    }
+  }
 
   void init(const std::string& name, const sim_environment& env);
   void init(const extent_t<Conf::dim>& ext);
@@ -28,9 +51,9 @@ class field_t : public data_t {
     if (n >= 0 && n < Conf::dim) {
       for (auto idx : m_data[n].indices()) {
         auto pos = idx.get_pos();
-        double x0 = grid.template pos<0>(pos[0], m_stagger[n][0]);
-        double x1 = grid.template pos<1>(pos[1], m_stagger[n][1]);
-        double x2 = grid.template pos<2>(pos[2], m_stagger[n][2]);
+        double x0 = grid.template pos<0>(pos, m_stagger[n]);
+        double x1 = grid.template pos<1>(pos, m_stagger[n]);
+        double x2 = grid.template pos<2>(pos, m_stagger[n]);
         m_data[n][idx] = f(x0, x1, x2);
       }
 #ifdef CUDA_ENABLED
@@ -53,6 +76,15 @@ class field_t : public data_t {
     return m_data[n];
   }
   stagger_t stagger(int n) const { return m_stagger[n]; }
+
+  void copy_from(const field_t<N, Conf>& other) {
+    for (int i = 0; i < N; i++) {
+      m_data[i].copy_from(other.m_data[i]);
+    }
+  }
+
+  vec_t<typename Conf::ndptr_const_t, N> get_ptrs() const;
+  vec_t<typename Conf::ndptr_t, N> get_ptrs();
 };
 
 template <typename Conf>

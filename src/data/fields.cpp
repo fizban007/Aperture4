@@ -26,7 +26,28 @@ void
 field_t<N, Conf>::init(const extent_t<Conf::dim>& ext) {
   for (int i = 0; i < N; i++) {
     m_data[i].resize(ext);
+    m_data[i].assign(0.0);
   }
+}
+
+template <int N, typename Conf>
+auto
+field_t<N, Conf>::get_ptrs() const -> vec_t<typename Conf::ndptr_const_t, N> {
+  vec_t<typename Conf::ndptr_const_t, N> result;
+  for (int i = 0; i < N; i++) {
+    result[i] = m_data[i].get_const_ptr();
+  }
+  return result;
+}
+
+template <int N, typename Conf>
+auto
+field_t<N, Conf>::get_ptrs() -> vec_t<typename Conf::ndptr_t, N> {
+  vec_t<typename Conf::ndptr_t, N> result;
+  for (int i = 0; i < N; i++) {
+    result[i] = m_data[i].get_ptr();
+  }
+  return result;
 }
 
 ///////////////////////////////////////////////////////

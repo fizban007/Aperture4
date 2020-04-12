@@ -5,6 +5,7 @@
 #include "typedefs_and_constants.h"
 #include "utils/vec.hpp"
 #include "utils/index.hpp"
+#include "utils/stagger.h"
 #include <type_traits>
 
 namespace Aperture {
@@ -38,7 +39,7 @@ struct Grid {
     return (dims[N] - 2 * skirt[N]);
   }
 
-  uint32_t reduced_dim(int i) const { return (dims[i] - 2 * skirt[i]); }
+  HD_INLINE uint32_t reduced_dim(int i) const { return (dims[i] - 2 * skirt[i]); }
   ///  Coordinate of a point inside cell n in dimension N.
   ///
   ///  This function applies to field points. Stagger = false means
@@ -88,6 +89,18 @@ struct Grid {
   HD_INLINE std::enable_if_t<N >= Dim, Scalar> pos(
       int n, Scalar pos_in_cell) const {
     return pos_in_cell;
+  }
+
+  template <int N>
+  HD_INLINE Scalar pos(const index_t<Dim>& idx,
+                       Scalar pos_in_cell) const {
+    return pos<N>(idx[N], pos_in_cell);
+  }
+
+  template <int N>
+  HD_INLINE Scalar pos(const index_t<Dim>& idx,
+                       stagger_t st) const {
+    return pos<N>(idx[N], st[N]);
   }
 
   ///  Find the zone the cell belongs to (for communication purposes)

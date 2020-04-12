@@ -1,25 +1,26 @@
-#ifndef __PARAM_STORE_H_
-#define __PARAM_STORE_H_
+#ifndef __PARAMS_STORE_H_
+#define __PARAMS_STORE_H_
 
 #include "core/params.h"
 #include "utils/logger.h"
 #include <string>
+#include "visit_struct/visit_struct.hpp"
 
 namespace Aperture {
 
-class param_store {
+class params_store {
  private:
   // Because we need to use std::variant which is not supported in CUDA code, we
   // have to use p_impl idiom to hide the implementation detail
-  class param_store_impl;
-  param_store_impl* p_impl;
+  class params_store_impl;
+  params_store_impl* p_impl;
 
  public:
-  param_store();
-  ~param_store();
+  params_store();
+  ~params_store();
  
   void parse(const std::string& filename);
-  const sim_params& params() const;
+  // const params_struct& params() const;
 
   template <typename T>
   T get(const std::string& name, T default_value) const;
@@ -34,4 +35,4 @@ class param_store {
 
 }
 
-#endif // __PARAM_STORE_H_
+#endif // __PARAMS_STORE_H_

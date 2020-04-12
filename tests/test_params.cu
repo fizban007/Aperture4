@@ -4,7 +4,7 @@
 using namespace Aperture;
 
 TEST_CASE("Using the parameter store in cu", "[param_store]") {
-  param_store store;
+  params_store store;
 
   store.add("p", 4.0);
   store.add("n", 42l);

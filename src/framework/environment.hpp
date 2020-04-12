@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 #include "data.h"
-#include "framework/param_store.hpp"
+#include "framework/params_store.hpp"
 #include "system.h"
 #include "utils/logger.h"
 #include <boost/any.hpp>
@@ -86,7 +86,7 @@ class sim_environment {
   // Modules that manage events, shared pointers, and parameters
   event_handler_t m_event_handler;
   data_store_t m_shared_data;
-  param_store m_params;
+  params_store m_params;
 
   // Information about commandline arguments
   std::unique_ptr<cxxopts::Options> m_options;
@@ -195,8 +195,8 @@ class sim_environment {
   const data_store_t& shared_data() const { return m_shared_data; }
   event_handler_t& event_handler() { return m_event_handler; }
   const event_handler_t& event_handler() const { return m_event_handler; }
-  param_store& params() { return m_params; }
-  const param_store& params() const { return m_params; }
+  params_store& params() { return m_params; }
+  const params_store& params() const { return m_params; }
   const cxxopts::ParseResult& commandline_args() const {
     return *m_commandline_args;
   }

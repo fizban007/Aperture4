@@ -1,10 +1,13 @@
 #include "catch.hpp"
-#include "framework/param_store.hpp"
+#include "framework/params_store.hpp"
+#include "framework/parse_params.hpp"
+// #include "visit_struct/visit_struct_intrusive.hpp"
+#include "visit_struct/visit_struct.hpp"
 
 using namespace Aperture;
 
 TEST_CASE("Using the parameter store", "[param_store]") {
-  param_store store;
+  params_store store;
 
   store.add("p", 4.0);
   store.add("n", 42l);
@@ -20,7 +23,7 @@ TEST_CASE("Using the parameter store", "[param_store]") {
 
 TEST_CASE("Parsing toml into our params store", "[param_store]") {
   Logger::init(0, LogLevel::debug);
-  param_store store;
+  params_store store;
 
   store.parse("test_parsing.toml");
 
@@ -36,4 +39,30 @@ TEST_CASE("Parsing toml into our params store", "[param_store]") {
           std::vector<double>({100.0, 10.0, 2.0}));
   REQUIRE(store.get<std::vector<std::string>>("names") ==
           std::vector<std::string>({"Alex", "Yajie"}));
+}
+
+struct my_struct {
+  float dt = 0.1f;
+  uint32_t max_steps = 10000;
+  bool b[4] = {};
+};
+
+VISITABLE_STRUCT(my_struct, dt, max_steps, b);
+
+TEST_CASE("Parsing into a struct directly", "[param_store]") {
+  my_struct my_param;
+
+  REQUIRE(my_param.dt == 0.1f);
+  params_store store;
+  store.add("dt", 0.4);
+  store.add("max_steps", 500l);
+  store.add("b", std::vector<bool>{true, false, true, false});
+
+  parse_struct(my_param, store);
+
+  REQUIRE(my_param.dt == 0.4f);
+  REQUIRE(my_param.max_steps == 500);
+  REQUIRE(my_param.b[2] == true);
+  Logger::print_info("b is {}, {}, {}, {}", my_param.b[0],
+                     my_param.b[1], my_param.b[2], my_param.b[3]);
 }

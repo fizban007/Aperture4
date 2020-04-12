@@ -1,4 +1,4 @@
-#include "param_store.hpp"
+#include "params_store.hpp"
 #include "cpptoml.h"
 #include <variant>
 #include <memory>
@@ -11,11 +11,10 @@ typedef std::variant<bool, int64_t, double, std::string,
                      std::vector<std::string>>
     param_type;
 
-class param_store::param_store_impl {
+class params_store::params_store_impl {
  public:
   void parse(const std::string& filename) {
-    parse_config(filename, m_params);
-
+    // parse_config(filename, m_params);
     Logger::print_debug("=== Begin parsing parameter file ===");
     auto table = cpptoml::parse_file(filename);
     read_table(*table, m_param_map);
@@ -93,86 +92,86 @@ class param_store::param_store_impl {
     }
   }
 
-  sim_params m_params;
+  // params_struct m_params;
   std::unordered_map<std::string, param_type> m_param_map;
 };
 
-param_store::param_store() { p_impl = new param_store_impl; }
+params_store::params_store() { p_impl = new params_store_impl; }
 
-param_store::~param_store() { delete p_impl; }
+params_store::~params_store() { delete p_impl; }
 
 void
-param_store::parse(const std::string& filename) {
+params_store::parse(const std::string& filename) {
   p_impl->parse(filename);
 }
 
-const sim_params&
-param_store::params() const {
-  return p_impl->m_params;
-}
+// const params_struct&
+// params_store::params() const {
+//   return p_impl->m_params;
+// }
 
 template <typename T>
 T
-param_store::get(const std::string& name, T default_value) const {
+params_store::get(const std::string& name, T default_value) const {
   return p_impl->get(name, default_value);
 }
 
 template <typename T>
 T
-param_store::get(const std::string& name) const {
+params_store::get(const std::string& name) const {
   return p_impl->get(name, T{});
 }
 
 template <typename T>
 void
-param_store::add(const std::string& name, const T& value) {
+params_store::add(const std::string& name, const T& value) {
   p_impl->add(name, value);
 }
 
 ////////////////////////////////////////////////////////////////
-template bool param_store::get(const std::string& name,
+template bool params_store::get(const std::string& name,
                                bool default_value) const;
-template int64_t param_store::get(const std::string& name,
+template int64_t params_store::get(const std::string& name,
                               int64_t default_value) const;
-// template uint64_t param_store::get(const std::string& name,
+// template uint64_t params_store::get(const std::string& name,
 //                                    uint64_t default_value) const;
-template double param_store::get(const std::string& name,
+template double params_store::get(const std::string& name,
                                  double default_value) const;
-template std::string param_store::get(const std::string& name,
+template std::string params_store::get(const std::string& name,
                                       std::string default_value) const;
 
-template std::string param_store::get<std::string>(
+template std::string params_store::get<std::string>(
     const std::string& name) const;
-template std::vector<bool> param_store::get<std::vector<bool>>(
+template std::vector<bool> params_store::get<std::vector<bool>>(
     const std::string& name) const;
-template std::vector<int64_t> param_store::get<std::vector<int64_t>>(
+template std::vector<int64_t> params_store::get<std::vector<int64_t>>(
     const std::string& name) const;
-// template std::vector<uint64_t> param_store::get<std::vector<uint64_t>>(
+// template std::vector<uint64_t> params_store::get<std::vector<uint64_t>>(
 //     const std::string& name) const;
-template std::vector<double> param_store::get<std::vector<double>>(
+template std::vector<double> params_store::get<std::vector<double>>(
     const std::string& name) const;
-template std::vector<std::string> param_store::get<
+template std::vector<std::string> params_store::get<
     std::vector<std::string>>(const std::string& name) const;
 
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const bool& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const int64_t& value);
-// template void param_store::add(const std::string& name,
+// template void params_store::add(const std::string& name,
 //                                const uint64_t& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const double& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const std::string& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const std::vector<bool>& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const std::vector<int64_t>& value);
-// template void param_store::add(const std::string& name,
+// template void params_store::add(const std::string& name,
 //                                const std::vector<uint64_t>& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const std::vector<double>& value);
-template void param_store::add(const std::string& name,
+template void params_store::add(const std::string& name,
                                const std::vector<std::string>& value);
 
 }  // namespace Aperture

@@ -1,7 +1,7 @@
 #include "core/constant_mem.h"
 #include "core/cuda_control.h"
 #include "core/typedefs_and_constants.h"
-#include "field_solver_explicit.h"
+#include "field_solver_default.h"
 #include "framework/config.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -11,7 +11,7 @@ namespace Aperture {
 
 template <typename Conf>
 void
-field_solver_explicit<Conf>::update(double dt, uint32_t step) {
+field_solver_default<Conf>::update(double dt, uint32_t step) {
   timer::stamp("field_update");
   if (step == 0) {
     update_e(0.5 * dt);
@@ -40,7 +40,7 @@ field_solver_explicit<Conf>::update(double dt, uint32_t step) {
 
 template <>
 void
-field_solver_explicit<Config<1>>::update_e(double dt) {
+field_solver_default<Config<1>>::update_e(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -68,7 +68,7 @@ field_solver_explicit<Config<1>>::update_e(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<2>>::update_e(double dt) {
+field_solver_default<Config<2>>::update_e(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -105,7 +105,7 @@ field_solver_explicit<Config<2>>::update_e(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<3>>::update_e(double dt) {
+field_solver_default<Config<3>>::update_e(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -148,7 +148,7 @@ field_solver_explicit<Config<3>>::update_e(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<1>>::update_b(double dt) {
+field_solver_default<Config<1>>::update_b(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -177,7 +177,7 @@ field_solver_explicit<Config<1>>::update_b(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<2>>::update_b(double dt) {
+field_solver_default<Config<2>>::update_b(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -213,7 +213,7 @@ field_solver_explicit<Config<2>>::update_b(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<3>>::update_b(double dt) {
+field_solver_default<Config<3>>::update_b(double dt) {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -253,7 +253,7 @@ field_solver_explicit<Config<3>>::update_b(double dt) {
 
 template <>
 void
-field_solver_explicit<Config<1>>::compute_divs() {
+field_solver_default<Config<1>>::compute_divs() {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -277,7 +277,7 @@ field_solver_explicit<Config<1>>::compute_divs() {
 
 template <>
 void
-field_solver_explicit<Config<2>>::compute_divs() {
+field_solver_default<Config<2>>::compute_divs() {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -308,7 +308,7 @@ field_solver_explicit<Config<2>>::compute_divs() {
 
 template <>
 void
-field_solver_explicit<Config<3>>::compute_divs() {
+field_solver_default<Config<3>>::compute_divs() {
   auto ext = m_grid->extent();
 
   kernel_launch(
@@ -341,8 +341,8 @@ field_solver_explicit<Config<3>>::compute_divs() {
       B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs());
 }
 
-template class field_solver_explicit<Config<1>>;
-template class field_solver_explicit<Config<2>>;
-template class field_solver_explicit<Config<3>>;
+template class field_solver_default<Config<1>>;
+template class field_solver_default<Config<2>>;
+template class field_solver_default<Config<3>>;
 
 }  // namespace Aperture

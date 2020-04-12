@@ -1,5 +1,5 @@
-#ifndef __FIELD_SOLVER_EXPLICIT_H_
-#define __FIELD_SOLVER_EXPLICIT_H_
+#ifndef __FIELD_SOLVER_DEFAULT_H_
+#define __FIELD_SOLVER_DEFAULT_H_
 
 #include "data/fields.hpp"
 #include "framework/environment.hpp"
@@ -12,7 +12,7 @@ namespace Aperture {
 // System that updates Maxwell equations using an explicit scheme in Cartesian
 // coordinates
 template <typename Conf>
-class field_solver_explicit : public system_t {
+class field_solver_default : public system_t {
  private:
   const Conf& m_conf;
   const Grid<Conf::dim>* m_grid;
@@ -21,9 +21,9 @@ class field_solver_explicit : public system_t {
   std::shared_ptr<scalar_field<Conf>> divE, divB;
 
  public:
-  static std::string name() { return "field_solver_explicit"; }
+  static std::string name() { return "field_solver_default"; }
 
-  field_solver_explicit(const Conf& conf)
+  field_solver_default(const Conf& conf)
       : m_conf(conf) {}
 
   void init() {

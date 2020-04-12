@@ -16,10 +16,13 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "utils/buffer_impl.cu"
     "core/constant_mem.cu"
     "core/particles.cu"
+    # "systems/ffe_solver_EZ.cu"
+    "systems/field_solver_default.cu"
     )
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
+    # "systems/ffe_solver_EZ.cpp"
     )
 endif()
 

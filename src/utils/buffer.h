@@ -122,20 +122,33 @@ class buffer_t {
     // m_dev_valid = true;
   }
 
-  void assign(size_t start, size_t end, const T& value) {
+  void assign_host(size_t start, size_t end, const T& value) {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
+    if (m_host_allocated)
+      ptr_assign(m_data_h, start, end, value);
+  }
+
+  void assign_dev(size_t start, size_t end, const T& value) {
+    // Do not go further than the array size
+    end = std::min(m_size, end);
+    start = std::min(start, end);
+    if (m_dev_allocated)
+      ptr_assign_dev(m_data_d, start, end, value);
+  }
+
+  void assign(size_t start, size_t end, const T& value) {
     if (Model == MemoryModel::host_only) {
-      if (m_host_allocated)
-        ptr_assign(m_data_h, start, end, value);
+      assign_host(start, end, value);
     } else {
-      if (m_dev_allocated)
-        ptr_assign_dev(m_data_d, start, end, value);
+      assign_dev(start, end, value);
     }
   }
 
   void assign(const T& value) { assign(0, m_size, value); }
+  void assign_host(const T& value) { assign_host(0, m_size, value); }
+  void assign_dev(const T& value) { assign_dev(0, m_size, value); }
 
   void copy_from(const self_type& other, size_t num, size_t src_pos = 0,
                  size_t dest_pos = 0) {

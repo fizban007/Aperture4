@@ -1,16 +1,17 @@
 #ifndef __ENVIRONMENT_H_
 #define __ENVIRONMENT_H_
 
-#include <any>
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 
 #include "data.h"
 #include "framework/param_store.hpp"
 #include "system.h"
 #include "utils/logger.h"
+#include <boost/any.hpp>
 
 namespace cxxopts {
 class Options;
@@ -37,8 +38,8 @@ class event_handler_t {
       auto& any_p = it->second;
       std::function<void(Args & ...)> f;
       try {
-        f = std::any_cast<std::function<void(Args & ...)>>(any_p);
-      } catch (const std::bad_any_cast& e) {
+        f = boost::any_cast<std::function<void(Args & ...)>>(any_p);
+      } catch (const boost::bad_any_cast& e) {
         Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
         return;
       }
@@ -48,7 +49,7 @@ class event_handler_t {
 
  private:
   // std::unordered_map<std::string, std::vector<std::any>> event_map;
-  std::unordered_map<std::string, std::any> event_map;
+  std::unordered_map<std::string, boost::any> event_map;
 };
 
 class data_store_t {
@@ -63,22 +64,15 @@ class data_store_t {
     auto it = store_map.find(name);
     if (it != store_map.end()) {
       auto& any_p = it->second;
-      if (any_p.has_value()) {
-        const T* ptr = nullptr;
-        try {
-          ptr = std::any_cast<const T*>(any_p);
-        } catch (const std::bad_any_cast& e) {
-          Logger::print_err("Failed to find shared_data '{}': {}", name,
-                            e.what());
-        }
-        return ptr;
+      if (any_p != nullptr) {
+        return reinterpret_cast<const T*>(any_p);
       }
     }
     return nullptr;
   }
 
  private:
-  std::unordered_map<std::string, std::any> store_map;
+  std::unordered_map<std::string, const void*> store_map;
 };
 
 class sim_environment {
@@ -149,7 +143,7 @@ class sim_environment {
                      Args&&... args) {
     // Check if the data component has already been installed
     if (m_data_map.find(name) != m_data_map.end()) return;
-    m_data_map.insert({name, std::make_shared<Data<Conf, Args...>>(
+    m_data_map.insert({name, std::make_shared<Data<Conf>>(
                                  conf, std::forward<Args>(args)...)});
     m_data_order.push_back(name);
   }
@@ -183,6 +177,17 @@ class sim_environment {
     } else {
       Logger::print_err("Failed to get data component '{}'", name);
       return nullptr;
+    }
+  }
+
+  template <typename T>
+  void get_data(const std::string& name, std::shared_ptr<T>& ptr) {
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) {
+      ptr = std::dynamic_pointer_cast<T>(it->second);
+    } else {
+      Logger::print_err("Failed to get data component '{}'", name);
+      ptr = nullptr;
     }
   }
 

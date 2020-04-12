@@ -62,7 +62,16 @@ TEST_CASE("Parsing into a struct directly", "[param_store]") {
 
   REQUIRE(my_param.dt == 0.4f);
   REQUIRE(my_param.max_steps == 500);
+  REQUIRE(my_param.b[0] == true);
   REQUIRE(my_param.b[2] == true);
-  Logger::print_info("b is {}, {}, {}, {}", my_param.b[0],
-                     my_param.b[1], my_param.b[2], my_param.b[3]);
+
+  // Parsing a single array
+  float sizes[3];
+  store.add("sizes", std::vector<double>{1.0, 2.0, 3.0});
+
+  parse_array("sizes", sizes, store);
+
+  REQUIRE(sizes[0] == 1.0f);
+  REQUIRE(sizes[1] == 2.0f);
+  REQUIRE(sizes[2] == 3.0f);
 }

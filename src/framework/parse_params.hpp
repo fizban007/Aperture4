@@ -103,6 +103,11 @@ void parse_struct(ParamStruct& params, const params_store& store) {
   visit_struct::for_each(params, detail::visit_param(store));
 }
 
+template <typename T, size_t N>
+void parse_array(const std::string& name, T (&x)[N], const params_store& store) {
+  detail::visit_param{store}(name.c_str(), x);
+}
+
 }
 
 #endif // __PARSE_PARAMS_H_

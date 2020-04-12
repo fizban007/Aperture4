@@ -51,13 +51,13 @@ field_solver_default<Config<1>>::update_e(double dt) {
 
             E[1][n] +=
                 dt *
-                ((B[2][n - 1] - B[2][n] - Bbg[2][n - 1] + Bbg[2][n]) *
+                ((B[2][n - 1] - Bbg[2][n - 1] - B[2][n] + Bbg[2][n]) *
                      dev_grid_1d.inv_delta[0] -
                  J[1][n]);
 
             E[2][n] +=
                 dt *
-                ((B[1][n] - B[1][n - 1] - Bbg[1][n] + Bbg[1][n - 1]) *
+                ((B[1][n] - Bbg[1][n] - B[1][n - 1] + Bbg[1][n - 1]) *
                      dev_grid_1d.inv_delta[0] -
                  J[2][n]);
           }
@@ -78,25 +78,28 @@ field_solver_default<Config<2>>::update_e(double dt) {
           auto pos = idx.get_pos();
           if (dev_grid_2d.is_in_bound(pos)) {
             // (Curl u)_1 = d2u3 - d3u2
-            E[0][idx] += dt * ((B[2][idx] - B[2][idx.dec_y()] -
-                                Bbg[2][idx] + Bbg[2][idx.dec_y()]) *
-                                   dev_grid_2d.inv_delta[1] -
-                               J[0][idx]);
+            E[0][idx] +=
+                dt * ((B[2][idx] - Bbg[2][idx] - B[2][idx.dec_y()] +
+                       Bbg[2][idx.dec_y()]) *
+                          dev_grid_2d.inv_delta[1] -
+                      J[0][idx]);
 
             // (Curl u)_2 = d3u1 - d1u3
-            E[1][idx] += dt * ((B[2][idx.dec_x()] - B[2][idx] -
-                                Bbg[2][idx.dec_x()] + Bbg[2][idx]) *
-                                   dev_grid_2d.inv_delta[0] -
-                               J[1][idx]);
+            E[1][idx] +=
+                dt * ((B[2][idx.dec_x()] - Bbg[2][idx.dec_x()] -
+                       B[2][idx] + Bbg[2][idx]) *
+                          dev_grid_2d.inv_delta[0] -
+                      J[1][idx]);
 
             // (Curl u)_3 = d1u2 - d2u1
-            E[2][idx] += dt * ((B[1][idx] - B[1][idx.dec_x()] -
-                                Bbg[1][idx] + Bbg[1][idx.dec_x()]) *
-                                   dev_grid_2d.inv_delta[0] +
-                               (B[0][idx.dec_y()] - B[0][idx] -
-                                Bbg[0][idx.dec_y()] + Bbg[0][idx]) *
-                                   dev_grid_2d.inv_delta[1] -
-                               J[2][idx]);
+            E[2][idx] +=
+                dt * ((B[1][idx] - Bbg[1][idx] - B[1][idx.dec_x()] +
+                       Bbg[1][idx.dec_x()]) *
+                          dev_grid_2d.inv_delta[0] +
+                      (B[0][idx.dec_y()] - Bbg[0][idx.dec_y()] -
+                       B[0][idx] + Bbg[0][idx]) *
+                          dev_grid_2d.inv_delta[1] -
+                      J[2][idx]);
           }
         }
       },
@@ -115,31 +118,34 @@ field_solver_default<Config<3>>::update_e(double dt) {
           auto pos = idx.get_pos();
           if (dev_grid_3d.is_in_bound(pos)) {
             // (Curl u)_1 = d2u3 - d3u2
-            E[0][idx] += dt * ((B[2][idx] - B[2][idx.dec_y()] -
-                                Bbg[2][idx] + Bbg[2][idx.dec_y()]) *
-                                   dev_grid_3d.inv_delta[1] +
-                               (B[1][idx.dec_z()] - B[1][idx] -
-                                Bbg[1][idx.dec_z()] + Bbg[1][idx]) *
-                                   dev_grid_3d.inv_delta[2] -
-                               J[0][idx]);
+            E[0][idx] +=
+                dt * ((B[2][idx] - Bbg[2][idx] - B[2][idx.dec_y()] +
+                       Bbg[2][idx.dec_y()]) *
+                          dev_grid_3d.inv_delta[1] +
+                      (B[1][idx.dec_z()] - Bbg[1][idx.dec_z()] -
+                       B[1][idx] + Bbg[1][idx]) *
+                          dev_grid_3d.inv_delta[2] -
+                      J[0][idx]);
 
             // (Curl u)_2 = d3u1 - d1u3
-            E[1][idx] += dt * ((B[2][idx.dec_x()] - B[2][idx] -
-                                Bbg[2][idx.dec_x()] + Bbg[2][idx]) *
-                                   dev_grid_3d.inv_delta[0] +
-                               (B[0][idx] - B[0][idx.dec_z()] -
-                                Bbg[0][idx] + Bbg[0][idx.dec_z()]) *
-                                   dev_grid_3d.inv_delta[2] -
-                               J[1][idx]);
+            E[1][idx] +=
+                dt * ((B[2][idx.dec_x()] - Bbg[2][idx.dec_x()] -
+                       B[2][idx] + Bbg[2][idx]) *
+                          dev_grid_3d.inv_delta[0] +
+                      (B[0][idx] - Bbg[0][idx] - B[0][idx.dec_z()] +
+                       Bbg[0][idx.dec_z()]) *
+                          dev_grid_3d.inv_delta[2] -
+                      J[1][idx]);
 
             // (Curl u)_3 = d1u2 - d2u1
-            E[2][idx] += dt * ((B[1][idx] - B[1][idx.dec_x()] -
-                                Bbg[1][idx] + Bbg[1][idx.dec_x()]) *
-                                   dev_grid_3d.inv_delta[0] +
-                               (B[0][idx.dec_y()] - B[0][idx] -
-                                Bbg[0][idx.dec_y()] + Bbg[0][idx]) *
-                                   dev_grid_3d.inv_delta[1] -
-                               J[2][idx]);
+            E[2][idx] +=
+                dt * ((B[1][idx] - Bbg[1][idx] - B[1][idx.dec_x()] +
+                       Bbg[1][idx.dec_x()]) *
+                          dev_grid_3d.inv_delta[0] +
+                      (B[0][idx.dec_y()] - Bbg[0][idx.dec_y()] -
+                       B[0][idx] + Bbg[0][idx]) *
+                          dev_grid_3d.inv_delta[1] -
+                      J[2][idx]);
           }
         }
       },
@@ -288,17 +294,19 @@ field_solver_default<Config<2>>::compute_divs() {
           auto pos = idx.get_pos();
 
           if (dev_grid_2d.is_in_bound(pos)) {
-            divE[n] =
-                (E[0][idx] - E[0][idx.dec_x()] - Ebg[0][idx] + Ebg[0][idx.dec_x()]) *
-                dev_grid_2d.inv_delta[0] +
-                (E[1][idx] - E[1][idx.dec_y()] - Ebg[1][idx] + Ebg[1][idx.dec_y()]) *
-                dev_grid_2d.inv_delta[1];
+            divE[n] = (E[0][idx] - E[0][idx.dec_x()] - Ebg[0][idx] +
+                       Ebg[0][idx.dec_x()]) *
+                          dev_grid_2d.inv_delta[0] +
+                      (E[1][idx] - E[1][idx.dec_y()] - Ebg[1][idx] +
+                       Ebg[1][idx.dec_y()]) *
+                          dev_grid_2d.inv_delta[1];
 
-            divB[n] =
-                (B[0][idx.inc_x()] - B[0][idx] - Bbg[0][idx.inc_x()] + Bbg[0][idx]) *
-                dev_grid_2d.inv_delta[0] +
-                (B[1][idx.inc_y()] - B[1][idx] - Bbg[1][idx.inc_y()] + Bbg[1][idx]) *
-                dev_grid_2d.inv_delta[1];
+            divB[n] = (B[0][idx.inc_x()] - B[0][idx] -
+                       Bbg[0][idx.inc_x()] + Bbg[0][idx]) *
+                          dev_grid_2d.inv_delta[0] +
+                      (B[1][idx.inc_y()] - B[1][idx] -
+                       Bbg[1][idx.inc_y()] + Bbg[1][idx]) *
+                          dev_grid_2d.inv_delta[1];
           }
         }
       },
@@ -319,21 +327,25 @@ field_solver_default<Config<3>>::compute_divs() {
           auto pos = idx.get_pos();
 
           if (dev_grid_3d.is_in_bound(pos)) {
-            divE[n] =
-                (E[0][idx] - E[0][idx.dec_x()] - Ebg[0][idx] + Ebg[0][idx.dec_x()]) *
-                dev_grid_3d.inv_delta[0] +
-                (E[1][idx] - E[1][idx.dec_y()] - Ebg[1][idx] + Ebg[1][idx.dec_y()]) *
-                dev_grid_3d.inv_delta[1] +
-                (E[2][idx] - E[2][idx.dec_z()] - Ebg[2][idx] + Ebg[2][idx.dec_z()]) *
-                dev_grid_3d.inv_delta[2];
+            divE[n] = (E[0][idx] - Ebg[0][idx] - E[0][idx.dec_x()] +
+                       Ebg[0][idx.dec_x()]) *
+                          dev_grid_3d.inv_delta[0] +
+                      (E[1][idx] - Ebg[1][idx] - E[1][idx.dec_y()] +
+                       Ebg[1][idx.dec_y()]) *
+                          dev_grid_3d.inv_delta[1] +
+                      (E[2][idx] - Ebg[2][idx] - E[2][idx.dec_z()] +
+                       Ebg[2][idx.dec_z()]) *
+                          dev_grid_3d.inv_delta[2];
 
-            divB[n] =
-                (B[0][idx.inc_x()] - B[0][idx] - Bbg[0][idx.inc_x()] + Bbg[0][idx]) *
-                dev_grid_3d.inv_delta[0] +
-                (B[1][idx.inc_y()] - B[1][idx] - Bbg[1][idx.inc_y()] + Bbg[1][idx]) *
-                dev_grid_3d.inv_delta[1] +
-                (B[2][idx.inc_z()] - B[2][idx] - Bbg[2][idx.inc_z()] + Bbg[2][idx]) *
-                dev_grid_3d.inv_delta[2];
+            divB[n] = (B[0][idx.inc_x()] - Bbg[0][idx.inc_x()] -
+                       B[0][idx] + Bbg[0][idx]) *
+                          dev_grid_3d.inv_delta[0] +
+                      (B[1][idx.inc_y()] - Bbg[1][idx.inc_y()] -
+                       B[1][idx] + Bbg[1][idx]) *
+                          dev_grid_3d.inv_delta[1] +
+                      (B[2][idx.inc_z()] - Bbg[2][idx.inc_z()] -
+                       B[2][idx] + Bbg[2][idx]) *
+                          dev_grid_3d.inv_delta[2];
           }
         }
       },

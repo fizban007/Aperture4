@@ -67,7 +67,7 @@ struct Grid {
   template <int N>
       HD_INLINE std::enable_if_t <
       N<Dim, Scalar> pos(int n, int stagger) const {
-    return pos<N>(n, (Scalar)(stagger * 0.5 + 0.5));
+    return pos<N>(n, (Scalar)(0.5 - 0.5 * stagger));
   }
 
   ///  Coordinate of a point inside cell n in dimension i.

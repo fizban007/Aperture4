@@ -1,6 +1,10 @@
 #include "catch.hpp"
 #include "core/grid.hpp"
+#include "systems/grid.hpp"
+#include "framework/environment.hpp"
+#include "framework/config.h"
 #include "utils/kernel_helper.hpp"
+#include "utils/index.hpp"
 
 using namespace Aperture;
 
@@ -17,7 +21,7 @@ TEST_CASE("Using grid", "[grid]") {
     g1.inv_delta[0] = 1.0 / g1.delta[0];
 
     REQUIRE(g1.reduced_dim<0>() == 8);
-    REQUIRE(g1.pos<0>(1, true) == 0.0f);
+    REQUIRE(g1.pos<0>(2, true) == 0.0f);
     REQUIRE(g1.pos<0>(6, 0.7f) == 4.7f * g1.delta[0]);
     REQUIRE(g1.pos<1>(6, 11.6f) == 11.6f);
 
@@ -39,7 +43,7 @@ TEST_CASE("Using grid", "[grid]") {
     }
 
     REQUIRE(g2.reduced_dim<1>() == 8);
-    REQUIRE(g2.pos<1>(1, true) == 0.0f);
+    REQUIRE(g2.pos<1>(2, true) == 0.0f);
     REQUIRE(g2.pos<1>(6, 0.7f) == 4.7f * g2.delta[1]);
     REQUIRE(g2.pos<2>(6, 11.6f) == 11.6f);
 
@@ -75,4 +79,31 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
         printf("pos is %f\n", g.pos<2>(6, 0.7f));
     }, g3);
   CudaSafeCall(cudaDeviceSynchronize());
+}
+
+TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
+  sim_environment env;
+  Config<3> conf;
+
+  // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
+  env.params().add("N", std::vector<int64_t>({32, 32, 32}));
+  env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
+  env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
+  env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+
+  env.register_system<grid_t>(conf);
+  env.init();
+
+  kernel_launch({1, 1}, [] __device__(){
+      printf("N is %ux%ux%u\n", dev_grid_3d.reduced_dim(0),
+             dev_grid_3d.reduced_dim(1),
+             dev_grid_3d.reduced_dim(1));
+    });
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
+  // All a grid does is simply keeping track of the linear spaces in the 3
+  // different dimensions. Linear indexing scheme is a mapping between this grid
+  // space to the linear memory space.
 }

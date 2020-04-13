@@ -1,13 +1,12 @@
 #include "params_store.hpp"
 #include "cpptoml.h"
-#include <variant>
 #include <memory>
+#include <variant>
 
 namespace Aperture {
 
-typedef std::variant<bool, int64_t, double, std::string,
-                     std::vector<bool>, std::vector<int64_t>,
-                     std::vector<double>,
+typedef std::variant<bool, int64_t, double, std::string, std::vector<bool>,
+                     std::vector<int64_t>, std::vector<double>,
                      std::vector<std::string>>
     param_type;
 
@@ -22,15 +21,14 @@ class params_store::params_store_impl {
   }
 
   template <typename T>
-  T get(const std::string& name, const T& default_value) {
+  T get(const std::string& name, T default_value) {
     auto it = m_param_map.find(name);
     if (it != m_param_map.end()) {
       try {
         T f = std::get<T>(it->second);
         return f;
       } catch (std::bad_variant_access&) {
-        Logger::print_err("Parameter '{}' has the incorrect type!",
-                          name);
+        Logger::print_err("Parameter '{}' has the incorrect type!", name);
         return default_value;
       }
     } else {
@@ -50,15 +48,15 @@ class params_store::params_store_impl {
       auto& name = it.first;
       auto& ptr = it.second;
       if (ptr->is_table_array()) {
-        auto& array = std::dynamic_pointer_cast<cpptoml::table_array>(ptr)->get();
+        auto& array =
+            std::dynamic_pointer_cast<cpptoml::table_array>(ptr)->get();
         Logger::print_debug("Entering table array '{}'", name);
         for (auto& p : array) {
           read_table(*p, params);
         }
       } else if (ptr->is_table()) {
         Logger::print_debug("Entering table '{}'", name);
-        read_table(*std::dynamic_pointer_cast<cpptoml::table>(ptr),
-                   params);
+        read_table(*std::dynamic_pointer_cast<cpptoml::table>(ptr), params);
       } else if (ptr->is_array()) {
         auto array_ptr = std::dynamic_pointer_cast<cpptoml::array>(ptr);
         if (auto v = array_ptr->get_array_of<bool>()) {
@@ -130,15 +128,15 @@ params_store::add(const std::string& name, const T& value) {
 
 ////////////////////////////////////////////////////////////////
 template bool params_store::get(const std::string& name,
-                               bool default_value) const;
+                                bool default_value) const;
 template int64_t params_store::get(const std::string& name,
-                              int64_t default_value) const;
+                                   int64_t default_value) const;
 // template uint64_t params_store::get(const std::string& name,
 //                                    uint64_t default_value) const;
 template double params_store::get(const std::string& name,
-                                 double default_value) const;
+                                  double default_value) const;
 template std::string params_store::get(const std::string& name,
-                                      std::string default_value) const;
+                                       std::string default_value) const;
 
 template std::string params_store::get<std::string>(
     const std::string& name) const;
@@ -150,28 +148,25 @@ template std::vector<int64_t> params_store::get<std::vector<int64_t>>(
 //     const std::string& name) const;
 template std::vector<double> params_store::get<std::vector<double>>(
     const std::string& name) const;
-template std::vector<std::string> params_store::get<
-    std::vector<std::string>>(const std::string& name) const;
+template std::vector<std::string> params_store::get<std::vector<std::string>>(
+    const std::string& name) const;
 
-template void params_store::add(const std::string& name,
-                               const bool& value);
-template void params_store::add(const std::string& name,
-                               const int64_t& value);
+template void params_store::add(const std::string& name, const bool& value);
+template void params_store::add(const std::string& name, const int64_t& value);
 // template void params_store::add(const std::string& name,
 //                                const uint64_t& value);
+template void params_store::add(const std::string& name, const double& value);
 template void params_store::add(const std::string& name,
-                               const double& value);
+                                const std::string& value);
 template void params_store::add(const std::string& name,
-                               const std::string& value);
+                                const std::vector<bool>& value);
 template void params_store::add(const std::string& name,
-                               const std::vector<bool>& value);
-template void params_store::add(const std::string& name,
-                               const std::vector<int64_t>& value);
+                                const std::vector<int64_t>& value);
 // template void params_store::add(const std::string& name,
 //                                const std::vector<uint64_t>& value);
 template void params_store::add(const std::string& name,
-                               const std::vector<double>& value);
+                                const std::vector<double>& value);
 template void params_store::add(const std::string& name,
-                               const std::vector<std::string>& value);
+                                const std::vector<std::string>& value);
 
 }  // namespace Aperture

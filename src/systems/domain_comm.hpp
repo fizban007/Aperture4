@@ -15,7 +15,6 @@ namespace Aperture {
 template <typename Conf>
 class domain_comm : public system_t {
  private:
-  const Conf& m_conf;
   MPI_Comm m_world;
   MPI_Comm m_cart;
   MPI_Datatype m_scalar_type;
@@ -33,15 +32,11 @@ class domain_comm : public system_t {
  public:
   static std::string name() { return "communicator"; }
 
-  domain_comm(const Conf& conf) : m_conf(conf) {}
-
-  void init();
-  void register_dependencies(sim_environment& env);
-  void register_callbacks(sim_environment& env);
+  domain_comm(sim_environment& env);
 
   void setup_domain();
-  void send_guard_cell_vfield(vector_field<Conf>& field);
-  void send_guard_cell_sfield(scalar_field<Conf>& field);
+  void send_guard_cell(vector_field<Conf>& field);
+  void send_guard_cell(scalar_field<Conf>& field);
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset);
 

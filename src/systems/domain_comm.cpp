@@ -6,20 +6,10 @@
 namespace Aperture {
 
 template <typename Conf>
-void
-domain_comm<Conf>::init() {
+domain_comm<Conf>::domain_comm(sim_environment& env) :
+    system_t(env) {
   setup_domain();
-
-  m_env->shared_data().save("domain_info", m_domain_info);
 }
-
-template <typename Conf>
-void
-domain_comm<Conf>::register_callbacks(sim_environment &env) {}
-
-template <typename Conf>
-void
-domain_comm<Conf>::register_dependencies(sim_environment &env) {}
 
 template <typename Conf>
 void
@@ -31,9 +21,9 @@ domain_comm<Conf>::setup_domain() {
   // This is the first place where rank is defined. Tell logger about
   // this
   Logger::init(m_rank,
-               (LogLevel)m_env->params().get<int64_t>("log_level", 0));
+               (LogLevel)m_env.params().get<int64_t>("log_level", 0));
 
-  auto dims = m_env->params().get<std::vector<int64_t>>("nodes");
+  auto dims = m_env.params().get<std::vector<int64_t>>("nodes");
   if (dims.size() < Conf::dim) dims.resize(Conf::dim, 1);
 
   int64_t total_dim = 1;
@@ -61,7 +51,7 @@ domain_comm<Conf>::setup_domain() {
   }
 
   auto periodic =
-      m_env->params().get<std::vector<bool>>("periodic_boundary");
+      m_env.params().get<std::vector<bool>>("periodic_boundary");
   if (periodic.size() == Conf::dim)
     for (int i = 0; i < Conf::dim; i++)
       m_domain_info.is_periodic[i] = periodic[i];
@@ -102,7 +92,7 @@ domain_comm<Conf>::setup_domain() {
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_guard_cell_vfield(vector_field<Conf> &field) {}
+domain_comm<Conf>::send_guard_cell(vector_field<Conf> &field) {}
 
 // Explicitly instantiate some of the configurations that may occur
 template class domain_comm<Config<1>>;

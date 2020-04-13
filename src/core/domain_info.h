@@ -1,6 +1,8 @@
 #ifndef __DOMAIN_INFO_H_
 #define __DOMAIN_INFO_H_
 
+#include <mpi.h>
+
 namespace Aperture {
 
 template <int Dim>
@@ -12,6 +14,18 @@ struct domain_info_t {
                                  ///< conditions in each direction
   int neighbor_left[Dim];
   int neighbor_right[Dim];
+
+  domain_info_t() {
+    for (int i = 0; i < Dim; i++) {
+      mpi_dims[i] = 1;
+      mpi_coord[i] = 0;
+      is_boundary[i * 2] = false;
+      is_boundary[i * 2 + 1] = false;
+      is_periodic[i] = 0;
+      neighbor_left[i] = MPI_PROC_NULL;
+      neighbor_right[i] = MPI_PROC_NULL;
+    }
+  }
 };
 
 }  // namespace Aperture

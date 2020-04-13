@@ -22,27 +22,29 @@ class field_solver_default : public system_t {
  public:
   static std::string name() { return "field_solver"; }
 
-  field_solver_default(const grid_t<Conf>& grid) : m_grid(grid) {}
+  field_solver_default(sim_environment& env, const grid_t<Conf>& grid) :
+      system_t(env), m_grid(grid) {}
 
   void init() {}
 
   void update(double dt, uint32_t step);
 
-  void register_dependencies(sim_environment& env) {
+  void register_dependencies() {
+    depends_on("grid");
     depends_on("communicator");
-    E = env.register_data<vector_field<Conf>>("E", m_grid,
+    E = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                               field_type::edge_centered);
-    E0 = env.register_data<vector_field<Conf>>("E0", m_grid,
+    E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,
                                                field_type::edge_centered);
-    B = env.register_data<vector_field<Conf>>("B", m_grid,
+    B = m_env.register_data<vector_field<Conf>>("B", m_grid,
                                               field_type::face_centered);
-    B0 = env.register_data<vector_field<Conf>>("B0", m_grid,
+    B0 = m_env.register_data<vector_field<Conf>>("B0", m_grid,
                                                field_type::face_centered);
-    J = env.register_data<vector_field<Conf>>("J", m_grid,
+    J = m_env.register_data<vector_field<Conf>>("J", m_grid,
                                               field_type::edge_centered);
-    divB = env.register_data<scalar_field<Conf>>("divB", m_grid,
+    divB = m_env.register_data<scalar_field<Conf>>("divB", m_grid,
                                                  field_type::cell_centered);
-    divE = env.register_data<scalar_field<Conf>>("divE", m_grid,
+    divE = m_env.register_data<scalar_field<Conf>>("divE", m_grid,
                                                  field_type::vert_centered);
   }
 

@@ -2,6 +2,7 @@
 #include "core/grid.hpp"
 #include "framework/config.h"
 #include "framework/environment.hpp"
+#include "framework/parse_params.hpp"
 #include "systems/grid.h"
 #include "systems/grid_logsph.h"
 #include "utils/index.hpp"
@@ -85,8 +86,9 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 }
 
 TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
+  Logger::init(0, LogLevel::debug);
   sim_environment env;
-  Config<3> conf;
+  typedef Config<3> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
   env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -94,8 +96,8 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
-  auto grid = env.register_system<grid_t>(conf);
-  env.init();
+  auto grid = env.register_system<grid_t<Conf>>(env);
+  // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
     printf("N is %ux%ux%u\n", dev_grid_3d.reduced_dim(0),
@@ -112,7 +114,7 @@ TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
 
 TEST_CASE("Logsph grid", "[grid][logsph]") {
   sim_environment env;
-  Config<2> conf;
+  typedef Config<2> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
   env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -120,6 +122,7 @@ TEST_CASE("Logsph grid", "[grid][logsph]") {
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
-  auto grid = env.register_system<grid_logsph_t>(conf);
-  env.init();
+  int arr[3];
+  get_from_store("guard", arr, env.params());
+  auto grid = env.register_system<grid_t<Conf>>(env);
 }

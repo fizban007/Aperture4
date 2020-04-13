@@ -19,6 +19,8 @@ TEST_CASE("Using the parameter store", "[param_store]") {
   REQUIRE(store.get<bool>("flag", true) == false);
   REQUIRE(store.get<std::string>("name") == "Alex");
   REQUIRE(store.get<std::string>("p") == "");
+  REQUIRE(store.get<std::vector<int64_t>>("something") ==
+          std::vector<int64_t>{});
 }
 
 TEST_CASE("Parsing toml into our params store", "[param_store]") {
@@ -67,7 +69,7 @@ TEST_CASE("Parsing into a struct directly", "[param_store]") {
 
   // Parsing a single array
   float sizes[3];
-  store.add("sizes", std::vector<double>{1.0, 2.0, 3.0});
+  store.add("sizes", std::vector<double>{1.0, 2.0, 3.0, 4.0});
 
   get_from_store("sizes", sizes, store);
 

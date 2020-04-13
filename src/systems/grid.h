@@ -1,6 +1,7 @@
 #ifndef __GRID_H_
 #define __GRID_H_
 
+#include "core/domain_info.h"
 #include "core/grid.hpp"
 #include "framework/system.h"
 
@@ -14,11 +15,11 @@ class grid_t : public system_t, public Grid<Conf::dim> {
 
   typedef Grid<Conf::dim> base_type;
 
-  grid_t(const Conf& conf) {}
+  grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
+                                   domain_info_t<Conf::dim>{});
 
-  void init();
-  void register_dependencies(sim_environment& env);
-
+  // void init();
+  // void register_dependencies(sim_environment& env);
 };
 
 }  // namespace Aperture

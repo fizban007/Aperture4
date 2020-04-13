@@ -65,7 +65,7 @@ grid_t<Conf>::init() {
   }
 
   // Save a pointer to the grid struct in shared data
-  m_env->shared_data().save("grid", *(Grid<Conf::dim>*)this);
+  m_env->shared_data().save("grid", *(Grid<Conf::dim> *)this);
 
   // Copy the grid parameters to gpu
 #ifdef CUDA_ENABLED
@@ -76,8 +76,8 @@ grid_t<Conf>::init() {
 template <typename Conf>
 void
 grid_t<Conf>::register_dependencies(sim_environment &env) {
-  // If we are initializing the communicator system, it should be done before
-  // initializing this one
+  // If we are initializing the communicator system, it should be done
+  // before initializing this one
   depends_on("communicator");
 }
 

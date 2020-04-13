@@ -86,8 +86,8 @@ domain_comm<Conf>::setup_domain() {
   }
 
 #ifdef CUDA_ENABLED
-  // Poll the system to detect how many GPUs are on the node, set the GPU
-  // corresponding to the rank
+  // Poll the system to detect how many GPUs are on the node, set the
+  // GPU corresponding to the rank
   int n_devices;
   cudaGetDeviceCount(&n_devices);
   if (n_devices <= 0) {

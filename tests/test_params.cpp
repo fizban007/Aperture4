@@ -69,9 +69,15 @@ TEST_CASE("Parsing into a struct directly", "[param_store]") {
   float sizes[3];
   store.add("sizes", std::vector<double>{1.0, 2.0, 3.0});
 
-  parse_array("sizes", sizes, store);
+  get_from_store("sizes", sizes, store);
 
   REQUIRE(sizes[0] == 1.0f);
   REQUIRE(sizes[1] == 2.0f);
   REQUIRE(sizes[2] == 3.0f);
+
+  // Parsing single data
+  uint32_t N;
+  store.add("N", 300l);
+  get_from_store("N", N, store);
+  REQUIRE(N == 300);
 }

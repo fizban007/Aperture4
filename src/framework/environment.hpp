@@ -129,9 +129,10 @@ class sim_environment {
   }
 
   template <typename Data, typename... Args>
-  void register_data(const std::string& name, Args&&... args) {
+  std::shared_ptr<Data> register_data(const std::string& name, Args&&... args) {
     // Check if the data component has already been installed
-    if (m_data_map.find(name) != m_data_map.end()) return;
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) return it->second;
     m_data_map.insert(
         {name, std::make_shared<Data>(std::forward<Args>(args)...)});
     m_data_order.push_back(name);
@@ -139,10 +140,11 @@ class sim_environment {
 
   template <template <typename...> typename Data, typename Conf,
             typename... Args>
-  void register_data(const Conf& conf, const std::string& name,
+  std::shared_ptr<Data<Conf>> register_data(const Conf& conf, const std::string& name,
                      Args&&... args) {
     // Check if the data component has already been installed
-    if (m_data_map.find(name) != m_data_map.end()) return;
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) return it->second;
     m_data_map.insert({name, std::make_shared<Data<Conf>>(
                                  conf, std::forward<Args>(args)...)});
     m_data_order.push_back(name);

@@ -6,8 +6,8 @@
 
 namespace Aperture {
 
-sim_environment::sim_environment() :
-    sim_environment(nullptr, nullptr) {}
+sim_environment::sim_environment()
+    : sim_environment(nullptr, nullptr) {}
 
 sim_environment::sim_environment(int* argc, char*** argv) {
   // Parse options
@@ -48,8 +48,7 @@ sim_environment::~sim_environment() {
 void
 sim_environment::parse_options() {
   // Read command line arguments
-  if (m_argc == nullptr || m_argv == nullptr)
-    return;
+  if (m_argc == nullptr || m_argv == nullptr) return;
   try {
     m_commandline_args.reset(
         new cxxopts::ParseResult(m_options->parse(*m_argc, *m_argv)));
@@ -73,7 +72,8 @@ sim_environment::parse_options() {
 void
 sim_environment::init() {
   parse_options();
-  m_params.parse(m_params.get<std::string>("config_file", "config.toml"));
+  m_params.parse(
+      m_params.get<std::string>("config_file", "config.toml"));
 
   // First resolve initialization order
   for (auto& it : m_system_map) {
@@ -115,19 +115,21 @@ sim_environment::run() {
 }
 
 void
-sim_environment::resolve_dependencies(const system_t &system, const std::string& name) {
+sim_environment::resolve_dependencies(const system_t& system,
+                                      const std::string& name) {
   m_unresolved.insert(name);
   for (auto& n : system.dependencies()) {
-    if (std::find(m_init_order.begin(), m_init_order.end(), n)
-        == m_init_order.end()) {
+    if (std::find(m_init_order.begin(), m_init_order.end(), n) ==
+        m_init_order.end()) {
       if (m_unresolved.count(n) > 0)
-        throw std::runtime_error("Circular dependency in the given list of systems!");
+        throw std::runtime_error(
+            "Circular dependency in the given list of systems!");
       if (m_system_map.find(n) != m_system_map.end())
         resolve_dependencies(*m_system_map[n], n);
     }
   }
-  if (std::find(m_init_order.begin(), m_init_order.end(), name)
-      == m_init_order.end())
+  if (std::find(m_init_order.begin(), m_init_order.end(), name) ==
+      m_init_order.end())
     m_init_order.push_back(name);
   m_unresolved.erase(name);
 }

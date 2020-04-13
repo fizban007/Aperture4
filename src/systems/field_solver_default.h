@@ -30,16 +30,6 @@ class field_solver_default : public system_t {
     m_grid = m_env->shared_data().get<const Grid<Conf::dim>>("grid");
     if (m_grid == nullptr)
       throw std::runtime_error("No grid system defined!");
-
-    auto ext = m_grid->extent();
-
-    m_env->get_data("E", E);
-    m_env->get_data("E0", E0);
-    m_env->get_data("B", B);
-    m_env->get_data("B0", B0);
-    m_env->get_data("J", J);
-    m_env->get_data("divE", divE);
-    m_env->get_data("divB", divB);
   }
 
   void update(double dt, uint32_t step);
@@ -47,13 +37,13 @@ class field_solver_default : public system_t {
   void register_dependencies(sim_environment& env) {
     depends_on("grid");
     depends_on("communicator");
-    env.register_data<vector_field>(m_conf, "E", field_type::edge_centered);
-    env.register_data<vector_field>(m_conf, "E0", field_type::edge_centered);
-    env.register_data<vector_field>(m_conf, "B", field_type::face_centered);
-    env.register_data<vector_field>(m_conf, "B0", field_type::face_centered);
-    env.register_data<vector_field>(m_conf, "J", field_type::edge_centered);
-    env.register_data<scalar_field>(m_conf, "divB", field_type::cell_centered);
-    env.register_data<scalar_field>(m_conf, "divE", field_type::vert_centered);
+    E = env.register_data<vector_field>(m_conf, "E", field_type::edge_centered);
+    E0 = env.register_data<vector_field>(m_conf, "E0", field_type::edge_centered);
+    B = env.register_data<vector_field>(m_conf, "B", field_type::face_centered);
+    B0 = env.register_data<vector_field>(m_conf, "B0", field_type::face_centered);
+    J = env.register_data<vector_field>(m_conf, "J", field_type::edge_centered);
+    divB = env.register_data<scalar_field>(m_conf, "divB", field_type::cell_centered);
+    divE = env.register_data<scalar_field>(m_conf, "divE", field_type::vert_centered);
   }
 
   void update_e(double dt);

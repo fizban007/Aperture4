@@ -106,48 +106,47 @@ class sim_environment {
   ~sim_environment();
 
   template <typename System, typename... Args>
-  void register_system(Args&&... args) {
+  auto register_system(Args&&... args) -> std::shared_ptr<System> {
     const std::string& name = System::name();
-    // Check if the system has already been installed
-    if (m_system_map.find(name) != m_system_map.end()) return;
-    m_system_map.insert(
-        {name, std::make_shared<System>(std::forward<Args>(args)...)});
+    // Check if the system has already been installed. If so, return it
+    // directly
+    auto it = m_system_map.find(name);
+    if (it != m_system_map.end())
+      return std::dynamic_pointer_cast<System>(it->second);
+
+    // Otherwise, make the system, and return the pointer
+    auto ptr = std::make_shared<System>(std::forward<Args>(args)...);
+    m_system_map.insert({name, ptr});
     m_system_map[name]->register_dependencies(*this);
     m_system_order.push_back(name);
+    return ptr;
   }
 
   template <template <typename...> typename System, typename Conf,
             typename... Args>
-  void register_system(const Conf& conf, Args&&... args) {
-    const std::string& name = System<Conf, Args...>::name();
-    // Check if the system has already been installed
-    if (m_system_map.find(name) != m_system_map.end()) return;
-    m_system_map.insert({name, std::make_shared<System<Conf, Args...>>(
-                                   conf, std::forward<Args>(args)...)});
-    m_system_map[name]->register_dependencies(*this);
-    m_system_order.push_back(name);
+  auto register_system(const Conf& conf, Args&&... args)
+      -> std::shared_ptr<System<Conf>> {
+    return register_system<System<Conf>>(conf, std::forward<Args>(args)...);
   }
 
   template <typename Data, typename... Args>
-  std::shared_ptr<Data> register_data(const std::string& name, Args&&... args) {
+  auto register_data(const std::string& name, Args&&... args)
+      -> std::shared_ptr<Data> {
     // Check if the data component has already been installed
     auto it = m_data_map.find(name);
-    if (it != m_data_map.end()) return it->second;
-    m_data_map.insert(
-        {name, std::make_shared<Data>(std::forward<Args>(args)...)});
+    if (it != m_data_map.end())
+      return std::dynamic_pointer_cast<Data>(it->second);
+    auto ptr = std::make_shared<Data>(std::forward<Args>(args)...);
+    m_data_map.insert({name, ptr});
     m_data_order.push_back(name);
+    return ptr;
   }
 
   template <template <typename...> typename Data, typename Conf,
             typename... Args>
-  std::shared_ptr<Data<Conf>> register_data(const Conf& conf, const std::string& name,
-                     Args&&... args) {
-    // Check if the data component has already been installed
-    auto it = m_data_map.find(name);
-    if (it != m_data_map.end()) return it->second;
-    m_data_map.insert({name, std::make_shared<Data<Conf>>(
-                                 conf, std::forward<Args>(args)...)});
-    m_data_order.push_back(name);
+  auto register_data(const Conf& conf, const std::string& name, Args&&... args)
+      -> std::shared_ptr<Data<Conf>> {
+    return register_data<Data<Conf>>(name, conf, std::forward<Args>(args)...);
   }
 
   void parse_options();

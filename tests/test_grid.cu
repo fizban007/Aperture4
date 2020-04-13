@@ -91,7 +91,7 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
-  env.register_system<grid_t>(conf);
+  auto grid = env.register_system<grid_t>(conf);
   env.init();
 
   kernel_launch({1, 1}, [] __device__(){

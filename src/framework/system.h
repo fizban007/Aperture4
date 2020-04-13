@@ -19,7 +19,7 @@ class system_t {
   }
 
   // virtual std::string name() = 0;
-  virtual void init() = 0;
+  virtual void init() {}
   virtual void register_dependencies(sim_environment&) {}
   virtual void update(double, uint32_t) {}
   virtual void destroy() {}

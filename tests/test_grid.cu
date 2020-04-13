@@ -3,6 +3,7 @@
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "systems/grid.h"
+#include "systems/grid_logsph.h"
 #include "utils/index.hpp"
 #include "utils/kernel_helper.hpp"
 
@@ -107,4 +108,18 @@ TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
   // All a grid does is simply keeping track of the linear spaces in the 3
   // different dimensions. Linear indexing scheme is a mapping between this grid
   // space to the linear memory space.
+}
+
+TEST_CASE("Logsph grid", "[grid][logsph]") {
+  sim_environment env;
+  Config<2> conf;
+
+  // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
+  env.params().add("N", std::vector<int64_t>({32, 32, 32}));
+  env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
+  env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
+  env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+
+  auto grid = env.register_system<grid_logsph_t>(conf);
+  env.init();
 }

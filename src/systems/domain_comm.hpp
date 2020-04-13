@@ -41,7 +41,7 @@ class domain_comm : public system_t {
 
   void setup_domain();
   void send_guard_cell_vfield(vector_field<Conf>& field);
-  void send_guard_cell_sfield(vector_field<Conf>& field);
+  void send_guard_cell_sfield(scalar_field<Conf>& field);
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset);
 

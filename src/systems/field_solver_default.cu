@@ -41,7 +41,7 @@ field_solver_default<Conf>::update(double dt, uint32_t step) {
 template <>
 void
 field_solver_default<Config<1>>::update_e(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto E, auto B, auto Bbg, auto J) {
@@ -69,7 +69,7 @@ field_solver_default<Config<1>>::update_e(double dt) {
 template <>
 void
 field_solver_default<Config<2>>::update_e(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto E, auto B, auto Bbg, auto J) {
@@ -109,7 +109,7 @@ field_solver_default<Config<2>>::update_e(double dt) {
 template <>
 void
 field_solver_default<Config<3>>::update_e(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto E, auto B, auto Bbg, auto J) {
@@ -155,7 +155,7 @@ field_solver_default<Config<3>>::update_e(double dt) {
 template <>
 void
 field_solver_default<Config<1>>::update_b(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto B, auto E, auto Ebg) {
@@ -184,7 +184,7 @@ field_solver_default<Config<1>>::update_b(double dt) {
 template <>
 void
 field_solver_default<Config<2>>::update_b(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto B, auto E, auto Ebg) {
@@ -220,7 +220,7 @@ field_solver_default<Config<2>>::update_b(double dt) {
 template <>
 void
 field_solver_default<Config<3>>::update_b(double dt) {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [dt, ext] __device__(auto B, auto E, auto Ebg) {
@@ -260,7 +260,7 @@ field_solver_default<Config<3>>::update_b(double dt) {
 template <>
 void
 field_solver_default<Config<1>>::compute_divs() {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto E, auto B, auto Ebg,
@@ -284,7 +284,7 @@ field_solver_default<Config<1>>::compute_divs() {
 template <>
 void
 field_solver_default<Config<2>>::compute_divs() {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto E, auto B, auto Ebg,
@@ -317,7 +317,7 @@ field_solver_default<Config<2>>::compute_divs() {
 template <>
 void
 field_solver_default<Config<3>>::compute_divs() {
-  auto ext = m_grid->extent();
+  auto ext = m_grid.extent();
 
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto E, auto B, auto Ebg,

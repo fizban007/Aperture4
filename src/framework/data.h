@@ -1,5 +1,5 @@
-#ifndef __COMPONENT_H_
-#define __COMPONENT_H_
+#ifndef __FRAMEWORK_DATA_H_
+#define __FRAMEWORK_DATA_H_
 
 #include <string>
 
@@ -9,10 +9,10 @@ class sim_environment;
 
 class data_t {
  public:
-  virtual void init(
-      const std::string& name, const sim_environment& env) = 0;
+  virtual void init(const std::string& name, const sim_environment& env) {}
+  virtual void serialize() {}
 };
 
-}
+}  // namespace Aperture
 
-#endif
+#endif  // __FRAMEWORK_DATA_H_

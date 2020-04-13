@@ -7,26 +7,42 @@
 namespace Aperture {
 
 template <int N, typename Conf>
-void
-field_t<N, Conf>::init(const std::string& name,
-                       const sim_environment& env) {
-  auto grid = env.shared_data().get<const Grid<Conf::dim>>("grid");
-  if (grid == nullptr)
-    throw std::runtime_error("No grid system defined!");
+field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid) {
+  resize(grid);
+}
 
-  init(grid->extent());
+template <int N, typename Conf>
+field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
+                          const std::array<stagger_t, N> st)
+    : m_stagger(st) {
+  resize(grid);
+}
 
-  // Find the initial condition for this data component. If found, then use it
-  // to initialize this class with the given values
-  env.event_handler().invoke_callback("initial " + name, *this, *grid);
+template <int N, typename Conf>
+field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
+                          field_type type) {
+  if (type == field_type::face_centered) {
+    m_stagger[0] = stagger_t(0b001);
+    m_stagger[1] = stagger_t(0b010);
+    m_stagger[2] = stagger_t(0b100);
+  } else if (type == field_type::edge_centered) {
+    m_stagger[0] = stagger_t(0b110);
+    m_stagger[1] = stagger_t(0b101);
+    m_stagger[2] = stagger_t(0b011);
+  } else if (type == field_type::cell_centered) {
+    m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b000);
+  } else if (type == field_type::vert_centered) {
+    m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b111);
+  }
+  resize(grid);
 }
 
 template <int N, typename Conf>
 void
-field_t<N, Conf>::init(const extent_t<Conf::dim>& ext) {
+field_t<N, Conf>::resize(const Grid<Conf::dim>& grid) {
+  m_grid = &grid;
   for (int i = 0; i < N; i++) {
-    m_data[i].resize(ext);
-    m_data[i].assign(0.0);
+    m_data[i].resize(m_grid->extent());
   }
 }
 

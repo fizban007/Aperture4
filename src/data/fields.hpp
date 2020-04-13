@@ -12,6 +12,9 @@ namespace Aperture {
 template <int N>
 using greater_than_unity = std::enable_if_t<(N > 1), bool>;
 
+template <typename Conf>
+class grid_t;
+
 enum field_type : char {
   face_centered,
   edge_centered,
@@ -24,39 +27,26 @@ class field_t : public data_t {
  private:
   std::array<typename Conf::multi_array_t, N> m_data;
   std::array<stagger_t, N> m_stagger;
-  const Conf& m_conf;
+  const Grid<Conf::dim>* m_grid;
 
  public:
-  field_t(const Conf& conf) : m_conf(conf) {}
-  field_t(const Conf& conf, const std::array<stagger_t, N> st)
-      : m_conf(conf), m_stagger(st) {}
-  field_t(const Conf& conf, field_type type) : m_conf(conf) {
-    if (type == field_type::face_centered) {
-      m_stagger[0] = stagger_t(0b001);
-      m_stagger[1] = stagger_t(0b010);
-      m_stagger[2] = stagger_t(0b100);
-    } else if (type == field_type::edge_centered) {
-      m_stagger[0] = stagger_t(0b110);
-      m_stagger[1] = stagger_t(0b101);
-      m_stagger[2] = stagger_t(0b011);
-    } else if (type == field_type::cell_centered) {
-      m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b000);
-    } else if (type == field_type::vert_centered) {
-      m_stagger[0] = m_stagger[1] = m_stagger[2] = stagger_t(0b111);
-    }
-  }
+  field_t(const Grid<Conf::dim>& grid);
+  field_t(const Grid<Conf::dim>& grid, const std::array<stagger_t, N> st);
+  field_t(const Grid<Conf::dim>& grid, field_type type);
 
-  void init(const std::string& name, const sim_environment& env);
-  void init(const extent_t<Conf::dim>& ext);
+  void resize(const Grid<Conf::dim>& grid);
+  void assign_dev(const typename Conf::value_type& value);
+  void assign_host(const typename Conf::value_type& value);
+  void assign(const typename Conf::value_type& value);
 
   template <typename Func>
-  void set_values(int n, const Func& f, const Grid<Conf::dim>& grid) {
+  void set_values(int n, const Func& f) {
     if (n >= 0 && n < Conf::dim) {
       for (auto idx : m_data[n].indices()) {
         auto pos = idx.get_pos();
-        double x0 = grid.template pos<0>(pos, m_stagger[n]);
-        double x1 = grid.template pos<1>(pos, m_stagger[n]);
-        double x2 = grid.template pos<2>(pos, m_stagger[n]);
+        double x0 = m_grid->template pos<0>(pos, m_stagger[n]);
+        double x1 = m_grid->template pos<1>(pos, m_stagger[n]);
+        double x2 = m_grid->template pos<2>(pos, m_stagger[n]);
         m_data[n][idx] = f(x0, x1, x2);
       }
 #ifdef CUDA_ENABLED
@@ -66,7 +56,7 @@ class field_t : public data_t {
   }
 
   template <typename Func>
-  void set_values(const Func& f, const Grid<Conf::dim>& grid) {
+  void set_values(const Func& f) {
     for (int n = 0; n < Conf::dim; n++) {
       set_values(n, [&f, n](auto x0, auto x1, auto x2) {
         return f(n, x0, x1, x2);

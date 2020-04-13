@@ -1,10 +1,10 @@
 #include "catch.hpp"
 #include "core/grid.hpp"
-#include "systems/grid.hpp"
-#include "framework/environment.hpp"
 #include "framework/config.h"
-#include "utils/kernel_helper.hpp"
+#include "framework/environment.hpp"
+#include "systems/grid.h"
 #include "utils/index.hpp"
+#include "utils/kernel_helper.hpp"
 
 using namespace Aperture;
 
@@ -74,10 +74,12 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
     g3.inv_delta[i] = 1.0 / g3.delta[i];
   }
 
-  kernel_launch(exec_policy(1, 1), [] __device__(Grid<3> g) {
-      if (g.is_in_bound(6, 6, 6))
-        printf("pos is %f\n", g.pos<2>(6, 0.7f));
-    }, g3);
+  kernel_launch(
+      exec_policy(1, 1),
+      [] __device__(Grid<3> g) {
+        if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
+      },
+      g3);
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -94,11 +96,10 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   auto grid = env.register_system<grid_t>(conf);
   env.init();
 
-  kernel_launch({1, 1}, [] __device__(){
-      printf("N is %ux%ux%u\n", dev_grid_3d.reduced_dim(0),
-             dev_grid_3d.reduced_dim(1),
-             dev_grid_3d.reduced_dim(1));
-    });
+  kernel_launch({1, 1}, [] __device__() {
+    printf("N is %ux%ux%u\n", dev_grid_3d.reduced_dim(0),
+           dev_grid_3d.reduced_dim(1), dev_grid_3d.reduced_dim(1));
+  });
   CudaSafeCall(cudaDeviceSynchronize());
 }
 

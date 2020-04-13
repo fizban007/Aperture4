@@ -1,4 +1,4 @@
-#include "grid.hpp"
+#include "grid.h"
 #include "core/constant_mem_func.h"
 #include "core/domain_info.h"
 #include "framework/config.h"

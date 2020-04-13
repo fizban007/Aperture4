@@ -1,7 +1,7 @@
 #include "fields.hpp"
 #include "framework/config.h"
 #include "framework/environment.hpp"
-#include "systems/grid.hpp"
+#include "systems/grid.h"
 #include <exception>
 
 namespace Aperture {

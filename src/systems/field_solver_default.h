@@ -4,7 +4,7 @@
 #include "data/fields.hpp"
 #include "framework/environment.hpp"
 #include "framework/system.h"
-#include "systems/grid.hpp"
+#include "systems/grid.h"
 #include <memory>
 
 namespace Aperture {

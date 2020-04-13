@@ -23,17 +23,17 @@ to_bool(std::string& str) {
   return b;
 }
 
-sim_params
+params_struct
 parse_config(const std::string& filename) {
-  sim_params result;
+  params_struct result;
   parse_config(filename, result);
   return result;
 }
 
 void
-parse_config(const std::string& filename, sim_params& params) {
+parse_config(const std::string& filename, params_struct& params) {
   auto config = cpptoml::parse_file(filename);
-  sim_params defaults;
+  params_struct defaults;
 
   params.dt = config->get_as<double>("dt").value_or(defaults.dt);
   params.max_steps = config->get_as<uint64_t>("max_steps")

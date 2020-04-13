@@ -8,7 +8,7 @@ namespace Aperture {
 
 __constant__ uint32_t morton2dLUT_dev[256];
 __constant__ uint32_t morton3dLUT_dev[256];
-__constant__ sim_params dev_params;
+__constant__ params_struct dev_params;
 __constant__ Grid<1> dev_grid_1d;
 __constant__ Grid<2> dev_grid_2d;
 __constant__ Grid<3> dev_grid_3d;
@@ -21,11 +21,11 @@ init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]) {
   CudaSafeCall(cudaMemcpyToSymbol(morton3dLUT_dev, (void*)p_3d, sizeof(morton3dLUT_dev)));
 }
 
-void
-init_dev_params(const sim_params& params) {
-  const sim_params* p = &params;
-  CudaSafeCall(cudaMemcpyToSymbol(dev_params, p, sizeof(sim_params)));
-}
+// void
+// init_dev_params(conparams_structams& params) {
+//   conparams_structams* p = &params;
+//   CudaSafeCall(cudaMemcpyToSymbol(dev_params, p, sizeparams_structams)));
+// }
 
 template <>
 void

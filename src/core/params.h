@@ -4,6 +4,7 @@
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
 #include <string>
+#include "visit_struct/visit_struct_intrusive.hpp"
 
 namespace Aperture {
 
@@ -12,11 +13,13 @@ namespace Aperture {
 ///  be maintained in the config and be passed around as reference to
 ///  determine how the simulation will unfold.
 /////////////////////////////////////////////////////////////////////////
-struct sim_params {
-  float dt = 0.01;
+struct params_struct {
+  BEGIN_VISITABLES(params_struct);
+  VISITABLE_INIT(float, dt, 0.1);
 
-  uint64_t max_steps = 10000; ///< Total number of timesteps
-  uint32_t data_interval = 100; ///< How many steps between data outputs
+  VISITABLE_INIT(uint64_t, max_steps, 10000); ///< Total number of timesteps
+  VISITABLE_INIT(uint32_t, data_interval, 100); ///< How many steps between data outputs
+  END_VISITABLES;
   // // Grid parameters
   // uint32_t N[3] = {1, 1, 1};
   // uint32_t guard[3] = {0, 0, 0};
@@ -27,9 +30,9 @@ struct sim_params {
   // uint32_t nodes[3] = {1, 1, 1};
 };
 
-sim_params parse_config(const std::string& filename);
+params_struct parse_config(const std::string& filename);
 
-void parse_config(const std::string& filename, sim_params& params);
+void parse_config(const std::string& filename, params_struct& params);
 
 }  // namespace Aperture
 

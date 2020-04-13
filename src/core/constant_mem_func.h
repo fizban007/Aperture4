@@ -6,10 +6,10 @@
 
 namespace Aperture {
 
-struct sim_params;
+struct params_struct;
 
 void init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]);
-void init_dev_params(const sim_params& params);
+// void init_dev_params(conparams_structams& params);
 template <int Dim>
 void init_dev_grid(const Grid<Dim>& grid);
 

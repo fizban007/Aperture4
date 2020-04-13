@@ -9,6 +9,9 @@
 
 namespace Aperture {
 
+template <int N>
+using greater_than_unity = std::enable_if_t<(N > 1), bool>;
+
 enum field_type : char {
   face_centered,
   edge_centered,
@@ -75,7 +78,7 @@ class field_t : public data_t {
   const typename Conf::multi_array_t& operator[](int n) const {
     return m_data[n];
   }
-  stagger_t stagger(int n) const { return m_stagger[n]; }
+  stagger_t stagger(int n = 0) const { return m_stagger[n]; }
 
   void copy_from(const field_t<N, Conf>& other) {
     for (int i = 0; i < N; i++) {
@@ -83,8 +86,32 @@ class field_t : public data_t {
     }
   }
 
-  vec_t<typename Conf::ndptr_const_t, N> get_ptrs() const;
-  vec_t<typename Conf::ndptr_t, N> get_ptrs();
+  // Only provides this method for N > 1
+  template <int M = N, greater_than_unity<M> = true>
+  vec_t<typename Conf::ndptr_const_t, M> get_ptrs() const {
+    vec_t<typename Conf::ndptr_const_t, M> result;
+    for (int i = 0; i < M; i++) {
+      result[i] = m_data[i].get_const_ptr();
+    }
+    return result;
+  }
+
+  // Only provides this method for N > 1
+  template <int M = N, greater_than_unity<M> = true>
+  vec_t<typename Conf::ndptr_t, M> get_ptrs() {
+    vec_t<typename Conf::ndptr_t, M> result;
+    for (int i = 0; i < M; i++) {
+      result[i] = m_data[i].get_ptr();
+    }
+    return result;
+  }
+
+  typename Conf::ndptr_const_t get_ptr(int n = 0) const {
+    return m_data[n].get_const_ptr();
+  }
+  typename Conf::ndptr_t get_ptr(int n = 0) {
+    return m_data[n].get_ptr();
+  }
 };
 
 template <typename Conf>

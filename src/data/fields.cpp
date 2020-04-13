@@ -30,26 +30,6 @@ field_t<N, Conf>::init(const extent_t<Conf::dim>& ext) {
   }
 }
 
-template <int N, typename Conf>
-auto
-field_t<N, Conf>::get_ptrs() const -> vec_t<typename Conf::ndptr_const_t, N> {
-  vec_t<typename Conf::ndptr_const_t, N> result;
-  for (int i = 0; i < N; i++) {
-    result[i] = m_data[i].get_const_ptr();
-  }
-  return result;
-}
-
-template <int N, typename Conf>
-auto
-field_t<N, Conf>::get_ptrs() -> vec_t<typename Conf::ndptr_t, N> {
-  vec_t<typename Conf::ndptr_t, N> result;
-  for (int i = 0; i < N; i++) {
-    result[i] = m_data[i].get_ptr();
-  }
-  return result;
-}
-
 ///////////////////////////////////////////////////////
 // Explicitly instantiate some fields
 template class field_t<3, Config<1, float>>;

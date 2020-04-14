@@ -2,6 +2,7 @@
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "utils/logger.h"
+#include "utils/mpi_helper.h"
 
 namespace Aperture {
 
@@ -17,6 +18,8 @@ domain_comm<Conf>::setup_domain() {
   m_world = MPI_COMM_WORLD;
   MPI_Comm_rank(m_world, &m_rank);
   MPI_Comm_size(m_world, &m_size);
+
+  m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_type{});
 
   // This is the first place where rank is defined. Tell logger about
   // this
@@ -52,9 +55,8 @@ domain_comm<Conf>::setup_domain() {
 
   auto periodic =
       m_env.params().get<std::vector<bool>>("periodic_boundary");
-  if (periodic.size() == Conf::dim)
-    for (int i = 0; i < Conf::dim; i++)
-      m_domain_info.is_periodic[i] = periodic[i];
+  for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
+    m_domain_info.is_periodic[i] = periodic[i];
 
   // Create a cartesian MPI group for communication
   MPI_Cart_create(m_world, Conf::dim, m_domain_info.mpi_dims,
@@ -92,7 +94,19 @@ domain_comm<Conf>::setup_domain() {
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_guard_cell(vector_field<Conf> &field) {}
+domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {}
 
 // Explicitly instantiate some of the configurations that may occur
 template class domain_comm<Config<1>>;

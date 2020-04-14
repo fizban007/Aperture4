@@ -5,6 +5,7 @@
 #include "framework/environment.hpp"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "systems/domain_comm.hpp"
 #include <memory>
 
 namespace Aperture {
@@ -15,6 +16,7 @@ template <typename Conf>
 class field_solver_default : public system_t {
  private:
   const grid_t<Conf>& m_grid;
+  const domain_comm<Conf>& m_comm;
 
   std::shared_ptr<vector_field<Conf>> E, B, E0, B0, J;
   std::shared_ptr<scalar_field<Conf>> divE, divB;
@@ -22,16 +24,16 @@ class field_solver_default : public system_t {
  public:
   static std::string name() { return "field_solver"; }
 
-  field_solver_default(sim_environment& env, const grid_t<Conf>& grid) :
-      system_t(env), m_grid(grid) {}
+  field_solver_default(sim_environment& env, const grid_t<Conf>& grid,
+                       const domain_comm<Conf>& comm) :
+      system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init() {}
-
   void update(double dt, uint32_t step);
 
   void register_dependencies() {
-    depends_on("grid");
-    depends_on("communicator");
+    // depends_on("grid");
+    // depends_on("communicator");
     E = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                               field_type::edge_centered);
     E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,

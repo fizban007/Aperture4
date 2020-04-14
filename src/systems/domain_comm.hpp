@@ -24,23 +24,26 @@ class domain_comm : public system_t {
   domain_info_t<Conf::dim> m_domain_info;
 
   // Communication buffers
-  std::vector<typename Conf::multi_array_t> m_send_buffers;
-  std::vector<typename Conf::multi_array_t> m_recv_buffers;
-  std::vector<typename Conf::ptc_t> m_ptc_buffers;
-  std::vector<typename Conf::ph_t> m_ph_buffers;
+  mutable std::vector<typename Conf::multi_array_t> m_send_buffers;
+  mutable std::vector<typename Conf::multi_array_t> m_recv_buffers;
+  mutable std::vector<typename Conf::ptc_t> m_ptc_buffers;
+  mutable std::vector<typename Conf::ph_t> m_ph_buffers;
+
+  void setup_domain();
 
  public:
   static std::string name() { return "communicator"; }
 
   domain_comm(sim_environment& env);
 
-  void setup_domain();
-  void send_guard_cell(vector_field<Conf>& field);
-  void send_guard_cell(scalar_field<Conf>& field);
+  void send_guard_cells(vector_field<Conf>& field) const;
+  void send_guard_cells(scalar_field<Conf>& field) const;
+  void send_add_guard_cells(vector_field<Conf>& field) const;
+  void send_add_guard_cells(scalar_field<Conf>& field) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
-                            uint64_t& offset);
+                            uint64_t& offset) const;
 
-  const domain_info_t<Conf::dim>& domain_info() {
+  const domain_info_t<Conf::dim>& domain_info() const {
     return m_domain_info;
   }
 };

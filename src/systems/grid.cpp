@@ -4,6 +4,7 @@
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "framework/parse_params.hpp"
+#include "systems/domain_comm.hpp"
 #include <exception>
 
 namespace Aperture {
@@ -54,13 +55,10 @@ grid_t<Conf>::grid_t(sim_environment& env,
 #endif
 }
 
-// template <typename Conf>
-// void
-// grid_t<Conf>::register_dependencies(sim_environment &env) {
-//   // If we are initializing the communicator system, it should be done
-//   // before initializing this one
-//   depends_on("communicator");
-// }
+template <typename Conf>
+grid_t<Conf>::grid_t(sim_environment& env,
+                     const domain_comm<Conf>& comm) :
+    grid_t(env, comm.domain_info()) {}
 
 template class grid_t<Config<1>>;
 template class grid_t<Config<2>>;

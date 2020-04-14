@@ -132,6 +132,20 @@ struct Grid {
     return is_in_bound(index(args...));
   }
 
+  HD_INLINE bool is_in_grid(const index_t<Dim>& idx) const {
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      if (idx[i] >= dims[i])
+        return false;
+    }
+    return true;
+  }
+
+  template <typename... Args>
+  HD_INLINE bool is_in_grid(Args... args) const {
+    return is_in_grid(index(args...));
+  }
+
   HD_INLINE extent_t<Dim> extent() const {
     extent_t<Dim> result;
 #pragma unroll

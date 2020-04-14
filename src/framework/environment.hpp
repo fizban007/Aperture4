@@ -218,6 +218,18 @@ class sim_environment {
     }
   }
 
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Initialize all systems in order defined. This calls all the `init()`
+  ///  functions of the systems one by one.
+  ////////////////////////////////////////////////////////////////////////////////
+  void init();
+
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Start the main simulation loop. This enters a loop that calls the
+  ///  `update()` function of each system in order at every time step.
+  ////////////////////////////////////////////////////////////////////////////////
+  void run();
+
   data_store_t& shared_data() { return m_shared_data; }
   const data_store_t& shared_data() const { return m_shared_data; }
   event_handler_t& event_handler() { return m_event_handler; }
@@ -227,9 +239,6 @@ class sim_environment {
   const cxxopts::ParseResult* commandline_args() const {
     return m_commandline_args.get();
   }
-
-  void init();
-  void run();
 };
 
 }  // namespace Aperture

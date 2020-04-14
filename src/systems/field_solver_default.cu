@@ -15,20 +15,17 @@ field_solver_default<Conf>::update(double dt, uint32_t step) {
   timer::stamp("field_update");
   if (step == 0) {
     update_e(0.5 * dt);
-    // m_env->event_handler().invoke_callback(
-    //     "send_guard_cells_vector_field", *E);
+    m_comm.send_guard_cells(*E);
   }
 
   update_b(dt);
 
   // Communicate the new B values to guard cells
-  // m_env->event_handler().invoke_callback(
-  //     "send_guard_cells_vector_field", *B);
+  m_comm.send_guard_cells(*B);
 
   update_e(dt);
   // Communicate the new E values to guard cells
-  // m_env->event_handler().invoke_callback(
-  //     "send_guard_cells_vector_field", *E);
+  m_comm.send_guard_cells(*E);
 
   compute_divs();
 

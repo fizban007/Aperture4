@@ -6,9 +6,7 @@ using namespace Aperture;
 
 int main(int argc, char *argv[]) {
   sim_environment env(&argc, &argv);
-
-  env.parse_options();
-
+  env.init();
   env.run();
   return 0;
 }

@@ -7,6 +7,9 @@
 
 namespace Aperture {
 
+template <typename Conf>
+class domain_comm;
+
 // The system that is responsible for setting up the computational grid
 template <typename Conf>
 class grid_t : public system_t, public Grid<Conf::dim> {
@@ -17,9 +20,7 @@ class grid_t : public system_t, public Grid<Conf::dim> {
 
   grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
                                    domain_info_t<Conf::dim>{});
-
-  // void init();
-  // void register_dependencies(sim_environment& env);
+  grid_t(sim_environment& env, const domain_comm<Conf>& comm);
 };
 
 }  // namespace Aperture

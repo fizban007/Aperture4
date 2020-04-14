@@ -22,16 +22,17 @@ enum class PtcType : unsigned char { electron = 0, positron, ion };
 // This defines the maximum number of bits in the particle flag to represent the
 // particle type
 constexpr int max_ptc_type_bits = 3;
+constexpr int max_ptc_types = 1 << max_ptc_type_bits;
 
 inline std::string ptc_type_name(int type) {
   if (type == (int)PtcType::electron) {
-    return "electron";
+    return "e";
   } else if (type == (int)PtcType::positron) {
-    return "positron";
+    return "p";
   } else if (type == (int)PtcType::ion) {
-    return "ion";
+    return "i";
   } else if (type == (int)PtcType::ion + 1) {
-    return "photon";
+    return "ph";
   } else {
     return "unknown";
   }

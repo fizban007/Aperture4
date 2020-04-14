@@ -1,8 +1,8 @@
 #ifndef __CONSTANT_MEM_FUNC_H_
 #define __CONSTANT_MEM_FUNC_H_
 
-#include <cstdint>
 #include "core/grid.hpp"
+#include <cstdint>
 
 namespace Aperture {
 
@@ -13,6 +13,8 @@ void init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]);
 template <int Dim>
 void init_dev_grid(const Grid<Dim>& grid);
 
-}
+void init_dev_charge_mass(const float charge[max_ptc_types],
+                          const float mass[max_ptc_types]);
+}  // namespace Aperture
 
 #endif

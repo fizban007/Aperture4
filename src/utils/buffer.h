@@ -7,6 +7,7 @@
 #include "core/typedefs_and_constants.h"
 #include "utils/logger.h"
 #include <cstdlib>
+#include <initializer_list>
 #include <type_traits>
 
 #ifdef CUDA_ENABLED
@@ -99,6 +100,7 @@ class buffer_t {
     return *this;
   }
 
+  ///  Subscript operator, only defined if this is not device_only
   template <MemoryModel M = Model>
   inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
       size_t n) const {
@@ -106,6 +108,7 @@ class buffer_t {
     return host_ptr()[n];
   }
 
+  ///  Subscript operator, only defined if this is not device_only
   template <MemoryModel M = Model>
   inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
       size_t n) {
@@ -113,6 +116,7 @@ class buffer_t {
     return host_ptr()[n];
   }
 
+  /// Resize the buffer to a given @size.
   void resize(size_t size) {
     if (m_host_allocated || m_dev_allocated) {
       free_mem();
@@ -122,6 +126,7 @@ class buffer_t {
     // m_dev_valid = true;
   }
 
+  /// Assign a single value to part of the buffer, host version
   void assign_host(size_t start, size_t end, const T& value) {
     // Do not go further than the array size
     end = std::min(m_size, end);
@@ -130,6 +135,7 @@ class buffer_t {
       ptr_assign(m_data_h, start, end, value);
   }
 
+  /// Assign a single value to part of the buffer, device version
   void assign_dev(size_t start, size_t end, const T& value) {
     // Do not go further than the array size
     end = std::min(m_size, end);
@@ -138,6 +144,8 @@ class buffer_t {
       ptr_assign_dev(m_data_d, start, end, value);
   }
 
+  /// Assign a single value to part of the buffer. Calls the host or device
+  /// version depending on the memory location
   void assign(size_t start, size_t end, const T& value) {
     if (Model == MemoryModel::host_only) {
       assign_host(start, end, value);
@@ -146,10 +154,21 @@ class buffer_t {
     }
   }
 
+  /// Assign a value to the whole buffer. Calls the host or device version
+  /// depending on the memory location
   void assign(const T& value) { assign(0, m_size, value); }
+
+  /// Assign a value to the whole buffer. Host version
   void assign_host(const T& value) { assign_host(0, m_size, value); }
+
+  /// Assign a value to the whole buffer. Device version
   void assign_dev(const T& value) { assign_dev(0, m_size, value); }
 
+  ///  Copy a part from another buffer.
+  ///  \param other  The other buffer that we are copying from
+  ///  \param num    Number of elements to copy
+  ///  \param src_pos   Starting position in the other buffer
+  ///  \param dest_pos  Starting position in this buffer (the target)
   void copy_from(const self_type& other, size_t num, size_t src_pos = 0,
                  size_t dest_pos = 0) {
     // Sanitize input
@@ -164,8 +183,20 @@ class buffer_t {
     }
   }
 
+  ///  Copy from the whole other buffer
   void copy_from(const self_type& other) {
     copy_from(other, other.m_size, 0, 0);
+  }
+
+  ///  Place some values directly at and after @pos. Very useful for
+  ///  initialization.
+  void emplace(size_t pos, const std::initializer_list<T>& list) {
+    if (Model == MemoryModel::device_only) return;
+    for (auto& t : list) {
+      if (pos >= m_size) break;
+      m_data_h[pos] = t;
+      pos += 1;
+    }
   }
 
   bool host_allocated() const { return m_host_allocated; }

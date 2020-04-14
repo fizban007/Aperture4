@@ -82,12 +82,9 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
 
   particles_t<mem_model> ptc(N);
   ptc.set_num(3);
-  ptc.x1[0] = 0.1;
-  ptc.x1[1] = 0.2;
-  ptc.x1[2] = 0.3;
-  ptc.cell[0] = 34;
-  ptc.cell[1] = 24;
-  ptc.cell[2] = 14;
+  ptc.x1.emplace(0, {0.1, 0.2, 0.3});
+  ptc.cell.emplace(0, {34, 24, 14});
+
   ptc.copy_to_device();
   ptc.sort_by_cell(100);
   ptc.copy_to_host();

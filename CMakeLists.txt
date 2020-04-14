@@ -22,6 +22,7 @@ else()
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -DUSE_BMI2")
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
+set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 # Find required packages
 find_package(MPI REQUIRED)

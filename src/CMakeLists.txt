@@ -20,6 +20,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/particles.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver_default.cu"
+    "systems/ptc_updater.cu"
     # "systems/field_solver_logsph.cu"
     )
 else()

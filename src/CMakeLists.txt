@@ -8,7 +8,9 @@ set(Aperture_src
   "framework/params_store.cpp"
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
+  # "systems/grid_logsph.cpp"
   "data/fields.cpp"
+  "data/particle_data.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -18,6 +20,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/particles.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver_default.cu"
+    # "systems/field_solver_logsph.cu"
     )
 else()
   list(APPEND Aperture_src

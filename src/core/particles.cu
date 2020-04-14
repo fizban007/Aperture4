@@ -93,12 +93,12 @@ particles_base<BufferType>::append(const typename BufferType::single_type &p) {
 // Explicit instantiation
 // template class particles_base<ptc_buffer<MemoryModel::host_only>>;
 template class particles_base<ptc_buffer<MemoryModel::host_device>>;
-// template class particles_base<ptc_buffer<MemoryModel::device_managed>>;
+template class particles_base<ptc_buffer<MemoryModel::device_managed>>;
 template class particles_base<ptc_buffer<MemoryModel::device_only>>;
 
 // template class particles_base<ph_buffer<MemoryModel::host_only>>;
 template class particles_base<ph_buffer<MemoryModel::host_device>>;
-// template class particles_base<ph_buffer<MemoryModel::device_managed>>;
+template class particles_base<ph_buffer<MemoryModel::device_managed>>;
 template class particles_base<ph_buffer<MemoryModel::device_only>>;
 
 }  // namespace Aperture

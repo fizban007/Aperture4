@@ -75,19 +75,19 @@ sim_environment::init() {
   //   resolve_dependencies(*it.second, it.first);
   // }
 
-  // Initialize systems following dependencies
-  // for (auto& name : m_system_order) {
-  //   auto& s = m_system_map[name];
-  //   Logger::print_info("Initializing system '{}'", name);
-  //   s->init_system(*this);
-  // }
+  // Initialize systems following declaration order
+  for (auto& name : m_system_order) {
+    auto& s = m_system_map[name];
+    Logger::print_info("Initializing system '{}'", name);
+    s->init();
+  }
 
   // Initialize all data
-  // for (auto name : m_data_order) {
-  //   auto& c = m_data_map[name];
-  //   Logger::print_info("Initializing data '{}'", name);
-  //   c->init(name, *this);
-  // }
+  for (auto name : m_data_order) {
+    auto& c = m_data_map[name];
+    Logger::print_info("Initializing data '{}'", name);
+    c->init(name, *this);
+  }
 }
 
 void

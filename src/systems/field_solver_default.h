@@ -4,8 +4,8 @@
 #include "data/fields.hpp"
 #include "framework/environment.hpp"
 #include "framework/system.h"
-#include "systems/grid.h"
 #include "systems/domain_comm.hpp"
+#include "systems/grid.h"
 #include <memory>
 
 namespace Aperture {
@@ -19,35 +19,35 @@ class field_solver_default : public system_t {
   const domain_comm<Conf>& m_comm;
 
   std::shared_ptr<vector_field<Conf>> E, B, E0, B0, J;
-  std::shared_ptr<scalar_field<Conf>> divE, divB;
+  std::shared_ptr<scalar_field<Conf>> divE, divB, EdotB;
 
  public:
   static std::string name() { return "field_solver"; }
 
   field_solver_default(sim_environment& env, const grid_t<Conf>& grid,
-                       const domain_comm<Conf>& comm) :
-      system_t(env), m_grid(grid), m_comm(comm) {}
+                       const domain_comm<Conf>& comm)
+      : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init() {}
   void update(double dt, uint32_t step);
 
   void register_dependencies() {
-    // depends_on("grid");
-    // depends_on("communicator");
     E = m_env.register_data<vector_field<Conf>>("E", m_grid,
-                                              field_type::edge_centered);
+                                                field_type::edge_centered);
     E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,
-                                               field_type::edge_centered);
+                                                 field_type::edge_centered);
     B = m_env.register_data<vector_field<Conf>>("B", m_grid,
-                                              field_type::face_centered);
+                                                field_type::face_centered);
     B0 = m_env.register_data<vector_field<Conf>>("B0", m_grid,
-                                               field_type::face_centered);
+                                                 field_type::face_centered);
     J = m_env.register_data<vector_field<Conf>>("J", m_grid,
-                                              field_type::edge_centered);
+                                                field_type::edge_centered);
     divB = m_env.register_data<scalar_field<Conf>>("divB", m_grid,
-                                                 field_type::cell_centered);
+                                                   field_type::cell_centered);
     divE = m_env.register_data<scalar_field<Conf>>("divE", m_grid,
-                                                 field_type::vert_centered);
+                                                   field_type::vert_centered);
+    EdotB = m_env.register_data<scalar_field<Conf>>("EdotB", m_grid,
+                                                    field_type::vert_centered);
   }
 
   void update_e(double dt);

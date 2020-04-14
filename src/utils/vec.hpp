@@ -72,6 +72,12 @@ class vec_t {
     return result;
   }
 
+  HD_INLINE void set(const T& value) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++)
+      memory[i] = value;
+  }
+
   HD_INLINE T dot(const self_type& other) const {
     T result = 0;
 #pragma unroll

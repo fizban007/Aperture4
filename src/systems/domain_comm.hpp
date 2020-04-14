@@ -12,6 +12,9 @@
 
 namespace Aperture {
 
+template <int Dim>
+struct Grid;
+
 template <typename Conf>
 class domain_comm : public system_t {
  private:
@@ -24,15 +27,18 @@ class domain_comm : public system_t {
   domain_info_t<Conf::dim> m_domain_info;
 
   // Communication buffers
-  mutable std::vector<typename Conf::multi_array_t> m_send_buffers;
-  mutable std::vector<typename Conf::multi_array_t> m_recv_buffers;
-  mutable std::vector<typename Conf::ptc_t> m_ptc_buffers;
-  mutable std::vector<typename Conf::ph_t> m_ph_buffers;
+  typedef typename Conf::multi_array_t multi_array_t;
+  mutable std::vector<multi_array_t> m_send_buffers;
+  mutable std::vector<multi_array_t> m_recv_buffers;
+  mutable std::vector<particles_t<Conf::default_mem_model>> m_ptc_buffers;
+  mutable std::vector<photons_t<Conf::default_mem_model>> m_ph_buffers;
 
   void setup_domain();
 
+  void resize_buffers(const Grid<Conf::dim>& grid);
+
  public:
-  static std::string name() { return "communicator"; }
+  static std::string name() { return "domain_comm"; }
 
   domain_comm(sim_environment& env);
 

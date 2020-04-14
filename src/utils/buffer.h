@@ -222,15 +222,12 @@ class buffer_t {
   std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr()
       const {
     // const T* host_ptr() const {
-    // if (!m_host_valid && m_dev_valid) copy_to_host();
     return m_data_h;
   }
 
   template <MemoryModel M = Model>
   std::enable_if_t<M != MemoryModel::device_only, T*> host_ptr() {
     // T* host_ptr() {
-    // m_host_valid = true;
-    // m_dev_valid = false;
     return m_data_h;
   }
 
@@ -238,15 +235,12 @@ class buffer_t {
   std::enable_if_t<M != MemoryModel::host_only, const T*> dev_ptr()
       const {
     // const T* dev_ptr() const {
-    // if (!m_dev_valid && m_host_valid) copy_to_device();
     return m_data_d;
   }
 
   template <MemoryModel M = Model>
   std::enable_if_t<M != MemoryModel::host_only, T*> dev_ptr() {
     // T* dev_ptr() {
-    // m_dev_valid = true;
-    // m_host_valid = false;
     return m_data_d;
   }
 

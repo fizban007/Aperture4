@@ -124,8 +124,8 @@ class sim_environment {
 
     // Otherwise, make the system, and return the pointer
     auto ptr = std::make_shared<System>(std::forward<Args>(args)...);
+    ptr->register_dependencies();
     m_system_map.insert({name, ptr});
-    m_system_map[name]->register_dependencies();
     m_system_order.push_back(name);
     return ptr;
   }

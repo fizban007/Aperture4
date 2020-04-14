@@ -45,6 +45,10 @@ class Config {
     return multi_array_t(args...);
   }
 
+  static multi_array_t make_multi_array(const extent_t<Dim>& ext) {
+    return multi_array_t(ext);
+  }
+
   Config() {}
   Config(const sim_environment& env) {}
   Config(const Config& other) = delete;

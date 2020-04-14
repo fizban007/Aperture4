@@ -4,10 +4,16 @@
 
 using namespace Aperture;
 
+#ifdef CUDA_ENABLED
+constexpr MemoryModel mem_model = MemoryModel::host_device;
+#else
+constexpr MemoryModel mem_model = MemoryModel::host_only;
+#endif
+
 TEST_CASE("Initializing particles", "[particles]") {
   size_t N = 10000;
-  particles_t<MemoryModel::host_only> ptc(N);
-  photons_t<MemoryModel::host_only> ph(N);
+  particles_t<mem_model> ptc(N);
+  photons_t<mem_model> ph(N);
 
   REQUIRE(ptc.size() == N);
   REQUIRE(ph.size() == N);
@@ -19,7 +25,7 @@ TEST_CASE("Initializing particles", "[particles]") {
   SECTION("Move assignment and constructor") {
     ptc.x1[10] = 0.1f;
 
-    particles_t<MemoryModel::host_only> ptc1 = std::move(ptc);
+    particles_t<mem_model> ptc1 = std::move(ptc);
     REQUIRE(ptc1.size() == N);
     REQUIRE(ptc1.x1[10] == 0.1f);
     REQUIRE(ptc.x1.host_allocated() == false);
@@ -41,13 +47,8 @@ TEST_CASE("Particle flag manipulation", "[particles]") {
 
 TEST_CASE("Init, copy and assign particles", "[particles]") {
   size_t N = 100;
-#ifdef CUDA_ENABLED
-  particles_t<MemoryModel::host_device> ptc(N);
-  particles_t<MemoryModel::host_device> ptc2(N);
-#else
-  particles_t<MemoryModel::host_only> ptc(N);
-  particles_t<MemoryModel::host_only> ptc2(N);
-#endif
+  particles_t<mem_model> ptc(N);
+  particles_t<mem_model> ptc2(N);
   ptc.init();
   ptc.copy_to_host();
   for (int i = 0; i < N; i++)
@@ -62,4 +63,38 @@ TEST_CASE("Init, copy and assign particles", "[particles]") {
   ptc2.copy_to_host();
   for (int i = 0; i < N; i++)
     REQUIRE(ptc2.cell[i] == empty_cell);
+}
+
+#ifdef CUDA_ENABLED
+TEST_CASE("Particle pointers", "[particles]") {
+  particles_t<MemoryModel::host_device> ptc(100);
+  auto ptrs = ptc.get_ptrs();
+  REQUIRE(ptrs.x1 == ptc.x1.dev_ptr());
+  REQUIRE(ptrs.x2 == ptc.x2.dev_ptr());
+  REQUIRE(ptrs.x3 == ptc.x3.dev_ptr());
+  REQUIRE(ptrs.cell == ptc.cell.dev_ptr());
+  REQUIRE(ptrs.flag == ptc.flag.dev_ptr());
+}
+#endif
+
+TEST_CASE("Sorting particles by cell", "[particles]") {
+  size_t N = 100;
+
+  particles_t<mem_model> ptc(N);
+  ptc.set_num(3);
+  ptc.x1[0] = 0.1;
+  ptc.x1[1] = 0.2;
+  ptc.x1[2] = 0.3;
+  ptc.cell[0] = 34;
+  ptc.cell[1] = 24;
+  ptc.cell[2] = 14;
+  ptc.copy_to_device();
+  ptc.sort_by_cell(100);
+  ptc.copy_to_host();
+  REQUIRE(ptc.x1[0] == 0.3f);
+  REQUIRE(ptc.x1[1] == 0.2f);
+  REQUIRE(ptc.x1[2] == 0.1f);
+  REQUIRE(ptc.cell[0] == 14);
+  REQUIRE(ptc.cell[1] == 24);
+  REQUIRE(ptc.cell[2] == 34);
 }

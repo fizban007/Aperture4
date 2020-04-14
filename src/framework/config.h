@@ -31,9 +31,11 @@ class Config {
   typedef ndptr_const<FloatT, Dim, Index_t<Dim>> ndptr_const_t;
 
 #ifdef CUDA_ENABLED
+  static constexpr MemoryModel default_ptc = MemoryModel::device_only;
   typedef particles_t<MemoryModel::device_only> ptc_t;
   typedef photons_t<MemoryModel::device_only> ph_t;
 #else
+  static constexpr MemoryModel default_ptc = MemoryModel::host_only;
   typedef particles_t<MemoryModel::host_only> ptc_t;
   typedef photons_t<MemoryModel::host_only> ph_t;
 #endif

@@ -1,6 +1,7 @@
 #ifndef _PTC_UPDATER_H_
 #define _PTC_UPDATER_H_
 
+#include "algorithms/pushers.hpp"
 #include "core/enum_types.h"
 #include "data/particle_data.h"
 #include "framework/environment.hpp"
@@ -16,6 +17,7 @@ class ptc_updater : public system_t {
  private:
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>& m_comm;
+  default_pusher m_pusher;
 
   std::shared_ptr<particle_data_t> ptc;
   std::shared_ptr<vector_field<Conf>> E, B, J;
@@ -57,7 +59,8 @@ class ptc_updater : public system_t {
   void update(double dt, uint32_t step);
 
   void push(double dt);
-  void deposit(double dt, uint32_t step);
+  void move(double dt);
+  void move_and_deposit(double dt, uint32_t step);
 
   void register_dependencies() {
     size_t max_ptc_num = 1000000;

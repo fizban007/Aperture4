@@ -1,4 +1,3 @@
-#include "algorithms/vay_push.hpp"
 #include "core/constant_mem_func.h"
 #include "framework/config.h"
 #include "ptc_updater.h"
@@ -33,7 +32,7 @@ ptc_updater<Conf>::push(double dt) {
   auto ext = m_grid.extent();
   if (num > 0) {
     kernel_launch(
-        [dt, num, ext] __device__(auto ptrs, auto E, auto B) {
+        [dt, num, ext] __device__(auto ptrs, auto E, auto B, auto pusher) {
           for (auto n : grid_stride_range(0ul, num)) {
             uint32_t cell = ptrs.cell[n];
             if (cell == empty_cell) continue;
@@ -67,8 +66,8 @@ ptc_updater<Conf>::push(double dt) {
             }
 
             if (!check_flag(flag, PtcFlag::ignore_EM)) {
-              Kernels::vay_push(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3,
-                                qdt_over_2m, (Scalar)dt);
+              pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3,
+                     qdt_over_2m, (Scalar)dt);
             }
 
             // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
@@ -81,7 +80,7 @@ ptc_updater<Conf>::push(double dt) {
             ptrs.E[n] = gamma;
           }
         },
-        ptc->dev_ptrs(), E->get_ptrs(), B->get_ptrs());
+        ptc->dev_ptrs(), E->get_ptrs(), B->get_ptrs(), m_pusher);
   }
 }
 

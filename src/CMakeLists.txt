@@ -26,6 +26,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
+    "systems/ptc_updater.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

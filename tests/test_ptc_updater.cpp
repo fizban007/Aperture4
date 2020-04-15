@@ -14,6 +14,9 @@ TEST_CASE("Boris push in a uniform B field", "[boris][.]") {
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
+  auto ptc = env.register_data<particle_data_t>("particles", 10000,
+                                                MemoryModel::host_device);
+
   auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>(env, *comm);
   auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid, *comm);
@@ -23,6 +26,4 @@ TEST_CASE("Boris push in a uniform B field", "[boris][.]") {
   std::shared_ptr<vector_field<Conf>> B;
   env.get_data("B", B);
   (*B)[2].assign(100.0);
-  std::shared_ptr<particle_data_t<Conf::default_ptc>> ptc;
-  env.get_data("particles", ptc);
 }

@@ -30,8 +30,8 @@ class domain_comm : public system_t {
   typedef typename Conf::multi_array_t multi_array_t;
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
-  mutable std::vector<particles_t<Conf::default_mem_model>> m_ptc_buffers;
-  mutable std::vector<photons_t<Conf::default_mem_model>> m_ph_buffers;
+  mutable std::vector<particles_t> m_ptc_buffers;
+  mutable std::vector<photons_t> m_ph_buffers;
 
   void setup_domain();
 

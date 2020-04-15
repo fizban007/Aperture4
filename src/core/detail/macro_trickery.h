@@ -26,7 +26,8 @@
 #define DEF_PTR_ENTRY_(type, name, dv) type* name;
 #define DEF_PTR_ENTRY(r, data, elem) EXPAND_ELEMS(DEF_PTR_ENTRY_, elem)
 
-#define DEF_BUF_ENTRY_(type, name, dv) buffer_t<type, Model> name;
+// #define DEF_BUF_ENTRY_(type, name, dv) buffer_t<type, Model> name;
+#define DEF_BUF_ENTRY_(type, name, dv) buffer_t<type> name;
 #define DEF_BUF_ENTRY(r, data, elem) EXPAND_ELEMS(DEF_BUF_ENTRY_, elem)
 
 #define PTR_ASSIGN_ENTRY_(result, ptr, name) result.name = name.ptr();
@@ -92,9 +93,7 @@
     };                                                                         \
   };                                                                           \
                                                                                \
-  template <MemoryModel Model = MemoryModel::host_only>                        \
   struct name##_buffer {                                                       \
-    static constexpr MemoryModel model() { return Model; }                     \
     typedef single_##name##_t single_type;                                     \
     typedef name##_ptrs ptrs_type;                                             \
                                                                                \
@@ -132,19 +131,7 @@
   }                                                                            \
   }                                                                            \
   VISITABLE_STRUCT(                                                            \
-      Aperture::name##_buffer<>,                                               \
-      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
-          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
-  VISITABLE_STRUCT(                                                            \
-      Aperture::name##_buffer<Aperture::MemoryModel::host_device>,             \
-      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
-          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
-  VISITABLE_STRUCT(                                                            \
-      Aperture::name##_buffer<Aperture::MemoryModel::device_managed>,          \
-      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
-          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
-  VISITABLE_STRUCT(                                                            \
-      Aperture::name##_buffer<Aperture::MemoryModel::device_only>,             \
+      Aperture::name##_buffer,                                               \
       BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
           GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
   VISITABLE_STRUCT(                                                            \
@@ -156,4 +143,18 @@
       BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
           GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))))
 
+  // template <MemoryModel Model = MemoryModel::host_only>                        \
+    static constexpr MemoryModel model() { return Model; }                     \
+  VISITABLE_STRUCT(                                                            \
+      Aperture::name##_buffer<Aperture::MemoryModel::host_device>,             \
+      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
+          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
+  VISITABLE_STRUCT(                                                            \
+      Aperture::name##_buffer<Aperture::MemoryModel::device_managed>,          \
+      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
+          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));                  \
+  VISITABLE_STRUCT(                                                            \
+      Aperture::name##_buffer<Aperture::MemoryModel::device_only>,             \
+      BOOST_PP_EXPAND(ESC BOOST_PP_SEQ_TO_TUPLE(BOOST_PP_SEQ_FOR_EACH(         \
+          GET_NAME, _, GLK_PP_SEQ_DOUBLE_PARENS(content)))));
 #endif  // _MACRO_TRICKERY_H_

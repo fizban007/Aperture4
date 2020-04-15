@@ -20,8 +20,8 @@ namespace Aperture {
 
 /// A class for linear buffers that manages resources both on the host
 /// and the device.
-template <typename T, MemoryModel Model = default_memory_model>
-// template <typename T>
+// template <typename T, MemoryModel Model = default_memory_model>
+template <typename T>
 class buffer_t {
  protected:
   size_t m_size = 0;
@@ -32,18 +32,18 @@ class buffer_t {
   // mutable bool m_dev_valid = true;
   bool m_host_allocated = false;
   bool m_dev_allocated = false;
-  // MemoryModel m_model = default_memory_model;
+  MemoryModel m_model = default_memory_model;
 
   void alloc_mem(size_t size) {
-    if (Model == MemoryModel::host_only ||
-        Model == MemoryModel::host_device) {
+    if (m_model == MemoryModel::host_only ||
+        m_model == MemoryModel::host_device) {
       // Allocate host
       m_data_h = new T[size];
       m_host_allocated = true;
     }
 #ifdef CUDA_ENABLED
-    if (Model != MemoryModel::host_only) {
-      if (Model == MemoryModel::device_managed) {
+    if (m_model != MemoryModel::host_only) {
+      if (m_model == MemoryModel::device_managed) {
         CudaSafeCall(cudaMallocManaged(&m_data_d, size * sizeof(T)));
         m_data_h = m_data_d;
       } else {
@@ -72,11 +72,16 @@ class buffer_t {
   }
 
  public:
-  typedef buffer_t<T, Model> self_type;
-  static constexpr MemoryModel model() { return Model; }
+  // typedef buffer_t<T, Model> self_type;
+  typedef buffer_t<T> self_type;
+  // static constexpr MemoryModel model() { return Model; }
+  MemoryModel model() { return m_model; }
 
-  buffer_t() {}
-  buffer_t(size_t size) { alloc_mem(size); }
+  buffer_t(MemoryModel model = default_memory_model) : m_model(model) {}
+  buffer_t(size_t size, MemoryModel model = default_memory_model)
+      : m_model(model) {
+    alloc_mem(size);
+  }
   buffer_t(const self_type& other) = delete;
   buffer_t(self_type&& other) { *this = std::move(other); }
 
@@ -84,6 +89,7 @@ class buffer_t {
 
   self_type& operator=(const self_type& other) = delete;
   self_type& operator=(self_type&& other) {
+    m_model = other.m_model;
     m_size = other.m_size;
     other.m_size = 0;
 
@@ -101,17 +107,19 @@ class buffer_t {
   }
 
   ///  Subscript operator, only defined if this is not device_only
-  template <MemoryModel M = Model>
-  inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
-      size_t n) const {
+  // template <MemoryModel M = Model>
+  // inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
+  //     size_t n) const {
+  T operator[](size_t n) const {
     // inline T operator[](size_t n) const { return host_ptr()[n]; }
     return m_data_h[n];
   }
 
   ///  Subscript operator, only defined if this is not device_only
-  template <MemoryModel M = Model>
-  inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
-      size_t n) {
+  // template <MemoryModel M = Model>
+  // inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
+      // size_t n) {
+  T& operator[](size_t n) {
     // inline T& operator[](size_t n) { return host_ptr()[n]; }
     return m_data_h[n];
   }
@@ -131,8 +139,7 @@ class buffer_t {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_host_allocated)
-      ptr_assign(m_data_h, start, end, value);
+    if (m_host_allocated) ptr_assign(m_data_h, start, end, value);
   }
 
   /// Assign a single value to part of the buffer, device version
@@ -140,14 +147,13 @@ class buffer_t {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_dev_allocated)
-      ptr_assign_dev(m_data_d, start, end, value);
+    if (m_dev_allocated) ptr_assign_dev(m_data_d, start, end, value);
   }
 
   /// Assign a single value to part of the buffer. Calls the host or device
   /// version depending on the memory location
   void assign(size_t start, size_t end, const T& value) {
-    if (Model == MemoryModel::host_only) {
+    if (m_model == MemoryModel::host_only) {
       assign_host(start, end, value);
     } else {
       assign_dev(start, end, value);
@@ -174,7 +180,7 @@ class buffer_t {
     // Sanitize input
     if (dest_pos + num > m_size) num = m_size - dest_pos;
     if (src_pos + num > other.m_size) num = other.m_size - src_pos;
-    if (Model == MemoryModel::host_only) {
+    if (m_model == MemoryModel::host_only) {
       if (m_host_allocated && other.m_host_allocated)
         ptr_copy(other.m_data_h, m_data_h, num, src_pos, dest_pos);
     } else {
@@ -191,7 +197,7 @@ class buffer_t {
   ///  Place some values directly at and after @pos. Very useful for
   ///  initialization.
   void emplace(size_t pos, const std::initializer_list<T>& list) {
-    if (Model == MemoryModel::device_only) return;
+    if (m_model == MemoryModel::device_only) return;
     for (auto& t : list) {
       if (pos >= m_size) break;
       m_data_h[pos] = t;
@@ -204,49 +210,44 @@ class buffer_t {
   size_t size() const { return m_size; }
 
   const T* data() const {
-    if (Model == MemoryModel::host_only ||
-        Model == MemoryModel::host_device)
+    if (m_model == MemoryModel::host_only || m_model == MemoryModel::host_device)
       return m_data_h;
     else
       return m_data_d;
   }
   T* data() {
-    if (Model == MemoryModel::host_only ||
-        Model == MemoryModel::host_device)
+    if (m_model == MemoryModel::host_only || m_model == MemoryModel::host_device)
       return m_data_h;
     else
       return m_data_d;
   }
 
-  template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr()
-      const {
-    // const T* host_ptr() const {
+  // template <MemoryModel M = Model>
+  // std::enable_if_t<M != MemoryModel::device_only, const T*> host_ptr() const {
+  const T* host_ptr() const {
     return m_data_h;
   }
 
-  template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::device_only, T*> host_ptr() {
-    // T* host_ptr() {
+  // template <MemoryModel M = Model>
+  // std::enable_if_t<M != MemoryModel::device_only, T*> host_ptr() {
+  T* host_ptr() {
     return m_data_h;
   }
 
-  template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, const T*> dev_ptr()
-      const {
-    // const T* dev_ptr() const {
+  // template <MemoryModel M = Model>
+  // std::enable_if_t<M != MemoryModel::host_only, const T*> dev_ptr() const {
+  const T* dev_ptr() const {
     return m_data_d;
   }
 
-  template <MemoryModel M = Model>
-  std::enable_if_t<M != MemoryModel::host_only, T*> dev_ptr() {
-    // T* dev_ptr() {
+  // template <MemoryModel M = Model>
+  // std::enable_if_t<M != MemoryModel::host_only, T*> dev_ptr() {
+  T* dev_ptr() {
     return m_data_d;
   }
 
   void copy_to_host() {
-    // m_host_valid = true;
-    if (Model == MemoryModel::host_device) {
+    if (m_model == MemoryModel::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_h, m_data_d, m_size * sizeof(T),
                               cudaMemcpyDeviceToHost));
@@ -255,8 +256,7 @@ class buffer_t {
   }
 
   void copy_to_device() {
-    // m_dev_valid = true;
-    if (Model == MemoryModel::host_device) {
+    if (m_model == MemoryModel::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_d, m_data_h, m_size * sizeof(T),
                               cudaMemcpyHostToDevice));

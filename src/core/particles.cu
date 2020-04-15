@@ -1,5 +1,5 @@
 #include "core/typedefs_and_constants.h"
-#include "particles.h"
+#include "particles_impl.hpp"
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
 #include "visit_struct/visit_struct.hpp"
@@ -15,17 +15,11 @@ namespace Aperture {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::obtain_ptrs() {
-  m_ptrs = this->dev_ptrs();
-}
-
-template <typename BufferType>
-void
 particles_base<BufferType>::rearrange_arrays(const std::string& skip) {
   const uint32_t padding = 100;
   auto ptc = typename BufferType::single_type{};
   for_each_double_with_name(
-      m_ptrs, ptc,
+      m_dev_ptrs, ptc,
       [this, padding, &skip](const char* name, auto& x, auto& u) {
         typedef
             typename std::remove_reference<decltype(x)>::type x_type;
@@ -43,7 +37,7 @@ particles_base<BufferType>::rearrange_arrays(const std::string& skip) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::sort_by_cell(size_t max_cell) {
+particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
   if (m_number > 0) {
     // Lazy resize the tmp arrays
     if (m_index.size() != m_size || m_tmp_data.size() != m_size) {
@@ -78,27 +72,8 @@ particles_base<BufferType>::sort_by_cell(size_t max_cell) {
   }
 }
 
-template <typename BufferType>
-void
-particles_base<BufferType>::append(const typename BufferType::single_type &p) {
-  if (m_number < m_size) {
-    kernel_launch({1, 1}, [] __device__(auto ptrs, auto num, auto p) {
-        assign_ptc(ptrs, num, p);
-      }, m_ptrs, m_number, p);
-    CudaSafeCall(cudaDeviceSynchronize());
-    m_number += 1;
-  }
-}
-
 // Explicit instantiation
-// template class particles_base<ptc_buffer<MemoryModel::host_only>>;
-template class particles_base<ptc_buffer<MemoryModel::host_device>>;
-template class particles_base<ptc_buffer<MemoryModel::device_managed>>;
-template class particles_base<ptc_buffer<MemoryModel::device_only>>;
-
-// template class particles_base<ph_buffer<MemoryModel::host_only>>;
-template class particles_base<ph_buffer<MemoryModel::host_device>>;
-template class particles_base<ph_buffer<MemoryModel::device_managed>>;
-template class particles_base<ph_buffer<MemoryModel::device_only>>;
+template class particles_base<ptc_buffer>;
+template class particles_base<ph_buffer>;
 
 }  // namespace Aperture

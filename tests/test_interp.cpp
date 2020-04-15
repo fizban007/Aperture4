@@ -6,7 +6,7 @@
 using namespace Aperture;
 
 TEST_CASE("1D linear interpolation", "[interp]") {
-  auto v = make_multi_array<double, MemoryModel::host_only>(4);
+  auto v = make_multi_array<double>(extent(4), MemoryModel::host_only);
   auto interp = interpolator<bspline<1>, 1>{};
 
   v.assign(1.0);
@@ -17,7 +17,7 @@ TEST_CASE("1D linear interpolation", "[interp]") {
 }
 
 TEST_CASE("2D cubic interpolation", "[interp]") {
-  auto v = make_multi_array<double, MemoryModel::host_only>(4, 4);
+  auto v = make_multi_array<double>(extent(4, 4), MemoryModel::host_only);
   auto interp = interpolator<bspline<3>, 2>{};
 
   v.assign(1.0);

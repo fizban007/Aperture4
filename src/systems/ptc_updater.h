@@ -17,7 +17,7 @@ class ptc_updater : public system_t {
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>& m_comm;
 
-  std::shared_ptr<particle_data_t<Conf::default_ptc>> ptc;
+  std::shared_ptr<particle_data_t> ptc;
   std::shared_ptr<vector_field<Conf>> E, B, J;
   std::vector<std::shared_ptr<scalar_field<Conf>>> Rho;
 
@@ -62,8 +62,10 @@ class ptc_updater : public system_t {
   void register_dependencies() {
     size_t max_ptc_num = 1000000;
     get_from_store("max_ptc_num", max_ptc_num, m_env.params());
-    ptc = m_env.register_data<particle_data_t<Conf::default_ptc>>("particles",
-                                                                  max_ptc_num);
+    // Prefer device_only, but can take other possibilities if data is already
+    // there
+    ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
+                                               MemoryModel::device_only);
 
     E = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                                 field_type::edge_centered);

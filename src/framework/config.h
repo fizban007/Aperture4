@@ -14,30 +14,24 @@ namespace Aperture {
 class sim_environment;
 
 template <int Dim, typename FloatT = Scalar,
-          template <int> typename Index_t = idx_col_major_t,
-          MemoryModel MemModel = default_memory_model>
+          template <int> typename Index_t = idx_col_major_t>
 class Config {
  public:
   static constexpr int dim = Dim;
-  static constexpr MemoryModel default_mem_model = MemModel;
+  // static constexpr MemoryModel default_mem_model = MemModel;
   static constexpr bool is_zorder =
       std::is_same<Index_t<Dim>, idx_zorder_t<Dim>>::value;
 
   typedef FloatT value_type;
   typedef Index_t<Dim> index_type;
-  typedef multi_array<FloatT, Dim, MemModel, Index_t<Dim>>
-      multi_array_t;
+  typedef multi_array<FloatT, Dim, Index_t<Dim>> multi_array_t;
   typedef ndptr<FloatT, Dim, Index_t<Dim>> ndptr_t;
   typedef ndptr_const<FloatT, Dim, Index_t<Dim>> ndptr_const_t;
 
 #ifdef CUDA_ENABLED
   static constexpr MemoryModel default_ptc = MemoryModel::device_only;
-  typedef particles_t<MemoryModel::device_only> ptc_t;
-  typedef photons_t<MemoryModel::device_only> ph_t;
 #else
   static constexpr MemoryModel default_ptc = MemoryModel::host_only;
-  typedef particles_t<MemoryModel::host_only> ptc_t;
-  typedef photons_t<MemoryModel::host_only> ph_t;
 #endif
 
   template <typename... Args>
@@ -45,8 +39,9 @@ class Config {
     return multi_array_t(args...);
   }
 
-  static multi_array_t make_multi_array(const extent_t<Dim>& ext) {
-    return multi_array_t(ext);
+  static multi_array_t make_multi_array(
+      const extent_t<Dim>& ext, MemoryModel model = default_memory_model) {
+    return multi_array_t(ext, model);
   }
 
   Config() {}

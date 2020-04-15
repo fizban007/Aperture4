@@ -1,9 +1,9 @@
 #ifndef __PARTICLES_H_
 #define __PARTICLES_H_
 
-#include "utils/vec.hpp"
-#include "utils/buffer.h"
 #include "particle_structs.h"
+#include "utils/buffer.h"
+#include "utils/vec.hpp"
 #include <vector>
 
 namespace Aperture {
@@ -21,22 +21,24 @@ class particles_base : public BufferType {
  private:
   size_t m_size = 0;
   size_t m_number = 0;
+  MemoryModel m_model;
 
   // Temporary data for sorting particles on device
-  buffer_t<size_t, BufferType::model()> m_index;
-  buffer_t<double, BufferType::model()> m_tmp_data;
+  buffer_t<size_t> m_index;
+  buffer_t<double> m_tmp_data;
   // Temporary data for sorting particles on host
   std::vector<size_t> m_partition;
 
-  typename BufferType::ptrs_type m_ptrs;
+  typename BufferType::ptrs_type m_host_ptrs;
+  typename BufferType::ptrs_type m_dev_ptrs;
 
   void rearrange_arrays(const std::string& skip);
-  void obtain_ptrs();
+  void rearrange_arrays_host();
   void swap(size_t pos, single_type& p);
 
  public:
-  particles_base() {}
-  particles_base(size_t size) { resize(size); }
+  particles_base(MemoryModel model = default_memory_model);
+  particles_base(size_t size, MemoryModel model = default_memory_model);
   particles_base(const self_type& other) = delete;
   particles_base(self_type&& other) = default;
   ~particles_base() {}
@@ -44,50 +46,22 @@ class particles_base : public BufferType {
   self_type& operator=(const self_type& other) = delete;
   self_type& operator=(self_type&& other) = default;
 
-  void resize(size_t size) {
-    visit_struct::for_each(*dynamic_cast<base_type*>(this),
-                           [size](const char* name, auto& x) {
-                             x.resize(size);
-                           });
-    m_size = size;
-    obtain_ptrs();
-  }
+  void resize(size_t size);
 
-  void copy_from(const self_type& other, size_t num,
-                 size_t src_pos, size_t dst_pos) {
-    visit_struct::for_each(
-        *dynamic_cast<base_type*>(this),
-        *dynamic_cast<const base_type*>(&other),
-        [num, src_pos, dst_pos](const char* name, auto& u, auto& v) {
-          u.copy_from(v, num, src_pos, dst_pos);
-        });
-  }
+  void copy_from(const self_type& other, size_t num, size_t src_pos,
+                 size_t dst_pos);
 
-  void append(const single_type& p);
+  void erase(size_t pos, size_t amount = 1);
 
-  void erase(size_t pos, size_t amount = 1) {
-    this->cell.assign(pos, pos + amount, empty_cell);
-  }
-
-  void init() {
-    erase(0, m_size);
-  }
+  void init() { erase(0, m_size); }
 
   void sort_by_cell(size_t max_cell);
+  void sort_by_cell_host(size_t max_cell);
+  void sort_by_cell_dev(size_t max_cell);
 
-  void copy_to_host() {
-    visit_struct::for_each(*dynamic_cast<base_type*>(this),
-                           [](const char* name, auto& x) {
-                             x.copy_to_host();
-                           });
-  }
+  void copy_to_host();
 
-  void copy_to_device() {
-    visit_struct::for_each(*dynamic_cast<base_type*>(this),
-                           [](const char* name, auto& x) {
-                             x.copy_to_device();
-                           });
-  }
+  void copy_to_device();
 
   size_t size() const { return m_size; }
   size_t number() const { return m_number; }
@@ -97,30 +71,13 @@ class particles_base : public BufferType {
     m_number = std::min(num, m_size);
   }
 
-  typename BufferType::ptrs_type get_ptrs() {
-    return m_ptrs;
-  }
+  typename BufferType::ptrs_type get_host_ptrs() { return m_host_ptrs; }
+  typename BufferType::ptrs_type get_dev_ptrs() { return m_dev_ptrs; }
 };
 
+using particles_t = particles_base<ptc_buffer>;
+using photons_t = particles_base<ph_buffer>;
 
-#ifdef CUDA_ENABLED
-
-template <MemoryModel Model = MemoryModel::host_device>
-using particles_t = particles_base<ptc_buffer<Model>>;
-
-template <MemoryModel Model = MemoryModel::host_device>
-using photons_t = particles_base<ph_buffer<Model>>;
-
-#else
-
-template <MemoryModel Model = MemoryModel::host_only>
-using particles_t = particles_base<ptc_buffer<Model>>;
-
-template <MemoryModel Model = MemoryModel::host_only>
-using photons_t = particles_base<ph_buffer<Model>>;
-
-#endif
-
-}
+}  // namespace Aperture
 
 #endif

@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "core/constant_mem_func.h"
+#include "core/constant_mem.h"
 #include "core/multi_array.hpp"
 #include "core/ndptr.hpp"
 #include "utils/logger.h"
@@ -24,7 +25,7 @@ finite_diff(const Ptr f, const Index& idx) {
 TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   uint32_t N1 = 100, N2 = 300;
   auto ext = extent(N1, N2);
-  auto array = make_multi_array<float, MemoryModel::host_device>(ext);
+  auto array = make_multi_array<float>(ext, MemoryModel::host_device);
   REQUIRE(array.host_allocated() == true);
   REQUIRE(array.dev_allocated() == true);
 
@@ -51,8 +52,8 @@ TEST_CASE("Different indexing on multi_array",
   // Extent ext(1, N2, N1);
   auto ext = extent(N2, N1);
   // multi_array<float, idx_row_major_t<>> array(
-  auto array = make_multi_array<float, MemoryModel::device_managed,
-                                idx_zorder_t>(ext);
+  auto array = make_multi_array<float,
+                                idx_zorder_t>(ext, MemoryModel::device_managed);
   // auto array = make_multi_array<float, MemoryModel::device_managed,
   // idx_row_major_t>(ext);
 
@@ -85,11 +86,11 @@ TEST_CASE("Performance of different indexing schemes",
 
   auto ext = extent(N1, N2, N3);
   // multi_array<float, idx_row_major_t<>> array(
-  auto v1 = make_multi_array<float, MemoryModel::host_device,
-                             idx_col_major_t>(ext);
+  auto v1 = make_multi_array<float,
+                             idx_col_major_t>(ext, MemoryModel::host_device);
   auto v2 =
-      make_multi_array<float, MemoryModel::host_device, idx_zorder_t>(
-          ext);
+      make_multi_array<float, idx_zorder_t>(
+          ext, MemoryModel::host_device);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -108,13 +109,13 @@ TEST_CASE("Performance of different indexing schemes",
 
   // Generate M random numbers
   int M = 1000000;
-  buffer_t<float, MemoryModel::host_device> xs(M);
-  buffer_t<float, MemoryModel::host_device> ys(M);
-  buffer_t<float, MemoryModel::host_device> zs(M);
-  buffer_t<float, MemoryModel::host_device> result1(M);
-  buffer_t<float, MemoryModel::host_device> result2(M);
-  buffer_t<uint32_t, MemoryModel::host_device> cells1(M);
-  buffer_t<uint32_t, MemoryModel::host_device> cells2(M);
+  buffer_t<float> xs(M, MemoryModel::host_device);
+  buffer_t<float> ys(M, MemoryModel::host_device);
+  buffer_t<float> zs(M, MemoryModel::host_device);
+  buffer_t<float> result1(M, MemoryModel::host_device);
+  buffer_t<float> result2(M, MemoryModel::host_device);
+  buffer_t<uint32_t> cells1(M, MemoryModel::host_device);
+  buffer_t<uint32_t> cells2(M, MemoryModel::host_device);
   for (int n = 0; n < M; n++) {
     xs[n] = dist(g);
     ys[n] = dist(g);
@@ -175,8 +176,8 @@ TEST_CASE("Performance of different indexing schemes",
 }
 
 TEST_CASE("Assign and copy on device", "[multi_array][kernel]") {
-  auto v1 = make_multi_array<float, MemoryModel::host_device>(30, 30);
-  auto v2 = make_multi_array<float, MemoryModel::host_device>(30, 30);
+  auto v1 = make_multi_array<float>(30, 30);
+  auto v2 = make_multi_array<float>(30, 30);
 
   v1.assign(3.0f);
   v1.copy_to_host();

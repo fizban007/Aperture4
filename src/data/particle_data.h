@@ -6,18 +6,16 @@
 
 namespace Aperture {
 
-template <MemoryModel Model>
-class particle_data_t : public data_t, public particles_t<Model> {
+class particle_data_t : public data_t, public particles_t {
  public:
-  particle_data_t();
-  particle_data_t(size_t size);
+  particle_data_t(MemoryModel model = default_memory_model);
+  particle_data_t(size_t size, MemoryModel = default_memory_model);
 };
 
-template <MemoryModel Model>
-class photon_data_t : public data_t, public photons_t<Model> {
+class photon_data_t : public data_t, public photons_t {
  public:
-  photon_data_t();
-  photon_data_t(size_t size);
+  photon_data_t(MemoryModel model = default_memory_model);
+  photon_data_t(size_t size, MemoryModel = default_memory_model);
 };
 
 }

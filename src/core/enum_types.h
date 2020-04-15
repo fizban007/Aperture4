@@ -6,7 +6,7 @@
 
 namespace Aperture {
 
-enum class MemoryModel : char {
+enum class MemType : char {
   host_only = 0,
   host_device,
   device_managed,

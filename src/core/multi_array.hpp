@@ -13,7 +13,7 @@
 namespace Aperture {
 
 template <typename T, int Rank,
-          // MemoryModel Model = default_memory_model,
+          // MemType Model = default_mem_type,
           typename Index_t = default_index_t<Rank>>
 class multi_array : public buffer_t<T> {
  private:
@@ -36,7 +36,8 @@ class multi_array : public buffer_t<T> {
     check_dimension();
   }
 
-  multi_array(const extent_t<Rank>& extent, MemoryModel model = default_memory_model)
+  multi_array(const extent_t<Rank>& extent,
+              MemType model = default_mem_type)
       : m_ext(extent), base_type(extent.size(), model) {
     check_dimension();
   }
@@ -89,23 +90,23 @@ class multi_array : public buffer_t<T> {
 
   using base_type::operator[];
 
-  // template <MemoryModel M = Model>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T>
+  // template <MemType M = Model>
+  // inline std::enable_if_t<M != MemType::device_only, T>
   inline T
   operator[](const Index_t& idx) const {
     // Logger::print_info("in operator [], typeof idx is {}", typeid(idx).name());
     return this->m_data_h[idx.linear];
   }
 
-  // template <MemoryModel M = Model>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T&>
+  // template <MemType M = Model>
+  // inline std::enable_if_t<M != MemType::device_only, T&>
   inline T&
   operator[](const Index_t& idx) {
     return this->m_data_h[idx.linear];
   }
 
   template <typename... Args>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T>
+  // inline std::enable_if_t<M != MemType::device_only, T>
   inline T
   operator()(Args... args) const {
     auto idx = get_idx(args...);
@@ -113,7 +114,7 @@ class multi_array : public buffer_t<T> {
   }
 
   template <typename... Args>
-  // inline std::enable_if_t<M != MemoryModel::device_only, T&>
+  // inline std::enable_if_t<M != MemType::device_only, T&>
   // template <typename... Args>
   inline T&
   operator()(Args... args) {
@@ -155,7 +156,7 @@ make_multi_array(Args... args) {
 template <typename T,
           template <int> class Index_t = default_index_t, int Rank>
 auto
-make_multi_array(const extent_t<Rank>& ext, MemoryModel model) {
+make_multi_array(const extent_t<Rank>& ext, MemType model) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, model);
 }
 

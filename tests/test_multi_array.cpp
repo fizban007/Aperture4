@@ -103,7 +103,8 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
     SECTION("Row Major indexing") {
       multi_array<float, 2, idx_row_major_t<2>>
-          row_array(extent(4, 5), MemoryModel::host_only);
+          row_array(extent(4, 5),
+                                                          MemType::host_only);
 
       for (uint32_t j = 0; j < 4; j++) {
         for (uint32_t i = 0; i < 5; i++) {
@@ -120,7 +121,8 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
     SECTION("Z-order indexing") {
       multi_array<float, 2, idx_zorder_t<2>>
-          zorder_array(extent(32, 32), MemoryModel::host_only);
+          zorder_array(extent(32, 32),
+                                                          MemType::host_only);
 
       for (uint32_t j = 0; j < 32; j++) {
         for (uint32_t i = 0; i < 32; i++) {
@@ -241,12 +243,13 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
     REQUIRE(pos[1] == (100 / 30));
 
     SECTION("ndptr with Z-order indexing") {
-      // multi_array<float, MemoryModel::host_only, idx_zorder_t<>>
+      // multi_array<float, MemType::host_only, idx_zorder_t<>>
       // array(
       //     32, 32, 1);
       auto array =
           make_multi_array<float, idx_zorder_t>(
-              extent(32, 32), MemoryModel::host_only);
+              extent(32, 32),
+                                                         MemType::host_only);
       auto p = array.get_ptr();
 
       auto idx = p.idx_at(63, a.extent());
@@ -260,7 +263,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
   SECTION("range-based indexing") {
     // multi_array<float> a(30, 20);
-    auto a = make_multi_array<float>(extent(20, 30), MemoryModel::host_only);
+    auto a = make_multi_array<float>(extent(20, 30), MemType::host_only);
 
     for (auto n : indices(a)) {
       a[n] = n;
@@ -273,13 +276,14 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
   SECTION("make_multi_array") {
     auto arr = make_multi_array<float,
-                                idx_row_major_t>(extent(30, 30, 30), MemoryModel::host_only);
+                                idx_row_major_t>(extent(30, 30, 30),
+                                                        MemType::host_only);
 
     REQUIRE(arr.size() == 30 * 30 * 30);
   }
 
   // SECTION("multi_array returning an index range") {
-  //   multi_array<float, MemoryModel::host_only, idx_col_major_t<>> a(
+  //   multi_array<float, MemType::host_only, idx_col_major_t<>> a(
   //       30, 20, 1);
 
   //   for (auto idx : a.indices()) {
@@ -290,7 +294,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   //     REQUIRE(a[n] == n);
   //   }
 
-  //   multi_array<float, MemoryModel::host_only, idx_row_major_t<>> b(
+  //   multi_array<float, MemType::host_only, idx_row_major_t<>> b(
   //       1, 20, 30);
 
   //   for (auto idx : b.indices()) {
@@ -301,7 +305,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   //     REQUIRE(b[n] == n);
   //   }
 
-  //   multi_array<float, MemoryModel::host_only, idx_zorder_t<>> c(
+  //   multi_array<float, MemType::host_only, idx_zorder_t<>> c(
   //       32, 32, 32);
 
   //   for (auto idx : c.indices()) {
@@ -327,10 +331,10 @@ TEST_CASE("Performance of interpolation on CPU",
 
   auto v1 =
       make_multi_array<float, idx_col_major_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto v2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -347,13 +351,13 @@ TEST_CASE("Performance of interpolation on CPU",
 
   // Generate M random numbers
   int M = 1000000;
-  buffer_t<float> xs(M, MemoryModel::host_only);
-  buffer_t<float> ys(M, MemoryModel::host_only);
-  buffer_t<float> zs(M, MemoryModel::host_only);
-  buffer_t<float> result1(M, MemoryModel::host_only);
-  buffer_t<float> result2(M, MemoryModel::host_only);
-  buffer_t<uint32_t> cells1(M, MemoryModel::host_only);
-  buffer_t<uint32_t> cells2(M, MemoryModel::host_only);
+  buffer_t<float> xs(M, MemType::host_only);
+  buffer_t<float> ys(M, MemType::host_only);
+  buffer_t<float> zs(M, MemType::host_only);
+  buffer_t<float> result1(M, MemType::host_only);
+  buffer_t<float> result2(M, MemType::host_only);
+  buffer_t<uint32_t> cells1(M, MemType::host_only);
+  buffer_t<uint32_t> cells2(M, MemType::host_only);
   for (int n = 0; n < M; n++) {
     xs[n] = dist(g);
     ys[n] = dist(g);
@@ -407,16 +411,16 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
 
   auto v1 =
       make_multi_array<float, idx_row_major_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto v2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto u1 =
       make_multi_array<float, idx_row_major_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto u2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -476,16 +480,16 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
 
   auto v1 =
       make_multi_array<float, idx_row_major_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto v2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto u1 =
       make_multi_array<float, idx_row_major_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
   auto u2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_only);
+          ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();

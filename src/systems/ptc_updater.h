@@ -65,7 +65,7 @@ class ptc_updater : public system_t {
     // Prefer device_only, but can take other possibilities if data is already
     // there
     ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
-                                               MemoryModel::device_only);
+                                               MemType::device_only);
 
     E = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                                 field_type::edge_centered);

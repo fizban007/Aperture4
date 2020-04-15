@@ -21,7 +21,7 @@ class particles_base : public BufferType {
  private:
   size_t m_size = 0;
   size_t m_number = 0;
-  MemoryModel m_model;
+  MemType m_mem_type;
 
   // Temporary data for sorting particles on device
   buffer_t<size_t> m_index;
@@ -37,8 +37,8 @@ class particles_base : public BufferType {
   void swap(size_t pos, single_type& p);
 
  public:
-  particles_base(MemoryModel model = default_memory_model);
-  particles_base(size_t size, MemoryModel model = default_memory_model);
+  particles_base(MemType model = default_mem_type);
+  particles_base(size_t size, MemType model = default_mem_type);
   particles_base(const self_type& other) = delete;
   particles_base(self_type&& other) = default;
   ~particles_base() {}

@@ -7,7 +7,7 @@ using namespace Aperture;
 TEST_CASE("Host only buffer", "[buffer]") {
   uint32_t N = 1000;
 
-  buffer_t<double> buf(N, MemoryModel::host_only);
+  buffer_t<double> buf(N, MemType::host_only);
 
   for (int i = 0; i < buf.size(); i++) {
     buf[i] = i;
@@ -38,7 +38,7 @@ TEST_CASE("Host only buffer", "[buffer]") {
 TEST_CASE("Host device buffer", "[buffer]") {
   uint32_t N = 1000;
 
-  buffer_t<double> buf(N, MemoryModel::host_device);
+  buffer_t<double> buf(N, MemType::host_device);
 
   REQUIRE(buf.host_allocated() == true);
 #ifdef CUDA_ENABLED
@@ -84,7 +84,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
 TEST_CASE("Managed buffer", "[buffer]") {
   uint32_t N = 1000;
 
-  buffer_t<double> buf(N, MemoryModel::device_managed);
+  buffer_t<double> buf(N, MemType::device_managed);
 
   REQUIRE(buf.host_allocated() == false);
 #ifdef CUDA_ENABLED
@@ -103,7 +103,7 @@ TEST_CASE("Managed buffer", "[buffer]") {
 TEST_CASE("Device only buffer", "[buffer]") {
   uint32_t N = 1000;
 
-  buffer_t<double> buf(N, MemoryModel::device_only);
+  buffer_t<double> buf(N, MemType::device_only);
 
   REQUIRE(buf.host_allocated() == false);
   REQUIRE(buf.dev_allocated() == true);
@@ -114,14 +114,14 @@ TEST_CASE("Assign and copy buffer", "[buffer]") {
   uint32_t N = 1000;
 
   SECTION("Host only") {
-    buffer_t<float> buf(N, MemoryModel::host_only);
+    buffer_t<float> buf(N, MemType::host_only);
 
     buf.assign(5.0f);
     for (auto i : range(0ul, buf.size())) {
       REQUIRE(buf[i] == 5.0f);
     }
 
-    buffer_t<float> buf2(N, MemoryModel::host_only);
+    buffer_t<float> buf2(N, MemType::host_only);
     buf2.copy_from(buf);
     for (auto i : range(0ul, buf.size())) {
       REQUIRE(buf2[i] == 5.0f);
@@ -130,14 +130,14 @@ TEST_CASE("Assign and copy buffer", "[buffer]") {
 
 #ifdef CUDA_ENABLED
   SECTION("Host and device") {
-    buffer_t<float> buf(N, MemoryModel::host_device);
+    buffer_t<float> buf(N, MemType::host_device);
     buf.assign(5.0f);
     buf.copy_to_host();
     for (auto i : range(0ul, buf.size())) {
       REQUIRE(buf[i] == 5.0f);
     }
 
-    buffer_t<float> buf2(N, MemoryModel::host_device);
+    buffer_t<float> buf2(N, MemType::host_device);
     buf2.copy_from(buf);
     buf2.copy_to_host();
     for (auto i : range(0ul, buf.size())) {

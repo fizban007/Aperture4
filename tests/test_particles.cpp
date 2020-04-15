@@ -5,9 +5,9 @@
 using namespace Aperture;
 
 #ifdef CUDA_ENABLED
-constexpr MemoryModel mem_model = MemoryModel::host_device;
+constexpr MemType mem_model = MemType::host_device;
 #else
-constexpr MemoryModel mem_model = MemoryModel::host_only;
+constexpr MemType mem_model = MemType::host_only;
 #endif
 
 TEST_CASE("Initializing particles", "[particles]") {
@@ -67,7 +67,7 @@ TEST_CASE("Init, copy and assign particles", "[particles]") {
 
 #ifdef CUDA_ENABLED
 TEST_CASE("Particle pointers", "[particles]") {
-  particles_t ptc(100, MemoryModel::host_device);
+  particles_t ptc(100, MemType::host_device);
   auto ptrs = ptc.get_dev_ptrs();
   REQUIRE(ptrs.x1 == ptc.x1.dev_ptr());
   REQUIRE(ptrs.x2 == ptc.x2.dev_ptr());

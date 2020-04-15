@@ -18,7 +18,7 @@ template <int Dim, typename FloatT = Scalar,
 class Config {
  public:
   static constexpr int dim = Dim;
-  // static constexpr MemoryModel default_mem_model = MemModel;
+  // static constexpr MemType default_mem_model = MemModel;
   static constexpr bool is_zorder =
       std::is_same<Index_t<Dim>, idx_zorder_t<Dim>>::value;
 
@@ -29,9 +29,9 @@ class Config {
   typedef ndptr_const<FloatT, Dim, Index_t<Dim>> ndptr_const_t;
 
 #ifdef CUDA_ENABLED
-  static constexpr MemoryModel default_ptc = MemoryModel::device_only;
+  static constexpr MemType default_ptc = MemType::device_only;
 #else
-  static constexpr MemoryModel default_ptc = MemoryModel::host_only;
+  static constexpr MemType default_ptc = MemType::host_only;
 #endif
 
   template <typename... Args>
@@ -40,7 +40,8 @@ class Config {
   }
 
   static multi_array_t make_multi_array(
-      const extent_t<Dim>& ext, MemoryModel model = default_memory_model) {
+      const extent_t<Dim>& ext,
+                                        MemType model = default_mem_type) {
     return multi_array_t(ext, model);
   }
 

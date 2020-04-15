@@ -25,7 +25,7 @@ finite_diff(const Ptr f, const Index& idx) {
 TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   uint32_t N1 = 100, N2 = 300;
   auto ext = extent(N1, N2);
-  auto array = make_multi_array<float>(ext, MemoryModel::host_device);
+  auto array = make_multi_array<float>(ext, MemType::host_device);
   REQUIRE(array.host_allocated() == true);
   REQUIRE(array.dev_allocated() == true);
 
@@ -53,8 +53,8 @@ TEST_CASE("Different indexing on multi_array",
   auto ext = extent(N2, N1);
   // multi_array<float, idx_row_major_t<>> array(
   auto array = make_multi_array<float,
-                                idx_zorder_t>(ext, MemoryModel::device_managed);
-  // auto array = make_multi_array<float, MemoryModel::device_managed,
+                                idx_zorder_t>(ext, MemType::device_managed);
+  // auto array = make_multi_array<float, MemType::device_managed,
   // idx_row_major_t>(ext);
 
   // assign_idx_array<<<128, 512>>>(array.get_ptr(), ext);
@@ -87,10 +87,10 @@ TEST_CASE("Performance of different indexing schemes",
   auto ext = extent(N1, N2, N3);
   // multi_array<float, idx_row_major_t<>> array(
   auto v1 = make_multi_array<float,
-                             idx_col_major_t>(ext, MemoryModel::host_device);
+                             idx_col_major_t>(ext, MemType::host_device);
   auto v2 =
       make_multi_array<float, idx_zorder_t>(
-          ext, MemoryModel::host_device);
+          ext, MemType::host_device);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -109,13 +109,13 @@ TEST_CASE("Performance of different indexing schemes",
 
   // Generate M random numbers
   int M = 1000000;
-  buffer_t<float> xs(M, MemoryModel::host_device);
-  buffer_t<float> ys(M, MemoryModel::host_device);
-  buffer_t<float> zs(M, MemoryModel::host_device);
-  buffer_t<float> result1(M, MemoryModel::host_device);
-  buffer_t<float> result2(M, MemoryModel::host_device);
-  buffer_t<uint32_t> cells1(M, MemoryModel::host_device);
-  buffer_t<uint32_t> cells2(M, MemoryModel::host_device);
+  buffer_t<float> xs(M, MemType::host_device);
+  buffer_t<float> ys(M, MemType::host_device);
+  buffer_t<float> zs(M, MemType::host_device);
+  buffer_t<float> result1(M, MemType::host_device);
+  buffer_t<float> result2(M, MemType::host_device);
+  buffer_t<uint32_t> cells1(M, MemType::host_device);
+  buffer_t<uint32_t> cells2(M, MemType::host_device);
   for (int n = 0; n < M; n++) {
     xs[n] = dist(g);
     ys[n] = dist(g);

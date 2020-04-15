@@ -7,12 +7,12 @@
 namespace Aperture {
 
 template <typename BufferType>
-particles_base<BufferType>::particles_base(MemoryModel model)
-    : m_model(model) {}
+particles_base<BufferType>::particles_base(MemType model)
+    : m_mem_type(model) {}
 
 template <typename BufferType>
-particles_base<BufferType>::particles_base(size_t size, MemoryModel model)
-    : m_model(model) {
+particles_base<BufferType>::particles_base(size_t size, MemType model)
+    : m_mem_type(model) {
   resize(size);
   m_host_ptrs = this->host_ptrs();
   m_dev_ptrs = this->dev_ptrs();
@@ -80,7 +80,7 @@ particles_base<BufferType>::rearrange_arrays_host() {
 template <typename BufferType>
 void
 particles_base<BufferType>::sort_by_cell(size_t max_cell) {
-  if (m_model == MemoryModel::host_only)
+  if (m_mem_type == MemType::host_only)
     sort_by_cell_host(max_cell);
   else
     sort_by_cell_dev(max_cell);
@@ -147,7 +147,7 @@ particles_base<BufferType>::sort_by_cell_host(size_t num_cells) {
 template <typename BufferType>
 void
 particles_base<BufferType>::copy_to_host() {
-  if (m_model == MemoryModel::host_device)
+  if (m_mem_type == MemType::host_device)
     visit_struct::for_each(*dynamic_cast<base_type*>(this),
                            [](const char* name, auto& x) { x.copy_to_host(); });
 }
@@ -155,7 +155,7 @@ particles_base<BufferType>::copy_to_host() {
 template <typename BufferType>
 void
 particles_base<BufferType>::copy_to_device() {
-  if (m_model == MemoryModel::host_device)
+  if (m_mem_type == MemType::host_device)
     visit_struct::for_each(
         *dynamic_cast<base_type*>(this),
         [](const char* name, auto& x) { x.copy_to_device(); });

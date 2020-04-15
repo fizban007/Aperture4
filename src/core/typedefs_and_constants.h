@@ -8,9 +8,9 @@
 namespace Aperture {
 
 #ifdef CUDA_ENABLED
-constexpr MemoryModel default_memory_model = MemoryModel::host_device;
+constexpr MemType default_mem_type = MemType::host_device;
 #else
-constexpr MemoryModel default_memory_model = MemoryModel::host_only;
+constexpr MemType default_mem_type = MemType::host_only;
 #endif
 constexpr uint32_t empty_cell = std::numeric_limits<uint32_t>::max();
 constexpr float eps_float = 1.0e-8f;

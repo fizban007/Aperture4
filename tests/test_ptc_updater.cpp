@@ -15,7 +15,7 @@ TEST_CASE("Boris push in a uniform B field", "[boris][.]") {
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
   auto ptc = env.register_data<particle_data_t>("particles", 10000,
-                                                MemoryModel::host_device);
+                                                MemType::host_device);
 
   auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>(env, *comm);

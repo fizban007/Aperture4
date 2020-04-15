@@ -108,7 +108,7 @@ struct idx_col_major_t
   HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear += n * strides[Dir];
+    result.linear = (long)result.linear + n * (long)strides[Dir];
     return result;
   }
 
@@ -118,7 +118,7 @@ struct idx_col_major_t
   HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear -= n * strides[Dir];
+    result.linear = (long)result.linear - n * (long)strides[Dir];
     return result;
   }
 
@@ -191,7 +191,7 @@ struct idx_row_major_t
   HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear += n * strides[Dir];
+    result.linear = (long)result.linear + n * (long)strides[Dir];
     return result;
   }
 
@@ -201,7 +201,7 @@ struct idx_row_major_t
   HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear -= n * strides[Dir];
+    result.linear = (long)result.linear - n * (long)strides[Dir];
     return result;
   }
 

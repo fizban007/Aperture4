@@ -13,6 +13,7 @@ namespace Aperture {
 template <class T, int Rank, class Index_t = default_index_t<Rank>>
 struct ndptr {
   typedef Index_t idx_type;
+  typedef T value_type;
 
   T* p = nullptr;
 
@@ -20,7 +21,9 @@ struct ndptr {
   HOST_DEVICE ndptr(T* p_) : p(p_) {}
 
   HD_INLINE T& operator[](size_t idx) { return p[idx]; }
+  HD_INLINE const T& operator[](size_t idx) const { return p[idx]; }
   HD_INLINE T& operator[](const Index_t& idx) { return p[idx.linear]; }
+  HD_INLINE const T& operator[](const Index_t& idx) const { return p[idx.linear]; }
 
   HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {
     return Index_t(idx, ext);
@@ -38,6 +41,7 @@ struct ndptr {
 template <class T, int Rank, class Index_t = default_index_t<Rank>>
 struct ndptr_const {
   typedef Index_t idx_type;
+  typedef T value_type;
 
   const T* p = nullptr;
 

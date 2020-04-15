@@ -27,12 +27,19 @@ class field_t : public data_t {
  private:
   std::array<typename Conf::multi_array_t, N> m_data;
   std::array<stagger_t, N> m_stagger;
-  const Grid<Conf::dim>* m_grid;
+  const Grid<Conf::dim>* m_grid = nullptr;
 
  public:
+  field_t() {}
   field_t(const Grid<Conf::dim>& grid);
   field_t(const Grid<Conf::dim>& grid, const std::array<stagger_t, N> st);
   field_t(const Grid<Conf::dim>& grid, field_type type);
+
+  field_t(const field_t<N, Conf>& other) = delete;
+  field_t(field_t<N, Conf>&& other) = default;
+
+  field_t<N, Conf>& operator=(const field_t<N, Conf>& other) = delete;
+  field_t<N, Conf>& operator=(field_t<N, Conf>&& other) = default;
 
   void resize(const Grid<Conf::dim>& grid);
   void assign_dev(const typename Conf::value_type& value);

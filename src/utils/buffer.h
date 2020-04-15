@@ -105,7 +105,7 @@ class buffer_t {
   inline std::enable_if_t<M != MemoryModel::device_only, T> operator[](
       size_t n) const {
     // inline T operator[](size_t n) const { return host_ptr()[n]; }
-    return host_ptr()[n];
+    return m_data_h[n];
   }
 
   ///  Subscript operator, only defined if this is not device_only
@@ -113,7 +113,7 @@ class buffer_t {
   inline std::enable_if_t<M != MemoryModel::device_only, T&> operator[](
       size_t n) {
     // inline T& operator[](size_t n) { return host_ptr()[n]; }
-    return host_ptr()[n];
+    return m_data_h[n];
   }
 
   /// Resize the buffer to a given @size.

@@ -26,6 +26,7 @@ class multi_array : public buffer_t<T, Model> {
   typedef Index_t index_type;
   typedef ndptr<T, Rank, Index_t> ptr_type;
   typedef ndptr_const<T, Rank, Index_t> const_ptr_type;
+  typedef T value_type;
 
   multi_array() {}
 
@@ -80,7 +81,7 @@ class multi_array : public buffer_t<T, Model> {
   self_type& operator=(const self_type& other) = delete;
 
   self_type& operator=(self_type&& other) {
-    this->operator=(other);
+    base_type::operator=(std::move(other));
     m_ext = other.m_ext;
     other.m_ext = extent_type{};
     return *this;
@@ -88,24 +89,36 @@ class multi_array : public buffer_t<T, Model> {
 
   using base_type::operator[];
 
-  inline T operator[](const Index_t& idx) const {
-    return this->data()[idx.linear];
+  template <MemoryModel M = Model>
+  inline std::enable_if_t<M != MemoryModel::device_only, T>
+  // inline T
+  operator[](const Index_t& idx) const {
+    // Logger::print_info("in operator [], typeof idx is {}", typeid(idx).name());
+    return this->m_data_h[idx.linear];
   }
 
-  inline T& operator[](const Index_t& idx) {
-    return this->data()[idx.linear];
+  template <MemoryModel M = Model>
+  inline std::enable_if_t<M != MemoryModel::device_only, T&>
+  // inline T&
+  operator[](const Index_t& idx) {
+    return this->m_data_h[idx.linear];
   }
 
-  template <typename... Args>
-  inline T operator()(Args... args) const {
+  template <MemoryModel M = Model, typename... Args>
+  inline std::enable_if_t<M != MemoryModel::device_only, T>
+  // inline T
+  operator()(Args... args) const {
     auto idx = get_idx(args...);
-    return this->data()[idx.linear];
+    return this->m_data_h[idx.linear];
   }
 
-  template <typename... Args>
-  inline T& operator()(Args... args) {
+  template <MemoryModel M = Model, typename... Args>
+  inline std::enable_if_t<M != MemoryModel::device_only, T&>
+  // template <typename... Args>
+  // inline T&
+  operator()(Args... args) {
     auto idx = get_idx(args...);
-    return this->data()[idx.linear];
+    return this->m_data_h[idx.linear];
   }
 
   template <typename... Args>

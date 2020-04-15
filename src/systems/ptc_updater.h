@@ -20,6 +20,9 @@ class ptc_updater : public system_t {
   std::shared_ptr<particle_data_t<Conf::default_ptc>> ptc;
   std::shared_ptr<vector_field<Conf>> E, B, J;
   std::vector<std::shared_ptr<scalar_field<Conf>>> Rho;
+
+  vector_field<Conf> Etmp, Btmp;
+
   uint32_t m_num_species = 2;
   // By default the maximum number of species is 8
   float m_charges[max_ptc_types];

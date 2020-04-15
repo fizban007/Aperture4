@@ -128,8 +128,12 @@ class multi_array : public buffer_t<T> {
     return idx;
   }
 
-  inline Index_t idx_at(uint64_t idx) const {
-    return Index_t(idx, m_ext);
+  inline Index_t idx_at(uint64_t n) const {
+    return Index_t(n, m_ext);
+  }
+
+  inline Index_t idx_at(index_t<Rank> pos) const {
+    return Index_t(pos, m_ext);
   }
 
   inline ptr_type get_ptr() { return ptr_type(this->m_data_d); }

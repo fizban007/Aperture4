@@ -164,7 +164,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
   SECTION("Index manipulation, col major") {
     multi_array<float, 4>::index_type idx(
-        vec<uint32_t>(0, 0, 0, 0), vec<uint32_t>(10, 20, 30, 40));
+        index(0, 0, 0, 0), extent(10, 20, 30, 40));
 
     REQUIRE(idx.linear == 0);
     REQUIRE(idx.strides[0] == 1);
@@ -188,8 +188,8 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   }
 
   SECTION("Index manipulation, row major") {
-    idx_row_major_t<4> idx(vec<uint32_t>(12, 5, 8, 9),
-                           vec<uint32_t>(20, 20, 20, 20));
+    idx_row_major_t<4> idx(index(12, 5, 8, 9),
+                           extent(20, 20, 20, 20));
 
     REQUIRE(idx.linear == 9 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
     REQUIRE(idx.strides[0] == 20 * 20 * 20);

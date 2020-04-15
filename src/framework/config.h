@@ -39,8 +39,7 @@ class Config {
     return multi_array_t(args...);
   }
 
-  static multi_array_t make_multi_array(
-      const extent_t<Dim>& ext,
+  static multi_array_t make_multi_array(const extent_t<Dim>& ext,
                                         MemType model = default_mem_type) {
     return multi_array_t(ext, model);
   }

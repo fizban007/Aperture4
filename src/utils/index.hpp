@@ -19,7 +19,6 @@ using default_index_t = idx_col_major_t<Rank>;
 template <class Derived, int Rank>
 struct idx_base_t {
   uint64_t linear;
-  // vec_t<uint32_t, Rank> pos;
 
   typedef idx_base_t<Derived, Rank> self_type;
 
@@ -55,32 +54,32 @@ struct idx_base_t {
 template <int Rank>
 struct idx_col_major_t
     : public idx_base_t<idx_col_major_t<Rank>, Rank> {
-  vec_t<uint32_t, Rank> strides;
+  index_t<Rank> strides;
 
   typedef idx_base_t<idx_col_major_t<Rank>, Rank> base_type;
   typedef idx_col_major_t<Rank> self_type;
 
-  HD_INLINE idx_col_major_t(const vec_t<uint32_t, Rank>& pos,
-                            const vec_t<uint32_t, Rank>& extent) {
+  HD_INLINE idx_col_major_t(const index_t<Rank>& pos,
+                            const extent_t<Rank>& extent) {
     strides = get_strides(extent);
     // this->pos = pos;
     this->linear = pos.dot(strides);
   }
 
   HD_INLINE idx_col_major_t(const uint64_t& linear,
-                            const vec_t<uint32_t, Rank>& extent) {
+                            const extent_t<Rank>& extent) {
     strides = get_strides(extent);
     // this->pos = get_pos(linear);
     this->linear = linear;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_pos() const {
+  HD_INLINE index_t<Rank> get_pos() const {
     return get_pos(this->linear);
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_pos(uint64_t linear) const {
+  HD_INLINE index_t<Rank> get_pos(uint64_t linear) const {
     // Assume strides is already in place
-    auto result = vec_t<uint32_t, Rank>{};
+    auto result = index_t<Rank>{};
     auto n = linear;
 #pragma unroll
     for (int i = Rank - 1; i >= 0; i--) {
@@ -90,9 +89,9 @@ struct idx_col_major_t
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_strides(
-      const vec_t<uint32_t, Rank>& extent) {
-    auto result = vec_t<uint32_t, Rank>{};
+  HD_INLINE index_t<Rank> get_strides(
+      const extent_t<Rank>& extent) {
+    auto result = index_t<Rank>{};
 
     result[0] = 1;
     if (Rank > 1)
@@ -138,28 +137,28 @@ struct idx_col_major_t
 template <int Rank>
 struct idx_row_major_t
     : public idx_base_t<idx_row_major_t<Rank>, Rank> {
-  vec_t<uint32_t, Rank> strides;
+  index_t<Rank> strides;
 
   typedef idx_base_t<idx_row_major_t<Rank>, Rank> base_type;
   typedef idx_row_major_t<Rank> self_type;
 
-  HD_INLINE idx_row_major_t(const vec_t<uint32_t, Rank>& pos,
-                            const vec_t<uint32_t, Rank>& extent) {
+  HD_INLINE idx_row_major_t(const index_t<Rank>& pos,
+                            const extent_t<Rank>& extent) {
     strides = get_strides(extent);
     // this->pos = pos;
     this->linear = pos.dot(strides);
   }
 
   HD_INLINE idx_row_major_t(const uint64_t& linear,
-                            const vec_t<uint32_t, Rank>& extent) {
+                            const extent_t<Rank>& extent) {
     strides = get_strides(extent);
     // this->pos = get_pos(linear);
     this->linear = linear;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_strides(
-      const vec_t<uint32_t, Rank>& extent) {
-    auto result = vec_t<uint32_t, Rank>{};
+  HD_INLINE index_t<Rank> get_strides(
+      const extent_t<Rank>& extent) {
+    auto result = index_t<Rank>{};
 
     if (Rank > 0) result[Rank - 1] = 1;
     if (Rank > 1)
@@ -169,9 +168,9 @@ struct idx_row_major_t
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_pos(uint64_t linear) const {
+  HD_INLINE index_t<Rank> get_pos(uint64_t linear) const {
     // Assume strides is already in place
-    auto result = vec_t<uint32_t, Rank>{};
+    auto result = index_t<Rank>{};
     auto n = linear;
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
@@ -181,7 +180,7 @@ struct idx_row_major_t
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, Rank> get_pos() const {
+  HD_INLINE index_t<Rank> get_pos() const {
     return get_pos(this->linear);
   }
 
@@ -250,8 +249,8 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
     // this->pos = get_pos(linear);
   }
 
-  HD_INLINE vec_t<uint32_t, 2> get_pos(uint64_t linear) const {
-    auto result = vec_t<uint32_t, 2>{};
+  HD_INLINE index_t<2> get_pos(uint64_t linear) const {
+    auto result = index_t<2>{};
     uint64_t x, y;
     morton2(linear).decode(x, y);
     result[0] = x;
@@ -259,7 +258,7 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, 2> get_pos() const {
+  HD_INLINE index_t<2> get_pos() const {
     return get_pos(this->linear);
   }
 
@@ -343,8 +342,8 @@ struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
     // this->pos = get_pos(linear);
   }
 
-  HD_INLINE vec_t<uint32_t, 3> get_pos(uint64_t linear) const {
-    auto result = vec_t<uint32_t, 3>{};
+  HD_INLINE index_t<3> get_pos(uint64_t linear) const {
+    auto result = index_t<3>{};
     uint64_t x, y, z;
     morton3(linear).decode(x, y, z);
     result[0] = x;
@@ -353,7 +352,7 @@ struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
     return result;
   }
 
-  HD_INLINE vec_t<uint32_t, 3> get_pos() const {
+  HD_INLINE index_t<3> get_pos() const {
     return get_pos(this->linear);
   }
 

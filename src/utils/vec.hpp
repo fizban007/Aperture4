@@ -113,12 +113,12 @@ extent(Args... args) {
 }
 
 template <int Rank>
-using index_t = vec_t<uint32_t, Rank>;
+using index_t = vec_t<int32_t, Rank>;
 
 template <typename... Args>
 HD_INLINE auto
 index(Args... args) {
-  return index_t<sizeof...(Args)>(uint32_t(args)...);
+  return index_t<sizeof...(Args)>(int32_t(args)...);
 }
 
 template <int Rank>

@@ -121,7 +121,6 @@ struct Grid {
     return result;
   }
 
-
   ///  Find the zone the cell belongs to (for communication purposes)
   HD_INLINE int find_zone(const index_t<Dim>& pos) const {
     auto z = index_t<Dim>{};
@@ -178,6 +177,15 @@ struct Grid {
 #pragma unroll
     for (int i = 0; i < Dim; i++)
       result[i] = reduced_dim(i);
+    return result;
+  }
+
+  HD_INLINE index_t<Dim> guards() const {
+    index_t<Dim> result;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      result[i] = guard[i];
+    }
     return result;
   }
 

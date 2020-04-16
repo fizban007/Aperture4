@@ -28,12 +28,15 @@ class field_t : public data_t {
   std::array<typename Conf::multi_array_t, N> m_data;
   std::array<stagger_t, N> m_stagger;
   const Grid<Conf::dim>* m_grid = nullptr;
+  MemType m_memtype;
 
  public:
-  field_t() {}
-  field_t(const Grid<Conf::dim>& grid);
-  field_t(const Grid<Conf::dim>& grid, const std::array<stagger_t, N> st);
-  field_t(const Grid<Conf::dim>& grid, field_type type);
+  field_t(MemType memtype = default_mem_type) : m_memtype(memtype) {}
+  field_t(const Grid<Conf::dim>& grid, MemType memtype = default_mem_type);
+  field_t(const Grid<Conf::dim>& grid, const std::array<stagger_t, N> st,
+          MemType memtype = default_mem_type);
+  field_t(const Grid<Conf::dim>& grid, field_type type,
+          MemType memtype = default_mem_type);
 
   field_t(const field_t<N, Conf>& other) = delete;
   field_t(field_t<N, Conf>&& other) = default;
@@ -41,10 +44,12 @@ class field_t : public data_t {
   field_t<N, Conf>& operator=(const field_t<N, Conf>& other) = delete;
   field_t<N, Conf>& operator=(field_t<N, Conf>&& other) = default;
 
+  void init() override;
+
   void resize(const Grid<Conf::dim>& grid);
-  void assign_dev(const typename Conf::value_type& value);
-  void assign_host(const typename Conf::value_type& value);
-  void assign(const typename Conf::value_type& value);
+  void assign_dev(const typename Conf::value_t& value);
+  void assign_host(const typename Conf::value_t& value);
+  void assign(const typename Conf::value_t& value);
 
   template <typename Func>
   void set_values(int n, const Func& f) {
@@ -56,18 +61,16 @@ class field_t : public data_t {
         double x2 = m_grid->template pos<2>(pos, m_stagger[n]);
         m_data[n][idx] = f(x0, x1, x2);
       }
-#ifdef CUDA_ENABLED
-      m_data[n].copy_to_device();
-#endif
+      if (m_memtype != MemType::host_only)
+        m_data[n].copy_to_device();
     }
   }
 
   template <typename Func>
   void set_values(const Func& f) {
     for (int n = 0; n < Conf::dim; n++) {
-      set_values(n, [&f, n](auto x0, auto x1, auto x2) {
-        return f(n, x0, x1, x2);
-      });
+      set_values(
+          n, [&f, n](auto x0, auto x1, auto x2) { return f(n, x0, x1, x2); });
     }
   }
 
@@ -103,12 +106,12 @@ class field_t : public data_t {
     return result;
   }
 
+  void set_memtype(MemType type);
+
   typename Conf::ndptr_const_t get_ptr(int n = 0) const {
     return m_data[n].get_const_ptr();
   }
-  typename Conf::ndptr_t get_ptr(int n = 0) {
-    return m_data[n].get_ptr();
-  }
+  typename Conf::ndptr_t get_ptr(int n = 0) { return m_data[n].get_ptr(); }
 };
 
 template <typename Conf>

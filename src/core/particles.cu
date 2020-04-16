@@ -21,8 +21,7 @@ particles_base<BufferType>::rearrange_arrays(const std::string& skip) {
   for_each_double_with_name(
       m_dev_ptrs, ptc,
       [this, padding, &skip](const char* name, auto& x, auto& u) {
-        typedef
-            typename std::remove_reference<decltype(x)>::type x_type;
+        typedef typename std::remove_reference<decltype(x)>::type x_type;
         auto ptr_index = thrust::device_pointer_cast(m_index.dev_ptr());
         if (std::strcmp(name, skip.c_str()) == 0) return;
 
@@ -61,15 +60,38 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
 
     // Update the new number of particles
     const int padding = 0;
-    m_number =
-        thrust::upper_bound(ptr_cell, ptr_cell + m_number + padding,
-                            empty_cell - 1) -
-        ptr_cell;
+    m_number = thrust::upper_bound(ptr_cell, ptr_cell + m_number + padding,
+                                   empty_cell - 1) -
+               ptr_cell;
 
-    Logger::print_info("Sorting complete, there are {} particles in the pool", m_number);
+    Logger::print_info("Sorting complete, there are {} particles in the pool",
+                       m_number);
     cudaDeviceSynchronize();
     CudaCheckError();
   }
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::append_dev(const vec_t<Pos_t, 3>& x,
+                                       const vec_t<Scalar, 3>& p, uint32_t cell,
+                                       uint32_t flag) {
+  if (m_number == m_size) return;
+  kernel_launch(
+      {1, 1},
+      [x, p, cell, flag] __device__(auto ptrs, size_t pos) {
+        ptrs.x1[pos] = x[0];
+        ptrs.x2[pos] = x[1];
+        ptrs.x3[pos] = x[2];
+        ptrs.p1[pos] = p[0];
+        ptrs.p2[pos] = p[1];
+        ptrs.p3[pos] = p[2];
+        ptrs.cell[pos] = cell;
+        ptrs.flag[pos] = flag;
+      },
+      m_dev_ptrs, m_number);
+  CudaSafeCall(cudaDeviceSynchronize());
+  m_number += 1;
 }
 
 // Explicit instantiation

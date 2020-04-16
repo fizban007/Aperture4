@@ -86,7 +86,7 @@ sim_environment::init() {
   for (auto name : m_data_order) {
     auto& c = m_data_map[name];
     Logger::print_info("Initializing data '{}'", name);
-    c->init(name, *this);
+    c->init();
   }
 }
 

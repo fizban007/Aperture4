@@ -6,11 +6,12 @@ set(Aperture_src
   # "core/params.cpp"
   "framework/environment.cpp"
   "framework/params_store.cpp"
-  "systems/domain_comm.cpp"
-  "systems/grid.cpp"
-  # "systems/grid_logsph.cpp"
   "data/fields.cpp"
   "data/particle_data.cpp"
+  "systems/domain_comm.cpp"
+  "systems/grid.cpp"
+  "systems/ptc_updater.cpp"
+  # "systems/grid_logsph.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -26,7 +27,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
-    "systems/ptc_updater.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

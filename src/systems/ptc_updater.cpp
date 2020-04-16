@@ -19,9 +19,48 @@ ptc_updater<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::update(double dt, uint32_t step) {}
+ptc_updater<Conf>::register_dependencies() {
+  size_t max_ptc_num = 1000000;
+  get_from_store("max_ptc_num", max_ptc_num, m_env.params());
+
+  ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
+                                             MemType::host_only);
+
+  E = m_env.register_data<vector_field<Conf>>("E", m_grid,
+                                              field_type::edge_centered,
+                                              MemType::host_only);
+  B = m_env.register_data<vector_field<Conf>>("B", m_grid,
+                                              field_type::face_centered,
+                                              MemType::host_only);
+  J = m_env.register_data<vector_field<Conf>>("J", m_grid,
+                                              field_type::edge_centered,
+                                              MemType::host_only);
+
+  get_from_store("num_species", m_num_species, m_env.params());
+  Rho.resize(m_num_species);
+  for (int i = 0; i < m_num_species; i++) {
+    Rho[i] = m_env.register_data<scalar_field<Conf>>(
+        std::string("Rho_") + ptc_type_name(i), m_grid,
+        field_type::vert_centered,
+        MemType::host_only);
+  }
+}
 
 template <typename Conf>
+void
+ptc_updater<Conf>::update(double dt, uint32_t step) {
+  // First update particle momentum
+  if (m_pusher == Pusher::boris) {
+    push<boris_pusher>(dt);
+  } else if (m_pusher == Pusher::vay) {
+    push<vay_pusher>(dt);
+  } else if (m_pusher == Pusher::higuera) {
+    push<higuera_pusher>(dt);
+  }
+}
+
+template <typename Conf>
+template <typename T>
 void
 ptc_updater<Conf>::push(double dt) {
   // TODO: First interpolate E and B fields to vertices and store them in Etmp
@@ -29,6 +68,7 @@ ptc_updater<Conf>::push(double dt) {
 
   auto num = ptc->number();
   auto ext = m_grid.extent();
+  T pusher;
   if (num > 0) {
     for (auto n : range(0ul, num)) {
       uint32_t cell = ptc->cell[n];
@@ -51,12 +91,15 @@ ptc_updater<Conf>::push(double dt) {
       Scalar B2 = interp((*B)[1], x, idx, pos);
       Scalar B3 = interp((*B)[2], x, idx, pos);
 
+      Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
+                          E1, E2, E3, B1, B2, B3);
+
       //  Push particles
       Scalar p1 = ptc->p1[n], p2 = ptc->p2[n], p3 = ptc->p3[n],
           gamma = ptc->E[n];
       if (!check_flag(flag, PtcFlag::ignore_EM)) {
-        m_pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3,
-                 qdt_over_2m, (Scalar)dt);
+        pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3,
+               qdt_over_2m, (Scalar)dt);
       }
 
       // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {

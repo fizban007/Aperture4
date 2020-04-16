@@ -40,6 +40,7 @@ struct Grid {
   }
 
   HD_INLINE uint32_t reduced_dim(int i) const { return (dims[i] - 2 * skirt[i]); }
+
   ///  Coordinate of a point inside cell n in dimension N.
   ///
   ///  This function applies to field points. Stagger = false means
@@ -91,6 +92,13 @@ struct Grid {
     return pos_in_cell;
   }
 
+  HD_INLINE Scalar pos(int i, int n, Scalar pos_in_cell) const {
+    if (i < Dim)
+      return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
+    else
+      return pos_in_cell;
+  }
+
   template <int N>
   HD_INLINE Scalar pos(const index_t<Dim>& idx,
                        Scalar pos_in_cell) const {
@@ -103,9 +111,20 @@ struct Grid {
     return pos<N>(idx[N], st[N]);
   }
 
+  HD_INLINE vec_t<Scalar, Dim> pos_global(const index_t<Dim>& idx,
+                                          const vec_t<Scalar, Dim>& rel_pos) {
+    vec_t<Scalar, Dim> result;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      result[i] = pos(i, idx[i], rel_pos[i]);
+    }
+    return result;
+  }
+
+
   ///  Find the zone the cell belongs to (for communication purposes)
   HD_INLINE int find_zone(const index_t<Dim>& pos) const {
-    auto z = vec_t<uint32_t, Dim>{};
+    auto z = index_t<Dim>{};
     auto ext = extent_t<Dim>{};
 #pragma unroll
     for (int i = 0; i < Dim; i++) {

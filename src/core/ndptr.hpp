@@ -10,10 +10,10 @@ namespace Aperture {
 /// An thin wrapper around a naked pointer, purely to facilitate device access
 /// to the underlying memory. Since one can't pass a multi_array directly to a
 /// cuda kernel, this is the next best thing.
-template <class T, int Rank, class Index_t = default_index_t<Rank>>
+template <class T, int Rank, class Idx_t = default_idx_t<Rank>>
 struct ndptr {
-  typedef Index_t idx_type;
-  typedef T value_type;
+  typedef Idx_t idx_t;
+  typedef T value_t;
 
   T* p = nullptr;
 
@@ -22,26 +22,26 @@ struct ndptr {
 
   HD_INLINE T& operator[](size_t idx) { return p[idx]; }
   HD_INLINE const T& operator[](size_t idx) const { return p[idx]; }
-  HD_INLINE T& operator[](const Index_t& idx) { return p[idx.linear]; }
-  HD_INLINE const T& operator[](const Index_t& idx) const { return p[idx.linear]; }
+  HD_INLINE T& operator[](const Idx_t& idx) { return p[idx.linear]; }
+  HD_INLINE const T& operator[](const Idx_t& idx) const { return p[idx.linear]; }
 
-  HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {
-    return Index_t(idx, ext);
+  HD_INLINE idx_t idx_at(uint32_t lin, const extent_t<Rank>& ext) const {
+    return Idx_t(lin, ext);
   }
 
-  HD_INLINE idx_type idx_at(const index_t<Rank>& idx, const extent_t<Rank>& ext) const {
-    return Index_t(idx, ext);
+  HD_INLINE idx_t idx_at(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
+    return Idx_t(pos, ext);
   }
 
-  HD_INLINE range_proxy<Index_t> indices(const extent_t<Rank>& ext) const {
-    return range(Index_t(0, ext), Index_t(ext.size(), ext));
+  HD_INLINE range_proxy<Idx_t> indices(const extent_t<Rank>& ext) const {
+    return range(Idx_t(0, ext), Idx_t(ext.size(), ext));
   }
 };
 
-template <class T, int Rank, class Index_t = default_index_t<Rank>>
+template <class T, int Rank, class Idx_t = default_idx_t<Rank>>
 struct ndptr_const {
-  typedef Index_t idx_type;
-  typedef T value_type;
+  typedef Idx_t idx_t;
+  typedef T value_t;
 
   const T* p = nullptr;
 
@@ -50,20 +50,20 @@ struct ndptr_const {
 
   // Cannot use this operator to change the underlying data
   HD_INLINE T operator[](size_t idx) const { return p[idx]; }
-  HD_INLINE T operator[](const Index_t& idx) const {
+  HD_INLINE T operator[](const Idx_t& idx) const {
     return p[idx.linear];
   }
 
-  HD_INLINE idx_type idx_at(uint32_t idx, const extent_t<Rank>& ext) const {
-    return Index_t(idx, ext);
+  HD_INLINE idx_t idx_at(uint32_t lin, const extent_t<Rank>& ext) const {
+    return Idx_t(lin, ext);
   }
 
-  HD_INLINE idx_type idx_at(const index_t<Rank>& idx, const extent_t<Rank>& ext) const {
-    return Index_t(idx, ext);
+  HD_INLINE idx_t idx_at(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
+    return Idx_t(pos, ext);
   }
 
-  HD_INLINE range_proxy<Index_t> indices(const extent_t<Rank>& ext) const {
-    return range(Index_t(0, ext), Index_t(ext.size(), ext));
+  HD_INLINE range_proxy<Idx_t> indices(const extent_t<Rank>& ext) const {
+    return range(Idx_t(0, ext), Idx_t(ext.size(), ext));
   }
 };
 

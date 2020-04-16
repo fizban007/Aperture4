@@ -18,7 +18,7 @@ domain_comm<Conf>::setup_domain() {
   MPI_Comm_rank(m_world, &m_rank);
   MPI_Comm_size(m_world, &m_size);
 
-  m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_type{});
+  m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
   // This is the first place where rank is defined. Tell logger about
   // this

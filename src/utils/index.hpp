@@ -14,7 +14,7 @@ template <int Rank> struct idx_row_major_t;
 template <int Rank> struct idx_zorder_t;
 
 template <int Rank>
-using default_index_t = idx_col_major_t<Rank>;
+using default_idx_t = idx_col_major_t<Rank>;
 
 template <class Derived, int Rank>
 struct idx_base_t {
@@ -107,7 +107,7 @@ struct idx_col_major_t
   HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear = (long)result.linear + n * (long)strides[Dir];
+    result.linear = (long)result.linear + n * strides[Dir];
     return result;
   }
 
@@ -117,7 +117,7 @@ struct idx_col_major_t
   HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear = (long)result.linear - n * (long)strides[Dir];
+    result.linear = (long)result.linear - n * strides[Dir];
     return result;
   }
 
@@ -190,7 +190,7 @@ struct idx_row_major_t
   HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear = (long)result.linear + n * (long)strides[Dir];
+    result.linear = (long)result.linear + n * strides[Dir];
     return result;
   }
 
@@ -200,7 +200,7 @@ struct idx_row_major_t
   HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-    result.linear = (long)result.linear - n * (long)strides[Dir];
+    result.linear = (long)result.linear - n * strides[Dir];
     return result;
   }
 

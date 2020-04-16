@@ -8,6 +8,7 @@ target_sources(tests PUBLIC
   "test_params.cpp"
   "test_fields.cpp"
   "test_interp.cpp"
+  "test_ptc_updater.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC
@@ -15,7 +16,10 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_vec.cu"
     "test_params.cu"
     "test_grid.cu"
-    "test_ptc_updater.cpp"
+    )
+else()
+  target_sources(tests PUBLIC
+    # "test_ptc_updater.cpp"
     )
 endif()
 

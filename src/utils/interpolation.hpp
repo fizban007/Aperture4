@@ -91,8 +91,8 @@ struct interpolator<Interp, 1> {
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx, const index_t<1>& pos) ->
-      typename Ptr::value_type {
-    typename Ptr::value_type result;
+      typename Ptr::value_t {
+    typename Ptr::value_t result = 0.0;
 #pragma unroll
     for (int i = 1; i <= Interp::support; i++) {
       int ii = i + pos[0] - Interp::radius;
@@ -109,8 +109,8 @@ struct interpolator<Interp, 2> {
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx, const index_t<2>& pos) ->
-      typename Ptr::value_type {
-    typename Ptr::value_type result;
+      typename Ptr::value_t {
+    typename Ptr::value_t result = 0.0;
 #pragma unroll
     for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
@@ -119,6 +119,8 @@ struct interpolator<Interp, 2> {
       for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
            i++) {
         int ii = i + pos[0];
+        // printf("idx is %lu\n", idx.inc_x(i).inc_y(j).linear);
+        // printf("x is %f, %f, pos is %d, %d\n", x[0], x[1], pos[0], pos[1]);
         result += f[idx.inc_x(i).inc_y(j)] *
                   interp_cell(interp, x[0], pos[0], ii) *
                   interp_cell(interp, x[1], pos[1], jj);
@@ -135,8 +137,8 @@ struct interpolator<Interp, 3> {
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx, const index_t<3>& pos) ->
-      typename Ptr::value_type {
-    typename Ptr::value_type result;
+      typename Ptr::value_t {
+    typename Ptr::value_t result = 0.0;
 #pragma unroll
     for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
          k++) {

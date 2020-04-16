@@ -7,15 +7,25 @@
 namespace Aperture {
 
 template <typename BufferType>
-particles_base<BufferType>::particles_base(MemType model)
-    : m_mem_type(model) {}
+particles_base<BufferType>::particles_base(MemType model) : m_mem_type(model) {
+  set_memtype(m_mem_type);
+}
 
 template <typename BufferType>
 particles_base<BufferType>::particles_base(size_t size, MemType model)
     : m_mem_type(model) {
+  set_memtype(m_mem_type);
   resize(size);
   m_host_ptrs = this->host_ptrs();
   m_dev_ptrs = this->dev_ptrs();
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::set_memtype(MemType memtype) {
+  visit_struct::for_each(
+      *dynamic_cast<base_type*>(this),
+      [memtype](const char* name, auto& x) { x.set_memtype(memtype); });
 }
 
 template <typename BufferType>
@@ -75,6 +85,23 @@ particles_base<BufferType>::rearrange_arrays_host() {
       }
     }
   }
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::append(const vec_t<Pos_t, 3>& x,
+                                   const vec_t<Scalar, 3>& p, uint32_t cell,
+                                   uint32_t flag) {
+  if (m_number == m_size) return;
+  this->x1[m_number] = x[0];
+  this->x2[m_number] = x[1];
+  this->x3[m_number] = x[2];
+  this->p1[m_number] = p[0];
+  this->p2[m_number] = p[1];
+  this->p3[m_number] = p[2];
+  this->cell[m_number] = cell;
+  this->flag[m_number] = flag;
+  m_number += 1;
 }
 
 template <typename BufferType>

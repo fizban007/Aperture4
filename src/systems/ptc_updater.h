@@ -14,10 +14,11 @@ namespace Aperture {
 
 template <typename Conf>
 class ptc_updater : public system_t {
- private:
+ protected:
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>& m_comm;
-  default_pusher m_pusher;
+
+  Pusher m_pusher = Pusher::higuera;
 
   std::shared_ptr<particle_data_t> ptc;
   std::shared_ptr<vector_field<Conf>> E, B, J;
@@ -57,34 +58,32 @@ class ptc_updater : public system_t {
 
   void init();
   void update(double dt, uint32_t step);
+  void register_dependencies();
 
+  template <typename P>
   void push(double dt);
   void move(double dt);
   void move_and_deposit(double dt, uint32_t step);
 
-  void register_dependencies() {
-    size_t max_ptc_num = 1000000;
-    get_from_store("max_ptc_num", max_ptc_num, m_env.params());
-    // Prefer device_only, but can take other possibilities if data is already
-    // there
-    ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
-                                               MemType::device_only);
-
-    E = m_env.register_data<vector_field<Conf>>("E", m_grid,
-                                                field_type::edge_centered);
-    B = m_env.register_data<vector_field<Conf>>("B", m_grid,
-                                                field_type::face_centered);
-    J = m_env.register_data<vector_field<Conf>>("J", m_grid,
-                                                field_type::edge_centered);
-
-    get_from_store("num_species", m_num_species, m_env.params());
-    Rho.resize(m_num_species);
-    for (int i = 0; i < m_num_species; i++) {
-      Rho[i] = m_env.register_data<scalar_field<Conf>>(
-          std::string("Rho_") + ptc_type_name(i), m_grid,
-          field_type::vert_centered);
-    }
+  void use_pusher(Pusher p) {
+    m_pusher = p;
   }
+};
+
+template <typename Conf>
+class ptc_updater_cu : public ptc_updater<Conf> {
+ public:
+  ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
+                 const domain_comm<Conf>& comm) :
+      ptc_updater<Conf>(env, grid, comm) {}
+
+  void init();
+  void update(double dt, uint32_t step);
+  void register_dependencies();
+
+  template <typename P>
+  void push(double dt);
+  void move_and_deposit(double dt, uint32_t step);
 };
 
 }  // namespace Aperture

@@ -52,7 +52,7 @@ class buffer_t {
     }
 #endif
     m_size = size;
-    // Logger::print_debug("Allocated {} bytes", size * sizeof(T));
+    Logger::print_debug("Allocated {} bytes", size * sizeof(T));
   }
 
   void free_mem() {
@@ -74,7 +74,8 @@ class buffer_t {
   // typedef buffer_t<T, Model> self_type;
   typedef buffer_t<T> self_type;
   // static constexpr MemType model() { return Model; }
-  MemType mem_type() { return m_model; }
+  MemType mem_type() const { return m_model; }
+  void set_memtype(MemType type) { m_model = type; }
 
   buffer_t(MemType model = default_mem_type) : m_model(model) {}
   buffer_t(size_t size, MemType model = default_mem_type) : m_model(model) {

@@ -163,7 +163,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   }
 
   SECTION("Index manipulation, col major") {
-    multi_array<float, 4>::index_type idx(
+    multi_array<float, 4>::idx_t idx(
         index(0, 0, 0, 0), extent(10, 20, 30, 40));
 
     REQUIRE(idx.linear == 0);

@@ -46,6 +46,7 @@ class particles_base : public BufferType {
   self_type& operator=(const self_type& other) = delete;
   self_type& operator=(self_type&& other) = default;
 
+  void set_memtype(MemType memtype);
   void resize(size_t size);
 
   void copy_from(const self_type& other, size_t num, size_t src_pos,
@@ -59,8 +60,17 @@ class particles_base : public BufferType {
   void sort_by_cell_host(size_t max_cell);
   void sort_by_cell_dev(size_t max_cell);
 
-  void copy_to_host();
+  void append(const vec_t<Pos_t, 3>& x,
+              const vec_t<Scalar, 3>& p,
+              uint32_t cell,
+              uint32_t flag);
 
+  void append_dev(const vec_t<Pos_t, 3>& x,
+                  const vec_t<Scalar, 3>& p,
+                  uint32_t cell,
+                  uint32_t flag);
+
+  void copy_to_host();
   void copy_to_device();
 
   size_t size() const { return m_size; }

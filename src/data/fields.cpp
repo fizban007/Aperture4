@@ -7,20 +7,25 @@
 namespace Aperture {
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid) {
+field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid, MemType memtype)
+    : m_memtype(memtype) {
+  set_memtype(memtype);
   resize(grid);
 }
 
 template <int N, typename Conf>
 field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
-                          const std::array<stagger_t, N> st)
-    : m_stagger(st) {
+                          const std::array<stagger_t, N> st, MemType memtype)
+    : m_stagger(st), m_memtype(memtype) {
+  set_memtype(memtype);
   resize(grid);
 }
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
-                          field_type type) {
+field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid, field_type type,
+                          MemType memtype)
+    : m_memtype(memtype) {
+  set_memtype(memtype);
   if (type == field_type::face_centered) {
     m_stagger[0] = stagger_t(0b001);
     m_stagger[1] = stagger_t(0b010);
@@ -39,10 +44,28 @@ field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
 
 template <int N, typename Conf>
 void
+field_t<N, Conf>::init() {
+  // Logger::print_debug("field init, memtype {}", (int)m_memtype);
+  for (int i = 0; i < N; i++) {
+    m_data[i].assign(0.0);
+  }
+}
+
+template <int N, typename Conf>
+void
 field_t<N, Conf>::resize(const Grid<Conf::dim>& grid) {
   m_grid = &grid;
   for (int i = 0; i < N; i++) {
     m_data[i].resize(m_grid->extent());
+  }
+}
+
+template <int N, typename Conf>
+void
+field_t<N, Conf>::set_memtype(MemType type) {
+  m_memtype = type;
+  for (int i = 0; i < N; i++) {
+    m_data[i].set_memtype(type);
   }
 }
 

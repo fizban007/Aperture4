@@ -5,16 +5,18 @@
 using namespace Aperture;
 
 #ifdef CUDA_ENABLED
-constexpr MemType mem_model = MemType::host_device;
+constexpr MemType mem_type = MemType::host_device;
 #else
-constexpr MemType mem_model = MemType::host_only;
+constexpr MemType mem_type = MemType::host_only;
 #endif
 
 TEST_CASE("Initializing particles", "[particles]") {
   size_t N = 10000;
-  particles_t ptc(N, mem_model);
-  photons_t ph(N, mem_model);
+  particles_t ptc(N, mem_type);
+  photons_t ph(N, mem_type);
 
+  REQUIRE(ptc.mem_type() == mem_type);
+  REQUIRE(ph.mem_type() == mem_type);
   REQUIRE(ptc.size() == N);
   REQUIRE(ph.size() == N);
   REQUIRE(ptc.x1.size() == N);
@@ -26,6 +28,7 @@ TEST_CASE("Initializing particles", "[particles]") {
     ptc.x1[10] = 0.1f;
 
     particles_t ptc1 = std::move(ptc);
+    REQUIRE(ptc1.mem_type() == mem_type);
     REQUIRE(ptc1.size() == N);
     REQUIRE(ptc1.x1[10] == 0.1f);
     REQUIRE(ptc.x1.host_allocated() == false);
@@ -47,8 +50,8 @@ TEST_CASE("Particle flag manipulation", "[particles]") {
 
 TEST_CASE("Init, copy and assign particles", "[particles]") {
   size_t N = 100;
-  particles_t ptc(N, mem_model);
-  particles_t ptc2(N, mem_model);
+  particles_t ptc(N, mem_type);
+  particles_t ptc2(N, mem_type);
   ptc.init();
   ptc.copy_to_host();
   for (int i = 0; i < N; i++)
@@ -80,7 +83,7 @@ TEST_CASE("Particle pointers", "[particles]") {
 TEST_CASE("Sorting particles by cell", "[particles]") {
   size_t N = 100;
 
-  particles_t ptc(N, mem_model);
+  particles_t ptc(N, mem_type);
   ptc.set_num(3);
   ptc.x1.emplace(0, {0.1, 0.2, 0.3});
   ptc.cell.emplace(0, {34, 24, 14});

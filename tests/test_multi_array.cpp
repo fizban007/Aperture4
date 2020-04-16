@@ -550,3 +550,29 @@ TEST_CASE("Assign and copy", "[multi_array]") {
     }
   }
 }
+
+TEST_CASE("Memtype is correct", "[multi_array]") {
+  {
+  auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_only);
+  REQUIRE(m.mem_type() == MemType::device_only);
+  REQUIRE(m.host_allocated() == false);
+  }
+
+  {
+  auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_managed);
+  REQUIRE(m.mem_type() == MemType::device_managed);
+  REQUIRE(m.host_allocated() == false);
+#ifdef CUDA_ENABLED
+  REQUIRE(m.host_ptr() != nullptr);
+#endif
+  }
+
+  {
+    auto m = make_multi_array<double>(extent(32, 32, 32), MemType::host_device);
+    REQUIRE(m.mem_type() == MemType::host_device);
+    REQUIRE(m.host_allocated() == true);
+#ifdef CUDA_ENABLED
+    REQUIRE(m.dev_allocated() == true);
+#endif
+  }
+}

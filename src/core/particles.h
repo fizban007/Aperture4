@@ -47,6 +47,8 @@ class particles_base : public BufferType {
   self_type& operator=(self_type&& other) = default;
 
   void set_memtype(MemType memtype);
+  MemType mem_type() const { return m_mem_type; }
+
   void resize(size_t size);
 
   void copy_from(const self_type& other, size_t num, size_t src_pos,

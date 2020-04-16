@@ -15,6 +15,42 @@ set_initial_field(vector_field<Config<2>>& field) {
       });
 }
 
+TEST_CASE("Memtype is correct for fields", "[fields]") {
+  typedef Config<2> Conf;
+  Grid<2> grid;
+  grid.dims[0] = 32;
+  grid.dims[1] = 32;
+
+  SECTION("host_only") {
+    scalar_field<Conf> f(grid, MemType::host_only);
+    REQUIRE(f[0].mem_type() == MemType::host_only);
+    REQUIRE(f[0].host_allocated() == true);
+#ifdef CUDA_ENABLED
+    REQUIRE(f[0].dev_allocated() == false);
+#endif
+  }
+
+  SECTION("device_managed") {
+    vector_field<Conf> f(grid, MemType::device_managed);
+    REQUIRE(f[0].host_allocated() == false);
+    REQUIRE(f[0].mem_type() == MemType::device_managed);
+#ifdef CUDA_ENABLED
+    REQUIRE(f[1].dev_allocated() == true);
+    REQUIRE(f[2].host_ptr() != nullptr);
+#endif
+  }
+
+  SECTION("device_host") {
+    vector_field<Conf> f(grid, MemType::host_device);
+    REQUIRE(f[0].mem_type() == MemType::host_device);
+    REQUIRE(f[0].host_allocated() == true);
+#ifdef CUDA_ENABLED
+    REQUIRE(f[1].dev_allocated() == true);
+#endif
+  }
+
+}
+
 TEST_CASE("Initializing fields", "[fields]") {
   Config<2> conf;
   Grid<2> g2;

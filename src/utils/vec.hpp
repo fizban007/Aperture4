@@ -72,6 +72,45 @@ class vec_t {
     return result;
   }
 
+  HD_INLINE self_type& operator*=(const self_type& other) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++)
+      memory[i] *= other.memory[i];
+    return *this;
+  }
+
+  HD_INLINE self_type operator*(const self_type& other) const {
+    self_type result = *this;
+    result *= other;
+    return result;
+  }
+
+  HD_INLINE self_type& operator*=(T v) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++)
+      memory[i] *= v;
+    return *this;
+  }
+
+  HD_INLINE self_type operator*(T v) const {
+    self_type result = *this;
+    result *= v;
+    return result;
+  }
+
+  HD_INLINE self_type& operator/=(const self_type& other) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++)
+      memory[i] /= other.memory[i];
+    return *this;
+  }
+
+  HD_INLINE self_type operator/(const self_type& other) const {
+    self_type result = *this;
+    result /= other;
+    return result;
+  }
+
   HD_INLINE void set(const T& value) {
 #pragma unroll
     for (int i = 0; i < Rank; i++)

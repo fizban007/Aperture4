@@ -71,6 +71,7 @@ field_t<N, Conf>::set_memtype(MemType type) {
 
 ///////////////////////////////////////////////////////
 // Explicitly instantiate some fields
+///////////////////////////////////////////////////////
 template class field_t<3, Config<1, float>>;
 template class field_t<3, Config<2, float>>;
 template class field_t<3, Config<3, float>>;

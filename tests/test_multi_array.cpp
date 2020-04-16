@@ -156,7 +156,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
     auto b = std::move(a);
 
-    REQUIRE(a.extent()[0] == 0);
+    // REQUIRE(a.extent()[0] == 0);
     REQUIRE(a.size() == 0);
     REQUIRE(b.size() == 100);
     REQUIRE(b(3, 3) == 3.0f);

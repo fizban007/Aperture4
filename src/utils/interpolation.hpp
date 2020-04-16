@@ -15,7 +15,8 @@ template <>
 struct bspline<0> {
   enum { radius = 1, support = 1 };
 
-  HD_INLINE double operator()(double dx) const {
+  template <typename FloatT>
+  HD_INLINE FloatT operator()(FloatT dx) const {
     return (std::abs(dx) <= 0.5 ? 1.0 : 0.0);
   }
 };
@@ -24,7 +25,8 @@ template <>
 struct bspline<1> {
   enum { radius = 1, support = 2 };
 
-  HD_INLINE double operator()(double dx) const {
+  template <typename FloatT>
+  HD_INLINE FloatT operator()(FloatT dx) const {
     double abs_dx = std::abs(dx);
     return std::max(1.0 - abs_dx, 0.0);
   }
@@ -34,12 +36,13 @@ template <>
 struct bspline<2> {
   enum { radius = 2, support = 3 };
 
-  HD_INLINE double operator()(double dx) const {
-    double abs_dx = std::abs(dx);
+  template <typename FloatT>
+  HD_INLINE FloatT operator()(FloatT dx) const {
+    FloatT abs_dx = std::abs(dx);
     if (abs_dx < 0.5) {
       return 0.75 - dx * dx;
     } else if (abs_dx < 1.5) {
-      double tmp = 1.5 - abs_dx;
+      FloatT tmp = 1.5 - abs_dx;
       return 0.5 * tmp * tmp;
     } else {
       return 0.0;
@@ -51,13 +54,14 @@ template <>
 struct bspline<3> {
   enum { radius = 2, support = 4 };
 
-  HD_INLINE double operator()(double dx) const {
-    double abs_dx = std::abs(dx);
+  template <typename FloatT>
+  HD_INLINE FloatT operator()(FloatT dx) const {
+    FloatT abs_dx = std::abs(dx);
     if (abs_dx < 1.0) {
-      double tmp = abs_dx * abs_dx;
+      FloatT tmp = abs_dx * abs_dx;
       return 2.0 / 3.0 - tmp + 0.5 * tmp * abs_dx;
     } else if (abs_dx < 2.0) {
-      double tmp = 2.0 - abs_dx;
+      FloatT tmp = 2.0 - abs_dx;
       return 1.0 / 6.0 * tmp * tmp * tmp;
     } else {
       return 0.0;
@@ -90,13 +94,13 @@ struct interpolator<Interp, 1> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, const index_t<1>& pos) ->
+                              const Index_t& idx) ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;
 #pragma unroll
-    for (int i = 1; i <= Interp::support; i++) {
-      int ii = i + pos[0] - Interp::radius;
-      result += f[ii] * interp_cell(interp, x[0], pos[0], ii);
+    for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius; i++) {
+      // int ii = i + pos[0] - Interp::radius;
+      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], 0, i);
     }
     return result;
   }
@@ -108,25 +112,25 @@ struct interpolator<Interp, 2> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, const index_t<2>& pos) ->
+                              const Index_t& idx) ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;
 #pragma unroll
     for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
-      int jj = j + pos[1];
+      // int jj = j + pos[1];
 #pragma unroll
       for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
            i++) {
-        int ii = i + pos[0];
+        // int ii = i + pos[0];
         // printf("idx is %lu\n", idx.inc_x(i).inc_y(j).linear);
         // printf("x is %f, %f, pos is %d, %d\n", x[0], x[1], pos[0], pos[1]);
         // printf("f is %f, interp is %f, %f\n", f[idx.inc_x(i).inc_y(j)],
         //        interp_cell(interp, x[0], pos[0], ii),
         //        interp_cell(interp, x[1], pos[1], jj));
         result += f[idx.inc_x(i).inc_y(j)] *
-                  interp_cell(interp, x[0], pos[0], ii) *
-                  interp_cell(interp, x[1], pos[1], jj);
+                  interp_cell(interp, x[0], 0, i) *
+                  interp_cell(interp, x[1], 0, j);
       }
     }
     return result;
@@ -139,25 +143,25 @@ struct interpolator<Interp, 3> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, const index_t<3>& pos) ->
+                              const Index_t& idx) ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;
 #pragma unroll
     for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
          k++) {
-      int kk = k + pos[2];
+      // int kk = k + pos[2];
 #pragma unroll
       for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
            j++) {
-        int jj = j + pos[1];
+        // int jj = j + pos[1];
 #pragma unroll
         for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
              i++) {
-          int ii = i + pos[0];
+          // int ii = i + pos[0];
           result += f[idx.inc_x(i).inc_y(j).inc_z(k)] *
-                    interp_cell(interp, x[0], pos[0], ii) *
-                    interp_cell(interp, x[1], pos[1], jj) *
-                    interp_cell(interp, x[2], pos[2], kk);
+                    interp_cell(interp, x[0], 0, i) *
+                    interp_cell(interp, x[1], 0, j) *
+                    interp_cell(interp, x[2], 0, k);
         }
       }
     }
@@ -173,10 +177,19 @@ template <>
 struct lerp<1> {
   template <class Value_t, typename Index_t, typename FloatT>
   HOST_DEVICE Value_t operator()(const ndptr<Value_t, 1, Index_t>& f,
-                                 const vec_t<FloatT, 3>& x, const Index_t& idx,
-                                 const stagger_t& st_in,
-                                 const stagger_t& st_out) {
+                                 const vec_t<FloatT, 3>& x,
+                                 const Index_t& idx) {
     return x[0] * f[idx.inc_x()] + (1.0f - x[0]) * f[idx];
+  }
+
+  template <class Ptr>
+  HOST_DEVICE typename Ptr::value_t operator()(const Ptr& f,
+                                               const typename Ptr::idx_t& idx,
+                                               stagger_t in, stagger_t out) {
+    int dx_m = (in[0] == out[0] ? 0 : -out[0]);
+    int dx_p = (in[0] == out[0] ? 0 : 1 - out[0]);
+
+    return 0.5 * (f[idx.inc_x(dx_m)] + f[idx.inc_x(dx_p)]);
   }
 };
 
@@ -185,12 +198,27 @@ template <>
 struct lerp<2> {
   template <class Value_t, typename Index_t, typename FloatT>
   HOST_DEVICE Value_t operator()(const ndptr<Value_t, 2, Index_t>& f,
-                                 const vec_t<FloatT, 3>& x, const Index_t& idx,
-                                 const stagger_t& st_in,
-                                 const stagger_t& st_out) {
+                                 const vec_t<FloatT, 3>& x,
+                                 const Index_t& idx) {
     FloatT f1 = x[1] * f[idx.inc_x().inc_y()] + (1.0f - x[1]) * f[idx.inc_x()];
     FloatT f0 = x[1] * f[idx.inc_y()] + (1.0f - x[1]) * f[idx];
     return x[0] * f1 + (1.0f - x[0]) * f0;
+  }
+
+  template <class Ptr>
+  HOST_DEVICE typename Ptr::value_t operator()(const Ptr& f,
+                                               const typename Ptr::idx_t& idx,
+                                               stagger_t in, stagger_t out) {
+    int dx_m = (in[0] == out[0] ? 0 : -out[0]);
+    int dx_p = (in[0] == out[0] ? 0 : 1 - out[0]);
+    int dy_m = (in[1] == out[1] ? 0 : -out[1]);
+    int dy_p = (in[1] == out[1] ? 0 : 1 - out[1]);
+
+    typename Ptr::value_t f1 = 0.5f * (f[idx.inc_x(dx_p).inc_y(dy_p)] +
+                                       f[idx.inc_x(dx_p).inc_y(dy_m)]);
+    typename Ptr::value_t f0 = 0.5f * (f[idx.inc_x(dx_m).inc_y(dy_p)] +
+                                       f[idx.inc_x(dx_m).inc_y(dy_m)]);
+    return 0.5f * (f1 + f0);
   }
 };
 
@@ -199,9 +227,8 @@ template <>
 struct lerp<3> {
   template <class Value_t, typename Index_t, typename FloatT>
   HOST_DEVICE Value_t operator()(const ndptr<Value_t, 3, Index_t>& f,
-                                 const vec_t<FloatT, 3>& x, const Index_t& idx,
-                                 const stagger_t& st_in,
-                                 const stagger_t& st_out) {
+                                 const vec_t<FloatT, 3>& x,
+                                 const Index_t& idx) {
     FloatT f11 = (1.0f - x[2]) * f[idx.inc_x().inc_y()] +
                  x[2] * f[idx.inc_x().inc_y().inc_z()];
     FloatT f10 = (1.0f - x[2]) * f[idx.inc_x()] + x[2] * f[idx.inc_x().inc_z()];
@@ -210,6 +237,34 @@ struct lerp<3> {
     FloatT f1 = x[1] * f11 + (1.0f - x[1]) * f10;
     FloatT f0 = x[1] * f01 + (1.0f - x[1]) * f00;
     return x[0] * f1 + (1.0f - x[0]) * f0;
+  }
+
+  template <class Ptr>
+  HOST_DEVICE typename Ptr::value_t operator()(const Ptr& f,
+                                               const typename Ptr::idx_t& idx,
+                                               stagger_t in, stagger_t out) {
+    int dx_m = (in[0] == out[0] ? 0 : -out[0]);
+    int dx_p = (in[0] == out[0] ? 0 : 1 - out[0]);
+    int dy_m = (in[1] == out[1] ? 0 : -out[1]);
+    int dy_p = (in[1] == out[1] ? 0 : 1 - out[1]);
+    int dz_m = (in[2] == out[2] ? 0 : -out[2]);
+    int dz_p = (in[2] == out[2] ? 0 : 1 - out[2]);
+
+    typename Ptr::value_t f11 =
+        0.5f * (f[idx.inc_x(dx_p).inc_y(dy_p).inc_z(dz_m)] +
+                f[idx.inc_x(dx_p).inc_y(dy_p).inc_z(dz_p)]);
+    typename Ptr::value_t f10 =
+        0.5f * (f[idx.inc_x(dx_p).inc_y(dy_m).inc_z(dz_m)] +
+                f[idx.inc_x(dx_p).inc_y(dy_m).inc_z(dz_p)]);
+    typename Ptr::value_t f01 =
+        0.5f * (f[idx.inc_x(dx_m).inc_y(dy_p).inc_z(dz_m)] +
+                f[idx.inc_x(dx_m).inc_y(dy_p).inc_z(dz_p)]);
+    typename Ptr::value_t f00 =
+        0.5f * (f[idx.inc_x(dx_m).inc_y(dy_m).inc_z(dz_m)] +
+                f[idx.inc_x(dx_m).inc_y(dy_m).inc_z(dz_p)]);
+    typename Ptr::value_t f1 = 0.5f * (f11 + f10);
+    typename Ptr::value_t f0 = 0.5f * (f01 + f00);
+    return 0.5f * (f1 + f0);
   }
 };
 

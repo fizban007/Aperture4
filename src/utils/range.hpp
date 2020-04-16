@@ -126,10 +126,10 @@ struct range_proxy {
   iter end_;
 };
 
-template <typename T>
+template <typename U, typename T>
 HD_INLINE range_proxy<T>
-range(T begin, T end) {
-  return {begin, end};
+range(U begin, T end) {
+  return {(T)begin, end};
 }
 
 namespace traits {
@@ -173,9 +173,9 @@ using step_range = typename range_proxy<T>::step_range_proxy;
 
 #ifdef __CUDACC__
 
-template <typename T>
+template <typename U, typename T>
 __device__ __forceinline__
-step_range<T> grid_stride_range(T begin, T end) {
+step_range<T> grid_stride_range(U begin, T end) {
     return range(T(begin + blockDim.x * blockIdx.x + threadIdx.x), end)
       .step(gridDim.x * blockDim.x);
 }

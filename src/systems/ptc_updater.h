@@ -9,6 +9,7 @@
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
 #include "systems/grid.h"
+#include "utils/interpolation.hpp"
 
 namespace Aperture {
 
@@ -19,6 +20,7 @@ class ptc_updater : public system_t {
   std::shared_ptr<const domain_comm<Conf>> m_comm = nullptr;
 
   Pusher m_pusher = Pusher::higuera;
+  typedef bspline<1> spline_t;
 
   std::shared_ptr<particle_data_t> ptc;
   std::shared_ptr<vector_field<Conf>> E, B, J;
@@ -27,6 +29,8 @@ class ptc_updater : public system_t {
   vector_field<Conf> Etmp, Btmp;
 
   uint32_t m_num_species = 2;
+  uint32_t m_data_interval = 1;
+
   // By default the maximum number of species is 8
   float m_charges[max_ptc_types];
   float m_masses[max_ptc_types];
@@ -52,11 +56,8 @@ class ptc_updater : public system_t {
  public:
   static std::string name() { return "ptc_updater"; }
 
-  ptc_updater(sim_environment& env, const grid_t<Conf>& grid) :
-      system_t(env), m_grid(grid) {}
-
   ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-              std::shared_ptr<const domain_comm<Conf>> comm)
+              std::shared_ptr<const domain_comm<Conf>> comm = nullptr)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init();
@@ -65,8 +66,12 @@ class ptc_updater : public system_t {
 
   template <typename P>
   void push(double dt);
-  void move(double dt);
+  // void move(double dt);
   void move_and_deposit(double dt, uint32_t step);
+
+  void move_deposit_1d(double dt, uint32_t step);
+  void move_deposit_2d(double dt, uint32_t step);
+  void move_deposit_3d(double dt, uint32_t step);
 
   void use_pusher(Pusher p) {
     m_pusher = p;
@@ -76,11 +81,8 @@ class ptc_updater : public system_t {
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
  public:
-  ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid) :
-      ptc_updater<Conf>(env, grid) {}
-
   ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
-                 std::shared_ptr<const domain_comm<Conf>> comm) :
+                 std::shared_ptr<const domain_comm<Conf>> comm = nullptr) :
       ptc_updater<Conf>(env, grid, comm) {}
 
   void init();

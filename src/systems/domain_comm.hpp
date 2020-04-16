@@ -46,6 +46,8 @@ class domain_comm : public system_t {
   void send_guard_cells(scalar_field<Conf>& field) const;
   void send_add_guard_cells(vector_field<Conf>& field) const;
   void send_add_guard_cells(scalar_field<Conf>& field) const;
+  template <typename PtcType>
+  void send_particles(PtcType& ptc) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 

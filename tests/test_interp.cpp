@@ -11,9 +11,9 @@ TEST_CASE("1D linear interpolation", "[interp]") {
 
   v.assign(1.0);
   auto idx = v.get_idx(1);
-  auto pos = idx.get_pos();
+  // auto pos = idx.get_pos();
   REQUIRE(interp(v, vec_t<float, 3>(0.1, 0.1, 0.1),
-                 idx, pos) == Approx(1.0));
+                 idx) == Approx(1.0));
 }
 
 TEST_CASE("2D cubic interpolation", "[interp]") {
@@ -23,7 +23,7 @@ TEST_CASE("2D cubic interpolation", "[interp]") {
   v.assign(1.0);
   auto idx = v.get_idx(1, 1);
   double a = interp(v, vec_t<float, 3>(0.3, 0.4, 0.5),
-                    idx, index(1, 1));
+                    idx);
   REQUIRE(a == Approx(1.0));
 
   Logger::print_info("a is {}", a);
@@ -32,7 +32,6 @@ TEST_CASE("2D cubic interpolation", "[interp]") {
                 2.0, 3.0, 4.0, 5.0,
                 3.0, 4.0, 5.0, 6.0,
                 4.0, 5.0, 6.0, 7.0});
-  a = interp(v, vec_t<double, 3>(0.0, 1.0, 0.5),
-             idx, index(1, 1));
+  a = interp(v, vec_t<double, 3>(0.0, 1.0, 0.5), idx);
   REQUIRE(a == Approx(4.0));
 }

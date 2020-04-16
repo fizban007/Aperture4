@@ -1,4 +1,5 @@
 #include "core/constant_mem_func.h"
+#include "data/field_helpers.h"
 #include "framework/config.h"
 #include "ptc_updater.h"
 #include "utils/interpolation.hpp"
@@ -11,8 +12,11 @@ namespace Aperture {
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::init() {
-  ptc_updater<Conf>::init();
+  this->init_charge_mass();
   init_dev_charge_mass(this->m_charges, this->m_masses);
+
+  this->Etmp = vector_field<Conf>(this->m_grid, MemType::device_only);
+  this->Btmp = vector_field<Conf>(this->m_grid, MemType::device_only);
 }
 
 template <typename Conf>
@@ -57,8 +61,21 @@ template <typename Conf>
 template <typename P>
 void
 ptc_updater_cu<Conf>::push(double dt) {
-  // TODO: First interpolate E and B fields to vertices and store them in Etmp
+  // First interpolate E and B fields to vertices and store them in Etmp
   // and Btmp
+  resample_dev((*(this->E))[0], this->Etmp[0], this->m_grid.guards(),
+               this->E->stagger(0), this->Etmp.stagger(0));
+  resample_dev((*(this->E))[1], this->Etmp[1], this->m_grid.guards(),
+               this->E->stagger(1), this->Etmp.stagger(1));
+  resample_dev((*(this->E))[2], this->Etmp[2], this->m_grid.guards(),
+               this->E->stagger(2), this->Etmp.stagger(2));
+  resample_dev((*(this->B))[0], this->Btmp[0], this->m_grid.guards(),
+               this->B->stagger(0), this->Btmp.stagger(0));
+  resample_dev((*(this->B))[1], this->Btmp[1], this->m_grid.guards(),
+               this->B->stagger(1), this->Btmp.stagger(1));
+  resample_dev((*(this->B))[2], this->Btmp[2], this->m_grid.guards(),
+               this->B->stagger(2), this->Btmp.stagger(2));
+
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
   P pusher;
@@ -69,7 +86,7 @@ ptc_updater_cu<Conf>::push(double dt) {
       uint32_t cell = ptrs.cell[n];
       if (cell == empty_cell) continue;
       auto idx = E[0].idx_at(cell, ext);
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
 
       auto interp = interpolator<bspline<1>, Conf::dim>{};
       auto flag = ptrs.flag[n];
@@ -79,12 +96,12 @@ ptc_updater_cu<Conf>::push(double dt) {
 
       auto x = vec_t<Pos_t, 3>(ptrs.x1[n], ptrs.x2[n], ptrs.x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(E[0], x, idx, pos);
-      Scalar E2 = interp(E[1], x, idx, pos);
-      Scalar E3 = interp(E[2], x, idx, pos);
-      Scalar B1 = interp(B[0], x, idx, pos);
-      Scalar B2 = interp(B[1], x, idx, pos);
-      Scalar B3 = interp(B[2], x, idx, pos);
+      Scalar E1 = interp(E[0], x, idx);
+      Scalar E2 = interp(E[1], x, idx);
+      Scalar E3 = interp(E[2], x, idx);
+      Scalar B1 = interp(B[0], x, idx);
+      Scalar B2 = interp(B[1], x, idx);
+      Scalar B3 = interp(B[2], x, idx);
 
       //  Push particles
       Scalar p1 = ptrs.p1[n], p2 = ptrs.p2[n], p3 = ptrs.p3[n],
@@ -114,8 +131,8 @@ ptc_updater_cu<Conf>::push(double dt) {
   };
 
   if (num > 0) {
-    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
-                  this->B->get_ptrs(), pusher);
+    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->Etmp.get_ptrs(),
+                  this->Btmp.get_ptrs(), pusher);
   }
 }
 

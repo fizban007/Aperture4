@@ -5,6 +5,7 @@
 #include "core/ndptr.hpp"
 #include "framework/data.h"
 #include "utils/stagger.h"
+#include "utils/logger.h"
 #include <array>
 
 namespace Aperture {
@@ -53,12 +54,17 @@ class field_t : public data_t {
 
   template <typename Func>
   void set_values(int n, const Func& f) {
-    if (n >= 0 && n < Conf::dim) {
+    if (n >= 0 && n < N) {
+      Logger::print_debug("data[{}] has extent {}x{}", n,
+                          m_data[n].extent()[0],
+                          m_data[n].extent()[1]);
       for (auto idx : m_data[n].indices()) {
+        // Logger::print_debug("idx is {}, strides are {}, {}", idx.linear, idx.strides[0],
+        //                     idx.strides[1]);
         auto pos = idx.get_pos();
         double x0 = m_grid->template pos<0>(pos, m_stagger[n]);
-        double x1 = m_grid->template pos<1>(pos, m_stagger[n]);
-        double x2 = m_grid->template pos<2>(pos, m_stagger[n]);
+        double x1 = (Conf::dim > 1 ? m_grid->template pos<1>(pos, m_stagger[n]) : 0.0);
+        double x2 = (Conf::dim > 2 ? m_grid->template pos<2>(pos, m_stagger[n]) : 0.0);
         m_data[n][idx] = f(x0, x1, x2);
       }
       if (m_memtype != MemType::host_only)
@@ -74,8 +80,14 @@ class field_t : public data_t {
     }
   }
 
-  typename Conf::multi_array_t& operator[](int n) { return m_data[n]; }
+  typename Conf::multi_array_t& operator[](int n) {
+    if (n < 0) n = 0;
+    if (n >= N) n = N - 1;
+    return m_data[n];
+  }
   const typename Conf::multi_array_t& operator[](int n) const {
+    if (n < 0) n = 0;
+    if (n >= N) n = N - 1;
     return m_data[n];
   }
   stagger_t stagger(int n = 0) const { return m_stagger[n]; }

@@ -3,6 +3,7 @@
 #include "framework/environment.hpp"
 #include "systems/ptc_updater.h"
 #include <fstream>
+#include <iomanip>
 
 using namespace Aperture;
 
@@ -27,11 +28,12 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
   std::shared_ptr<vector_field<Conf>> B;
   env.get_data("B", B);
-  (*B)[2].assign(100.0);
-  REQUIRE((*B)[2](20, 34) == Approx(100.0f));
+  (*B)[2].assign(10000.0);
+  REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  ptc->append(vec_t<Pos_t, 3>(0.0, 0.0, 0.0), vec_t<Scalar, 3>(0.0, 10.0, 0.0),
+  ptc->append(vec_t<Pos_t, 3>(0.0, 0.0, 0.0), vec_t<Scalar, 3>(0.0, 1000.0, 0.0),
               grid->get_idx(20, 34).linear, 0);
+  ptc->weight[0] = 1.0;
 
   double dt = 0.001;
   uint32_t N = 4000;
@@ -46,12 +48,12 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x2[i] = pos[1];
 
       pusher->push<boris_pusher>(dt);
-      pusher->move(dt);
+      pusher->move_and_deposit(dt, i);
     }
 
     std::ofstream output("pusher_boris_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << x1[i] << ", " << x2[i] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
     }
   }
 
@@ -63,12 +65,12 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x2[i] = pos[1];
 
       pusher->push<vay_pusher>(dt);
-      pusher->move(dt);
+      pusher->move_and_deposit(dt, i);
     }
 
     std::ofstream output("pusher_vay_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << x1[i] << ", " << x2[i] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
     }
   }
 
@@ -80,12 +82,12 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x2[i] = pos[1];
 
       pusher->push<higuera_pusher>(dt);
-      pusher->move(dt);
+      pusher->move_and_deposit(dt, i);
     }
 
     std::ofstream output("pusher_higuera_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << x1[i] << ", " << x2[i] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
     }
   }
 }

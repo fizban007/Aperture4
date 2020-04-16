@@ -89,7 +89,7 @@ TEST_CASE("setting initial value from a function", "[fields]") {
     double x1 = g2.pos<0>(pos[0], 0);
     double x2 = g2.pos<1>(pos[1], 0);
     double x3 = g2.pos<2>(pos[2], 0);
-    REQUIRE(vf[0][idx] == float(x1 * x1 + x2 + x3 * x3 * x3));
+    REQUIRE(vf[0][idx] == Approx(x1 * x1 + x2 + x3 * x3 * x3));
   }
 
 }

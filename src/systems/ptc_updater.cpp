@@ -91,8 +91,8 @@ ptc_updater<Conf>::push(double dt) {
       Scalar B2 = interp((*B)[1], x, idx, pos);
       Scalar B3 = interp((*B)[2], x, idx, pos);
 
-      Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
-                          E1, E2, E3, B1, B2, B3);
+      // Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
+      //                     E1, E2, E3, B1, B2, B3);
 
       //  Push particles
       Scalar p1 = ptc->p1[n], p2 = ptc->p2[n], p3 = ptc->p3[n],
@@ -170,7 +170,7 @@ ptc_updater<Conf>::move(double dt) {
         ptc->x3[n] = x3 + v3 * dt;
       }
 
-      ptc->cell[n] = (*E)[0].idx_at(pos).linear;
+      ptc->cell[n] = (*E)[0].get_idx(pos).linear;
     }
   }
 }

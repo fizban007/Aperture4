@@ -24,7 +24,7 @@ constexpr float TINY = eps_float;
 #else
 typedef double Scalar;
 typedef double Mom_t;
-typedef float Pos_t;
+typedef double Pos_t;
 constexpr double TINY = eps_double;
 #endif
 

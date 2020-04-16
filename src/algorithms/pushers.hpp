@@ -26,19 +26,19 @@ struct vay_pusher {
     B2 *= qdt_over_2m;
     B3 *= qdt_over_2m;
 
-    Scalar up1 = p1 + 2.0f * E1 + (p2 * B3 - p3 * B2) / gamma;
-    Scalar up2 = p2 + 2.0f * E2 + (p3 * B1 - p1 * B3) / gamma;
-    Scalar up3 = p3 + 2.0f * E3 + (p1 * B2 - p2 * B1) / gamma;
+    Scalar up1 = p1 + 2.0 * E1 + (p2 * B3 - p3 * B2) / gamma;
+    Scalar up2 = p2 + 2.0 * E2 + (p3 * B1 - p1 * B3) / gamma;
+    Scalar up3 = p3 + 2.0 * E3 + (p1 * B2 - p2 * B1) / gamma;
     // printf("p prime is (%f, %f, %f), gamma is %f\n", up1, up2, up3,
     // gamma);
     Scalar tt = B1 * B1 + B2 * B2 + B3 * B3;
     Scalar ut = up1 * B1 + up2 * B2 + up3 * B3;
 
-    Scalar sigma = 1.0f + up1 * up1 + up2 * up2 + up3 * up3 - tt;
+    Scalar sigma = 1.0 + up1 * up1 + up2 * up2 + up3 * up3 - tt;
     Scalar inv_gamma2 =
-        2.0f / (sigma + std::sqrt(sigma * sigma + 4.0f * (tt + ut * ut)));
-    Scalar s = 1.0f / (1.0f + inv_gamma2 * tt);
-    gamma = 1.0f / std::sqrt(inv_gamma2);
+        2.0 / (sigma + std::sqrt(sigma * sigma + 4.0 * (tt + ut * ut)));
+    Scalar s = 1.0 / (1.0 + inv_gamma2 * tt);
+    gamma = 1.0 / std::sqrt(inv_gamma2);
 
     p1 = (up1 + B1 * ut * inv_gamma2 + (up2 * B3 - up3 * B2) / gamma) * s;
     p2 = (up2 + B2 * ut * inv_gamma2 + (up3 * B1 - up1 * B3) / gamma) * s;
@@ -55,7 +55,7 @@ struct boris_pusher {
     Scalar pm1 = p1 + E1 * qdt_over_2m;
     Scalar pm2 = p2 + E2 * qdt_over_2m;
     Scalar pm3 = p3 + E3 * qdt_over_2m;
-    Scalar gamma_m = std::sqrt(1.0f + pm1 * pm1 + pm2 * pm2 + pm3 * pm3);
+    Scalar gamma_m = std::sqrt(1.0 + pm1 * pm1 + pm2 * pm2 + pm3 * pm3);
     Scalar t1 = B1 * qdt_over_2m / gamma_m;
     Scalar t2 = B2 * qdt_over_2m / gamma_m;
     Scalar t3 = B3 * qdt_over_2m / gamma_m;
@@ -64,10 +64,10 @@ struct boris_pusher {
     Scalar pt2 = pm3 * t1 - pm1 * t3 + pm2;
     Scalar pt3 = pm1 * t2 - pm2 * t1 + pm3;
 
-    p1 = pm1 + E1 * qdt_over_2m + (pt2 * t3 - pt3 * t2) * 2.0f / (1.0f + t_sqr);
-    p2 = pm2 + E2 * qdt_over_2m + (pt3 * t1 - pt1 * t3) * 2.0f / (1.0f + t_sqr);
-    p3 = pm3 + E3 * qdt_over_2m + (pt1 * t2 - pt2 * t1) * 2.0f / (1.0f + t_sqr);
-    gamma = std::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+    p1 = pm1 + E1 * qdt_over_2m + (pt2 * t3 - pt3 * t2) * 2.0 / (1.0 + t_sqr);
+    p2 = pm2 + E2 * qdt_over_2m + (pt3 * t1 - pt1 * t3) * 2.0 / (1.0 + t_sqr);
+    p3 = pm3 + E3 * qdt_over_2m + (pt1 * t2 - pt2 * t1) * 2.0 / (1.0 + t_sqr);
+    gamma = std::sqrt(1.0 + p1 * p1 + p2 * p2 + p3 * p3);
   }
 };
 
@@ -87,12 +87,12 @@ struct higuera_pusher {
     Scalar pm1 = p1 + E1;
     Scalar pm2 = p2 + E2;
     Scalar pm3 = p3 + E3;
-    Scalar gm2 = 1.0f + pm1 * pm1 + pm2 * pm2 + pm3 * pm3;
+    Scalar gm2 = 1.0 + pm1 * pm1 + pm2 * pm2 + pm3 * pm3;
     Scalar b_dot_p = B1 * pm1 + B2 * pm2 + B3 * pm3;
     Scalar b_sqr = B1 * B1 + B2 * B2 + B3 * B3;
-    Scalar gamma_new = std::sqrt(0.5f * (gm2 - b_sqr +
+    Scalar gamma_new = std::sqrt(0.5 * (gm2 - b_sqr +
                                          std::sqrt(square(gm2 - b_sqr) +
-                                                   4.0f * (b_sqr + b_dot_p * b_dot_p))));
+                                                   4.0 * (b_sqr + b_dot_p * b_dot_p))));
     B1 /= gamma_new;
     B2 /= gamma_new;
     B3 /= gamma_new;
@@ -101,10 +101,10 @@ struct higuera_pusher {
     Scalar pt2 = pm3 * B1 - pm1 * B3 + pm2;
     Scalar pt3 = pm1 * B2 - pm2 * B1 + pm3;
 
-    p1 = pm1 + E1 + (pt2 * B3 - pt3 * B2) * 2.0f / (1.0f + t_sqr);
-    p2 = pm2 + E2 + (pt3 * B1 - pt1 * B3) * 2.0f / (1.0f + t_sqr);
-    p3 = pm3 + E3 + (pt1 * B2 - pt2 * B1) * 2.0f / (1.0f + t_sqr);
-    gamma = std::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+    p1 = pm1 + E1 + (pt2 * B3 - pt3 * B2) * 2.0 / (1.0 + t_sqr);
+    p2 = pm2 + E2 + (pt3 * B1 - pt1 * B3) * 2.0 / (1.0 + t_sqr);
+    p3 = pm3 + E3 + (pt1 * B2 - pt2 * B1) * 2.0 / (1.0 + t_sqr);
+    gamma = std::sqrt(1.0 + p1 * p1 + p2 * p2 + p3 * p3);
   }
 };
 

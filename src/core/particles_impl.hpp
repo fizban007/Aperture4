@@ -99,6 +99,7 @@ particles_base<BufferType>::append(const vec_t<Pos_t, 3>& x,
   this->p1[m_number] = p[0];
   this->p2[m_number] = p[1];
   this->p3[m_number] = p[2];
+  this->E[m_number] = std::sqrt(1.0f + p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
   this->cell[m_number] = cell;
   this->flag[m_number] = flag;
   m_number += 1;

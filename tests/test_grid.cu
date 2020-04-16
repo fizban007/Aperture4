@@ -24,9 +24,9 @@ TEST_CASE("Using grid", "[grid]") {
 
     REQUIRE(g1.reduced_dim<0>() == 8);
     REQUIRE(g1.pos<0>(2, true) == 0.0f);
-    REQUIRE(g1.pos<0>(6, 0.7f) == 4.7f * g1.delta[0]);
+    REQUIRE(g1.pos<0>(6, 0.7f) == Approx(4.7f * g1.delta[0]));
     REQUIRE(g1.pos<1>(6, 11.6f) == 11.6f);
-    REQUIRE(g1.pos(0, 6, 0.6f) == 4.6f * g1.delta[0]);
+    REQUIRE(g1.pos(0, 6, 0.6f) == Approx(4.6f * g1.delta[0]));
     REQUIRE(g1.pos(1, 6, 11.6f) == 11.6f);
 
     REQUIRE(g1.is_in_bound(8) == true);
@@ -48,7 +48,7 @@ TEST_CASE("Using grid", "[grid]") {
 
     REQUIRE(g2.reduced_dim<1>() == 8);
     REQUIRE(g2.pos<1>(2, true) == 0.0f);
-    REQUIRE(g2.pos<1>(6, 0.7f) == 4.7f * g2.delta[1]);
+    REQUIRE(g2.pos<1>(6, 0.7f) == Approx(4.7f * g2.delta[1]));
     REQUIRE(g2.pos<2>(6, 11.6f) == 11.6f);
 
     bool b = g2.is_in_bound(index(4, 8));
@@ -64,8 +64,8 @@ TEST_CASE("Using grid", "[grid]") {
     REQUIRE(z == 8);
 
     auto pos_g = g2.pos_global(index(3, 5), vec<Scalar>(0.4, 0.7));
-    REQUIRE(pos_g[0] == 1.4f * g2.delta[0]);
-    REQUIRE(pos_g[1] == 3.7f * g2.delta[1]);
+    REQUIRE(pos_g[0] == Approx(1.4f * g2.delta[0]));
+    REQUIRE(pos_g[1] == Approx(3.7f * g2.delta[1]));
   }
 }
 

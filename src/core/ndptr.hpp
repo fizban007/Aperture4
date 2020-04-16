@@ -29,7 +29,7 @@ struct ndptr {
     return Idx_t(lin, ext);
   }
 
-  HD_INLINE idx_t idx_at(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
+  HD_INLINE idx_t get_idx(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
     return Idx_t(pos, ext);
   }
 
@@ -58,7 +58,7 @@ struct ndptr_const {
     return Idx_t(lin, ext);
   }
 
-  HD_INLINE idx_t idx_at(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
+  HD_INLINE idx_t get_idx(const index_t<Rank>& pos, const extent_t<Rank>& ext) const {
     return Idx_t(pos, ext);
   }
 

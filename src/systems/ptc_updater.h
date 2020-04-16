@@ -16,7 +16,7 @@ template <typename Conf>
 class ptc_updater : public system_t {
  protected:
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>& m_comm;
+  std::shared_ptr<const domain_comm<Conf>> m_comm = nullptr;
 
   Pusher m_pusher = Pusher::higuera;
 
@@ -52,8 +52,11 @@ class ptc_updater : public system_t {
  public:
   static std::string name() { return "ptc_updater"; }
 
+  ptc_updater(sim_environment& env, const grid_t<Conf>& grid) :
+      system_t(env), m_grid(grid) {}
+
   ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-              const domain_comm<Conf>& comm)
+              std::shared_ptr<const domain_comm<Conf>> comm)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init();
@@ -73,8 +76,11 @@ class ptc_updater : public system_t {
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
  public:
+  ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid) :
+      ptc_updater<Conf>(env, grid) {}
+
   ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
-                 const domain_comm<Conf>& comm) :
+                 std::shared_ptr<const domain_comm<Conf>> comm) :
       ptc_updater<Conf>(env, grid, comm) {}
 
   void init();

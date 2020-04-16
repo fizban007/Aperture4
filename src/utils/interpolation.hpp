@@ -77,7 +77,7 @@ template <typename Interp, typename FloatT>
 FloatT HD_INLINE
 interp_cell(const Interp& interp, FloatT rel_pos, int c, int t, int stagger) {
   // The actual distance between particle and t
-  FloatT x = ((FloatT)t + (stagger == 1 ? 0.0f : 0.5f)) - (rel_pos + (FloatT)c);
+  FloatT x = ((FloatT)t + (stagger == 1 ? 0.0 : 0.5)) - (rel_pos + (FloatT)c);
   return interp(x);
 }
 
@@ -121,6 +121,9 @@ struct interpolator<Interp, 2> {
         int ii = i + pos[0];
         // printf("idx is %lu\n", idx.inc_x(i).inc_y(j).linear);
         // printf("x is %f, %f, pos is %d, %d\n", x[0], x[1], pos[0], pos[1]);
+        // printf("f is %f, interp is %f, %f\n", f[idx.inc_x(i).inc_y(j)],
+        //        interp_cell(interp, x[0], pos[0], ii),
+        //        interp_cell(interp, x[1], pos[1], jj));
         result += f[idx.inc_x(i).inc_y(j)] *
                   interp_cell(interp, x[0], pos[0], ii) *
                   interp_cell(interp, x[1], pos[1], jj);

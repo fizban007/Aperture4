@@ -30,6 +30,11 @@ class grid_t : public system_t, public Grid<Conf::dim> {
   inline typename Conf::idx_t get_idx(Args... args) const {
     return typename Conf::idx_t(index_t<Conf::dim>(args...), this->extent());
   }
+
+  inline typename Conf::idx_t idx_at(uint32_t lin) const {
+    return typename Conf::idx_t(lin, this->extent());
+  }
+
 };
 
 }  // namespace Aperture

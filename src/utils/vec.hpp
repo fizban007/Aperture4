@@ -25,6 +25,8 @@ class vec_t {
   HD_INLINE const T& operator[](std::size_t n) const {
     return memory[n];
   }
+  HD_INLINE T& at(std::size_t n) { return memory[n]; }
+  HD_INLINE const T& at(std::size_t n) const { return memory[n]; }
 
   HD_INLINE bool operator<(const self_type& other) const {
 #pragma unroll

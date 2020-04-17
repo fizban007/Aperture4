@@ -81,15 +81,24 @@ class field_t : public data_t {
   }
 
   typename Conf::multi_array_t& operator[](int n) {
-    if (n < 0) n = 0;
-    if (n >= N) n = N - 1;
-    return m_data[n];
+    return at(n);
   }
   const typename Conf::multi_array_t& operator[](int n) const {
+    return at(n);
+  }
+
+  inline typename Conf::multi_array_t& at(int n) {
     if (n < 0) n = 0;
     if (n >= N) n = N - 1;
     return m_data[n];
   }
+
+  inline const typename Conf::multi_array_t& at(int n) const {
+    if (n < 0) n = 0;
+    if (n >= N) n = N - 1;
+    return m_data[n];
+  }
+
   stagger_t stagger(int n = 0) const { return m_stagger[n]; }
 
   void copy_from(const field_t<N, Conf>& other) {

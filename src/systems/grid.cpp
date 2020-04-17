@@ -3,7 +3,6 @@
 #include "core/domain_info.h"
 #include "framework/config.h"
 #include "framework/environment.hpp"
-#include "framework/parse_params.hpp"
 #include "systems/domain_comm.hpp"
 #include <exception>
 
@@ -15,13 +14,11 @@ grid_t<Conf>::grid_t(sim_environment& env,
     : system_t(env) {
   // Obtain grid parameters from the params store
   uint32_t vec_N[Conf::dim];
-  get_from_store("N", vec_N, m_env.params());
-  // auto vec_N = m_env.params().get<std::vector<int64_t>>("N");
+  m_env.params().get_array("N", vec_N);
 
-  // uint32_t vec_N[Conf::dim] = {};
-  get_from_store("guard", this->guard, m_env.params());
-  get_from_store("size", this->sizes, m_env.params());
-  get_from_store("lower", this->lower, m_env.params());
+  m_env.params().get_array("guard", this->guard);
+  m_env.params().get_array("size", this->sizes);
+  m_env.params().get_array("lower", this->lower);
 
   // Initialize the grid parameters
   for (int i = 0; i < Conf::dim; i++) {

@@ -2,7 +2,6 @@
 #include "core/grid.hpp"
 #include "framework/config.h"
 #include "framework/environment.hpp"
-#include "framework/parse_params.hpp"
 #include "systems/grid.h"
 #include "systems/grid_logsph.h"
 #include "utils/index.hpp"
@@ -129,6 +128,7 @@ TEST_CASE("Logsph grid", "[grid][logsph]") {
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
   int arr[3];
-  get_from_store("guard", arr, env.params());
+
+  env.params().get_array("guard", arr);
   auto grid = env.register_system<grid_t<Conf>>(env);
 }

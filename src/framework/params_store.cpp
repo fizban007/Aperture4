@@ -110,13 +110,13 @@ params_store::parse(const std::string& filename) {
 
 template <typename T>
 T
-params_store::get(const std::string& name, T default_value) const {
+params_store::get_as(const std::string& name, T default_value) const {
   return p_impl->get(name, default_value);
 }
 
 template <typename T>
 T
-params_store::get(const std::string& name) const {
+params_store::get_as(const std::string& name) const {
   return p_impl->get(name, T{});
 }
 
@@ -127,28 +127,28 @@ params_store::add(const std::string& name, const T& value) {
 }
 
 ////////////////////////////////////////////////////////////////
-template bool params_store::get(const std::string& name,
+template bool params_store::get_as(const std::string& name,
                                 bool default_value) const;
-template int64_t params_store::get(const std::string& name,
+template int64_t params_store::get_as(const std::string& name,
                                    int64_t default_value) const;
-// template uint64_t params_store::get(const std::string& name,
+// template uint64_t params_store::get_as(const std::string& name,
 //                                    uint64_t default_value) const;
-template double params_store::get(const std::string& name,
+template double params_store::get_as(const std::string& name,
                                   double default_value) const;
-template std::string params_store::get(const std::string& name,
+template std::string params_store::get_as(const std::string& name,
                                        std::string default_value) const;
 
-template std::string params_store::get<std::string>(
+template std::string params_store::get_as<std::string>(
     const std::string& name) const;
-template std::vector<bool> params_store::get<std::vector<bool>>(
+template std::vector<bool> params_store::get_as<std::vector<bool>>(
     const std::string& name) const;
-template std::vector<int64_t> params_store::get<std::vector<int64_t>>(
+template std::vector<int64_t> params_store::get_as<std::vector<int64_t>>(
     const std::string& name) const;
 // template std::vector<uint64_t> params_store::get<std::vector<uint64_t>>(
 //     const std::string& name) const;
-template std::vector<double> params_store::get<std::vector<double>>(
+template std::vector<double> params_store::get_as<std::vector<double>>(
     const std::string& name) const;
-template std::vector<std::string> params_store::get<std::vector<std::string>>(
+template std::vector<std::string> params_store::get_as<std::vector<std::string>>(
     const std::string& name) const;
 
 template void params_store::add(const std::string& name, const bool& value);

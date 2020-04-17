@@ -34,8 +34,7 @@ sim_environment::sim_environment(int* argc, char*** argv) {
   } else {
     m_commandline_args = nullptr;
   }
-  m_params.parse(
-      m_params.get<std::string>("config_file", "config.toml"));
+  m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
 }
 
 sim_environment::~sim_environment() {
@@ -92,8 +91,8 @@ sim_environment::init() {
 
 void
 sim_environment::run() {
-  uint32_t max_steps = m_params.get<int64_t>("max_steps", 1l);
-  double dt = m_params.get<double>("dt", 0.01);
+  uint32_t max_steps = m_params.get_as<int64_t>("max_steps", 1l);
+  double dt = m_params.get_as<double>("dt", 0.01);
 
   for (uint32_t step = 0; step < max_steps; step++) {
     Logger::print_info("=== Time step {}", step);

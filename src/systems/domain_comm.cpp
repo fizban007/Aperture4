@@ -22,10 +22,10 @@ domain_comm<Conf>::setup_domain() {
 
   // This is the first place where rank is defined. Tell logger about
   // this
-  Logger::init(m_rank, (LogLevel)m_env.params().get<int64_t>(
+  Logger::init(m_rank, (LogLevel)m_env.params().get_as<int64_t>(
                            "log_level", (int64_t)LogLevel::info));
 
-  auto dims = m_env.params().get<std::vector<int64_t>>("nodes");
+  auto dims = m_env.params().get_as<std::vector<int64_t>>("nodes");
   if (dims.size() < Conf::dim) dims.resize(Conf::dim, 1);
 
   int64_t total_dim = 1;
@@ -51,7 +51,7 @@ domain_comm<Conf>::setup_domain() {
     for (int i = 0; i < Conf::dim; i++) m_domain_info.mpi_dims[i] = dims[i];
   }
 
-  auto periodic = m_env.params().get<std::vector<bool>>("periodic_boundary");
+  auto periodic = m_env.params().get_as<std::vector<bool>>("periodic_boundary");
   for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
     m_domain_info.is_periodic[i] = periodic[i];
 
@@ -105,9 +105,9 @@ domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) {
   }
 
   uint32_t ptc_buffer_size =
-      m_env.params().get<int64_t>("ptc_buffer_size", 100000l);
+      m_env.params().get_as<int64_t>("ptc_buffer_size", 100000l);
   uint32_t ph_buffer_size =
-      m_env.params().get<int64_t>("ph_buffer_size", 100000l);
+      m_env.params().get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
     m_ptc_buffers.emplace_back(ptc_buffer_size);

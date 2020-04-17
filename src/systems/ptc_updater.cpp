@@ -4,7 +4,6 @@
 #include "core/constant_mem_func.h"
 #include "data/field_helpers.h"
 #include "framework/config.h"
-#include "framework/parse_params.hpp"
 #include "utils/double_buffer.h"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
@@ -20,14 +19,14 @@ ptc_updater<Conf>::init() {
       vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
   Btmp =
       vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
-  get_from_store("data_interval", m_data_interval, m_env.params());
+  m_env.params().get_value("data_interval", m_data_interval);
 }
 
 template <typename Conf>
 void
 ptc_updater<Conf>::register_dependencies() {
   size_t max_ptc_num = 1000000;
-  get_from_store("max_ptc_num", max_ptc_num, m_env.params());
+  m_env.params().get_value("max_ptc_num", max_ptc_num);
 
   ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
                                              MemType::host_only);
@@ -39,7 +38,7 @@ ptc_updater<Conf>::register_dependencies() {
   J = m_env.register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, MemType::host_only);
 
-  get_from_store("num_species", m_num_species, m_env.params());
+  m_env.params().get_value("num_species", m_num_species);
   Rho.resize(m_num_species);
   for (int i = 0; i < m_num_species; i++) {
     Rho[i] = m_env.register_data<scalar_field<Conf>>(

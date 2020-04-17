@@ -9,7 +9,7 @@ TEST_CASE("Using the parameter store in cu", "[param_store]") {
   store.add("p", 4.0);
   store.add("n", 42l);
 
-  int n = store.get<int64_t>("n", 1);
+  int n = store.get_as<int64_t>("n", 1);
   REQUIRE(n == 42);
   // REQUIRE(store.get<int>("n", 1) == 4);
   // REQUIRE(store.get<std::string>("name", "") == "");

@@ -5,7 +5,6 @@
 #include "core/enum_types.h"
 #include "data/particle_data.h"
 #include "framework/environment.hpp"
-#include "framework/parse_params.hpp"
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
 #include "systems/grid.h"
@@ -40,8 +39,8 @@ class ptc_updater : public system_t {
   void init_charge_mass() {
     // Default values are 1.0
     double q_e = 1.0, ion_mass = 1.0;
-    get_from_store("q_e", q_e, m_env.params());
-    get_from_store("ion_mass", ion_mass, m_env.params());
+    m_env.params().get_value("q_e", q_e);
+    m_env.params().get_value("ion_mass", ion_mass);
 
     for (int i = 0; i < (max_ptc_types); i++) {
       m_charges[i] = q_e;

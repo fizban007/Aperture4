@@ -8,6 +8,12 @@
 
 namespace Aperture {
 
+////////////////////////////////////////////////////////////////////////////////
+///  @params_store maintains a hashtable that points to different types of
+///  parameters. One can save new parameters to the store or retrieve from it at
+///  any time. Parameter can have one of the following types: `bool`, `int64_t`,
+///  `double`, `string`, and `vector` of the above types.
+////////////////////////////////////////////////////////////////////////////////
 class params_store {
  private:
   // Because we need to use std::variant which is not supported in CUDA code, we
@@ -15,21 +21,120 @@ class params_store {
   class params_store_impl;
   params_store_impl* p_impl;
 
+  // Private struct to facilitate visiting of the different parameter types
+  struct visit_param {
+  const params_store& store;
+
+  visit_param(const params_store& s) : store(s) {}
+
+  void operator()(const char* name, float& x) {
+    x = store.get_as<double>(name, (double)x);
+  }
+
+  void operator()(const char* name, double& x) {
+    x = store.get_as<double>(name, x);
+  }
+
+  void operator()(const char* name, bool& x) {
+    x = store.get_as<bool>(name, x);
+  }
+
+  void operator()(const char* name, int& x) {
+    x = store.get_as<int64_t>(name, (int64_t)x);
+  }
+
+  void operator()(const char* name, long& x) {
+    x = store.get_as<int64_t>(name, (int64_t)x);
+  }
+
+  void operator()(const char* name, uint32_t& x) {
+    x = store.get_as<int64_t>(name, (int64_t)x);
+  }
+
+  void operator()(const char* name, uint64_t& x) {
+    x = store.get_as<int64_t>(name, (int64_t)x);
+  }
+
+  void operator()(const char* name, std::string& x) {
+    x = store.get_as<std::string>(name, x);
+  }
+
+  template <size_t N>
+  void operator()(const char* name, float (&x)[N]) {
+    auto v = store.get_as<std::vector<double>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, double (&x)[N]) {
+    auto v = store.get_as<std::vector<double>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, int (&x)[N]) {
+    auto v = store.get_as<std::vector<int64_t>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, uint32_t (&x)[N]) {
+    auto v = store.get_as<std::vector<int64_t>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, uint64_t (&x)[N]) {
+    auto v = store.get_as<std::vector<int64_t>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, bool (&x)[N]) {
+    auto v = store.get_as<std::vector<bool>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+
+  template <size_t N>
+  void operator()(const char* name, std::string (&x)[N]) {
+    auto v = store.get_as<std::vector<std::string>>(name);
+    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+  }
+};
+
  public:
   params_store();
+  params_store(const params_store& other) = delete;
+  params_store(params_store&& other) = delete;
   ~params_store();
- 
+
+  /// Parse a config file to populate the parameters storage
   void parse(const std::string& filename);
   // const params_struct& params() const;
 
   template <typename T>
-  T get(const std::string& name, T default_value) const;
+  T get_as(const std::string& name, T default_value) const;
 
   template <typename T>
-  T get(const std::string& name) const;
+  T get_as(const std::string& name) const;
 
   template <typename T>
   void add(const std::string& name, const T& value);
+
+  template <typename ParamStruct>
+  void parse_struct(ParamStruct& params) {
+    visit_struct::for_each(params, visit_param{*this});
+  }
+
+  template <typename T, size_t N>
+  void get_array(const std::string& name, T (&x)[N]) const {
+    visit_param{*this}(name.c_str(), x);
+  }
+
+  template <typename T>
+  void get_value(const std::string& name, T &x) const {
+    visit_param{*this}(name.c_str(), x);
+  }
 
 };
 

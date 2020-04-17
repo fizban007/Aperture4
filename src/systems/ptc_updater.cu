@@ -32,7 +32,7 @@ template <typename Conf>
 void
 ptc_updater_cu<Conf>::register_dependencies() {
   size_t max_ptc_num = 1000000;
-  get_from_store("max_ptc_num", max_ptc_num, this->m_env.params());
+  this->m_env.params().get_value("max_ptc_num", max_ptc_num);
   // Prefer device_only, but can take other possibilities if data is already
   // there
   this->ptc = this->m_env.template register_data<particle_data_t>(
@@ -45,7 +45,7 @@ ptc_updater_cu<Conf>::register_dependencies() {
   this->J = this->m_env.template register_data<vector_field<Conf>>(
       "J", this->m_grid, field_type::edge_centered, MemType::host_device);
 
-  get_from_store("num_species", this->m_num_species, this->m_env.params());
+  this->m_env.params().get_value("num_species", this->m_num_species);
   this->Rho.resize(this->m_num_species);
   for (int i = 0; i < this->m_num_species; i++) {
     this->Rho[i] = this->m_env.template register_data<scalar_field<Conf>>(

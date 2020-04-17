@@ -5,6 +5,7 @@
 #include "data/field_helpers.h"
 #include "framework/config.h"
 #include "framework/parse_params.hpp"
+#include "utils/double_buffer.h"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
 
@@ -49,15 +50,22 @@ ptc_updater<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
+ptc_updater<Conf>::push_default(double dt, bool resample_field) {
+  // dispatch according to enum
+  if (m_pusher == Pusher::boris) {
+    push<boris_pusher>(dt, true);
+  } else if (m_pusher == Pusher::vay) {
+    push<vay_pusher>(dt, true);
+  } else if (m_pusher == Pusher::higuera) {
+    push<higuera_pusher>(dt, true);
+  }
+}
+
+template <typename Conf>
+void
 ptc_updater<Conf>::update(double dt, uint32_t step) {
   // First update particle momentum
-  if (m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt);
-  } else if (m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt);
-  } else if (m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt);
-  }
+  push_default(dt, true);
 
   // Then move particles and deposit current
   move_and_deposit(dt, step);
@@ -83,15 +91,21 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 template <typename Conf>
 template <typename T>
 void
-ptc_updater<Conf>::push(double dt) {
+ptc_updater<Conf>::push(double dt, bool resample_field) {
   // First interpolate E and B fields to vertices and store them in Etmp
   // and Btmp
-  resample((*E)[0], Etmp[0], m_grid.guards(), E->stagger(0), Etmp.stagger(0));
-  resample((*E)[1], Etmp[1], m_grid.guards(), E->stagger(1), Etmp.stagger(1));
-  resample((*E)[2], Etmp[2], m_grid.guards(), E->stagger(2), Etmp.stagger(2));
-  resample((*B)[0], Btmp[0], m_grid.guards(), B->stagger(0), Btmp.stagger(0));
-  resample((*B)[1], Btmp[1], m_grid.guards(), B->stagger(1), Btmp.stagger(1));
-  resample((*B)[2], Btmp[2], m_grid.guards(), B->stagger(2), Btmp.stagger(2));
+  auto dbE = make_double_buffer(*E, Etmp);
+  auto dbB = make_double_buffer(*B, Btmp);
+  if (resample_field) {
+    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(), E->stagger(0), Etmp.stagger(0));
+    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(), E->stagger(1), Etmp.stagger(1));
+    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(), E->stagger(2), Etmp.stagger(2));
+    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(), B->stagger(0), Btmp.stagger(0));
+    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(), B->stagger(1), Btmp.stagger(1));
+    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(), B->stagger(2), Btmp.stagger(2));
+    dbE.swap();
+    dbB.swap();
+  }
 
   auto num = ptc->number();
   auto ext = m_grid.extent();
@@ -100,7 +114,7 @@ ptc_updater<Conf>::push(double dt) {
     for (auto n : range(0, num)) {
       uint32_t cell = ptc->cell[n];
       if (cell == empty_cell) continue;
-      auto idx = Etmp[0].idx_at(cell);
+      auto idx = dbE.main()[0].idx_at(cell);
       // auto pos = idx.get_pos();
 
       auto interp = interpolator<spline_t, Conf::dim>{};
@@ -111,12 +125,12 @@ ptc_updater<Conf>::push(double dt) {
 
       auto x = vec_t<Pos_t, 3>(ptc->x1[n], ptc->x2[n], ptc->x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(Etmp[0], x, idx);
-      Scalar E2 = interp(Etmp[1], x, idx);
-      Scalar E3 = interp(Etmp[2], x, idx);
-      Scalar B1 = interp(Btmp[0], x, idx);
-      Scalar B2 = interp(Btmp[1], x, idx);
-      Scalar B3 = interp(Btmp[2], x, idx);
+      Scalar E1 = interp(dbE.main()[0], x, idx);
+      Scalar E2 = interp(dbE.main()[1], x, idx);
+      Scalar E3 = interp(dbE.main()[2], x, idx);
+      Scalar B1 = interp(dbB.main()[0], x, idx);
+      Scalar B2 = interp(dbB.main()[1], x, idx);
+      Scalar B3 = interp(dbB.main()[2], x, idx);
 
       // Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
       //                     E1, E2, E3, B1, B2, B3);
@@ -220,7 +234,7 @@ ptc_updater<Conf>::move_deposit_1d(double dt, uint32_t step) {
 
         // rho is deposited at the final position
         if ((step + 1) % m_data_interval == 0) {
-          (*Rho[sp])[0][offset], weight * sx1;
+          (*Rho[sp])[0][offset] += weight * sx1;
         }
       }
     }
@@ -273,7 +287,7 @@ ptc_updater<Conf>::move_deposit_2d(double dt, uint32_t step) {
       int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
       int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
       int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      Scalar djy[i_1 - i_0 + 1] = {};
+      Scalar djy[2 * spline_t::radius + 1] = {};
       for (int j = j_0; j <= j_1; j++) {
         Scalar sy0 = interp(-x2 + j);
         Scalar sy1 = interp(-new_x2 + j);
@@ -298,7 +312,7 @@ ptc_updater<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
           // rho is deposited at the final position
           if ((step + 1) % m_data_interval == 0) {
-            (*Rho[sp])[0][offset], weight * sx1 * sy1;
+            (*Rho[sp])[0][offset] += weight * sx1 * sy1;
           }
         }
       }
@@ -359,12 +373,13 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
       int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
       int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-      Scalar djz[j_1 - j_0 + 1][i_1 - i_0 + 1] = {};
+      Scalar djz[2 * spline_t::radius + 1]
+          [2 * spline_t::radius + 1] = {};
       for (int k = k_0; k <= k_1; k++) {
         Scalar sz0 = interp(-x3 + k);
         Scalar sz1 = interp(-new_x3 + k);
 
-        Scalar djy[i_1 - i_0 + 1] = {};
+        Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
           Scalar sy0 = interp(-x2 + j);
           Scalar sy1 = interp(-new_x2 + j);
@@ -391,7 +406,7 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
 
             // rho is deposited at the final position
             if ((step + 1) % m_data_interval == 0) {
-              (*Rho[sp])[0][offset], weight * sx1 * sy1 * sz1;
+              (*Rho[sp])[0][offset] += weight * sx1 * sy1 * sz1;
             }
           }
         }

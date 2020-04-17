@@ -28,6 +28,7 @@ class ptc_updater : public system_t {
 
   vector_field<Conf> Etmp, Btmp;
 
+  // Parameters for this module
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
 
@@ -64,14 +65,16 @@ class ptc_updater : public system_t {
   void update(double dt, uint32_t step);
   void register_dependencies();
 
-  template <typename P>
-  void push(double dt);
-  // void move(double dt);
   void move_and_deposit(double dt, uint32_t step);
 
-  void move_deposit_1d(double dt, uint32_t step);
-  void move_deposit_2d(double dt, uint32_t step);
-  void move_deposit_3d(double dt, uint32_t step);
+  template <typename P>
+  void push(double dt, bool resample_field = true);
+  // void move(double dt);
+
+  virtual void push_default(double dt, bool resample_field = true);
+  virtual void move_deposit_1d(double dt, uint32_t step);
+  virtual void move_deposit_2d(double dt, uint32_t step);
+  virtual void move_deposit_3d(double dt, uint32_t step);
 
   void use_pusher(Pusher p) {
     m_pusher = p;
@@ -80,18 +83,28 @@ class ptc_updater : public system_t {
 
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
+ private:
+  buffer_t<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
+
  public:
+  typedef ptc_updater<Conf> base_class;
+
   ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
                  std::shared_ptr<const domain_comm<Conf>> comm = nullptr) :
       ptc_updater<Conf>(env, grid, comm) {}
 
   void init();
-  void update(double dt, uint32_t step);
+  // void update(double dt, uint32_t step);
   void register_dependencies();
 
   template <typename P>
-  void push(double dt);
-  void move_and_deposit(double dt, uint32_t step);
+  void push(double dt, bool resample_field = true);
+  // void move_and_deposit(double dt, uint32_t step);
+
+  virtual void push_default(double dt, bool resample_field = true) override;
+  virtual void move_deposit_1d(double dt, uint32_t step) override;
+  virtual void move_deposit_2d(double dt, uint32_t step) override;
+  virtual void move_deposit_3d(double dt, uint32_t step) override;
 };
 
 }  // namespace Aperture

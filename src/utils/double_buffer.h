@@ -19,16 +19,21 @@ struct double_buffer {
     buffers[1] = nullptr;
   }
 
-  HD_INLINE double_buffer(T* current, T* alternative) {
-    buffers[0] = current;
-    buffers[1] = alternative;
+  HD_INLINE double_buffer(T* main, T* alt) {
+    buffers[0] = main;
+    buffers[1] = alt;
   }
 
-  HD_INLINE T* current() { return buffers[selector]; }
-  HD_INLINE T* alternative() { return buffers[selector ^ 1]; }
+  HD_INLINE T& main() { return *buffers[selector]; }
+  HD_INLINE T& alt() { return *buffers[selector ^ 1]; }
   HD_INLINE void swap() { selector ^= 1; }
 };
 
+template <typename T>
+double_buffer<T> make_double_buffer(T& t1, T& t2) {
+  double_buffer<T> result(&t1, &t2);
+  return result;
+}
 
 }
 

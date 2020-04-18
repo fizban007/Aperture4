@@ -4,8 +4,8 @@
 #include "core/grid.hpp"
 #include "core/ndptr.hpp"
 #include "framework/data.h"
-#include "utils/stagger.h"
 #include "utils/logger.h"
+#include "utils/stagger.h"
 #include <array>
 
 namespace Aperture {
@@ -16,6 +16,9 @@ using greater_than_unity = std::enable_if_t<(N > 1), bool>;
 template <typename Conf>
 class grid_t;
 
+////////////////////////////////////////////////////////////////////////////////
+///  Enum type that encodes the stagger of the field.
+////////////////////////////////////////////////////////////////////////////////
 enum field_type : char {
   face_centered,
   edge_centered,
@@ -23,6 +26,9 @@ enum field_type : char {
   vert_centered
 };
 
+////////////////////////////////////////////////////////////////////////////////
+///  Data class that stores an N-component field on the simulation grid.
+////////////////////////////////////////////////////////////////////////////////
 template <int N, typename Conf>
 class field_t : public data_t {
  private:
@@ -55,20 +61,18 @@ class field_t : public data_t {
   template <typename Func>
   void set_values(int n, const Func& f) {
     if (n >= 0 && n < N) {
-      Logger::print_debug("data[{}] has extent {}x{}", n,
-                          m_data[n].extent()[0],
+      Logger::print_debug("data[{}] has extent {}x{}", n, m_data[n].extent()[0],
                           m_data[n].extent()[1]);
       for (auto idx : m_data[n].indices()) {
-        // Logger::print_debug("idx is {}, strides are {}, {}", idx.linear, idx.strides[0],
-        //                     idx.strides[1]);
         auto pos = idx.get_pos();
         double x0 = m_grid->template pos<0>(pos, m_stagger[n]);
-        double x1 = (Conf::dim > 1 ? m_grid->template pos<1>(pos, m_stagger[n]) : 0.0);
-        double x2 = (Conf::dim > 2 ? m_grid->template pos<2>(pos, m_stagger[n]) : 0.0);
+        double x1 =
+            (Conf::dim > 1 ? m_grid->template pos<1>(pos, m_stagger[n]) : 0.0);
+        double x2 =
+            (Conf::dim > 2 ? m_grid->template pos<2>(pos, m_stagger[n]) : 0.0);
         m_data[n][idx] = f(x0, x1, x2);
       }
-      if (m_memtype != MemType::host_only)
-        m_data[n].copy_to_device();
+      if (m_memtype != MemType::host_only) m_data[n].copy_to_device();
     }
   }
 
@@ -80,12 +84,8 @@ class field_t : public data_t {
     }
   }
 
-  typename Conf::multi_array_t& operator[](int n) {
-    return at(n);
-  }
-  const typename Conf::multi_array_t& operator[](int n) const {
-    return at(n);
-  }
+  typename Conf::multi_array_t& operator[](int n) { return at(n); }
+  const typename Conf::multi_array_t& operator[](int n) const { return at(n); }
 
   inline typename Conf::multi_array_t& at(int n) {
     if (n < 0) n = 0;

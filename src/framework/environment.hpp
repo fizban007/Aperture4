@@ -75,6 +75,10 @@ class data_store_t {
   std::unordered_map<std::string, const void*> store_map;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+///  Environment class that keeps a registry of parameters, data components, and
+///  systems.
+////////////////////////////////////////////////////////////////////////////////
 class sim_environment {
  private:
   // Registry for systems and data
@@ -112,6 +116,11 @@ class sim_environment {
   ///  simply constructor parameters. System names are given by their static
   ///  `name()` method. There cannot be more than one system registered under
   ///  the same name.
+  ///
+  ///  \tparam System  Type of the system to be registered. This template parameter
+  ///                 has to be specified.
+  ///  \tparam Args    Types of the parameters to be sent to the constructor
+  ///  \param args    The parameters to be sent to the system constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename System, typename... Args>
   auto register_system(Args&&... args) -> std::shared_ptr<System> {
@@ -133,6 +142,11 @@ class sim_environment {
   ////////////////////////////////////////////////////////////////////////////////
   ///  Register a data class with the environment. Multiple instances of the
   ///  same data type can be registered, as long as they have different names.
+  ///
+  ///  \tparam Data   Type of the data component to be registered. This template
+  ///                 parameter has to be specified.
+  ///  \tparam Args   Types of the parameters to be sent to the constructor
+  ///  \param args    The parameters to be sent to the data constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename Data, typename... Args>
   auto register_data(const std::string& name, Args&&... args)
@@ -205,7 +219,8 @@ class sim_environment {
   ///  component is not found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the data component.
-  ///  \return A const `shared_ptr` to the data component
+  ///  \param ptr   A const `shared_ptr` to the data component, supplied to be
+  ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
   void get_data(const std::string& name, std::shared_ptr<T>& ptr) {

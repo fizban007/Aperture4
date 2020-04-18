@@ -13,12 +13,18 @@ namespace Aperture {
 
 class sim_environment;
 
+////////////////////////////////////////////////////////////////////////////////
+///  The `Config` class basically maintains all the compile time type
+///  configurations of all modules. Instead of individually specifying default
+///  types, indexing schemes, and dimension of the grid, a module can simply use
+///  `Config` as the general template parameter. `Config` has no members, no
+///  member functions, and only has static `typedef`s and static functions.
+////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
           template <int> typename Idx_t = idx_col_major_t>
 class Config {
  public:
   static constexpr int dim = Dim;
-  // static constexpr MemType default_mem_model = MemModel;
   static constexpr bool is_zorder =
       std::is_same<Idx_t<Dim>, idx_zorder_t<Dim>>::value;
 
@@ -45,11 +51,10 @@ class Config {
   }
 
   Config() {}
-  Config(const sim_environment& env) {}
   Config(const Config& other) = delete;
-  Config(Config&& other) = default;
+  Config(Config&& other) = delete;
   Config& operator=(const Config& other) = delete;
-  Config& operator=(Config&& other) = default;
+  Config& operator=(Config&& other) = delete;
 };
 
 }  // namespace Aperture

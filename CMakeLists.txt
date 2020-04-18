@@ -17,9 +17,11 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div -DUSE_BMI2")
+  set(CMAKE_CXX_FLAGS_RELEASE
+      "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div -DUSE_BMI2")
 else()
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -DUSE_BMI2")
+  set(CMAKE_CXX_FLAGS_RELEASE
+      "${CMAKE_CXX_FLAGS_RELEASE} -march=native -DUSE_BMI2")
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
@@ -61,13 +63,13 @@ if(use_cuda)
     set(CMAKE_CUDA_FLAGS
         "--expt-extended-lambda --expt-relaxed-constexpr\
       -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
-      -Xcudafe --diag_suppress=code_is_unreachable"
-    )
+      -Xcudafe --diag_suppress=code_is_unreachable")
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     # message(${CMAKE_CXX_COMPILER})
-    find_library(CUDART_LIBRARY cudart PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+    find_library(CUDART_LIBRARY cudart
+                 PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
   endif()
 endif()
 
@@ -79,3 +81,22 @@ add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)
 add_subdirectory(src)
 add_subdirectory(tests)
+
+find_package(Doxygen)
+
+# Find all the public headers get_target_property(CAT_CUTIFIER_PUBLIC_HEADER_DIR
+# CatCutifier INTERFACE_INCLUDE_DIRECTORIES)
+file(GLOB_RECURSE APERTURE_HEADERS ${CMAKE_SOURCE_DIR}/src/*/*.h
+     ${CMAKE_SOURCE_DIR}/src/*/*.hpp)
+
+# This will be the main output of our command
+set(DOXYGEN_INDEX_FILE ${CMAKE_SOURCE_DIR}/doc/index.html)
+
+add_custom_command(
+  OUTPUT ${DOXYGEN_INDEX_FILE}
+  DEPENDS ${APERTURE_HEADERS}
+  COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  MAIN_DEPENDENCY Doxyfile
+  COMMENT "Generating docs")
+add_custom_target(Doxygen ALL DEPENDS ${DOXYGEN_INDEX_FILE})

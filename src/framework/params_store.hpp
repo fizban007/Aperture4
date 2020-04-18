@@ -141,14 +141,14 @@ class params_store {
   }
 
   /// Get an array from the parameter store. The output is stored in the
-  /// parameter @x.
+  /// parameter x.
   template <typename T, size_t N>
   void get_array(const std::string& name, T (&x)[N]) const {
     visit_param{*this}(name.c_str(), x);
   }
 
   /// Get single value from the parameter store. The output is stored in the
-  /// parameter @x.
+  /// parameter x.
   template <typename T>
   void get_value(const std::string& name, T &x) const {
     visit_param{*this}(name.c_str(), x);

@@ -12,10 +12,18 @@ template <typename Conf>
 grid_t<Conf>::grid_t(sim_environment& env,
                      const domain_info_t<Conf::dim>& domain_info)
     : system_t(env) {
-  // Obtain grid parameters from the params store
+  // Start with some sane defaults so that it doesn't blow up when no parameter
+  // is provided
   uint32_t vec_N[Conf::dim];
-  m_env.params().get_array("N", vec_N);
+  for (int i = 0; i < Conf::dim; i++) {
+    vec_N[i] = 1;
+    this->guard[i] = 1;
+    this->sizes[i] = 1.0;
+    this->lower[i] = 1.0;
+  }
 
+  // Obtain grid parameters from the params store
+  m_env.params().get_array("N", vec_N);
   m_env.params().get_array("guard", this->guard);
   m_env.params().get_array("size", this->sizes);
   m_env.params().get_array("lower", this->lower);

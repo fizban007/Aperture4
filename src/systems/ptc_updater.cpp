@@ -25,7 +25,7 @@ ptc_updater<Conf>::init() {
 template <typename Conf>
 void
 ptc_updater<Conf>::register_dependencies() {
-  size_t max_ptc_num = 1000000;
+  size_t max_ptc_num = 10000;
   m_env.params().get_value("max_ptc_num", max_ptc_num);
 
   ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,

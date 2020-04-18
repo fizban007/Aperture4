@@ -26,7 +26,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
   env.init();
 
-  std::shared_ptr<vector_field<Conf>> B;
+  vector_field<Conf>* B;
   env.get_data("B", B);
   (*B)[2].assign(10000.0);
   REQUIRE((*B)[2](20, 34) == Approx(10000.0f));

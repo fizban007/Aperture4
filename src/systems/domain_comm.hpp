@@ -8,8 +8,6 @@
 #include <vector>
 #include <mpi.h>
 
-// #define NEIGHBOR_NULL
-
 namespace Aperture {
 
 template <int Dim>
@@ -26,16 +24,20 @@ class domain_comm : public system_t {
   int m_size = 1;  ///< Size of MPI_COMM_WORLD
   domain_info_t<Conf::dim> m_domain_info;
 
-  // Communication buffers
+  // Communication buffers. These buffers are declared mutable because we want
+  // to use a const domain_comm reference to invoke communications, but
+  // communication will necessarily need to modify these buffers.
   typedef typename Conf::multi_array_t multi_array_t;
+
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<particles_t> m_ptc_buffers;
   mutable std::vector<photons_t> m_ph_buffers;
 
   void setup_domain();
-
   void resize_buffers(const Grid<Conf::dim>& grid);
+  template <typename PtcType>
+  void send_particles_impl(PtcType& ptc) const;
 
  public:
   static std::string name() { return "domain_comm"; }
@@ -46,8 +48,8 @@ class domain_comm : public system_t {
   void send_guard_cells(scalar_field<Conf>& field) const;
   void send_add_guard_cells(vector_field<Conf>& field) const;
   void send_add_guard_cells(scalar_field<Conf>& field) const;
-  template <typename PtcType>
-  void send_particles(PtcType& ptc) const;
+  void send_particles(particles_t& ptc) const;
+  void send_particles(photons_t& ptc) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 

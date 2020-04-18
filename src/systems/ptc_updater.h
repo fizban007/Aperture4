@@ -16,14 +16,14 @@ template <typename Conf>
 class ptc_updater : public system_t {
  protected:
   const grid_t<Conf>& m_grid;
-  std::shared_ptr<const domain_comm<Conf>> m_comm = nullptr;
+  const domain_comm<Conf>* m_comm = nullptr;
 
   Pusher m_pusher = Pusher::higuera;
   typedef bspline<1> spline_t;
 
-  std::shared_ptr<particle_data_t> ptc;
-  std::shared_ptr<vector_field<Conf>> E, B, J;
-  std::vector<std::shared_ptr<scalar_field<Conf>>> Rho;
+  particle_data_t* ptc;
+  vector_field<Conf> *E, *B, *J;
+  std::vector<scalar_field<Conf>*> Rho;
 
   vector_field<Conf> Etmp, Btmp;
 
@@ -57,7 +57,7 @@ class ptc_updater : public system_t {
   static std::string name() { return "ptc_updater"; }
 
   ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-              std::shared_ptr<const domain_comm<Conf>> comm = nullptr)
+              const domain_comm<Conf>* comm = nullptr)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init();
@@ -89,7 +89,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   typedef ptc_updater<Conf> base_class;
 
   ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
-                 std::shared_ptr<const domain_comm<Conf>> comm = nullptr) :
+                 const domain_comm<Conf>* comm = nullptr) :
       ptc_updater<Conf>(env, grid, comm) {}
 
   void init();

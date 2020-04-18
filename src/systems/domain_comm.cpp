@@ -1,6 +1,7 @@
 #include "domain_comm.hpp"
 #include "framework/config.h"
 #include "framework/environment.hpp"
+#include "framework/params_store.hpp"
 #include "utils/logger.h"
 #include "utils/mpi_helper.h"
 
@@ -134,11 +135,24 @@ domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {}
 template <typename Conf>
 template <typename PtcType>
 void
-domain_comm<Conf>::send_particles(PtcType &ptc) const {}
+domain_comm<Conf>::send_particles_impl(PtcType &ptc) const {}
 
 template <typename Conf>
 void
-domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total, uint64_t &offset) const {
+domain_comm<Conf>::send_particles(photons_t &ptc) const {
+  send_particles_impl(ptc);
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_particles(particles_t &ptc) const {
+  send_particles_impl(ptc);
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
+                                        uint64_t &offset) const {
   // Carry out an MPI scan to get the total number and local offset,
   // used for particle output into a file
   uint64_t result = 0;
@@ -146,20 +160,14 @@ domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total, uint64_t
       MPI_Scan(&num, &result, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
   offset = result - num;
   total = 0;
-  status = MPI_Allreduce(&num, &total, 1, MPI_UINT64_T, MPI_SUM,
-                         MPI_COMM_WORLD);
+  status =
+      MPI_Allreduce(&num, &total, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
   MPI_Helper::handle_mpi_error(status, m_rank);
 }
 
 // Explicitly instantiate some of the configurations that may occur
 template class domain_comm<Config<1>>;
-template void domain_comm<Config<1>>::send_particles(particles_t& ptc) const;
-template void domain_comm<Config<1>>::send_particles(photons_t& ptc) const;
 template class domain_comm<Config<2>>;
-template void domain_comm<Config<2>>::send_particles(particles_t& ptc) const;
-template void domain_comm<Config<2>>::send_particles(photons_t& ptc) const;
 template class domain_comm<Config<3>>;
-template void domain_comm<Config<3>>::send_particles(particles_t& ptc) const;
-template void domain_comm<Config<3>>::send_particles(photons_t& ptc) const;
 
 }  // namespace Aperture

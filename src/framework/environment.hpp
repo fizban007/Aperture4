@@ -82,12 +82,12 @@ class data_store_t {
 class sim_environment {
  private:
   // Registry for systems and data
-  std::unordered_map<std::string, std::shared_ptr<data_t>> m_data_map;
-  std::unordered_map<std::string, std::shared_ptr<system_t>> m_system_map;
+  std::unordered_map<std::string, std::unique_ptr<data_t>> m_data_map;
+  std::unordered_map<std::string, std::unique_ptr<system_t>> m_system_map;
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
 
-  // Modules that manage events, shared pointers, and parameters
+  // Modules that manage events, shared data pointers, and parameters
   event_handler_t m_event_handler;
   data_store_t m_shared_data;
   params_store m_params;
@@ -95,12 +95,6 @@ class sim_environment {
   // Information about commandline arguments
   std::unique_ptr<cxxopts::Options> m_options;
   std::unique_ptr<cxxopts::ParseResult> m_commandline_args;
-
-  // Data related to dependency resolution
-  std::vector<std::string> m_init_order;
-  std::set<std::string> m_unresolved;
-
-  void resolve_dependencies(const system_t& system, const std::string& name);
 
   void parse_options(int argc, char** argv);
 
@@ -111,11 +105,11 @@ class sim_environment {
 
   ////////////////////////////////////////////////////////////////////////////////
   ///  Register a system class with the environment. This will either construct
-  ///  a `shared_ptr` of the given `System` and insert it into the registry, or
-  ///  return a `shared_ptr` pointing to an existing one. The parameters are
-  ///  simply constructor parameters. System names are given by their static
-  ///  `name()` method. There cannot be more than one system registered under
-  ///  the same name.
+  ///  a `unique_ptr` of the given `System` and insert it into the registry, or
+  ///  return a reference to an existing one. The parameters are simply
+  ///  constructor parameters. System names are given by their static `name()`
+  ///  method. There cannot be more than one system registered under the same
+  ///  name.
   ///
   ///  \tparam System  Type of the system to be registered. This template parameter
   ///                 has to be specified.
@@ -123,20 +117,20 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the system constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename System, typename... Args>
-  auto register_system(Args&&... args) -> std::shared_ptr<System> {
+  auto register_system(Args&&... args) -> System* {
     const std::string& name = System::name();
     // Check if the system has already been installed. If so, return it
     // directly
     auto it = m_system_map.find(name);
     if (it != m_system_map.end())
-      return std::dynamic_pointer_cast<System>(it->second);
+      return (System*)(it->second.get());
 
     // Otherwise, make the system, and return the pointer
-    auto ptr = std::make_shared<System>(std::forward<Args>(args)...);
+    std::unique_ptr<system_t> ptr = std::make_unique<System>(std::forward<Args>(args)...);
     ptr->register_dependencies();
-    m_system_map.insert({name, ptr});
+    m_system_map.insert({name, std::move(ptr)});
     m_system_order.push_back(name);
-    return ptr;
+    return (System*)m_system_map[name].get();
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -149,31 +143,31 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the data constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename Data, typename... Args>
-  auto register_data(const std::string& name, Args&&... args)
-      -> std::shared_ptr<Data> {
+  auto register_data(const std::string& name, Args&&... args) -> Data* {
     // Check if the data component has already been installed
     auto it = m_data_map.find(name);
     if (it != m_data_map.end())
-      return std::dynamic_pointer_cast<Data>(it->second);
+      // return std::dynamic_pointer_cast<Data>(it->second);
+      return (Data*)(it->second.get());
 
     // Otherwise, make the data, and return the pointer
-    auto ptr = std::make_shared<Data>(std::forward<Args>(args)...);
-    m_data_map.insert({name, ptr});
+    auto ptr = std::make_unique<Data>(std::forward<Args>(args)...);
+    m_data_map.insert({name, std::move(ptr)});
     m_data_order.push_back(name);
-    return ptr;
+    return (Data*)m_data_map[name].get();
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a `shared_ptr` to the named system. If the system is not found
+  ///  Obtain a reference to the named system. If the system is not found
   ///  then a `nullptr` is returned.
   ///
   ///  \param name  Name of the system.
   ///  \return A `shared_ptr` to the system
   ////////////////////////////////////////////////////////////////////////////////
-  std::shared_ptr<system_t> get_system(const std::string& name) {
+  system_t* get_system(const std::string& name) {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
-      return it->second;
+      return it->second.get();
     } else {
       Logger::print_err("Failed to get system '{}'", name);
       return nullptr;
@@ -187,10 +181,10 @@ class sim_environment {
   ///  \param name  Name of the system.
   ///  \return A const `shared_ptr` to the system
   ////////////////////////////////////////////////////////////////////////////////
-  std::shared_ptr<const system_t> get_system(const std::string& name) const {
+  const system_t* get_system(const std::string& name) const {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
-      return it->second;
+      return it->second.get();
     } else {
       Logger::print_err("Failed to get system '{}'", name);
       return nullptr;
@@ -204,10 +198,10 @@ class sim_environment {
   ///  \param name  Name of the data component.
   ///  \return A `shared_ptr` to the data component
   ////////////////////////////////////////////////////////////////////////////////
-  std::shared_ptr<data_t> get_data(const std::string& name) {
+  data_t* get_data(const std::string& name) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
-      return it->second;
+      return it->second.get();
     } else {
       Logger::print_err("Failed to get data component '{}'", name);
       return nullptr;
@@ -223,10 +217,11 @@ class sim_environment {
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
-  void get_data(const std::string& name, std::shared_ptr<T>& ptr) {
+  void get_data(const std::string& name, T* ptr) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
-      ptr = std::dynamic_pointer_cast<T>(it->second);
+      // ptr = std::dynamic_pointer_cast<T>(it->second);
+      ptr = (T*)(it->second.get());
     } else {
       Logger::print_err("Failed to get data component '{}'", name);
       ptr = nullptr;

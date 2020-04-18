@@ -83,7 +83,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 
   // Send particles
   if (m_comm != nullptr) {
-    m_comm->send_particles(*std::dynamic_pointer_cast<particles_t>(ptc));
+    m_comm->send_particles(*ptc);
   }
 }
 

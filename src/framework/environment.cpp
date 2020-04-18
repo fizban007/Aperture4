@@ -51,7 +51,6 @@ sim_environment::parse_options(int argc, char** argv) {
     m_commandline_args.reset(
         new cxxopts::ParseResult(m_options->parse(argc, argv)));
     auto& result = *m_commandline_args;
-    m_shared_data.save("commandline_args", result);
 
     if (result["help"].as<bool>()) {
       std::cout << m_options->help() << std::endl;
@@ -69,11 +68,6 @@ sim_environment::parse_options(int argc, char** argv) {
 
 void
 sim_environment::init() {
-  // First resolve initialization order
-  // for (auto& it : m_system_map) {
-  //   resolve_dependencies(*it.second, it.first);
-  // }
-
   // Initialize systems following declaration order
   for (auto& name : m_system_order) {
     auto& s = m_system_map[name];
@@ -100,26 +94,6 @@ sim_environment::run() {
       m_system_map[name]->update(dt, step);
     }
   }
-}
-
-void
-sim_environment::resolve_dependencies(const system_t& system,
-                                      const std::string& name) {
-  m_unresolved.insert(name);
-  for (auto& n : system.dependencies()) {
-    if (std::find(m_init_order.begin(), m_init_order.end(), n) ==
-        m_init_order.end()) {
-      if (m_unresolved.count(n) > 0)
-        throw std::runtime_error(
-            "Circular dependency in the given list of systems!");
-      if (m_system_map.find(n) != m_system_map.end())
-        resolve_dependencies(*m_system_map[n], n);
-    }
-  }
-  if (std::find(m_init_order.begin(), m_init_order.end(), name) ==
-      m_init_order.end())
-    m_init_order.push_back(name);
-  m_unresolved.erase(name);
 }
 
 }  // namespace Aperture

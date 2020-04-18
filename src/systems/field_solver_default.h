@@ -16,16 +16,16 @@ template <typename Conf>
 class field_solver_default : public system_t {
  private:
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>& m_comm;
+  const domain_comm<Conf>* m_comm;
 
-  std::shared_ptr<vector_field<Conf>> E, B, E0, B0, J;
-  std::shared_ptr<scalar_field<Conf>> divE, divB, EdotB;
+  vector_field<Conf> *E, *B, *E0, *B0, *J;
+  scalar_field<Conf> *divE, *divB, *EdotB;
 
  public:
   static std::string name() { return "field_solver"; }
 
   field_solver_default(sim_environment& env, const grid_t<Conf>& grid,
-                       const domain_comm<Conf>& comm)
+                       const domain_comm<Conf>* comm)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init() {}

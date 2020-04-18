@@ -9,7 +9,7 @@
 namespace Aperture {
 
 ////////////////////////////////////////////////////////////////////////////////
-///  @params_store maintains a hashtable that points to different types of
+///  `params_store` maintains a hashtable that points to different types of
 ///  parameters. One can save new parameters to the store or retrieve from it at
 ///  any time. Parameter can have one of the following types: `bool`, `int64_t`,
 ///  `double`, `string`, and `vector` of the above types.
@@ -112,25 +112,43 @@ class params_store {
   void parse(const std::string& filename);
   // const params_struct& params() const;
 
+  /// Get a parameter from the store. This version is overloaded for `bool`,
+  /// `int64_t`, `double`, and `std::string`. A @default_value needs to be
+  /// provided since otherwise the function does not know what to return in case
+  /// the parameter is not found in the store.
   template <typename T>
   T get_as(const std::string& name, T default_value) const;
 
+  /// Get a parameter from the store. This version is overloaded for `vector`s
+  /// of `bool`, `int64_t`, `double`, and `std::string`. No default value needs
+  /// to be provided since an empty vector will be returned if not found.
   template <typename T>
   T get_as(const std::string& name) const;
 
+  /// Add a parameter to the store. Type of the parameter is automatically
+  /// deduced. However, since the only integer type supported internally is
+  /// `int64_t`, the compiler will be confused if a integer of another type is
+  /// sent in. In that case, specify the type explicitly, or use a literal to
+  /// enforce the type.
   template <typename T>
   void add(const std::string& name, const T& value);
 
+  /// Parse the parameters directly into a visitable struct, populating each
+  /// struct entry by applying `get` on each member on the params store.
   template <typename ParamStruct>
   void parse_struct(ParamStruct& params) {
     visit_struct::for_each(params, visit_param{*this});
   }
 
+  /// Get an array from the parameter store. The output is stored in the
+  /// parameter @x.
   template <typename T, size_t N>
   void get_array(const std::string& name, T (&x)[N]) const {
     visit_param{*this}(name.c_str(), x);
   }
 
+  /// Get single value from the parameter store. The output is stored in the
+  /// parameter @x.
   template <typename T>
   void get_value(const std::string& name, T &x) const {
     visit_param{*this}(name.c_str(), x);

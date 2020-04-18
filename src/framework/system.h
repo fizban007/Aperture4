@@ -13,6 +13,7 @@ class data_store_t;
 class system_t {
  public:
   system_t(sim_environment& env) : m_env(env) {}
+  virtual ~system_t() {}
 
   virtual void init() {}
   virtual void register_dependencies() {}

@@ -10,6 +10,9 @@ class data_exporter;
 
 class data_t {
  public:
+  data_t() {}
+  virtual ~data_t() {}
+
   virtual void init() {}
 
   virtual void data_output(const data_exporter& exporter) {}

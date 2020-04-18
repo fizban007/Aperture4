@@ -68,6 +68,11 @@ sim_environment::parse_options(int argc, char** argv) {
 
 void
 sim_environment::init() {
+  step = 0;
+  time = 0.0;
+  max_steps = m_params.get_as<int64_t>("max_steps", 1l);
+  dt = m_params.get_as<double>("dt", 0.01);
+
   // Initialize systems following declaration order
   for (auto& name : m_system_order) {
     auto& s = m_system_map[name];
@@ -85,14 +90,12 @@ sim_environment::init() {
 
 void
 sim_environment::run() {
-  uint32_t max_steps = m_params.get_as<int64_t>("max_steps", 1l);
-  double dt = m_params.get_as<double>("dt", 0.01);
-
-  for (uint32_t step = 0; step < max_steps; step++) {
+  for (; step < max_steps; step++) {
     Logger::print_info("=== Time step {}", step);
     for (auto& name : m_system_order) {
       m_system_map[name]->update(dt, step);
     }
+    time += dt;
   }
 }
 

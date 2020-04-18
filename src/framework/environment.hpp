@@ -98,6 +98,11 @@ class sim_environment {
 
   void parse_options(int argc, char** argv);
 
+  double dt;
+  double time;
+  uint32_t step;
+  uint32_t max_steps;
+
  public:
   sim_environment();
   sim_environment(int* argc, char*** argv);
@@ -249,6 +254,11 @@ class sim_environment {
   const cxxopts::ParseResult* commandline_args() const {
     return m_commandline_args.get();
   }
+
+  uint32_t get_step() const { return step; }
+  void set_step(uint32_t s) { step = s; }
+  double get_time() const { return time; }
+  void set_time(double s) { step = s; }
 };
 
 }  // namespace Aperture

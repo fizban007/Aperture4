@@ -39,7 +39,14 @@ class params_store::params_store_impl {
 
   template <typename T>
   void add(const std::string& name, const T& value) {
-    m_param_map.insert({name, param_type(value)});
+    // m_param_map.insert({name, param_type(value)});
+    auto it = m_param_map.find(name);
+    if( it != m_param_map.end() ) {
+      it->second = value;
+    }
+    else {
+      m_param_map.insert({name, param_type(value)});
+    }
   }
 
   void read_table(const cpptoml::table& table,

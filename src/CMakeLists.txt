@@ -10,6 +10,7 @@ set(Aperture_src
   "data/fields.cpp"
   "data/field_helpers.cpp"
   "data/particle_data.cpp"
+  "systems/data_exporter.cpp"
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
   "systems/ptc_updater.cpp"

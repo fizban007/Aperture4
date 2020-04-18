@@ -104,6 +104,8 @@ class sim_environment {
   uint32_t max_steps;
 
  public:
+  typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
+ 
   sim_environment();
   sim_environment(int* argc, char*** argv);
   ~sim_environment();
@@ -259,6 +261,7 @@ class sim_environment {
   void set_step(uint32_t s) { step = s; }
   double get_time() const { return time; }
   void set_time(double s) { step = s; }
+  const data_map_t& data_map() { return m_data_map; }
 };
 
 }  // namespace Aperture

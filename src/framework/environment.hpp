@@ -11,6 +11,7 @@
 #include "framework/params_store.hpp"
 #include "system.h"
 #include "utils/logger.h"
+#include "gsl/pointers"
 #include <boost/any.hpp>
 
 namespace cxxopts {
@@ -124,7 +125,7 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the system constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename System, typename... Args>
-  auto register_system(Args&&... args) -> System* {
+  auto register_system(Args&&... args) -> gsl::not_null<System*> {
     const std::string& name = System::name();
     // Check if the system has already been installed. If so, return it
     // directly
@@ -150,7 +151,7 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the data constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename Data, typename... Args>
-  auto register_data(const std::string& name, Args&&... args) -> Data* {
+  auto register_data(const std::string& name, Args&&... args) -> gsl::not_null<Data*> {
     // Check if the data component has already been installed
     auto it = m_data_map.find(name);
     if (it != m_data_map.end())

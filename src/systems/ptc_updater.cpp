@@ -20,6 +20,15 @@ ptc_updater<Conf>::init() {
   Btmp =
       vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
   m_env.params().get_value("data_interval", m_data_interval);
+  auto pusher = m_env.params().get_as<std::string>("pusher");
+
+  if (pusher == "boris") {
+    m_pusher = Pusher::boris;
+  } else if (pusher == "vay") {
+    m_pusher = Pusher::vay;
+  } else if (pusher == "higuera") {
+    m_pusher = Pusher::higuera;
+  }
 }
 
 template <typename Conf>

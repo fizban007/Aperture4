@@ -1,10 +1,11 @@
 #ifndef __PARAMS_STORE_H_
 #define __PARAMS_STORE_H_
 
-#include "core/params.h"
+// #include "core/params.h"
 #include "utils/logger.h"
-#include <string>
+#include "utils/vec.hpp"
 #include "visit_struct/visit_struct.hpp"
+#include <string>
 
 namespace Aperture {
 
@@ -23,84 +24,102 @@ class params_store {
 
   // Private struct to facilitate visiting of the different parameter types
   struct visit_param {
-  const params_store& store;
+    const params_store& store;
 
-  visit_param(const params_store& s) : store(s) {}
+    visit_param(const params_store& s) : store(s) {}
 
-  void operator()(const char* name, float& x) {
-    x = store.get_as<double>(name, (double)x);
-  }
+    void operator()(const char* name, float& x) {
+      x = store.get_as<double>(name, (double)x);
+    }
 
-  void operator()(const char* name, double& x) {
-    x = store.get_as<double>(name, x);
-  }
+    void operator()(const char* name, double& x) {
+      x = store.get_as<double>(name, x);
+    }
 
-  void operator()(const char* name, bool& x) {
-    x = store.get_as<bool>(name, x);
-  }
+    void operator()(const char* name, bool& x) {
+      x = store.get_as<bool>(name, x);
+    }
 
-  void operator()(const char* name, int& x) {
-    x = store.get_as<int64_t>(name, (int64_t)x);
-  }
+    void operator()(const char* name, int& x) {
+      x = store.get_as<int64_t>(name, (int64_t)x);
+    }
 
-  void operator()(const char* name, long& x) {
-    x = store.get_as<int64_t>(name, (int64_t)x);
-  }
+    void operator()(const char* name, long& x) {
+      x = store.get_as<int64_t>(name, (int64_t)x);
+    }
 
-  void operator()(const char* name, uint32_t& x) {
-    x = store.get_as<int64_t>(name, (int64_t)x);
-  }
+    void operator()(const char* name, uint32_t& x) {
+      x = store.get_as<int64_t>(name, (int64_t)x);
+    }
 
-  void operator()(const char* name, uint64_t& x) {
-    x = store.get_as<int64_t>(name, (int64_t)x);
-  }
+    void operator()(const char* name, uint64_t& x) {
+      x = store.get_as<int64_t>(name, (int64_t)x);
+    }
 
-  void operator()(const char* name, std::string& x) {
-    x = store.get_as<std::string>(name, x);
-  }
+    void operator()(const char* name, std::string& x) {
+      x = store.get_as<std::string>(name, x);
+    }
 
-  template <size_t N>
-  void operator()(const char* name, float (&x)[N]) {
-    auto v = store.get_as<std::vector<double>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, float (&x)[N]) {
+      auto v = store.get_as<std::vector<double>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, double (&x)[N]) {
-    auto v = store.get_as<std::vector<double>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, double (&x)[N]) {
+      auto v = store.get_as<std::vector<double>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, int (&x)[N]) {
-    auto v = store.get_as<std::vector<int64_t>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, int (&x)[N]) {
+      auto v = store.get_as<std::vector<int64_t>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, uint32_t (&x)[N]) {
-    auto v = store.get_as<std::vector<int64_t>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, uint32_t (&x)[N]) {
+      auto v = store.get_as<std::vector<int64_t>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, uint64_t (&x)[N]) {
-    auto v = store.get_as<std::vector<int64_t>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, uint64_t (&x)[N]) {
+      auto v = store.get_as<std::vector<int64_t>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, bool (&x)[N]) {
-    auto v = store.get_as<std::vector<bool>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
+    template <size_t N>
+    void operator()(const char* name, bool (&x)[N]) {
+      auto v = store.get_as<std::vector<bool>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
 
-  template <size_t N>
-  void operator()(const char* name, std::string (&x)[N]) {
-    auto v = store.get_as<std::vector<std::string>>(name);
-    for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
-  }
-};
+    template <size_t N>
+    void operator()(const char* name, std::string (&x)[N]) {
+      auto v = store.get_as<std::vector<std::string>>(name);
+      for (int i = 0; i < std::min(N, v.size()); i++) x[i] = v[i];
+    }
+
+    template <int Dim>
+    void operator()(const char* name, vec_t<uint32_t, Dim>& x) {
+      auto v = store.get_as<std::vector<int64_t>>(name);
+      for (int i = 0; i < std::min((size_t)Dim, v.size()); i++) x[i] = v[i];
+    }
+
+    template <int Dim>
+    void operator()(const char* name, vec_t<float, Dim>& x) {
+      auto v = store.get_as<std::vector<double>>(name);
+      for (int i = 0; i < std::min((size_t)Dim, v.size()); i++) x[i] = v[i];
+    }
+
+    template <int Dim>
+    void operator()(const char* name, vec_t<double, Dim>& x) {
+      auto v = store.get_as<std::vector<double>>(name);
+      for (int i = 0; i < std::min((size_t)Dim, v.size()); i++) x[i] = v[i];
+    }
+  };
 
  public:
   params_store();
@@ -151,12 +170,18 @@ class params_store {
   /// Get single value from the parameter store. The output is stored in the
   /// parameter x.
   template <typename T>
-  void get_value(const std::string& name, T &x) const {
+  void get_value(const std::string& name, T& x) const {
     visit_param{*this}(name.c_str(), x);
   }
 
+  /// Get a vec_t from the parameter store. The output is stored in the
+  /// parameter x.
+  template <typename T, int Dim>
+  void get_vec_t(const std::string& name, vec_t<T, Dim>& x) const {
+    visit_param{*this}(name.c_str(), x);
+  }
 };
 
-}
+}  // namespace Aperture
 
-#endif // __PARAMS_STORE_H_
+#endif  // __PARAMS_STORE_H_

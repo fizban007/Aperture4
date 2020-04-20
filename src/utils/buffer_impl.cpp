@@ -1,5 +1,6 @@
 #include "buffer_impl.hpp"
 #include <algorithm>
+#include <cstdint>
 
 namespace Aperture {
 

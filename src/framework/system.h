@@ -8,7 +8,6 @@
 namespace Aperture {
 
 class sim_environment;
-class data_store_t;
 
 class system_t {
  public:
@@ -21,7 +20,6 @@ class system_t {
 
  protected:
   sim_environment& m_env;
-  std::set<std::string> m_dependencies;
 };
 
 }  // namespace Aperture

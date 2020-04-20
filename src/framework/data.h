@@ -6,7 +6,6 @@
 namespace Aperture {
 
 class sim_environment;
-class data_exporter;
 
 class data_t {
  public:
@@ -14,9 +13,6 @@ class data_t {
   virtual ~data_t() {}
 
   virtual void init() {}
-
-  virtual void data_output(const data_exporter& exporter) {}
-  virtual void data_dump(const data_exporter& exporter) {}
 };
 
 }  // namespace Aperture

@@ -3,6 +3,8 @@
 
 #include "core/multi_array.hpp"
 #include "framework/system.h"
+#include "systems/domain_comm.hpp"
+#include "systems/grid.h"
 #include "utils/hdf_wrapper.h"
 #include <fstream>
 #include <memory>
@@ -13,15 +15,44 @@ namespace Aperture {
 
 class sim_environment;
 
+template <typename Conf>
 class data_exporter : public system_t {
+ private:
+  const domain_comm<Conf>* m_comm;
+  const grid_t<Conf>& m_grid;
+
+  std::ofstream m_xmf;  //!< This is the accompanying xmf file
+                        //!< describing the hdf structure
+  std::string m_dim_str;
+  std::string m_xmf_buffer;
+
+  /// tmp_ptc_data stores temporary tracked particles
+  buffer_t<double> tmp_ptc_data;
+  /// tmp_grid_data stores the temporary downsampled data for output
+  multi_array<float, Conf::dim> tmp_grid_data;
+
+  /// Sets the directory of all the data files
+  std::string m_output_dir = "Data/";
+
+  int m_output_num = 0;
+  int m_ptc_output_interval = 1;
+  int m_fld_output_interval = 1;
+  int m_snapshot_interval = 1;
+  int m_downsample = 1;
+  extent_t<Conf::dim> m_local_ext;
+  index_t<Conf::dim> m_local_offset;
+  extent_t<Conf::dim> m_global_ext;
+
+  void copy_config_file();
+
  public:
-  data_exporter(sim_environment& env);
+  data_exporter(sim_environment& env, const grid_t<Conf>& grid,
+                const domain_comm<Conf>* comm = nullptr);
   virtual ~data_exporter();
 
   static std::string name() { return "data_exporter"; }
 
   void write_grid();
-  void copy_config_file();
   void write_xmf_head(std::ofstream& fs);
   void write_xmf_step_header(std::ofstream& fs, double time);
   void write_xmf_step_header(std::string& buffer, double time);
@@ -75,21 +106,8 @@ class data_exporter : public system_t {
   void init();
   void update(double time, uint32_t step);
 
- private:
-  std::string m_output_dir;  //!< Sets the directory of all the data files
-
-  std::ofstream m_xmf;  //!< This is the accompanying xmf file
-                        //!< describing the hdf structure
-  std::string m_dim_str;
-  std::string m_xmf_buffer;
-
-  buffer_t<float> tmp_grid_data;  //!< This stores the temporary
-                                  //!< downsampled data for output
-  buffer_t<double> tmp_ptc_data;
-  int m_output_num = 0;
-  int m_data_interval = 1;
-  int m_snapshot_interval = 1;
-  // Extent m_out_ext;
+  // buffer_t<float>& grid_buffer() { return tmp_grid_data; }
+  // buffer_t<double>& ptc_buffer() { return tmp_ptc_data; }
 };
 
 }  // namespace Aperture

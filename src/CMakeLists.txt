@@ -4,7 +4,6 @@ set(Aperture_src
   "utils/buffer_impl.cpp"
   "utils/mpi_helper.cpp"
   "utils/hdf_wrapper.cpp"
-  # "core/params.cpp"
   "framework/environment.cpp"
   "framework/params_store.cpp"
   "data/fields.cpp"

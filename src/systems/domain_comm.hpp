@@ -43,6 +43,7 @@ class domain_comm : public system_t {
   static std::string name() { return "domain_comm"; }
 
   domain_comm(sim_environment& env);
+  bool is_root() const { return m_rank == 0; }
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;

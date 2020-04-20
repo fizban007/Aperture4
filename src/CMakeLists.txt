@@ -7,7 +7,7 @@ set(Aperture_src
   "framework/environment.cpp"
   "framework/params_store.cpp"
   "data/fields.cpp"
-  "data/field_helpers.cpp"
+  "core/detail/multi_array_helpers.cpp"
   "data/particle_data.cpp"
   "systems/data_exporter.cpp"
   "systems/domain_comm.cpp"
@@ -21,11 +21,11 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "utils/buffer_impl.cu"
     "core/constant_mem.cu"
     "core/particles.cu"
-    "data/field_helpers.cu"
+    "core/detail/multi_array_helpers.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver_default.cu"
+    "systems/field_solver_logsph.cu"
     "systems/ptc_updater.cu"
-    # "systems/field_solver_logsph.cu"
     )
 else()
   list(APPEND Aperture_src

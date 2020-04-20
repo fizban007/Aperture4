@@ -1,11 +1,11 @@
-#include "field_helpers.h"
+#include "multi_array_helpers.h"
 #include "utils/interpolation.hpp"
 
 namespace Aperture {
 
-template <typename T, int Rank>
+template <typename T, typename U, int Rank>
 void
-resample(const multi_array<T, Rank>& from, multi_array<T, Rank>& to,
+resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
          const index_t<Rank>& offset, stagger_t st_src, stagger_t st_dst,
          int downsample) {
   auto interp = lerp<Rank>{};
@@ -29,6 +29,15 @@ template void resample(const multi_array<float, 2>& from,
                        multi_array<float, 2>& to, const index_t<2>& offset,
                        stagger_t st_src, stagger_t st_dst, int downsample);
 template void resample(const multi_array<float, 3>& from,
+                       multi_array<float, 3>& to, const index_t<3>& offset,
+                       stagger_t st_src, stagger_t st_dst, int downsample);
+template void resample(const multi_array<double, 1>& from,
+                       multi_array<float, 1>& to, const index_t<1>& offset,
+                       stagger_t st_src, stagger_t st_dst, int downsample);
+template void resample(const multi_array<double, 2>& from,
+                       multi_array<float, 2>& to, const index_t<2>& offset,
+                       stagger_t st_src, stagger_t st_dst, int downsample);
+template void resample(const multi_array<double, 3>& from,
                        multi_array<float, 3>& to, const index_t<3>& offset,
                        stagger_t st_src, stagger_t st_dst, int downsample);
 template void resample(const multi_array<double, 1>& from,

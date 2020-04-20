@@ -14,7 +14,7 @@ namespace Aperture {
 // Cartesian coordinates
 template <typename Conf>
 class field_solver_default : public system_t {
- private:
+ protected:
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm;
 

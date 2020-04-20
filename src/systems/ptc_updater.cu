@@ -1,5 +1,5 @@
 #include "core/constant_mem_func.h"
-#include "data/field_helpers.h"
+#include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
 #include "ptc_updater.h"
 #include "helpers/ptc_update_helper.hpp"

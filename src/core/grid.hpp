@@ -99,6 +99,10 @@ struct Grid {
       return pos_in_cell;
   }
 
+  HD_INLINE Scalar pos(int i, int n, bool stagger) const {
+    return pos(i, n, (Scalar)(stagger ? 0.0 : 0.5));
+  }
+
   template <int N>
   HD_INLINE Scalar pos(const index_t<Dim>& idx,
                        Scalar pos_in_cell) const {

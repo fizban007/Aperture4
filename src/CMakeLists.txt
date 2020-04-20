@@ -12,8 +12,8 @@ set(Aperture_src
   "systems/data_exporter.cpp"
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
+  "systems/grid_logsph.cpp"
   "systems/ptc_updater.cpp"
-  # "systems/grid_logsph.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)

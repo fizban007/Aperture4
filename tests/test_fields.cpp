@@ -124,7 +124,6 @@ TEST_CASE("Resampling field 1D", "[fields]") {
   }
 }
 
-
 TEST_CASE("Resampling field 2D", "[fields]") {
   Grid<2> grid;
   for (int i = 0; i < 2; i++) {

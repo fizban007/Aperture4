@@ -108,9 +108,6 @@ data_exporter<Conf>::copy_config_file() {
 template <typename Conf>
 void
 data_exporter<Conf>::write_grid() {
-  std::string coord_system = "Cartesian";
-  m_env.params().get_value("coord_system", coord_system);
-
   std::string meshfilename = m_output_dir + "grid.h5";
   H5File meshfile =
       hdf_create(meshfilename, H5CreateMode::trunc_parallel);
@@ -122,23 +119,14 @@ data_exporter<Conf>::write_grid() {
 
   // All data output points are cell centers
   for (auto idx : x1_array.indices()) {
-    auto p = idx.get_pos();
-    if (coord_system == "LogSpherical") {
-      if constexpr (Conf::dim == 2) {
-        float r = std::exp(
-            m_grid.pos(0, p[0] * m_downsample + m_grid.guard[0], false));
-        float theta =
-            m_grid.pos(1, p[1] * m_downsample + m_grid.guard[1], false);
-        x1_array[idx] = r * std::sin(theta);
-        x2_array[idx] = r * std::cos(theta);
-      }
-    } else {
-      x1_array[idx] = m_grid.template pos<0>(p[0] * m_downsample + m_grid.guard[0], false);
-      if constexpr (Conf::dim > 1)
-        x2_array[idx] = m_grid.template pos<1>(p[1] * m_downsample + m_grid.guard[1], false);
-      if constexpr (Conf::dim > 2)
-        x3_array[idx] = m_grid.template pos<2>(p[2] * m_downsample + m_grid.guard[2], false);
-    }
+    auto p = idx.get_pos() * m_downsample + m_grid.guards();
+    auto x = m_grid.cart_coord(p);
+
+    x1_array[idx] = x[0];
+    if constexpr (Conf::dim > 1)
+      x2_array[idx] = x[1];
+    if constexpr (Conf::dim > 2)
+      x3_array[idx] = x[2];
   }
 
   meshfile.write_parallel(x1_array, m_global_ext, m_local_offset,

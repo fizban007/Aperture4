@@ -24,10 +24,11 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
 
   SECTION("2D grid") {
     typedef Config<2> Conf;
-    env.params().add("N", std::vector<int64_t>({10, 10}));
+    env.params().add("N", std::vector<int64_t>({40, 40}));
     env.params().add("guard", std::vector<int64_t>({2, 2}));
     env.params().add("size", std::vector<double>({1.0, 2.0}));
     env.params().add("lower", std::vector<double>({0.0, 0.0}));
+    env.params().add<int64_t>("downsample", 4);
 
     grid_t<Conf> grid(env);
     data_exporter<Conf> exporter(env, grid);
@@ -40,8 +41,8 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
     auto x2 = f.read_multi_array<float, 2>("x2");
     for (auto idx : x1.indices()) {
       auto pos = idx.get_pos();
-      REQUIRE(x1[idx] == Approx(grid.template pos<0>(pos[0] + 2, false)));
-      REQUIRE(x2[idx] == Approx(grid.template pos<1>(pos[1] + 2, false)));
+      REQUIRE(x1[idx] == Approx(grid.template pos<0>(pos[0] * 4 + 2, false)));
+      REQUIRE(x2[idx] == Approx(grid.template pos<1>(pos[1] * 4 + 2, false)));
     }
   }
 }

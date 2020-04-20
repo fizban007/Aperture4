@@ -65,6 +65,9 @@ grid_t<Conf>::grid_t(sim_environment& env,
                      const domain_comm<Conf>& comm) :
     grid_t(env, comm.domain_info()) {}
 
+template <typename Conf>
+grid_t<Conf>::~grid_t() {}
+
 template class grid_t<Config<1>>;
 template class grid_t<Config<2>>;
 template class grid_t<Config<3>>;

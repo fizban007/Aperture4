@@ -21,6 +21,15 @@ class grid_t : public system_t, public Grid<Conf::dim> {
   grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
                                    domain_info_t<Conf::dim>{});
   grid_t(sim_environment& env, const domain_comm<Conf>& comm);
+  virtual ~grid_t();
+
+  // Coordinate for output position
+  inline virtual vec_t<float, Conf::dim> cart_coord(const index_t<Conf::dim>& pos) const {
+    vec_t<float, Conf::dim> result;
+    for (int i = 0; i < Conf::dim; i++)
+      result[i] = this->pos(i, pos[i], false);
+    return result;
+  }
 
   inline typename Conf::idx_t get_idx(const index_t<Conf::dim>& pos) const {
     return typename Conf::idx_t(pos, this->extent());

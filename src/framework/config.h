@@ -34,12 +34,6 @@ class Config {
   typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t;
   typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t;
 
-#ifdef CUDA_ENABLED
-  static constexpr MemType default_ptc = MemType::device_only;
-#else
-  static constexpr MemType default_ptc = MemType::host_only;
-#endif
-
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {
     return multi_array_t(args...);

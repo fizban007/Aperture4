@@ -1,4 +1,5 @@
 #include "data_exporter.h"
+#include "core/detail/multi_array_helpers.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "framework/environment.hpp"
@@ -57,6 +58,7 @@ data_exporter<Conf>::init() {
   copy_config_file();
 
   // Write the grid in the simulation to the output directory
+  write_grid();
 }
 
 template <typename Conf>
@@ -64,16 +66,32 @@ void
 data_exporter<Conf>::update(double time, uint32_t step) {
   if (step % m_fld_output_interval == 0) {
     // Output downsampled fields!
+    std::string filename =
+        fmt::format("{}fld.{:05d}.h5", m_output_dir,
+                    m_output_num);
+    H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
     for (auto& it : m_env.data_map()) {
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
       if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
         Logger::print_info("Writing vector field {}", it.first);
+        for (int i = 0; i < 3; i++) {
+          std::string name = it.first + std::to_string(i);
+          write_grid_multiarray(name, ptr->at(i),
+                                ptr->stagger(i), datafile);
+          write_xmf_field_entry(m_xmf_buffer, m_output_num, name);
+        }
       } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
+        std::string name = it.first;
+        write_grid_multiarray(name, ptr->at(0),
+                              ptr->stagger(0), datafile);
+        write_xmf_field_entry(m_xmf_buffer, m_output_num, name);
       }
     }
+
+    datafile.close();
   }
 
   if (step % m_ptc_output_interval == 0) {
@@ -223,6 +241,41 @@ data_exporter<Conf>::write_xmf_tail(std::string& buffer) {
   buffer += "</Grid>\n";
   buffer += "</Domain>\n";
   buffer += "</Xdmf>\n";
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write_grid_multiarray(const std::string &name,
+                                           const typename Conf::multi_array_t &array,
+                                           stagger_t stagger, H5File &file) {
+  if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
+    resample_dev(array, tmp_grid_data, m_grid.guards(),
+                 stagger, m_output_stagger, m_downsample);
+    tmp_grid_data.copy_to_host();
+  } else {
+    resample(array, tmp_grid_data, m_grid.guards(),
+                 stagger, m_output_stagger, m_downsample);
+  }
+
+  file.write_parallel(tmp_grid_data, m_global_ext, m_local_offset,
+                          m_local_ext, index_t<Conf::dim>{}, name);
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write_xmf_field_entry(std::string &buffer, int num, const std::string &name) {
+  if (m_comm->is_root()) {
+    m_xmf_buffer += fmt::format(
+        "  <Attribute Name=\"{}\" Center=\"Node\" "
+        "AttributeType=\"Scalar\">\n", name);
+    m_xmf_buffer += fmt::format(
+        "    <DataItem Dimensions=\"{}\" NumberType=\"Float\" "
+        "Precision=\"4\" Format=\"HDF\">\n", m_dim_str);
+    m_xmf_buffer +=
+        fmt::format("      fld.{:05d}.h5:{}\n", num, name);
+    m_xmf_buffer += "    </DataItem>\n";
+    m_xmf_buffer += "  </Attribute>\n";
+  }
 }
 
 template class data_exporter<Config<1>>;

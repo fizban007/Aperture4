@@ -42,6 +42,7 @@ class data_exporter : public system_t {
   extent_t<Conf::dim> m_local_ext;
   index_t<Conf::dim> m_local_offset;
   extent_t<Conf::dim> m_global_ext;
+  stagger_t m_output_stagger = stagger_t(0b000);
 
   void copy_config_file();
 
@@ -52,14 +53,18 @@ class data_exporter : public system_t {
 
   static std::string name() { return "data_exporter"; }
 
+  void init();
+  void update(double time, uint32_t step);
+
   void write_grid();
   void write_xmf_head(std::ofstream& fs);
-  void write_xmf_step_header(std::ofstream& fs, double time);
+  // void write_xmf_step_header(std::ofstream& fs, double time);
   void write_xmf_step_header(std::string& buffer, double time);
-  void write_xmf_step_close(std::ofstream& fs);
+  // void write_xmf_step_close(std::ofstream& fs);
   void write_xmf_step_close(std::string& buffer);
-  void write_xmf_tail(std::ofstream& fs);
+  // void write_xmf_tail(std::ofstream& fs);
   void write_xmf_tail(std::string& buffer);
+  void write_xmf_field_entry(std::string& buffer, int num, const std::string& name);
   void write_xmf(uint32_t step, double time);
   void prepare_xmf_restart(uint32_t restart_step, int data_interval,
                            float time);
@@ -68,12 +73,15 @@ class data_exporter : public system_t {
   // void write_field_output(sim_data& data, uint32_t timestep,
   //                         double time);
   // void write_ptc_output(sim_data& data, uint32_t timestep, double time);
+  void write_grid_multiarray(const std::string& name,
+                             const typename Conf::multi_array_t& array,
+                             stagger_t stagger, H5File& file);
 
-  template <typename T, int Dim>
-  void write_multi_array(const multi_array<T, Dim>& array,
-                         const std::string& name,
-                         const extent_t<Dim>& total_ext,
-                         const index_t<Dim>& offset, H5File& file);
+  // template <typename T, int Dim>
+  // void write_multi_array(const multi_array<T, Dim>& array,
+  //                        const std::string& name,
+  //                        const extent_t<Dim>& total_ext,
+  //                        const index_t<Dim>& offset, H5File& file);
 
   // template <typename Func>
   // void add_grid_output(sim_data& data, const std::string& name, Func f,
@@ -102,9 +110,6 @@ class data_exporter : public system_t {
   //                    uint32_t step, Scalar time);
   // void load_snapshot(const std::string& filename, sim_data& data,
   //                    uint32_t& step, Scalar& time);
-
-  void init();
-  void update(double time, uint32_t step);
 
   // buffer_t<float>& grid_buffer() { return tmp_grid_data; }
   // buffer_t<double>& ptc_buffer() { return tmp_ptc_data; }

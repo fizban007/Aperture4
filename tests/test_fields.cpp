@@ -3,7 +3,6 @@
 #include "data/fields.hpp"
 #include "data/field_helpers.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
 
 using namespace Aperture;
 

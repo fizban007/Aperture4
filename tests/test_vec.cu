@@ -18,6 +18,12 @@ TEST_CASE("constructing vec_t", "[vec]") {
 
   knl_print_vec_t<<<1, 1>>>(v);
   cudaDeviceSynchronize();
+
+  // Default construction gives zero
+  auto u = vec_t<uint32_t, 3>{};
+  REQUIRE(u[0] == 0);
+  REQUIRE(u[1] == 0);
+  REQUIRE(u[2] == 0);
 }
 
 TEST_CASE("Aritmetic operators", "[vec]") {

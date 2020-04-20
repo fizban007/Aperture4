@@ -10,8 +10,8 @@ using namespace Aperture;
 
 int
 main(int argc, char *argv[]) {
-  sim_environment env(&argc, &argv);
   typedef Config<2> Conf;
+  sim_environment env(&argc, &argv);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 

@@ -11,7 +11,7 @@ namespace Aperture {
 template <typename T, int Rank>
 class vec_t {
  private:
-  T memory[Rank];
+  T memory[Rank] = {};
 
  public:
   typedef vec_t<T, Rank> self_type;
@@ -110,6 +110,19 @@ class vec_t {
   HD_INLINE self_type operator/(const self_type& other) const {
     self_type result = *this;
     result /= other;
+    return result;
+  }
+
+  HD_INLINE self_type operator/=(T v) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++)
+      memory[i] /= v;
+    return *this;
+  }
+
+  HD_INLINE self_type operator/(T v) const {
+    self_type result = *this;
+    result /= v;
     return result;
   }
 

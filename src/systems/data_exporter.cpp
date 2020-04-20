@@ -1,9 +1,12 @@
 #include "data_exporter.h"
-#include "framework/environment.hpp"
-#include "framework/config.h"
 #include "data/particle_data.h"
+#include "framework/config.h"
+#include "framework/environment.hpp"
+#include "framework/params_store.hpp"
 #include <boost/filesystem.hpp>
 #include <fmt/ostream.h>
+
+namespace fs = boost::filesystem;
 
 namespace Aperture {
 
@@ -43,13 +46,12 @@ data_exporter<Conf>::~data_exporter() {}
 template <typename Conf>
 void
 data_exporter<Conf>::init() {
-
   // make sure output directory is a directory
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
-  boost::filesystem::path outPath(m_output_dir);
+  fs::path outPath(m_output_dir);
 
   boost::system::error_code returnedError;
-  boost::filesystem::create_directories(outPath, returnedError);
+  fs::create_directories(outPath, returnedError);
 
   // Copy config file to the output directory
   copy_config_file();
@@ -96,8 +98,59 @@ data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
   std::string conf_file = m_env.params().get_as<std::string>("config_file");
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
-  boost::filesystem::copy_file(
-      conf_file, path, boost::filesystem::copy_option::overwrite_if_exists);
+  fs::path conf_path(conf_file);
+  if (fs::exists(conf_path)) {
+    fs::copy_file(
+        conf_file, path, fs::copy_option::overwrite_if_exists);
+  }
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write_grid() {
+  std::string coord_system = "Cartesian";
+  m_env.params().get_value("coord_system", coord_system);
+
+  std::string meshfilename = m_output_dir + "grid.h5";
+  H5File meshfile =
+      hdf_create(meshfilename, H5CreateMode::trunc_parallel);
+
+  // std::vector<float> x1_array(out_ext.x);
+  multi_array<float, Conf::dim> x1_array(m_local_ext, MemType::host_only);
+  multi_array<float, Conf::dim> x2_array(m_local_ext, MemType::host_only);
+  multi_array<float, Conf::dim> x3_array(m_local_ext, MemType::host_only);
+
+  // All data output points are cell centers
+  for (auto idx : x1_array.indices()) {
+    auto p = idx.get_pos();
+    if (coord_system == "LogSpherical") {
+      if constexpr (Conf::dim == 2) {
+        float r = std::exp(
+            m_grid.pos(0, p[0] * m_downsample + m_grid.guard[0], false));
+        float theta =
+            m_grid.pos(1, p[1] * m_downsample + m_grid.guard[1], false);
+        x1_array[idx] = r * std::sin(theta);
+        x2_array[idx] = r * std::cos(theta);
+      }
+    } else {
+      x1_array[idx] = m_grid.template pos<0>(p[0] * m_downsample + m_grid.guard[0], false);
+      if constexpr (Conf::dim > 1)
+        x2_array[idx] = m_grid.template pos<1>(p[1] * m_downsample + m_grid.guard[1], false);
+      if constexpr (Conf::dim > 2)
+        x3_array[idx] = m_grid.template pos<2>(p[2] * m_downsample + m_grid.guard[2], false);
+    }
+  }
+
+  meshfile.write_parallel(x1_array, m_global_ext, m_local_offset,
+                          m_local_ext, index_t<Conf::dim>{}, "x1");
+  if constexpr (Conf::dim > 1)
+    meshfile.write_parallel(x2_array, m_global_ext, m_local_offset,
+                            m_local_ext, index_t<Conf::dim>{}, "x2");
+  if constexpr (Conf::dim > 2)
+    meshfile.write_parallel(x3_array, m_global_ext, m_local_offset,
+                            m_local_ext, index_t<Conf::dim>{}, "x3");
+
+  meshfile.close();
 }
 
 template <typename Conf>
@@ -119,33 +172,27 @@ data_exporter<Conf>::write_xmf_step_header(std::string& buffer, double time) {
   if (!m_comm->is_root()) return;
 
   if (Conf::dim == 3) {
-    m_dim_str =
-        fmt::format("{} {} {}", m_global_ext[2],
-                    m_global_ext[1], m_global_ext[0]);
-  } else if (Conf::dim == 2) {
-    m_dim_str = fmt::format("{} {}", m_global_ext[1],
+    m_dim_str = fmt::format("{} {} {}", m_global_ext[2], m_global_ext[1],
                             m_global_ext[0]);
+  } else if (Conf::dim == 2) {
+    m_dim_str = fmt::format("{} {}", m_global_ext[1], m_global_ext[0]);
   } else if (Conf::dim == 1) {
     m_dim_str = fmt::format("{} 1", m_global_ext[0]);
   }
 
   buffer += "<Grid Name=\"quadmesh\" Type=\"Uniform\">\n";
-  buffer +=
-      fmt::format("  <Time Type=\"Single\" Value=\"{}\"/>\n", time);
+  buffer += fmt::format("  <Time Type=\"Single\" Value=\"{}\"/>\n", time);
   if (Conf::dim == 3) {
     buffer += fmt::format(
-        "  <Topology Type=\"3DSMesh\" NumberOfElements=\"{}\"/>\n",
-        m_dim_str);
+        "  <Topology Type=\"3DSMesh\" NumberOfElements=\"{}\"/>\n", m_dim_str);
     buffer += "  <Geometry GeometryType=\"X_Y_Z\">\n";
   } else if (Conf::dim == 2) {
     buffer += fmt::format(
-        "  <Topology Type=\"2DSMesh\" NumberOfElements=\"{}\"/>\n",
-        m_dim_str);
+        "  <Topology Type=\"2DSMesh\" NumberOfElements=\"{}\"/>\n", m_dim_str);
     buffer += "  <Geometry GeometryType=\"X_Y\">\n";
   } else if (Conf::dim == 1) {
     buffer += fmt::format(
-        "  <Topology Type=\"2DSMesh\" NumberOfElements=\"{}\"/>\n",
-        m_dim_str);
+        "  <Topology Type=\"2DSMesh\" NumberOfElements=\"{}\"/>\n", m_dim_str);
     buffer += "  <Geometry GeometryType=\"X_Y\">\n";
   }
   buffer += fmt::format(

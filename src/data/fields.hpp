@@ -106,6 +106,7 @@ class field_t : public data_t {
       m_data[i].copy_from(other.m_data[i]);
     }
   }
+  void add_by(const field_t<N, Conf>& other, typename Conf::value_t scale = 1.0);
 
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>

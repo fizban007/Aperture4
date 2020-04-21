@@ -1,4 +1,5 @@
 #include "fields.hpp"
+#include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "systems/grid.h"
@@ -66,6 +67,19 @@ field_t<N, Conf>::set_memtype(MemType type) {
   m_memtype = type;
   for (int i = 0; i < N; i++) {
     m_data[i].set_memtype(type);
+  }
+}
+
+template <int N, typename Conf>
+void
+field_t<N, Conf>::add_by(const field_t<N, Conf> &other, typename Conf::value_t scale) {
+  for (int i = 0; i < N; i++) {
+    if (m_memtype == MemType::host_only)
+      add(m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
+          m_grid->extent());
+    else
+      add_dev(m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
+              m_grid->extent());
   }
 }
 

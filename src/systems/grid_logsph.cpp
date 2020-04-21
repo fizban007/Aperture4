@@ -70,18 +70,18 @@ grid_logsph_t<Conf>::compute_coef() {
 
       m_Ae[0][idx] =
           r * r * (std::cos(x2) - std::cos(x2 + this->delta[1]));
-      if (std::abs(x2s) < 1.0e-5) {
+      if (std::abs(x2s) < TINY) {
         m_Ae[0][idx] =
             r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
-      } else if (std::abs(x2s - M_PI) < 1.0e-5) {
+      } else if (std::abs(x2s - M_PI) < TINY) {
         m_Ae[0][idx] =
             r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
       }
       m_Ae[1][idx] = (A2(r_plus, r_g) - A2(r, r_g)) * std::sin(x2);
       // Avoid axis singularity
-      // if (std::abs(x2s) < 1.0e-5 || std::abs(x2s - CONST_PI)
-      // < 1.0e-5)
-      //   m_A2_e(i, j) = 0.5 * std::sin(1.0e-5) *
+      // if (std::abs(x2s) < TINY || std::abs(x2s - CONST_PI)
+      // < TINY)
+      //   m_A2_e(i, j) = 0.5 * std::sin(TINY) *
       //                  (std::exp(2.0 * x1s) -
       //                   std::exp(2.0 * (x1s - this->delta[0])));
 
@@ -98,8 +98,8 @@ grid_logsph_t<Conf>::compute_coef() {
           (std::cos(x2) - std::cos(x2 + this->delta[1])) /
           (this->delta[0] * this->delta[1]);
 
-      if (std::abs(x2s) < 1.0e-5 ||
-          std::abs(x2s - M_PI) < 1.0e-5) {
+      if (std::abs(x2s) < TINY ||
+          std::abs(x2s - M_PI) < TINY) {
         m_dV(i, j) = (V3(r_plus, r_g) - V3(r, r_g)) * 2.0 *
             (1.0 - std::cos(0.5 * this->delta[1])) /
             (this->delta[0] * this->delta[1]);

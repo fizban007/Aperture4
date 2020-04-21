@@ -42,7 +42,11 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
 }
 
 template <typename Conf>
-data_exporter<Conf>::~data_exporter() {}
+data_exporter<Conf>::~data_exporter() {
+  if (m_xmf.is_open()) {
+    m_xmf.close();
+  }
+}
 
 template <typename Conf>
 void
@@ -63,27 +67,36 @@ data_exporter<Conf>::init() {
 
 template <typename Conf>
 void
-data_exporter<Conf>::update(double time, uint32_t step) {
+data_exporter<Conf>::update(double dt, uint32_t step) {
   if (step % m_fld_output_interval == 0) {
+    double time = m_env.get_time();
+
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir,
                     m_output_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
+    if (!m_xmf.is_open() && m_comm->is_root()) {
+      m_xmf.open(m_output_dir + "data.xmf");
+    }
+    write_xmf_step_header(m_xmf_buffer, time);
+
     for (auto& it : m_env.data_map()) {
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
       if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
         Logger::print_info("Writing vector field {}", it.first);
+        // Vector field has 3 components
         for (int i = 0; i < 3; i++) {
-          std::string name = it.first + std::to_string(i);
+          std::string name = it.first + std::to_string(i + 1);
           write_grid_multiarray(name, ptr->at(i),
                                 ptr->stagger(i), datafile);
           write_xmf_field_entry(m_xmf_buffer, m_output_num, name);
         }
       } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
+        // Scalar field only has one component
         std::string name = it.first;
         write_grid_multiarray(name, ptr->at(0),
                               ptr->stagger(0), datafile);
@@ -92,6 +105,19 @@ data_exporter<Conf>::update(double time, uint32_t step) {
     }
 
     datafile.close();
+
+    if (m_comm->is_root()) {
+      write_xmf_step_close(m_xmf_buffer);
+      write_xmf_tail(m_xmf_buffer);
+
+      if (step == 0) {
+        write_xmf_head(m_xmf);
+      } else {
+        m_xmf.seekp(-26, std::ios_base::end);
+      }
+      m_xmf << m_xmf_buffer;
+      m_xmf_buffer = "";
+    }
   }
 
   if (step % m_ptc_output_interval == 0) {

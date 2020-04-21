@@ -8,10 +8,10 @@ namespace Aperture {
 
 template <typename ValueT, int Rank, typename Idx_t>
 struct grid_logsph_ptrs {
-  ndptr_const<ValueT, Rank, Idx_t> le[3];
-  ndptr_const<ValueT, Rank, Idx_t> lb[3];
-  ndptr_const<ValueT, Rank, Idx_t> Ae[3];
-  ndptr_const<ValueT, Rank, Idx_t> Ab[3];
+  vec_t<ndptr_const<ValueT, Rank, Idx_t>, 3> le;
+  vec_t<ndptr_const<ValueT, Rank, Idx_t>, 3> lb;
+  vec_t<ndptr_const<ValueT, Rank, Idx_t>, 3> Ae;
+  vec_t<ndptr_const<ValueT, Rank, Idx_t>, 3> Ab;
   ndptr_const<ValueT, Rank, Idx_t> dV;
 };
 

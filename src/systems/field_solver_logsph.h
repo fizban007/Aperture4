@@ -16,6 +16,8 @@ template <typename Conf>
 class field_solver_logsph : public field_solver_default<Conf> {
  private:
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2;
+  double m_alpha = 0.4;
+  double m_beta = 0.6;
  
  public:
   static std::string name() { return "field_solver"; }
@@ -32,7 +34,6 @@ class field_solver_logsph : public field_solver_default<Conf> {
   void update_semi_impl(double dt, double alpha, double beta, double time);
   void update_b(double dt, double alpha, double beta);
   void update_e(double dt, double alpha, double beta);
-
 };
 
 }

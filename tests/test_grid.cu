@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "core/grid.hpp"
+#include "core/constant_mem.h"
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "systems/grid.h"
@@ -105,8 +106,8 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
-    printf("N is %ux%ux%u\n", dev_grid_3d.reduced_dim(0),
-           dev_grid_3d.reduced_dim(1), dev_grid_3d.reduced_dim(1));
+    printf("N is %ux%ux%u\n", dev_grid<3>().reduced_dim(0),
+           dev_grid<3>().reduced_dim(1), dev_grid<3>().reduced_dim(1));
   });
   CudaSafeCall(cudaDeviceSynchronize());
 }

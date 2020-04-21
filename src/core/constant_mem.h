@@ -22,6 +22,16 @@ extern __constant__ Grid<3> dev_grid_3d;
 extern __constant__ float dev_charges[max_ptc_types];
 extern __constant__ float dev_masses[max_ptc_types];
 
+template <int Rank>
+__device__ __forceinline__ const Grid<Rank>& dev_grid();
+
+template<>
+__device__ __forceinline__ const Grid<1>& dev_grid<1>() { return dev_grid_1d; }
+template<>
+__device__ __forceinline__ const Grid<2>& dev_grid<2>() { return dev_grid_2d; }
+template<>
+__device__ __forceinline__ const Grid<3>& dev_grid<3>() { return dev_grid_3d; }
+
 #endif
 
 }  // namespace Aperture

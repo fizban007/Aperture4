@@ -42,5 +42,5 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(Aperture ${CUDART_LIBRARY})
 endif()
 
-add_executable(aperture "main.cpp")
-target_link_libraries(aperture Aperture)
+# add_executable(aperture "main.cpp")
+# target_link_libraries(aperture Aperture)

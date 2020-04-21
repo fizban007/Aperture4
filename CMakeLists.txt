@@ -9,6 +9,8 @@ message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
 option(use_cuda "Include the GPU part of the code" OFF)
 option(use_double "Use double precision" OFF)
+option(build_doc "Build the doxygen documentation" OFF)
+option(build_test "Build the test suite" OFF)
 
 if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
@@ -82,23 +84,29 @@ endif()
 add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)
 add_subdirectory(src)
-add_subdirectory(tests)
+add_subdirectory(problems)
 
-find_package(Doxygen)
+if(build_tests)
+  add_subdirectory(tests)
+endif()
 
-# Find all the public headers get_target_property(CAT_CUTIFIER_PUBLIC_HEADER_DIR
-# CatCutifier INTERFACE_INCLUDE_DIRECTORIES)
-file(GLOB_RECURSE APERTURE_HEADERS ${CMAKE_SOURCE_DIR}/src/*/*.h
-     ${CMAKE_SOURCE_DIR}/src/*/*.hpp)
+if(build_doc)
+  find_package(Doxygen)
 
-# This will be the main output of our command
-set(DOXYGEN_INDEX_FILE ${CMAKE_SOURCE_DIR}/doc/index.html)
+  # Find all the public headers get_target_property(CAT_CUTIFIER_PUBLIC_HEADER_DIR
+  # CatCutifier INTERFACE_INCLUDE_DIRECTORIES)
+  file(GLOB_RECURSE APERTURE_HEADERS ${CMAKE_SOURCE_DIR}/src/*/*.h
+    ${CMAKE_SOURCE_DIR}/src/*/*.hpp)
 
-add_custom_command(
-  OUTPUT ${DOXYGEN_INDEX_FILE}
-  DEPENDS ${APERTURE_HEADERS}
-  COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  MAIN_DEPENDENCY Doxyfile
-  COMMENT "Generating docs")
-add_custom_target(Doxygen ALL DEPENDS ${DOXYGEN_INDEX_FILE})
+  # This will be the main output of our command
+  set(DOXYGEN_INDEX_FILE ${CMAKE_SOURCE_DIR}/doc/index.html)
+
+  add_custom_command(
+    OUTPUT ${DOXYGEN_INDEX_FILE}
+    DEPENDS ${APERTURE_HEADERS}
+    COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    MAIN_DEPENDENCY Doxyfile
+    COMMENT "Generating docs")
+  add_custom_target(Doxygen ALL DEPENDS ${DOXYGEN_INDEX_FILE})
+endif()

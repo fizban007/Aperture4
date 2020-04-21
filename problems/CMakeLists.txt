@@ -1,0 +1,1 @@
+add_subdirectory(vacuum_sph_wave_test)

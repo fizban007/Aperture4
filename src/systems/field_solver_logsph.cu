@@ -308,7 +308,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
             int n0 = grid.dims[0] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t lambda =
-                1.0f - damping_coef * square((value_t)i / damping_length);
+                1.0f - damping_coef * cube((value_t)i / damping_length);
             e[0][idx] = lambda * (e[0][idx] - e0[0][idx]) + e0[0][idx];
             e[1][idx] = lambda * (e[1][idx] - e0[1][idx]) + e0[1][idx];
             e[2][idx] = lambda * (e[2][idx] - e0[2][idx]) + e0[2][idx];

@@ -36,14 +36,16 @@ add_alpha_beta(vector_field<Conf>& result, const vector_field<Conf>& b1,
                const vector_field<Conf>& b2, typename Conf::value_t alpha,
                typename Conf::value_t beta) {
   auto ext = result.grid().extent();
-  kernel_launch([alpha, beta, ext] __device__(auto result, auto b1, auto b2) {
-      for (auto n : grid_stride_range(0, ext.size())) {
-        auto idx = typename Conf::idx_t(n, ext);
-        result[0][idx] = alpha * b1[0][idx] + beta * b2[0][idx];
-        result[1][idx] = alpha * b1[1][idx] + beta * b2[1][idx];
-        result[2][idx] = alpha * b1[2][idx] + beta * b2[2][idx];
-      }
-    } , result.get_ptrs(), b1.get_ptrs(), b2.get_ptrs());
+  kernel_launch(
+      [alpha, beta, ext] __device__(auto result, auto b1, auto b2) {
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = typename Conf::idx_t(n, ext);
+          result[0][idx] = alpha * b1[0][idx] + beta * b2[0][idx];
+          result[1][idx] = alpha * b1[1][idx] + beta * b2[1][idx];
+          result[2][idx] = alpha * b1[2][idx] + beta * b2[2][idx];
+        }
+      },
+      result.get_ptrs(), b1.get_ptrs(), b2.get_ptrs());
 }
 
 template <typename Conf>
@@ -66,36 +68,48 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
             auto idx_py = idx.inc_y();
             auto idx_pymx = idx.inc_y().dec_x();
             auto idx_pxmy = idx.inc_x().dec_y();
-            result[0][idx] = coef * (gp.le[2][idx] *
-                                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
-                                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
-                                     gp.Ae[2][idx] -
-                                     gp.le[2][idx_py] *
-                                     (circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) -
-                                      circ2(b0, gp.lb, idx_pymx, idx, idx_py, idx_py)) /
-                                     gp.Ae[2][idx_py]) / gp.Ab[0][idx];
+            result[0][idx] =
+                coef *
+                (gp.le[2][idx] *
+                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
+                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
+                     gp.Ae[2][idx] -
+                 gp.le[2][idx_py] *
+                     (circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) -
+                      circ2(b0, gp.lb, idx_pymx, idx, idx_py, idx_py)) /
+                     gp.Ae[2][idx_py]) /
+                gp.Ab[0][idx];
 
-            result[1][idx] = coef * (gp.le[2][idx_px] *
-                                     (circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) -
-                                      circ2(b0, gp.lb, idx, idx_pxmy, idx_px, idx_px)) /
-                                     gp.Ae[2][idx_px] -
-                                     gp.le[2][idx] *
-                                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
-                                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
-                                     gp.Ae[2][idx]) / gp.Ab[1][idx];
+            result[1][idx] =
+                coef *
+                (gp.le[2][idx_px] *
+                     (circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) -
+                      circ2(b0, gp.lb, idx, idx_pxmy, idx_px, idx_px)) /
+                     gp.Ae[2][idx_px] -
+                 gp.le[2][idx] *
+                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
+                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
+                     gp.Ae[2][idx]) /
+                gp.Ab[1][idx];
 
-            result[2][idx] = coef * (gp.le[0][idx_py] *
-                                     (circ0(b, gp.lb, idx, idx_py) -
-                                      circ0(b0, gp.lb, idx, idx_py)) / gp.Ae[0][idx_py] -
-                                     gp.le[0][idx] *
-                                     (circ0(b, gp.lb, idx_my, idx) -
-                                      circ0(b0, gp.lb, idx_my, idx)) / gp.Ae[0][idx] +
-                                     gp.le[1][idx] *
-                                     (circ1(b, gp.lb, idx_mx, idx) -
-                                      circ1(b0, gp.lb, idx_mx, idx)) / gp.Ae[1][idx] -
-                                     gp.le[1][idx_px] *
-                                     (circ1(b, gp.lb, idx, idx_px) -
-                                      circ1(b0, gp.lb, idx, idx_px)) / gp.Ae[1][idx_px]) / gp.Ab[2][idx];
+            result[2][idx] = coef *
+                             (gp.le[0][idx_py] *
+                                  (circ0(b, gp.lb, idx, idx_py) -
+                                   circ0(b0, gp.lb, idx, idx_py)) /
+                                  gp.Ae[0][idx_py] -
+                              gp.le[0][idx] *
+                                  (circ0(b, gp.lb, idx_my, idx) -
+                                   circ0(b0, gp.lb, idx_my, idx)) /
+                                  gp.Ae[0][idx] +
+                              gp.le[1][idx] *
+                                  (circ1(b, gp.lb, idx_mx, idx) -
+                                   circ1(b0, gp.lb, idx_mx, idx)) /
+                                  gp.Ae[1][idx] -
+                              gp.le[1][idx_px] *
+                                  (circ1(b, gp.lb, idx, idx_px) -
+                                   circ1(b0, gp.lb, idx, idx_px)) /
+                                  gp.Ae[1][idx_px]) /
+                             gp.Ab[2][idx];
           }
         }
       },
@@ -277,9 +291,42 @@ axis_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 
 template <typename Conf>
 void
+damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
+                 const vector_field<Conf>& e0, const vector_field<Conf>& b0,
+                 int damping_length, typename Conf::value_t damping_coef) {
+  auto ext = e.grid().extent();
+  typedef typename Conf::idx_t idx_t;
+  typedef typename Conf::value_t value_t;
+  kernel_launch(
+      [ext, damping_length, damping_coef] __device__(auto e, auto b, auto e0,
+                                                     auto b0) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+          for (int i = 0; i < damping_length; i++) {
+            int n0 = grid.dims[0] - damping_length + i;
+            auto idx = idx_t(index_t<2>(n0, n1), ext);
+            value_t lambda =
+                1.0f - damping_coef * square((value_t)i / damping_length);
+            e[0][idx] = lambda * (e[0][idx] - e0[0][idx]) + e0[0][idx];
+            e[1][idx] = lambda * (e[1][idx] - e0[1][idx]) + e0[1][idx];
+            e[2][idx] = lambda * (e[2][idx] - e0[2][idx]) + e0[2][idx];
+            // TODO: Do we want to damp B_theta?
+            b[1][idx] = lambda * (b[1][idx] - b0[1][idx]) + b0[1][idx];
+            b[2][idx] = lambda * (b[2][idx] - b0[2][idx]) + b0[2][idx];
+          }
+        }
+      },
+      e.get_ptrs(), b.get_ptrs(), e0.get_ptrs(), b0.get_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
 field_solver_logsph<Conf>::init() {
   this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
+  this->m_env.params().get_value("damping_length", m_damping_length);
+  this->m_env.params().get_value("damping_coef", m_damping_coef);
 
   m_tmp_b1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
@@ -293,8 +340,8 @@ template <typename Conf>
 void
 field_solver_logsph<Conf>::update(double dt, uint32_t step) {
   double time = this->m_env.get_time();
-  update_semi_impl(dt, m_alpha, m_beta, time);
-  // update_explicit(dt, time);
+  // update_semi_impl(dt, m_alpha, m_beta, time);
+  update_explicit(dt, time);
 }
 
 template <typename Conf>
@@ -316,6 +363,8 @@ field_solver_logsph<Conf>::update_explicit(double dt, double time) {
 
   // apply coordinate boundary condition
   axis_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0), grid);
+  damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
+                   m_damping_length, m_damping_coef);
 }
 
 template <typename Conf>
@@ -328,7 +377,8 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
 
   // Assemble the RHS
   auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
-  compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid, -alpha * beta * dt * dt);
+  compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
+                      -alpha * beta * dt * dt);
   m_tmp_b1->add_by(*m_tmp_b2);
 
   // Send guard cells for m_tmp_b1
@@ -352,13 +402,20 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   // m_bnew now holds B^{n+1}
   add_alpha_beta(buffer.main(), *(this->B), *m_bnew, alpha, beta);
 
-  // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from this
-  compute_e_update_explicit(*(this->E), buffer.main(), *(this->B0), *(this->J), grid, dt);
+  // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
+  // this
+  compute_e_update_explicit(*(this->E), buffer.main(), *(this->B0), *(this->J),
+                            grid, dt);
 
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
   this->B->copy_from(*m_bnew);
+
+  // apply coordinate boundary condition
+  axis_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0), grid);
+  damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
+                   m_damping_length, m_damping_coef);
 }
 
 template <typename Conf>

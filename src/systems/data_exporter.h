@@ -34,7 +34,8 @@ class data_exporter : public system_t {
   /// Sets the directory of all the data files
   std::string m_output_dir = "Data/";
 
-  int m_output_num = 0;
+  int m_fld_num = 0;
+  int m_ptc_num = 0;
   int m_ptc_output_interval = 1;
   int m_fld_output_interval = 1;
   int m_snapshot_interval = 1;

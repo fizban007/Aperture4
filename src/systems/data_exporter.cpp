@@ -74,7 +74,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir,
-                    m_output_num);
+                    m_fld_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
     if (!m_xmf.is_open() && m_comm->is_root()) {
@@ -95,7 +95,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
           std::string name = it.first + std::to_string(i + 1);
           write_grid_multiarray(name, ptr->at(i),
                                 ptr->stagger(i), datafile);
-          write_xmf_field_entry(m_xmf_buffer, m_output_num, name);
+          write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
         }
       } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
@@ -103,7 +103,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         std::string name = it.first;
         write_grid_multiarray(name, ptr->at(0),
                               ptr->stagger(0), datafile);
-        write_xmf_field_entry(m_xmf_buffer, m_output_num, name);
+        write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
       }
     }
 
@@ -121,6 +121,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       m_xmf << m_xmf_buffer;
       m_xmf_buffer = "";
     }
+    m_fld_num += 1;
   }
 
   if (step % m_ptc_output_interval == 0) {
@@ -134,9 +135,8 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         Logger::print_info("Writing tracked photons");
       }
     }
+    m_ptc_num += 1;
   }
-
-  m_output_num += 1;
 }
 
 template <typename Conf>

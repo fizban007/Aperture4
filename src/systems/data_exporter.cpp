@@ -83,6 +83,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     write_xmf_step_header(m_xmf_buffer, time);
 
     for (auto& it : m_env.data_map()) {
+      // Do not output the skipped components
+      if (it.second->skip_output()) continue;
+
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
       if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
@@ -283,8 +286,9 @@ data_exporter<Conf>::write_grid_multiarray(const std::string &name,
                  stagger, m_output_stagger, m_downsample);
   }
 
+  // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0], m_global_ext[1]);
   file.write_parallel(tmp_grid_data, m_global_ext, m_local_offset,
-                          m_local_ext, index_t<Conf::dim>{}, name);
+                      m_local_ext, index_t<Conf::dim>{}, name);
 }
 
 template <typename Conf>

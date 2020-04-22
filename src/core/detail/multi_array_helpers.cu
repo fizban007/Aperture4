@@ -26,9 +26,9 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
               in_bound = false;
           }
           if (!in_bound) continue;
-          auto idx_out =
-              p_src.get_idx((pos - offset) * downsample + offset, ext_src);
-          p_dst[idx_out] = interp(p_src, idx_out, st_src, st_dst);
+          auto idx_src =
+              p_src.get_idx(pos * downsample + offset, ext_src);
+          p_dst[idx] = interp(p_src, idx_src, st_src, st_dst);
         }
       },
       from.get_const_ptr(), to.get_ptr(), offset, st_src, st_dst);

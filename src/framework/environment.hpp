@@ -131,14 +131,14 @@ class sim_environment {
     // directly
     auto it = m_system_map.find(name);
     if (it != m_system_map.end())
-      return (System*)(it->second.get());
+      return dynamic_cast<System*>(it->second.get());
 
     // Otherwise, make the system, and return the pointer
     std::unique_ptr<system_t> ptr = std::make_unique<System>(std::forward<Args>(args)...);
     ptr->register_dependencies();
     m_system_map.insert({name, std::move(ptr)});
     m_system_order.push_back(name);
-    return (System*)m_system_map[name].get();
+    return dynamic_cast<System*>(m_system_map[name].get());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -156,13 +156,13 @@ class sim_environment {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end())
       // return std::dynamic_pointer_cast<Data>(it->second);
-      return (Data*)(it->second.get());
+      return dynamic_cast<Data*>(it->second.get());
 
     // Otherwise, make the data, and return the pointer
     auto ptr = std::make_unique<Data>(std::forward<Args>(args)...);
     m_data_map.insert({name, std::move(ptr)});
     m_data_order.push_back(name);
-    return (Data*)m_data_map[name].get();
+    return dynamic_cast<Data*>(m_data_map[name].get());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -225,14 +225,14 @@ class sim_environment {
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
-  void get_data(const std::string& name, T* ptr) {
+  void get_data(const std::string& name, T** ptr) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
       // ptr = std::dynamic_pointer_cast<T>(it->second);
-      ptr = (T*)(it->second.get());
+      *ptr = dynamic_cast<T*>(it->second.get());
     } else {
       Logger::print_err("Failed to get data component '{}'", name);
-      ptr = nullptr;
+      *ptr = nullptr;
     }
   }
 

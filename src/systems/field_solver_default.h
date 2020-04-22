@@ -36,18 +36,20 @@ class field_solver_default : public system_t {
                                                 field_type::edge_centered);
     E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,
                                                  field_type::edge_centered);
+    E0->set_skip_output();
     B = m_env.register_data<vector_field<Conf>>("B", m_grid,
                                                 field_type::face_centered);
     B0 = m_env.register_data<vector_field<Conf>>("B0", m_grid,
                                                  field_type::face_centered);
+    B0->set_skip_output();
     J = m_env.register_data<vector_field<Conf>>("J", m_grid,
                                                 field_type::edge_centered);
     divB = m_env.register_data<scalar_field<Conf>>("divB", m_grid,
                                                    field_type::cell_centered);
     divE = m_env.register_data<scalar_field<Conf>>("divE", m_grid,
                                                    field_type::vert_centered);
-    EdotB = m_env.register_data<scalar_field<Conf>>("EdotB", m_grid,
-                                                    field_type::vert_centered);
+    // EdotB = m_env.register_data<scalar_field<Conf>>("EdotB", m_grid,
+    //                                                 field_type::vert_centered);
   }
 
   void update_e(double dt);

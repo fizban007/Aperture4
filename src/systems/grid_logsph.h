@@ -30,6 +30,8 @@ class grid_logsph_t : public grid_t<Conf> {
   grid_logsph_t(sim_environment& env, const domain_comm<Conf>& comm);
   ~grid_logsph_t();
 
+  void init();
+
   // Coordinate for output position
   inline vec_t<float, Conf::dim> cart_coord(
       const index_t<Conf::dim>& pos) const override {

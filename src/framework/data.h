@@ -12,11 +12,16 @@ class sim_environment;
 ///  stored as an implementation to this interpace.
 ////////////////////////////////////////////////////////////////////////////////
 class data_t {
+ private:
+  bool m_skip_output = false;
+
  public:
   data_t() {}
   virtual ~data_t() {}
 
   virtual void init() {}
+  void set_skip_output() { m_skip_output = true; }
+  bool skip_output() { return m_skip_output; }
 };
 
 }  // namespace Aperture

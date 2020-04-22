@@ -134,6 +134,8 @@ class field_t : public data_t {
     return m_data[n].get_const_ptr();
   }
   typename Conf::ndptr_t get_ptr(int n = 0) { return m_data[n].get_ptr(); }
+
+  const Grid<Conf::dim>& grid() const { return *m_grid; }
 };
 
 template <typename Conf>

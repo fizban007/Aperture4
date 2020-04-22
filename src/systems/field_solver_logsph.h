@@ -15,7 +15,7 @@ namespace Aperture {
 template <typename Conf>
 class field_solver_logsph : public field_solver_default<Conf> {
  private:
-  std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2;
+  std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
   double m_alpha = 0.4;
   double m_beta = 0.6;
  

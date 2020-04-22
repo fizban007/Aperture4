@@ -143,7 +143,7 @@ class multi_array : public buffer_t<T> {
     return const_ptr_t(this->m_data_d);
   }
 
-  extent_t<Rank> extent() const { return m_ext; }
+  const extent_t<Rank>& extent() const { return m_ext; }
 
   inline range_proxy<Idx_t> indices() const {
     return range(idx_at(0), idx_at(this->m_size));

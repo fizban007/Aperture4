@@ -17,8 +17,8 @@ resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
         in_bound = false;
     }
     if (!in_bound) continue;
-    auto idx_out = from.get_idx((pos - offset) * downsample + offset);
-    to[idx_out] = interp(from, idx_out, st_src, st_dst);
+    auto idx_src = from.get_idx(pos * downsample + offset);
+    to[idx] = interp(from, idx_src, st_src, st_dst);
   }
 }
 

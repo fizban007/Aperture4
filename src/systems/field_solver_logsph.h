@@ -36,8 +36,6 @@ class field_solver_logsph : public field_solver_default<Conf> {
 
   void update_explicit(double dt, double time);
   void update_semi_impl(double dt, double alpha, double beta, double time);
-  void update_b(double dt, double alpha, double beta);
-  void update_e(double dt, double alpha, double beta);
 };
 
 }

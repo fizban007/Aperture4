@@ -468,14 +468,6 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
                *(this->E0), *(this->B0), grid);
 }
 
-template <typename Conf>
-void
-field_solver_logsph<Conf>::update_b(double dt, double alpha, double beta) {}
-
-template <typename Conf>
-void
-field_solver_logsph<Conf>::update_e(double dt, double alpha, double beta) {}
-
 template class field_solver_logsph<Config<2>>;
 
 }  // namespace Aperture

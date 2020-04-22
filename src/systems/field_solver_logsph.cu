@@ -272,7 +272,8 @@ axis_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
             e[2][idx] = 0.0;
             b[1][idx] = 0.0;
-            b[2][idx.dec_y()] = -b[2][idx];
+            // b[2][idx.dec_y()] = -b[2][idx];
+            b[2][idx.dec_y()] = 0.0;
           }
           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
           if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
@@ -281,7 +282,8 @@ axis_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
             e[2][idx] = 0.0;
             b[1][idx] = 0.0;
-            b[2][idx] = -b[2][idx.dec_y()];
+            // b[2][idx] = -b[2][idx.dec_y()];
+            b[2][idx] = 0.0;
           }
         }
       },

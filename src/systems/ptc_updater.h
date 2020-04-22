@@ -60,9 +60,9 @@ class ptc_updater : public system_t {
               const domain_comm<Conf>* comm = nullptr)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
-  void init();
-  void update(double dt, uint32_t step);
-  void register_dependencies();
+  void init() override;
+  void update(double dt, uint32_t step) override;
+  void register_dependencies() override;
 
   void move_and_deposit(double dt, uint32_t step);
 
@@ -86,15 +86,17 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   buffer_t<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
 
  public:
+  static std::string name() { return "ptc_updater"; }
+
   typedef ptc_updater<Conf> base_class;
 
   ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
                  const domain_comm<Conf>* comm = nullptr) :
       ptc_updater<Conf>(env, grid, comm) {}
 
-  void init();
+  void init() override;
   // void update(double dt, uint32_t step);
-  void register_dependencies();
+  void register_dependencies() override;
 
   template <typename P>
   void push(double dt, bool resample_field = true);

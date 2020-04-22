@@ -324,6 +324,47 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 
 template <typename Conf>
 void
+compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
+             const vector_field<Conf>& e, const vector_field<Conf>& b,
+             const vector_field<Conf>& e0, const vector_field<Conf>& b0,
+             const grid_logsph_t<Conf>& grid) {
+  auto ext = divE.grid().extent();
+  kernel_launch(
+      [ext] __device__(auto divE, auto divB, auto e, auto e0, auto b, auto b0,
+                       auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        // gp is short for grid_ptrs
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = typename Conf::idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto idx_mx = idx.dec_x();
+            auto idx_my = idx.dec_y();
+
+            divE[idx] = ((e[0][idx] - e0[0][idx]) * gp.Ae[0][idx] -
+                         (e[0][idx_mx] - e0[0][idx_mx]) * gp.Ae[0][idx_mx] +
+                         (e[1][idx] - e0[1][idx]) * gp.Ae[1][idx] -
+                         (e[1][idx_my] - e0[1][idx_my]) * gp.Ae[1][idx_my]) /
+                        (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
+
+            auto idx_px = idx.inc_x();
+            auto idx_py = idx.inc_y();
+
+            divB[idx] = ((b[0][idx_px] - b0[0][idx_px]) * gp.Ab[0][idx_px] -
+                         (b[0][idx] - b0[0][idx]) * gp.Ab[0][idx] +
+                         (b[1][idx_py] - b0[1][idx_py]) * gp.Ab[1][idx_py] -
+                         (b[1][idx] - b0[1][idx]) * gp.Ab[1][idx]) /
+                        (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
+          }
+        }
+      },
+      divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(), e0.get_ptrs(),
+      b0.get_ptrs(), grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
 field_solver_logsph<Conf>::init() {
   this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
@@ -370,6 +411,8 @@ field_solver_logsph<Conf>::update_explicit(double dt, double time) {
   axis_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0), grid);
   damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
                    m_damping_length, m_damping_coef);
+  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B),
+               *(this->E0), *(this->B0), grid);
 }
 
 template <typename Conf>
@@ -421,6 +464,8 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   axis_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0), grid);
   damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
                    m_damping_length, m_damping_coef);
+  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B),
+               *(this->E0), *(this->B0), grid);
 }
 
 template <typename Conf>

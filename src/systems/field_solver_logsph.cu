@@ -66,37 +66,36 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
             auto idx_py = idx.inc_y();
             auto idx_pymx = idx.inc_y().dec_x();
             auto idx_pxmy = idx.inc_x().dec_y();
-            auto idx_pxpy = idx.inc_x().inc_y();
-            result[0][idx] = coef * (gp.le[2][idx_py] *
-                                     (circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) -
-                                      circ2(b0, gp.lb, idx_pymx, idx, idx_py, idx_py)) /
-                                     gp.Ae[2][idx_py] -
-                                     gp.le[2][idx] *
-                                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
-                                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
-                                     gp.Ae[2][idx]) / gp.Ae[0][idx];
-
-            result[1][idx] = coef * (gp.le[2][idx] *
+            result[0][idx] = coef * (gp.le[2][idx] *
                                      (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
                                       circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
                                      gp.Ae[2][idx] -
-                                     gp.le[2][idx_px] *
+                                     gp.le[2][idx_py] *
+                                     (circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) -
+                                      circ2(b0, gp.lb, idx_pymx, idx, idx_py, idx_py)) /
+                                     gp.Ae[2][idx_py]) / gp.Ab[0][idx];
+
+            result[1][idx] = coef * (gp.le[2][idx_px] *
                                      (circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) -
                                       circ2(b0, gp.lb, idx, idx_pxmy, idx_px, idx_px)) /
-                                     gp.Ae[2][idx_px]) / gp.Ae[0][idx];
+                                     gp.Ae[2][idx_px] -
+                                     gp.le[2][idx] *
+                                     (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) -
+                                      circ2(b0, gp.lb, idx_mx, idx_my, idx, idx)) /
+                                     gp.Ae[2][idx]) / gp.Ab[1][idx];
 
-            result[2][idx] = coef * (gp.le[0][idx] *
+            result[2][idx] = coef * (gp.le[0][idx_py] *
+                                     (circ0(b, gp.lb, idx, idx_py) -
+                                      circ0(b0, gp.lb, idx, idx_py)) / gp.Ae[0][idx_py] -
+                                     gp.le[0][idx] *
                                      (circ0(b, gp.lb, idx_my, idx) -
-                                      circ0(b0, gp.lb, idx_my, idx)) / gp.Ae[0][idx] -
-                                     gp.le[0][idx_py] *
-                                     (circ0(b, gp.lb, idx, idx_py) -
-                                      circ0(b0, gp.lb, idx, idx_py)) / gp.Ae[0][idx_py] +
-                                     gp.le[1][idx_px] *
-                                     (circ0(b, gp.lb, idx_px, idx_pxpy) -
-                                      circ0(b0, gp.lb, idx_px, idx_pxpy)) / gp.Ae[1][idx_px] -
+                                      circ0(b0, gp.lb, idx_my, idx)) / gp.Ae[0][idx] +
                                      gp.le[1][idx] *
-                                     (circ0(b, gp.lb, idx, idx_py) -
-                                      circ0(b0, gp.lb, idx, idx_py)) / gp.Ae[1][idx]);
+                                     (circ1(b, gp.lb, idx_mx, idx) -
+                                      circ1(b0, gp.lb, idx_mx, idx)) / gp.Ae[1][idx] -
+                                     gp.le[1][idx_px] *
+                                     (circ1(b, gp.lb, idx, idx_px) -
+                                      circ1(b0, gp.lb, idx, idx_px)) / gp.Ae[1][idx_px]) / gp.Ab[2][idx];
           }
         }
       },
@@ -294,8 +293,8 @@ template <typename Conf>
 void
 field_solver_logsph<Conf>::update(double dt, uint32_t step) {
   double time = this->m_env.get_time();
-  // update_semi_impl(dt, m_alpha, m_beta, time);
-  update_explicit(dt, time);
+  update_semi_impl(dt, m_alpha, m_beta, time);
+  // update_explicit(dt, time);
 }
 
 template <typename Conf>
@@ -323,10 +322,11 @@ template <typename Conf>
 void
 field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
                                             double beta, double time) {
-  // set m_tmp_b1 to B - B0
+  // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
-  m_tmp_b1->add_by(*(this->B0), -1.0);
+  // m_tmp_b1->add_by(*(this->B0), -1.0);
 
+  // Assemble the RHS
   auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
   compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid, -alpha * beta * dt * dt);
   m_tmp_b1->add_by(*m_tmp_b2);

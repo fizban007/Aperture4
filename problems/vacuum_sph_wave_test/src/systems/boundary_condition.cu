@@ -21,7 +21,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   value_t time = m_env.get_time();
   value_t omega;
   // if (m_omega_t * time < 5000.0)
-  if (time < 10.0)
+  if (time < 3.0)
     omega = m_omega_0 * sin(2.0 * M_PI * m_omega_t * time);
   else
     omega = 0.0;

@@ -16,6 +16,7 @@ template <typename Conf>
 class field_solver_logsph : public field_solver_default<Conf> {
  private:
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
+  bool m_use_implicit = true;
   double m_alpha = 0.45;
   double m_beta = 0.55;
   int m_damping_length = 64;

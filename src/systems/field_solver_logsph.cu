@@ -329,6 +329,7 @@ field_solver_logsph<Conf>::init() {
   this->m_env.params().get_value("implicit_beta", m_beta);
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
+  this->m_env.params().get_value("use_implicit", m_use_implicit);
 
   m_tmp_b1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
@@ -342,8 +343,10 @@ template <typename Conf>
 void
 field_solver_logsph<Conf>::update(double dt, uint32_t step) {
   double time = this->m_env.get_time();
-  // update_semi_impl(dt, m_alpha, m_beta, time);
-  update_explicit(dt, time);
+  if (m_use_implicit)
+    update_semi_impl(dt, m_alpha, m_beta, time);
+  else
+    update_explicit(dt, time);
 }
 
 template <typename Conf>

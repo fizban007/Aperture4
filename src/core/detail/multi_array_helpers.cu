@@ -8,13 +8,15 @@ namespace Aperture {
 template <typename T, typename U, int Rank>
 void
 resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
-             const index_t<Rank>& offset, stagger_t st_src, stagger_t st_dst,
+             const index_t<Rank>& offset_src,
+             const index_t<Rank>& offset_dst,
+             stagger_t st_src, stagger_t st_dst,
              int downsample) {
   auto ext = to.extent();
   auto ext_src = from.extent();
   kernel_launch(
-      [downsample, ext, ext_src] __device__(auto p_src, auto p_dst, auto offset,
-                                            auto st_src, auto st_dst) {
+      [downsample, ext, ext_src] __device__(auto p_src, auto p_dst, auto offset_src,
+                                            auto offset_dst, auto st_src, auto st_dst) {
         auto interp = lerp<Rank>{};
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = p_dst.idx_at(n, ext);
@@ -22,16 +24,16 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
           bool in_bound = true;
 #pragma unroll
           for (int i = 0; i < Rank; i++) {
-            if (pos[i] < offset[i] || pos[i] >= ext[i] - offset[i])
+            if (pos[i] < offset_dst[i] || pos[i] >= ext[i] - offset_dst[i])
               in_bound = false;
           }
           if (!in_bound) continue;
           auto idx_src =
-              p_src.get_idx(pos * downsample + offset, ext_src);
+              p_src.get_idx((pos - offset_dst) * downsample + offset_src, ext_src);
           p_dst[idx] = interp(p_src, idx_src, st_src, st_dst);
         }
       },
-      from.get_const_ptr(), to.get_ptr(), offset, st_src, st_dst);
+      from.get_const_ptr(), to.get_ptr(), offset_src, offset_dst, st_src, st_dst);
   CudaSafeCall(cudaDeviceSynchronize());
 }
 

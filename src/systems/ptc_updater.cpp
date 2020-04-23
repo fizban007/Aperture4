@@ -105,12 +105,19 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
   auto dbE = make_double_buffer(*E, Etmp);
   auto dbB = make_double_buffer(*B, Btmp);
   if (resample_field) {
-    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(), E->stagger(0), Etmp.stagger(0));
-    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(), E->stagger(1), Etmp.stagger(1));
-    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(), E->stagger(2), Etmp.stagger(2));
-    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(), B->stagger(0), Btmp.stagger(0));
-    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(), B->stagger(1), Btmp.stagger(1));
-    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(), B->stagger(2), Btmp.stagger(2));
+    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(),
+             m_grid.guards(),
+             E->stagger(0), Etmp.stagger(0));
+    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(),
+             m_grid.guards(), E->stagger(1), Etmp.stagger(1));
+    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(),
+             m_grid.guards(), E->stagger(2), Etmp.stagger(2));
+    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(),
+             m_grid.guards(), B->stagger(0), Btmp.stagger(0));
+    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(),
+             m_grid.guards(), B->stagger(1), Btmp.stagger(1));
+    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(),
+             m_grid.guards(), B->stagger(2), Btmp.stagger(2));
     dbE.swap();
     dbB.swap();
   }

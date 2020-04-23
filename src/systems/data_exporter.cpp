@@ -279,11 +279,13 @@ data_exporter<Conf>::write_grid_multiarray(const std::string &name,
                                            stagger_t stagger, H5File &file) {
   if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
     resample_dev(array, tmp_grid_data, m_grid.guards(),
+                 index_t<Conf::dim>{},
                  stagger, m_output_stagger, m_downsample);
     tmp_grid_data.copy_to_host();
   } else {
     resample(array, tmp_grid_data, m_grid.guards(),
-                 stagger, m_output_stagger, m_downsample);
+             index_t<Conf::dim>{},
+             stagger, m_output_stagger, m_downsample);
   }
 
   // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0], m_global_ext[1]);

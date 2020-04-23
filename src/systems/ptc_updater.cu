@@ -89,17 +89,24 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   auto dbE = make_double_buffer(*(this->E), this->Etmp);
   auto dbB = make_double_buffer(*(this->B), this->Btmp);
   if (resample_field) {
-    resample_dev(dbE.main()[0], dbE.alt()[0], this->m_grid.guards(),
+    resample_dev(dbE.main()[0], dbE.alt()[0],
+                 this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->E->stagger(0), this->Etmp.stagger(0));
     resample_dev(dbE.main()[1], dbE.alt()[1], this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->E->stagger(1), this->Etmp.stagger(1));
     resample_dev(dbE.main()[2], dbE.alt()[2], this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->E->stagger(2), this->Etmp.stagger(2));
     resample_dev(dbB.main()[0], dbB.alt()[0], this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->B->stagger(0), this->Btmp.stagger(0));
     resample_dev(dbB.main()[1], dbB.alt()[1], this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->B->stagger(1), this->Btmp.stagger(1));
     resample_dev(dbB.main()[2], dbB.alt()[2], this->m_grid.guards(),
+                 this->m_grid.guards(),
                  this->B->stagger(2), this->Btmp.stagger(2));
     dbE.swap();
     dbB.swap();

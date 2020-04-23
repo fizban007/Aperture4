@@ -25,7 +25,7 @@ class field_solver_default : public system_t {
   static std::string name() { return "field_solver"; }
 
   field_solver_default(sim_environment& env, const grid_t<Conf>& grid,
-                       const domain_comm<Conf>* comm)
+                       const domain_comm<Conf>* comm = nullptr)
       : system_t(env), m_grid(grid), m_comm(comm) {}
 
   void init() {}

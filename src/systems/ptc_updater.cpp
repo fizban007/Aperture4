@@ -7,19 +7,21 @@
 #include "utils/double_buffer.h"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
+#include <random>
 
 namespace Aperture {
 
 template <typename Conf>
 void
 ptc_updater<Conf>::init() {
+  m_env.params().get_value("data_interval", m_data_interval);
+  m_env.params().get_value("sort_interval", m_sort_interval);
   init_charge_mass();
 
   Etmp =
       vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
   Btmp =
       vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
-  m_env.params().get_value("data_interval", m_data_interval);
   auto pusher = m_env.params().get_as<std::string>("pusher");
 
   if (pusher == "boris") {
@@ -93,6 +95,14 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   // Send particles
   if (m_comm != nullptr) {
     m_comm->send_particles(*ptc);
+  }
+
+  // Clear guard cells
+  clear_guard_cells();
+
+  // sort at the given interval
+  if ((step % m_sort_interval) == 0) {
+    sort_particles();
   }
 }
 
@@ -425,6 +435,55 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
             }
           }
         }
+      }
+    }
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::clear_guard_cells() {
+  for (auto n : range(0, ptc->number())) {
+    uint32_t cell = ptc->cell[n];
+    if (cell == empty_cell) continue;
+    auto idx = typename Conf::idx_t(cell, m_grid.extent());
+    auto pos = idx.get_pos();
+
+    if (!m_grid.is_in_bound(pos))
+      ptc->cell[n] = empty_cell;
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::sort_particles() {
+  ptc->sort_by_cell_host(m_grid.extent().size());
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
+  auto num = ptc->number();
+  std::default_random_engine engine;
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+  for (auto idx : range(m_grid.begin(), m_grid.end())) {
+    auto pos = idx.get_pos();
+    if (m_grid.is_in_bound(pos)) {
+      for (int n = 0; n < mult; n++) {
+        uint32_t offset = num + idx.linear * mult * 2 + n * 2;
+
+        ptc->x1[offset] = ptc->x1[offset + 1] = dist(engine);
+        ptc->x2[offset] = ptc->x2[offset + 1] = dist(engine);
+        ptc->x3[offset] = ptc->x3[offset + 1] = dist(engine);
+        ptc->p1[offset] = ptc->p1[offset + 1] = 0.0;
+        ptc->p2[offset] = ptc->p2[offset + 1] = 0.0;
+        ptc->p3[offset] = ptc->p3[offset + 1] = 0.0;
+        ptc->E[offset] = ptc->E[offset + 1] = 1.0;
+        ptc->cell[offset] = ptc->cell[offset + 1] = idx.linear;
+        ptc->weight[offset] = ptc->weight[offset + 1] = weight;
+        ptc->flag[offset] = set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::electron);
+        ptc->flag[offset + 1] = set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::positron);
       }
     }
   }

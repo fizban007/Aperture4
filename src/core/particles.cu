@@ -53,7 +53,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
     // Sort the index array by key
     thrust::sort_by_key(ptr_cell, ptr_cell + m_number, ptr_idx);
     // cudaDeviceSynchronize();
-    Logger::print_debug("Finished sorting");
+    // Logger::print_debug("Finished sorting");
 
     // Move the rest of particle array using the new index
     rearrange_arrays("cell");
@@ -75,17 +75,19 @@ template <typename BufferType>
 void
 particles_base<BufferType>::append_dev(const vec_t<Pos_t, 3>& x,
                                        const vec_t<Scalar, 3>& p, uint32_t cell,
+                                       Scalar weight,
                                        uint32_t flag) {
   if (m_number == m_size) return;
   kernel_launch(
       {1, 1},
-      [x, p, cell, flag] __device__(auto ptrs, size_t pos) {
+      [x, p, cell, weight, flag] __device__(auto ptrs, size_t pos) {
         ptrs.x1[pos] = x[0];
         ptrs.x2[pos] = x[1];
         ptrs.x3[pos] = x[2];
         ptrs.p1[pos] = p[0];
         ptrs.p2[pos] = p[1];
         ptrs.p3[pos] = p[2];
+        ptrs.weight[pos] = weight;
         ptrs.cell[pos] = cell;
         ptrs.flag[pos] = flag;
       },

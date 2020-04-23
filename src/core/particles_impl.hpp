@@ -91,6 +91,7 @@ template <typename BufferType>
 void
 particles_base<BufferType>::append(const vec_t<Pos_t, 3>& x,
                                    const vec_t<Scalar, 3>& p, uint32_t cell,
+                                   Scalar weight,
                                    uint32_t flag) {
   if (m_number == m_size) return;
   this->x1[m_number] = x[0];
@@ -100,6 +101,7 @@ particles_base<BufferType>::append(const vec_t<Pos_t, 3>& x,
   this->p2[m_number] = p[1];
   this->p3[m_number] = p[2];
   this->E[m_number] = std::sqrt(1.0f + p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+  this->weight[m_number] = weight;
   this->cell[m_number] = cell;
   this->flag[m_number] = flag;
   m_number += 1;

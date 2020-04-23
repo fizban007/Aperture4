@@ -65,12 +65,14 @@ class particles_base : public BufferType {
   void append(const vec_t<Pos_t, 3>& x,
               const vec_t<Scalar, 3>& p,
               uint32_t cell,
-              uint32_t flag);
+              Scalar weight = 1.0,
+              uint32_t flag = 0);
 
   void append_dev(const vec_t<Pos_t, 3>& x,
                   const vec_t<Scalar, 3>& p,
                   uint32_t cell,
-                  uint32_t flag);
+                  Scalar weight = 1.0,
+                  uint32_t flag = 0);
 
   void copy_to_host();
   void copy_to_device();

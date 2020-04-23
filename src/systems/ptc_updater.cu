@@ -439,6 +439,40 @@ ptc_updater_cu<Conf>::move_deposit_3d(double dt, uint32_t step) {
   }
 }
 
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::clear_guard_cells() {
+  auto ext = this->m_grid.extent();
+  auto num = this->ptc->number();
+  kernel_launch([ext, num]__device__(auto ptc) {
+      auto& grid = dev_grid<Conf::dim>();
+      for (auto n : grid_stride_range(0, num)) {
+        uint32_t cell = ptc.cell[n];
+        if (cell == empty_cell) continue;
+        auto idx = typename Conf::idx_t(cell, ext);
+        auto pos = idx.get_pos();
+
+        if (!grid.is_in_bound(pos))
+          ptc.cell[n] = empty_cell;
+      }
+    }, this->ptc->dev_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::sort_particles() {
+  this->ptc->sort_by_cell_dev(this->m_grid.extent().size());
+}
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::fill_multiplicity(int n, typename Conf::value_t weight) {
+  auto num = this->ptc->number();
+  auto ext = this->m_grid.extent();
+ 
+}
+
 template class ptc_updater_cu<Config<1>>;
 template class ptc_updater_cu<Config<2>>;
 template class ptc_updater_cu<Config<3>>;

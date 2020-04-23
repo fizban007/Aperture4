@@ -30,6 +30,7 @@ class ptc_updater : public system_t {
   // Parameters for this module
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
+  uint32_t m_sort_interval = 20;
 
   // By default the maximum number of species is 8
   float m_charges[max_ptc_types];
@@ -54,6 +55,7 @@ class ptc_updater : public system_t {
   }
 
  public:
+  typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
   ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
@@ -74,6 +76,9 @@ class ptc_updater : public system_t {
   virtual void move_deposit_1d(double dt, uint32_t step);
   virtual void move_deposit_2d(double dt, uint32_t step);
   virtual void move_deposit_3d(double dt, uint32_t step);
+  virtual void clear_guard_cells();
+  virtual void sort_particles();
+  virtual void fill_multiplicity(int n, value_t weight = 1.0);
 
   void use_pusher(Pusher p) {
     m_pusher = p;
@@ -82,10 +87,12 @@ class ptc_updater : public system_t {
 
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
- private:
+ protected:
   buffer_t<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
 
  public:
+  typedef buffer_t<ndptr<Scalar, Conf::dim>> rho_ptrs_t;
+
   static std::string name() { return "ptc_updater"; }
 
   typedef ptc_updater<Conf> base_class;
@@ -106,6 +113,11 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   virtual void move_deposit_1d(double dt, uint32_t step) override;
   virtual void move_deposit_2d(double dt, uint32_t step) override;
   virtual void move_deposit_3d(double dt, uint32_t step) override;
+  virtual void clear_guard_cells() override;
+  virtual void sort_particles() override;
+  virtual void fill_multiplicity(int n, typename Conf::value_t weight = 1.0) override;
+
+  rho_ptrs_t& get_rho_ptrs() { return m_rho_ptrs; }
 };
 
 }  // namespace Aperture

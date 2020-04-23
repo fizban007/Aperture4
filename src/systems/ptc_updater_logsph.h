@@ -8,6 +8,9 @@ namespace Aperture {
 
 template <typename Conf>
 class ptc_updater_logsph_cu : public ptc_updater_cu<Conf> {
+ protected:
+  typename Conf::value_t m_compactness = 0.0;
+  typename Conf::value_t m_omega = 0.0;
  public:
   static std::string name() { return "ptc_updater"; }
 

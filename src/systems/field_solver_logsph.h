@@ -28,7 +28,7 @@ class field_solver_logsph : public field_solver_default<Conf> {
   typedef field_solver_default<Conf> base_class;
 
   field_solver_logsph(sim_environment& env, const grid_logsph_t<Conf>& grid,
-                       const domain_comm<Conf>* comm)
+                       const domain_comm<Conf>* comm = nullptr)
       : base_class(env, grid, comm) {}
 
   void init();

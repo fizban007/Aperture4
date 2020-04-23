@@ -44,6 +44,14 @@ class grid_t : public system_t, public Grid<Conf::dim> {
     return typename Conf::idx_t(lin, this->extent());
   }
 
+  inline typename Conf::idx_t begin() const {
+    return idx_at(0);
+  }
+
+  inline typename Conf::idx_t end() const {
+    return idx_at(this->extent().size());
+  }
+
 };
 
 }  // namespace Aperture

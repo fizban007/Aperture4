@@ -78,6 +78,12 @@ class data_exporter : public system_t {
                              const typename Conf::multi_array_t& array,
                              stagger_t stagger, H5File& file);
 
+  bool is_root() const {
+    if (m_comm != nullptr)
+      return m_comm->is_root();
+    else
+      return true;
+  }
   // template <typename T, int Dim>
   // void write_multi_array(const multi_array<T, Dim>& array,
   //                        const std::string& name,

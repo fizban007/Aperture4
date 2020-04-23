@@ -22,10 +22,12 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/constant_mem.cu"
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"
+    "data/curand_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver_default.cu"
     "systems/field_solver_logsph.cu"
     "systems/ptc_updater.cu"
+    "systems/ptc_updater_logsph.cu"
     )
 else()
   list(APPEND Aperture_src

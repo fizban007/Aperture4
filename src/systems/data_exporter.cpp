@@ -77,7 +77,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
                     m_fld_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
-    if (!m_xmf.is_open() && m_comm->is_root()) {
+    if (!m_xmf.is_open() && is_root()) {
       m_xmf.open(m_output_dir + "data.xmf");
     }
     write_xmf_step_header(m_xmf_buffer, time);
@@ -109,7 +109,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
     datafile.close();
 
-    if (m_comm->is_root()) {
+    if (is_root()) {
       write_xmf_step_close(m_xmf_buffer);
       write_xmf_tail(m_xmf_buffer);
 
@@ -191,7 +191,7 @@ data_exporter<Conf>::write_grid() {
 template <typename Conf>
 void
 data_exporter<Conf>::write_xmf_head(std::ofstream& fs) {
-  if (!m_comm->is_root()) return;
+  if (!is_root()) return;
   fs << "<?xml version=\"1.0\" ?>" << std::endl;
   fs << "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>" << std::endl;
   fs << "<Xdmf>" << std::endl;
@@ -204,7 +204,7 @@ data_exporter<Conf>::write_xmf_head(std::ofstream& fs) {
 template <typename Conf>
 void
 data_exporter<Conf>::write_xmf_step_header(std::string& buffer, double time) {
-  if (!m_comm->is_root()) return;
+  if (!is_root()) return;
 
   if (Conf::dim == 3) {
     m_dim_str = fmt::format("{} {} {}", m_global_ext[2], m_global_ext[1],
@@ -259,14 +259,14 @@ data_exporter<Conf>::write_xmf_step_header(std::string& buffer, double time) {
 template <typename Conf>
 void
 data_exporter<Conf>::write_xmf_step_close(std::string& buffer) {
-  if (!m_comm->is_root()) return;
+  if (!is_root()) return;
   buffer += "</Grid>\n";
 }
 
 template <typename Conf>
 void
 data_exporter<Conf>::write_xmf_tail(std::string& buffer) {
-  if (!m_comm->is_root()) return;
+  if (!is_root()) return;
   buffer += "</Grid>\n";
   buffer += "</Domain>\n";
   buffer += "</Xdmf>\n";
@@ -296,7 +296,7 @@ data_exporter<Conf>::write_grid_multiarray(const std::string &name,
 template <typename Conf>
 void
 data_exporter<Conf>::write_xmf_field_entry(std::string &buffer, int num, const std::string &name) {
-  if (m_comm->is_root()) {
+  if (is_root()) {
     m_xmf_buffer += fmt::format(
         "  <Attribute Name=\"{}\" Center=\"Node\" "
         "AttributeType=\"Scalar\">\n", name);

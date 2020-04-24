@@ -4,6 +4,7 @@
 #include "systems/ptc_updater_logsph.h"
 #include "systems/data_exporter.h"
 #include "systems/boundary_condition.hpp"
+#include "systems/initial_condition.h"
 #include <iostream>
 
 using namespace std;
@@ -18,38 +19,17 @@ main(int argc, char *argv[]) {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_logsph_t<Conf>>(env);
-  // auto solver =
-  //     env.register_system<field_solver_logsph<Conf>>(env, *grid);
-  auto pusher =
-      env.register_system<ptc_updater_logsph_cu<Conf>>(env, *grid);
+  // auto pusher =
+  //     env.register_system<ptc_updater_logsph_cu<Conf>>(env, *grid);
+  auto solver =
+      env.register_system<field_solver_logsph<Conf>>(env, *grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
+  // auto ic = env.register_system<initial_condition<Conf>>(env, *grid, 2, 1.0);
 
   env.init();
 
-  // Set initial condition
-  vector_field<Conf> *B, *B0;
-  particle_data_t *ptc;
-  env.get_data("B", &B);
-  env.get_data("particles", &ptc);
-  // env.get_data("B0", &B0);
-
-  double Bp = 10000.0;
-
-  B->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
-    Scalar r = std::exp(x);
-    // return Bp / (r * r);
-    return Bp * 2.0 * cos(theta) / cube(r);
-  });
-  B->set_values(1, [Bp](Scalar x, Scalar theta, Scalar phi) {
-    Scalar r = std::exp(x);
-    // return Bp / (r * r);
-    return Bp * sin(theta) / cube(r);
-  });
-  ptc->append_dev({0.0f, 0.0f, 0.0f},
-                  {10.0f, 0.0f, 0.0f},
-                  grid->get_idx(10, 100).linear);
-  // B0->copy_from(*B);
+  set_initial_condition(env, *grid, 0, 1.0, 1000.0);
 
   env.run();
   return 0;

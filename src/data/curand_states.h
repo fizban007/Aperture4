@@ -10,8 +10,6 @@
 
 namespace Aperture {
 
-class sim_environment;
-
 // Helper struct to plug into kernels
 struct cuda_rng_t {
   HOST_DEVICE cuda_rng_t(curandState* state) : m_state(state) {
@@ -33,16 +31,24 @@ struct cuda_rng_t {
 class curand_states_t : public data_t {
  private:
   buffer_t<curandState> m_states;
-  sim_environment& m_env;
   int m_init_seed = 1234;
   int m_rand_state_size = sizeof(curandState);
 
  public:
-  curand_states_t(sim_environment& env, size_t size);
+  curand_states_t(size_t size, int seed);
   void init() override;
 
   inline curandState* states() { return m_states.dev_ptr(); }
+  inline void* states_host() { return m_states.host_ptr(); }
 };
+
+}
+
+#else
+
+namespace Aperture {
+
+class curand_states_t : public data_t {};
 
 }
 

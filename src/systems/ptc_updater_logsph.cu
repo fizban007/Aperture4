@@ -17,12 +17,20 @@ process_j_rho(vector_field<Conf>& j,
         auto& grid = dev_grid<Conf::dim>();
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto w = grid.delta[0] * grid.delta[1] / dt;
-          j[0][idx] *= w / gp.Ae[0][idx];
-          j[1][idx] *= w / gp.Ae[1][idx];
-          j[2][idx] /= gp.dV[idx];
-          for (int n = 0; n < num_species; n++) {
-            rho[n][idx] /= gp.dV[idx];
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto w = grid.delta[0] * grid.delta[1] / dt;
+            j[0][idx] *= w / gp.Ae[0][idx];
+            j[1][idx] *= w / gp.Ae[1][idx];
+            j[2][idx] /= gp.dV[idx];
+            for (int n = 0; n < num_species; n++) {
+              rho[n][idx] /= gp.dV[idx];
+            }
+          }
+          Scalar theta = grid.template pos<1>(pos[1], true);
+          if (std::abs(theta) < 0.1 * grid.delta[1]) {
+            j[1][idx] = 0.0;
+            j[2][idx] = 0.0;
           }
         }
       },
@@ -79,7 +87,7 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
             value_t exp_r1 = std::exp(r1);
             value_t r2 = grid.template pos<1>(pos[1], x2);
 
-            printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3, gamma);
+            // printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3, gamma);
 
             v1 /= gamma;
             v2 /= gamma;
@@ -113,6 +121,10 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
             auto new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
             int dc1 = std::floor(new_x1);
             int dc2 = std::floor(new_x2);
+#ifndef NDEBUG
+            if (dc1 > 1 || dc1 < -1 || dc2 > 1 || dc2 < -1)
+              printf("----------------- Error: moved more than 1 cell!");
+#endif
             // reflect around the axis
             if (pos[1] <= grid.guard[1] ||
                 pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
@@ -120,14 +132,14 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
               if (theta < 0.0f) {
                 dc2 += 1;
                 new_x2 = 1.0f - new_x2;
-                ptc.p2[n] *= -1.0;
-                // ptc.p3[idx] *= -1.0;
+                ptc.p2[n] *= -1.0f;
+                ptc.p3[n] *= -1.0f;
               }
               if (theta >= M_PI) {
                 dc2 -= 1;
                 new_x2 = 1.0f - new_x2;
-                ptc.p2[n] *= -1.0;
-                // ptc.p3[idx] *= -1.0;
+                ptc.p2[n] *= -1.0f;
+                ptc.p3[n] *= -1.0f;
               }
             }
             pos[0] += dc1;

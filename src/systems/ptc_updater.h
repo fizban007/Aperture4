@@ -4,6 +4,7 @@
 #include "algorithms/pushers.hpp"
 #include "core/enum_types.h"
 #include "data/particle_data.h"
+#include "data/curand_states.h"
 #include "framework/environment.hpp"
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
@@ -89,6 +90,7 @@ template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
  protected:
   buffer_t<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
+  curand_states_t* m_rand_states;
 
  public:
   typedef buffer_t<ndptr<Scalar, Conf::dim>> rho_ptrs_t;

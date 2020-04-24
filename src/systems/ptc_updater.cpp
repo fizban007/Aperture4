@@ -63,11 +63,11 @@ void
 ptc_updater<Conf>::push_default(double dt, bool resample_field) {
   // dispatch according to enum
   if (m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt, true);
+    push<boris_pusher>(dt, resample_field);
   } else if (m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt, true);
+    push<vay_pusher>(dt, resample_field);
   } else if (m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt, true);
+    push<higuera_pusher>(dt, resample_field);
   }
 }
 
@@ -75,7 +75,7 @@ template <typename Conf>
 void
 ptc_updater<Conf>::update(double dt, uint32_t step) {
   // First update particle momentum
-  push_default(dt, true);
+  push_default(dt, false);
 
   // Then move particles and deposit current
   move_and_deposit(dt, step);
@@ -115,19 +115,18 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
   auto dbE = make_double_buffer(*E, Etmp);
   auto dbB = make_double_buffer(*B, Btmp);
   if (resample_field) {
-    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(),
-             m_grid.guards(),
+    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(), m_grid.guards(),
              E->stagger(0), Etmp.stagger(0));
-    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(),
-             m_grid.guards(), E->stagger(1), Etmp.stagger(1));
-    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(),
-             m_grid.guards(), E->stagger(2), Etmp.stagger(2));
-    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(),
-             m_grid.guards(), B->stagger(0), Btmp.stagger(0));
-    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(),
-             m_grid.guards(), B->stagger(1), Btmp.stagger(1));
-    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(),
-             m_grid.guards(), B->stagger(2), Btmp.stagger(2));
+    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(), m_grid.guards(),
+             E->stagger(1), Etmp.stagger(1));
+    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(), m_grid.guards(),
+             E->stagger(2), Etmp.stagger(2));
+    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(), m_grid.guards(),
+             B->stagger(0), Btmp.stagger(0));
+    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(), m_grid.guards(),
+             B->stagger(1), Btmp.stagger(1));
+    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(), m_grid.guards(),
+             B->stagger(2), Btmp.stagger(2));
     dbE.swap();
     dbB.swap();
   }
@@ -398,8 +397,7 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
       int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
       int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-      Scalar djz[2 * spline_t::radius + 1]
-          [2 * spline_t::radius + 1] = {};
+      Scalar djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
       for (int k = k_0; k <= k_1; k++) {
         Scalar sz0 = interp(-x3 + k);
         Scalar sz1 = interp(-new_x3 + k);
@@ -425,8 +423,7 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
             // Logger::print_debug("J1 is {}", (*J)[1][offset]);
 
             // j3 is movement in x3
-            djz[j - j_0][i - i_0] +=
-                movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
+            djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
             (*J)[2][offset] += -weight * djz[j - j_0][i - i_0];
 
             // rho is deposited at the final position
@@ -449,8 +446,7 @@ ptc_updater<Conf>::clear_guard_cells() {
     auto idx = typename Conf::idx_t(cell, m_grid.extent());
     auto pos = idx.get_pos();
 
-    if (!m_grid.is_in_bound(pos))
-      ptc->cell[n] = empty_cell;
+    if (!m_grid.is_in_bound(pos)) ptc->cell[n] = empty_cell;
   }
 }
 
@@ -482,11 +478,14 @@ ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
         ptc->E[offset] = ptc->E[offset + 1] = 1.0;
         ptc->cell[offset] = ptc->cell[offset + 1] = idx.linear;
         ptc->weight[offset] = ptc->weight[offset + 1] = weight;
-        ptc->flag[offset] = set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::electron);
-        ptc->flag[offset + 1] = set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::positron);
+        ptc->flag[offset] =
+            set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::electron);
+        ptc->flag[offset + 1] =
+            set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::positron);
       }
     }
   }
+  ptc->set_num(num + mult * 2 * m_grid.extent().size());
 }
 
 template class ptc_updater<Config<1>>;

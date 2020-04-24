@@ -1,8 +1,8 @@
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
-#include "ptc_updater.h"
 #include "helpers/ptc_update_helper.hpp"
+#include "ptc_updater.h"
 #include "utils/double_buffer.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
@@ -17,8 +17,10 @@ ptc_updater_cu<Conf>::init() {
   this->init_charge_mass();
   init_dev_charge_mass(this->m_charges, this->m_masses);
 
-  this->Etmp = vector_field<Conf>(this->m_grid, MemType::device_only);
-  this->Btmp = vector_field<Conf>(this->m_grid, MemType::device_only);
+  this->Etmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
+                                  MemType::device_only);
+  this->Btmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
+                                  MemType::device_only);
 
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);
@@ -52,6 +54,11 @@ ptc_updater_cu<Conf>::register_dependencies() {
         std::string("Rho_") + ptc_type_name(i), this->m_grid,
         field_type::vert_centered, MemType::host_device);
   }
+
+  int rand_seed = 1234;
+  this->m_env.params().get_value("rand_seed", rand_seed);
+  m_rand_states = this->m_env.template register_data<curand_states_t>(
+      "rand_states", size_t(512 * 1024), rand_seed);
 }
 
 // template <typename Conf>
@@ -72,11 +79,11 @@ void
 ptc_updater_cu<Conf>::push_default(double dt, bool resample_field) {
   // dispatch according to enum
   if (this->m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt, true);
+    push<boris_pusher>(dt, resample_field);
   } else if (this->m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt, true);
+    push<vay_pusher>(dt, resample_field);
   } else if (this->m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt, true);
+    push<higuera_pusher>(dt, resample_field);
   }
 }
 
@@ -88,26 +95,33 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   // and Btmp
   auto dbE = make_double_buffer(*(this->E), this->Etmp);
   auto dbB = make_double_buffer(*(this->B), this->Btmp);
+  auto offset = index_t<Conf::dim>{};
+  offset.set(1);
   if (resample_field) {
     resample_dev(dbE.main()[0], dbE.alt()[0],
-                 this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->E->stagger(0), this->Etmp.stagger(0));
-    resample_dev(dbE.main()[1], dbE.alt()[1], this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->E->stagger(1), this->Etmp.stagger(1));
-    resample_dev(dbE.main()[2], dbE.alt()[2], this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->E->stagger(2), this->Etmp.stagger(2));
-    resample_dev(dbB.main()[0], dbB.alt()[0], this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->B->stagger(0), this->Btmp.stagger(0));
-    resample_dev(dbB.main()[1], dbB.alt()[1], this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->B->stagger(1), this->Btmp.stagger(1));
-    resample_dev(dbB.main()[2], dbB.alt()[2], this->m_grid.guards(),
-                 this->m_grid.guards(),
-                 this->B->stagger(2), this->Btmp.stagger(2));
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards(),
+                 offset, offset, this->E->stagger(0), this->Etmp.stagger(0));
+    resample_dev(dbE.main()[1], dbE.alt()[1],
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards()
+                 offset, offset, this->E->stagger(1), this->Etmp.stagger(1));
+    resample_dev(dbE.main()[2], dbE.alt()[2],
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards(),
+                 offset, offset, this->E->stagger(2), this->Etmp.stagger(2));
+    resample_dev(dbB.main()[0], dbB.alt()[0],
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards(),
+                 offset, offset, this->B->stagger(0), this->Btmp.stagger(0));
+    resample_dev(dbB.main()[1], dbB.alt()[1],
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards()
+                 offset, offset, this->B->stagger(1), this->Btmp.stagger(1));
+    resample_dev(dbB.main()[2], dbB.alt()[2],
+                 // this->m_grid.guards(),
+                 // this->m_grid.guards(),
+                 offset, offset, this->B->stagger(2), this->Btmp.stagger(2));
     dbE.swap();
     dbB.swap();
   }
@@ -118,7 +132,7 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
 
   auto pusher_kernel = [dt, num, ext] __device__(auto ptrs, auto E, auto B,
                                                  auto pusher) {
-    for (auto n : grid_stride_range(0ul, num)) {
+    for (auto n : grid_stride_range(0, num)) {
       uint32_t cell = ptrs.cell[n];
       if (cell == empty_cell) continue;
       auto idx = E[0].idx_at(cell, ext);
@@ -132,12 +146,12 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
 
       auto x = vec_t<Pos_t, 3>(ptrs.x1[n], ptrs.x2[n], ptrs.x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(E[0], x, idx);
-      Scalar E2 = interp(E[1], x, idx);
-      Scalar E3 = interp(E[2], x, idx);
-      Scalar B1 = interp(B[0], x, idx);
-      Scalar B2 = interp(B[1], x, idx);
-      Scalar B3 = interp(B[2], x, idx);
+      Scalar E1 = interp(E[0], x, idx, stagger_t(0b110));
+      Scalar E2 = interp(E[1], x, idx, stagger_t(0b101));
+      Scalar E3 = interp(E[2], x, idx, stagger_t(0b011));
+      Scalar B1 = interp(B[0], x, idx, stagger_t(0b001));
+      Scalar B2 = interp(B[1], x, idx, stagger_t(0b010));
+      Scalar B3 = interp(B[2], x, idx, stagger_t(0b100));
 
       //  Push particles
       Scalar p1 = ptrs.p1[n], p2 = ptrs.p2[n], p3 = ptrs.p3[n],
@@ -321,8 +335,8 @@ ptc_updater_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
                 atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
 
                 // j3 is simply v3 times rho at center
-                atomicAdd(&J[2][offset], weight * v3 *
-                          center2d(sx0, sx1, sy0, sy1));
+                atomicAdd(&J[2][offset],
+                          weight * v3 * center2d(sx0, sx1, sy0, sy1));
 
                 // rho is deposited at the final position
                 if ((step + 1) % data_interval == 0) {
@@ -444,18 +458,19 @@ void
 ptc_updater_cu<Conf>::clear_guard_cells() {
   auto ext = this->m_grid.extent();
   auto num = this->ptc->number();
-  kernel_launch([ext, num]__device__(auto ptc) {
-      auto& grid = dev_grid<Conf::dim>();
-      for (auto n : grid_stride_range(0, num)) {
-        uint32_t cell = ptc.cell[n];
-        if (cell == empty_cell) continue;
-        auto idx = typename Conf::idx_t(cell, ext);
-        auto pos = idx.get_pos();
+  kernel_launch(
+      [ext, num] __device__(auto ptc) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n : grid_stride_range(0, num)) {
+          uint32_t cell = ptc.cell[n];
+          if (cell == empty_cell) continue;
+          auto idx = typename Conf::idx_t(cell, ext);
+          auto pos = idx.get_pos();
 
-        if (!grid.is_in_bound(pos))
-          ptc.cell[n] = empty_cell;
-      }
-    }, this->ptc->dev_ptrs());
+          if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
+        }
+      },
+      this->ptc->dev_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -467,10 +482,44 @@ ptc_updater_cu<Conf>::sort_particles() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::fill_multiplicity(int n, typename Conf::value_t weight) {
+ptc_updater_cu<Conf>::fill_multiplicity(int mult,
+                                        typename Conf::value_t weight) {
   auto num = this->ptc->number();
-  auto ext = this->m_grid.extent();
- 
+  using idx_t = typename Conf::idx_t;
+
+  kernel_launch(
+      [num, mult, weight] __device__(auto ptc, auto states) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        cuda_rng_t rng(&states[id]);
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            for (int i = 0; i < mult; i++) {
+              uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+
+              ptc.x1[offset] = ptc.x1[offset + 1] = rng();
+              ptc.x2[offset] = ptc.x2[offset + 1] = rng();
+              ptc.x3[offset] = ptc.x3[offset + 1] = rng();
+              ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
+              ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
+              ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
+              ptc.E[offset] = ptc.E[offset + 1] = 1.0;
+              ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
+              ptc.weight[offset] = ptc.weight[offset + 1] = weight;
+              ptc.flag[offset] = set_ptc_type_flag(bit_or(PtcFlag::primary),
+                                                   PtcType::electron);
+              ptc.flag[offset + 1] = set_ptc_type_flag(bit_or(PtcFlag::primary),
+                                                       PtcType::positron);
+            }
+          }
+        }
+      },
+      this->ptc->dev_ptrs(), m_rand_states->states());
+  CudaSafeCall(cudaDeviceSynchronize());
+  this->ptc->set_num(num + mult * 2 * this->m_grid.extent().size());
 }
 
 template class ptc_updater_cu<Config<1>>;

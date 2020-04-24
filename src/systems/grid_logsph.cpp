@@ -96,8 +96,11 @@ grid_logsph_t<Conf>::compute_coef() {
 
       m_Ab[0][idx] =
           rs * rs * (std::cos(x2s) - std::cos(x2s + this->delta[1]));
-      m_Ab[1][idx] =
-          (A2(rs_plus, r_g) - A2(rs, r_g)) * std::sin(x2s);
+      if (std::abs(x2s) > TINY && std::abs(x2s - M_PI) > 0.1 * this->delta[1])
+        m_Ab[1][idx] =
+            (A2(rs_plus, r_g) - A2(rs, r_g)) * std::sin(x2s);
+      else
+        m_Ab[1][idx] = TINY;
       m_Ab[2][idx] =
           (A2(rs_plus, r_g) - A2(rs, r_g)) * this->delta[1];
 

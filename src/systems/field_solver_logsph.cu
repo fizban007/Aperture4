@@ -548,7 +548,7 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   m_bnew->copy_from(*m_tmp_b1);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
   auto buffer = make_double_buffer(*m_tmp_b1, *m_tmp_b2);
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 6; i++) {
     compute_double_circ(buffer.alt(), buffer.main(), grid,
                         -beta * beta * dt * dt);
 

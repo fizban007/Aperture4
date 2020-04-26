@@ -2,6 +2,9 @@
 #include "cpptoml.h"
 #include <memory>
 #include <variant>
+#include <boost/filesystem.hpp>
+
+namespace fs = boost::filesystem;
 
 namespace Aperture {
 
@@ -14,6 +17,11 @@ class params_store::params_store_impl {
  public:
   void parse(const std::string& filename) {
     // parse_config(filename, m_params);
+    fs::path config_path(filename);
+    if (!fs::exists(config_path)) {
+      Logger::print_info("Config file not found, using all defaults!");
+      return;
+    }
     Logger::print_debug("=== Begin parsing parameter file ===");
     auto table = cpptoml::parse_file(filename);
     read_table(*table, m_param_map);

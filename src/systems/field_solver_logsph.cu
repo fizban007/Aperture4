@@ -515,8 +515,6 @@ field_solver_logsph<Conf>::update_explicit(double dt, double time) {
   // Communicate E guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
-  // TODO: Compute divE and divB
-
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
   compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);

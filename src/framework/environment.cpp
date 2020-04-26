@@ -1,5 +1,6 @@
 #include "environment.hpp"
 #include "cxxopts.hpp"
+#include "utils/timer.h"
 #include <algorithm>
 #include <iostream>
 #include <mpi.h>
@@ -93,7 +94,9 @@ sim_environment::run() {
   for (; step < max_steps; step++) {
     Logger::print_info("=== Time step {}", step);
     for (auto& name : m_system_order) {
+      timer::stamp();
       m_system_map[name]->update(dt, step);
+      timer::show_duration_since_stamp(name, "us");
     }
     time += dt;
   }

@@ -96,7 +96,10 @@ sim_environment::run() {
     for (auto& name : m_system_order) {
       timer::stamp();
       m_system_map[name]->update(dt, step);
-      timer::show_duration_since_stamp(name, "us");
+      float time_spent = timer::get_duration_since_stamp("ms");
+      if (time_spent > 1.0f)
+        Logger::print_info("Time for {} is {}ms", name, time_spent);
+      // timer::show_duration_since_stamp(name, "us");
     }
     time += dt;
   }

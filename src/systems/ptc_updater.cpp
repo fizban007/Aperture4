@@ -18,10 +18,10 @@ ptc_updater<Conf>::init() {
   m_env.params().get_value("sort_interval", m_sort_interval);
   init_charge_mass();
 
-  Etmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::edge_centered,
-                                              MemType::host_only);
-  Btmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::face_centered,
-                                              MemType::host_only);
+  // Etmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::edge_centered,
+  //                                             MemType::host_only);
+  // Btmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::face_centered,
+  //                                             MemType::host_only);
   auto pusher = m_env.params().get_as<std::string>("pusher");
 
   if (pusher == "boris") {
@@ -44,14 +44,16 @@ ptc_updater<Conf>::register_dependencies() {
 
   E = m_env.register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, MemType::host_only);
+  Edelta = m_env.register_data<vector_field<Conf>>(
+      "Edelta", m_grid, field_type::edge_centered, MemType::host_only);
   E0 = m_env.register_data<vector_field<Conf>>(
       "E0", m_grid, field_type::edge_centered, MemType::host_only);
-  E0->set_skip_output();
   B = m_env.register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, MemType::host_only);
+  Bdelta = m_env.register_data<vector_field<Conf>>(
+      "Bdelta", m_grid, field_type::face_centered, MemType::host_only);
   B0 = m_env.register_data<vector_field<Conf>>(
       "B0", m_grid, field_type::face_centered, MemType::host_only);
-  B0->set_skip_output();
   J = m_env.register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, MemType::host_only);
 
@@ -117,12 +119,10 @@ template <typename T>
 void
 ptc_updater<Conf>::push(double dt, bool resample_field) {
   // First add E and B to their backgrounds to get the fields particles see
-  Etmp->init();
-  Etmp->add_by(*(this->E));
-  Etmp->add_by(*(this->E0));
-  Btmp->init();
-  Btmp->add_by(*(this->B));
-  Btmp->add_by(*(this->B0));
+  E->copy_from(*(this->E0));
+  E->add_by(*(this->Edelta));
+  B->copy_from(*(this->B0));
+  B->add_by(*(this->Bdelta));
 
   auto num = ptc->number();
   auto ext = m_grid.extent();
@@ -131,7 +131,7 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
     for (auto n : range(0, num)) {
       uint32_t cell = ptc->cell[n];
       if (cell == empty_cell) continue;
-      auto idx = Etmp->at(0).idx_at(cell);
+      auto idx = E->at(0).idx_at(cell);
       // auto pos = idx.get_pos();
 
       auto interp = interpolator<spline_t, Conf::dim>{};
@@ -142,12 +142,12 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
 
       auto x = vec_t<Pos_t, 3>(ptc->x1[n], ptc->x2[n], ptc->x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(Etmp->at(0), x, idx, stagger_t(0b110));
-      Scalar E2 = interp(Etmp->at(1), x, idx, stagger_t(0b101));
-      Scalar E3 = interp(Etmp->at(2), x, idx, stagger_t(0b011));
-      Scalar B1 = interp(Btmp->at(0), x, idx, stagger_t(0b001));
-      Scalar B2 = interp(Btmp->at(1), x, idx, stagger_t(0b010));
-      Scalar B3 = interp(Btmp->at(2), x, idx, stagger_t(0b100));
+      Scalar E1 = interp(E->at(0), x, idx, stagger_t(0b110));
+      Scalar E2 = interp(E->at(1), x, idx, stagger_t(0b101));
+      Scalar E3 = interp(E->at(2), x, idx, stagger_t(0b011));
+      Scalar B1 = interp(B->at(0), x, idx, stagger_t(0b001));
+      Scalar B2 = interp(B->at(1), x, idx, stagger_t(0b010));
+      Scalar B3 = interp(B->at(2), x, idx, stagger_t(0b100));
 
       // Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
       //                     E1, E2, E3, B1, B2, B3);

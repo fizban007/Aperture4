@@ -44,6 +44,7 @@ class domain_comm : public system_t {
 
   domain_comm(sim_environment& env);
   bool is_root() const { return m_rank == 0; }
+  int size() const { return m_size; }
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;

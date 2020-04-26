@@ -21,10 +21,10 @@ ptc_updater_cu<Conf>::init() {
   //                                 MemType::device_only);
   // this->Btmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
   //                                 MemType::device_only);
-  this->Etmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered,
-                                              MemType::device_only);
-  this->Btmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered,
-                                              MemType::device_only);
+  // this->Etmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered,
+  //                                             MemType::device_only);
+  // this->Btmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered,
+  //                                             MemType::device_only);
 
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);
@@ -46,14 +46,16 @@ ptc_updater_cu<Conf>::register_dependencies() {
 
   this->E = this->m_env.template register_data<vector_field<Conf>>(
       "E", this->m_grid, field_type::edge_centered, MemType::host_device);
+  this->Edelta = this->m_env.template register_data<vector_field<Conf>>(
+      "Edelta", this->m_grid, field_type::edge_centered, MemType::host_device);
   this->E0 = this->m_env.template register_data<vector_field<Conf>>(
       "E0", this->m_grid, field_type::edge_centered, MemType::host_device);
-  this->E0->set_skip_output();
   this->B = this->m_env.template register_data<vector_field<Conf>>(
       "B", this->m_grid, field_type::face_centered, MemType::host_device);
+  this->Bdelta = this->m_env.template register_data<vector_field<Conf>>(
+      "Bdelta", this->m_grid, field_type::face_centered, MemType::host_device);
   this->B0 = this->m_env.template register_data<vector_field<Conf>>(
       "B0", this->m_grid, field_type::face_centered, MemType::host_device);
-  this->B0->set_skip_output();
   this->J = this->m_env.template register_data<vector_field<Conf>>(
       "J", this->m_grid, field_type::edge_centered, MemType::host_device);
 
@@ -102,12 +104,12 @@ template <typename P>
 void
 ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   // First add E and B to their backgrounds to get the fields particles see
-  this->Etmp->init();
-  this->Etmp->add_by(*(this->E));
-  this->Etmp->add_by(*(this->E0));
-  this->Btmp->init();
-  this->Btmp->add_by(*(this->B));
-  this->Btmp->add_by(*(this->B0));
+  this->E->init();
+  this->E->add_by(*(this->Edelta));
+  this->E->add_by(*(this->E0));
+  this->B->init();
+  this->B->add_by(*(this->Bdelta));
+  this->B->add_by(*(this->B0));
 
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
@@ -164,8 +166,8 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   };
 
   if (num > 0) {
-    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->Etmp->get_ptrs(),
-                  this->Btmp->get_ptrs(), pusher);
+    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
+                  this->B->get_ptrs(), pusher);
   }
 }
 

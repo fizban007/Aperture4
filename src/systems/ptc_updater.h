@@ -23,10 +23,10 @@ class ptc_updater : public system_t {
   typedef bspline<1> spline_t;
 
   particle_data_t* ptc;
-  vector_field<Conf> *E, *B, *E0, *B0, *J;
+  vector_field<Conf> *E, *B, *Edelta, *Bdelta, *E0, *B0, *J;
   std::vector<scalar_field<Conf>*> Rho;
 
-  std::unique_ptr<vector_field<Conf>> Etmp, Btmp;
+  // std::unique_ptr<vector_field<Conf>> Etmp, Btmp;
 
   // Parameters for this module
   uint32_t m_num_species = 2;

@@ -32,8 +32,8 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
 
   // Obtain the output grid
   for (int i = 0; i < Conf::dim; i++) {
-    m_output_grid.dims[i] = m_grid.reduced_dim(i) / m_downsample +
-        2 * m_grid.guard[i];
+    m_output_grid.dims[i] =
+        m_grid.reduced_dim(i) / m_downsample + 2 * m_grid.guard[i];
     m_output_grid.offset[i] = m_grid.offset[i] / m_downsample;
   }
   tmp_grid_data.resize(m_output_grid.extent_less());
@@ -70,18 +70,47 @@ data_exporter<Conf>::init() {
 template <typename Conf>
 void
 data_exporter<Conf>::register_dependencies() {
+  // tmp_E = m_env.register_data<vector_field<Conf>>("E_output", m_output_grid,
+  //                                                 field_type::vert_centered);
+  // tmp_B = m_env.register_data<vector_field<Conf>>("B_output", m_output_grid,
+  //                                                 field_type::vert_centered);
+  m_env.get_data("E", &E);
+  m_env.get_data("B", &B);
+  m_env.get_data("Edelta", &Edelta);
+  m_env.get_data("Bdelta", &Bdelta);
+  m_env.get_data("E0", &E0);
+  m_env.get_data("B0", &B0);
+  if (Edelta != nullptr) Edelta->set_skip_output();
+  if (Bdelta != nullptr) Bdelta->set_skip_output();
+  if (E0 != nullptr) E0->set_skip_output();
+  if (B0 != nullptr) B0->set_skip_output();
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::add_E_B() {
+  if (E != nullptr && E0 != nullptr && Edelta != nullptr) {
+    E->copy_from(*E0);
+    E->add_by(*Edelta);
+  }
+  if (B != nullptr && B0 != nullptr && Bdelta != nullptr) {
+    B->copy_from(*B0);
+    B->add_by(*Bdelta);
+  }
 }
 
 template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   if (step % m_fld_output_interval == 0) {
+    // Add E,B delta with their background fields
+    add_E_B();
+
     double time = m_env.get_time();
 
     // Output downsampled fields!
     std::string filename =
-        fmt::format("{}fld.{:05d}.h5", m_output_dir,
-                    m_fld_num);
+        fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
     if (!m_xmf.is_open() && is_root()) {
@@ -100,16 +129,14 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         // Vector field has 3 components
         for (int i = 0; i < 3; i++) {
           std::string name = it.first + std::to_string(i + 1);
-          write_grid_multiarray(name, ptr->at(i),
-                                ptr->stagger(i), datafile);
+          write_grid_multiarray(name, ptr->at(i), ptr->stagger(i), datafile);
           write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
         }
       } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
         // Scalar field only has one component
         std::string name = it.first;
-        write_grid_multiarray(name, ptr->at(0),
-                              ptr->stagger(0), datafile);
+        write_grid_multiarray(name, ptr->at(0), ptr->stagger(0), datafile);
         write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
       }
     }
@@ -154,8 +181,7 @@ data_exporter<Conf>::copy_config_file() {
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
-    fs::copy_file(
-        conf_file, path, fs::copy_option::overwrite_if_exists);
+    fs::copy_file(conf_file, path, fs::copy_option::overwrite_if_exists);
   }
 }
 
@@ -163,13 +189,15 @@ template <typename Conf>
 void
 data_exporter<Conf>::write_grid() {
   std::string meshfilename = m_output_dir + "grid.h5";
-  H5File meshfile =
-      hdf_create(meshfilename, H5CreateMode::trunc_parallel);
+  H5File meshfile = hdf_create(meshfilename, H5CreateMode::trunc_parallel);
 
   // std::vector<float> x1_array(out_ext.x);
-  multi_array<float, Conf::dim> x1_array(m_output_grid.extent_less(), MemType::host_only);
-  multi_array<float, Conf::dim> x2_array(m_output_grid.extent_less(), MemType::host_only);
-  multi_array<float, Conf::dim> x3_array(m_output_grid.extent_less(), MemType::host_only);
+  multi_array<float, Conf::dim> x1_array(m_output_grid.extent_less(),
+                                         MemType::host_only);
+  multi_array<float, Conf::dim> x2_array(m_output_grid.extent_less(),
+                                         MemType::host_only);
+  multi_array<float, Conf::dim> x3_array(m_output_grid.extent_less(),
+                                         MemType::host_only);
 
   // All data output points are cell centers
   for (auto idx : x1_array.indices()) {
@@ -177,20 +205,24 @@ data_exporter<Conf>::write_grid() {
     auto x = m_grid.cart_coord(p);
 
     x1_array[idx] = x[0];
-    if constexpr (Conf::dim > 1)
-      x2_array[idx] = x[1];
-    if constexpr (Conf::dim > 2)
-      x3_array[idx] = x[2];
+    if constexpr (Conf::dim > 1) x2_array[idx] = x[1];
+    if constexpr (Conf::dim > 2) x3_array[idx] = x[2];
   }
 
-  meshfile.write_parallel(x1_array, m_global_ext, m_output_grid.offsets(),
-                          m_output_grid.extent_less(), index_t<Conf::dim>{}, "x1");
+  write_multi_array_helper("x1", x1_array, m_global_ext, m_output_grid.offsets(), meshfile);
+  // meshfile.write_parallel(x1_array, m_global_ext, m_output_grid.offsets(),
+  //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
+  //                         "x1");
   if constexpr (Conf::dim > 1)
-    meshfile.write_parallel(x2_array, m_global_ext, m_output_grid.offsets(),
-                            m_output_grid.extent_less(), index_t<Conf::dim>{}, "x2");
+    write_multi_array_helper("x2", x2_array, m_global_ext, m_output_grid.offsets(), meshfile);
+    // meshfile.write_parallel(x2_array, m_global_ext, m_output_grid.offsets(),
+    //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
+    //                         "x2");
   if constexpr (Conf::dim > 2)
-    meshfile.write_parallel(x3_array, m_global_ext, m_output_grid.offsets(),
-                            m_output_grid.extent_less(), index_t<Conf::dim>{}, "x3");
+    write_multi_array_helper("x3", x3_array, m_global_ext, m_output_grid.offsets(), meshfile);
+    // meshfile.write_parallel(x3_array, m_global_ext, m_output_grid.offsets(),
+    //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
+    //                         "x3");
 
   meshfile.close();
 }
@@ -281,37 +313,54 @@ data_exporter<Conf>::write_xmf_tail(std::string& buffer) {
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_grid_multiarray(const std::string &name,
-                                           const typename Conf::multi_array_t &array,
-                                           stagger_t stagger, H5File &file) {
+data_exporter<Conf>::write_grid_multiarray(
+    const std::string& name, const typename Conf::multi_array_t& array,
+    stagger_t stagger, H5File& file) {
   if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-    resample_dev(array, tmp_grid_data, m_grid.guards(),
-                 index_t<Conf::dim>{},
+    resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
                  stagger, m_output_stagger, m_downsample);
     tmp_grid_data.copy_to_host();
   } else {
-    resample(array, tmp_grid_data, m_grid.guards(),
-             index_t<Conf::dim>{},
+    resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
              stagger, m_output_stagger, m_downsample);
   }
 
-  // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0], m_global_ext[1]);
-  file.write_parallel(tmp_grid_data, m_global_ext, m_output_grid.offsets(),
-                      m_output_grid.extent_less(), index_t<Conf::dim>{}, name);
+  // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0],
+  // m_global_ext[1]);
+
+  // file.write_parallel(tmp_grid_data, m_global_ext, m_output_grid.offsets(),
+  //                     m_output_grid.extent_less(), index_t<Conf::dim>{}, name);
+  write_multi_array_helper(name, tmp_grid_data, m_global_ext, m_output_grid.offsets(), file);
 }
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_xmf_field_entry(std::string &buffer, int num, const std::string &name) {
+data_exporter<Conf>::write_multi_array_helper(const std::string& name,
+                                              const typename Conf::multi_array_t& array,
+                                              const extent_t<Conf::dim>& global_ext,
+                                              const index_t<Conf::dim>& offsets,
+                                              H5File& file) {
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    file.write_parallel(array, global_ext, offsets, array.extent(), index_t<Conf::dim>{}, name);
+  } else {
+    file.write(array, name);
+  }
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
+                                           const std::string& name) {
   if (is_root()) {
     m_xmf_buffer += fmt::format(
         "  <Attribute Name=\"{}\" Center=\"Node\" "
-        "AttributeType=\"Scalar\">\n", name);
+        "AttributeType=\"Scalar\">\n",
+        name);
     m_xmf_buffer += fmt::format(
         "    <DataItem Dimensions=\"{}\" NumberType=\"Float\" "
-        "Precision=\"4\" Format=\"HDF\">\n", m_dim_str);
-    m_xmf_buffer +=
-        fmt::format("      fld.{:05d}.h5:{}\n", num, name);
+        "Precision=\"4\" Format=\"HDF\">\n",
+        m_dim_str);
+    m_xmf_buffer += fmt::format("      fld.{:05d}.h5:{}\n", num, name);
     m_xmf_buffer += "    </DataItem>\n";
     m_xmf_buffer += "  </Attribute>\n";
   }

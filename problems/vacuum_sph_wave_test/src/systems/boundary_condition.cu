@@ -38,15 +38,19 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
           e[0][idx] = e0[0][idx];
           b[1][idx] = b0[1][idx];
+          // b[1][idx] = 0.0;
           b[2][idx] = b0[2][idx];
         }
         // For quantities that are continuous across the surface
         for (int n0 = 0; n0 < grid.skirt[0] + 2; n0++) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
           value_t r = exp(grid.template pos<0>(n0, false));
-          b[0][idx] = b0[0][idx];
+          value_t rs = exp(grid.template pos<0>(n0, true));
+          // b[0][idx] = b0[0][idx];
+          b[0][idx] = 0.0;
           e[1][idx] = e0[1][idx] - omega * sin(theta_s) * r * b0[0][idx];
-          e[2][idx] = e0[2][idx];
+          // e[2][idx] = e0[2][idx] + omega * cos(theta) * rs * b0[1][idx];
+          e[2][idx] = 0.0;
         }
       }
     }, E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs());

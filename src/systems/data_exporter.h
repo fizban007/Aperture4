@@ -32,7 +32,12 @@ class data_exporter : public system_t {
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;
   grid_t<Conf> m_output_grid;
-  vector_field<Conf> *tmp_E, *tmp_B;
+  vector_field<Conf> *E = nullptr;
+  vector_field<Conf> *B = nullptr;
+  vector_field<Conf> *Edelta = nullptr;
+  vector_field<Conf> *Bdelta = nullptr;
+  vector_field<Conf> *E0 = nullptr;
+  vector_field<Conf> *B0 = nullptr;
 
   /// Sets the directory of all the data files
   std::string m_output_dir = "Data/";
@@ -49,6 +54,12 @@ class data_exporter : public system_t {
   stagger_t m_output_stagger = stagger_t(0b000);
 
   void copy_config_file();
+  void write_multi_array_helper(const std::string& name,
+                                const typename Conf::multi_array_t& array,
+                                const extent_t<Conf::dim>& global_ext,
+                                const index_t<Conf::dim>& offsets,
+                                H5File& file);
+  void add_E_B();
 
  public:
   data_exporter(sim_environment& env, const grid_t<Conf>& grid,

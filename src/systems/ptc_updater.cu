@@ -17,10 +17,14 @@ ptc_updater_cu<Conf>::init() {
   this->init_charge_mass();
   init_dev_charge_mass(this->m_charges, this->m_masses);
 
-  this->Etmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
-                                  MemType::device_only);
-  this->Btmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
-                                  MemType::device_only);
+  // this->Etmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
+  //                                 MemType::device_only);
+  // this->Btmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
+  //                                 MemType::device_only);
+  this->Etmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered,
+                                              MemType::device_only);
+  this->Btmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered,
+                                              MemType::device_only);
 
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);
@@ -42,8 +46,14 @@ ptc_updater_cu<Conf>::register_dependencies() {
 
   this->E = this->m_env.template register_data<vector_field<Conf>>(
       "E", this->m_grid, field_type::edge_centered, MemType::host_device);
+  this->E0 = this->m_env.template register_data<vector_field<Conf>>(
+      "E0", this->m_grid, field_type::edge_centered, MemType::host_device);
+  this->E0->set_skip_output();
   this->B = this->m_env.template register_data<vector_field<Conf>>(
       "B", this->m_grid, field_type::face_centered, MemType::host_device);
+  this->B0 = this->m_env.template register_data<vector_field<Conf>>(
+      "B0", this->m_grid, field_type::face_centered, MemType::host_device);
+  this->B0->set_skip_output();
   this->J = this->m_env.template register_data<vector_field<Conf>>(
       "J", this->m_grid, field_type::edge_centered, MemType::host_device);
 
@@ -91,40 +101,13 @@ template <typename Conf>
 template <typename P>
 void
 ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
-  // First interpolate E and B fields to vertices and store them in Etmp
-  // and Btmp
-  auto dbE = make_double_buffer(*(this->E), this->Etmp);
-  auto dbB = make_double_buffer(*(this->B), this->Btmp);
-  auto offset = index_t<Conf::dim>{};
-  offset.set(1);
-  if (resample_field) {
-    resample_dev(dbE.main()[0], dbE.alt()[0],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards(),
-                 offset, offset, this->E->stagger(0), this->Etmp.stagger(0));
-    resample_dev(dbE.main()[1], dbE.alt()[1],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards()
-                 offset, offset, this->E->stagger(1), this->Etmp.stagger(1));
-    resample_dev(dbE.main()[2], dbE.alt()[2],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards(),
-                 offset, offset, this->E->stagger(2), this->Etmp.stagger(2));
-    resample_dev(dbB.main()[0], dbB.alt()[0],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards(),
-                 offset, offset, this->B->stagger(0), this->Btmp.stagger(0));
-    resample_dev(dbB.main()[1], dbB.alt()[1],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards()
-                 offset, offset, this->B->stagger(1), this->Btmp.stagger(1));
-    resample_dev(dbB.main()[2], dbB.alt()[2],
-                 // this->m_grid.guards(),
-                 // this->m_grid.guards(),
-                 offset, offset, this->B->stagger(2), this->Btmp.stagger(2));
-    dbE.swap();
-    dbB.swap();
-  }
+  // First add E and B to their backgrounds to get the fields particles see
+  this->Etmp->init();
+  this->Etmp->add_by(*(this->E));
+  this->Etmp->add_by(*(this->E0));
+  this->Btmp->init();
+  this->Btmp->add_by(*(this->B));
+  this->Btmp->add_by(*(this->B0));
 
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
@@ -181,8 +164,8 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   };
 
   if (num > 0) {
-    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), dbE.main().get_ptrs(),
-                  dbB.main().get_ptrs(), pusher);
+    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->Etmp->get_ptrs(),
+                  this->Btmp->get_ptrs(), pusher);
   }
 }
 

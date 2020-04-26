@@ -18,10 +18,10 @@ ptc_updater<Conf>::init() {
   m_env.params().get_value("sort_interval", m_sort_interval);
   init_charge_mass();
 
-  Etmp =
-      vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
-  Btmp =
-      vector_field<Conf>(m_grid, field_type::vert_centered, MemType::host_only);
+  Etmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::edge_centered,
+                                              MemType::host_only);
+  Btmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::face_centered,
+                                              MemType::host_only);
   auto pusher = m_env.params().get_as<std::string>("pusher");
 
   if (pusher == "boris") {
@@ -44,8 +44,14 @@ ptc_updater<Conf>::register_dependencies() {
 
   E = m_env.register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, MemType::host_only);
+  E0 = m_env.register_data<vector_field<Conf>>(
+      "E0", m_grid, field_type::edge_centered, MemType::host_only);
+  E0->set_skip_output();
   B = m_env.register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, MemType::host_only);
+  B0 = m_env.register_data<vector_field<Conf>>(
+      "B0", m_grid, field_type::face_centered, MemType::host_only);
+  B0->set_skip_output();
   J = m_env.register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, MemType::host_only);
 
@@ -110,26 +116,13 @@ template <typename Conf>
 template <typename T>
 void
 ptc_updater<Conf>::push(double dt, bool resample_field) {
-  // First interpolate E and B fields to vertices and store them in Etmp
-  // and Btmp
-  auto dbE = make_double_buffer(*E, Etmp);
-  auto dbB = make_double_buffer(*B, Btmp);
-  if (resample_field) {
-    resample(dbE.main()[0], dbE.alt()[0], m_grid.guards(), m_grid.guards(),
-             E->stagger(0), Etmp.stagger(0));
-    resample(dbE.main()[1], dbE.alt()[1], m_grid.guards(), m_grid.guards(),
-             E->stagger(1), Etmp.stagger(1));
-    resample(dbE.main()[2], dbE.alt()[2], m_grid.guards(), m_grid.guards(),
-             E->stagger(2), Etmp.stagger(2));
-    resample(dbB.main()[0], dbB.alt()[0], m_grid.guards(), m_grid.guards(),
-             B->stagger(0), Btmp.stagger(0));
-    resample(dbB.main()[1], dbB.alt()[1], m_grid.guards(), m_grid.guards(),
-             B->stagger(1), Btmp.stagger(1));
-    resample(dbB.main()[2], dbB.alt()[2], m_grid.guards(), m_grid.guards(),
-             B->stagger(2), Btmp.stagger(2));
-    dbE.swap();
-    dbB.swap();
-  }
+  // First add E and B to their backgrounds to get the fields particles see
+  Etmp->init();
+  Etmp->add_by(*(this->E));
+  Etmp->add_by(*(this->E0));
+  Btmp->init();
+  Btmp->add_by(*(this->B));
+  Btmp->add_by(*(this->B0));
 
   auto num = ptc->number();
   auto ext = m_grid.extent();
@@ -138,7 +131,7 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
     for (auto n : range(0, num)) {
       uint32_t cell = ptc->cell[n];
       if (cell == empty_cell) continue;
-      auto idx = dbE.main()[0].idx_at(cell);
+      auto idx = Etmp->at(0).idx_at(cell);
       // auto pos = idx.get_pos();
 
       auto interp = interpolator<spline_t, Conf::dim>{};
@@ -149,12 +142,12 @@ ptc_updater<Conf>::push(double dt, bool resample_field) {
 
       auto x = vec_t<Pos_t, 3>(ptc->x1[n], ptc->x2[n], ptc->x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(dbE.main()[0], x, idx);
-      Scalar E2 = interp(dbE.main()[1], x, idx);
-      Scalar E3 = interp(dbE.main()[2], x, idx);
-      Scalar B1 = interp(dbB.main()[0], x, idx);
-      Scalar B2 = interp(dbB.main()[1], x, idx);
-      Scalar B3 = interp(dbB.main()[2], x, idx);
+      Scalar E1 = interp(Etmp->at(0), x, idx, stagger_t(0b110));
+      Scalar E2 = interp(Etmp->at(1), x, idx, stagger_t(0b101));
+      Scalar E3 = interp(Etmp->at(2), x, idx, stagger_t(0b011));
+      Scalar B1 = interp(Btmp->at(0), x, idx, stagger_t(0b001));
+      Scalar B2 = interp(Btmp->at(1), x, idx, stagger_t(0b010));
+      Scalar B3 = interp(Btmp->at(2), x, idx, stagger_t(0b100));
 
       // Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
       //                     E1, E2, E3, B1, B2, B3);

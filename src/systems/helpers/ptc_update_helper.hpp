@@ -9,7 +9,7 @@ template <typename FloatT>
 HD_INLINE FloatT
 center2d(FloatT sx0, FloatT sx1, FloatT sy0, FloatT sy1) {
   return (2.0f * sx1 * sy1 + sx0 * sy1 + sx1 * sy0 + 2.0f * sx0 * sy0) *
-         0.1666667f;
+         0.166666666667f;
 }
 
 template <typename FloatT>

@@ -14,7 +14,7 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   sim_environment env(&argc, &argv);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
+  // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_logsph_t<Conf>>(env, *comm);
@@ -27,7 +27,7 @@ main(int argc, char *argv[]) {
 
   // Set initial condition
   vector_field<Conf> *B, *B0;
-  env.get_data("B", &B);
+  env.get_data("Bdelta", &B);
   env.get_data("B0", &B0);
   if (B == nullptr)
     Logger::print_err("B is nullptr!!!");
@@ -38,11 +38,17 @@ main(int argc, char *argv[]) {
 
   double Bp = 100.0;
 
-  B->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
+  B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
     Scalar r = std::exp(x);
     return Bp / (r * r);
+    // return Bp * 2.0 * cos(theta) / (r * r * r);
   });
-  B0->copy_from(*B);
+  // B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
+  //   Scalar r = std::exp(x);
+  //   // return Bp / (r * r);
+  //   return Bp * sin(theta) / (r * r * r);
+  // });
+  // B0->copy_from(*B);
 
   env.run();
   return 0;

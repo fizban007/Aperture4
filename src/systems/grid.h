@@ -21,7 +21,10 @@ class grid_t : public system_t, public Grid<Conf::dim> {
   grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
                                    domain_info_t<Conf::dim>{});
   grid_t(sim_environment& env, const domain_comm<Conf>& comm);
+  grid_t(const grid_t<Conf>& grid) = default;
   virtual ~grid_t();
+
+  grid_t<Conf>& operator=(const grid_t<Conf>& grid) = default;
 
   // Coordinate for output position
   inline virtual vec_t<float, Conf::dim> cart_coord(const index_t<Conf::dim>& pos) const {

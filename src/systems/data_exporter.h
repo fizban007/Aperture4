@@ -2,6 +2,7 @@
 #define _DATA_EXPORTER_H_
 
 #include "core/multi_array.hpp"
+#include "data/fields.hpp"
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
 #include "systems/grid.h"
@@ -18,8 +19,8 @@ class sim_environment;
 template <typename Conf>
 class data_exporter : public system_t {
  private:
-  const domain_comm<Conf>* m_comm;
   const grid_t<Conf>& m_grid;
+  const domain_comm<Conf>* m_comm;
 
   std::ofstream m_xmf;  //!< This is the accompanying xmf file
                         //!< describing the hdf structure
@@ -30,6 +31,8 @@ class data_exporter : public system_t {
   buffer_t<double> tmp_ptc_data;
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;
+  grid_t<Conf> m_output_grid;
+  vector_field<Conf> *tmp_E, *tmp_B;
 
   /// Sets the directory of all the data files
   std::string m_output_dir = "Data/";
@@ -40,8 +43,8 @@ class data_exporter : public system_t {
   int m_fld_output_interval = 1;
   int m_snapshot_interval = 1;
   int m_downsample = 1;
-  extent_t<Conf::dim> m_local_ext;
-  index_t<Conf::dim> m_local_offset;
+  // extent_t<Conf::dim> m_local_ext;
+  // index_t<Conf::dim> m_local_offset;
   extent_t<Conf::dim> m_global_ext;
   stagger_t m_output_stagger = stagger_t(0b000);
 
@@ -54,8 +57,9 @@ class data_exporter : public system_t {
 
   static std::string name() { return "data_exporter"; }
 
-  void init();
-  void update(double time, uint32_t step);
+  void init() override;
+  void update(double time, uint32_t step) override;
+  void register_dependencies() override;
 
   void write_grid();
   void write_xmf_head(std::ofstream& fs);

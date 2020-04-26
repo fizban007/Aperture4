@@ -15,7 +15,7 @@ template <typename Conf>
 data_exporter<Conf>::data_exporter(sim_environment& env,
                                    const grid_t<Conf>& grid,
                                    const domain_comm<Conf>* comm)
-    : system_t(env), m_grid(grid), m_comm(comm) {
+    : system_t(env), m_grid(grid), m_comm(comm), m_output_grid(grid) {
   m_env.params().get_value("ptc_output_interval", m_ptc_output_interval);
   m_env.params().get_value("fld_output_interval", m_fld_output_interval);
   m_env.params().get_value("snapshot_interval", m_snapshot_interval);
@@ -30,11 +30,13 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
   tmp_ptc_data.set_memtype(MemType::host_device);
   tmp_ptc_data.resize(std::max(max_ptc_num, max_ph_num));
 
-  // Obtain the local extent and offset of the output grid
-  m_local_ext = m_grid.extent_less() / m_downsample;
-  for (int i = 0; i < Conf::dim; i++)
-    m_local_offset[i] = m_grid.offset[i] / m_downsample;
-  tmp_grid_data.resize(m_local_ext);
+  // Obtain the output grid
+  for (int i = 0; i < Conf::dim; i++) {
+    m_output_grid.dims[i] = m_grid.reduced_dim(i) / m_downsample +
+        2 * m_grid.guard[i];
+    m_output_grid.offset[i] = m_grid.offset[i] / m_downsample;
+  }
+  tmp_grid_data.resize(m_output_grid.extent_less());
 
   // Obtain the global extent of the grid
   m_env.params().get_vec_t("N", m_global_ext);
@@ -63,6 +65,11 @@ data_exporter<Conf>::init() {
 
   // Write the grid in the simulation to the output directory
   write_grid();
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::register_dependencies() {
 }
 
 template <typename Conf>
@@ -160,9 +167,9 @@ data_exporter<Conf>::write_grid() {
       hdf_create(meshfilename, H5CreateMode::trunc_parallel);
 
   // std::vector<float> x1_array(out_ext.x);
-  multi_array<float, Conf::dim> x1_array(m_local_ext, MemType::host_only);
-  multi_array<float, Conf::dim> x2_array(m_local_ext, MemType::host_only);
-  multi_array<float, Conf::dim> x3_array(m_local_ext, MemType::host_only);
+  multi_array<float, Conf::dim> x1_array(m_output_grid.extent_less(), MemType::host_only);
+  multi_array<float, Conf::dim> x2_array(m_output_grid.extent_less(), MemType::host_only);
+  multi_array<float, Conf::dim> x3_array(m_output_grid.extent_less(), MemType::host_only);
 
   // All data output points are cell centers
   for (auto idx : x1_array.indices()) {
@@ -176,14 +183,14 @@ data_exporter<Conf>::write_grid() {
       x3_array[idx] = x[2];
   }
 
-  meshfile.write_parallel(x1_array, m_global_ext, m_local_offset,
-                          m_local_ext, index_t<Conf::dim>{}, "x1");
+  meshfile.write_parallel(x1_array, m_global_ext, m_output_grid.offsets(),
+                          m_output_grid.extent_less(), index_t<Conf::dim>{}, "x1");
   if constexpr (Conf::dim > 1)
-    meshfile.write_parallel(x2_array, m_global_ext, m_local_offset,
-                            m_local_ext, index_t<Conf::dim>{}, "x2");
+    meshfile.write_parallel(x2_array, m_global_ext, m_output_grid.offsets(),
+                            m_output_grid.extent_less(), index_t<Conf::dim>{}, "x2");
   if constexpr (Conf::dim > 2)
-    meshfile.write_parallel(x3_array, m_global_ext, m_local_offset,
-                            m_local_ext, index_t<Conf::dim>{}, "x3");
+    meshfile.write_parallel(x3_array, m_global_ext, m_output_grid.offsets(),
+                            m_output_grid.extent_less(), index_t<Conf::dim>{}, "x3");
 
   meshfile.close();
 }
@@ -289,8 +296,8 @@ data_exporter<Conf>::write_grid_multiarray(const std::string &name,
   }
 
   // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0], m_global_ext[1]);
-  file.write_parallel(tmp_grid_data, m_global_ext, m_local_offset,
-                      m_local_ext, index_t<Conf::dim>{}, name);
+  file.write_parallel(tmp_grid_data, m_global_ext, m_output_grid.offsets(),
+                      m_output_grid.extent_less(), index_t<Conf::dim>{}, name);
 }
 
 template <typename Conf>

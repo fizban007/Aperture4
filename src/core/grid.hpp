@@ -27,6 +27,9 @@ struct Grid {
   int offset[Dim];
 
   HOST_DEVICE Grid() = default;
+  HOST_DEVICE Grid(const Grid& grid) = default;
+
+  HOST_DEVICE Grid& operator=(const Grid& grid) = default;
 
   ///  Reduced dimension in one direction.
   ///
@@ -189,6 +192,15 @@ struct Grid {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
       result[i] = guard[i];
+    }
+    return result;
+  }
+
+  HD_INLINE index_t<Dim> offsets() const {
+    index_t<Dim> result;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      result[i] = offset[i];
     }
     return result;
   }

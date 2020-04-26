@@ -143,8 +143,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
             auto idx_pxmy = idx.inc_x().dec_y();
             result[0][idx] =
                 coef *
-                (gp.le[2][idx] *
-                     circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
+                (gp.le[2][idx] * circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                      gp.Ae[2][idx] -
                  gp.le[2][idx_py] *
                      circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) /
@@ -156,8 +155,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                 (gp.le[2][idx_px] *
                      circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) /
                      gp.Ae[2][idx_px] -
-                 gp.le[2][idx] *
-                     circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
+                 gp.le[2][idx] * circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                      gp.Ae[2][idx]) /
                 gp.Ab[1][idx];
             // Take care of axis boundary
@@ -166,20 +164,15 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
               result[1][idx] = 0.0f;
             }
 
-            result[2][idx] = coef *
-                             (gp.le[0][idx_py] *
-                                  circ0(b, gp.lb, idx, idx_py) /
-                                  gp.Ae[0][idx_py] -
-                              gp.le[0][idx] *
-                                  circ0(b, gp.lb, idx_my, idx) /
-                                  gp.Ae[0][idx] +
-                              gp.le[1][idx] *
-                                  circ1(b, gp.lb, idx_mx, idx) /
-                                  gp.Ae[1][idx] -
-                              gp.le[1][idx_px] *
-                                  circ1(b, gp.lb, idx, idx_px) /
-                                  gp.Ae[1][idx_px]) /
-                             gp.Ab[2][idx];
+            result[2][idx] =
+                coef *
+                (gp.le[0][idx_py] * circ0(b, gp.lb, idx, idx_py) /
+                     gp.Ae[0][idx_py] -
+                 gp.le[0][idx] * circ0(b, gp.lb, idx_my, idx) / gp.Ae[0][idx] +
+                 gp.le[1][idx] * circ1(b, gp.lb, idx_mx, idx) / gp.Ae[1][idx] -
+                 gp.le[1][idx_px] * circ1(b, gp.lb, idx, idx_px) /
+                     gp.Ae[1][idx_px]) /
+                gp.Ab[2][idx];
           }
         }
       },
@@ -205,20 +198,18 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             auto idx_py = idx.inc_y();
-            result[0][idx] +=
-                -dt *
-                ((alpha + beta) * (circ0(e, gp.le, idx, idx_py) -
-                                   circ0(e0, gp.le, idx, idx_py)) -
-                 dt * beta * circ0(j, gp.le, idx, idx_py)) /
-                gp.Ab[0][idx];
+            result[0][idx] += -dt *
+                              ((circ0(e, gp.le, idx, idx_py) -
+                                circ0(e0, gp.le, idx, idx_py)) -
+                               dt * beta * circ0(j, gp.le, idx, idx_py)) /
+                              gp.Ab[0][idx];
 
             auto idx_px = idx.inc_x();
-            result[1][idx] +=
-                -dt *
-                ((alpha + beta) * (circ1(e, gp.le, idx, idx_px) -
-                                   circ1(e0, gp.le, idx, idx_px)) -
-                 dt * beta * circ1(j, gp.le, idx, idx_px)) /
-                gp.Ab[1][idx];
+            result[1][idx] += -dt *
+                              ((circ1(e, gp.le, idx, idx_px) -
+                                circ1(e0, gp.le, idx, idx_px)) -
+                               dt * beta * circ1(j, gp.le, idx, idx_px)) /
+                              gp.Ab[1][idx];
 
             // Take care of axis boundary
             Scalar theta = grid.template pos<1>(pos[1], true);
@@ -228,8 +219,8 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
 
             result[2][idx] +=
                 -dt *
-                ((alpha + beta) * (circ2(e, gp.le, idx, idx, idx_px, idx_py) -
-                                   circ2(e0, gp.le, idx, idx, idx_px, idx_py)) -
+                ((circ2(e, gp.le, idx, idx, idx_px, idx_py) -
+                  circ2(e0, gp.le, idx, idx, idx_px, idx_py)) -
                  dt * beta * circ2(j, gp.le, idx, idx, idx_px, idx_py)) /
                 gp.Ab[2][idx];
           }
@@ -237,6 +228,52 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
       },
       result.get_ptrs(), e.get_ptrs(), e0.get_ptrs(), j.get_ptrs(),
       grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
+compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
+                     const vector_field<Conf>& j,
+                     const grid_logsph_t<Conf>& grid,
+                     typename Conf::value_t alpha, typename Conf::value_t beta,
+                     typename Conf::value_t dt) {
+  auto ext = grid.extent();
+  kernel_launch(
+      [alpha, beta, dt, ext] __device__(auto result, auto e, auto j, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        // gp is short for grid_ptrs
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = result[0].idx_at(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto idx_py = idx.inc_y();
+            result[0][idx] += -dt *
+                              (circ0(e, gp.le, idx, idx_py) -
+                               dt * beta * circ0(j, gp.le, idx, idx_py)) /
+                              gp.Ab[0][idx];
+
+            auto idx_px = idx.inc_x();
+            result[1][idx] += -dt *
+                              (circ1(e, gp.le, idx, idx_px) -
+                               dt * beta * circ1(j, gp.le, idx, idx_px)) /
+                              gp.Ab[1][idx];
+
+            // Take care of axis boundary
+            Scalar theta = grid.template pos<1>(pos[1], true);
+            if (abs(theta) < 0.1 * grid.delta[1]) {
+              result[1][idx] = 0.0f;
+            }
+
+            result[2][idx] +=
+                -dt *
+                (circ2(e, gp.le, idx, idx, idx_px, idx_py) -
+                 dt * beta * circ2(j, gp.le, idx, idx, idx_px, idx_py)) /
+                gp.Ab[2][idx];
+          }
+        }
+      },
+      result.get_ptrs(), e.get_ptrs(), j.get_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -280,9 +317,11 @@ compute_e_update_explicit(vector_field<Conf>& result,
               result[2][idx] = 0.0f;
             }
             // if (pos[0] == 513 && pos[1] == 256) {
-            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n", b[0][idx_my], b[0][idx], b[0][idx.inc_y()],
+            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n",
+            //   b[0][idx_my], b[0][idx], b[0][idx.inc_y()],
             //          b[1][idx_mx], b[1][idx], b[1][idx.inc_x()]);
-            //   printf("Ephi is %f, circ2_b is %f, circ2_b0 is %f, jphi is %f\n", result[2][idx],
+            //   printf("Ephi is %f, circ2_b is %f, circ2_b0 is %f, jphi is
+            //   %f\n", result[2][idx],
             //          circ2(b, gp.lb, idx_mx, idx_my, idx, idx),
             //          circ2(b0, gp.lb, idx_mx, idx_my, idx, idx),
             //          j[2][idx]);
@@ -301,6 +340,62 @@ compute_e_update_explicit(vector_field<Conf>& result,
       },
       result.get_ptrs(), b.get_ptrs(), b0.get_ptrs(), j.get_ptrs(),
       grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
+compute_e_update_explicit(vector_field<Conf>& result,
+                          const vector_field<Conf>& b,
+                          const vector_field<Conf>& j,
+                          const grid_logsph_t<Conf>& grid,
+                          typename Conf::value_t dt) {
+  auto ext = grid.extent();
+  kernel_launch(
+      [dt, ext] __device__(auto result, auto b, auto j, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        // gp is short for grid_ptrs
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = result[0].idx_at(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto idx_my = idx.dec_y();
+            result[0][idx] +=
+                dt * (circ0(b, gp.lb, idx_my, idx) / gp.Ae[0][idx] - j[0][idx]);
+
+            auto idx_mx = idx.dec_x();
+            result[1][idx] +=
+                dt * (circ1(b, gp.lb, idx_mx, idx) / gp.Ae[1][idx] - j[1][idx]);
+
+            result[2][idx] += dt * (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
+                                        gp.Ae[2][idx] -
+                                    j[2][idx]);
+            // Take care of axis boundary
+            Scalar theta = grid.template pos<1>(pos[1], true);
+            if (abs(theta) < TINY) {
+              result[2][idx] = 0.0f;
+            }
+            // if (pos[0] == 513 && pos[1] == 256) {
+            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n",
+            //   b[0][idx_my], b[0][idx], b[0][idx.inc_y()],
+            //          b[1][idx_mx], b[1][idx], b[1][idx.inc_x()]);
+            //   printf("Ephi is %f, circ2_b is %f, circ2_b0 is %f, jphi is
+            //   %f\n", result[2][idx],
+            //          circ2(b, gp.lb, idx_mx, idx_my, idx, idx),
+            //          circ2(b0, gp.lb, idx_mx, idx_my, idx, idx),
+            //          j[2][idx]);
+            // }
+          }
+          // extra work for the theta = pi axis
+          auto theta = grid.template pos<1>(pos[1], true);
+          if (std::abs(theta - M_PI) < 0.1f * grid.delta[1]) {
+            auto idx_my = idx.dec_y();
+            result[0][idx] +=
+                dt * (circ0(b, gp.lb, idx_my, idx) / gp.Ae[0][idx] - j[0][idx]);
+          }
+        }
+      },
+      result.get_ptrs(), b.get_ptrs(), j.get_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -326,7 +421,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
                 (circ0(e, gp.le, idx, idx_py) - circ0(e0, gp.le, idx, idx_py)) /
                 gp.Ab[0][idx];
             // if (pos[0] == 10 && pos[1] == 3) {
-            //   printf("Br is %f, circ0_e is %f, circ0_e0 is %f\n", result[0][idx],
+            //   printf("Br is %f, circ0_e is %f, circ0_e0 is %f\n",
+            //   result[0][idx],
             //          circ0(e, gp.le, idx, idx_py),
             //          circ0(e0, gp.le, idx, idx_py)
             //          );
@@ -342,7 +438,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
                      e[2][idx], e[2][idx_px]
                      // circ1(e, gp.le, idx, idx_px),
                      // circ1(e0, gp.le, idx, idx_px)
-                     );
+              );
             }
             // Take care of axis boundary
             Scalar theta = grid.template pos<1>(pos[1], true);
@@ -354,7 +450,6 @@ compute_b_update_explicit(vector_field<Conf>& result,
                               (circ2(e, gp.le, idx, idx, idx_px, idx_py) -
                                circ2(e0, gp.le, idx, idx, idx_px, idx_py)) /
                               gp.Ab[2][idx];
-
           }
         }
       },
@@ -364,13 +459,46 @@ compute_b_update_explicit(vector_field<Conf>& result,
 
 template <typename Conf>
 void
-axis_boundary_e(vector_field<Conf>& e,
-                const vector_field<Conf>& e0,
-                const grid_logsph_t<Conf>& grid) {
+compute_b_update_explicit(vector_field<Conf>& result,
+                          const vector_field<Conf>& e,
+                          const grid_logsph_t<Conf>& grid,
+                          typename Conf::value_t dt) {
+  auto ext = grid.extent();
+  kernel_launch(
+      [dt, ext] __device__(auto result, auto e, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        // gp is short for grid_ptrs
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = typename Conf::idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto idx_py = idx.inc_y();
+            result[0][idx] -= dt * circ0(e, gp.le, idx, idx_py) / gp.Ab[0][idx];
+
+            auto idx_px = idx.inc_x();
+            result[1][idx] -= dt * circ1(e, gp.le, idx, idx_px) / gp.Ab[1][idx];
+            // Take care of axis boundary
+            Scalar theta = grid.template pos<1>(pos[1], true);
+            if (abs(theta) < TINY) {
+              result[1][idx] = 0.0f;
+            }
+
+            result[2][idx] -=
+                dt * circ2(e, gp.le, idx, idx, idx_px, idx_py) / gp.Ab[2][idx];
+          }
+        }
+      },
+      result.get_ptrs(), e.get_ptrs(), grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
+axis_boundary_e(vector_field<Conf>& e, const grid_logsph_t<Conf>& grid) {
   auto ext = grid.extent();
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
-      [ext] __device__(auto e, auto e0) {
+      [ext] __device__(auto e) {
         auto& grid = dev_grid<Conf::dim>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
@@ -395,19 +523,17 @@ axis_boundary_e(vector_field<Conf>& e,
           }
         }
       },
-      e.get_ptrs(), e0.get_ptrs());
+      e.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
 template <typename Conf>
 void
-axis_boundary_b(vector_field<Conf>& b,
-                const vector_field<Conf>& b0,
-                const grid_logsph_t<Conf>& grid) {
+axis_boundary_b(vector_field<Conf>& b, const grid_logsph_t<Conf>& grid) {
   auto ext = grid.extent();
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
-      [ext] __device__(auto b, auto b0) {
+      [ext] __device__(auto b) {
         auto& grid = dev_grid<Conf::dim>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
@@ -434,34 +560,39 @@ axis_boundary_b(vector_field<Conf>& b,
           }
         }
       },
-      b.get_ptrs(), b0.get_ptrs());
+      b.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
 template <typename Conf>
 void
-outer_boundary_b(vector_field<Conf>& b, const vector_field<Conf>& b0
-                 , int depth = 0) {
+outer_boundary_b(vector_field<Conf>& b, int depth = 0) {
   auto ext = b.grid().extent();
   typedef typename Conf::idx_t idx_t;
   typedef typename Conf::value_t value_t;
   kernel_launch(
-      [ext, depth] __device__(auto b, auto b0) {
+      [ext, depth] __device__(auto b) {
         auto& grid = dev_grid<Conf::dim>();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int n0 = grid.dims[0] - grid.skirt[0] - depth;
-               n0 < grid.dims[0]; n0++) {
+          for (int n0 = grid.dims[0] - grid.skirt[0] - depth; n0 < grid.dims[0];
+               n0++) {
             auto idx = idx_t(index_t<2>(n0, n1), ext);
-            b[0][idx] = b0[0][idx];
-            b[1][idx] = b0[1][idx];
-            b[2][idx] = b0[2][idx];
+            // b[0][idx] = b0[0][idx];
+            // b[1][idx] = b0[1][idx];
+            // b[2][idx] = b0[2][idx];
+            b[0][idx] = 0.0;
+            b[1][idx] = 0.0;
+            b[2][idx] = 0.0;
           }
-        }}, b.get_ptrs(), b0.get_ptrs());
+        }
+      },
+      b.get_ptrs());
 }
 
 // template <typename Conf>
 // void
-// outer_boundary_e(vector_field<Conf>& e, const vector_field<Conf>& e0, int depth) {
+// outer_boundary_e(vector_field<Conf>& e, const vector_field<Conf>& e0, int
+// depth) {
 //   auto ext = e.grid().extent();
 //   typedef typename Conf::idx_t idx_t;
 //   typedef typename Conf::value_t value_t;
@@ -498,15 +629,20 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t lambda =
                 1.0f - damping_coef * square((value_t)i / damping_length);
-            e[0][idx] = lambda * (e[0][idx] - e0[0][idx]) + e0[0][idx];
-            e[1][idx] = lambda * (e[1][idx] - e0[1][idx]) + e0[1][idx];
-            e[2][idx] = lambda * (e[2][idx] - e0[2][idx]) + e0[2][idx];
+            // e[0][idx] = lambda * (e[0][idx] - e0[0][idx]) + e0[0][idx];
+            // e[1][idx] = lambda * (e[1][idx] - e0[1][idx]) + e0[1][idx];
+            // e[2][idx] = lambda * (e[2][idx] - e0[2][idx]) + e0[2][idx];
             // TODO: Do we want to damp B_theta?
             // b[0][idx] = lambda * (b[0][idx] - b0[0][idx]) + b0[0][idx];
             // b[1][idx] = lambda * (b[1][idx] - b0[1][idx]) + b0[1][idx];
-            b[2][idx] = lambda * (b[2][idx] - b0[2][idx]) + b0[2][idx];
+            // b[2][idx] = lambda * (b[2][idx] - b0[2][idx]) + b0[2][idx];
+            e[0][idx] *= lambda;
+            e[1][idx] *= lambda;
+            e[2][idx] *= lambda;
+            b[2][idx] *= lambda;
           }
-          // for (int n0 = grid.dims[0] - grid.skirt[0] - 1; n0 < grid.dims[0]; n0++) {
+          // for (int n0 = grid.dims[0] - grid.skirt[0] - 1; n0 < grid.dims[0];
+          // n0++) {
           //   auto idx = idx_t(index_t<2>(n0, n1), ext);
           //   b[0][idx] = b0[0][idx];
           //   b[1][idx] = b0[1][idx];
@@ -518,6 +654,35 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
         }
       },
       e.get_ptrs(), b.get_ptrs(), e0.get_ptrs(), b0.get_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
+damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
+                 int damping_length, typename Conf::value_t damping_coef) {
+  auto ext = e.grid().extent();
+  typedef typename Conf::idx_t idx_t;
+  typedef typename Conf::value_t value_t;
+  kernel_launch(
+      [ext, damping_length, damping_coef] __device__(auto e, auto b) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+          // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
+          for (int i = 0; i < damping_length - 1; i++) {
+            int n0 = grid.dims[0] - damping_length + i;
+            auto idx = idx_t(index_t<2>(n0, n1), ext);
+            value_t lambda =
+                1.0f - damping_coef * square((value_t)i / damping_length);
+            e[0][idx] *= lambda;
+            e[1][idx] *= lambda;
+            e[2][idx] *= lambda;
+            // b[1][idx] *= lambda;
+            b[2][idx] *= lambda;
+          }
+        }
+      },
+      e.get_ptrs(), b.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -564,9 +729,47 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
 
 template <typename Conf>
 void
+compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
+             const vector_field<Conf>& e, const vector_field<Conf>& b,
+             const grid_logsph_t<Conf>& grid) {
+  auto ext = divE.grid().extent();
+  kernel_launch(
+      [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        // gp is short for grid_ptrs
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = typename Conf::idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            auto idx_mx = idx.dec_x();
+            auto idx_my = idx.dec_y();
+
+            divE[idx] =
+                (e[0][idx] * gp.Ae[0][idx] - e[0][idx_mx] * gp.Ae[0][idx_mx] +
+                 e[1][idx] * gp.Ae[1][idx] - e[1][idx_my] * gp.Ae[1][idx_my]) /
+                (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
+
+            auto idx_px = idx.inc_x();
+            auto idx_py = idx.inc_y();
+
+            divB[idx] =
+                (b[0][idx_px] * gp.Ab[0][idx_px] - b[0][idx] * gp.Ab[0][idx] +
+                 b[1][idx_py] * gp.Ab[1][idx_py] - b[1][idx] * gp.Ab[1][idx]) /
+                (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
+          }
+        }
+      },
+      divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
+      grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
 field_solver_logsph<Conf>::init() {
-  this->m_env.params().get_value("implicit_alpha", m_alpha);
+  // this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
+  m_alpha = 1.0 - m_beta;
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
   this->m_env.params().get_value("use_implicit", m_use_implicit);
@@ -593,15 +796,14 @@ template <typename Conf>
 void
 field_solver_logsph<Conf>::update_explicit(double dt, double time) {
   auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
-  compute_b_update_explicit(*(this->B), *(this->E), *(this->E0), grid, dt);
+  compute_b_update_explicit(*(this->B), *(this->E), grid, dt);
 
   // Communicate B guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-  axis_boundary_b(*(this->B), *(this->B0), grid);
+  axis_boundary_b(*(this->B), grid);
 
-  compute_e_update_explicit(*(this->E), *(this->B), *(this->B0), *(this->J),
-                            grid, dt);
-  axis_boundary_e(*(this->E), *(this->E0), grid);
+  compute_e_update_explicit(*(this->E), *(this->B), *(this->J), grid, dt);
+  axis_boundary_e(*(this->E), grid);
 
   // Communicate E guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
@@ -609,10 +811,8 @@ field_solver_logsph<Conf>::update_explicit(double dt, double time) {
   // TODO: Compute divE and divB
 
   // apply coordinate boundary condition
-  damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
-                   m_damping_length, m_damping_coef);
-  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B),
-               *(this->E0), *(this->B0), grid);
+  damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);
 }
 
 template <typename Conf>
@@ -624,16 +824,17 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
 
   // Assemble the RHS
   auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
-  compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
-                      -alpha * beta * dt * dt);
+  // compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
+  //                     -alpha * beta * dt * dt);
+  compute_double_circ(*m_tmp_b2, *m_tmp_b1, grid, -alpha * beta * dt * dt);
   m_tmp_b1->add_by(*m_tmp_b2);
 
   // Send guard cells for m_tmp_b1
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*m_tmp_b1);
 
-  compute_implicit_rhs(*m_tmp_b1, *(this->E), *(this->E0), *(this->J), grid,
-                       alpha, beta, dt);
-  axis_boundary_b(*m_tmp_b1, *(this->B0), grid);
+  compute_implicit_rhs(*m_tmp_b1, *(this->E), *(this->J), grid, alpha, beta,
+                       dt);
+  axis_boundary_b(*m_tmp_b1, grid);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
 
   // Since we need to iterate, define a double buffer to switch quickly between
@@ -643,16 +844,18 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   auto buffer = make_double_buffer(*m_tmp_b1, *m_tmp_b2);
   for (int i = 0; i < 1; i++) {
     if (i == 0) {
-      compute_double_circ(buffer.alt(), buffer.main(), *(this->B0), grid,
+      // compute_double_circ(buffer.alt(), buffer.main(), *(this->B0), grid,
+      //                     -beta * beta * dt * dt);
+      compute_double_circ(buffer.alt(), buffer.main(), grid,
                           -beta * beta * dt * dt);
     } else {
       compute_double_circ(buffer.alt(), buffer.main(), grid,
                           -beta * beta * dt * dt);
     }
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
-    axis_boundary_b(buffer.alt(), *(this->B0), grid);
+    axis_boundary_b(buffer.alt(), grid);
     m_bnew->add_by(buffer.alt());
-    outer_boundary_b(*m_bnew, *(this->B0), 0);
+    outer_boundary_b(*m_bnew, 0);
 
     buffer.swap();
   }
@@ -661,21 +864,18 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this
-  compute_e_update_explicit(*(this->E), buffer.main(), *(this->B0), *(this->J),
-                            grid, dt);
-  axis_boundary_e(*(this->E), *(this->E0), grid);
+  compute_e_update_explicit(*(this->E), buffer.main(), *(this->J), grid, dt);
+  axis_boundary_e(*(this->E), grid);
   // outer_boundary_e(*(this->E), *(this->E0), 3);
- 
+
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
   this->B->copy_from(*m_bnew);
 
   // apply coordinate boundary condition
-  damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
-                   m_damping_length, m_damping_coef);
-  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B),
-               *(this->E0), *(this->B0), grid);
+  damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);
 }
 
 template class field_solver_logsph<Config<2>>;

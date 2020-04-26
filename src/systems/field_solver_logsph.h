@@ -31,8 +31,8 @@ class field_solver_logsph : public field_solver_default<Conf> {
                        const domain_comm<Conf>* comm = nullptr)
       : base_class(env, grid, comm) {}
 
-  void init();
-  void update(double dt, uint32_t step);
+  void init() override;
+  void update(double dt, uint32_t step) override;
 
   void update_explicit(double dt, double time);
   void update_semi_impl(double dt, double alpha, double beta, double time);

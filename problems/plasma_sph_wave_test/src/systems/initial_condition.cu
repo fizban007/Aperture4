@@ -12,10 +12,11 @@ void
 set_initial_condition(sim_environment& env, const grid_logsph_t<Conf>& grid,
                       int mult, double weight, double Bp) {
   particle_data_t* ptc;
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *B;
   curand_states_t* states;
   env.get_data("particles", &ptc);
   env.get_data("B0", &B0);
+  env.get_data("B", &B);
   env.get_data("rand_states", &states);
 
   if (ptc != nullptr && states != nullptr) {
@@ -69,6 +70,7 @@ set_initial_condition(sim_environment& env, const grid_logsph_t<Conf>& grid,
   //   // return Bp / (r * r);
   //   return Bp * sin(theta) / cube(r);
   // });
+  B->copy_from(*B0);
 }
 
 template void set_initial_condition<Config<2>>(

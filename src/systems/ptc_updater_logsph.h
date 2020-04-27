@@ -22,6 +22,8 @@ class ptc_updater_logsph_cu : public ptc_updater_cu<Conf> {
   void register_dependencies() override;
 
   virtual void move_deposit_2d(double dt, uint32_t step) override;
+  virtual void filter_field(vector_field<Conf>& f, int comp) override;
+  virtual void filter_field(scalar_field<Conf>& f) override;
 };
 
 

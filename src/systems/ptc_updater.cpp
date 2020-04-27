@@ -16,6 +16,7 @@ void
 ptc_updater<Conf>::init() {
   m_env.params().get_value("data_interval", m_data_interval);
   m_env.params().get_value("sort_interval", m_sort_interval);
+  m_env.params().get_value("current_smoothing", m_filter_times);
   init_charge_mass();
 
   // Etmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::edge_centered,
@@ -31,6 +32,9 @@ ptc_updater<Conf>::init() {
   } else if (pusher == "higuera") {
     m_pusher = Pusher::higuera;
   }
+
+  // Allocate the tmp array for current filtering
+  jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
 }
 
 template <typename Conf>
@@ -91,6 +95,9 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
       }
     }
   }
+
+  // Filter current
+  filter_current(m_filter_times, step);
 
   // Send particles
   if (m_comm != nullptr) {
@@ -466,6 +473,35 @@ ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
   }
   ptc->set_num(num + mult * 2 * m_grid.extent().size());
 }
+
+template <typename Conf>
+void
+ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
+  for (int n = 0; n < n_times; n++) {
+    filter_field(*J, 0);
+    filter_field(*J, 1);
+    filter_field(*J, 2);
+
+    if (m_comm != nullptr)
+      m_comm->send_guard_cells(*J);
+
+    if ((step + 1) % m_data_interval == 0) {
+      for (int sp = 0; sp < m_num_species; sp++) {
+        filter_field(*Rho[sp]);
+        if (m_comm != nullptr)
+          m_comm->send_guard_cells(*Rho[sp]);
+      }
+    }
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::filter_field(scalar_field<Conf>& f) {}
 
 template class ptc_updater<Config<1>>;
 template class ptc_updater<Config<2>>;

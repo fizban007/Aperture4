@@ -17,21 +17,16 @@ ptc_updater_cu<Conf>::init() {
   this->init_charge_mass();
   init_dev_charge_mass(this->m_charges, this->m_masses);
 
-  // this->Etmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
-  //                                 MemType::device_only);
-  // this->Btmp = vector_field<Conf>(this->m_grid, field_type::vert_centered,
-  //                                 MemType::device_only);
-  // this->Etmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered,
-  //                                             MemType::device_only);
-  // this->Btmp = std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered,
-  //                                             MemType::device_only);
-
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);
   for (int i = 0; i < this->m_num_species; i++) {
     m_rho_ptrs[i] = this->Rho[i]->get_ptr();
   }
   m_rho_ptrs.copy_to_device();
+
+  // Allocate the tmp array for current filtering
+  this->jtmp = std::make_unique<typename Conf::multi_array_t>
+      (this->m_grid.extent(), MemType::host_device);
 }
 
 template <typename Conf>
@@ -497,6 +492,14 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
   CudaSafeCall(cudaDeviceSynchronize());
   this->ptc->set_num(num + mult * 2 * this->m_grid.extent().size());
 }
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {}
 
 template class ptc_updater_cu<Config<1>>;
 template class ptc_updater_cu<Config<2>>;

@@ -19,6 +19,7 @@ struct ndptr {
 
   HOST_DEVICE ndptr() {}
   HOST_DEVICE ndptr(T* p_) : p(p_) {}
+  HOST_DEVICE ndptr(const ndptr<T, Rank, Idx_t>& other) = default;
 
   HD_INLINE T& operator[](size_t idx) { return p[idx]; }
   HD_INLINE const T& operator[](size_t idx) const { return p[idx]; }
@@ -47,6 +48,7 @@ struct ndptr_const {
 
   HOST_DEVICE ndptr_const() {}
   HOST_DEVICE ndptr_const(const T* p_) : p(p_) {}
+  HOST_DEVICE ndptr_const(const ndptr_const<T, Rank, Idx_t>& other) = default;
 
   // Cannot use this operator to change the underlying data
   HD_INLINE T operator[](size_t idx) const { return p[idx]; }

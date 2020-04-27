@@ -26,12 +26,13 @@ class ptc_updater : public system_t {
   vector_field<Conf> *E, *B, *J;
   std::vector<scalar_field<Conf>*> Rho;
 
-  // std::unique_ptr<vector_field<Conf>> Etmp, Btmp;
+  std::unique_ptr<typename Conf::multi_array_t> jtmp;
 
   // Parameters for this module
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
   uint32_t m_sort_interval = 20;
+  uint32_t m_filter_times = 1;
 
   // By default the maximum number of species is 8
   float m_charges[max_ptc_types];
@@ -68,6 +69,7 @@ class ptc_updater : public system_t {
   void register_dependencies() override;
 
   void move_and_deposit(double dt, uint32_t step);
+  void filter_current(int n_times, uint32_t step);
 
   template <typename P>
   void push(double dt);
@@ -79,6 +81,8 @@ class ptc_updater : public system_t {
   virtual void move_deposit_3d(double dt, uint32_t step);
   virtual void clear_guard_cells();
   virtual void sort_particles();
+  virtual void filter_field(vector_field<Conf>& f, int comp);
+  virtual void filter_field(scalar_field<Conf>& f);
   virtual void fill_multiplicity(int n, value_t weight = 1.0);
 
   void use_pusher(Pusher p) {
@@ -117,6 +121,8 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   virtual void move_deposit_3d(double dt, uint32_t step) override;
   virtual void clear_guard_cells() override;
   virtual void sort_particles() override;
+  virtual void filter_field(vector_field<Conf>& f, int comp) override;
+  virtual void filter_field(scalar_field<Conf>& f) override;
   virtual void fill_multiplicity(int n, typename Conf::value_t weight = 1.0) override;
 
   rho_ptrs_t& get_rho_ptrs() { return m_rho_ptrs; }

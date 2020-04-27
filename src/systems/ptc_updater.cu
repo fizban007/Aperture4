@@ -166,6 +166,13 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   };
 
   if (num > 0) {
+    exec_policy p;
+    configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
+                  this->B->get_ptrs(), pusher);
+    Logger::print_info(
+        "pusher kernel: block_size: {}, grid_size: {}, shared_mem: {}",
+        p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
+
     kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
                   this->B->get_ptrs(), pusher);
   }

@@ -203,9 +203,9 @@ configure_grid(exec_policy &p, KernelFunc k) {
 
   // printf("%d %d %ld\n", p.getBlockSize(), p.getGridSize(),
   // p.getSharedMemBytes());
-  Logger::print_debug("block_size: {}, grid_size: {}, shared_mem: {}",
-                      p.get_block_size(), p.get_grid_size(),
-                      p.get_shared_mem_bytes());
+  // Logger::print_debug("block_size: {}, grid_size: {}, shared_mem: {}",
+  //                     p.get_block_size(), p.get_grid_size(),
+  //                     p.get_shared_mem_bytes());
 
   return cudaSuccess;
 }
@@ -216,6 +216,12 @@ template <typename Func, typename... Args>
 __global__ void
 generic_kernel(Func f, Args... args) {
   f(args...);
+}
+
+template <typename Func, typename... Args>
+void
+configure_grid(exec_policy& policy, Func f, Args... args) {
+  CudaSafeCall(configure_grid(policy, generic_kernel<Func, Args...>));
 }
 
 template <typename Func, typename... Args>

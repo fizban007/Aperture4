@@ -97,7 +97,7 @@ sim_environment::run() {
       timer::stamp();
       m_system_map[name]->update(dt, step);
       float time_spent = timer::get_duration_since_stamp("us");
-      if (time_spent > 1.0f)
+      if (time_spent > 10.0f)
         Logger::print_info("Time for {} is {:.2f}ms", name, time_spent / 1000.0);
       // timer::show_duration_since_stamp(name, "us");
     }

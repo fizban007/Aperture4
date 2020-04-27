@@ -314,55 +314,6 @@ axis_boundary_b(vector_field<Conf>& b, const grid_logsph_t<Conf>& grid) {
 
 template <typename Conf>
 void
-outer_boundary_b(vector_field<Conf>& b, int depth = 0) {
-  auto ext = b.grid().extent();
-  typedef typename Conf::idx_t idx_t;
-  typedef typename Conf::value_t value_t;
-  kernel_launch(
-      [ext, depth] __device__(auto b) {
-        auto& grid = dev_grid<Conf::dim>();
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int n0 = grid.dims[0] - grid.skirt[0] - depth; n0 < grid.dims[0];
-               n0++) {
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            // b[0][idx] = b0[0][idx];
-            // b[1][idx] = b0[1][idx];
-            // b[2][idx] = b0[2][idx];
-            b[0][idx] = 0.0;
-            b[1][idx] = 0.0;
-            b[2][idx] = 0.0;
-          }
-        }
-      },
-      b.get_ptrs());
-}
-
-template <typename Conf>
-void
-inner_boundary_b(vector_field<Conf>& b, int depth = 0) {
-  auto ext = b.grid().extent();
-  typedef typename Conf::idx_t idx_t;
-  typedef typename Conf::value_t value_t;
-  kernel_launch(
-      [ext, depth] __device__(auto b) {
-        auto& grid = dev_grid<Conf::dim>();
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int n0 = 0; n0 < grid.skirt[0] + depth; n0++) {
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            // b[0][idx] = b0[0][idx];
-            // b[1][idx] = b0[1][idx];
-            // b[2][idx] = b0[2][idx];
-            b[0][idx] = 0.0;
-            b[1][idx] = 0.0;
-            b[2][idx] = 0.0;
-          }
-        }
-      },
-      b.get_ptrs());
-}
-
-template <typename Conf>
-void
 damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
                  int damping_length, typename Conf::value_t damping_coef) {
   auto ext = e.grid().extent();
@@ -533,7 +484,6 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   //                     -alpha * beta * dt * dt);
   compute_double_circ(*m_tmp_b2, *m_tmp_b1, grid, -alpha * beta * dt * dt);
   m_tmp_b1->add_by(*m_tmp_b2);
-  inner_boundary_b(*m_tmp_b1);
 
   // Send guard cells for m_tmp_b1
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*m_tmp_b1);
@@ -555,8 +505,6 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
     axis_boundary_b(buffer.alt(), grid);
     m_bnew->add_by(buffer.alt());
-    outer_boundary_b(*m_bnew);
-    inner_boundary_b(*m_bnew);
 
     buffer.swap();
   }
@@ -567,7 +515,6 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   // this
   compute_e_update_explicit(*(this->E), buffer.main(), *(this->J), grid, dt);
   axis_boundary_e(*(this->E), grid);
-  // outer_boundary_e(*(this->E), *(this->E0), 3);
 
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));

@@ -44,16 +44,8 @@ ptc_updater<Conf>::register_dependencies() {
 
   E = m_env.register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, MemType::host_only);
-  Edelta = m_env.register_data<vector_field<Conf>>(
-      "Edelta", m_grid, field_type::edge_centered, MemType::host_only);
-  E0 = m_env.register_data<vector_field<Conf>>(
-      "E0", m_grid, field_type::edge_centered, MemType::host_only);
   B = m_env.register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, MemType::host_only);
-  Bdelta = m_env.register_data<vector_field<Conf>>(
-      "Bdelta", m_grid, field_type::face_centered, MemType::host_only);
-  B0 = m_env.register_data<vector_field<Conf>>(
-      "B0", m_grid, field_type::face_centered, MemType::host_only);
   J = m_env.register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, MemType::host_only);
 
@@ -68,14 +60,14 @@ ptc_updater<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::push_default(double dt, bool resample_field) {
+ptc_updater<Conf>::push_default(double dt) {
   // dispatch according to enum
   if (m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt, resample_field);
+    push<boris_pusher>(dt);
   } else if (m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt, resample_field);
+    push<vay_pusher>(dt);
   } else if (m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt, resample_field);
+    push<higuera_pusher>(dt);
   }
 }
 
@@ -83,7 +75,7 @@ template <typename Conf>
 void
 ptc_updater<Conf>::update(double dt, uint32_t step) {
   // First update particle momentum
-  push_default(dt, false);
+  push_default(dt);
 
   // Then move particles and deposit current
   move_and_deposit(dt, step);
@@ -117,13 +109,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 template <typename Conf>
 template <typename T>
 void
-ptc_updater<Conf>::push(double dt, bool resample_field) {
-  // First add E and B to their backgrounds to get the fields particles see
-  E->copy_from(*(this->E0));
-  E->add_by(*(this->Edelta));
-  B->copy_from(*(this->B0));
-  B->add_by(*(this->Bdelta));
-
+ptc_updater<Conf>::push(double dt) {
   auto num = ptc->number();
   auto ext = m_grid.extent();
   T pusher;

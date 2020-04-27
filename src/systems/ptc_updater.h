@@ -23,7 +23,7 @@ class ptc_updater : public system_t {
   typedef bspline<1> spline_t;
 
   particle_data_t* ptc;
-  vector_field<Conf> *E, *B, *Edelta, *Bdelta, *E0, *B0, *J;
+  vector_field<Conf> *E, *B, *J;
   std::vector<scalar_field<Conf>*> Rho;
 
   // std::unique_ptr<vector_field<Conf>> Etmp, Btmp;
@@ -70,10 +70,10 @@ class ptc_updater : public system_t {
   void move_and_deposit(double dt, uint32_t step);
 
   template <typename P>
-  void push(double dt, bool resample_field = true);
+  void push(double dt);
   // void move(double dt);
 
-  virtual void push_default(double dt, bool resample_field = true);
+  virtual void push_default(double dt);
   virtual void move_deposit_1d(double dt, uint32_t step);
   virtual void move_deposit_2d(double dt, uint32_t step);
   virtual void move_deposit_3d(double dt, uint32_t step);
@@ -108,10 +108,10 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   void register_dependencies() override;
 
   template <typename P>
-  void push(double dt, bool resample_field = true);
+  void push(double dt);
   // void move_and_deposit(double dt, uint32_t step);
 
-  virtual void push_default(double dt, bool resample_field = true) override;
+  virtual void push_default(double dt) override;
   virtual void move_deposit_1d(double dt, uint32_t step) override;
   virtual void move_deposit_2d(double dt, uint32_t step) override;
   virtual void move_deposit_3d(double dt, uint32_t step) override;

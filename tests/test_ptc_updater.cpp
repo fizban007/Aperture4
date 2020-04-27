@@ -47,7 +47,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<boris_pusher>(dt, false);
+      pusher->push<boris_pusher>(dt);
       pusher->move_and_deposit(dt, i);
     }
 
@@ -64,7 +64,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<vay_pusher>(dt, false);
+      pusher->push<vay_pusher>(dt);
       pusher->move_and_deposit(dt, i);
     }
 
@@ -81,7 +81,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<higuera_pusher>(dt, false);
+      pusher->push<higuera_pusher>(dt);
       pusher->move_and_deposit(dt, i);
     }
 

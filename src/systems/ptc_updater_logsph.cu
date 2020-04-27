@@ -207,16 +207,16 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         }
       }
     };
-    exec_policy p;
-    configure_grid(p, deposit_kernel, this->ptc->dev_ptrs(),
-                   this->J->get_ptrs(), this->m_rho_ptrs.dev_ptr(),
-                   this->m_data_interval);
+    // exec_policy p;
+    // configure_grid(p, deposit_kernel, this->ptc->dev_ptrs(),
+    //                this->J->get_ptrs(), this->m_rho_ptrs.dev_ptr(),
+    //                this->m_data_interval);
 
-    Logger::print_info(
-        "deposit kernel: block_size: {}, grid_size: {}, shared_mem: {}",
-        p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
+    // Logger::print_info(
+    //     "deposit kernel: block_size: {}, grid_size: {}, shared_mem: {}",
+    //     p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
 
-    kernel_launch(p, deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
+    kernel_launch(deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
                   this->m_rho_ptrs.dev_ptr(), this->m_data_interval);
 
     auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);

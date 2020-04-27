@@ -445,6 +445,11 @@ field_solver_logsph<Conf>::update(double dt, uint32_t step) {
     update_semi_impl(dt, m_alpha, m_beta, time);
   else
     update_explicit(dt, time);
+
+  this->Etotal->copy_from(*(this->E0));
+  this->Etotal->add_by(*(this->E));
+  this->Btotal->copy_from(*(this->B0));
+  this->Btotal->add_by(*(this->B));
 }
 
 template <typename Conf>

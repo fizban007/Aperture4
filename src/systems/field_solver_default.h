@@ -18,7 +18,7 @@ class field_solver_default : public system_t {
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm;
 
-  vector_field<Conf> *E, *B, *E0, *B0, *J;
+  vector_field<Conf> *E, *B, *Etotal, *Btotal, *E0, *B0, *J;
   scalar_field<Conf> *divE, *divB, *EdotB;
 
  public:
@@ -33,9 +33,9 @@ class field_solver_default : public system_t {
 
   void register_dependencies() {
     // output fields, we don't directly use here
-    m_env.register_data<vector_field<Conf>>("E", m_grid,
+    Etotal = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                             field_type::edge_centered);
-    m_env.register_data<vector_field<Conf>>("B", m_grid,
+    Btotal = m_env.register_data<vector_field<Conf>>("B", m_grid,
                                             field_type::face_centered);
 
     E = m_env.register_data<vector_field<Conf>>("Edelta", m_grid,

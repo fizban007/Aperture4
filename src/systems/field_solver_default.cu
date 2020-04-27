@@ -35,6 +35,10 @@ field_solver_default<Conf>::update(double dt, uint32_t step) {
   CudaSafeCall(cudaDeviceSynchronize());
   timer::show_duration_since_stamp("Field update", "ms",
                                    "field_update");
+  Etotal->copy_from(*E0);
+  Etotal->add_by(*E);
+  Btotal->copy_from(*B0);
+  Btotal->add_by(*B);
 }
 
 template <>

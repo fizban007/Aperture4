@@ -46,16 +46,8 @@ ptc_updater_cu<Conf>::register_dependencies() {
 
   this->E = this->m_env.template register_data<vector_field<Conf>>(
       "E", this->m_grid, field_type::edge_centered, MemType::host_device);
-  this->Edelta = this->m_env.template register_data<vector_field<Conf>>(
-      "Edelta", this->m_grid, field_type::edge_centered, MemType::host_device);
-  this->E0 = this->m_env.template register_data<vector_field<Conf>>(
-      "E0", this->m_grid, field_type::edge_centered, MemType::host_device);
   this->B = this->m_env.template register_data<vector_field<Conf>>(
       "B", this->m_grid, field_type::face_centered, MemType::host_device);
-  this->Bdelta = this->m_env.template register_data<vector_field<Conf>>(
-      "Bdelta", this->m_grid, field_type::face_centered, MemType::host_device);
-  this->B0 = this->m_env.template register_data<vector_field<Conf>>(
-      "B0", this->m_grid, field_type::face_centered, MemType::host_device);
   this->J = this->m_env.template register_data<vector_field<Conf>>(
       "J", this->m_grid, field_type::edge_centered, MemType::host_device);
 
@@ -88,29 +80,21 @@ ptc_updater_cu<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::push_default(double dt, bool resample_field) {
+ptc_updater_cu<Conf>::push_default(double dt) {
   // dispatch according to enum
   if (this->m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt, resample_field);
+    push<boris_pusher>(dt);
   } else if (this->m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt, resample_field);
+    push<vay_pusher>(dt);
   } else if (this->m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt, resample_field);
+    push<higuera_pusher>(dt);
   }
 }
 
 template <typename Conf>
 template <typename P>
 void
-ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
-  // First add E and B to their backgrounds to get the fields particles see
-  this->E->init();
-  this->E->add_by(*(this->Edelta));
-  this->E->add_by(*(this->E0));
-  this->B->init();
-  this->B->add_by(*(this->Bdelta));
-  this->B->add_by(*(this->B0));
-
+ptc_updater_cu<Conf>::push(double dt) {
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
   P pusher;
@@ -166,12 +150,12 @@ ptc_updater_cu<Conf>::push(double dt, bool resample_field) {
   };
 
   if (num > 0) {
-    exec_policy p;
-    configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
-                  this->B->get_ptrs(), pusher);
-    Logger::print_info(
-        "pusher kernel: block_size: {}, grid_size: {}, shared_mem: {}",
-        p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
+    // exec_policy p;
+    // configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
+    //               this->B->get_ptrs(), pusher);
+    // Logger::print_info(
+    //     "pusher kernel: block_size: {}, grid_size: {}, shared_mem: {}",
+    //     p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
 
     kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
                   this->B->get_ptrs(), pusher);

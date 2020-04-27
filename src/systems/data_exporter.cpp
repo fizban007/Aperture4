@@ -103,9 +103,6 @@ template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   if (step % m_fld_output_interval == 0) {
-    // Add E,B delta with their background fields
-    add_E_B();
-
     double time = m_env.get_time();
 
     // Output downsampled fields!

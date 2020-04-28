@@ -22,11 +22,10 @@ double V3(double r, double rs) {
 }
 
 
-
 template <typename Conf>
 grid_logsph_t<Conf>::grid_logsph_t(sim_environment& env,
                                    const domain_info_t<Conf::dim>& domain_info)
-    : grid_t<Conf>(env, domain_info) {}
+    : grid_curv_t<Conf>(env, domain_info) {}
 
 template <typename Conf>
 grid_logsph_t<Conf>::grid_logsph_t(sim_environment& env,
@@ -38,23 +37,9 @@ grid_logsph_t<Conf>::~grid_logsph_t() {}
 
 template <typename Conf>
 void
-grid_logsph_t<Conf>::init() {
-  compute_coef();
-}
-
-template <typename Conf>
-void
 grid_logsph_t<Conf>::compute_coef() {
   double r_g = 0.0;
   this->m_env.params().get_value("compactness", r_g);
-
-  for (int i = 0; i < 3; i++) {
-    m_le[i].resize(this->extent());
-    m_lb[i].resize(this->extent());
-    m_Ae[i].resize(this->extent());
-    m_Ab[i].resize(this->extent());
-  }
-  m_dV.resize(this->extent());
 
   for (int j = 0; j < this->dims[1]; j++) {
     double x2 = this->pos(1, j, false);
@@ -68,23 +53,23 @@ grid_logsph_t<Conf>::compute_coef() {
       double rs_plus = std::exp(x1s + this->delta[0]);
       auto idx = typename Conf::idx_t({i, j}, this->extent());
       auto pos = idx.get_pos();
-      m_le[0][idx] = l1(rs_plus, r_g) - l1(rs, r_g);
-      m_le[1][idx] = rs * this->delta[1];
-      m_le[2][idx] = rs * std::sin(x2s);
-      m_lb[0][idx] = l1(r, r_g) - l1(r_minus, r_g);
-      m_lb[1][idx] = r * this->delta[1];
-      m_lb[2][idx] = r * std::sin(x2);
+      this->m_le[0][idx] = l1(rs_plus, r_g) - l1(rs, r_g);
+      this->m_le[1][idx] = rs * this->delta[1];
+      this->m_le[2][idx] = rs * std::sin(x2s);
+      this->m_lb[0][idx] = l1(r, r_g) - l1(r_minus, r_g);
+      this->m_lb[1][idx] = r * this->delta[1];
+      this->m_lb[2][idx] = r * std::sin(x2);
 
-      m_Ae[0][idx] =
+      this->m_Ae[0][idx] =
           r * r * (std::cos(x2 - this->delta[1]) - std::cos(x2));
       if (std::abs(x2s) < 0.1 * this->delta[1]) {
-        m_Ae[0][idx] =
+        this->m_Ae[0][idx] =
             r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
       } else if (std::abs(x2s - M_PI) < 0.1 * this->delta[1]) {
-        m_Ae[0][idx] =
+        this->m_Ae[0][idx] =
             r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
       }
-      m_Ae[1][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * std::sin(x2);
+      this->m_Ae[1][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * std::sin(x2);
       // Avoid axis singularity
       // if (std::abs(x2s) < TINY || std::abs(x2s - CONST_PI)
       // < TINY)
@@ -92,26 +77,26 @@ grid_logsph_t<Conf>::compute_coef() {
       //                  (std::exp(2.0 * x1s) -
       //                   std::exp(2.0 * (x1s - this->delta[0])));
 
-      m_Ae[2][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * this->delta[1];
+      this->m_Ae[2][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * this->delta[1];
 
-      m_Ab[0][idx] =
+      this->m_Ab[0][idx] =
           rs * rs * (std::cos(x2s) - std::cos(x2s + this->delta[1]));
       if (std::abs(x2s) > 0.1 * this->delta[1] &&
           std::abs(x2s - M_PI) > 0.1 * this->delta[1])
-        m_Ab[1][idx] =
+        this->m_Ab[1][idx] =
             (A2(rs_plus, r_g) - A2(rs, r_g)) * std::sin(x2s);
       else
-        m_Ab[1][idx] = TINY;
-      m_Ab[2][idx] =
+        this->m_Ab[1][idx] = TINY;
+      this->m_Ab[2][idx] =
           (A2(rs_plus, r_g) - A2(rs, r_g)) * this->delta[1];
 
-      m_dV[idx] = (V3(r, r_g) - V3(r_minus, r_g)) *
+      this->m_dV[idx] = (V3(r, r_g) - V3(r_minus, r_g)) *
           (std::cos(x2 - this->delta[1]) - std::cos(x2)) /
           (this->delta[0] * this->delta[1]);
 
       if (std::abs(x2s) < 0.1 * this->delta[1] ||
           std::abs(x2s - M_PI) < 0.1 * this->delta[1]) {
-        m_dV[idx] = (V3(r, r_g) - V3(r_minus, r_g)) * 2.0 *
+        this->m_dV[idx] = (V3(r, r_g) - V3(r_minus, r_g)) * 2.0 *
             (1.0 - std::cos(0.5 * this->delta[1])) /
             (this->delta[0] * this->delta[1]);
         // if (i == 100)
@@ -121,29 +106,12 @@ grid_logsph_t<Conf>::compute_coef() {
   }
 
   for (int i = 0; i < 3; i++) {
-    m_le[i].copy_to_device();
-    m_lb[i].copy_to_device();
-    m_Ae[i].copy_to_device();
-    m_Ab[i].copy_to_device();
+    this->m_le[i].copy_to_device();
+    this->m_lb[i].copy_to_device();
+    this->m_Ae[i].copy_to_device();
+    this->m_Ab[i].copy_to_device();
   }
-  m_dV.copy_to_device();
-}
-
-template <typename Conf>
-auto
-grid_logsph_t<Conf>::get_grid_ptrs() const -> grid_ptrs_t {
-  grid_ptrs_t result;
-
-  for (int i = 0; i < 3; i++) {
-    result.le[i] = m_le[i].get_const_ptr();
-    result.lb[i] = m_lb[i].get_const_ptr();
-    result.Ae[i] = m_Ae[i].get_const_ptr();
-    result.Ab[i] = m_Ab[i].get_const_ptr();
-  }
-  result.dV = m_dV.get_const_ptr();
-  // Logger::print_debug("result.le[2] is {}", result.le[2].p);
-
-  return result;
+  this->m_dV.copy_to_device();
 }
 
 template class grid_logsph_t<Config<2>>;

@@ -4,7 +4,7 @@
 #include "data/fields.hpp"
 #include "framework/environment.hpp"
 #include "framework/system.h"
-#include "systems/grid_logsph.h"
+#include "systems/grid_curv.h"
 #include "systems/field_solver_default.h"
 #include <memory>
 
@@ -27,7 +27,7 @@ class field_solver_logsph : public field_solver_default<Conf> {
 
   typedef field_solver_default<Conf> base_class;
 
-  field_solver_logsph(sim_environment& env, const grid_logsph_t<Conf>& grid,
+  field_solver_logsph(sim_environment& env, const grid_curv_t<Conf>& grid,
                        const domain_comm<Conf>* comm = nullptr)
       : base_class(env, grid, comm) {}
 

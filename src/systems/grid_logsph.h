@@ -1,7 +1,6 @@
 #ifndef __GRID_LOGSPH_H_
 #define __GRID_LOGSPH_H_
 
-#include "core/multi_array.hpp"
 #include "grid_curv.h"
 
 namespace Aperture {

@@ -51,7 +51,7 @@ add_alpha_beta(vector_field<Conf>& result, const vector_field<Conf>& b1,
 template <typename Conf>
 void
 compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
-                    const grid_logsph_t<Conf>& grid,
+                    const grid_curv_t<Conf>& grid,
                     typename Conf::value_t coef) {
   auto ext = grid.extent();
   kernel_launch(
@@ -110,7 +110,7 @@ template <typename Conf>
 void
 compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                      const vector_field<Conf>& j,
-                     const grid_logsph_t<Conf>& grid,
+                     const grid_curv_t<Conf>& grid,
                      typename Conf::value_t alpha, typename Conf::value_t beta,
                      typename Conf::value_t dt) {
   auto ext = grid.extent();
@@ -157,7 +157,7 @@ void
 compute_e_update_explicit(vector_field<Conf>& result,
                           const vector_field<Conf>& b,
                           const vector_field<Conf>& j,
-                          const grid_logsph_t<Conf>& grid,
+                          const grid_curv_t<Conf>& grid,
                           typename Conf::value_t dt) {
   auto ext = grid.extent();
   kernel_launch(
@@ -209,7 +209,7 @@ template <typename Conf>
 void
 compute_b_update_explicit(vector_field<Conf>& result,
                           const vector_field<Conf>& e,
-                          const grid_logsph_t<Conf>& grid,
+                          const grid_curv_t<Conf>& grid,
                           typename Conf::value_t dt) {
   auto ext = grid.extent();
   kernel_launch(
@@ -242,7 +242,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
 
 template <typename Conf>
 void
-axis_boundary_e(vector_field<Conf>& e, const grid_logsph_t<Conf>& grid) {
+axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
   auto ext = grid.extent();
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
@@ -277,7 +277,7 @@ axis_boundary_e(vector_field<Conf>& e, const grid_logsph_t<Conf>& grid) {
 
 template <typename Conf>
 void
-axis_boundary_b(vector_field<Conf>& b, const grid_logsph_t<Conf>& grid) {
+axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
   auto ext = grid.extent();
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
@@ -346,7 +346,7 @@ void
 compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
              const vector_field<Conf>& e0, const vector_field<Conf>& b0,
-             const grid_logsph_t<Conf>& grid) {
+             const grid_curv_t<Conf>& grid) {
   auto ext = divE.grid().extent();
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto e, auto e0, auto b, auto b0,
@@ -386,7 +386,7 @@ template <typename Conf>
 void
 compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
-             const grid_logsph_t<Conf>& grid) {
+             const grid_curv_t<Conf>& grid) {
   auto ext = divE.grid().extent();
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp) {
@@ -455,7 +455,7 @@ field_solver_logsph<Conf>::update(double dt, uint32_t step) {
 template <typename Conf>
 void
 field_solver_logsph<Conf>::update_explicit(double dt, double time) {
-  auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
+  auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   if (time < TINY)
     compute_b_update_explicit(*(this->B), *(this->E), grid, 0.5 * dt);
   else
@@ -484,7 +484,7 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   m_tmp_b1->copy_from(*(this->B));
 
   // Assemble the RHS
-  auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
+  auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   // compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
   //                     -alpha * beta * dt * dt);
   compute_double_circ(*m_tmp_b2, *m_tmp_b1, grid, -alpha * beta * dt * dt);

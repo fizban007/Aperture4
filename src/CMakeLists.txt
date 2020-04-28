@@ -12,6 +12,7 @@ set(Aperture_src
   "systems/data_exporter.cpp"
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
+  "systems/grid_sph.cpp"
   "systems/grid_logsph.cpp"
   "systems/ptc_updater.cpp"
   )

@@ -26,9 +26,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "data/curand_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver_default.cu"
-    "systems/field_solver_logsph.cu"
+    "systems/field_solver_sph.cu"
     "systems/ptc_updater.cu"
-    "systems/ptc_updater_logsph.cu"
+    "systems/ptc_updater_sph.cu"
     )
 else()
   list(APPEND Aperture_src

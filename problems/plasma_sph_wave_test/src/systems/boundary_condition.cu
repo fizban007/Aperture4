@@ -1,5 +1,6 @@
 #include "boundary_condition.hpp"
 #include "framework/config.h"
+#include "systems/grid_sph.h"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -30,8 +31,8 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   kernel_launch([ext, time, omega] __device__ (auto e, auto b, auto e0, auto b0) {
       auto& grid = dev_grid<Conf::dim>();
       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-        value_t theta = grid.template pos<1>(n1, false);
-        value_t theta_s = grid.template pos<1>(n1, true);
+        value_t theta = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));
+        value_t theta_s = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, true));
 
         // For quantities that are not continuous across the surface
         for (int n0 = 0; n0 < grid.skirt[0]; n0++) {
@@ -43,8 +44,8 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         // For quantities that are continuous across the surface
         for (int n0 = 0; n0 < grid.skirt[0] + 1; n0++) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
-          value_t r = exp(grid.template pos<0>(n0, false));
-          value_t r_s = exp(grid.template pos<0>(n0, true));
+          value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, false));
+          value_t r_s = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, true));
           b[0][idx] = 0.0;
           e[1][idx] = -omega * sin(theta) * r_s * b0[0][idx];
           e[2][idx] = 0.0;

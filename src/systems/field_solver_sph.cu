@@ -1,4 +1,4 @@
-#include "field_solver_logsph.h"
+#include "field_solver_sph.h"
 #include "framework/config.h"
 #include "framework/environment.hpp"
 #include "utils/double_buffer.h"
@@ -421,7 +421,7 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
 
 template <typename Conf>
 void
-field_solver_logsph<Conf>::init() {
+field_solver_sph<Conf>::init() {
   // this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
   m_alpha = 1.0 - m_beta;
@@ -439,7 +439,7 @@ field_solver_logsph<Conf>::init() {
 
 template <typename Conf>
 void
-field_solver_logsph<Conf>::update(double dt, uint32_t step) {
+field_solver_sph<Conf>::update(double dt, uint32_t step) {
   double time = this->m_env.get_time();
   if (m_use_implicit)
     update_semi_impl(dt, m_alpha, m_beta, time);
@@ -454,7 +454,7 @@ field_solver_logsph<Conf>::update(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-field_solver_logsph<Conf>::update_explicit(double dt, double time) {
+field_solver_sph<Conf>::update_explicit(double dt, double time) {
   auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   if (time < TINY)
     compute_b_update_explicit(*(this->B), *(this->E), grid, 0.5 * dt);
@@ -478,7 +478,7 @@ field_solver_logsph<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
+field_solver_sph<Conf>::update_semi_impl(double dt, double alpha,
                                             double beta, double time) {
   // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
@@ -531,6 +531,6 @@ field_solver_logsph<Conf>::update_semi_impl(double dt, double alpha,
   compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);
 }
 
-template class field_solver_logsph<Config<2>>;
+template class field_solver_sph<Config<2>>;
 
 }  // namespace Aperture

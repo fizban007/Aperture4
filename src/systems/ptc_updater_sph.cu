@@ -1,6 +1,6 @@
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
-#include "ptc_updater_logsph.h"
+#include "ptc_updater_sph.h"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -9,7 +9,7 @@ template <typename Conf>
 void
 process_j_rho(vector_field<Conf>& j,
               typename ptc_updater_cu<Conf>::rho_ptrs_t& rho_ptrs,
-              int num_species, const grid_logsph_t<Conf>& grid,
+              int num_species, const grid_sph_t<Conf>& grid,
               typename Conf::value_t dt) {
   auto ext = grid.extent();
   kernel_launch(
@@ -85,7 +85,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
 
 template <typename Conf>
 void
-ptc_updater_logsph_cu<Conf>::init() {
+ptc_updater_sph_cu<Conf>::init() {
   ptc_updater_cu<Conf>::init();
 
   this->m_env.params().get_value("compactness", m_compactness);
@@ -94,13 +94,13 @@ ptc_updater_logsph_cu<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_logsph_cu<Conf>::register_dependencies() {
+ptc_updater_sph_cu<Conf>::register_dependencies() {
   ptc_updater_cu<Conf>::register_dependencies();
 }
 
 template <typename Conf>
 void
-ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
+ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
   this->J->init();
   for (auto rho : this->Rho) rho->init();
 
@@ -134,8 +134,10 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
                 gamma = ptc.E[n];
 
         value_t r1 = grid.template pos<0>(pos[0], x1);
-        value_t exp_r1 = std::exp(r1);
+        // value_t exp_r1 = std::exp(r1);
+        value_t radius = grid_sph_t<Conf>::radius(r1);
         value_t r2 = grid.template pos<1>(pos[1], x2);
+        value_t theta = grid_sph_t<Conf>::theta(r2);
 
         // printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3,
         // gamma);
@@ -146,12 +148,12 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         // value_t v3_gr = v3 - beta_phi(exp_r1, r2);
         //
         // step 1: Compute particle movement and update position
-        value_t x = exp_r1 * std::sin(r2) * std::cos(x3);
-        value_t y = exp_r1 * std::sin(r2) * std::sin(x3);
-        value_t z = exp_r1 * std::cos(r2);
+        value_t x = radius * std::sin(theta) * std::cos(x3);
+        value_t y = radius * std::sin(theta) * std::sin(x3);
+        value_t z = radius * std::cos(theta);
 
         // logsph2cart(v1, v2, v3_gr, r1, r2, old_x3);
-        logsph2cart(v1, v2, v3, r1, r2, x3);
+        sph2cart(v1, v2, v3, radius, theta, x3);
         x += v1 * dt;
         y += v2 * dt;
         z += v3 * dt;
@@ -159,10 +161,12 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         value_t r1p = sqrt(x * x + y * y + z * z);
         value_t r2p = acos(z / r1p);
         // value_t exp_r1p = r1p;
-        r1p = log(r1p);
         value_t r3p = atan2(y, x);
 
-        cart2logsph(v1, v2, v3, r1p, r2p, r3p);
+        cart2sph(v1, v2, v3, r1p, r2p, r3p);
+        r1p = grid_sph_t<Conf>::from_radius(r1p);
+        r2p = grid_sph_t<Conf>::from_theta(r2p);
+
         ptc.p1[n] = v1 * gamma;
         ptc.p2[n] = v2 * gamma;
         // ptc.p3[n] = (v3_gr + beta_phi(exp_r1p, r2p)) * gamma;
@@ -179,7 +183,7 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         // reflect around the axis
         if (pos[1] <= grid.guard[1] ||
             pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
-          auto theta = grid.template pos<1>(pos[1] + dc2, new_x2);
+          theta = grid_sph_t<Conf>::theta(r2p);
           if (theta < 0.0f) {
             dc2 += 1;
             new_x2 = 1.0f - new_x2;
@@ -265,7 +269,7 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
     kernel_launch(deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
                   this->m_rho_ptrs.dev_ptr(), this->m_data_interval);
 
-    auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
+    auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);
     CudaSafeCall(cudaDeviceSynchronize());
   }
@@ -273,8 +277,8 @@ ptc_updater_logsph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_logsph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
-  auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
+ptc_updater_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
+  auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp], this->m_comm->domain_info().is_boundary);
   } else {
@@ -285,8 +289,8 @@ ptc_updater_logsph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
 
 template <typename Conf>
 void
-ptc_updater_logsph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
-  auto& grid = dynamic_cast<const grid_logsph_t<Conf>&>(this->m_grid);
+ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
+  auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV, this->m_comm->domain_info().is_boundary);
   } else {
@@ -295,6 +299,6 @@ ptc_updater_logsph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
   }
 }
 
-template class ptc_updater_logsph_cu<Config<2>>;
+template class ptc_updater_sph_cu<Config<2>>;
 
 }  // namespace Aperture

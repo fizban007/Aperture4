@@ -9,7 +9,7 @@ namespace Aperture {
 
 template <typename Conf>
 void
-set_initial_condition(sim_environment& env, const grid_logsph_t<Conf>& grid,
+set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
                       int mult, double weight, double Bp) {
   particle_data_t* ptc;
   vector_field<Conf> *B0, *B;
@@ -74,7 +74,7 @@ set_initial_condition(sim_environment& env, const grid_logsph_t<Conf>& grid,
 }
 
 template void set_initial_condition<Config<2>>(
-    sim_environment& env, const grid_logsph_t<Config<2>>& grid, int mult,
+    sim_environment& env, const grid_sph_t<Config<2>>& grid, int mult,
     double weight, double Bp);
 
 }  // namespace Aperture

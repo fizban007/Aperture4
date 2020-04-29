@@ -1,5 +1,5 @@
-#ifndef __FIELD_SOLVER_LOGSPH_H_
-#define __FIELD_SOLVER_LOGSPH_H_
+#ifndef __FIELD_SOLVER_SPH_H_
+#define __FIELD_SOLVER_SPH_H_
 
 #include "data/fields.hpp"
 #include "framework/environment.hpp"
@@ -10,10 +10,10 @@
 
 namespace Aperture {
 
-// System that updates Maxwell equations using an explicit scheme in Log-Spherical
+// System that updates Maxwell equations using an explicit scheme in Spherical
 // coordinates
 template <typename Conf>
-class field_solver_logsph : public field_solver_default<Conf> {
+class field_solver_sph : public field_solver_default<Conf> {
  private:
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
   bool m_use_implicit = true;
@@ -27,7 +27,7 @@ class field_solver_logsph : public field_solver_default<Conf> {
 
   typedef field_solver_default<Conf> base_class;
 
-  field_solver_logsph(sim_environment& env, const grid_curv_t<Conf>& grid,
+  field_solver_sph(sim_environment& env, const grid_curv_t<Conf>& grid,
                        const domain_comm<Conf>* comm = nullptr)
       : base_class(env, grid, comm) {}
 

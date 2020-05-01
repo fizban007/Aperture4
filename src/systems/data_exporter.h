@@ -4,7 +4,7 @@
 #include "core/multi_array.hpp"
 #include "data/fields.hpp"
 #include "framework/system.h"
-#include "systems/domain_comm.hpp"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include "utils/hdf_wrapper.h"
 #include <fstream>

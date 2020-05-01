@@ -3,7 +3,7 @@
 #include "core/domain_info.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/domain_comm.hpp"
+#include "systems/domain_comm.h"
 #include <exception>
 
 namespace Aperture {

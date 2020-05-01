@@ -1,4 +1,4 @@
-#include "domain_comm.hpp"
+#include "domain_comm.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"

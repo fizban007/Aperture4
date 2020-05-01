@@ -5,7 +5,7 @@
 #include "data/particle_data.h"
 #include "data/curand_states.h"
 #include "framework/system.h"
-#include "systems/domain_comm.hpp"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
 
 namespace Aperture {

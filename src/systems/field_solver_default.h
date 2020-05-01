@@ -4,7 +4,7 @@
 #include "data/fields.hpp"
 #include "framework/environment.h"
 #include "framework/system.h"
-#include "systems/domain_comm.hpp"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include <memory>
 

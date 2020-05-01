@@ -2,6 +2,7 @@
 #include "framework/environment.h"
 #include "ptc_injector.h"
 #include "systems/grid_curv.h"
+#include "systems/grid_sph.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -80,10 +81,11 @@ compute_sigma(scalar_field<Conf>& sigma,
             // if (pos[0] == 5 && pos[1] == 256)
             //   printf("B_sqr is %f, s is %f\n", B_sqr, s);
             if (s > target_sigma) {
-              value_t th = grid.template pos<1>(pos[1], false);
+              value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+              value_t th = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], false));
               value_t ds = B_sqr * (1.0f / target_sigma - 1.0f / s) * dv /
                   std::abs(dev_charges[0]) / sin(th);
-              num_per_cell[idx] = floor(0.2f * ds);
+              num_per_cell[idx] = floor(0.2f * ds * r * r);
             }
           } else {
             num_per_cell[idx] = 0;

@@ -181,7 +181,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
                                     j[2][idx]);
             // Take care of axis boundary
             Scalar theta = grid.template pos<1>(pos[1], true);
-            if (abs(theta) < TINY) {
+            if (abs(theta) < 0.1f * grid.guard[1]) {
               result[2][idx] = 0.0f;
             }
             // if (pos[0] == 3 && pos[1] == 256) {
@@ -227,7 +227,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
             result[1][idx] -= dt * circ1(e, gp.le, idx, idx_px) / gp.Ab[1][idx];
             // Take care of axis boundary
             Scalar theta = grid.template pos<1>(pos[1], true);
-            if (abs(theta) < TINY) {
+            if (abs(theta) < 0.1f * grid.guard[1]) {
               result[1][idx] = 0.0f;
             }
 

@@ -29,7 +29,7 @@ process_j_rho(vector_field<Conf>& j,
           }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (std::abs(theta) < 0.1 * grid.delta[1]) {
-            j[1][idx] = 0.0;
+            // j[1][idx] = 0.0;
             j[2][idx] = 0.0;
           }
         }
@@ -40,45 +40,47 @@ process_j_rho(vector_field<Conf>& j,
 template <typename Conf>
 void
 filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
-       const typename Conf::ndptr_const_t& geom_factor, const bool is_boundary[4]) {
-  kernel_launch([] __device__(auto result, auto f, auto A, auto is_boundary) {
-      typedef typename Conf::idx_t idx_t;
-      auto& grid = dev_grid<Conf::dim>();
-      auto ext = grid.extent();
-      for (auto n : grid_stride_range(0, ext.size())) {
-        auto idx = idx_t(n, ext);
-        auto pos = idx.get_pos();
-        if (grid.is_in_bound(pos)) {
-          int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
-          if (is_boundary[0] && pos[0] == grid.skirt[0])
-            dx_minus = 0;
-          if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
-            dx_plus = 0;
-          if (is_boundary[2] && pos[1] == grid.skirt[1])
-            dy_minus = 0;
-          if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
-            dy_plus = 0;
-          result[idx] = 0.25f * f[idx] * A[idx];
-          auto idx_px = idx.inc_x(dx_plus);
-          auto idx_mx = idx.dec_x(dx_minus);
-          auto idx_py = idx.inc_y(dy_plus);
-          auto idx_my = idx.dec_y(dy_minus);
-          result[idx] += 0.125f * f[idx_px] * A[idx_px];
-          result[idx] += 0.125f * f[idx_mx] * A[idx_mx];
-          result[idx] += 0.125f * f[idx_py] * A[idx_py];
-          result[idx] += 0.125f * f[idx_my] * A[idx_my];
-          result[idx] += 0.0625f * f[idx_px.inc_y(dy_plus)]
-              * A[idx_px.inc_y(dy_plus)];
-          result[idx] += 0.0625f * f[idx_px.dec_y(dy_minus)]
-              * A[idx_px.dec_y(dy_minus)];
-          result[idx] += 0.0625f * f[idx_mx.inc_y(dy_plus)]
-              * A[idx_mx.inc_y(dy_plus)];
-          result[idx] += 0.0625f * f[idx_mx.dec_y(dy_minus)]
-              * A[idx_mx.dec_y(dy_minus)];
-          result[idx] /= A[idx];
+       const typename Conf::ndptr_const_t& geom_factor,
+       const bool is_boundary[4]) {
+  kernel_launch(
+      [] __device__(auto result, auto f, auto A, auto is_boundary) {
+        typedef typename Conf::idx_t idx_t;
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
+            if (is_boundary[0] && pos[0] == grid.skirt[0]) dx_minus = 0;
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+              dx_plus = 0;
+            if (is_boundary[2] && pos[1] == grid.skirt[1]) dy_minus = 0;
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+              dy_plus = 0;
+            result[idx] = 0.25f * f[idx] * A[idx];
+            auto idx_px = idx.inc_x(dx_plus);
+            auto idx_mx = idx.dec_x(dx_minus);
+            auto idx_py = idx.inc_y(dy_plus);
+            auto idx_my = idx.dec_y(dy_minus);
+            result[idx] += 0.125f * f[idx_px] * A[idx_px];
+            result[idx] += 0.125f * f[idx_mx] * A[idx_mx];
+            result[idx] += 0.125f * f[idx_py] * A[idx_py];
+            result[idx] += 0.125f * f[idx_my] * A[idx_my];
+            result[idx] +=
+                0.0625f * f[idx_px.inc_y(dy_plus)] * A[idx_px.inc_y(dy_plus)];
+            result[idx] +=
+                0.0625f * f[idx_px.dec_y(dy_minus)] * A[idx_px.dec_y(dy_minus)];
+            result[idx] +=
+                0.0625f * f[idx_mx.inc_y(dy_plus)] * A[idx_mx.inc_y(dy_plus)];
+            result[idx] +=
+                0.0625f * f[idx_mx.dec_y(dy_minus)] * A[idx_mx.dec_y(dy_minus)];
+            result[idx] /= A[idx];
+          }
         }
-      }
-    }, result.get_ptr(), f.get_const_ptr(), geom_factor, vec_t<bool, 4>(is_boundary));
+      },
+      result.get_ptr(), f.get_const_ptr(), geom_factor,
+      vec_t<bool, 4>(is_boundary));
   CudaSafeCall(cudaDeviceSynchronize());
   f.copy_from(result);
 }
@@ -115,7 +117,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
       using value_t = typename Conf::value_t;
       auto& grid = dev_grid<Conf::dim>();
       extern __shared__ char shared_array[];
-      value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) * (2 * spline_t::radius + 1)];
+      value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
+                                             (2 * spline_t::radius + 1)];
 #pragma unroll
       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
         djy[j] = 0.0;
@@ -218,11 +221,11 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
         int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-//         // Reset djy since it could be nonzero from previous particle
-// #pragma unroll
-//         for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-//           djy[j] = 0.0;
-//         }
+        //         // Reset djy since it could be nonzero from previous particle
+        // #pragma unroll
+        //         for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+        //           djy[j] = 0.0;
+        //         }
 
         // Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
@@ -280,10 +283,12 @@ void
 ptc_updater_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
-    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp], this->m_comm->domain_info().is_boundary);
+    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp],
+                 this->m_comm->domain_info().is_boundary);
   } else {
     bool is_boundary[4] = {true, true, true, true};
-    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp], is_boundary);
+    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp],
+                 is_boundary);
   }
 }
 
@@ -292,7 +297,8 @@ void
 ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
-    filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV, this->m_comm->domain_info().is_boundary);
+    filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV,
+                 this->m_comm->domain_info().is_boundary);
   } else {
     bool is_boundary[4] = {true, true, true, true};
     filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV, is_boundary);

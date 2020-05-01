@@ -1,11 +1,18 @@
 #include "ptc_injector.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/config.h"
+#include "utils/kernel_helper.hpp"
 
 namespace Aperture {
 
-// template <typename Conf>
-// void count_ptc_injected(Gu)
+template <typename Conf>
+void count_ptc_injected(buffer<int>& num_per_cell,
+                        buffer<int>& cum_num_per_cell,
+                        const vector_field<Conf>& B) {
+  auto ext = B.grid().extent();
+
+
+}
 
 template <typename Conf>
 void
@@ -30,7 +37,7 @@ ptc_injector_cu<Conf>::register_dependencies() {
 template <typename Conf>
 void
 ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
-
+  count_ptc_injected<Conf>(m_num_per_cell, m_cum_num_per_cell, *(this->B));
 }
 
 template class ptc_injector_cu<Config<2>>;

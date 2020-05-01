@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/ptc_updater.h"
 #include <fstream>
 #include <iomanip>

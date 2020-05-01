@@ -2,7 +2,7 @@
 #include "core/grid.hpp"
 #include "core/constant_mem.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/grid.h"
 #include "systems/grid_logsph.h"
 #include "utils/index.hpp"

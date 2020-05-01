@@ -1,7 +1,7 @@
 #include "fields.hpp"
 #include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/grid.h"
 #include <exception>
 

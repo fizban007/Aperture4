@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 #include "data.h"
-#include "framework/params_store.hpp"
+#include "framework/params_store.h"
 #include "system.h"
 #include "utils/logger.h"
 #include "gsl/pointers"

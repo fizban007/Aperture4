@@ -1,6 +1,6 @@
 #include "grid_logsph.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/domain_comm.hpp"
 
 namespace Aperture {

@@ -5,7 +5,7 @@
 #include "core/enum_types.h"
 #include "data/particle_data.h"
 #include "data/curand_states.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
 #include "systems/grid.h"

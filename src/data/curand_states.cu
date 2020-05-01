@@ -1,5 +1,5 @@
 #include "curand_states.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {

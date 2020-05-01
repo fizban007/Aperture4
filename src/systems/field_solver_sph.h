@@ -2,7 +2,7 @@
 #define __FIELD_SOLVER_SPH_H_
 
 #include "data/fields.hpp"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid_curv.h"
 #include "systems/field_solver_default.h"

@@ -1,7 +1,7 @@
 #ifndef _INITIAL_CONDITION_H_
 #define _INITIAL_CONDITION_H_
 
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/grid_sph.h"
 
 namespace Aperture {

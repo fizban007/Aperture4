@@ -1,7 +1,7 @@
 #include "domain_comm.hpp"
 #include "framework/config.h"
-#include "framework/environment.hpp"
-#include "framework/params_store.hpp"
+#include "framework/environment.h"
+#include "framework/params_store.h"
 #include "utils/logger.h"
 #include "utils/mpi_helper.h"
 

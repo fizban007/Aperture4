@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "framework/params_store.hpp"
+#include "framework/params_store.h"
 // #include "visit_struct/visit_struct_intrusive.hpp"
 #include "visit_struct/visit_struct.hpp"
 

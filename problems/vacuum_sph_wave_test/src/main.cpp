@@ -1,5 +1,5 @@
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/field_solver_sph.h"
 #include "systems/grid_sph.h"
 // #include "systems/ptc_updater.h"

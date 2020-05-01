@@ -2,7 +2,7 @@
 #include "core/constant_mem_func.h"
 #include "core/domain_info.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/domain_comm.hpp"
 #include <exception>
 

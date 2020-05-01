@@ -1,6 +1,6 @@
 #include "field_solver_sph.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "utils/double_buffer.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"

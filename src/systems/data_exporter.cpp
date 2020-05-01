@@ -2,8 +2,8 @@
 #include "core/detail/multi_array_helpers.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
-#include "framework/environment.hpp"
-#include "framework/params_store.hpp"
+#include "framework/environment.h"
+#include "framework/params_store.h"
 #include <boost/filesystem.hpp>
 #include <fmt/ostream.h>
 

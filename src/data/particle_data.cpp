@@ -1,5 +1,5 @@
 #include "particle_data.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/config.h"
 
 namespace Aperture {

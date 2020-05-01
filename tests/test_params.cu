@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "framework/params_store.hpp"
+#include "framework/params_store.h"
 
 using namespace Aperture;
 

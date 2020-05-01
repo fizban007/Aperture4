@@ -2,7 +2,7 @@
 #define __FIELD_SOLVER_DEFAULT_H_
 
 #include "data/fields.hpp"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.hpp"
 #include "systems/grid.h"

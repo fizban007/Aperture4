@@ -1,5 +1,5 @@
 #include "framework/config.h"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "systems/field_solver_default.h"
 #include "systems/ptc_updater.h"
 #include "systems/data_exporter.h"

@@ -2,7 +2,7 @@
 #define __BOUNDARY_CONDITION_H_
 
 #include "data/fields.hpp"
-#include "framework/environment.hpp"
+#include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid_curv.h"
 #include <memory>

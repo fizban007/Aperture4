@@ -80,9 +80,10 @@ compute_sigma(scalar_field<Conf>& sigma,
             // if (pos[0] == 5 && pos[1] == 256)
             //   printf("B_sqr is %f, s is %f\n", B_sqr, s);
             if (s > target_sigma) {
+              value_t th = grid.template pos<1>(pos[1], false);
               value_t ds = B_sqr * (1.0f / target_sigma - 1.0f / s) * dv /
-                  std::abs(dev_charges[0]);
-              num_per_cell[idx] = floor(0.5f * ds);
+                  std::abs(dev_charges[0]) / sin(th);
+              num_per_cell[idx] = floor(0.2f * ds);
             }
           } else {
             num_per_cell[idx] = 0;
@@ -109,17 +110,20 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
       cuda_rng_t rng(&states[id]);
       for (auto cell : grid_stride_range(0, ext.size())) {
         auto idx = typename Conf::idx_t(cell, ext);
+        auto pos = idx.get_pos();
         for (int i = 0; i < num_per_cell[cell]; i++) {
           int offset = ptc_num + cum_num[cell] * 2 + i * 2;
           ptc.x1[offset] = ptc.x1[offset + 1] = rng();
           ptc.x2[offset] = ptc.x2[offset + 1] = rng();
           ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
+          Scalar th = grid.template pos<1>(pos[1], ptc.x2[offset]);
           ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
           ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
           ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
           ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
           ptc.cell[offset] = ptc.cell[offset + 1] = cell;
-          ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
+          ptc.weight[offset] = ptc.weight[offset + 1] = sin(th);
+          // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
           ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
           ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
         }

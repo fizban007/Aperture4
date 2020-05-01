@@ -2,6 +2,7 @@
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
+#include "systems/grid_sph.h"
 #include "initial_condition.h"
 #include "utils/kernel_helper.hpp"
 
@@ -61,14 +62,12 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
   }
 
   B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
-    // Scalar r = std::exp(x);
-    Scalar r = x;
+    Scalar r = grid_sph_t<Conf>::radius(x);
+    // return Bp / (r * r);
     return Bp * 2.0 * cos(theta) / cube(r);
   });
   B0->set_values(1, [Bp](Scalar x, Scalar theta, Scalar phi) {
-    // Scalar r = std::exp(x);
-    Scalar r = x;
-    // return Bp / (r * r);
+    Scalar r = grid_sph_t<Conf>::radius(x);
     return Bp * sin(theta) / cube(r);
   });
   B->copy_from(*B0);

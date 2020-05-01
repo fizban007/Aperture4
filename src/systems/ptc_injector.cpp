@@ -6,7 +6,9 @@ namespace Aperture {
 
 template <typename Conf>
 void
-ptc_injector<Conf>::init() {}
+ptc_injector<Conf>::init() {
+  m_env.params().get_value("target_sigma", m_target_sigma);
+}
 
 template <typename Conf>
 void

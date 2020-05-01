@@ -85,6 +85,10 @@ class particles_base : public BufferType {
     m_number = std::min(num, m_size);
   }
 
+  void add_num(size_t num) {
+    set_num(m_number + num);
+  }
+
   typename BufferType::ptrs_type get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type get_dev_ptrs() { return m_dev_ptrs; }
 };

@@ -2,11 +2,13 @@
 #define _PTC_INJECTOR_H_
 
 #include "core/enum_types.h"
+#include "core/multi_array.hpp"
 #include "data/particle_data.h"
 #include "data/curand_states.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
+#include <memory>
 
 namespace Aperture {
 
@@ -17,6 +19,8 @@ class ptc_injector : public system_t {
 
   particle_data_t* ptc;
   vector_field<Conf>* B;
+
+  typename Conf::value_t m_target_sigma = 100.0;
 
  public:
   typedef typename Conf::value_t value_t;
@@ -35,8 +39,10 @@ template <typename Conf>
 class ptc_injector_cu : public ptc_injector<Conf> {
  protected:
   curand_states_t* m_rand_states;
-  buffer<int> m_num_per_cell;
-  buffer<int> m_cum_num_per_cell;
+  multi_array<int, Conf::dim> m_num_per_cell;
+  multi_array<int, Conf::dim> m_cum_num_per_cell;
+  // std::unique_ptr<scalar_field<Conf>> m_sigma;
+  scalar_field<Conf>* m_sigma;
   // buffer<int> m_pos_in_array;
  
  public:

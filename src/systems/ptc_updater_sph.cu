@@ -27,7 +27,7 @@ process_j_rho(vector_field<Conf>& j,
               rho[n][idx] /= gp.dV[idx];
             }
           }
-          Scalar theta = grid.template pos<1>(pos[1], true);
+          typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (std::abs(theta) < 0.1 * grid.delta[1]) {
             j[1][idx] = 0.0;
             j[2][idx] = 0.0;
@@ -115,7 +115,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
       using value_t = typename Conf::value_t;
       auto& grid = dev_grid<Conf::dim>();
       extern __shared__ char shared_array[];
-      Scalar* djy = (Scalar*)&shared_array[threadIdx.x * sizeof(Scalar) * (2 * spline_t::radius + 1)];
+      value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) * (2 * spline_t::radius + 1)];
 #pragma unroll
       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
         djy[j] = 0.0;
@@ -226,13 +226,13 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
         // Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
-          Scalar sy0 = interp(-x2 + j);
-          Scalar sy1 = interp(-new_x2 + j);
+          value_t sy0 = interp(-x2 + j);
+          value_t sy1 = interp(-new_x2 + j);
 
-          Scalar djx = 0.0f;
+          value_t djx = 0.0f;
           for (int i = i_0; i <= i_1; i++) {
-            Scalar sx0 = interp(-x1 + i);
-            Scalar sx1 = interp(-new_x1 + i);
+            value_t sx0 = interp(-x1 + i);
+            value_t sx1 = interp(-new_x1 + i);
 
             // j1 is movement in x1
             auto offset = idx.inc_x(i).inc_y(j);

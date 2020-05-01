@@ -69,6 +69,47 @@ struct ndptr_const {
   }
 };
 
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator==(const ndptr<T, Rank, Idx_t>& ptr, std::nullptr_t) {
+  return ptr.p == nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator==(const ndptr_const<T, Rank, Idx_t>& ptr, std::nullptr_t) {
+  return ptr.p == nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator==(std::nullptr_t, const ndptr<T, Rank, Idx_t>& ptr) {
+  return ptr.p == nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator==(std::nullptr_t, const ndptr_const<T, Rank, Idx_t>& ptr) {
+  return ptr.p == nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator!=(const ndptr<T, Rank, Idx_t>& ptr, std::nullptr_t) {
+  return ptr.p != nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator!=(const ndptr_const<T, Rank, Idx_t>& ptr, std::nullptr_t) {
+  return ptr.p != nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator!=(std::nullptr_t, const ndptr<T, Rank, Idx_t>& ptr) {
+  return ptr.p != nullptr;
+}
+
+template <class T, int Rank, class Idx_t>
+HD_INLINE bool operator!=(std::nullptr_t, const ndptr_const<T, Rank, Idx_t>& ptr) {
+  return ptr.p != nullptr;
+}
+
+
 }  // namespace Aperture
 
 

@@ -3,7 +3,7 @@
 #include "systems/field_solver_sph.h"
 #include "systems/ptc_updater_sph.h"
 #include "systems/data_exporter.h"
-#include "systems/boundary_condition.hpp"
+#include "systems/boundary_condition.h"
 #include "systems/initial_condition.h"
 #include "systems/ptc_injector.h"
 #include <iostream>
@@ -31,7 +31,9 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  set_initial_condition(env, *grid, 0, 1.0, 10000.0);
+  double Bp = 10000.0;
+  env.params().get_value("Bp", Bp);
+  set_initial_condition(env, *grid, 0, 1.0, Bp);
 
   env.run();
   return 0;

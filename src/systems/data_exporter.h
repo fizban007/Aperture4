@@ -28,7 +28,7 @@ class data_exporter : public system_t {
   std::string m_xmf_buffer;
 
   /// tmp_ptc_data stores temporary tracked particles
-  buffer_t<double> tmp_ptc_data;
+  buffer<double> tmp_ptc_data;
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;
   grid_t<Conf> m_output_grid;
@@ -133,8 +133,8 @@ class data_exporter : public system_t {
   // void load_snapshot(const std::string& filename, sim_data& data,
   //                    uint32_t& step, Scalar& time);
 
-  // buffer_t<float>& grid_buffer() { return tmp_grid_data; }
-  // buffer_t<double>& ptc_buffer() { return tmp_ptc_data; }
+  // buffer<float>& grid_buffer() { return tmp_grid_data; }
+  // buffer<double>& ptc_buffer() { return tmp_ptc_data; }
 };
 
 }  // namespace Aperture

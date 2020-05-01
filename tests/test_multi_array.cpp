@@ -351,13 +351,13 @@ TEST_CASE("Performance of interpolation on CPU",
 
   // Generate M random numbers
   int M = 1000000;
-  buffer_t<float> xs(M, MemType::host_only);
-  buffer_t<float> ys(M, MemType::host_only);
-  buffer_t<float> zs(M, MemType::host_only);
-  buffer_t<float> result1(M, MemType::host_only);
-  buffer_t<float> result2(M, MemType::host_only);
-  buffer_t<uint32_t> cells1(M, MemType::host_only);
-  buffer_t<uint32_t> cells2(M, MemType::host_only);
+  buffer<float> xs(M, MemType::host_only);
+  buffer<float> ys(M, MemType::host_only);
+  buffer<float> zs(M, MemType::host_only);
+  buffer<float> result1(M, MemType::host_only);
+  buffer<float> result2(M, MemType::host_only);
+  buffer<uint32_t> cells1(M, MemType::host_only);
+  buffer<uint32_t> cells2(M, MemType::host_only);
   for (int n = 0; n < M; n++) {
     xs[n] = dist(g);
     ys[n] = dist(g);

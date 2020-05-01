@@ -93,11 +93,11 @@ class ptc_updater : public system_t {
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
  protected:
-  buffer_t<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
+  buffer<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
   curand_states_t* m_rand_states;
 
  public:
-  typedef buffer_t<ndptr<Scalar, Conf::dim>> rho_ptrs_t;
+  typedef buffer<ndptr<Scalar, Conf::dim>> rho_ptrs_t;
 
   static std::string name() { return "ptc_updater"; }
 

@@ -30,7 +30,7 @@ struct cuda_rng_t {
 
 class curand_states_t : public data_t {
  private:
-  buffer_t<curandState> m_states;
+  buffer<curandState> m_states;
   int m_init_seed = 1234;
   int m_rand_state_size = sizeof(curandState);
   int m_block_num = 512;

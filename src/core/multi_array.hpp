@@ -15,12 +15,12 @@ namespace Aperture {
 template <typename T, int Rank,
           // MemType Model = default_mem_type,
           typename Idx_t = default_idx_t<Rank>>
-class multi_array : public buffer_t<T> {
+class multi_array : public buffer<T> {
  private:
   extent_t<Rank> m_ext;
 
  public:
-  typedef buffer_t<T> base_type;
+  typedef buffer<T> base_type;
   typedef multi_array<T, Rank, Idx_t> self_type;
   typedef Idx_t idx_t;
   typedef ndptr<T, Rank, Idx_t> ptr_t;

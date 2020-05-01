@@ -26,8 +26,8 @@
 #define DEF_PTR_ENTRY_(type, name, dv) type* name;
 #define DEF_PTR_ENTRY(r, data, elem) EXPAND_ELEMS(DEF_PTR_ENTRY_, elem)
 
-// #define DEF_BUF_ENTRY_(type, name, dv) buffer_t<type, Model> name;
-#define DEF_BUF_ENTRY_(type, name, dv) buffer_t<type> name;
+// #define DEF_BUF_ENTRY_(type, name, dv) buffer<type, Model> name;
+#define DEF_BUF_ENTRY_(type, name, dv) buffer<type> name;
 #define DEF_BUF_ENTRY(r, data, elem) EXPAND_ELEMS(DEF_BUF_ENTRY_, elem)
 
 #define PTR_ASSIGN_ENTRY_(result, ptr, name) result.name = name.ptr();

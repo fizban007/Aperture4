@@ -109,13 +109,13 @@ TEST_CASE("Performance of different indexing schemes",
 
   // Generate M random numbers
   int M = 1000000;
-  buffer_t<float> xs(M, MemType::host_device);
-  buffer_t<float> ys(M, MemType::host_device);
-  buffer_t<float> zs(M, MemType::host_device);
-  buffer_t<float> result1(M, MemType::host_device);
-  buffer_t<float> result2(M, MemType::host_device);
-  buffer_t<uint32_t> cells1(M, MemType::host_device);
-  buffer_t<uint32_t> cells2(M, MemType::host_device);
+  buffer<float> xs(M, MemType::host_device);
+  buffer<float> ys(M, MemType::host_device);
+  buffer<float> zs(M, MemType::host_device);
+  buffer<float> result1(M, MemType::host_device);
+  buffer<float> result2(M, MemType::host_device);
+  buffer<uint32_t> cells1(M, MemType::host_device);
+  buffer<uint32_t> cells2(M, MemType::host_device);
   for (int n = 0; n < M; n++) {
     xs[n] = dist(g);
     ys[n] = dist(g);

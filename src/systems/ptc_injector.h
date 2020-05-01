@@ -35,9 +35,9 @@ template <typename Conf>
 class ptc_injector_cu : public ptc_injector<Conf> {
  protected:
   curand_states_t* m_rand_states;
-  buffer_t<int> m_num_per_cell;
-  buffer_t<int> m_cum_num_per_cell;
-  // buffer_t<int> m_pos_in_array;
+  buffer<int> m_num_per_cell;
+  buffer<int> m_cum_num_per_cell;
+  // buffer<int> m_pos_in_array;
  
  public:
   static std::string name() { return "ptc_injector"; }

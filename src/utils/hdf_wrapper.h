@@ -59,7 +59,7 @@ class H5File {
   template <typename T, int Dim>
   multi_array<T, Dim> read_multi_array(const std::string& name);
   template <typename T>
-  buffer_t<T> read_array(const std::string& name);
+  buffer<T> read_array(const std::string& name);
   template <typename T>
   std::vector<T> read_vector(const std::string& name);
   template <typename T>

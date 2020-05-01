@@ -24,8 +24,8 @@ class particles_base : public BufferType {
   MemType m_mem_type;
 
   // Temporary data for sorting particles on device
-  buffer_t<size_t> m_index;
-  buffer_t<double> m_tmp_data;
+  buffer<size_t> m_index;
+  buffer<double> m_tmp_data;
   // Temporary data for sorting particles on host
   std::vector<size_t> m_partition;
 

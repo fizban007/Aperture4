@@ -22,7 +22,7 @@ namespace Aperture {
 /// and the device.
 // template <typename T, MemType Model = default_mem_type>
 template <typename T>
-class buffer_t {
+class buffer {
  protected:
   size_t m_size = 0;
 
@@ -71,20 +71,20 @@ class buffer_t {
   }
 
  public:
-  // typedef buffer_t<T, Model> self_type;
-  typedef buffer_t<T> self_type;
+  // typedef buffer<T, Model> self_type;
+  typedef buffer<T> self_type;
   // static constexpr MemType model() { return Model; }
   MemType mem_type() const { return m_model; }
   void set_memtype(MemType type) { m_model = type; }
 
-  buffer_t(MemType model = default_mem_type) : m_model(model) {}
-  buffer_t(size_t size, MemType model = default_mem_type) : m_model(model) {
+  buffer(MemType model = default_mem_type) : m_model(model) {}
+  buffer(size_t size, MemType model = default_mem_type) : m_model(model) {
     alloc_mem(size);
   }
-  buffer_t(const self_type& other) = delete;
-  buffer_t(self_type&& other) { *this = std::move(other); }
+  buffer(const self_type& other) = delete;
+  buffer(self_type&& other) { *this = std::move(other); }
 
-  ~buffer_t() { free_mem(); }
+  ~buffer() { free_mem(); }
 
   self_type& operator=(const self_type& other) = delete;
   self_type& operator=(self_type&& other) {

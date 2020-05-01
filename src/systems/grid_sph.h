@@ -5,6 +5,11 @@
 
 namespace Aperture {
 
+////////////////////////////////////////////////////////////////////////////////
+///  This is the general spherical grid class. The class implements two crucial
+///  functions: radius and theta, and provides a way to use these to compute
+///  area and length elements.
+////////////////////////////////////////////////////////////////////////////////
 template <typename Conf>
 class grid_sph_t : public grid_curv_t<Conf> {
  public:

@@ -33,6 +33,8 @@ class curand_states_t : public data_t {
   buffer_t<curandState> m_states;
   int m_init_seed = 1234;
   int m_rand_state_size = sizeof(curandState);
+  int m_block_num = 512;
+  int m_thread_num = 1024;
 
  public:
   curand_states_t(size_t size, int seed);
@@ -40,6 +42,8 @@ class curand_states_t : public data_t {
 
   inline curandState* states() { return m_states.dev_ptr(); }
   inline void* states_host() { return m_states.host_ptr(); }
+  inline int block_num() const { return m_block_num; }
+  inline int thread_num() const { return m_thread_num; }
 };
 
 }

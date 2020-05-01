@@ -15,6 +15,7 @@ set(Aperture_src
   "systems/grid_sph.cpp"
   "systems/grid_logsph.cpp"
   "systems/ptc_updater.cpp"
+  "systems/ptc_injector.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -29,6 +30,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/field_solver_sph.cu"
     "systems/ptc_updater.cu"
     "systems/ptc_updater_sph.cu"
+    "systems/ptc_injector.cu"
     )
 else()
   list(APPEND Aperture_src

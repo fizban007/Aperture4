@@ -15,6 +15,10 @@ struct grid_ptrs {
   ndptr_const<ValueT, Rank, Idx_t> dV;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+///  Curvilinear grid, keeps track of volume, area and length elements of every
+///  cell. Spherical and other coordinate systems should derive from this class.
+////////////////////////////////////////////////////////////////////////////////
 template <typename Conf>
 class grid_curv_t : public grid_t<Conf> {
  public:

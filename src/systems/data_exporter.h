@@ -2,7 +2,7 @@
 #define _DATA_EXPORTER_H_
 
 #include "core/multi_array.hpp"
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"

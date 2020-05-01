@@ -2,7 +2,7 @@
 #define _MULTI_ARRAY_HELPERS_H_
 
 #include "core/multi_array.hpp"
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "utils/stagger.h"
 
 namespace Aperture {

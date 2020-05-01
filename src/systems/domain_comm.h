@@ -1,7 +1,7 @@
 #ifndef __DOMAIN_COMM_H_
 #define __DOMAIN_COMM_H_
 
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "framework/system.h"
 #include "core/domain_info.h"
 #include "core/particles.h"

@@ -1,5 +1,5 @@
 #include "data/curand_states.h"
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "initial_condition.h"

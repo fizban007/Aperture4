@@ -1,7 +1,7 @@
 #ifndef __FIELD_SOLVER_DEFAULT_H_
 #define __FIELD_SOLVER_DEFAULT_H_
 
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"

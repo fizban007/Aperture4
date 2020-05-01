@@ -1,4 +1,4 @@
-#include "fields.hpp"
+#include "fields.h"
 #include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
 #include "framework/environment.h"

@@ -1,7 +1,7 @@
 #ifndef __BOUNDARY_CONDITION_H_
 #define __BOUNDARY_CONDITION_H_
 
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid_curv.h"

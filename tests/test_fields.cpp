@@ -1,7 +1,7 @@
 #include "catch.hpp"
 #include "core/detail/multi_array_helpers.h"
 #include "core/grid.hpp"
-#include "data/fields.hpp"
+#include "data/fields.h"
 #include "framework/config.h"
 
 using namespace Aperture;

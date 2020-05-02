@@ -78,14 +78,14 @@ compute_sigma(scalar_field<Conf>& sigma,
             s = B_sqr * dv / s;
             sigma[idx] = s;
 
+            value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], false));
             // if (pos[0] == 5 && pos[1] == 256)
             //   printf("B_sqr is %f, s is %f\n", B_sqr, s);
-            if (s > target_sigma) {
-              value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+            if (s > target_sigma / cube(r)) {
               value_t th = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], false));
-              value_t ds = B_sqr * (1.0f / target_sigma - 1.0f / s) * dv /
+              value_t ds = B_sqr * (cube(r) / target_sigma - 1.0f / s) * dv /
                   std::abs(dev_charges[0]) / sin(th);
-              num_per_cell[idx] = floor(0.2f * ds * r * r);
+              num_per_cell[idx] = 1;
             }
           } else {
             num_per_cell[idx] = 0;

@@ -256,18 +256,20 @@ axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
 
             // Set E_phi and B_theta to zero
             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
-            e[2][idx] = 0.0;
-            // e[1][idx] = 0.0;
-            e[1][idx.dec_y()] = e[1][idx];
+            e[2][idx] = 0.0f;
+            e[1][idx] = 0.0;
+            // e[1][idx.dec_y()] = e[1][idx];
+            e[0][idx] = 0.0f;
           }
           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
           if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
               0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
-            e[2][idx] = 0.0;
-            // e[1][idx] = 0.0;
-            e[1][idx] = e[1][idx.dec_y()];
+            e[2][idx] = 0.0f;
+            e[1][idx] = 0.0;
+            // e[1][idx] = e[1][idx.dec_y()];
+            e[0][idx] = 0.0f;
           }
         }
       },

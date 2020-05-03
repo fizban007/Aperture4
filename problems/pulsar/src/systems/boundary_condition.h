@@ -27,12 +27,7 @@ class boundary_condition : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
-  void register_dependencies() {
-    m_env.get_data("Edelta", &E);
-    m_env.get_data("E0", &E0);
-    m_env.get_data("Bdelta", &B);
-    m_env.get_data("B0", &B0);
-  }
+  void register_dependencies() {}
 };
 
 }

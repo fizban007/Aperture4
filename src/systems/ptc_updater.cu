@@ -26,6 +26,8 @@ ptc_updater_cu<Conf>::init() {
   // Allocate the tmp array for current filtering
   this->jtmp = std::make_unique<typename Conf::multi_array_t>
       (this->m_grid.extent(), MemType::host_device);
+
+  this->m_env.get_data("photons", &(this->ph));
 }
 
 template <typename Conf>

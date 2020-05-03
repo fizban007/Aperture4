@@ -53,6 +53,18 @@ data_exporter<Conf>::~data_exporter() {
 template <typename Conf>
 void
 data_exporter<Conf>::init() {
+  // obtain dependent data components
+  // m_env.get_data_optional("E", &E);
+  // m_env.get_data_optional("B", &B);
+  m_env.get_data_optional("Edelta", &Edelta);
+  m_env.get_data_optional("Bdelta", &Bdelta);
+  m_env.get_data_optional("E0", &E0);
+  m_env.get_data_optional("B0", &B0);
+  if (Edelta != nullptr) Edelta->set_skip_output();
+  if (Bdelta != nullptr) Bdelta->set_skip_output();
+  if (E0 != nullptr) E0->set_skip_output();
+  if (B0 != nullptr) B0->set_skip_output();
+
   // make sure output directory is a directory
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
@@ -74,16 +86,6 @@ data_exporter<Conf>::register_dependencies() {
   //                                                 field_type::vert_centered);
   // tmp_B = m_env.register_data<vector_field<Conf>>("B_output", m_output_grid,
   //                                                 field_type::vert_centered);
-  m_env.get_data("E", &E);
-  m_env.get_data("B", &B);
-  m_env.get_data("Edelta", &Edelta);
-  m_env.get_data("Bdelta", &Bdelta);
-  m_env.get_data("E0", &E0);
-  m_env.get_data("B0", &B0);
-  if (Edelta != nullptr) Edelta->set_skip_output();
-  if (Bdelta != nullptr) Bdelta->set_skip_output();
-  if (E0 != nullptr) E0->set_skip_output();
-  if (B0 != nullptr) B0->set_skip_output();
 }
 
 template <typename Conf>

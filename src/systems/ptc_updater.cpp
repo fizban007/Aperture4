@@ -37,6 +37,8 @@ void
 ptc_updater<Conf>::init() {
   // Allocate the tmp array for current filtering
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
+
+  m_env.get_data_optional("photons", &ph);
 }
 
 template <typename Conf>

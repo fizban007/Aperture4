@@ -8,6 +8,11 @@ namespace Aperture {
 template <typename Conf>
 void
 boundary_condition<Conf>::init() {
+  m_env.get_data("Edelta", &E);
+  m_env.get_data("E0", &E0);
+  m_env.get_data("Bdelta", &B);
+  m_env.get_data("B0", &B0);
+
   m_env.params().get_value("omega", m_omega_0);
   m_env.params().get_value("omega_t", m_omega_t);
 }

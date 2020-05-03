@@ -27,16 +27,7 @@ class boundary_condition : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
-  void register_dependencies() {
-    E = m_env.register_data<vector_field<Conf>>("Edelta", m_grid,
-                                                field_type::edge_centered);
-    E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,
-                                                 field_type::edge_centered);
-    B = m_env.register_data<vector_field<Conf>>("Bdelta", m_grid,
-                                                field_type::face_centered);
-    B0 = m_env.register_data<vector_field<Conf>>("B0", m_grid,
-                                                 field_type::face_centered);
-  }
+  void register_dependencies() {}
 };
 
 }

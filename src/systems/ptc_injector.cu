@@ -178,14 +178,14 @@ template <typename Conf>
 void
 ptc_injector_cu<Conf>::init() {
   ptc_injector<Conf>::init();
+
+  this->m_env.get_data("rand_states", &m_rand_states);
 }
 
 template <typename Conf>
 void
 ptc_injector_cu<Conf>::register_dependencies() {
   ptc_injector<Conf>::register_dependencies();
-
-  this->m_env.get_data("rand_states", &m_rand_states);
 
   m_num_per_cell.set_memtype(MemType::host_device);
   m_cum_num_per_cell.set_memtype(MemType::host_device);

@@ -206,13 +206,29 @@ class sim_environment {
   ///  \param name  Name of the data component.
   ///  \return A `shared_ptr` to the data component
   ////////////////////////////////////////////////////////////////////////////////
+  data_t* get_data_optional(const std::string& name) {
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) {
+      return it->second.get();
+    } else {
+      Logger::print_info("Failed to get optional data component '{}'", name);
+      return nullptr;
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Obtain a `shared_ptr` to the named data component. If the data component
+  ///  is not found then a `nullptr` is returned.
+  ///
+  ///  \param name  Name of the data component.
+  ///  \return A `shared_ptr` to the data component
+  ////////////////////////////////////////////////////////////////////////////////
   data_t* get_data(const std::string& name) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
       return it->second.get();
     } else {
-      Logger::print_err("Failed to get data component '{}'", name);
-      return nullptr;
+      throw std::runtime_error("Data component not found: " + name);
     }
   }
 
@@ -231,7 +247,26 @@ class sim_environment {
       // ptr = std::dynamic_pointer_cast<T>(it->second);
       *ptr = dynamic_cast<T*>(it->second.get());
     } else {
-      Logger::print_err("Failed to get data component '{}'", name);
+      throw std::runtime_error("Data component not found: " + name);
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Obtain a const `shared_ptr` to the named data component. If the data
+  ///  component is not found then a `nullptr` is returned.
+  ///
+  ///  \param name  Name of the data component.
+  ///  \param ptr   A const `shared_ptr` to the data component, supplied to be
+  ///  the output
+  ////////////////////////////////////////////////////////////////////////////////
+  template <typename T>
+  void get_data_optional(const std::string& name, T** ptr) {
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) {
+      // ptr = std::dynamic_pointer_cast<T>(it->second);
+      *ptr = dynamic_cast<T*>(it->second.get());
+    } else {
+      Logger::print_info("Failed to get optional data component '{}'", name);
       *ptr = nullptr;
     }
   }

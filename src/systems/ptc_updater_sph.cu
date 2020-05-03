@@ -120,6 +120,7 @@ ptc_updater_sph_cu<Conf>::init() {
   this->m_env.params().get_value("compactness", m_compactness);
   this->m_env.params().get_value("omega", m_omega);
   this->m_env.params().get_value("damping_length", m_damping_length);
+  this->m_env.params().get_value("r_cutoff", m_r_cutoff);
 }
 
 template <typename Conf>
@@ -255,7 +256,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
 //           djy[j] = 0.0;
 //         }
 
-        // Scalar djy[2 * spline_t::radius + 1] = {};
+        // value_t djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
           value_t sy0 = interp(-x2 + j);
           value_t sy1 = interp(-new_x2 + j);
@@ -304,6 +305,119 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);
 
     ptc_outflow(*(this->ptc), grid, m_damping_length);
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater_sph_cu<Conf>::move_photons_2d(double dt, uint32_t step) {
+  auto ph_num = this->ph->number();
+  if (ph_num) {
+    kernel_launch([ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
+                                                auto r_cutoff){
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        using value_t = typename Conf::value_t;
+
+        for (auto n : grid_stride_range(0, ph_num)) {
+          uint32_t cell = ph.cell[n];
+          if (cell == empty_cell) continue;
+
+          auto idx = typename Conf::idx_t(cell, ext);
+          auto pos = idx.get_pos();
+
+          auto x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
+          auto v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
+          auto E = ph.E[n];
+          v1 = v1 / E;
+          v2 = v2 / E;
+          v3 = v3 / E;
+
+          // Compute the actual movement
+          value_t r1 = grid.template pos<0>(pos[0], x1);
+          value_t radius = grid_sph_t<Conf>::radius(r1);
+
+          // Censor photons already outside the conversion radius
+          if (radius > r_cutoff || radius < 1.0) {
+            ph.cell[n] = empty_cell;
+            continue;
+          }
+
+          value_t r2 = grid.template pos<1>(pos[1], x2);
+          value_t x = radius * std::sin(r2) * std::cos(x3);
+          value_t y = radius * std::sin(r2) * std::sin(x3);
+          value_t z = radius * std::cos(r2);
+
+          sph2cart(v1, v2, v3, r1, r2, x3);
+          x += v1 * dt;
+          y += v2 * dt;
+          z += v3 * dt;
+          value_t r1p = sqrt(x * x + y * y + z * z);
+          value_t r2p = acos(z / r1p);
+          value_t r3p = atan2(y, x);
+
+          cart2sph(v1, v2, v3, r1p, r2p, r3p);
+          r1p = grid_sph_t<Conf>::from_radius(r1p);
+          r2p = grid_sph_t<Conf>::from_theta(r2p);
+
+          ph.p1[n] = v1 * E;
+          ph.p2[n] = v2 * E;
+          ph.p3[n] = v3 * E;
+
+          Pos_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
+          Pos_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
+
+          int dc1 = floor(new_x1);
+          int dc2 = floor(new_x2);
+          // reflect around the axis
+          if (pos[1] <= grid.guard[1] ||
+              pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
+            value_t theta = grid_sph_t<Conf>::theta(r2p);
+            if (theta < 0.0f) {
+              dc2 += 1;
+              new_x2 = 1.0f - new_x2;
+              ph.p2[n] *= -1.0f;
+              ph.p3[n] *= -1.0f;
+            }
+            if (theta >= M_PI) {
+              dc2 -= 1;
+              new_x2 = 1.0f - new_x2;
+              ph.p2[n] *= -1.0f;
+              ph.p3[n] *= -1.0f;
+            }
+          }
+          pos[0] += dc1;
+          pos[1] += dc2;
+          ph.cell[n] = typename Conf::idx_t(pos, ext).linear;
+          // printf("new_x1 is %f, new_x2 is %f, dc2 = %d\n", new_x1, new_x2,
+          // dc2);
+          ph.x1[n] = new_x1 - (Pos_t)dc1;
+          ph.x2[n] = new_x2 - (Pos_t)dc2;
+          ph.x3[n] = r3p;
+          ph.path_left[n] -= dt;
+
+          // deposit photon density if output
+          if (step % data_interval == 0) {
+            using spline_t = typename ptc_updater<Conf>::spline_t;
+            auto interp = spline_t{};
+            auto weight = ph.weight[n];
+            int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+
+            for (int j = j_0; j <= j_1; j++) {
+              value_t sy1 = interp(-new_x2 + j);
+              for (int i = i_0; i <= i_1; i++) {
+                value_t sx1 = interp(-new_x1 + i);
+                auto offset = idx.inc_x(i).inc_y(j);
+                atomicAdd(&rho_ph[offset], weight * sx1 * sy1);
+              }
+            }
+          }
+        }
+      }, this->ph->get_dev_ptrs(), this->rho_ph->get_ptr(), this->m_data_interval,
+                  m_r_cutoff);
   }
 }
 

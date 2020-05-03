@@ -26,6 +26,7 @@ class ptc_updater : public system_t {
   photon_data_t* ph;
   vector_field<Conf> *E, *B, *J;
   std::vector<scalar_field<Conf>*> Rho;
+  scalar_field<Conf>* rho_ph;
 
   std::unique_ptr<typename Conf::multi_array_t> jtmp;
 
@@ -69,6 +70,7 @@ class ptc_updater : public system_t {
   void register_dependencies() override;
 
   void move_and_deposit(double dt, uint32_t step);
+  void move_photons(double dt, uint32_t step);
   void filter_current(int n_times, uint32_t step);
 
   template <typename P>
@@ -79,6 +81,9 @@ class ptc_updater : public system_t {
   virtual void move_deposit_1d(double dt, uint32_t step);
   virtual void move_deposit_2d(double dt, uint32_t step);
   virtual void move_deposit_3d(double dt, uint32_t step);
+  virtual void move_photons_1d(double dt, uint32_t step);
+  virtual void move_photons_2d(double dt, uint32_t step);
+  virtual void move_photons_3d(double dt, uint32_t step);
   virtual void clear_guard_cells();
   virtual void sort_particles();
   virtual void filter_field(vector_field<Conf>& f, int comp);
@@ -119,6 +124,9 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   virtual void move_deposit_1d(double dt, uint32_t step) override;
   virtual void move_deposit_2d(double dt, uint32_t step) override;
   virtual void move_deposit_3d(double dt, uint32_t step) override;
+  virtual void move_photons_1d(double dt, uint32_t step) override;
+  virtual void move_photons_2d(double dt, uint32_t step) override;
+  virtual void move_photons_3d(double dt, uint32_t step) override;
   virtual void clear_guard_cells() override;
   virtual void sort_particles() override;
   virtual void filter_field(vector_field<Conf>& f, int comp) override;

@@ -12,6 +12,7 @@ class ptc_updater_sph_cu : public ptc_updater_cu<Conf> {
   typename Conf::value_t m_compactness = 0.0;
   typename Conf::value_t m_omega = 0.0;
   int m_damping_length = 32;
+  float m_r_cutoff = 10.0;
 
  public:
   static std::string name() { return "ptc_updater"; }
@@ -24,6 +25,7 @@ class ptc_updater_sph_cu : public ptc_updater_cu<Conf> {
   void register_dependencies() override;
 
   virtual void move_deposit_2d(double dt, uint32_t step) override;
+  virtual void move_photons_2d(double dt, uint32_t step) override;
   virtual void filter_field(vector_field<Conf>& f, int comp) override;
   virtual void filter_field(scalar_field<Conf>& f) override;
 };

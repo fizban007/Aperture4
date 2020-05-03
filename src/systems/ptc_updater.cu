@@ -27,7 +27,8 @@ ptc_updater_cu<Conf>::init() {
   this->jtmp = std::make_unique<typename Conf::multi_array_t>
       (this->m_grid.extent(), MemType::host_device);
 
-  this->m_env.get_data("photons", &(this->ph));
+  this->m_env.get_data_optional("photons", &(this->ph));
+  this->m_env.get_data_optional("rho_ph", &(this->rho_ph));
 }
 
 template <typename Conf>
@@ -429,6 +430,18 @@ ptc_updater_cu<Conf>::move_deposit_3d(double dt, uint32_t step) {
         this->m_data_interval);
   }
 }
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::move_photons_1d(double dt, uint32_t step) {}
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::move_photons_2d(double dt, uint32_t step) {}
+
+template <typename Conf>
+void
+ptc_updater_cu<Conf>::move_photons_3d(double dt, uint32_t step) {}
 
 template <typename Conf>
 void

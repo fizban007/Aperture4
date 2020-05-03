@@ -39,6 +39,7 @@ ptc_updater<Conf>::init() {
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
 
   m_env.get_data_optional("photons", &ph);
+  m_env.get_data_optional("rho_ph", &rho_ph);
 }
 
 template <typename Conf>
@@ -123,6 +124,11 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   if ((step % m_sort_interval) == 0) {
     sort_particles();
   }
+
+  // Also move photons if the data component exists
+  if (ph != nullptr) {
+    move_photons(dt, step);
+  }
 }
 
 template <typename Conf>
@@ -194,6 +200,17 @@ ptc_updater<Conf>::move_and_deposit(double dt, uint32_t step) {
     move_deposit_2d(dt, step);
   else if (Conf::dim == 3)
     move_deposit_3d(dt, step);
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::move_photons(double dt, uint32_t step) {
+  if (Conf::dim == 1)
+    move_photons_1d(dt, step);
+  else if (Conf::dim == 2)
+    move_photons_2d(dt, step);
+  else if (Conf::dim == 3)
+    move_photons_3d(dt, step);
 }
 
 template <typename Conf>
@@ -436,6 +453,18 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
     }
   }
 }
+
+template <typename Conf>
+void
+ptc_updater<Conf>::move_photons_1d(double dt, uint32_t step) {}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::move_photons_2d(double dt, uint32_t step) {}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::move_photons_3d(double dt, uint32_t step) {}
 
 template <typename Conf>
 void

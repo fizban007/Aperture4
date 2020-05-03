@@ -119,10 +119,10 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
       extern __shared__ char shared_array[];
       value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
                                              (2 * spline_t::radius + 1)];
-#pragma unroll
-      for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-        djy[j] = 0.0;
-      }
+// #pragma unroll
+//       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+//         djy[j] = 0.0;
+//       }
 
       for (auto n : grid_stride_range(0, num)) {
         uint32_t cell = ptc.cell[n];
@@ -221,11 +221,11 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
         int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-        //         // Reset djy since it could be nonzero from previous particle
-        // #pragma unroll
-        //         for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-        //           djy[j] = 0.0;
-        //         }
+        // Reset djy since it could be nonzero from previous particle
+#pragma unroll
+        for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+          djy[j] = 0.0;
+        }
 
         // Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
@@ -269,8 +269,9 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
     //     "deposit kernel: block_size: {}, grid_size: {}, shared_mem: {}",
     //     p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
 
-    kernel_launch(deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
-                  this->m_rho_ptrs.dev_ptr(), this->m_data_interval);
+    kernel_launch(
+        deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
+        this->m_rho_ptrs.dev_ptr(), this->m_data_interval);
 
     auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);

@@ -7,22 +7,20 @@
 #include "utils/double_buffer.h"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
+#include "utils/timer.h"
 #include <random>
 
 namespace Aperture {
 
 template <typename Conf>
-void
-ptc_updater<Conf>::init() {
+ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
+                               const domain_comm<Conf>* comm) :
+    system_t(env), m_grid(grid), m_comm(comm) {
   m_env.params().get_value("data_interval", m_data_interval);
   m_env.params().get_value("sort_interval", m_sort_interval);
   m_env.params().get_value("current_smoothing", m_filter_times);
   init_charge_mass();
 
-  // Etmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::edge_centered,
-  //                                             MemType::host_only);
-  // Btmp = std::make_unique<vector_field<Conf>>(m_grid, field_type::face_centered,
-  //                                             MemType::host_only);
   auto pusher = m_env.params().get_as<std::string>("pusher");
 
   if (pusher == "boris") {
@@ -32,7 +30,11 @@ ptc_updater<Conf>::init() {
   } else if (pusher == "higuera") {
     m_pusher = Pusher::higuera;
   }
+}
 
+template <typename Conf>
+void
+ptc_updater<Conf>::init() {
   // Allocate the tmp array for current filtering
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
 }
@@ -78,11 +80,16 @@ ptc_updater<Conf>::push_default(double dt) {
 template <typename Conf>
 void
 ptc_updater<Conf>::update(double dt, uint32_t step) {
+  Logger::print_info("Pushing {} particles", ptc->number());
+  timer::stamp("pusher");
   // First update particle momentum
   push_default(dt);
+  timer::show_duration_since_stamp("push", "ms", "pusher");
 
+  timer::stamp("depositer");
   // Then move particles and deposit current
   move_and_deposit(dt, step);
+  timer::show_duration_since_stamp("deposit", "ms", "depositer");
 
   // Communicate deposited current and charge densities
   if (m_comm != nullptr) {
@@ -96,8 +103,10 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     }
   }
 
+  timer::stamp("filter");
   // Filter current
   filter_current(m_filter_times, step);
+  timer::show_duration_since_stamp("filter", "ms", "filter");
 
   // Send particles
   if (m_comm != nullptr) {
@@ -477,17 +486,18 @@ ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
 template <typename Conf>
 void
 ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
+  Logger::print_info("Filtering current {} times", n_times);
   for (int n = 0; n < n_times; n++) {
-    filter_field(*J, 0);
-    filter_field(*J, 1);
-    filter_field(*J, 2);
+    this->filter_field(*J, 0);
+    this->filter_field(*J, 1);
+    this->filter_field(*J, 2);
 
     if (m_comm != nullptr)
       m_comm->send_guard_cells(*J);
 
     if ((step + 1) % m_data_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
-        filter_field(*Rho[sp]);
+        this->filter_field(*Rho[sp]);
         if (m_comm != nullptr)
           m_comm->send_guard_cells(*Rho[sp]);
       }

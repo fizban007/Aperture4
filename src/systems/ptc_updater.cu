@@ -14,7 +14,6 @@ namespace Aperture {
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::init() {
-  this->init_charge_mass();
   init_dev_charge_mass(this->m_charges, this->m_masses);
 
   m_rho_ptrs.set_memtype(MemType::host_device);
@@ -155,6 +154,8 @@ ptc_updater_cu<Conf>::push(double dt) {
     kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
                   this->B->get_ptrs(), pusher);
   }
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
 }
 
 template <typename Conf>

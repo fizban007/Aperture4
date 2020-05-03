@@ -16,7 +16,8 @@ void
 compute_sigma(scalar_field<Conf>& sigma,
               multi_array<int, Conf::dim>& num_per_cell, particle_data_t& ptc,
               const vector_field<Conf>& B, const grid_t<Conf>& grid,
-              typename Conf::value_t target_sigma) {
+              typename Conf::value_t target_sigma,
+              curandState* states) {
   using value_t = typename Conf::value_t;
   auto ext = grid.extent();
   auto num = ptc.number();
@@ -56,10 +57,12 @@ compute_sigma(scalar_field<Conf>& sigma,
   // sigma and target_sigma
   kernel_launch(
       [target_sigma] __device__(auto sigma, auto b, auto num_per_cell,
-                                auto dv_ptr) {
+                                auto dv_ptr, auto states) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        cuda_rng_t rng(&states[id]);
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
           auto pos = idx.get_pos();
@@ -82,17 +85,18 @@ compute_sigma(scalar_field<Conf>& sigma,
             // if (pos[0] == 5 && pos[1] == 256)
             //   printf("B_sqr is %f, s is %f\n", B_sqr, s);
             if (s > target_sigma / cube(r)) {
-              value_t th = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], false));
-              value_t ds = B_sqr * (cube(r) / target_sigma - 1.0f / s) * dv /
-                  std::abs(dev_charges[0]) / sin(th);
-              num_per_cell[idx] = 1;
+              // value_t th = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+              // value_t ds = B_sqr * (cube(r) / target_sigma - 1.0f / s) * dv /
+              //     std::abs(dev_charges[0]) / sin(th);
+              if (rng() < 0.01f / r)
+                num_per_cell[idx] = 1;
             }
           } else {
             num_per_cell[idx] = 0;
           }
         }
       },
-      sigma.get_ptr(), B.get_ptrs(), num_per_cell.get_ptr(), dv_ptr);
+      sigma.get_ptr(), B.get_ptrs(), num_per_cell.get_ptr(), dv_ptr, states);
   CudaCheckError();
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -124,7 +128,9 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
           ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
           ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
           ptc.cell[offset] = ptc.cell[offset + 1] = cell;
-          ptc.weight[offset] = ptc.weight[offset + 1] = sin(th);
+          // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
+          //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
+          ptc.weight[offset] = ptc.weight[offset + 1] = sin(th),
           // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
           ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
           ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
@@ -197,7 +203,7 @@ void
 ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
   // Compute sigma and number of pairs to inject per cells
   compute_sigma(*m_sigma, m_num_per_cell, *(this->ptc), *(this->B),
-                this->m_grid, this->m_target_sigma);
+                this->m_grid, this->m_target_sigma, m_rand_states->states());
 
   size_t grid_size = this->m_grid.extent().size();
   thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());

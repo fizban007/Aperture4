@@ -144,13 +144,14 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
       using idx_t = typename Conf::idx_t;
       using value_t = typename Conf::value_t;
       auto& grid = dev_grid<Conf::dim>();
+      // Obtain a local pointer to the shared array
       extern __shared__ char shared_array[];
       value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
                                              (2 * spline_t::radius + 1)];
-// #pragma unroll
-//       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-//         djy[j] = 0.0;
-//       }
+#pragma unroll
+      for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+        djy[j] = 0.0;
+      }
 
       for (auto n : grid_stride_range(0, num)) {
         uint32_t cell = ptc.cell[n];
@@ -191,7 +192,6 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         // z += alpha_gr(exp_r1) * v3_gr * dt;
         value_t r1p = sqrt(x * x + y * y + z * z);
         value_t r2p = acos(z / r1p);
-        // value_t exp_r1p = r1p;
         value_t r3p = atan2(y, x);
 
         cart2sph(v1, v2, v3, r1p, r2p, r3p);
@@ -249,11 +249,11 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
         int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-        // Reset djy since it could be nonzero from previous particle
-#pragma unroll
-        for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-          djy[j] = 0.0;
-        }
+//         // Reset djy since it could be nonzero from previous particle
+// #pragma unroll
+//         for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+//           djy[j] = 0.0;
+//         }
 
         // Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
@@ -269,8 +269,6 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
             auto offset = idx.inc_x(i).inc_y(j);
             djx += movement2d(sy0, sy1, sx0, sx1);
             atomicAdd(&J[0][offset], -weight * djx);
-            // printf("J0 is %f, djx is %f, weight is %f\n", J[0][offset], djx,
-            // weight);
 
             // j2 is movement in x2
             djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);

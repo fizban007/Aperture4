@@ -3,10 +3,10 @@
 
 #include "core/enum_types.h"
 #include "core/multi_array.hpp"
+#include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/curand_states.h"
 #include "framework/system.h"
-#include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include <memory>
 

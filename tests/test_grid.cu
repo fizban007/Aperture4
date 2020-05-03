@@ -4,7 +4,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/grid.h"
-#include "systems/grid_logsph.h"
+#include "systems/grid_sph.h"
 #include "utils/index.hpp"
 #include "utils/kernel_helper.hpp"
 
@@ -118,7 +118,7 @@ TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
   // space to the linear memory space.
 }
 
-TEST_CASE("Logsph grid", "[grid][logsph]") {
+TEST_CASE("Logsph grid", "[grid][sph]") {
   sim_environment env;
   typedef Config<2> Conf;
 
@@ -131,5 +131,5 @@ TEST_CASE("Logsph grid", "[grid][logsph]") {
   int arr[3];
 
   env.params().get_array("guard", arr);
-  auto grid = env.register_system<grid_t<Conf>>(env);
+  auto grid = env.register_system<grid_sph_t<Conf>>(env);
 }

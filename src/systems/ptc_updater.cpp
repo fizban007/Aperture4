@@ -117,6 +117,15 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     m_comm->send_particles(*ptc);
   }
 
+  // Also move photons if the data component exists
+  if (ph != nullptr) {
+    move_photons(dt, step);
+
+    if (m_comm != nullptr)
+      m_comm->send_particles(*ph);
+
+  }
+
   // Clear guard cells
   clear_guard_cells();
 
@@ -125,10 +134,6 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     sort_particles();
   }
 
-  // Also move photons if the data component exists
-  if (ph != nullptr) {
-    move_photons(dt, step);
-  }
 }
 
 template <typename Conf>
@@ -477,12 +482,25 @@ ptc_updater<Conf>::clear_guard_cells() {
 
     if (!m_grid.is_in_bound(pos)) ptc->cell[n] = empty_cell;
   }
+
+  if (ph != nullptr) {
+    for (auto n : range(0, ph->number())) {
+      uint32_t cell = ph->cell[n];
+      if (cell == empty_cell) continue;
+      auto idx = typename Conf::idx_t(cell, m_grid.extent());
+      auto pos = idx.get_pos();
+
+      if (!m_grid.is_in_bound(pos)) ph->cell[n] = empty_cell;
+    }
+  }
 }
 
 template <typename Conf>
 void
 ptc_updater<Conf>::sort_particles() {
   ptc->sort_by_cell_host(m_grid.extent().size());
+  if (ph != nullptr)
+    ph->sort_by_cell_host(m_grid.extent().size());
 }
 
 template <typename Conf>

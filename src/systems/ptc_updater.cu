@@ -448,26 +448,36 @@ void
 ptc_updater_cu<Conf>::clear_guard_cells() {
   auto ext = this->m_grid.extent();
   auto num = this->ptc->number();
-  kernel_launch(
-      [ext, num] __device__(auto ptc) {
-        auto& grid = dev_grid<Conf::dim>();
-        for (auto n : grid_stride_range(0, num)) {
-          uint32_t cell = ptc.cell[n];
-          if (cell == empty_cell) continue;
-          auto idx = typename Conf::idx_t(cell, ext);
-          auto pos = idx.get_pos();
 
-          if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
-        }
-      },
-      this->ptc->dev_ptrs());
+  auto clear_guard_cell_knl = [ext] __device__(auto ptc, auto num) {
+    auto& grid = dev_grid<Conf::dim>();
+    for (auto n : grid_stride_range(0, num)) {
+      uint32_t cell = ptc.cell[n];
+      if (cell == empty_cell) continue;
+      auto idx = typename Conf::idx_t(cell, ext);
+      auto pos = idx.get_pos();
+
+      if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
+    }
+  };
+  kernel_launch(clear_guard_cell_knl, this->ptc->dev_ptrs(), num);
   CudaSafeCall(cudaDeviceSynchronize());
+
+  if (this->ph != nullptr) {
+    num = this->ph->number();
+    kernel_launch(clear_guard_cell_knl, this->ph->dev_ptrs(), num);
+    CudaSafeCall(cudaDeviceSynchronize());
+  }
+  CudaCheckError();
 }
 
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::sort_particles() {
   this->ptc->sort_by_cell_dev(this->m_grid.extent().size());
+  if (this->ph != nullptr) {
+    this->ph->sort_by_cell_dev(this->m_grid.extent().size());
+  }
 }
 
 template <typename Conf>

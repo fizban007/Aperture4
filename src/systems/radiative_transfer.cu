@@ -1,5 +1,7 @@
 #include "radiative_transfer.h"
 #include "framework/environment.h"
+#include "framework/config.h"
+#include "utils/kernel_helper.hpp"
 #include <exception>
 
 namespace Aperture {
@@ -12,15 +14,13 @@ radiative_transfer_cu<Conf>::radiative_transfer_cu(sim_environment& env,
 
 template <typename Conf>
 void
-radiative_transfer_cu<Conf>::init() {}
+radiative_transfer_cu<Conf>::init() {
+  this->m_env.get_data("particles", &(this->ptc));
+}
 
 template <typename Conf>
 void
 radiative_transfer_cu<Conf>::register_dependencies() {
-  this->m_env.get_data("particles", &(this->ptc));
-  if (this->ptc == nullptr)
-    throw std::runtime_error("Data component 'particles' is not found!");
-
   size_t max_ph_num = 10000;
   this->m_env.params().get_value("max_ph_num", max_ph_num);
 
@@ -32,15 +32,6 @@ radiative_transfer_cu<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
-radiative_transfer_cu<Conf>::update(double dt, uint32_t step) {}
-
-template <typename Conf>
-void
-radiative_transfer_cu<Conf>::move_photons(double dt) {
-}
-
-template <typename Conf>
-void
 radiative_transfer_cu<Conf>::emit_photons(double dt) {
 }
 
@@ -48,5 +39,9 @@ template <typename Conf>
 void
 radiative_transfer_cu<Conf>::produce_pairs(double dt) {
 }
+
+template class radiative_transfer_cu<Config<1>>;
+template class radiative_transfer_cu<Config<2>>;
+template class radiative_transfer_cu<Config<3>>;
 
 }  // namespace Aperture

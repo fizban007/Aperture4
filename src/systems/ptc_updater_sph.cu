@@ -2,6 +2,7 @@
 #include "helpers/ptc_update_helper.hpp"
 #include "ptc_updater_sph.h"
 #include "utils/kernel_helper.hpp"
+#include "utils/util_functions.h"
 
 namespace Aperture {
 
@@ -35,6 +36,8 @@ process_j_rho(vector_field<Conf>& j,
         }
       },
       j.get_ptrs(), rho_ptrs.dev_ptr(), grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
 }
 
 template <typename Conf>
@@ -87,11 +90,36 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
 
 template <typename Conf>
 void
+ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid, int damping_length) {
+  auto ptc_num = ptc.number();
+  kernel_launch([ptc_num, damping_length] __device__(auto ptc, auto gp) {
+      auto& grid = dev_grid<Conf::dim>();
+      for (auto n : grid_stride_range(0, ptc_num)) {
+        auto c = ptc.cell[n];
+        if (c == empty_cell) continue;
+
+        auto idx = typename Conf::idx_t(c, grid.extent());
+        auto pos = idx.get_pos();
+        auto flag = ptc.flag[n];
+        if (check_flag(flag, PtcFlag::ignore_EM)) continue;
+        if (pos[0] > grid.dims[0] - damping_length + 2) {
+          flag |= bit_or(PtcFlag::ignore_EM);
+          ptc.flag[n] = flag;
+        }
+      }
+    }, ptc.get_dev_ptrs(), grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename Conf>
+void
 ptc_updater_sph_cu<Conf>::init() {
   ptc_updater_cu<Conf>::init();
 
   this->m_env.params().get_value("compactness", m_compactness);
   this->m_env.params().get_value("omega", m_omega);
+  this->m_env.params().get_value("damping_length", m_damping_length);
 }
 
 template <typename Conf>
@@ -274,7 +302,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
     auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);
-    CudaSafeCall(cudaDeviceSynchronize());
+
+    ptc_outflow(*(this->ptc), grid, m_damping_length);
   }
 }
 

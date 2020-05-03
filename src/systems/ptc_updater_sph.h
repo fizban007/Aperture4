@@ -11,6 +11,8 @@ class ptc_updater_sph_cu : public ptc_updater_cu<Conf> {
  protected:
   typename Conf::value_t m_compactness = 0.0;
   typename Conf::value_t m_omega = 0.0;
+  int m_damping_length = 32;
+
  public:
   static std::string name() { return "ptc_updater"; }
 

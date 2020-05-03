@@ -61,8 +61,7 @@ class ptc_updater : public system_t {
   static std::string name() { return "ptc_updater"; }
 
   ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-              const domain_comm<Conf>* comm = nullptr)
-      : system_t(env), m_grid(grid), m_comm(comm) {}
+              const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
   void update(double dt, uint32_t step) override;

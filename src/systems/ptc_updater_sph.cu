@@ -279,7 +279,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
                       weight * v3 * center2d(sx0, sx1, sy0, sy1));
 
             // rho is deposited at the final position
-            if ((step + 1) % data_interval == 0) {
+            // if ((step + 1) % data_interval == 0) {
+            if (step % data_interval == 0) {
               atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
             }
           }

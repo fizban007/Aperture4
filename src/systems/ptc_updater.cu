@@ -224,7 +224,8 @@ ptc_updater_cu<Conf>::move_deposit_1d(double dt, uint32_t step) {
               atomicAdd(&J[2][offset], weight * v3 * val1);
 
               // rho is deposited at the final position
-              if ((step + 1) % data_interval == 0) {
+              // if ((step + 1) % data_interval == 0) {
+              if (step % data_interval == 0) {
                 atomicAdd(&Rho[sp][offset], weight * sx1);
               }
             }
@@ -313,7 +314,8 @@ ptc_updater_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
                           weight * v3 * center2d(sx0, sx1, sy0, sy1));
 
                 // rho is deposited at the final position
-                if ((step + 1) % data_interval == 0) {
+                // if ((step + 1) % data_interval == 0) {
+                if (step % data_interval == 0) {
                   atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
                 }
               }
@@ -414,7 +416,8 @@ ptc_updater_cu<Conf>::move_deposit_3d(double dt, uint32_t step) {
                   atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
 
                   // rho is deposited at the final position
-                  if ((step + 1) % data_interval == 0) {
+                  // if ((step + 1) % data_interval == 0) {
+                  if (step % data_interval == 0) {
                     atomicAdd(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
                   }
                 }

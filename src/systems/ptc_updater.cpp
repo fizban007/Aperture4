@@ -97,7 +97,8 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   if (m_comm != nullptr) {
     m_comm->send_add_guard_cells(*J);
     m_comm->send_guard_cells(*J);
-    if ((step + 1) % m_data_interval == 0) {
+    // if ((step + 1) % m_data_interval == 0) {
+    if (step % m_data_interval == 0) {
       for (uint32_t i = 0; i < Rho.size(); i++) {
         m_comm->send_add_guard_cells(*(Rho[i]));
         m_comm->send_guard_cells(*(Rho[i]));
@@ -254,7 +255,8 @@ ptc_updater<Conf>::move_deposit_1d(double dt, uint32_t step) {
         (*J)[2][offset] += weight * v3 * val1;
 
         // rho is deposited at the final position
-        if ((step + 1) % m_data_interval == 0) {
+        // if ((step + 1) % m_data_interval == 0) {
+        if (step % m_data_interval == 0) {
           (*Rho[sp])[0][offset] += weight * sx1;
         }
       }
@@ -332,7 +334,8 @@ ptc_updater<Conf>::move_deposit_2d(double dt, uint32_t step) {
           (*J)[2][offset] += weight * v3 * center2d(sx0, sx1, sy0, sy1);
 
           // rho is deposited at the final position
-          if ((step + 1) % m_data_interval == 0) {
+          // if ((step + 1) % m_data_interval == 0) {
+          if (step % m_data_interval == 0) {
             (*Rho[sp])[0][offset] += weight * sx1 * sy1;
           }
         }
@@ -424,7 +427,7 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
             (*J)[2][offset] += -weight * djz[j - j_0][i - i_0];
 
             // rho is deposited at the final position
-            if ((step + 1) % m_data_interval == 0) {
+            if (step % m_data_interval == 0) {
               (*Rho[sp])[0][offset] += weight * sx1 * sy1 * sz1;
             }
           }
@@ -497,7 +500,8 @@ ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
     if (m_comm != nullptr)
       m_comm->send_guard_cells(*J);
 
-    if ((step + 1) % m_data_interval == 0) {
+    // if ((step + 1) % m_data_interval == 0) {
+    if (step % m_data_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         this->filter_field(*Rho[sp]);
         if (m_comm != nullptr)

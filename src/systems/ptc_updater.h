@@ -23,6 +23,7 @@ class ptc_updater : public system_t {
   typedef bspline<1> spline_t;
 
   particle_data_t* ptc;
+  photon_data_t* ph;
   vector_field<Conf> *E, *B, *J;
   std::vector<scalar_field<Conf>*> Rho;
 

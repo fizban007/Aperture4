@@ -33,13 +33,7 @@ add_custom_target(
   WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 add_dependencies(check run_tests)
 
-# add_executable(mem_layout "mem_layout.cpp")
-# target_link_libraries(mem_layout Aperture)
-
-# add_executable(playground "playground.cpp")
-# target_link_libraries(playground Aperture)
-
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_executable(playground_gpu "playground.cu")
-  target_link_libraries(playground_gpu Aperture)
+  add_executable(perf_pusher "performance_pusher.cpp")
+  target_link_libraries(perf_pusher Aperture)
 endif()

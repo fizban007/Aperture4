@@ -1,3 +1,4 @@
+#include "core/math.hpp"
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
 #include "ptc_updater_sph.h"
@@ -29,7 +30,7 @@ process_j_rho(vector_field<Conf>& j,
             }
           }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
-          if (std::abs(theta) < 0.1 * grid.delta[1]) {
+          if (math::abs(theta) < 0.1 * grid.delta[1]) {
             // j[1][idx] = 0.0;
             j[2][idx] = 0.0;
           }
@@ -181,9 +182,9 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         // value_t v3_gr = v3 - beta_phi(exp_r1, r2);
         //
         // step 1: Compute particle movement and update position
-        value_t x = radius * std::sin(theta) * std::cos(x3);
-        value_t y = radius * std::sin(theta) * std::sin(x3);
-        value_t z = radius * std::cos(theta);
+        value_t x = radius * math::sin(theta) * math::cos(x3);
+        value_t y = radius * math::sin(theta) * math::sin(x3);
+        value_t z = radius * math::cos(theta);
 
         // logsph2cart(v1, v2, v3_gr, r1, r2, old_x3);
         sph2cart(v1, v2, v3, radius, theta, x3);
@@ -191,9 +192,9 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
         y += v2 * dt;
         z += v3 * dt;
         // z += alpha_gr(exp_r1) * v3_gr * dt;
-        value_t r1p = sqrt(x * x + y * y + z * z);
-        value_t r2p = acos(z / r1p);
-        value_t r3p = atan2(y, x);
+        value_t r1p = math::sqrt(x * x + y * y + z * z);
+        value_t r2p = math::acos(z / r1p);
+        value_t r3p = math::atan2(y, x);
 
         cart2sph(v1, v2, v3, r1p, r2p, r3p);
         r1p = grid_sph_t<Conf>::from_radius(r1p);
@@ -206,8 +207,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
         auto new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
         auto new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
-        int dc1 = std::floor(new_x1);
-        int dc2 = std::floor(new_x2);
+        int dc1 = math::floor(new_x1);
+        int dc2 = math::floor(new_x2);
 #ifndef NDEBUG
         if (dc1 > 1 || dc1 < -1 || dc2 > 1 || dc2 < -1)
           printf("----------------- Error: moved more than 1 cell!");
@@ -338,23 +339,23 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(double dt, uint32_t step) {
           value_t radius = grid_sph_t<Conf>::radius(r1);
 
           // Censor photons already outside the conversion radius
-          if (radius > r_cutoff || radius < 1.0) {
+          if (radius > r_cutoff || radius < 1.0f) {
             ph.cell[n] = empty_cell;
             continue;
           }
 
           value_t r2 = grid.template pos<1>(pos[1], x2);
-          value_t x = radius * std::sin(r2) * std::cos(x3);
-          value_t y = radius * std::sin(r2) * std::sin(x3);
-          value_t z = radius * std::cos(r2);
+          value_t x = radius * math::sin(r2) * math::cos(x3);
+          value_t y = radius * math::sin(r2) * math::sin(x3);
+          value_t z = radius * math::cos(r2);
 
           sph2cart(v1, v2, v3, r1, r2, x3);
           x += v1 * dt;
           y += v2 * dt;
           z += v3 * dt;
-          value_t r1p = sqrt(x * x + y * y + z * z);
-          value_t r2p = acos(z / r1p);
-          value_t r3p = atan2(y, x);
+          value_t r1p = math::sqrt(x * x + y * y + z * z);
+          value_t r2p = math::acos(z / r1p);
+          value_t r3p = math::atan2(y, x);
 
           cart2sph(v1, v2, v3, r1p, r2p, r3p);
           r1p = grid_sph_t<Conf>::from_radius(r1p);
@@ -367,8 +368,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(double dt, uint32_t step) {
           Pos_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
           Pos_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
 
-          int dc1 = floor(new_x1);
-          int dc2 = floor(new_x2);
+          int dc1 = math::floor(new_x1);
+          int dc2 = math::floor(new_x2);
           // reflect around the axis
           if (pos[1] <= grid.guard[1] ||
               pos[1] >= grid.dims[1] - grid.guard[1] - 1) {

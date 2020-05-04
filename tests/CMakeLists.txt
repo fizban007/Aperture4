@@ -34,6 +34,8 @@ add_custom_target(
 add_dependencies(check run_tests)
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_executable(perf_pusher "performance_pusher.cpp")
+  add_executable(perf_pusher "perf_pusher.cpp")
   target_link_libraries(perf_pusher Aperture)
+  add_executable(perf_deposit "perf_deposit.cpp")
+  target_link_libraries(perf_deposit Aperture)
 endif()

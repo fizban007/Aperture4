@@ -32,7 +32,10 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < N; i++) {
     timer::stamp();
     pusher->push<higuera_pusher>(0.1);
-    t += 0.001 * timer::get_duration_since_stamp("us");
+    double dt = 0.001 * timer::get_duration_since_stamp("us");
+    t += dt;
+    if (i % 10 == 0)
+      Logger::print_info("Pusher took {}ms", dt);
   }
   t /= N;
   Logger::print_info("Ran pusher {} times, average time {}ms", N, t);

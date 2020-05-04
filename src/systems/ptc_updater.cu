@@ -182,7 +182,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            Scalar v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
                    gamma = ptc.E[n];
 
             v1 /= gamma;
@@ -207,10 +207,10 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            Scalar djx = 0.0f;
+            value_t djx = 0.0f;
             for (int i = i_0; i <= i_1; i++) {
-              Scalar sx0 = interp(-x1 + i);
-              Scalar sx1 = interp(-new_x1 + i);
+              value_t sx0 = interp(-x1 + i);
+              value_t sx1 = interp(-new_x1 + i);
 
               // j1 is movement in x1
               int offset = i + pos[0] - dc1;
@@ -219,7 +219,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
               // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
               // j2 is simply v2 times rho at center
-              Scalar val1 = 0.5f * (sx0 + sx1);
+              value_t val1 = 0.5f * (sx0 + sx1);
               atomicAdd(&J[1][offset], weight * v2 * val1);
 
               // j3 is simply v3 times rho at center
@@ -241,6 +241,9 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
+  this->J->init();
+  for (auto rho : this->Rho) rho->init();
+
   auto num = this->ptc->number();
   if (num > 0) {
     auto ext = this->m_grid.extent();
@@ -249,28 +252,38 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                         auto data_interval) {
           using spline_t = typename base_class::spline_t;
+          auto& grid = dev_grid<Conf::dim>();
+          // Obtain a local pointer to the shared array
+          extern __shared__ char shared_array[];
+          value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
+                                                 (2 * spline_t::radius + 1)];
+#pragma unroll
+          for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+            djy[j] = 0.0f;
+          }
+
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
             if (cell == empty_cell) continue;
 
-            auto idx = J[0].idx_at(cell, ext);
+            auto idx = typename Conf::idx_t(cell, ext);
             auto pos = idx.get_pos();
 
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            Scalar v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
                    gamma = ptc.E[n];
 
             v1 /= gamma;
             v2 /= gamma;
             v3 /= gamma;
 
-            auto new_x1 = x1 + (v1 * dt) * dev_grid_2d.inv_delta[0];
+            auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
             int dc1 = std::floor(new_x1);
             pos[0] += dc1;
             ptc.x1[n] = new_x1 - (Pos_t)dc1;
 
-            auto new_x2 = x2 + (v2 * dt) * dev_grid_2d.inv_delta[1];
+            auto new_x2 = x2 + (v2 * dt) * grid.inv_delta[1];
             int dc2 = std::floor(new_x2);
             pos[1] += dc2;
             ptc.x2[n] = new_x2 - (Pos_t)dc2;
@@ -291,15 +304,15 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            Scalar djy[2 * spline_t::radius + 1] = {};
+            // value_t djy[2 * spline_t::radius + 1] = {};
             for (int j = j_0; j <= j_1; j++) {
-              Scalar sy0 = interp(-x2 + j);
-              Scalar sy1 = interp(-new_x2 + j);
+              value_t sy0 = interp(-x2 + j);
+              value_t sy1 = interp(-new_x2 + j);
 
-              Scalar djx = 0.0f;
+              value_t djx = 0.0f;
               for (int i = i_0; i <= i_1; i++) {
-                Scalar sx0 = interp(-x1 + i);
-                Scalar sx1 = interp(-new_x1 + i);
+                value_t sx0 = interp(-x1 + i);
+                value_t sx1 = interp(-new_x1 + i);
 
                 // j1 is movement in x1
                 auto offset = idx.inc_x(i).inc_y(j);
@@ -326,6 +339,8 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
         this->m_data_interval);
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
   }
 }
 
@@ -349,7 +364,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            Scalar v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
                    gamma = ptc.E[n];
 
             v1 /= gamma;
@@ -387,20 +402,20 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            Scalar djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
+            value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
             for (int k = k_0; k <= k_1; k++) {
-              Scalar sz0 = interp(-x3 + k);
-              Scalar sz1 = interp(-new_x3 + k);
+              value_t sz0 = interp(-x3 + k);
+              value_t sz1 = interp(-new_x3 + k);
 
-              Scalar djy[2 * spline_t::radius + 1] = {};
+              value_t djy[2 * spline_t::radius + 1] = {};
               for (int j = j_0; j <= j_1; j++) {
-                Scalar sy0 = interp(-x2 + j);
-                Scalar sy1 = interp(-new_x2 + j);
+                value_t sy0 = interp(-x2 + j);
+                value_t sy1 = interp(-new_x2 + j);
 
-                Scalar djx = 0.0f;
+                value_t djx = 0.0f;
                 for (int i = i_0; i <= i_1; i++) {
-                  Scalar sx0 = interp(-x1 + i);
-                  Scalar sx1 = interp(-new_x1 + i);
+                  value_t sx0 = interp(-x1 + i);
+                  value_t sx1 = interp(-new_x1 + i);
 
                   // j1 is movement in x1
                   auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
@@ -429,6 +444,8 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
         this->m_data_interval);
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
   }
 }
 

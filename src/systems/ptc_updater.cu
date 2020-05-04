@@ -98,6 +98,7 @@ ptc_updater_cu<Conf>::push(double dt) {
 
   auto pusher_kernel = [dt, num, ext] __device__(auto ptrs, auto E, auto B,
                                                  auto pusher) {
+    using value_t = typename Conf::value_t;
     for (auto n : grid_stride_range(0, num)) {
       uint32_t cell = ptrs.cell[n];
       if (cell == empty_cell) continue;
@@ -108,19 +109,19 @@ ptc_updater_cu<Conf>::push(double dt) {
       auto flag = ptrs.flag[n];
       int sp = get_ptc_type(flag);
 
-      Scalar qdt_over_2m = dt * 0.5f * dev_charges[sp] / dev_masses[sp];
+      value_t qdt_over_2m = (value_t)dt * 0.5f * dev_charges[sp] / dev_masses[sp];
 
       auto x = vec_t<Pos_t, 3>(ptrs.x1[n], ptrs.x2[n], ptrs.x3[n]);
       //  Grab E & M fields at the particle position
-      Scalar E1 = interp(E[0], x, idx, stagger_t(0b110));
-      Scalar E2 = interp(E[1], x, idx, stagger_t(0b101));
-      Scalar E3 = interp(E[2], x, idx, stagger_t(0b011));
-      Scalar B1 = interp(B[0], x, idx, stagger_t(0b001));
-      Scalar B2 = interp(B[1], x, idx, stagger_t(0b010));
-      Scalar B3 = interp(B[2], x, idx, stagger_t(0b100));
+      value_t E1 = interp(E[0], x, idx, stagger_t(0b110));
+      value_t E2 = interp(E[1], x, idx, stagger_t(0b101));
+      value_t E3 = interp(E[2], x, idx, stagger_t(0b011));
+      value_t B1 = interp(B[0], x, idx, stagger_t(0b001));
+      value_t B2 = interp(B[1], x, idx, stagger_t(0b010));
+      value_t B3 = interp(B[2], x, idx, stagger_t(0b100));
 
       //  Push particles
-      Scalar p1 = ptrs.p1[n], p2 = ptrs.p2[n], p3 = ptrs.p3[n],
+      value_t p1 = ptrs.p1[n], p2 = ptrs.p2[n], p3 = ptrs.p3[n],
              gamma = ptrs.E[n];
       if (p1 != p1 || p2 != p2 || p3 != p3) {
         printf(
@@ -132,7 +133,7 @@ ptc_updater_cu<Conf>::push(double dt) {
 
       if (!check_flag(flag, PtcFlag::ignore_EM)) {
         pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3, qdt_over_2m,
-               (Scalar)dt);
+               (value_t)dt);
       }
 
       // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {

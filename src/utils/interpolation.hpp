@@ -17,7 +17,7 @@ struct bspline<0> {
 
   template <typename FloatT>
   HD_INLINE FloatT operator()(FloatT dx) const {
-    return (std::abs(dx) <= 0.5 ? 1.0 : 0.0);
+    return (std::abs(dx) <= 0.5f ? 1.0f : 0.0f);
   }
 };
 
@@ -27,8 +27,8 @@ struct bspline<1> {
 
   template <typename FloatT>
   HD_INLINE FloatT operator()(FloatT dx) const {
-    double abs_dx = std::abs(dx);
-    return std::max(1.0 - abs_dx, 0.0);
+    FloatT abs_dx = std::abs(dx);
+    return std::max(1.0f - abs_dx, (FloatT)0.0);
   }
 };
 
@@ -39,13 +39,13 @@ struct bspline<2> {
   template <typename FloatT>
   HD_INLINE FloatT operator()(FloatT dx) const {
     FloatT abs_dx = std::abs(dx);
-    if (abs_dx < 0.5) {
-      return 0.75 - dx * dx;
-    } else if (abs_dx < 1.5) {
-      FloatT tmp = 1.5 - abs_dx;
-      return 0.5 * tmp * tmp;
+    if (abs_dx < 0.5f) {
+      return 0.75f - dx * dx;
+    } else if (abs_dx < 1.5f) {
+      FloatT tmp = 1.5f - abs_dx;
+      return 0.5f * tmp * tmp;
     } else {
-      return 0.0;
+      return 0.0f;
     }
   }
 };
@@ -57,14 +57,14 @@ struct bspline<3> {
   template <typename FloatT>
   HD_INLINE FloatT operator()(FloatT dx) const {
     FloatT abs_dx = std::abs(dx);
-    if (abs_dx < 1.0) {
+    if (abs_dx < 1.0f) {
       FloatT tmp = abs_dx * abs_dx;
-      return 2.0 / 3.0 - tmp + 0.5 * tmp * abs_dx;
-    } else if (abs_dx < 2.0) {
-      FloatT tmp = 2.0 - abs_dx;
-      return 1.0 / 6.0 * tmp * tmp * tmp;
+      return 2.0f / 3.0f - tmp + 0.5f * tmp * abs_dx;
+    } else if (abs_dx < 2.0f) {
+      FloatT tmp = 2.0f - abs_dx;
+      return 1.0f / 6.0f * tmp * tmp * tmp;
     } else {
-      return 0.0;
+      return 0.0f;
     }
   }
 };
@@ -81,7 +81,7 @@ template <typename Interp, typename FloatT>
 FloatT HD_INLINE
 interp_cell(const Interp& interp, FloatT rel_pos, int c, int t, int stagger) {
   // The actual distance between particle and t
-  FloatT x = ((FloatT)t + (stagger == 1 ? 0.0 : 0.5)) - (rel_pos + (FloatT)c);
+  FloatT x = ((FloatT)t + (stagger == 1 ? 0.0f : 0.5f)) - (rel_pos + (FloatT)c);
   return interp(x);
 }
 
@@ -96,7 +96,7 @@ struct interpolator<Interp, 1> {
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx) ->
       typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0;
+    typename Ptr::value_t result = 0.0f;
 #pragma unroll
     for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius; i++) {
       // int ii = i + pos[0] - Interp::radius;
@@ -109,7 +109,7 @@ struct interpolator<Interp, 1> {
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx, stagger_t stagger) ->
       typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0;
+    typename Ptr::value_t result = 0.0f;
 #pragma unroll
     for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius; i++) {
       // int ii = i + pos[0] - Interp::radius;
@@ -127,7 +127,7 @@ struct interpolator<Interp, 2> {
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx) ->
       typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0;
+    typename Ptr::value_t result = 0.0f;
 #pragma unroll
     for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
@@ -146,7 +146,7 @@ struct interpolator<Interp, 2> {
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx, stagger_t stagger) ->
       typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0;
+    typename Ptr::value_t result = 0.0f;
 #pragma unroll
     for (int j = stagger[1] - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
@@ -171,7 +171,7 @@ struct interpolator<Interp, 3> {
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
                               const Index_t& idx) ->
       typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0;
+    typename Ptr::value_t result = 0.0f;
 #pragma unroll
     for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
          k++) {
@@ -236,7 +236,7 @@ struct lerp<1> {
     int dx_m = (in[0] == out[0] ? 0 : -out[0]);
     int dx_p = (in[0] == out[0] ? 0 : 1 - out[0]);
 
-    return 0.5 * (f[idx.inc_x(dx_m)] + f[idx.inc_x(dx_p)]);
+    return 0.5f * (f[idx.inc_x(dx_m)] + f[idx.inc_x(dx_p)]);
   }
 };
 

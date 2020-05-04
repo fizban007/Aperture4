@@ -9,6 +9,7 @@ using namespace Aperture;
 
 int main(int argc, char *argv[]) {
   typedef Config<2> Conf;
+  Logger::print_info("value_t has size {}", sizeof(typename Conf::value_t));
   sim_environment env;
   env.params().add("N", std::vector<int64_t>({512, 512}));
   env.params().add("guard", std::vector<int64_t>({2, 2}));

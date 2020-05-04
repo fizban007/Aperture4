@@ -73,7 +73,7 @@ template <typename Interp, typename FloatT>
 FloatT HD_INLINE
 interp_cell(const Interp& interp, FloatT rel_pos, int c, int t) {
   // The actual distance between particle and t
-  FloatT x = (FloatT)t - (rel_pos + (FloatT)c);
+  FloatT x = (FloatT)(t - c) - rel_pos;
   return interp(x);
 }
 
@@ -81,7 +81,7 @@ template <typename Interp, typename FloatT>
 FloatT HD_INLINE
 interp_cell(const Interp& interp, FloatT rel_pos, int c, int t, int stagger) {
   // The actual distance between particle and t
-  FloatT x = ((FloatT)t + (stagger == 1 ? 0.0f : 0.5f)) - (rel_pos + (FloatT)c);
+  FloatT x = (FloatT)(t - c) + 0.5f * (1 - stagger) - rel_pos;
   return interp(x);
 }
 
@@ -175,13 +175,15 @@ struct interpolator<Interp, 3> {
 #pragma unroll
     for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
          k++) {
+      auto idx_k = idx.inc_z(k);
 #pragma unroll
       for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
            j++) {
+        auto idx_j = idx_k.inc_y(j);
 #pragma unroll
         for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
              i++) {
-          result += f[idx.inc_x(i).inc_y(j).inc_z(k)] *
+          result += f[idx_j.inc_x(i)] *
                     interp_cell(interp, x[0], 0, i) *
                     interp_cell(interp, x[1], 0, j) *
                     interp_cell(interp, x[2], 0, k);
@@ -199,13 +201,15 @@ struct interpolator<Interp, 3> {
 #pragma unroll
     for (int k = stagger[2] - Interp::radius; k <= Interp::support - Interp::radius;
          k++) {
+      auto idx_k = idx.inc_z(k);
 #pragma unroll
       for (int j = stagger[1] - Interp::radius; j <= Interp::support - Interp::radius;
            j++) {
+        auto idx_j = idx_k.inc_y(j);
 #pragma unroll
         for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius;
              i++) {
-          result += f[idx.inc_x(i).inc_y(j).inc_z(k)] *
+          result += f[idx_j.inc_x(i)] *
                     interp_cell(interp, x[0], 0, i, stagger[0]) *
                     interp_cell(interp, x[1], 0, j, stagger[1]) *
                     interp_cell(interp, x[2], 0, k, stagger[2]);

@@ -22,6 +22,7 @@ class sim_environment;
 ///  member functions, and only has static `typedef`s and static functions.
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
+          int InterpOrder = 1,
           template <int> typename Idx_t = idx_col_major_t>
 class Config {
  public:
@@ -35,7 +36,7 @@ class Config {
   typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t;
   typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t;
   typedef buffer<FloatT> buffer_t;
-  typedef bspline<3> spline_t;
+  typedef bspline<InterpOrder> spline_t;
 
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {

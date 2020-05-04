@@ -220,7 +220,7 @@ ptc_updater<Conf>::move_photons(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_1d(double dt, uint32_t step) {
+ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
   auto num = ptc->number();
   if (num > 0) {
     auto ext = m_grid.extent();
@@ -288,7 +288,7 @@ ptc_updater<Conf>::move_deposit_1d(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_2d(double dt, uint32_t step) {
+ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   auto num = ptc->number();
   if (num > 0) {
     auto ext = m_grid.extent();
@@ -368,7 +368,7 @@ ptc_updater<Conf>::move_deposit_2d(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
+ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
   auto num = ptc->number();
   if (num > 0) {
     auto ext = m_grid.extent();
@@ -461,15 +461,15 @@ ptc_updater<Conf>::move_deposit_3d(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_1d(double dt, uint32_t step) {}
+ptc_updater<Conf>::move_photons_1d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_2d(double dt, uint32_t step) {}
+ptc_updater<Conf>::move_photons_2d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_3d(double dt, uint32_t step) {}
+ptc_updater<Conf>::move_photons_3d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void

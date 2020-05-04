@@ -78,12 +78,12 @@ class ptc_updater : public system_t {
   // void move(double dt);
 
   virtual void push_default(double dt);
-  virtual void move_deposit_1d(double dt, uint32_t step);
-  virtual void move_deposit_2d(double dt, uint32_t step);
-  virtual void move_deposit_3d(double dt, uint32_t step);
-  virtual void move_photons_1d(double dt, uint32_t step);
-  virtual void move_photons_2d(double dt, uint32_t step);
-  virtual void move_photons_3d(double dt, uint32_t step);
+  virtual void move_deposit_1d(value_t dt, uint32_t step);
+  virtual void move_deposit_2d(value_t dt, uint32_t step);
+  virtual void move_deposit_3d(value_t dt, uint32_t step);
+  virtual void move_photons_1d(value_t dt, uint32_t step);
+  virtual void move_photons_2d(value_t dt, uint32_t step);
+  virtual void move_photons_3d(value_t dt, uint32_t step);
   virtual void clear_guard_cells();
   virtual void sort_particles();
   virtual void filter_field(vector_field<Conf>& f, int comp);
@@ -102,6 +102,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   curand_states_t* m_rand_states;
 
  public:
+  typedef typename Conf::value_t value_t;
   typedef buffer<ndptr<Scalar, Conf::dim>> rho_ptrs_t;
 
   static std::string name() { return "ptc_updater"; }
@@ -121,12 +122,12 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   // void move_and_deposit(double dt, uint32_t step);
 
   virtual void push_default(double dt) override;
-  virtual void move_deposit_1d(double dt, uint32_t step) override;
-  virtual void move_deposit_2d(double dt, uint32_t step) override;
-  virtual void move_deposit_3d(double dt, uint32_t step) override;
-  virtual void move_photons_1d(double dt, uint32_t step) override;
-  virtual void move_photons_2d(double dt, uint32_t step) override;
-  virtual void move_photons_3d(double dt, uint32_t step) override;
+  virtual void move_deposit_1d(value_t dt, uint32_t step) override;
+  virtual void move_deposit_2d(value_t dt, uint32_t step) override;
+  virtual void move_deposit_3d(value_t dt, uint32_t step) override;
+  virtual void move_photons_1d(value_t dt, uint32_t step) override;
+  virtual void move_photons_2d(value_t dt, uint32_t step) override;
+  virtual void move_photons_3d(value_t dt, uint32_t step) override;
   virtual void clear_guard_cells() override;
   virtual void sort_particles() override;
   virtual void filter_field(vector_field<Conf>& f, int comp) override;

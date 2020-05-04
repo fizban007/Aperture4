@@ -132,14 +132,13 @@ ptc_updater_sph_cu<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::move_deposit_2d(double delta_t, uint32_t step) {
+ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   this->J->init();
   for (auto rho : this->Rho) rho->init();
 
   auto num = this->ptc->number();
   if (num > 0) {
     auto ext = this->m_grid.extent();
-    typename Conf::value_t dt = delta_t;
 
     auto deposit_kernel = [ext, num, dt, step] __device__(
                               auto ptc, auto J, auto Rho, auto data_interval) {
@@ -312,7 +311,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double delta_t, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::move_photons_2d(double dt, uint32_t step) {
+ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num) {
     kernel_launch([ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,

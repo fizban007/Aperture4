@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
   Logger::print_info("value_t has size {}", sizeof(typename Conf::value_t));
   sim_environment env;
   env.params().add("N", std::vector<int64_t>({128, 128, 128}));
-  env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
+  env.params().add("guard", std::vector<int64_t>({4, 4, 4}));
   env.params().add("size", std::vector<double>({2.0, 3.14, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
   env.params().add("max_ptc_num", 60000000l);

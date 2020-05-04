@@ -7,6 +7,7 @@
 #include "core/particles.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/index.hpp"
+#include "utils/interpolation.hpp"
 #include "utils/logger.h"
 
 namespace Aperture {
@@ -34,6 +35,7 @@ class Config {
   typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t;
   typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t;
   typedef buffer<FloatT> buffer_t;
+  typedef bspline<3> spline_t;
 
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {

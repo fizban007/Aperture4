@@ -20,7 +20,7 @@ class ptc_updater : public system_t {
   const domain_comm<Conf>* m_comm = nullptr;
 
   Pusher m_pusher = Pusher::higuera;
-  typedef bspline<1> spline_t;
+  typedef typename Conf::spline_t spline_t;
 
   particle_data_t* ptc;
   photon_data_t* ph;

@@ -132,13 +132,14 @@ ptc_updater_sph_cu<Conf>::register_dependencies() {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
+ptc_updater_sph_cu<Conf>::move_deposit_2d(double delta_t, uint32_t step) {
   this->J->init();
   for (auto rho : this->Rho) rho->init();
 
   auto num = this->ptc->number();
   if (num > 0) {
     auto ext = this->m_grid.extent();
+    typename Conf::value_t dt = delta_t;
 
     auto deposit_kernel = [ext, num, dt, step] __device__(
                               auto ptc, auto J, auto Rho, auto data_interval) {
@@ -152,7 +153,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(double dt, uint32_t step) {
                                              (2 * spline_t::radius + 1)];
 #pragma unroll
       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-        djy[j] = 0.0;
+        djy[j] = 0.0f;
       }
 
       for (auto n : grid_stride_range(0, num)) {

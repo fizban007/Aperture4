@@ -7,11 +7,7 @@
 
 namespace Aperture {
 
-enum class Pusher : char {
-  boris,
-  vay,
-  higuera
-};
+enum class Pusher : char { boris, vay, higuera };
 
 struct vay_pusher {
   template <typename Scalar>
@@ -72,38 +68,72 @@ struct boris_pusher {
 };
 
 struct higuera_pusher {
+  // template <typename Scalar>
+  // HD_INLINE void operator()(Scalar& p1, Scalar& p2, Scalar& p3, Scalar&
+  // gamma,
+  //                           Scalar E1, Scalar E2, Scalar E3, Scalar B1,
+  //                           Scalar B2, Scalar B3, Scalar qdt_over_2m,
+  //                           Scalar dt) {
+  //   E1 *= qdt_over_2m;
+  //   E2 *= qdt_over_2m;
+  //   E3 *= qdt_over_2m;
+  //   B1 *= qdt_over_2m;
+  //   B2 *= qdt_over_2m;
+  //   B3 *= qdt_over_2m;
+
+  //   Scalar pm1 = p1 + E1;
+  //   Scalar pm2 = p2 + E2;
+  //   Scalar pm3 = p3 + E3;
+  //   Scalar gm2 = 1.0f + pm1 * pm1 + pm2 * pm2 + pm3 * pm3;
+  //   Scalar b_dot_p = B1 * pm1 + B2 * pm2 + B3 * pm3;
+  //   Scalar b_sqr = B1 * B1 + B2 * B2 + B3 * B3;
+  //   Scalar gamma_new = std::sqrt(0.5f * (gm2 - b_sqr +
+  //                                        std::sqrt(square(gm2 - b_sqr) +
+  //                                                  4.0f * (b_sqr + b_dot_p *
+  //                                                  b_dot_p))));
+  //   B1 /= gamma_new;
+  //   B2 /= gamma_new;
+  //   B3 /= gamma_new;
+  //   Scalar t_sqr = B1 * B1 + B2 * B2 + B3 * B3;
+  //   Scalar pt1 = pm2 * B3 - pm3 * B2 + pm1;
+  //   Scalar pt2 = pm3 * B1 - pm1 * B3 + pm2;
+  //   Scalar pt3 = pm1 * B2 - pm2 * B1 + pm3;
+
+  //   p1 = pm1 + E1 + (pt2 * B3 - pt3 * B2) * 2.0f / (1.0f + t_sqr);
+  //   p2 = pm2 + E2 + (pt3 * B1 - pt1 * B3) * 2.0f / (1.0f + t_sqr);
+  //   p3 = pm3 + E3 + (pt1 * B2 - pt2 * B1) * 2.0f / (1.0f + t_sqr);
+  //   gamma = std::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+  // }
   template <typename Scalar>
   HD_INLINE void operator()(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
                             Scalar E1, Scalar E2, Scalar E3, Scalar B1,
                             Scalar B2, Scalar B3, Scalar qdt_over_2m,
                             Scalar dt) {
-    E1 *= qdt_over_2m;
-    E2 *= qdt_over_2m;
-    E3 *= qdt_over_2m;
-    B1 *= qdt_over_2m;
-    B2 *= qdt_over_2m;
-    B3 *= qdt_over_2m;
-
-    Scalar pm1 = p1 + E1;
-    Scalar pm2 = p2 + E2;
-    Scalar pm3 = p3 + E3;
+    Scalar pm1 = p1 + E1 * qdt_over_2m;
+    Scalar pm2 = p2 + E2 * qdt_over_2m;
+    Scalar pm3 = p3 + E3 * qdt_over_2m;
     Scalar gm2 = 1.0f + pm1 * pm1 + pm2 * pm2 + pm3 * pm3;
-    Scalar b_dot_p = B1 * pm1 + B2 * pm2 + B3 * pm3;
-    Scalar b_sqr = B1 * B1 + B2 * B2 + B3 * B3;
-    Scalar gamma_new = std::sqrt(0.5f * (gm2 - b_sqr +
-                                         std::sqrt(square(gm2 - b_sqr) +
-                                                   4.0f * (b_sqr + b_dot_p * b_dot_p))));
-    B1 /= gamma_new;
-    B2 /= gamma_new;
-    B3 /= gamma_new;
-    Scalar t_sqr = B1 * B1 + B2 * B2 + B3 * B3;
-    Scalar pt1 = pm2 * B3 - pm3 * B2 + pm1;
-    Scalar pt2 = pm3 * B1 - pm1 * B3 + pm2;
-    Scalar pt3 = pm1 * B2 - pm2 * B1 + pm3;
+    Scalar b_dot_p = (B1 * pm1 + B2 * pm2 + B3 * pm3) * qdt_over_2m;
+    Scalar b_sqr = (B1 * B1 + B2 * B2 + B3 * B3) * square(qdt_over_2m);
+    Scalar gamma_new = std::sqrt(
+        0.5f *
+        (gm2 - b_sqr +
+         std::sqrt(square(gm2 - b_sqr) + 4.0f * (b_sqr + b_dot_p * b_dot_p))));
 
-    p1 = pm1 + E1 + (pt2 * B3 - pt3 * B2) * 2.0f / (1.0f + t_sqr);
-    p2 = pm2 + E2 + (pt3 * B1 - pt1 * B3) * 2.0f / (1.0f + t_sqr);
-    p3 = pm3 + E3 + (pt1 * B2 - pt2 * B1) * 2.0f / (1.0f + t_sqr);
+    Scalar t_sqr = b_sqr / square(gamma_new);
+    Scalar pt1 = (pm2 * B3 - pm3 * B2) / gamma_new + pm1;
+    Scalar pt2 = (pm3 * B1 - pm1 * B3) / gamma_new + pm2;
+    Scalar pt3 = (pm1 * B2 - pm2 * B1) / gamma_new + pm3;
+
+    p1 =
+        pm1 + E1 * qdt_over_2m +
+        (pt2 * B3 - pt3 * B2) * 2.0f / (1.0f + t_sqr) * qdt_over_2m / gamma_new;
+    p2 =
+        pm2 + E2 * qdt_over_2m +
+        (pt3 * B1 - pt1 * B3) * 2.0f / (1.0f + t_sqr) * qdt_over_2m / gamma_new;
+    p3 =
+        pm3 + E3 * qdt_over_2m +
+        (pt1 * B2 - pt2 * B1) * 2.0f / (1.0f + t_sqr) * qdt_over_2m / gamma_new;
     gamma = std::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
   }
 };

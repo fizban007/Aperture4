@@ -121,9 +121,9 @@ struct higuera_pusher {
          std::sqrt(square(gm2 - b_sqr) + 4.0f * (b_sqr + b_dot_p * b_dot_p))));
 
     Scalar t_sqr = b_sqr / square(gamma_new);
-    Scalar pt1 = (pm2 * B3 - pm3 * B2) / gamma_new + pm1;
-    Scalar pt2 = (pm3 * B1 - pm1 * B3) / gamma_new + pm2;
-    Scalar pt3 = (pm1 * B2 - pm2 * B1) / gamma_new + pm3;
+    Scalar pt1 = (pm2 * B3 - pm3 * B2) * qdt_over_2m / gamma_new + pm1;
+    Scalar pt2 = (pm3 * B1 - pm1 * B3) * qdt_over_2m / gamma_new + pm2;
+    Scalar pt3 = (pm1 * B2 - pm2 * B1) * qdt_over_2m / gamma_new + pm3;
 
     p1 =
         pm1 + E1 * qdt_over_2m +

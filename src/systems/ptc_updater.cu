@@ -1,5 +1,6 @@
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
+#include "core/math.hpp"
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
 #include "ptc_updater.h"
@@ -421,17 +422,20 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
                   // j1 is movement in x1
                   auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
                   djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
-                  atomicAdd(&J[0][offset], -weight * djx);
+                  if (math::abs(djx) > TINY)
+                    atomicAdd(&J[0][offset], -weight * djx);
                   // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
                   // j2 is movement in x2
                   djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
-                  atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
+                  if (math::abs(djy[i - i_0]) > TINY)
+                    atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
 
                   // j3 is movement in x3
                   djz[j - j_0][i - i_0] +=
                       movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
-                  atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
+                  if (math::abs(djz[j - j_0][i - i_0]) > TINY)
+                    atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
 
                   // rho is deposited at the final position
                   // if ((step + 1) % data_interval == 0) {

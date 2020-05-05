@@ -318,12 +318,14 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
                 // j1 is movement in x1
                 auto offset = idx.inc_x(i).inc_y(j);
                 djx += movement2d(sy0, sy1, sx0, sx1);
-                atomicAdd(&J[0][offset], -weight * djx);
+                if (math::abs(djx) > TINY)
+                  atomicAdd(&J[0][offset], -weight * djx);
                 // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
                 // j2 is movement in x2
                 djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
-                atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
+                if (math::abs(djy[i - i_0]) > TINY)
+                  atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
 
                 // j3 is simply v3 times rho at center
                 atomicAdd(&J[2][offset],

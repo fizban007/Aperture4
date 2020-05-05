@@ -22,7 +22,7 @@ class sim_environment;
 ///  member functions, and only has static `typedef`s and static functions.
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
-          int InterpOrder = 1,
+          int InterpOrder = default_interp_order,
           template <int> typename Idx_t = idx_col_major_t>
 class Config {
  public:

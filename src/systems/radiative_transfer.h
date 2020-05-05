@@ -20,10 +20,13 @@ class radiative_transfer : public system_t {
   photon_data_t* ph;
 
   scalar_field<Conf>* rho_ph;
+  scalar_field<Conf>* photon_produced;
+  scalar_field<Conf>* pair_produced;
 
   // parameters for this module
   uint32_t m_data_interval = 1;
   uint32_t m_sort_interval = 20;
+  int m_ph_per_scatter = 1;
 
  public:
   static std::string name() { return "radiative_transfer"; }
@@ -50,6 +53,12 @@ class radiative_transfer_cu : public radiative_transfer<Conf> {
   buffer<int> m_num_per_block;
   buffer<int> m_cum_num_per_block;
   buffer<int> m_pos_in_block;
+
+  vector_field<Conf>* B;
+  std::vector<scalar_field<Conf>*> Rho;
+
+  int m_threads_per_block = 512;
+  int m_blocks_per_grid = 256;
 
  public:
   static std::string name() { return "radiative_transfer"; }

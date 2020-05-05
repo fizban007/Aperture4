@@ -13,6 +13,7 @@ radiative_transfer<Conf>::radiative_transfer(sim_environment& env,
     : system_t(env), m_grid(grid), m_comm(comm) {
   m_env.params().get_value("data_interval", m_data_interval);
   m_env.params().get_value("sort_interval", m_sort_interval);
+  m_env.params().get_value("ph_per_scatter", m_ph_per_scatter);
 }
 
 template <typename Conf>
@@ -31,6 +32,10 @@ radiative_transfer<Conf>::register_dependencies() {
                                           MemType::host_only);
   rho_ph = m_env.register_data<scalar_field<Conf>>(
       "Rho_ph", m_grid, field_type::vert_centered, MemType::host_only);
+  photon_produced = m_env.register_data<scalar_field<Conf>>(
+      "photon_produced", m_grid, field_type::vert_centered, MemType::host_only);
+  pair_produced = m_env.register_data<scalar_field<Conf>>(
+      "pair_produced", m_grid, field_type::vert_centered, MemType::host_only);
 }
 
 template <typename Conf>

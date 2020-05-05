@@ -347,51 +347,10 @@ template <typename Conf>
 void
 compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
-             const vector_field<Conf>& e0, const vector_field<Conf>& b0,
-             const grid_curv_t<Conf>& grid) {
+             const grid_curv_t<Conf>& grid, const bool is_boundary[Conf::dim * 2]) {
   auto ext = divE.grid().extent();
   kernel_launch(
-      [ext] __device__(auto divE, auto divB, auto e, auto e0, auto b, auto b0,
-                       auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
-        // gp is short for grid_ptrs
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
-          if (grid.is_in_bound(pos)) {
-            auto idx_mx = idx.dec_x();
-            auto idx_my = idx.dec_y();
-
-            divE[idx] = ((e[0][idx] - e0[0][idx]) * gp.Ae[0][idx] -
-                         (e[0][idx_mx] - e0[0][idx_mx]) * gp.Ae[0][idx_mx] +
-                         (e[1][idx] - e0[1][idx]) * gp.Ae[1][idx] -
-                         (e[1][idx_my] - e0[1][idx_my]) * gp.Ae[1][idx_my]) /
-                        (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
-
-            auto idx_px = idx.inc_x();
-            auto idx_py = idx.inc_y();
-
-            divB[idx] = ((b[0][idx_px] - b0[0][idx_px]) * gp.Ab[0][idx_px] -
-                         (b[0][idx] - b0[0][idx]) * gp.Ab[0][idx] +
-                         (b[1][idx_py] - b0[1][idx_py]) * gp.Ab[1][idx_py] -
-                         (b[1][idx] - b0[1][idx]) * gp.Ab[1][idx]) /
-                        (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
-          }
-        }
-      },
-      divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(), e0.get_ptrs(),
-      b0.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-}
-
-template <typename Conf>
-void
-compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
-             const vector_field<Conf>& e, const vector_field<Conf>& b,
-             const grid_curv_t<Conf>& grid) {
-  auto ext = divE.grid().extent();
-  kernel_launch(
-      [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp) {
+      [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp, auto is_boundary) {
         auto& grid = dev_grid<Conf::dim>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
@@ -405,7 +364,6 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                 (e[0][idx] * gp.Ae[0][idx] - e[0][idx_mx] * gp.Ae[0][idx_mx] +
                  e[1][idx] * gp.Ae[1][idx] - e[1][idx_my] * gp.Ae[1][idx_my]) /
                 (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
-
             auto idx_px = idx.inc_x();
             auto idx_py = idx.inc_y();
 
@@ -413,11 +371,19 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                 (b[0][idx_px] * gp.Ab[0][idx_px] - b[0][idx] * gp.Ab[0][idx] +
                  b[1][idx_py] * gp.Ab[1][idx_py] - b[1][idx] * gp.Ab[1][idx]) /
                 (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
+
+            if (is_boundary[0] && pos[0] == grid.skirt[0]) divE[idx] = divB[idx] = 0.0f;
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+              divE[idx] = divB[idx] = 0.0f;
+            if (is_boundary[2] && pos[1] == grid.skirt[1]) divE[idx] = divB[idx] = 0.0f;
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+              divE[idx] = divB[idx] = 0.0f;
+
           }
         }
       },
       divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
-      grid.get_grid_ptrs());
+      grid.get_grid_ptrs(), vec_t<bool, Conf::dim * 2>(is_boundary));
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -475,7 +441,14 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
 
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
-  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);
+  if (this->m_comm != nullptr) {
+    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                 this->m_comm->domain_info().is_boundary);
+  } else {
+    bool is_boundary[4] = {true, true, true, true};
+    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                 is_boundary);
+  }
 }
 
 template <typename Conf>
@@ -530,7 +503,14 @@ field_solver_sph<Conf>::update_semi_impl(double dt, double alpha,
 
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
-  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid);
+  if (this->m_comm != nullptr) {
+    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                 this->m_comm->domain_info().is_boundary);
+  } else {
+    bool is_boundary[4] = {true, true, true, true};
+    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                 is_boundary);
+  }
 }
 
 template class field_solver_sph<Config<2>>;

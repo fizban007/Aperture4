@@ -10,7 +10,7 @@ namespace Aperture {
 template <typename Conf>
 void
 set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
-                      int mult, double weight, double Bp) {
+                      int mult, double weight) {
   particle_data_t* ptc;
   vector_field<Conf> *B0, *B;
   curand_states_t* states;
@@ -18,6 +18,8 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
   env.get_data("B0", &B0);
   env.get_data("B", &B);
   env.get_data("rand_states", &states);
+
+  double Bp = env.params().get_as<double>("Bp", 10000.0);
 
   if (ptc != nullptr && states != nullptr) {
     auto num = ptc->number();
@@ -74,6 +76,6 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
 
 template void set_initial_condition<Config<2>>(
     sim_environment& env, const grid_sph_t<Config<2>>& grid, int mult,
-    double weight, double Bp);
+    double weight);
 
 }  // namespace Aperture

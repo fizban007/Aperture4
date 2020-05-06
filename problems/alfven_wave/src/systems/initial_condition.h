@@ -9,7 +9,7 @@ namespace Aperture {
 template <typename Conf>
 void set_initial_condition(sim_environment& env,
                            const grid_sph_t<Conf>& grid, int mult,
-                           double weight, double Bp);
+                           double weight);
 
 }
 

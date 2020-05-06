@@ -31,7 +31,7 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  set_initial_condition(env, *grid, 10, 1.0, 10000.0);
+  set_initial_condition(env, *grid, 30, 1.0);
 
   env.run();
   return 0;

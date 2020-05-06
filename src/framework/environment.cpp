@@ -92,7 +92,7 @@ sim_environment::init() {
 void
 sim_environment::run() {
   for (; step < max_steps; step++) {
-    Logger::print_info("=== Time step {}, Time is {} ===", step, time);
+    Logger::print_info("=== Time step {}, Time is {:.3f} ===", step, time);
     for (auto& name : m_system_order) {
       timer::stamp();
       m_system_map[name]->update(dt, step);

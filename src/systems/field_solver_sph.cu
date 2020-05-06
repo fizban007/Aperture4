@@ -348,7 +348,7 @@ void
 compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
              const grid_curv_t<Conf>& grid, const bool is_boundary[Conf::dim * 2]) {
-  auto ext = divE.grid().extent();
+  auto ext = grid.extent();
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp, auto is_boundary) {
         auto& grid = dev_grid<Conf::dim>();
@@ -389,6 +389,26 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
 
 template <typename Conf>
 void
+compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
+             const grid_curv_t<Conf>& grid) {
+  flux.init();
+  auto ext = grid.extent();
+  kernel_launch([ext] __device__(auto flux, auto b, auto gp) {
+      auto& grid = dev_grid<Conf::dim>();
+      for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+        for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1]; n1++) {
+          auto pos = index_t<Conf::dim>(n0, n1);
+          auto idx = typename Conf::idx_t(pos, ext);
+          flux[idx] = flux[idx.dec_y()] + b[0][idx] * gp.Ab[0][idx];
+        }
+      }
+    }, flux.get_ptr(), b.get_ptrs(), grid.get_grid_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename Conf>
+void
 field_solver_sph<Conf>::init() {
   // this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
@@ -396,6 +416,7 @@ field_solver_sph<Conf>::init() {
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
   this->m_env.params().get_value("use_implicit", m_use_implicit);
+  this->m_env.params().get_value("data_interval", m_data_interval);
 
   m_tmp_b1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
@@ -403,6 +424,15 @@ field_solver_sph<Conf>::init() {
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
   m_bnew =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
+}
+
+template <typename Conf>
+void
+field_solver_sph<Conf>::register_dependencies() {
+  field_solver_default<Conf>::register_dependencies();
+
+  flux = this->m_env.template register_data<scalar_field<Conf>>
+      ("flux", this->m_grid, field_type::vert_centered);
 }
 
 template <typename Conf>
@@ -418,6 +448,11 @@ field_solver_sph<Conf>::update(double dt, uint32_t step) {
   this->Etotal->add_by(*(this->E));
   this->Btotal->copy_from(*(this->B0));
   this->Btotal->add_by(*(this->B));
+
+  if (step % m_data_interval == 0) {
+    auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
+    compute_flux(*flux, *(this->Btotal), grid);
+  }
 }
 
 template <typename Conf>

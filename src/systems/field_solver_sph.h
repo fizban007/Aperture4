@@ -21,6 +21,9 @@ class field_solver_sph : public field_solver_default<Conf> {
   double m_beta = 0.55;
   int m_damping_length = 64;
   double m_damping_coef = 0.003;
+  int m_data_interval = 1;
+
+  scalar_field<Conf>* flux;
  
  public:
   static std::string name() { return "field_solver"; }
@@ -33,6 +36,7 @@ class field_solver_sph : public field_solver_default<Conf> {
 
   void init() override;
   void update(double dt, uint32_t step) override;
+  void register_dependencies() override;
 
   void update_explicit(double dt, double time);
   void update_semi_impl(double dt, double alpha, double beta, double time);

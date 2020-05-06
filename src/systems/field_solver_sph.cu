@@ -288,7 +288,7 @@ axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid.template pos<1>(n1_0, true)) < TINY) {
+          if (abs(grid.template pos<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
             // At the theta = 0 axis
 
             // Set E_phi and B_theta to zero
@@ -454,7 +454,7 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
 template <typename Conf>
 void
 field_solver_sph<Conf>::update_semi_impl(double dt, double alpha,
-                                            double beta, double time) {
+                                         double beta, double time) {
   // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
 

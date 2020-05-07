@@ -39,11 +39,74 @@ struct wpert_sph_t {
 
 template <typename Conf>
 void
+inject_particles(particle_data_t& ptc, curand_states_t& rand_states, buffer<float>& surface_n,
+                 int num_per_cell, typename Conf::value_t weight) {
+  surface_n.assign_dev(0.0f);
+
+  auto ptc_num = ptc.number();
+  // First measure surface density
+  kernel_launch([ptc_num] __device__(auto ptc, auto surface_n) {
+      auto& grid = dev_grid<Conf::dim>();
+      auto ext = grid.extent();
+      for (auto n : grid_stride_range(0, ptc_num)) {
+        auto c = ptc.cell[n];
+        if (c == empty_cell) continue;
+
+        auto idx = typename Conf::idx_t(c, ext);
+        auto pos = idx.get_pos();
+
+        if (pos[0] == grid.guard[0]) {
+          auto flag = ptc.flag[n];
+          auto sp = get_ptc_type(flag);
+          // surface_n[pos[1]] += ptc.weight[n];
+          atomicAdd(&pos[1], ptc.weight[n] * math::abs(dev_charges[sp]));
+        }
+      }
+    }, ptc.get_dev_ptrs(), surface_n.dev_ptr());
+  CudaSafeCall(cudaDeviceSynchronize());
+
+  kernel_launch([ptc_num, weight] __device__(auto ptc, auto surface_n, auto num_inj, auto states) {
+      auto& grid = dev_grid<Conf::dim>();
+      auto ext = grid.extent();
+      int inj_n0 = grid.guard[0];
+      int id = threadIdx.x + blockIdx.x * blockDim.x;
+      cuda_rng_t rng(&states[id]);
+      for (auto n1 : grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
+        size_t offset = ptc_num + n1 * num_inj * 2;
+        auto pos = index_t<Conf::dim>(inj_n0, n1);
+        auto idx = typename Conf::idx_t(pos, ext);
+        Scalar theta = grid.template pos<1>(n1, false);
+        if (surface_n[pos[1]] > square(0.5f / grid.delta[1]) * math::sin(theta))
+          continue;
+        for (int i = 0; i < num_inj; i++) {
+          float x2 = rng();
+          theta = grid.template pos<1>(n1, x2);
+          ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 0.5f;
+          ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
+          ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
+          ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
+          ptc.p2[offset + i * 2] = ptc.p2[offset + i * 2 + 1] = 0.0f;
+          ptc.p3[offset + i * 2] = ptc.p3[offset + i * 2 + 1] = 0.0f;
+          ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = 1.0f;
+          ptc.cell[offset + i * 2] = ptc.cell[offset + i * 2 + 1] = idx.linear;
+          ptc.weight[offset + i * 2] = ptc.weight[offset + i * 2 + 1] = weight * math::sin(theta);
+          ptc.flag[offset + i * 2] = set_ptc_type_flag(0, PtcType::electron);
+          ptc.flag[offset + i * 2 + 1] = set_ptc_type_flag(0, PtcType::positron);
+        }
+      }
+    }, ptc.get_dev_ptrs(), surface_n.dev_ptr(), num_per_cell, rand_states.states());
+  CudaSafeCall(cudaDeviceSynchronize());
+}
+
+template <typename Conf>
+void
 boundary_condition<Conf>::init() {
   m_env.get_data("Edelta", &E);
   m_env.get_data("E0", &E0);
   m_env.get_data("Bdelta", &B);
   m_env.get_data("B0", &B0);
+  m_env.get_data("rand_states", &rand_states);
+  m_env.get_data("particles", &ptc);
 
   m_env.params().get_value("rpert1", m_rpert1);
   m_env.params().get_value("rpert2", m_rpert2);
@@ -53,6 +116,8 @@ boundary_condition<Conf>::init() {
   m_env.params().get_value("dw0", m_dw0);
   Logger::print_info("{}, {}, {}, {}, {}, {}", m_rpert1, m_rpert2,
                      m_tp_start, m_tp_end, m_nT, m_dw0);
+
+  m_surface_n.resize(m_grid.dims[1]);
 }
 
 template <typename Conf>
@@ -65,6 +130,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   value_t time = m_env.get_time();
   wpert_sph_t wpert(m_rpert1, m_rpert2, m_tp_start, m_tp_end, m_nT, m_dw0);
 
+  // Apply twist on the stellar surface
   kernel_launch([ext, time] __device__ (auto e, auto b, auto e0, auto b0, auto wpert) {
       auto& grid = dev_grid<Conf::dim>();
       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
@@ -93,6 +159,11 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
       }
     }, E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs(), wpert);
   CudaSafeCall(cudaDeviceSynchronize());
+
+  // Inject particles
+  if (step % 2 == 0) {
+    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 1, 1.0);
+  }
 }
 
 

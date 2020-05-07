@@ -2,6 +2,8 @@
 #define __BOUNDARY_CONDITION_H_
 
 #include "data/fields.h"
+#include "data/particle_data.h"
+#include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid_curv.h"
@@ -17,6 +19,10 @@ class boundary_condition : public system_t {
   typename Conf::value_t m_tp_start, m_tp_end, m_nT, m_dw0;
 
   vector_field<Conf> *E, *B, *E0, *B0;
+  particle_data_t *ptc;
+  curand_states_t *rand_states;
+
+  buffer<float> m_surface_n;
 
  public:
   static std::string name() { return "boundary_condition"; }
@@ -26,8 +32,6 @@ class boundary_condition : public system_t {
 
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  void register_dependencies() {}
 };
 
 }

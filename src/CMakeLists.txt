@@ -15,7 +15,7 @@ set(Aperture_src
   "systems/grid_sph.cpp"
   "systems/ptc_updater.cpp"
   "systems/ptc_injector.cpp"
-  "systems/radiative_transfer.cpp"
+  # "systems/radiative_transfer.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -31,7 +31,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/ptc_updater.cu"
     "systems/ptc_updater_sph.cu"
     "systems/ptc_injector.cu"
-    "systems/radiative_transfer.cu"
+    "systems/ph_freepath_dev.cu"
     )
 else()
   list(APPEND Aperture_src

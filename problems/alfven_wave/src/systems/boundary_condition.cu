@@ -45,7 +45,8 @@ template <typename Conf>
 void
 inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
                  buffer<float>& surface_n, int num_per_cell,
-                 typename Conf::value_t weight) {
+                 typename Conf::value_t weight,
+                 const grid_curv_t<Conf>& grid) {
   surface_n.assign_dev(0.0f);
 
   auto ptc_num = ptc.number();
@@ -113,6 +114,8 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
       ptc.get_dev_ptrs(), surface_n.dev_ptr(), num_per_cell,
       rand_states.states());
   CudaSafeCall(cudaDeviceSynchronize());
+
+  ptc.add_num(num_per_cell * 2 * grid.dims[1]);
 }
 
 template <typename Conf>
@@ -185,7 +188,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Inject particles
   if (step % 2 == 0) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 1, 1.0);
+    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 1, 1.0, m_grid);
   }
 }
 

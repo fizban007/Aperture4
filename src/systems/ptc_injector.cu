@@ -63,8 +63,8 @@ compute_sigma(scalar_field<Conf>& sigma,
         auto interp = lerp<Conf::dim>{};
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = typename Conf::idx_t(n, ext);
+        for (auto idx : grid_stride_range(Conf::idx(0, ext), Conf::idx(ext.size(), ext))) {
+          // auto idx = typename Conf::idx_t(n, ext);
           auto pos = idx.get_pos();
 
           if (grid.is_in_bound(pos)) {

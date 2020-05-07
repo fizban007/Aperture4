@@ -48,6 +48,14 @@ class Config {
     return multi_array_t(ext, model);
   }
 
+  static HD_INLINE idx_t idx(size_t n, const extent_t<Dim>& ext) {
+    return idx_t(n, ext);
+  }
+
+  static HD_INLINE idx_t idx(const index_t<Dim>& pos, const extent_t<Dim>& ext) {
+    return idx_t(pos, ext);
+  }
+
   Config() {}
   Config(const Config& other) = delete;
   Config(Config&& other) = delete;

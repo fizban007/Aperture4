@@ -33,6 +33,12 @@ struct idx_base_t {
     return (Derived&)*this;
   }
 
+  HD_INLINE Derived operator+(int x) {
+    Derived result((Derived&)*this);
+    result.linear += x;
+    return result;
+  }
+
   HD_INLINE Derived& operator+=(uint32_t x) {
     linear += x;
     return (Derived&)*this;

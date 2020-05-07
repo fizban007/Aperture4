@@ -56,10 +56,11 @@ struct range_proxy {
     iter(T current) : detail::range_iter_base<T>(current) {}
   };
 
+  template <typename U>
   struct step_range_proxy {
     struct iter : detail::range_iter_base<T> {
       HD_INLINE
-      iter(T current, T step)
+      iter(T current, U step)
           : detail::range_iter_base<T>(current), step(step) {}
 
       using detail::range_iter_base<T>::current;
@@ -91,11 +92,11 @@ struct range_proxy {
       }
 
      private:
-      T step;
+      U step;
     };
 
     HD_INLINE
-    step_range_proxy(T begin, T end, T step)
+    step_range_proxy(T begin, T end, U step)
         : begin_(begin, step), end_(end, step) {}
 
     HD_INLINE
@@ -112,8 +113,9 @@ struct range_proxy {
   HD_INLINE
   range_proxy(T begin, T end) : begin_(begin), end_(end) {}
 
+  template <typename U>
   HD_INLINE
-  step_range_proxy step(T step) { return {*begin_, *end_, step}; }
+  step_range_proxy<U> step(U step) { return {*begin_, *end_, step}; }
 
   HD_INLINE
   iter begin() const { return begin_; }
@@ -168,16 +170,16 @@ indices(std::initializer_list<T>&& cont) {
   return {0, cont.size()};
 }
 
-template<typename T>
-using step_range = typename range_proxy<T>::step_range_proxy;
+template<typename T, typename U>
+using step_range = typename range_proxy<T>::template step_range_proxy<U>;
 
 #ifdef __CUDACC__
 
 template <typename U, typename T>
 __device__ __forceinline__
-step_range<T> grid_stride_range(U begin, T end) {
+step_range<T, int> grid_stride_range(U begin, T end) {
     return range(T(begin + blockDim.x * blockIdx.x + threadIdx.x), end)
-      .step(gridDim.x * blockDim.x);
+      .step(int(gridDim.x * blockDim.x));
 }
 
 #endif

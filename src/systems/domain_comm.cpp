@@ -1,4 +1,5 @@
 #include "domain_comm.h"
+#include "core/constant_mem_func.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
@@ -18,6 +19,10 @@ domain_comm<Conf>::setup_domain() {
   m_world = MPI_COMM_WORLD;
   MPI_Comm_rank(m_world, &m_rank);
   MPI_Comm_size(m_world, &m_size);
+
+#ifdef CUDA_ENABLED
+  init_dev_rank(m_rank);
+#endif
 
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 

@@ -15,6 +15,10 @@ __constant__ Grid<3> dev_grid_3d;
 __constant__ float dev_charges[max_ptc_types];
 __constant__ float dev_masses[max_ptc_types];
 
+__device__ uint64_t dev_rank = 0;
+__device__ uint32_t dev_ptc_id = 0;
+__device__ uint32_t dev_ph_id = 0;
+
 void
 init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]) {
   const uint32_t* p_2d = &m2dLUT[0];
@@ -30,6 +34,12 @@ init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]) {
 //   conparams_structams* p = &params;
 //   CudaSafeCall(cudaMemcpyToSymbol(dev_params, p, sizeparams_structams)));
 // }
+void
+init_dev_rank(int rank) {
+  uint64_t r = rank;
+  r <<= 32;
+  CudaSafeCall(cudaMemcpyToSymbol(dev_rank, (void*)&r, sizeof(uint64_t)));
+}
 
 template <>
 void

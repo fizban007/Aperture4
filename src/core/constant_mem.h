@@ -22,6 +22,10 @@ extern __constant__ Grid<3> dev_grid_3d;
 extern __constant__ float dev_charges[max_ptc_types];
 extern __constant__ float dev_masses[max_ptc_types];
 
+extern __device__ uint64_t dev_rank;
+extern __device__ uint32_t dev_ptc_id;
+extern __device__ uint32_t dev_ph_id;
+
 template <int Rank>
 __device__ __forceinline__ const Grid<Rank>& dev_grid();
 

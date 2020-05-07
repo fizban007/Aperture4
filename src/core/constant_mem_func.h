@@ -15,6 +15,9 @@ void init_dev_grid(const Grid<Dim>& grid);
 
 void init_dev_charge_mass(const float charge[max_ptc_types],
                           const float mass[max_ptc_types]);
+
+void init_dev_rank(int rank);
+
 }  // namespace Aperture
 
 #endif

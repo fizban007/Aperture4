@@ -64,6 +64,17 @@ struct ph_freepath_dev_t {
     ph.path_left[offset] = path;
     ph.cell[offset] = ptc.cell[tid];
   }
+
+  template <typename Ph>
+  __device__ bool check_produce_pair(Ph& ph, uint32_t tid, cuda_rng_t& rng) {
+    return false;
+  }
+
+  template <typename Ph, typename Ptc>
+  __device__ void produce_pair(Ph& ph, uint32_t tid, Ptc& ptc, uint32_t offset,
+                               cuda_rng_t& rng) {
+
+  }
 };
 
 

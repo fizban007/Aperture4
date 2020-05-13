@@ -1,4 +1,4 @@
-#include "boundary_condition.hpp"
+#include "boundary_condition.h"
 #include "core/math.hpp"
 #include "framework/config.h"
 #include "systems/grid_sph.h"

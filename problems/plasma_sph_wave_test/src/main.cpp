@@ -3,7 +3,7 @@
 #include "systems/field_solver_sph.h"
 #include "systems/ptc_updater_sph.h"
 #include "systems/data_exporter.h"
-#include "systems/boundary_condition.hpp"
+#include "systems/boundary_condition.h"
 #include "systems/initial_condition.h"
 #include "systems/ptc_injector.h"
 #include <iostream>

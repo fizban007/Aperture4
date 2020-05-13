@@ -4,7 +4,7 @@
 #include "systems/grid_sph.h"
 // #include "systems/ptc_updater.h"
 #include "systems/data_exporter.h"
-#include "systems/boundary_condition.hpp"
+#include "systems/boundary_condition.h"
 #include <iostream>
 
 using namespace std;

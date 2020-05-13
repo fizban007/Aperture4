@@ -69,19 +69,19 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
             auto idx_pxmy = idx.inc_x().dec_y();
             result[0][idx] =
                 coef *
-                (gp.le[2][idx_py] * circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) /
+                (gp.le[2][idx_py] *
+                     circ2(b, gp.lb, idx_pymx, idx, idx_py, idx_py) /
                      gp.Ae[2][idx_py] -
-                 gp.le[2][idx] *
-                     circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
+                 gp.le[2][idx] * circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                      gp.Ae[2][idx]) /
                 gp.Ab[0][idx];
 
             result[1][idx] =
                 coef *
-                (gp.le[2][idx] *
-                     circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
+                (gp.le[2][idx] * circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                      gp.Ae[2][idx] -
-                 gp.le[2][idx_px] * circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) /
+                 gp.le[2][idx_px] *
+                     circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) /
                      gp.Ae[2][idx_px]) /
                 gp.Ab[1][idx];
             // Take care of axis boundary
@@ -94,10 +94,11 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                 coef *
                 (gp.le[0][idx] * circ0(b, gp.lb, idx_my, idx) /
                      gp.Ae[0][idx_py] -
-                 gp.le[0][idx_py] * circ0(b, gp.lb, idx, idx_py) / gp.Ae[0][idx] +
-                 gp.le[1][idx_px] * circ1(b, gp.lb, idx, idx_px) / gp.Ae[1][idx_px] -
-                 gp.le[1][idx] * circ1(b, gp.lb, idx_mx, idx) /
-                     gp.Ae[1][idx]) /
+                 gp.le[0][idx_py] * circ0(b, gp.lb, idx, idx_py) /
+                     gp.Ae[0][idx] +
+                 gp.le[1][idx_px] * circ1(b, gp.lb, idx, idx_px) /
+                     gp.Ae[1][idx_px] -
+                 gp.le[1][idx] * circ1(b, gp.lb, idx_mx, idx) / gp.Ae[1][idx]) /
                 gp.Ab[2][idx];
           }
         }
@@ -109,8 +110,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
 template <typename Conf>
 void
 compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
-                     const vector_field<Conf>& j,
-                     const grid_curv_t<Conf>& grid,
+                     const vector_field<Conf>& j, const grid_curv_t<Conf>& grid,
                      typename Conf::value_t alpha, typename Conf::value_t beta,
                      typename Conf::value_t dt) {
   auto ext = grid.extent();
@@ -185,10 +185,12 @@ compute_e_update_explicit(vector_field<Conf>& result,
               result[2][idx] = 0.0f;
             }
             // if (pos[0] == 3 && pos[1] == 256) {
-            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n", b[0][idx_my],
+            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n",
+            //   b[0][idx_my],
             //          b[0][idx], b[0][idx.inc_y()], b[1][idx_mx], b[1][idx],
             //          b[1][idx.inc_x()]);
-            //   printf("Ephi is %f, circ2_b is %f, jphi is %f\n", result[2][idx],
+            //   printf("Ephi is %f, circ2_b is %f, jphi is %f\n",
+            //   result[2][idx],
             //          circ2(b, gp.lb, idx_mx, idx_my, idx, idx), j[2][idx]);
             // }
           }
@@ -347,10 +349,12 @@ template <typename Conf>
 void
 compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
-             const grid_curv_t<Conf>& grid, const bool is_boundary[Conf::dim * 2]) {
+             const grid_curv_t<Conf>& grid,
+             const bool is_boundary[Conf::dim * 2]) {
   auto ext = grid.extent();
   kernel_launch(
-      [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp, auto is_boundary) {
+      [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp,
+                       auto is_boundary) {
         auto& grid = dev_grid<Conf::dim>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
@@ -372,13 +376,14 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                  b[1][idx_py] * gp.Ab[1][idx_py] - b[1][idx] * gp.Ab[1][idx]) /
                 (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
 
-            if (is_boundary[0] && pos[0] == grid.skirt[0]) divE[idx] = divB[idx] = 0.0f;
+            if (is_boundary[0] && pos[0] == grid.skirt[0])
+              divE[idx] = divB[idx] = 0.0f;
             if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[2] && pos[1] == grid.skirt[1]) divE[idx] = divB[idx] = 0.0f;
+            if (is_boundary[2] && pos[1] == grid.skirt[1])
+              divE[idx] = divB[idx] = 0.0f;
             if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
               divE[idx] = divB[idx] = 0.0f;
-
           }
         }
       },
@@ -393,16 +398,19 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
              const grid_curv_t<Conf>& grid) {
   flux.init();
   auto ext = grid.extent();
-  kernel_launch([ext] __device__(auto flux, auto b, auto gp) {
-      auto& grid = dev_grid<Conf::dim>();
-      for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-        for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1]; n1++) {
-          auto pos = index_t<Conf::dim>(n0, n1);
-          auto idx = typename Conf::idx_t(pos, ext);
-          flux[idx] = flux[idx.dec_y()] + b[0][idx] * gp.Ab[0][idx];
+  kernel_launch(
+      [ext] __device__(auto flux, auto b, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
+               n1++) {
+            auto pos = index_t<Conf::dim>(n0, n1);
+            auto idx = typename Conf::idx_t(pos, ext);
+            flux[idx] = flux[idx.dec_y()] + b[0][idx] * gp.Ab[0][idx];
+          }
         }
-      }
-    }, flux.get_ptr(), b.get_ptrs(), grid.get_grid_ptrs());
+      },
+      flux.get_ptr(), b.get_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -431,8 +439,8 @@ void
 field_solver_sph<Conf>::register_dependencies() {
   field_solver_default<Conf>::register_dependencies();
 
-  flux = this->m_env.template register_data<scalar_field<Conf>>
-      ("flux", this->m_grid, field_type::vert_centered);
+  flux = this->m_env.template register_data<scalar_field<Conf>>(
+      "flux", this->m_grid, field_type::vert_centered);
 }
 
 template <typename Conf>
@@ -488,8 +496,8 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::update_semi_impl(double dt, double alpha,
-                                         double beta, double time) {
+field_solver_sph<Conf>::update_semi_impl(double dt, double alpha, double beta,
+                                         double time) {
   // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
 

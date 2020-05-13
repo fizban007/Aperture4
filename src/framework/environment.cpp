@@ -73,6 +73,7 @@ sim_environment::init() {
   time = 0.0;
   max_steps = m_params.get_as<int64_t>("max_steps", 1l);
   dt = m_params.get_as<double>("dt", 0.01);
+  perf_interval = m_params.get_as<int64_t>("perf_interval", 10);
 
   // Initialize systems following declaration order
   for (auto& name : m_system_order) {
@@ -97,7 +98,7 @@ sim_environment::run() {
       timer::stamp();
       m_system_map[name]->update(dt, step);
       float time_spent = timer::get_duration_since_stamp("us");
-      if (time_spent > 10.0f)
+      if (step % perf_interval == 0 && time_spent > 10.0f)
         Logger::print_info("Time for {} is {:.2f}ms", name, time_spent / 1000.0);
       // timer::show_duration_since_stamp(name, "us");
     }

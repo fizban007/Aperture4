@@ -103,6 +103,7 @@ class sim_environment {
   double time;
   uint32_t step;
   uint32_t max_steps;
+  uint32_t perf_interval;
 
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;

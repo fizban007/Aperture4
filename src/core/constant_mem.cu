@@ -1,6 +1,5 @@
 #include "constant_mem.h"
 #include "constant_mem_func.h"
-#include "core/params.h"
 #include "cuda_control.h"
 #include "utils/morton.h"
 
@@ -8,7 +7,6 @@ namespace Aperture {
 
 __constant__ uint32_t morton2dLUT_dev[256];
 __constant__ uint32_t morton3dLUT_dev[256];
-__constant__ params_struct dev_params;
 __constant__ Grid<1> dev_grid_1d;
 __constant__ Grid<2> dev_grid_2d;
 __constant__ Grid<3> dev_grid_3d;
@@ -29,11 +27,6 @@ init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]) {
                                   sizeof(morton3dLUT_dev)));
 }
 
-// void
-// init_dev_params(conparams_structams& params) {
-//   conparams_structams* p = &params;
-//   CudaSafeCall(cudaMemcpyToSymbol(dev_params, p, sizeparams_structams)));
-// }
 void
 init_dev_rank(int rank) {
   uint64_t r = rank;

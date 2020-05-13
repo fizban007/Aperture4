@@ -8,6 +8,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Wedge, Arc, Rectangle
 from matplotlib import cm
 from multiprocessing import Pool
+import sys
 
 cdata = {
     "red": [(0.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.55, 1.0, 1.0), (1.0, 1.0, 1.0),],
@@ -22,10 +23,15 @@ matplotlib.rc("font", family="serif")
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
+if len(sys.argv) < 2:
+  print("Please specify path of the data!")
+  sys.exit(1)
+data_path = sys.argv[1]
+data = Data(data_path)
 
 def make_plot(n):
   print("Working on %d" % n)
-  data = Data("/home/alex/storage/Data/Aperture4/alfven_wave_dw0.2_smaller_Bp/")
+  data = Data(data_path)
 
   data.load_fld(n)
 
@@ -42,7 +48,7 @@ def make_plot(n):
   b3 = axes[0].pcolormesh(data.x1, data.x2, data.B3 / Bp, cmap=hot_cold_cmap,
                           vmin=-1, vmax=1, shading="gouraud")
   e3 = axes[1].pcolormesh(data.x1, data.x2, data.E3 / Bp, cmap=hot_cold_cmap,
-                          vmin=-0.1, vmax=0.1, shading="gouraud")
+                          vmin=-1, vmax=1, shading="gouraud")
   axes[0].contour(data.x1, data.x2, data.flux, clevel, colors=color_flux, linewidths=0.6)
   axes[1].contour(data.x1, data.x2, data.flux, clevel, colors=color_flux, linewidths=0.6)
   # axes[0,0].set_title("Explicit", fontsize=titlesize)
@@ -58,7 +64,8 @@ def make_plot(n):
     cb.ax.tick_params(labelsize=ticksize)
     cb.ax.set_title(titles[i], fontsize=titlesize)
 
-  axes[1].text(50, 70, "Time = %.1f" % (n * 1.0), fontsize=titlesize)
+  axes[1].text(40, 70, "Time = %.1f" % (n * data._conf['dt']
+      * data._conf['fld_output_interval']), fontsize=titlesize)
 
   fig.savefig("plots/%05d.png" % n)
   plt.close(fig)
@@ -67,4 +74,5 @@ def make_plot(n):
 agents = 7
 
 with Pool(processes=agents) as pool:
-    pool.map(make_plot, range(100))
+    #pool.map(make_plot, data.fld_steps)
+    pool.map(make_plot, data.fld_steps[:300])

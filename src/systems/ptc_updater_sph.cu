@@ -91,24 +91,27 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
 
 template <typename Conf>
 void
-ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid, int damping_length) {
+ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
+            int damping_length) {
   auto ptc_num = ptc.number();
-  kernel_launch([ptc_num, damping_length] __device__(auto ptc, auto gp) {
-      auto& grid = dev_grid<Conf::dim>();
-      for (auto n : grid_stride_range(0, ptc_num)) {
-        auto c = ptc.cell[n];
-        if (c == empty_cell) continue;
+  kernel_launch(
+      [ptc_num, damping_length] __device__(auto ptc, auto gp) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n : grid_stride_range(0, ptc_num)) {
+          auto c = ptc.cell[n];
+          if (c == empty_cell) continue;
 
-        auto idx = typename Conf::idx_t(c, grid.extent());
-        auto pos = idx.get_pos();
-        auto flag = ptc.flag[n];
-        if (check_flag(flag, PtcFlag::ignore_EM)) continue;
-        if (pos[0] > grid.dims[0] - damping_length + 2) {
-          flag |= bit_or(PtcFlag::ignore_EM);
-          ptc.flag[n] = flag;
+          auto idx = typename Conf::idx_t(c, grid.extent());
+          auto pos = idx.get_pos();
+          auto flag = ptc.flag[n];
+          if (check_flag(flag, PtcFlag::ignore_EM)) continue;
+          if (pos[0] > grid.dims[0] - damping_length + 2) {
+            flag |= bit_or(PtcFlag::ignore_EM);
+            ptc.flag[n] = flag;
+          }
         }
-      }
-    }, ptc.get_dev_ptrs(), grid.get_grid_ptrs());
+      },
+      ptc.get_dev_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -141,7 +144,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
     auto ext = this->m_grid.extent();
 
     auto deposit_kernel = [ext, num, dt, step] __device__(
-                              auto ptc, auto J, auto Rho, auto data_interval) {
+                              auto ptc, auto J, auto Rho, auto rho_interval) {
       using spline_t = typename ptc_updater<Conf>::spline_t;
       using idx_t = typename Conf::idx_t;
       using value_t = typename Conf::value_t;
@@ -150,10 +153,10 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
       extern __shared__ char shared_array[];
       value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
                                              (2 * spline_t::radius + 1)];
-// #pragma unroll
-//       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-//         djy[j] = 0.0f;
-//       }
+      // #pragma unroll
+      //       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+      //         djy[j] = 0.0f;
+      //       }
 
       for (auto n : grid_stride_range(0, num)) {
         uint32_t cell = ptc.cell[n];
@@ -270,8 +273,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             // j1 is movement in x1
             auto offset = idx.inc_x(i).inc_y(j);
             djx += movement2d(sy0, sy1, sx0, sx1);
-            if (math::abs(djx) > TINY)
-              atomicAdd(&J[0][offset], -weight * djx);
+            if (math::abs(djx) > TINY) atomicAdd(&J[0][offset], -weight * djx);
 
             // j2 is movement in x2
             djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
@@ -285,11 +287,11 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
             // rho is deposited at the final position
             // if ((step + 1) % data_interval == 0) {
-            // if (step % data_interval == 0) {
-            if (math::abs(sx1 * sy1) > TINY) {
-              atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+            if (step % rho_interval == 0) {
+              if (math::abs(sx1 * sy1) > TINY) {
+                atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+              }
             }
-            // }
           }
         }
       }
@@ -303,9 +305,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
     //     "deposit kernel: block_size: {}, grid_size: {}, shared_mem: {}",
     //     p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
 
-    kernel_launch(
-        deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
-        this->m_rho_ptrs.dev_ptr(), this->m_data_interval);
+    kernel_launch(deposit_kernel, this->ptc->dev_ptrs(), this->J->get_ptrs(),
+                  this->m_rho_ptrs.dev_ptr(), this->m_rho_interval);
 
     auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);
@@ -319,111 +320,113 @@ void
 ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num) {
-    kernel_launch([ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
-                                                auto r_cutoff){
-        auto& grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        using value_t = typename Conf::value_t;
+    kernel_launch(
+        [ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
+                                      auto r_cutoff) {
+          auto& grid = dev_grid<Conf::dim>();
+          auto ext = grid.extent();
+          using value_t = typename Conf::value_t;
 
-        for (auto n : grid_stride_range(0, ph_num)) {
-          uint32_t cell = ph.cell[n];
-          if (cell == empty_cell) continue;
+          for (auto n : grid_stride_range(0, ph_num)) {
+            uint32_t cell = ph.cell[n];
+            if (cell == empty_cell) continue;
 
-          auto idx = typename Conf::idx_t(cell, ext);
-          auto pos = idx.get_pos();
+            auto idx = typename Conf::idx_t(cell, ext);
+            auto pos = idx.get_pos();
 
-          auto x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
-          auto v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
-          auto E = ph.E[n];
-          v1 = v1 / E;
-          v2 = v2 / E;
-          v3 = v3 / E;
+            auto x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
+            auto v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
+            auto E = ph.E[n];
+            v1 = v1 / E;
+            v2 = v2 / E;
+            v3 = v3 / E;
 
-          // Compute the actual movement
-          value_t r1 = grid.template pos<0>(pos[0], x1);
-          value_t radius = grid_sph_t<Conf>::radius(r1);
+            // Compute the actual movement
+            value_t r1 = grid.template pos<0>(pos[0], x1);
+            value_t radius = grid_sph_t<Conf>::radius(r1);
 
-          // Censor photons already outside the conversion radius
-          if (radius > r_cutoff || radius < 1.0f) {
-            ph.cell[n] = empty_cell;
-            continue;
-          }
-
-          value_t r2 = grid.template pos<1>(pos[1], x2);
-          value_t x = radius * math::sin(r2) * math::cos(x3);
-          value_t y = radius * math::sin(r2) * math::sin(x3);
-          value_t z = radius * math::cos(r2);
-
-          sph2cart(v1, v2, v3, r1, r2, x3);
-          x += v1 * dt;
-          y += v2 * dt;
-          z += v3 * dt;
-          value_t r1p = math::sqrt(x * x + y * y + z * z);
-          value_t r2p = math::acos(z / r1p);
-          value_t r3p = math::atan2(y, x);
-
-          cart2sph(v1, v2, v3, r1p, r2p, r3p);
-          r1p = grid_sph_t<Conf>::from_radius(r1p);
-          r2p = grid_sph_t<Conf>::from_theta(r2p);
-
-          ph.p1[n] = v1 * E;
-          ph.p2[n] = v2 * E;
-          ph.p3[n] = v3 * E;
-
-          Pos_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
-          Pos_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
-
-          int dc1 = math::floor(new_x1);
-          int dc2 = math::floor(new_x2);
-          // reflect around the axis
-          if (pos[1] <= grid.guard[1] ||
-              pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
-            value_t theta = grid_sph_t<Conf>::theta(r2p);
-            if (theta < 0.0f) {
-              dc2 += 1;
-              new_x2 = 1.0f - new_x2;
-              ph.p2[n] *= -1.0f;
-              ph.p3[n] *= -1.0f;
+            // Censor photons already outside the conversion radius
+            if (radius > r_cutoff || radius < 1.0f) {
+              ph.cell[n] = empty_cell;
+              continue;
             }
-            if (theta >= M_PI) {
-              dc2 -= 1;
-              new_x2 = 1.0f - new_x2;
-              ph.p2[n] *= -1.0f;
-              ph.p3[n] *= -1.0f;
+
+            value_t r2 = grid.template pos<1>(pos[1], x2);
+            value_t x = radius * math::sin(r2) * math::cos(x3);
+            value_t y = radius * math::sin(r2) * math::sin(x3);
+            value_t z = radius * math::cos(r2);
+
+            sph2cart(v1, v2, v3, r1, r2, x3);
+            x += v1 * dt;
+            y += v2 * dt;
+            z += v3 * dt;
+            value_t r1p = math::sqrt(x * x + y * y + z * z);
+            value_t r2p = math::acos(z / r1p);
+            value_t r3p = math::atan2(y, x);
+
+            cart2sph(v1, v2, v3, r1p, r2p, r3p);
+            r1p = grid_sph_t<Conf>::from_radius(r1p);
+            r2p = grid_sph_t<Conf>::from_theta(r2p);
+
+            ph.p1[n] = v1 * E;
+            ph.p2[n] = v2 * E;
+            ph.p3[n] = v3 * E;
+
+            Pos_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
+            Pos_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
+
+            int dc1 = math::floor(new_x1);
+            int dc2 = math::floor(new_x2);
+            // reflect around the axis
+            if (pos[1] <= grid.guard[1] ||
+                pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
+              value_t theta = grid_sph_t<Conf>::theta(r2p);
+              if (theta < 0.0f) {
+                dc2 += 1;
+                new_x2 = 1.0f - new_x2;
+                ph.p2[n] *= -1.0f;
+                ph.p3[n] *= -1.0f;
+              }
+              if (theta >= M_PI) {
+                dc2 -= 1;
+                new_x2 = 1.0f - new_x2;
+                ph.p2[n] *= -1.0f;
+                ph.p3[n] *= -1.0f;
+              }
             }
-          }
-          pos[0] += dc1;
-          pos[1] += dc2;
-          ph.cell[n] = typename Conf::idx_t(pos, ext).linear;
-          // printf("new_x1 is %f, new_x2 is %f, dc2 = %d\n", new_x1, new_x2,
-          // dc2);
-          ph.x1[n] = new_x1 - (Pos_t)dc1;
-          ph.x2[n] = new_x2 - (Pos_t)dc2;
-          ph.x3[n] = r3p;
-          ph.path_left[n] -= dt;
+            pos[0] += dc1;
+            pos[1] += dc2;
+            ph.cell[n] = typename Conf::idx_t(pos, ext).linear;
+            // printf("new_x1 is %f, new_x2 is %f, dc2 = %d\n", new_x1, new_x2,
+            // dc2);
+            ph.x1[n] = new_x1 - (Pos_t)dc1;
+            ph.x2[n] = new_x2 - (Pos_t)dc2;
+            ph.x3[n] = r3p;
+            ph.path_left[n] -= dt;
 
-          // deposit photon density if output
-          if (step % data_interval == 0) {
-            using spline_t = typename ptc_updater<Conf>::spline_t;
-            auto interp = spline_t{};
-            auto weight = ph.weight[n];
-            int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            // deposit photon density if output
+            if (step % data_interval == 0) {
+              using spline_t = typename ptc_updater<Conf>::spline_t;
+              auto interp = spline_t{};
+              auto weight = ph.weight[n];
+              int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+              int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
+              int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+              int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            for (int j = j_0; j <= j_1; j++) {
-              value_t sy1 = interp(-new_x2 + j);
-              for (int i = i_0; i <= i_1; i++) {
-                value_t sx1 = interp(-new_x1 + i);
-                auto offset = idx.inc_x(i).inc_y(j);
-                atomicAdd(&rho_ph[offset], weight * sx1 * sy1);
+              for (int j = j_0; j <= j_1; j++) {
+                value_t sy1 = interp(-new_x2 + j);
+                for (int i = i_0; i <= i_1; i++) {
+                  value_t sx1 = interp(-new_x1 + i);
+                  auto offset = idx.inc_x(i).inc_y(j);
+                  atomicAdd(&rho_ph[offset], weight * sx1 * sy1);
+                }
               }
             }
           }
-        }
-      }, this->ph->get_dev_ptrs(), this->rho_ph->get_ptr(), this->m_data_interval,
-                  m_r_cutoff);
+        },
+        this->ph->get_dev_ptrs(), this->rho_ph->get_ptr(),
+        this->m_data_interval, m_r_cutoff);
   }
 }
 

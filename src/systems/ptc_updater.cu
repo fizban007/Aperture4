@@ -172,7 +172,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
     kernel_launch(
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
-                                        auto data_interval) {
+                                        auto rho_interval) {
           using spline_t = typename base_class::spline_t;
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
@@ -227,15 +227,14 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
               atomicAdd(&J[2][offset], weight * v3 * val1);
 
               // rho is deposited at the final position
-              // if ((step + 1) % data_interval == 0) {
-              if (step % data_interval == 0) {
+              if (step % rho_interval == 0) {
                 atomicAdd(&Rho[sp][offset], weight * sx1);
               }
             }
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
-        this->m_data_interval);
+        this->m_rho_interval);
   }
 }
 
@@ -251,7 +250,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
     kernel_launch(
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
-                                        auto data_interval) {
+                                        auto rho_interval) {
           using spline_t = typename base_class::spline_t;
           auto& grid = dev_grid<Conf::dim>();
           // Obtain a local pointer to the shared array
@@ -332,8 +331,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
                           weight * v3 * center2d(sx0, sx1, sy0, sy1));
 
                 // rho is deposited at the final position
-                // if ((step + 1) % data_interval == 0) {
-                if (step % data_interval == 0) {
+                if (step % rho_interval == 0) {
                   atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
                 }
               }
@@ -341,7 +339,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
-        this->m_data_interval);
+        this->m_rho_interval);
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }
@@ -356,7 +354,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
     kernel_launch(
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
-                                        auto data_interval) {
+                                        auto rho_interval) {
           using spline_t = typename base_class::spline_t;
           auto& grid = dev_grid<Conf::dim>();
           for (auto n : grid_stride_range(0, num)) {
@@ -440,8 +438,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
                     atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
 
                   // rho is deposited at the final position
-                  // if ((step + 1) % data_interval == 0) {
-                  if (step % data_interval == 0) {
+                  if (step % rho_interval == 0) {
                     atomicAdd(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
                   }
                 }
@@ -450,7 +447,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
-        this->m_data_interval);
+        this->m_rho_interval);
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }

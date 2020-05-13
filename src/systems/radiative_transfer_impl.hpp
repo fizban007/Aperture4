@@ -11,7 +11,7 @@ radiative_transfer_common<Conf>::radiative_transfer_common(
     sim_environment& env, const grid_t<Conf>& grid,
     const domain_comm<Conf>* comm)
     : system_t(env), m_grid(grid), m_comm(comm) {
-  m_env.params().get_value("data_interval", m_data_interval);
+  m_env.params().get_value("fld_output_interval", m_data_interval);
   m_env.params().get_value("sort_interval", m_sort_interval);
   m_env.params().get_value("ph_per_scatter", m_ph_per_scatter);
   m_env.params().get_value("tracked_fraction", m_tracked_fraction);

@@ -33,6 +33,7 @@ class ptc_updater : public system_t {
   // Parameters for this module
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
+  uint32_t m_rho_interval = 1;
   uint32_t m_sort_interval = 20;
   uint32_t m_filter_times = 1;
 

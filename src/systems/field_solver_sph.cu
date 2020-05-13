@@ -416,7 +416,7 @@ field_solver_sph<Conf>::init() {
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
   this->m_env.params().get_value("use_implicit", m_use_implicit);
-  this->m_env.params().get_value("data_interval", m_data_interval);
+  this->m_env.params().get_value("fld_output_interval", m_data_interval);
 
   m_tmp_b1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);

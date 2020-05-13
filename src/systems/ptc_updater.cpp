@@ -16,12 +16,17 @@ template <typename Conf>
 ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
                                const domain_comm<Conf>* comm) :
     system_t(env), m_grid(grid), m_comm(comm) {
-  m_env.params().get_value("data_interval", m_data_interval);
+  m_env.params().get_value("fld_output_interval", m_data_interval);
+  // By default, rho_interval is the same as field output interval
+  m_rho_interval = m_data_interval;
+  // Override if there is a specific rho_interval option specified
+  m_env.params().get_value("rho_interval", m_rho_interval);
+
   m_env.params().get_value("sort_interval", m_sort_interval);
   m_env.params().get_value("current_smoothing", m_filter_times);
   init_charge_mass();
 
-  auto pusher = m_env.params().get_as<std::string>("pusher");
+  auto pusher = m_env.params().template get_as<std::string>("pusher");
 
   if (pusher == "boris") {
     m_pusher = Pusher::boris;
@@ -99,12 +104,12 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     m_comm->send_add_guard_cells(*J);
     m_comm->send_guard_cells(*J);
     // if ((step + 1) % m_data_interval == 0) {
-    // if (step % m_data_interval == 0) {
-    for (uint32_t i = 0; i < Rho.size(); i++) {
-      m_comm->send_add_guard_cells(*(Rho[i]));
-      m_comm->send_guard_cells(*(Rho[i]));
+    if (step % m_rho_interval == 0) {
+      for (uint32_t i = 0; i < Rho.size(); i++) {
+        m_comm->send_add_guard_cells(*(Rho[i]));
+        m_comm->send_guard_cells(*(Rho[i]));
+      }
     }
-    // }
   }
 
   timer::stamp("filter");
@@ -278,7 +283,7 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
         // rho is deposited at the final position
         // if ((step + 1) % m_data_interval == 0) {
-        if (step % m_data_interval == 0) {
+        if (step % m_rho_interval == 0) {
           (*Rho[sp])[0][offset] += weight * sx1;
         }
       }
@@ -357,7 +362,7 @@ ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
           // rho is deposited at the final position
           // if ((step + 1) % m_data_interval == 0) {
-          if (step % m_data_interval == 0) {
+          if (step % m_rho_interval == 0) {
             (*Rho[sp])[0][offset] += weight * sx1 * sy1;
           }
         }
@@ -449,7 +454,7 @@ ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             (*J)[2][offset] += -weight * djz[j - j_0][i - i_0];
 
             // rho is deposited at the final position
-            if (step % m_data_interval == 0) {
+            if (step % m_rho_interval == 0) {
               (*Rho[sp])[0][offset] += weight * sx1 * sy1 * sz1;
             }
           }
@@ -548,13 +553,13 @@ ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
       m_comm->send_guard_cells(*J);
 
     // if ((step + 1) % m_data_interval == 0) {
-    // if (step % m_data_interval == 0) {
-    for (int sp = 0; sp < m_num_species; sp++) {
-      this->filter_field(*Rho[sp]);
-      if (m_comm != nullptr)
-        m_comm->send_guard_cells(*Rho[sp]);
+    if (step % m_rho_interval == 0) {
+      for (int sp = 0; sp < m_num_species; sp++) {
+        this->filter_field(*Rho[sp]);
+        if (m_comm != nullptr)
+          m_comm->send_guard_cells(*Rho[sp]);
+      }
     }
-    // }
   }
 }
 

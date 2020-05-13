@@ -97,13 +97,9 @@ class ptc_updater : public system_t {
 
 template <typename Conf>
 class ptc_updater_cu : public ptc_updater<Conf> {
- protected:
-  buffer<ndptr<Scalar, Conf::dim>> m_rho_ptrs;
-  curand_states_t* m_rand_states;
-
  public:
   typedef typename Conf::value_t value_t;
-  typedef buffer<ndptr<Scalar, Conf::dim>> rho_ptrs_t;
+  typedef buffer<ndptr<value_t, Conf::dim>> rho_ptrs_t;
 
   static std::string name() { return "ptc_updater"; }
 
@@ -135,6 +131,10 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   virtual void fill_multiplicity(int n, typename Conf::value_t weight = 1.0) override;
 
   rho_ptrs_t& get_rho_ptrs() { return m_rho_ptrs; }
+
+ protected:
+  rho_ptrs_t m_rho_ptrs;
+  curand_states_t* m_rand_states;
 };
 
 }  // namespace Aperture

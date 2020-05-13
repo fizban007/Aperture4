@@ -30,9 +30,9 @@ class ptc_injector : public system_t {
       : system_t(env), m_grid(grid) {}
   virtual ~ptc_injector() {}
 
-  void init() override;
-  void update(double dt, uint32_t step) override;
-  void register_dependencies() override;
+  virtual void init() override;
+  virtual void update(double dt, uint32_t step) override;
+  virtual void register_dependencies() override;
 };
 
 template <typename Conf>
@@ -52,9 +52,9 @@ class ptc_injector_cu : public ptc_injector<Conf> {
       : ptc_injector<Conf>(env, grid) {}
   virtual ~ptc_injector_cu() {}
 
-  void init() override;
-  void update(double dt, uint32_t step) override;
-  void register_dependencies() override;
+  virtual void init() override;
+  virtual void update(double dt, uint32_t step) override;
+  virtual void register_dependencies() override;
 };
 
 

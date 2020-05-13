@@ -42,6 +42,7 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
                 ptc.x2[offset] = ptc.x2[offset + 1] = rng();
                 ptc.x3[offset] = ptc.x3[offset + 1] = 0.0;
                 Scalar theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
+                Scalar r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], ptc.x1[offset]));
                 ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
                 ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
                 ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;

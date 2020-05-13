@@ -23,11 +23,9 @@ struct wpert_sph_t {
   HD_INLINE Scalar operator()(Scalar t, Scalar r, Scalar th) {
     Scalar th1 = math::acos(math::sqrt(1.0f - 1.0f / rpert1));
     Scalar th2 = math::acos(math::sqrt(1.0f - 1.0f / rpert2));
-    if (th1 > th2) {
-      Scalar tmp = th1;
-      th1 = th2;
-      th2 = tmp;
-    }
+    if (th1 > th2)
+      swap_values(th1, th2);
+
     Scalar mu = (th1 + th2) / 2.0;
     Scalar s = (mu - th1) / 3.0;
     if (t >= tp_start && t <= tp_end && th >= th1 && th <= th2) {
@@ -46,22 +44,29 @@ void
 inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
                  buffer<float>& surface_n, int num_per_cell,
                  typename Conf::value_t weight,
-                 const grid_curv_t<Conf>& grid) {
+                 const grid_curv_t<Conf>& grid,
+                 typename Conf::value_t rpert1,
+                 typename Conf::value_t rpert2) {
   surface_n.assign_dev(0.0f);
 
   auto ptc_num = ptc.number();
   // First measure surface density
   kernel_launch(
-      [ptc_num] __device__(auto ptc, auto surface_n) {
+      [ptc_num, rpert1, rpert2] __device__(auto ptc, auto surface_n) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
+        // Scalar th1 = math::acos(math::sqrt(1.0f - 1.0f / rpert1));
+        // Scalar th2 = math::acos(math::sqrt(1.0f - 1.0f / rpert2));
+        // if (th1 > th2)
+        //   swap_values(th1, th2);
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
           if (c == empty_cell) continue;
 
           auto idx = typename Conf::idx_t(c, ext);
           auto pos = idx.get_pos();
-
+          // Scalar th = grid.pos<1>(pos[1], false);
+          // if (pos[0] == grid.guard[0] && th > th1 && th < th2) {
           if (pos[0] == grid.guard[0]) {
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
@@ -74,6 +79,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
       ptc.get_dev_ptrs(), surface_n.dev_ptr());
   CudaSafeCall(cudaDeviceSynchronize());
 
+  // Then inject particles
   kernel_launch(
       [ptc_num, weight] __device__(auto ptc, auto surface_n, auto num_inj,
                                    auto states) {
@@ -187,8 +193,8 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaSafeCall(cudaDeviceSynchronize());
 
   // Inject particles
-  if (step % 2 == 0) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 1, 1.0, m_grid);
+  if (step % 1 == 0) {
+    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
   }
 }
 

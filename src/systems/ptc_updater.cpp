@@ -99,12 +99,12 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     m_comm->send_add_guard_cells(*J);
     m_comm->send_guard_cells(*J);
     // if ((step + 1) % m_data_interval == 0) {
-    if (step % m_data_interval == 0) {
-      for (uint32_t i = 0; i < Rho.size(); i++) {
-        m_comm->send_add_guard_cells(*(Rho[i]));
-        m_comm->send_guard_cells(*(Rho[i]));
-      }
+    // if (step % m_data_interval == 0) {
+    for (uint32_t i = 0; i < Rho.size(); i++) {
+      m_comm->send_add_guard_cells(*(Rho[i]));
+      m_comm->send_guard_cells(*(Rho[i]));
     }
+    // }
   }
 
   timer::stamp("filter");
@@ -548,13 +548,13 @@ ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
       m_comm->send_guard_cells(*J);
 
     // if ((step + 1) % m_data_interval == 0) {
-    if (step % m_data_interval == 0) {
-      for (int sp = 0; sp < m_num_species; sp++) {
-        this->filter_field(*Rho[sp]);
-        if (m_comm != nullptr)
-          m_comm->send_guard_cells(*Rho[sp]);
-      }
+    // if (step % m_data_interval == 0) {
+    for (int sp = 0; sp < m_num_species; sp++) {
+      this->filter_field(*Rho[sp]);
+      if (m_comm != nullptr)
+        m_comm->send_guard_cells(*Rho[sp]);
     }
+    // }
   }
 }
 

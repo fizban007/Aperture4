@@ -148,7 +148,7 @@ void
 ptc_injector_mult<Conf>::update(double dt, uint32_t step) {
   // Compute multiplicity and number of pairs to inject per cells
   compute_inject_num<Conf>(m_num_per_cell, *J, m_rho_ptrs, this->m_grid,
-                           4.0f, m_rand_states->states());
+                           6.0f, m_rand_states->states());
 
   size_t grid_size = this->m_grid.extent().size();
   thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());

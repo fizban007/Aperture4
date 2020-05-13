@@ -21,6 +21,14 @@ cube(const T &val) {
 }
 
 template <typename T>
+HD_INLINE void
+swap_values(T &a, T& b) {
+  T tmp = a;
+  a = b;
+  b = tmp;
+}
+
+template <typename T>
 HD_INLINE int
 sgn(T val) {
   return (T(0) < val) - (val < T(0));

@@ -1,12 +1,12 @@
 #ifndef __DOMAIN_COMM_H_
 #define __DOMAIN_COMM_H_
 
-#include "data/fields.h"
-#include "framework/system.h"
 #include "core/domain_info.h"
 #include "core/particles.h"
-#include <vector>
+#include "data/fields.h"
+#include "framework/system.h"
 #include <mpi.h>
+#include <vector>
 
 namespace Aperture {
 
@@ -33,11 +33,20 @@ class domain_comm : public system_t {
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<particles_t> m_ptc_buffers;
   mutable std::vector<photons_t> m_ph_buffers;
+  mutable buffer<ptc_ptrs> m_ptc_buffer_ptrs;
+  mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
 
   void setup_domain();
   void resize_buffers(const Grid<Conf::dim>& grid);
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc) const;
+
+  template <typename T>
+  void send_particle_array(T& send_buffer, T& recv_buffer, int src, int dst,
+                           int tag, MPI_Request* send_req,
+                           MPI_Request* recv_req, MPI_Status* recv_stat) const;
+  std::vector<particles_t>& ptc_buffers(const particles_t& ptc) const;
+  std::vector<photons_t>& ptc_buffers(const photons_t& ptc) const;
 
  public:
   static std::string name() { return "domain_comm"; }
@@ -55,9 +64,7 @@ class domain_comm : public system_t {
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 
-  const domain_info_t<Conf::dim>& domain_info() const {
-    return m_domain_info;
-  }
+  const domain_info_t<Conf::dim>& domain_info() const { return m_domain_info; }
 };
 
 }  // namespace Aperture

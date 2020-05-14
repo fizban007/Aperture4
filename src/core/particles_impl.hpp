@@ -42,11 +42,15 @@ template <typename BufferType>
 void
 particles_base<BufferType>::copy_from(const self_type& other, size_t num,
                                       size_t src_pos, size_t dst_pos) {
+  if (dst_pos + num > m_size)
+    num = m_size - dst_pos;
   visit_struct::for_each(
       *dynamic_cast<base_type*>(this), *dynamic_cast<const base_type*>(&other),
       [num, src_pos, dst_pos](const char* name, auto& u, auto& v) {
         u.copy_from(v, num, src_pos, dst_pos);
       });
+  if (dst_pos + num > m_number)
+    set_num(dst_pos + num);
 }
 
 template <typename BufferType>

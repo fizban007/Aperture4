@@ -24,11 +24,17 @@ compute_target_buffers(const uint32_t* cells, size_t num,
       [num] __device__(auto cells, auto buffer_num, auto index) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
+        int zone_offset = 0;
+        if (Conf::dim == 2)
+          zone_offset = 9;
+        else if (Conf::dim == 1)
+          zone_offset = 12;
         for (auto n : grid_stride_range(0, num)) {
           uint32_t cell = cells[n];
           if (cell == empty_cell) continue;
           auto idx = Conf::idx(cell, ext);
-          size_t zone = grid.find_zone(idx.get_pos());
+          auto grid_pos = idx.get_pos();
+          size_t zone = grid.find_zone(grid_pos) + zone_offset;
           if (zone == 13) continue;
           size_t pos = atomicAdd(&buffer_num[zone], 1);
           // printf("pos is %lu, zone is %lu\n", pos, zone);
@@ -43,25 +49,26 @@ compute_target_buffers(const uint32_t* cells, size_t num,
   CudaCheckError();
 }
 
-template <typename PtcPtrs, typename Conf>
+template <typename Conf, typename PtcPtrs>
 void
 copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* idx,
                          buffer<PtcPtrs>& ptc_buffers) {
   kernel_launch(
-      [num] __device__(auto ptc_data, auto idx, auto ptc_buffers) {
+      [num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
         auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
         for (auto n : grid_stride_range(0, num)) {
+          int bitshift_width = (sizeof(size_t) * 8 - 5);
           int zone_offset = 0;
           if (Conf::dim == 2)
             zone_offset = 9;
           else if (Conf::dim == 1)
             zone_offset = 12;
-          int bitshift_width = (sizeof(size_t) * 8 - 5);
           // loop through the particle array
-          for (size_t n = threadIdx.x + blockIdx.x * blockDim.x; n < num;
-               n += blockDim.x * gridDim.x) {
-            if (ptc_data.cell[n] == empty_cell) continue;
-            size_t i = idx[n];
+          for (auto n : grid_stride_range(0, num)) {
+            auto cell = ptc_data.cell[n];
+            if (cell == empty_cell) continue;
+            size_t i = index[n];
             size_t zone = ((i >> bitshift_width) & 0b11111);
             if (zone == 13 || zone > 27) continue;
             size_t pos = i - (zone << bitshift_width);
@@ -69,18 +76,22 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* idx,
             // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
             assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
             // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
-            // zone_offset].cell[pos], ptc_data.cell[n]); Compute particle cell
-            // delta
+            //                                                 zone_offset].cell[pos], ptc_data.cell[n]);
+            // Compute particle cell delta
             int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
             int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
             int dx = zone % 3 - 1;
-            int dcell =
-                -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
-                dy * grid.reduced_dim(1) * grid.dims[0] -
-                dx * grid.reduced_dim(0);
-            ptc_buffers[zone - zone_offset].cell[pos] += dcell;
+            auto idx = Conf::idx(cell, ext);
+            // int dcell =
+            //     -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
+            //     dy * grid.reduced_dim(1) * grid.dims[0] -
+            //     dx * grid.reduced_dim(0);
+            ptc_buffers[zone - zone_offset].cell[pos] =
+                idx.dec_z(dz * grid.reduced_dim(2))
+                .dec_y(dy * grid.reduced_dim(1))
+                .dec_x(dx * grid.reduced_dim(0)).linear;
             // printf("dc is %d, cell is %u, cell after is %u\n", dcell,
-            // ptc_data.cell[n],
+            //        ptc_data.cell[n],
             //        ptc_buffers[zone - zone_offset].cell[pos]);
             // Set the particle to empty
             ptc_data.cell[n] = empty_cell;
@@ -143,8 +154,8 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
                                    empty_cell - 1) -
                ptr_cell;
 
-    Logger::print_info("Sorting complete, there are {} particles in the pool",
-                       m_number);
+    // Logger::print_info("Sorting complete, there are {} particles in the pool",
+    //                    m_number);
     cudaDeviceSynchronize();
     CudaCheckError();
   }
@@ -181,6 +192,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Conf>& grid) {
   if (m_number > 0) {
+    if (m_index.size() != m_size) m_index.resize(m_size);
     auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
     thrust::fill_n(ptr_idx, m_number, -1);
     for (int i = 0; i < 27; i++) {
@@ -198,12 +210,13 @@ particles_base<BufferType>::copy_to_comm_buffers(
     else if (buffers.size() == 3)
       zone_offset = 12;
     for (unsigned int i = 0; i < buffers.size(); i++) {
-      // Logger::print_info("zone {} buffer has {} ptc", i + zone_offset,
-      //                    m_zone_buffer_num[i + zone_offset]);
+      // Logger::print_debug("zone {} buffer has {} ptc", i + zone_offset,
+      //                     m_zone_buffer_num[i + zone_offset]);
       if (i + zone_offset == 13) continue;
       buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
     }
-    // copy_ptc_to_buffers(m_data, m_number, m_index, buf_ptrs);
+    copy_component_to_buffer<Conf>(m_dev_ptrs, m_number, m_index.dev_ptr(),
+                                   buf_ptrs);
 
     CudaSafeCall(cudaDeviceSynchronize());
   }

@@ -55,6 +55,10 @@ class grid_t : public system_t, public Grid<Conf::dim> {
     return idx_at(this->extent().size());
   }
 
+  inline size_t size() const {
+    return this->extent().size();
+  }
+
 };
 
 }  // namespace Aperture

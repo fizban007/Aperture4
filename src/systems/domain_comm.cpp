@@ -111,9 +111,9 @@ domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) {
     m_recv_buffers.emplace_back(ext);
   }
 
-  uint32_t ptc_buffer_size =
+  size_t ptc_buffer_size =
       m_env.params().template get_as<int64_t>("ptc_buffer_size", 100000l);
-  uint32_t ph_buffer_size =
+  size_t ph_buffer_size =
       m_env.params().template get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
@@ -128,6 +128,7 @@ domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) {
   }
   m_ptc_buffer_ptrs.copy_to_device();
   m_ph_buffer_ptrs.copy_to_device();
+  // Logger::print_debug("m_ptc_buffers has size {}", m_ptc_buffers.size());
 }
 
 template <typename Conf>

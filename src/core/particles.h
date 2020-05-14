@@ -4,6 +4,7 @@
 #include "particle_structs.h"
 #include "utils/buffer.h"
 #include "utils/vec.hpp"
+#include "systems/grid.h"
 #include <vector>
 
 namespace Aperture {
@@ -17,6 +18,7 @@ class particles_base : public BufferType {
   typedef BufferType base_type;
   typedef particles_base<BufferType> self_type;
   typedef typename BufferType::single_type single_type;
+  typedef typename BufferType::ptrs_type ptrs_type;
 
  private:
   size_t m_size = 0;
@@ -26,6 +28,7 @@ class particles_base : public BufferType {
   // Temporary data for sorting particles on device
   buffer<size_t> m_index;
   buffer<double> m_tmp_data;
+  buffer<int> m_zone_buffer_num;
   // Temporary data for sorting particles on host
   std::vector<size_t> m_partition;
 
@@ -70,6 +73,11 @@ class particles_base : public BufferType {
 
   void copy_to_host();
   void copy_to_device();
+
+  template <typename Conf>
+  void copy_to_comm_buffers(std::vector<self_type>& buffers,
+                            buffer<ptrs_type>& buf_ptrs,
+                            const grid_t<Conf>& grid);
 
   size_t size() const { return m_size; }
   size_t number() const { return m_number; }

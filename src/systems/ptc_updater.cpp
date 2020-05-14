@@ -119,7 +119,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 
   // Send particles
   if (m_comm != nullptr) {
-    m_comm->send_particles(*ptc);
+    m_comm->send_particles(*ptc, m_grid);
   }
 
   // Also move photons if the data component exists
@@ -127,7 +127,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     move_photons(dt, step);
 
     if (m_comm != nullptr)
-      m_comm->send_particles(*ph);
+      m_comm->send_particles(*ph, m_grid);
 
   }
 

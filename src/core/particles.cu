@@ -1,7 +1,10 @@
+#include "core/constant_mem.h"
 #include "core/typedefs_and_constants.h"
+#include "framework/config.h"
 #include "particles_impl.hpp"
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
+#include "utils/range.hpp"
 #include "visit_struct/visit_struct.hpp"
 
 #include <thrust/binary_search.h>
@@ -12,6 +15,82 @@
 #include <thrust/sort.h>
 
 namespace Aperture {
+
+template <typename Conf>
+void
+compute_target_buffers(const uint32_t* cells, size_t num,
+                       buffer<int>& buffer_num, size_t* idx) {
+  kernel_launch(
+      [num] __device__(auto cells, auto buffer_num, auto index) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto n : grid_stride_range(0, num)) {
+          uint32_t cell = cells[n];
+          if (cell == empty_cell) continue;
+          auto idx = Conf::idx(cell, ext);
+          size_t zone = grid.find_zone(idx.get_pos());
+          if (zone == 13) continue;
+          size_t pos = atomicAdd(&buffer_num[zone], 1);
+          // printf("pos is %lu, zone is %lu\n", pos, zone);
+          // Zone is less than 32, so we can use 5 bits to represent this. The
+          // rest of the bits go to encode the index of this particle in that
+          // zone.
+          index[n] = ((zone & 0b11111) << (sizeof(size_t) * 8 - 5)) + pos;
+        }
+      },
+      cells, buffer_num.dev_ptr(), idx);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename PtcPtrs, typename Conf>
+void
+copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* idx,
+                         buffer<PtcPtrs>& ptc_buffers) {
+  kernel_launch(
+      [num] __device__(auto ptc_data, auto idx, auto ptc_buffers) {
+        auto& grid = dev_grid<Conf::dim>();
+        for (auto n : grid_stride_range(0, num)) {
+          int zone_offset = 0;
+          if (Conf::dim == 2)
+            zone_offset = 9;
+          else if (Conf::dim == 1)
+            zone_offset = 12;
+          int bitshift_width = (sizeof(size_t) * 8 - 5);
+          // loop through the particle array
+          for (size_t n = threadIdx.x + blockIdx.x * blockDim.x; n < num;
+               n += blockDim.x * gridDim.x) {
+            if (ptc_data.cell[n] == empty_cell) continue;
+            size_t i = idx[n];
+            size_t zone = ((i >> bitshift_width) & 0b11111);
+            if (zone == 13 || zone > 27) continue;
+            size_t pos = i - (zone << bitshift_width);
+            // printf("in copy, pos is %lu, zone is %lu\n", pos, zone);
+            // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
+            assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
+            // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
+            // zone_offset].cell[pos], ptc_data.cell[n]); Compute particle cell
+            // delta
+            int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
+            int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
+            int dx = zone % 3 - 1;
+            int dcell =
+                -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
+                dy * grid.reduced_dim(1) * grid.dims[0] -
+                dx * grid.reduced_dim(0);
+            ptc_buffers[zone - zone_offset].cell[pos] += dcell;
+            // printf("dc is %d, cell is %u, cell after is %u\n", dcell,
+            // ptc_data.cell[n],
+            //        ptc_buffers[zone - zone_offset].cell[pos]);
+            // Set the particle to empty
+            ptc_data.cell[n] = empty_cell;
+          }
+        }
+      },
+      ptc_data, idx, ptc_buffers.dev_ptr());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
 
 template <typename BufferType>
 void
@@ -75,8 +154,7 @@ template <typename BufferType>
 void
 particles_base<BufferType>::append_dev(const vec_t<Pos_t, 3>& x,
                                        const vec_t<Scalar, 3>& p, uint32_t cell,
-                                       Scalar weight,
-                                       uint32_t flag) {
+                                       Scalar weight, uint32_t flag) {
   if (m_number == m_size) return;
   kernel_launch(
       {1, 1},
@@ -96,8 +174,62 @@ particles_base<BufferType>::append_dev(const vec_t<Pos_t, 3>& x,
   m_number += 1;
 }
 
+template <typename BufferType>
+template <typename Conf>
+void
+particles_base<BufferType>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Conf>& grid) {
+  if (m_number > 0) {
+    auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+    thrust::fill_n(ptr_idx, m_number, -1);
+    for (int i = 0; i < 27; i++) {
+      m_zone_buffer_num[i] = 0;
+    }
+    m_zone_buffer_num.copy_to_device();
+    compute_target_buffers<Conf>(this->cell.dev_ptr(), m_number, m_zone_buffer_num,
+                                 m_index.dev_ptr());
+
+    CudaSafeCall(cudaDeviceSynchronize());
+
+    int zone_offset = 0;
+    if (buffers.size() == 9)
+      zone_offset = 9;
+    else if (buffers.size() == 3)
+      zone_offset = 12;
+    for (unsigned int i = 0; i < buffers.size(); i++) {
+      // Logger::print_info("zone {} buffer has {} ptc", i + zone_offset,
+      //                    m_zone_buffer_num[i + zone_offset]);
+      if (i + zone_offset == 13) continue;
+      buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
+    }
+    // copy_ptc_to_buffers(m_data, m_number, m_index, buf_ptrs);
+
+    CudaSafeCall(cudaDeviceSynchronize());
+  }
+}
+
 // Explicit instantiation
 template class particles_base<ptc_buffer>;
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<1>>& grid);
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<2>>& grid);
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3>>& grid);
+
 template class particles_base<ph_buffer>;
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<1>>& grid);
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<2>>& grid);
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3>>& grid);
 
 }  // namespace Aperture

@@ -23,6 +23,7 @@ particles_base<BufferType>::particles_base(size_t size, MemType model)
 template <typename BufferType>
 void
 particles_base<BufferType>::set_memtype(MemType memtype) {
+  m_zone_buffer_num.set_memtype(memtype);
   visit_struct::for_each(
       *dynamic_cast<base_type*>(this),
       [memtype](const char* name, auto& x) { x.set_memtype(memtype); });
@@ -34,6 +35,7 @@ particles_base<BufferType>::resize(size_t size) {
   visit_struct::for_each(*dynamic_cast<base_type*>(this),
                          [size](const char* name, auto& x) { x.resize(size); });
   m_size = size;
+  m_zone_buffer_num.resize(27);
 }
 
 template <typename BufferType>

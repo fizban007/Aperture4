@@ -39,7 +39,7 @@ class domain_comm : public system_t {
   void setup_domain();
   void resize_buffers(const Grid<Conf::dim>& grid);
   template <typename PtcType>
-  void send_particles_impl(PtcType& ptc) const;
+  void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 
   template <typename T>
   void send_particle_array(T& send_buffer, T& recv_buffer, int src, int dst,
@@ -47,6 +47,8 @@ class domain_comm : public system_t {
                            MPI_Request* recv_req, MPI_Status* recv_stat) const;
   std::vector<particles_t>& ptc_buffers(const particles_t& ptc) const;
   std::vector<photons_t>& ptc_buffers(const photons_t& ptc) const;
+  buffer<ptc_ptrs>& ptc_buffer_ptrs(const particles_t& ptc) const;
+  buffer<ph_ptrs>& ptc_buffer_ptrs(const photons_t& ph) const;
 
  public:
   static std::string name() { return "domain_comm"; }
@@ -59,8 +61,8 @@ class domain_comm : public system_t {
   void send_guard_cells(scalar_field<Conf>& field) const;
   void send_add_guard_cells(vector_field<Conf>& field) const;
   void send_add_guard_cells(scalar_field<Conf>& field) const;
-  void send_particles(particles_t& ptc) const;
-  void send_particles(photons_t& ptc) const;
+  void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
+  void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 

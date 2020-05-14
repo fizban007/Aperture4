@@ -120,6 +120,14 @@ domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) {
     m_ptc_buffers.emplace_back(ptc_buffer_size);
     m_ph_buffers.emplace_back(ph_buffer_size);
   }
+  m_ptc_buffer_ptrs.resize(num_ptc_buffers);
+  m_ph_buffer_ptrs.resize(num_ptc_buffers);
+  for (int i = 0; i < num_ptc_buffers; i++) {
+    m_ptc_buffer_ptrs[i] = m_ptc_buffers[i].dev_ptrs();
+    m_ph_buffer_ptrs[i] = m_ph_buffers[i].dev_ptrs();
+  }
+  m_ptc_buffer_ptrs.copy_to_device();
+  m_ph_buffer_ptrs.copy_to_device();
 }
 
 template <typename Conf>
@@ -178,12 +186,10 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
 template <typename Conf>
 template <typename PtcType>
 void
-domain_comm<Conf>::send_particles_impl(PtcType &ptc) const {
+domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) const {
   auto& buffers = ptc_buffers(ptc);
-  // auto buf_ptrs = ptc_buffer_ptrs(ptc);
-  // auto& recv_buffers = ptc_recv_buffers(ptc);
-  // ptc.copy_to_comm_buffers(buffers, mesh);
-  // ptc.copy_to_comm_buffers(buffers, buf_ptrs, mesh);
+  auto& buf_ptrs = ptc_buffer_ptrs(ptc);
+  ptc.copy_to_comm_buffers(buffers, buf_ptrs, grid);
 
   // Define the central zone and number of send_recv in x direction
   int central = 13;
@@ -271,14 +277,14 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc) const {
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_particles(photons_t &ptc) const {
-  send_particles_impl(ptc);
+domain_comm<Conf>::send_particles(photons_t &ptc, const grid_t<Conf>& grid) const {
+  send_particles_impl(ptc, grid);
 }
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_particles(particles_t &ptc) const {
-  send_particles_impl(ptc);
+domain_comm<Conf>::send_particles(particles_t &ptc, const grid_t<Conf>& grid) const {
+  send_particles_impl(ptc, grid);
 }
 
 template <typename Conf>
@@ -307,6 +313,18 @@ template <typename Conf>
 std::vector<photons_t>&
 domain_comm<Conf>::ptc_buffers(const photons_t& ptc) const {
   return m_ph_buffers;
+}
+
+template <typename Conf>
+buffer<ptc_ptrs>&
+domain_comm<Conf>::ptc_buffer_ptrs(const particles_t& ptc) const {
+  return m_ptc_buffer_ptrs;
+}
+
+template <typename Conf>
+buffer<ph_ptrs>&
+domain_comm<Conf>::ptc_buffer_ptrs(const photons_t& ph) const {
+  return m_ph_buffer_ptrs;
 }
 
 // Explicitly instantiate some of the configurations that may occur

@@ -146,39 +146,6 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
   CudaCheckError();
 }
 
-// template <typename Conf>
-// void
-// count_ptc_injected(buffer<int>& num_per_cell, buffer<int>& cum_num_per_cell,
-//                    const scalar_field<Conf>& sigma,
-//                    typename Conf::value_t target_sigma,
-//                    const grid_t<Conf>& grid) {
-//   num_per_cell.assign_dev(0);
-//   cum_num_per_cell.assign_dev(0);
-//   auto ext = grid.extent();
-//   const grid_curv_t<Conf>* grid_curv =
-//       dynamic_cast<const grid_curv_t<Conf>*>(&grid);
-//   typename Conf::ndptr_const_t dv_ptr;
-
-//   if (grid_curv != nullptr) {
-//     dv_ptr = grid_curv->get_grid_ptrs().dV;
-//   }
-
-//   kernel_launch(
-//       [ext, target_sigma] __device__(auto num_per_cell, auto sigma, auto dv)
-//       {
-//         auto& grid = dev_grid<Conf::dim>();
-//         for (auto n : grid_stride_range(0, ext.size())) {
-//           auto idx = typename Conf::idx_t(n, ext);
-//           auto pos = idx.get_pos();
-//           if (grid.is_in_bound(pos)) {
-//             if (sigma[idx] > target_sigma) {
-//             }
-//           }
-//         }
-//       },
-//       num_per_cell.dev_ptr(), sigma.get_ptr(), dv_ptr);
-// }
-
 template <typename Conf>
 void
 ptc_injector_cu<Conf>::init() {

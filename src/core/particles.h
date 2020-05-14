@@ -62,17 +62,11 @@ class particles_base : public BufferType {
   void sort_by_cell_host(size_t max_cell);
   void sort_by_cell_dev(size_t max_cell);
 
-  void append(const vec_t<Pos_t, 3>& x,
-              const vec_t<Scalar, 3>& p,
-              uint32_t cell,
-              Scalar weight = 1.0,
-              uint32_t flag = 0);
+  void append(const vec_t<Pos_t, 3>& x, const vec_t<Scalar, 3>& p,
+              uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  void append_dev(const vec_t<Pos_t, 3>& x,
-                  const vec_t<Scalar, 3>& p,
-                  uint32_t cell,
-                  Scalar weight = 1.0,
-                  uint32_t flag = 0);
+  void append_dev(const vec_t<Pos_t, 3>& x, const vec_t<Scalar, 3>& p,
+                  uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
   void copy_to_host();
   void copy_to_device();
@@ -85,12 +79,10 @@ class particles_base : public BufferType {
     m_number = std::min(num, m_size);
   }
 
-  void add_num(size_t num) {
-    set_num(m_number + num);
-  }
+  void add_num(size_t num) { set_num(m_number + num); }
 
-  typename BufferType::ptrs_type get_host_ptrs() { return m_host_ptrs; }
-  typename BufferType::ptrs_type get_dev_ptrs() { return m_dev_ptrs; }
+  typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
+  typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
 };
 
 using particles_t = particles_base<ptc_buffer>;
@@ -99,3 +91,4 @@ using photons_t = particles_base<ph_buffer>;
 }  // namespace Aperture
 
 #endif
+

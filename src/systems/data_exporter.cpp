@@ -117,6 +117,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     }
     write_xmf_step_header(m_xmf_buffer, time);
 
+    // Loop over all data components and output according to their type
     for (auto& it : m_env.data_map()) {
       // Do not output the skipped components
       if (it.second->skip_output()) continue;
@@ -142,6 +143,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
     datafile.close();
 
+    // Only write the xmf file on the root rank
     if (is_root()) {
       write_xmf_step_close(m_xmf_buffer);
       write_xmf_tail(m_xmf_buffer);
@@ -154,6 +156,8 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       m_xmf << m_xmf_buffer;
       m_xmf_buffer = "";
     }
+
+    // Increment the output number
     m_fld_num += 1;
   }
 

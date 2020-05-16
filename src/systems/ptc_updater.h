@@ -4,7 +4,6 @@
 #include "algorithms/pushers.hpp"
 #include "core/enum_types.h"
 #include "data/particle_data.h"
-#include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
@@ -12,6 +11,8 @@
 #include "utils/interpolation.hpp"
 
 namespace Aperture {
+
+class curand_states_t;
 
 template <typename Conf>
 class ptc_updater : public system_t {

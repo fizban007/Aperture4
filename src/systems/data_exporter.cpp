@@ -176,7 +176,7 @@ template <typename Conf>
 void
 data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
-  std::string conf_file = m_env.params().get_as<std::string>("config_file");
+  std::string conf_file = m_env.params().template get_as<std::string>("config_file");
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {

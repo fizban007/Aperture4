@@ -1,3 +1,4 @@
+#include "data/curand_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "ptc_injector_mult.h"

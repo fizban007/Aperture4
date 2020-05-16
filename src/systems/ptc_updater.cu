@@ -1,6 +1,7 @@
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
 #include "core/math.hpp"
+#include "data/curand_states.h"
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
 #include "ptc_updater.h"

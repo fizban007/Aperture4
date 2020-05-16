@@ -98,7 +98,7 @@ domain_comm<Conf>::setup_domain() {
 
 template <typename Conf>
 void
-domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) {
+domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
   for (int i = 0; i < Conf::dim; i++) {
     auto ext = extent_t<Conf::dim>{};
     for (int j = 0; j < Conf::dim; j++) {

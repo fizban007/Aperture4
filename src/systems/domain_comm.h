@@ -56,7 +56,7 @@ class domain_comm : public system_t {
   bool is_root() const { return m_rank == 0; }
   int rank() const { return m_rank; }
   int size() const { return m_size; }
-  void resize_buffers(const Grid<Conf::dim>& grid);
+  void resize_buffers(const Grid<Conf::dim>& grid) const;
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;

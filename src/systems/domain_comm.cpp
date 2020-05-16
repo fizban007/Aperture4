@@ -1,10 +1,15 @@
 #include "domain_comm.h"
 #include "core/constant_mem_func.h"
+#include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "utils/logger.h"
 #include "utils/mpi_helper.h"
+
+#if defined(OPEN_MPI) && OPEN_MPI
+#include <mpi-ext.h>  // Needed for CUDA-aware check
+#endif
 
 namespace Aperture {
 
@@ -99,6 +104,7 @@ domain_comm<Conf>::setup_domain() {
 template <typename Conf>
 void
 domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
+  if (m_buffers_ready) return;
   for (int i = 0; i < Conf::dim; i++) {
     auto ext = extent_t<Conf::dim>{};
     for (int j = 0; j < Conf::dim; j++) {
@@ -129,23 +135,200 @@ domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
   m_ptc_buffer_ptrs.copy_to_device();
   m_ph_buffer_ptrs.copy_to_device();
   // Logger::print_debug("m_ptc_buffers has size {}", m_ptc_buffers.size());
+  m_buffers_ready = true;
 }
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {}
+domain_comm<Conf>::send_array_guard_cells_single_dir(
+    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
+    int dir) const {
+  if (dim < 0 || dim >= Conf::dim) return;
+
+  int dest, origin;
+  MPI_Status status;
+
+  dest = (dir == -1 ? m_domain_info.neighbor_left[dim]
+                    : m_domain_info.neighbor_right[dim]);
+  origin = (dir == -1 ? m_domain_info.neighbor_right[dim]
+                      : m_domain_info.neighbor_left[dim]);
+
+  // Index send_idx(0, 0, 0);
+  auto send_idx = index_t<Conf::dim>{};
+  send_idx[dim] =
+      (dir == -1 ? grid.guard[dim] : grid.dims[dim] - 2 * grid.guard[dim]);
+
+  if (array.mem_type() == MemType::host_only) {
+    copy(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+         m_send_buffers[dim].extent());
+  } else {
+    copy_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+             m_send_buffers[dim].extent());
+  }
+
+#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+  auto send_ptr = m_send_buffers[dim].dev_ptr();
+  auto recv_ptr = m_recv_buffers[dim].dev_ptr();
+#else
+  auto send_ptr = m_send_buffers[dim].host_ptr();
+  auto recv_ptr = m_recv_buffers[dim].host_ptr();
+  m_send_buffers[dim].copy_to_host();
+#endif
+
+  MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, 0,
+               recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, 0,
+               m_cart, &status);
+  // MPI_Request req_send, req_recv;
+
+  // MPI_Irecv(recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin,
+  //           0, m_world, &req_recv);
+  // MPI_Isend(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest,
+  //           0, m_world, &req_send);
+  // MPI_Wait(&req_recv, &status);
+
+  if (origin != MPI_PROC_NULL) {
+    // Index recv_idx(0, 0, 0);
+    auto recv_idx = index_t<Conf::dim>{};
+    recv_idx[dim] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
+
+    if (array.mem_type() == MemType::host_only) {
+      copy(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+           m_recv_buffers[dim].extent());
+    } else {
+#if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+    !MPIX_CUDA_AWARE_SUPPORT
+      m_recv_buffers[dim].copy_to_dev();
+#endif
+      copy_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+               m_recv_buffers[dim].extent());
+    }
+  }
+}
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {}
+domain_comm<Conf>::send_add_array_guard_cells_single_dir(
+    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
+    int dir) const {
+  if (dim < 0 || dim >= Conf::dim) return;
+
+  int dest, origin;
+  MPI_Status status;
+
+  dest = (dir == -1 ? m_domain_info.neighbor_left[dim]
+                    : m_domain_info.neighbor_right[dim]);
+  origin = (dir == -1 ? m_domain_info.neighbor_right[dim]
+                      : m_domain_info.neighbor_left[dim]);
+
+  // Index send_idx(0, 0, 0);
+  auto send_idx = index_t<Conf::dim>{};
+  send_idx[dim] = (dir == -1 ? 0 : grid.dims[dim] - grid.guard[dim]);
+
+  if (array.mem_type() == MemType::host_only) {
+    add(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+         m_send_buffers[dim].extent());
+  } else {
+    add_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+             m_send_buffers[dim].extent());
+  }
+
+#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+  auto send_ptr = m_send_buffers[dim].dev_ptr();
+  auto recv_ptr = m_recv_buffers[dim].dev_ptr();
+#else
+  auto send_ptr = m_send_buffers[dim].host_ptr();
+  auto recv_ptr = m_recv_buffers[dim].host_ptr();
+  m_send_buffers[dim].copy_to_host();
+#endif
+
+  MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, 0,
+               recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, 0,
+               m_cart, &status);
+  // MPI_Request req_send, req_recv;
+
+  // MPI_Irecv(recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin,
+  //           0, m_world, &req_recv);
+  // MPI_Isend(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest,
+  //           0, m_world, &req_send);
+  // MPI_Wait(&req_recv, &status);
+
+  if (origin != MPI_PROC_NULL) {
+    // Index recv_idx(0, 0, 0);
+    auto recv_idx = index_t<Conf::dim>{};
+    recv_idx[dim] = (dir == -1 ? grid.dims[dim] - 2 * grid.guard[dim]
+                               : grid.guard[dim]);
+
+    if (array.mem_type() == MemType::host_only) {
+      add(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+           m_recv_buffers[dim].extent());
+    } else {
+#if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+    !MPIX_CUDA_AWARE_SUPPORT
+      m_recv_buffers[dim].copy_to_dev();
+#endif
+      add_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+               m_recv_buffers[dim].extent());
+    }
+  }
+}
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {}
+domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {
+  if (!m_buffers_ready)
+    resize_buffers(field.grid());
+  send_guard_cells(field[0], field.grid());
+  send_guard_cells(field[1], field.grid());
+  send_guard_cells(field[2], field.grid());
+}
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {}
+domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {
+  if (!m_buffers_ready)
+    resize_buffers(field.grid());
+  send_guard_cells(field[0], field.grid());
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_guard_cells(typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid) const {
+  send_array_guard_cells_single_dir(array, grid, 0, -1);
+  send_array_guard_cells_single_dir(array, grid, 0, 1);
+  send_array_guard_cells_single_dir(array, grid, 1, -1);
+  send_array_guard_cells_single_dir(array, grid, 1, 1);
+  send_array_guard_cells_single_dir(array, grid, 2, -1);
+  send_array_guard_cells_single_dir(array, grid, 2, 1);
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {
+  if (!m_buffers_ready)
+    resize_buffers(field.grid());
+  send_add_guard_cells(field[0], field.grid());
+  send_add_guard_cells(field[1], field.grid());
+  send_add_guard_cells(field[2], field.grid());
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {
+  if (!m_buffers_ready)
+    resize_buffers(field.grid());
+  send_add_guard_cells(field[0], field.grid());
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_guard_cells(typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid) const {
+  send_add_array_guard_cells_single_dir(array, grid, 0, -1);
+  send_add_array_guard_cells_single_dir(array, grid, 0, 1);
+  send_add_array_guard_cells_single_dir(array, grid, 1, -1);
+  send_add_array_guard_cells_single_dir(array, grid, 1, 1);
+  send_add_array_guard_cells_single_dir(array, grid, 2, -1);
+  send_add_array_guard_cells_single_dir(array, grid, 2, 1);
+}
 
 template <typename Conf>
 template <typename T>
@@ -187,9 +370,12 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
 template <typename Conf>
 template <typename PtcType>
 void
-domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) const {
-  auto& buffers = ptc_buffers(ptc);
-  auto& buf_ptrs = ptc_buffer_ptrs(ptc);
+domain_comm<Conf>::send_particles_impl(PtcType &ptc,
+                                       const grid_t<Conf> &grid) const {
+  if (!m_buffers_ready)
+    resize_buffers(grid);
+  auto &buffers = ptc_buffers(ptc);
+  auto &buf_ptrs = ptc_buffer_ptrs(ptc);
   ptc.copy_to_comm_buffers(buffers, buf_ptrs, grid);
 
   // Define the central zone and number of send_recv in x direction
@@ -221,8 +407,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) c
     int buf_recv = i * 3 + 1;
     send_particle_array(buffers[buf_send], buffers[buf_recv],
                         m_domain_info.neighbor_left[0],
-                        m_domain_info.neighbor_right[0], i,
-                        &req_send[i], &req_recv[i], &stat_recv[i]);
+                        m_domain_info.neighbor_right[0], i, &req_send[i],
+                        &req_recv[i], &stat_recv[i]);
   }
 
   // Send in y direction next
@@ -235,8 +421,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) c
       int buf_recv = 1 + 3 + i * 9;
       send_particle_array(buffers[buf_send], buffers[buf_recv],
                           m_domain_info.neighbor_right[1],
-                          m_domain_info.neighbor_left[1], i,
-                          &req_send[i], &req_recv[i], &stat_recv[i]);
+                          m_domain_info.neighbor_left[1], i, &req_send[i],
+                          &req_recv[i], &stat_recv[i]);
     }
     // Send right in y
     for (int i = 0; i < num_send_y; i++) {
@@ -244,8 +430,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) c
       int buf_recv = 1 + 3 + i * 9;
       send_particle_array(buffers[buf_send], buffers[buf_recv],
                           m_domain_info.neighbor_left[1],
-                          m_domain_info.neighbor_right[1], i,
-                          &req_send[i], &req_recv[i], &stat_recv[i]);
+                          m_domain_info.neighbor_right[1], i, &req_send[i],
+                          &req_recv[i], &stat_recv[i]);
     }
 
     // Finally send z direction
@@ -255,20 +441,19 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) c
       int buf_recv = 13;
       send_particle_array(buffers[buf_send], buffers[buf_recv],
                           m_domain_info.neighbor_right[2],
-                          m_domain_info.neighbor_left[2], 0,
-                          &req_send[0], &req_recv[0], &stat_recv[0]);
+                          m_domain_info.neighbor_left[2], 0, &req_send[0],
+                          &req_recv[0], &stat_recv[0]);
       // Send right in z
       buf_send = 22;
       send_particle_array(buffers[buf_send], buffers[buf_recv],
                           m_domain_info.neighbor_left[2],
-                          m_domain_info.neighbor_right[2], 0,
-                          &req_send[0], &req_recv[0], &stat_recv[0]);
+                          m_domain_info.neighbor_right[2], 0, &req_send[0],
+                          &req_recv[0], &stat_recv[0]);
     }
   }
 
   // Copy the central recv buffer into the main array
-  ptc.copy_from(buffers[central], buffers[central].number(), 0,
-                ptc.number());
+  ptc.copy_from(buffers[central], buffers[central].number(), 0, ptc.number());
   // Logger::print_debug(
   //     "Communication resulted in {} ptc in total, ptc has {} particles "
   //     "now",
@@ -278,13 +463,15 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc, const grid_t<Conf>& grid) c
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_particles(photons_t &ptc, const grid_t<Conf>& grid) const {
+domain_comm<Conf>::send_particles(photons_t &ptc,
+                                  const grid_t<Conf> &grid) const {
   send_particles_impl(ptc, grid);
 }
 
 template <typename Conf>
 void
-domain_comm<Conf>::send_particles(particles_t &ptc, const grid_t<Conf>& grid) const {
+domain_comm<Conf>::send_particles(particles_t &ptc,
+                                  const grid_t<Conf> &grid) const {
   send_particles_impl(ptc, grid);
 }
 
@@ -305,26 +492,26 @@ domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
 }
 
 template <typename Conf>
-std::vector<particles_t>&
-domain_comm<Conf>::ptc_buffers(const particles_t& ptc) const {
+std::vector<particles_t> &
+domain_comm<Conf>::ptc_buffers(const particles_t &ptc) const {
   return m_ptc_buffers;
 }
 
 template <typename Conf>
-std::vector<photons_t>&
-domain_comm<Conf>::ptc_buffers(const photons_t& ptc) const {
+std::vector<photons_t> &
+domain_comm<Conf>::ptc_buffers(const photons_t &ptc) const {
   return m_ph_buffers;
 }
 
 template <typename Conf>
-buffer<ptc_ptrs>&
-domain_comm<Conf>::ptc_buffer_ptrs(const particles_t& ptc) const {
+buffer<ptc_ptrs> &
+domain_comm<Conf>::ptc_buffer_ptrs(const particles_t &ptc) const {
   return m_ptc_buffer_ptrs;
 }
 
 template <typename Conf>
-buffer<ph_ptrs>&
-domain_comm<Conf>::ptc_buffer_ptrs(const photons_t& ph) const {
+buffer<ph_ptrs> &
+domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
   return m_ph_buffer_ptrs;
 }
 

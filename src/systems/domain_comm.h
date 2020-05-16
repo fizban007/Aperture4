@@ -23,6 +23,7 @@ class domain_comm : public system_t {
   int m_rank = 0;  ///< Rank of current process
   int m_size = 1;  ///< Size of MPI_COMM_WORLD
   domain_info_t<Conf::dim> m_domain_info;
+  mutable bool m_buffers_ready = false;
 
   // Communication buffers. These buffers are declared mutable because we want
   // to use a const domain_comm reference to invoke communications, but
@@ -37,6 +38,12 @@ class domain_comm : public system_t {
   mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
 
   void setup_domain();
+  void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
+                                         const Grid<Conf::dim>& grid, int dim,
+                                         int dir) const;
+  void send_add_array_guard_cells_single_dir(
+      typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+      int dir) const;
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 
@@ -60,8 +67,10 @@ class domain_comm : public system_t {
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
+  void send_guard_cells(typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid) const;
   void send_add_guard_cells(vector_field<Conf>& field) const;
   void send_add_guard_cells(scalar_field<Conf>& field) const;
+  void send_add_guard_cells(typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid) const;
   void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,

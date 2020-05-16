@@ -66,6 +66,8 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
       [ext] __device__(auto dst_ptr, auto src_ptr, auto dst_pos, auto src_pos,
                        auto dst_ext, auto src_ext) {
         for (auto n : grid_stride_range(0, ext.size())) {
+          // Always use column major inside loop to simplify conversion between
+          // different indexing schemes
           idx_col_major_t<Rank> idx(n, ext);
           auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
           auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);

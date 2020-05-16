@@ -13,7 +13,6 @@
 namespace Aperture {
 
 template <typename T, int Rank,
-          // MemType Model = default_mem_type,
           typename Idx_t = default_idx_t<Rank>>
 class multi_array : public buffer<T> {
  private:
@@ -91,23 +90,17 @@ class multi_array : public buffer<T> {
 
   using base_type::operator[];
 
-  // template <MemType M = Model>
-  // inline std::enable_if_t<M != MemType::device_only, T>
   inline T
   operator[](const Idx_t& idx) const {
-    // Logger::print_info("in operator [], typeof idx is {}", typeid(idx).name());
     return this->m_data_h[idx.linear];
   }
 
-  // template <MemType M = Model>
-  // inline std::enable_if_t<M != MemType::device_only, T&>
   inline T&
   operator[](const Idx_t& idx) {
     return this->m_data_h[idx.linear];
   }
 
   template <typename... Args>
-  // inline std::enable_if_t<M != MemType::device_only, T>
   inline T
   operator()(Args... args) const {
     auto idx = get_idx(args...);
@@ -115,8 +108,6 @@ class multi_array : public buffer<T> {
   }
 
   template <typename... Args>
-  // inline std::enable_if_t<M != MemType::device_only, T&>
-  // template <typename... Args>
   inline T&
   operator()(Args... args) {
     auto idx = get_idx(args...);

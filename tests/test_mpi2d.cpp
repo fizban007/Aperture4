@@ -19,10 +19,11 @@ main(int argc, char* argv[]) {
   env.params().add("lower", std::vector<double>({1.0, 2.0}));
   env.params().add("size", std::vector<double>({100.0, 10.0}));
   env.params().add("periodic_boundary", std::vector<bool>({true, true}));
+  env.params().add("ptc_buffer_size", int64_t(100));
+  env.params().add("ph_buffer_size", int64_t(100));
 
   auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>(env, *comm);
-  comm->resize_buffers(*grid);
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);
@@ -48,42 +49,42 @@ main(int argc, char* argv[]) {
     Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
   }
 
-  // multi_array<Scalar> v(mesh.extent());
-  // v.assign_dev(env.domain_info().rank);
-  // env.send_array_guard_cells(v);
-  // v.copy_to_host();
+  typename Conf::multi_array_t v(grid->extent());
+  v.assign_dev(comm->rank());
+  comm->send_guard_cells(v, *grid);
+  v.copy_to_host();
 
-  // for (int n = 0; n < env.domain_info().size; n++) {
-  //   MPI_Barrier(MPI_COMM_WORLD);
-  //   if (n == env.domain_info().rank) {
-  //     std::cout << "This is the initial content from rank " << n << std::endl;
-  //     for (int j = 0; j < mesh.dims[1]; j++) {
-  //       for (int i = 0; i < mesh.dims[0]; i++) {
-  //         std::cout << v(i, j) << " ";
-  //       }
-  //       std::cout << std::endl;
-  //     }
-  //   }
-  // }
+  for (int n = 0; n < comm->size(); n++) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (n == comm->rank()) {
+      std::cout << "This is the initial content from rank " << n << std::endl;
+      for (int j = 0; j < grid->dims[1]; j++) {
+        for (int i = 0; i < grid->dims[0]; i++) {
+          std::cout << v(i, j) << " ";
+        }
+        std::cout << std::endl;
+      }
+    }
+  }
 
-  // env.send_add_array_guard_cells(v);
-  // env.send_add_array_guard_cells_single_dir(v, 0, -1);
-  // env.send_add_array_guard_cells_single_dir(v, 0, 1);
+  comm->send_add_guard_cells(v, *grid);
+  // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, -1);
+  // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, 1);
 
-  // v.copy_to_host();
+  v.copy_to_host();
 
-  // for (int n = 0; n < env.domain_info().size; n++) {
-  //   MPI_Barrier(MPI_COMM_WORLD);
-  //   if (n == env.domain_info().rank) {
-  //     std::cout << "This is the content from rank " << n << std::endl;
-  //     for (int j = 0; j < mesh.dims[1]; j++) {
-  //       for (int i = 0; i < mesh.dims[0]; i++) {
-  //         std::cout << v(i, j) << " ";
-  //       }
-  //       std::cout << std::endl;
-  //     }
-  //   }
-  // }
+  for (int n = 0; n < comm->size(); n++) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (n == comm->rank()) {
+      std::cout << "This is the content from rank " << n << std::endl;
+      for (int j = 0; j < grid->dims[1]; j++) {
+        for (int i = 0; i < grid->dims[0]; i++) {
+          std::cout << v(i, j) << " ";
+        }
+        std::cout << std::endl;
+      }
+    }
+  }
 
   return 0;
 }

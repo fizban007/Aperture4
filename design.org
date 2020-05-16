@@ -1,0 +1,334 @@
+#+TITLE: Design
+
+* System Requirements
+** Different systems
+
+There are several different systems in PIC, including but not limited to:
+particle updater, field solver, radiative transfer, domain communication etc.
+Systems can talk to each other, but mostly are self-contained.
+
+Each system has its own parameters, and corresponding data (component). If there
+is no radiation involved in a particular simulation, then it doesn't make sense
+to parse radiation-related parameters, or store radiation related quantities
+like photon info.
+
+All systems should have some init() method, update(delta) method, and some way
+to access the central data.
+
+A signal/event system is needed to facilitate communication between systems. For
+example, in multiple point during field solve, domain communication needs to be
+triggered. Otherwise, all systems are triggered sequentially at each time step.
+
+** Resource Management
+
+The code should be able to specify mode of resource allocation flexibly,
+including ~host_only~, ~host_device~, ~managed_device~, ~device_only~. Depending
+on memory mode, the buffer will allocate and maintain the corresponding memory
+pointer, and handle synchronizations between the buffers.
+
+* ECS?
+
+An Entity-Component System is a very flexible and extensible way of organizing
+complex code. However, it is most suitable in an interactive environment where
+large quantities of entities need to be constructed, updated, and destroyed,
+like a video game.
+
+If we are going to adopt such a system, what can be a good mapping?
+
+** Entity
+
+We don't really have separate entities. A simulation is usually static, with
+well-defined data, and a set of rules to transform the data over time to achieve
+some outcome.
+
+Since in a typical ECS, entities are just ids, and a "registry" maps entities to
+their components. For example, if the "player" as an entity has id 0, and has
+components ~hp~, ~position~, ~velocity~. Then the registry will store a mapping
+from id 0 to the corresponding entry in the ~hp~ array, ~position~ array, and
+~velocity~ array. This way, when updating position for example, all entities
+that has position can be updated uniformly, which is good for performance.
+
+In a simulation, there could be several core entities that serve as aggregation
+of related components. For example, ~fields~ entity can have components ~E~,
+~B~, ~j~, etc.
+
+** Component
+
+Components are data containers. They have a natural mapping to our simulations.
+Field components like ~E~, ~B~ or particle components like ~px~, ~py~, ~pz~ can
+directly translate to components. There is a natural tendency for some
+components to group together, like momentum components, position components,
+etc.
+
+** System
+
+Systems are implementations of logic. These also have natural mappings to our
+simulations. For example, "particle pusher" is a system. It depends on particle
+position and momentum components, as well as field components.
+
+A system implements a series of standardized methods: ~init~, ~update~,
+~destroy~. It can register for some events, which other systems can trigger.
+
+*** Signal and Events
+
+Systems can talk to each other using signals, which triggers events. Need a
+dispatcher for various signals and events. Each system will tell the dispatcher
+what events they listen to, and can send signals to the dispatcher at run time.
+The dispatcher will take the signal and trigger the corresponding event in
+another system.
+
+*** Parameters
+
+Each system can register a number of specific parameters that are used by the
+system. For example, a Compton scattering system may register a parameter
+~sigma~ that is the characteristic cross section of Compton scattering. This
+requires a module to handle and put the parameters together.
+
+* Dependency Injection?
+
+Another macroscopic way to organize modules is through dependency injection.
+This and ECS are not mutually exclusive. DI simply provides a way to resolve the
+(possibly) complicated dependencies between different Systems and Components.
+
+Dependency injection is indeed orthogonal to ECS. In C++ there is no simple way
+to implement general constructor injection, due to the lack of reflection.
+Instead, dependency injection is more like a designe style, where the class
+dependencies are specified in the constructors and externally provided
+(injected).
+
+A container is not strictly necessary. Writing the dependence out explicitly and
+intializing every class in order can be done in the main file. This is called
+"pure DI".
+
+* Data Structures
+
+** buffer
+
+Every array uses a linearized buffer to store the data. This simplifies things
+since the only memory management needed is inside this class. The explicitly
+linearized ordering also allows different implementations of indexing operators
+to fine tune how memory is organized in a multi-dimensional array to help with
+cache locality.
+
+Another good thing is that this class can be defined so simply that it can
+handle different memory modes required in [[*Resource Management]]. Everything else
+can then benefit from explicit declaration of memory model, and the
+synchronizations.
+
+Also, since all memory management is encapsulated in this class, one can switch
+between implementations e.g. Cuda or HIP without too much work.
+
+*** DONE How to define particles?
+
+Since we would want to use ~buffer~ for every component of the particle array,
+how do we do the struct traversal? Could c++17 help?
+
+Again we use the excellent ~visit_struct~ library that facilitates the traversal
+of a struct. The trade off is that we need to use some macro trickery to define
+the structure.
+
+*** DONE How to do multi_array and associated kernels?
+
+Now thinking of ~multi_array<T>~, it has become a thin wrapper around
+~buffer~. It is even beneficial to simply have ~multi_array~ inherit from
+~buffer~ so that it automatically gets the ~copy_to_host~, ~operator[]~,
+~size()~ stuff that it needs to have anyway. What ~multi_array~ does though is
+to also store an extent, so that it knows its own dimensionality, and can take a
+non-trivial indexing operator to traverse the array. Also it can facilitate some
+operations that works on either a part of or the whole array.
+
+*** DONE Do away with more advanced data types?
+
+Another possibility is to remove all advanced data types such as ~multi_array~,
+~vector_field~, etc. Then, in Components and Systems, explicitly only refer to
+~buffer~ as the resource class. This will help make the code simpler, but will
+remove some very nice syntactic sugar that makes the code easier to understand.
+Need to write some example modules to see how this can work out.
+
+In the end, we kept the ~vector_field~ and ~scalar_field~ classes but promoted
+them to data components. This way, each data component can be defined
+straight-forwardly, such as E and B.
+
+* How to initialize stuff?
+
+Or another question is where. There are two stages of initialization that may be
+combined but also can be separate: resource allocation, and applying initial
+conditions.
+
+Suppose every system initialize their components. To separate responsibility,
+each of them should talk to a "coordinator" or "manager" to insert dependency. A
+simple way to allocate resources that sticks to RAII is to do it here. However,
+multiple systems can use the same components. Whoever triggers first initializes
+it? Also, the parameters like ~grid~ may be a different system.
+
+Possibly here is the real place to use dependency injection. Every component is
+initialized with the DI manager, while the DI manager takes care of some basic
+things like parameter initialization, grid construction, etc. Hell, this is
+exactly the model I'm using right now for Aperture 3, where ~environment~ is
+this dependency manager, in a lite sense.
+
+** Answer
+
+I solved this by requiring class dependencies be initialized in constructor, at
+compile time. At this time, all resources are allocated. Then, all systems and
+data components have an ~init~ method which will be called together after all
+systems and components are constructed. Initialization that does not require
+allocating resources is carried out here.
+
+* How to write extensible systems?
+
+Okay, lets assume that the ECS/dependence injection parts have been taken care
+of. There is an efficient way to individually define systems, components, their
+dependencies, and their interactions. Now, to build a system like field solver,
+many pieces of the puzzle are still needed.
+
+** Field solver
+
+A field solver does a few things, but the most basic thing it does is loop over
+the grid (possibly multiple times) to compute the update for a given field
+component at each grid point.
+
+This can be encapsulated in two ways. First, each iteration can simply be an
+iteration over points, given some input and output values. For example, when
+updating $dE = dt * \nabla\times \mathbf{B}$, the output values are 3 components
+of E field, and input values are three components of B field. This can be
+modeled by a loop over all grid points, which at every point invoking a given
+algorithm. This algorithm may access field values at adjacent points using an
+index scheme that is appropriate to the underlying array.
+
+Second, an overall algorithm is required such as RK4 or semi-implicit scheme.
+This needs to be built into the solver logic, but may be independent of the
+iteration.
+
+A module/system for applying boundary conditions is required. This could be
+baked into the solver itself since it is problem dependent.
+
+A callback system for invoking domain communication is also required. This is
+done simply by providing a communicator dependency in the constructor.
+
+** Particle pusher
+
+Particle push and deposit are two obvious parts of the pusher. This two-step
+process is easiest to implement by first doing a push (Boris or Vay push) to
+update the particle momentum, then move the particle (updating position) and
+deposit current in the mean time.
+
+The push part is rather straight-forward. First, E and B fields are interpolated
+to the particle position. Then, these field values are used to update particle
+momentum. The complication here is that this part needs to accommodate future
+extensions such as custom forces.
+
+** Radiative Transfer
+
+Photons are a thing. Pushing photons can be very different from pushing
+particles so it is beneficial to separate them. It also makes it easier to write
+photon->pair or particle->photon functions.
+
+** Binary collision
+
+** Particle merging
+* CUDA
+** DONE Memory locality
+
+The code wants to support GPU computing. Problem is, a lot of the more advanced
+data structures do not have a transparent way of moving to GPU. For example, a
+~multi_array~ manages a buffer which holds both host and device pointers to the
+underlying data. When passing this to the GPU, there is no way of passing the
+reference (or if there is, it will be very slow). As a result, a raw pointer
+will often be passed. Thus a lot of the power of abstraction is lost in this
+transfer.
+
+** DONE Generating particle data structures
+
+Another challenge is to group the data together. Imagine a ~particle_data~ class
+that looks like this:
+
+#+BEGIN_SRC cpp
+struct particle_data {
+  buffer<double> x1;
+  buffer<double> x2;
+  buffer<double> p1;
+  buffer<double> p2;
+};
+#+END_SRC
+
+This class holds data on the host, and is perfectly fine. Each of the buffers
+contains both a host and a device pointer, and manages the memory and
+synchronization. However, one cannot pass this structure directly to the GPU.
+One has to construct something like this:
+
+#+BEGIN_SRC cpp
+struct particle_data_gpu {
+  double* x1;
+  double* x2;
+  double* p1;
+  double* p2;
+};
+#+END_SRC
+
+If one would like to assemble such a ~struct~ programmatically, it poses a
+challenge. I can only think of some sophisticated macro trickery to do this.
+
+* Parameters
+
+How to manage parameters?
+
+** DONE unordered_map of variants
+
+The solution chosen in the end is an =unordered_map= of =variant=. A =variant=
+can hold multiple types of data in it, and it is convenient to code up an
+adaptor to the toml parser.
+
+Every module acquire the parameters they want to use from the parameter store at
+initialization. If such parameter is not provided then a sane default one should
+be initialized. This is helpful to decouple all systems from writing their
+dependency into a single params struct.
+
+* Some Principles
+** Rely on the static type system
+
+In general, avoid =void*= and other type erasing manuvres. Type system is our
+friend.
+
+** Respect smart pointer core guidelines
+
+* How to handle dependency???
+
+The goal is to write something like this:
+#+BEGIN_SRC cpp
+for (auto& system : systems) {
+  system.update(dt);
+}
+#+END_SRC
+which handles the whole simulation automatically. This makes sense, since all
+modules are transformations on the data, and they are called sequentially each
+time step. Just like a game.
+
+However, modules can depend on each other. In their ~update()~ method, they will
+inevitably need information from other modules. How to handle this?
+
+One serious problem right now is the data output. I want to write something like this:
+#+BEGIN_SRC cpp
+void data_exporter::update(int step) {
+  if (is_data_output_step(step)) {
+    for (auto& data : data_map) {
+      write_data(data, file);
+    }
+  }
+}
+#+END_SRC
+However, this does not work. Firstly, since ~data_map~ stores an interface to
+each data component only, it is much better to write a virtual function of the
+data interface to handle output, and pass the data export to it. However, since
+likely both ~data~ and ~data_exporter~ are templated, there is a barrier between
+this. The only choice is to make the abstract interface also templated. If that
+is the case, then the environment class needs to be templated too, although it
+makes absolutely no use of the template parameter.
+
+Another choice is to promote ~domain_comm~ and ~data_exporter~ to system level.
+This is certainly possible, but then again, anything containing these would need
+to be templated too.
+
+Another choice is to use the built-in ~get_system~ to obtain dependencies. This
+is an ugly hack, but should work, since almost all systems know the ~Conf~
+parameter and are able to find the correct system from the registry.

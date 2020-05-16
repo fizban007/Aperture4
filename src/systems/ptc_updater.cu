@@ -35,7 +35,7 @@ ptc_updater_cu<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::register_dependencies() {
+ptc_updater_cu<Conf>::register_data_components() {
   size_t max_ptc_num = 1000000;
   this->m_env.params().get_value("max_ptc_num", max_ptc_num);
   // Prefer device_only, but can take other possibilities if data is already

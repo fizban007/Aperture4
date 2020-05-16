@@ -16,7 +16,7 @@ class ptc_injector_mult : public ptc_injector<Conf> {
 
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
-  virtual void register_dependencies() override;
+  virtual void register_data_components() override;
 
  protected:
   typedef buffer<typename Conf::ndptr_const_t> rho_ptrs_t;

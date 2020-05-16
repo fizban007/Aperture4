@@ -132,8 +132,8 @@ ptc_injector_mult<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_injector_mult<Conf>::register_dependencies() {
-  ptc_injector<Conf>::register_dependencies();
+ptc_injector_mult<Conf>::register_data_components() {
+  ptc_injector<Conf>::register_data_components();
 
   m_num_per_cell.set_memtype(MemType::host_device);
   m_cum_num_per_cell.set_memtype(MemType::host_device);

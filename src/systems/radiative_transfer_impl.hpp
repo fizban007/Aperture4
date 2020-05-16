@@ -42,7 +42,7 @@ radiative_transfer<Conf, RadImpl>::init() {}
 
 template <typename Conf, typename RadImpl>
 void
-radiative_transfer<Conf, RadImpl>::register_dependencies() {
+radiative_transfer<Conf, RadImpl>::register_data_components() {
   size_t max_ph_num = 10000;
   this->m_env.params().get_value("max_ph_num", max_ph_num);
 

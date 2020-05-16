@@ -31,7 +31,7 @@ class field_solver_default : public system_t {
   void init() {}
   void update(double dt, uint32_t step);
 
-  void register_dependencies() {
+  void register_data_components() {
     // output fields, we don't directly use here
     Etotal = m_env.register_data<vector_field<Conf>>("E", m_grid,
                                             field_type::edge_centered);

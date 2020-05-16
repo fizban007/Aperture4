@@ -36,7 +36,7 @@ class field_solver_sph : public field_solver_default<Conf> {
 
   void init() override;
   void update(double dt, uint32_t step) override;
-  void register_dependencies() override;
+  void register_data_components() override;
 
   void update_explicit(double dt, double time);
   void update_semi_impl(double dt, double alpha, double beta, double time);

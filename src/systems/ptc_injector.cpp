@@ -19,7 +19,7 @@ ptc_injector<Conf>::update(double dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_injector<Conf>::register_dependencies() {
+ptc_injector<Conf>::register_data_components() {
 }
 
 template class ptc_injector<Config<2>>;

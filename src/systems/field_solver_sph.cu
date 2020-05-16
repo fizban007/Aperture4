@@ -436,8 +436,8 @@ field_solver_sph<Conf>::init() {
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::register_dependencies() {
-  field_solver_default<Conf>::register_dependencies();
+field_solver_sph<Conf>::register_data_components() {
+  field_solver_default<Conf>::register_data_components();
 
   flux = this->m_env.template register_data<scalar_field<Conf>>(
       "flux", this->m_grid, field_type::vert_centered);

@@ -129,8 +129,8 @@ ptc_updater_sph_cu<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::register_dependencies() {
-  ptc_updater_cu<Conf>::register_dependencies();
+ptc_updater_sph_cu<Conf>::register_data_components() {
+  ptc_updater_cu<Conf>::register_data_components();
 }
 
 template <typename Conf>

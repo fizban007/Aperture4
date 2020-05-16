@@ -81,7 +81,7 @@ data_exporter<Conf>::init() {
 
 template <typename Conf>
 void
-data_exporter<Conf>::register_dependencies() {
+data_exporter<Conf>::register_data_components() {
   // tmp_E = m_env.register_data<vector_field<Conf>>("E_output", m_output_grid,
   //                                                 field_type::vert_centered);
   // tmp_B = m_env.register_data<vector_field<Conf>>("B_output", m_output_grid,

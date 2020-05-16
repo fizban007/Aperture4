@@ -25,7 +25,7 @@ class ptc_injector : public system_t {
 
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
-  virtual void register_dependencies() override;
+  virtual void register_data_components() override;
 
  protected:
   const grid_t<Conf>& m_grid;
@@ -47,7 +47,7 @@ class ptc_injector_cu : public ptc_injector<Conf> {
 
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
-  virtual void register_dependencies() override;
+  virtual void register_data_components() override;
 
  protected:
   curand_states_t* m_rand_states;

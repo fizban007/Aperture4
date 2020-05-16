@@ -15,7 +15,7 @@ class system_t {
   virtual ~system_t() {}
 
   virtual void init() {}
-  virtual void register_dependencies() {}
+  virtual void register_data_components() {}
   virtual void update(double, uint32_t) {}
 
  protected:

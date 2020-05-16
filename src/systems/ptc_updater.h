@@ -69,7 +69,7 @@ class ptc_updater : public system_t {
 
   void init() override;
   void update(double dt, uint32_t step) override;
-  void register_dependencies() override;
+  void register_data_components() override;
 
   void move_and_deposit(double dt, uint32_t step);
   void move_photons(double dt, uint32_t step);
@@ -113,7 +113,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
 
   void init() override;
   // void update(double dt, uint32_t step);
-  void register_dependencies() override;
+  void register_data_components() override;
 
   template <typename P>
   void push(double dt);

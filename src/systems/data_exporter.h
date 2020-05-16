@@ -70,7 +70,7 @@ class data_exporter : public system_t {
 
   void init() override;
   void update(double time, uint32_t step) override;
-  void register_dependencies() override;
+  void register_data_components() override;
 
   void write_grid();
   void write_xmf_head(std::ofstream& fs);

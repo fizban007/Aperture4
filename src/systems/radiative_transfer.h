@@ -36,7 +36,7 @@ class radiative_transfer_common : public system_t {
 
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
-  // virtual void register_dependencies() override;
+  // virtual void register_data_components() override;
 
   // virtual void move_photons(double dt, uint32_t step);
   virtual void emit_photons(double dt) = 0;
@@ -57,7 +57,7 @@ class radiative_transfer : public radiative_transfer_common<Conf> {
                      const domain_comm<Conf>* comm = nullptr);
 
   virtual void init() override;
-  virtual void register_dependencies() override;
+  virtual void register_data_components() override;
 
   virtual void emit_photons(double dt) override;
   virtual void produce_pairs(double dt) override;
@@ -88,7 +88,7 @@ class radiative_transfer_cu : public radiative_transfer_common<Conf> {
 
   void init() override;
   // void update(double dt, uint32_t step) override;
-  void register_dependencies() override;
+  void register_data_components() override;
 
   // virtual void move_photons(double dt, uint32_t step) override;
   virtual void emit_photons(double dt) override;

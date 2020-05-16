@@ -49,7 +49,7 @@ ptc_updater<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::register_dependencies() {
+ptc_updater<Conf>::register_data_components() {
   size_t max_ptc_num = 10000;
   m_env.params().get_value("max_ptc_num", max_ptc_num);
 

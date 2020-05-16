@@ -136,7 +136,7 @@ class sim_environment {
 
     // Otherwise, make the system, and return the pointer
     std::unique_ptr<system_t> ptr = std::make_unique<System>(std::forward<Args>(args)...);
-    ptr->register_dependencies();
+    ptr->register_data_components();
     m_system_map.insert({name, std::move(ptr)});
     m_system_order.push_back(name);
     return dynamic_cast<System*>(m_system_map[name].get());

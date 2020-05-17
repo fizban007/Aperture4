@@ -37,7 +37,7 @@ TEST_CASE("Initializing particles", "[particles]") {
 
 TEST_CASE("Particle flag manipulation", "[particles]") {
   uint32_t flag = set_ptc_type_flag(
-      bit_or(PtcFlag::primary, PtcFlag::tracked),
+      flag_or(PtcFlag::primary, PtcFlag::tracked),
       PtcType::electron);
 
   REQUIRE(get_ptc_type(flag) == (int)PtcType::electron);

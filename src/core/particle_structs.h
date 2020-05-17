@@ -13,35 +13,44 @@ struct ptc_array_type;
 
 // Here we define particle types through some macro magic. The macro
 // DEF_PARTICLE_STRUCT takes in a name, and a sequence of triples, each
-// one defines an entry in the particle struct. The macro defines two
-// structs at the same time: `particle_data` and `single_particle_t`.
+// one defines an entry in the particle struct. The macro defines several
+// structs at the same time: `ptc_ptrs`, `ptc_buffer`, and `single_ptc_t`.
 // For example, the following definition:
 //
-//     DEF_PARTICLE_STRUCT(particle,
+//     DEF_PARTICLE_STRUCT(ptc,
 //                         (float, x1, 0.0)
 //                         (float, x2, 0.0)
 //                         (float, x3, 0.0));
 //
-// will define two structs:
+// will define these structs:
 //
-//     struct single_particle_t {
+//     struct single_ptc_t {
 //       float x1 = 0.0;
 //       float x2 = 0.0;
 //       float x3 = 0.0;
 //     };
-//     struct particle_data {
+//     struct ptc_ptrs {
 //       float* x1;
 //       float* x2;
 //       float* x3;
 //       enum { size = 3 * sizeof(float) };
-//       single_particle_t operator[](size_t idx) const;
+//     };
+//     struct ptc_buffer {
+//       typedef single_ptc_t single_type;
+//       typedef ptc_ptrs ptrs_type;
+//       buffer<float> x1;
+//       buffer<float> x2;
+//       buffer<float> x3;
+//
+//       ptc_ptrs host_ptrs();
+//       ptc_ptrs dev_ptrs();
 //     };
 //
-// where `single_particle_t` is a struct representing a single particle,
-// and `particle_data` is a struct of arrays that contain the actual
-// data. An integral constant `size` is defined in `particle_data` for
-// MPI purposes, and an index operator is defined to easily read a
-// single particle.
+// where `single_ptc_t` is a struct representing a single particle, `ptc_ptrs`
+// is a struct of arrays that point to the actual data, and `ptc_buffer` is a
+// struct that contains all the buffer objects that are responsible for the
+// memory management. An integral constant `size` is defined in `ptc_ptrs` for
+// MPI purposes.
 
 DEF_PARTICLE_STRUCT(ptc,
                     (Aperture::Pos_t, x1, 0.0)
@@ -56,10 +65,11 @@ DEF_PARTICLE_STRUCT(ptc,
                     (uint64_t, id, 0)
                     (uint32_t, flag, 0));
 
-// We use a 32-bit integer to give every particle a "flag". The highest
-// 3 bits are used to represent the particle species (able to represent
-// 8 different kinds of particles). The lower bits are given to
-// pre-defined `ParticleFlag`s in the `enum_types.h` header.
+// We use a 32-bit integer to give every particle a "flag". The highest 3 bits
+// are used to represent the particle species (able to represent 8 different
+// kinds of particles). This can be changed in the header file `enum_types.h`.
+// The lower bits are given to pre-defined `PtcFlag`s in the `enum_types.h`
+// header.
 
 DEF_PARTICLE_STRUCT(ph,
                     (Aperture::Pos_t, x1, 0.0)

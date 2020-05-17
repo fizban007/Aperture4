@@ -105,9 +105,9 @@ struct ph_freepath_dev_t {
     ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
     ptc.cell[offset_e] = ptc.cell[offset_p] = ph.cell[tid];
     ptc.flag[offset_e] =
-        set_ptc_type_flag(bit_or(PtcFlag::secondary), PtcType::electron);
+        set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::electron);
     ptc.flag[offset_p] =
-        set_ptc_type_flag(bit_or(PtcFlag::secondary), PtcType::positron);
+        set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::positron);
 
     // Set this photon to be empty
     ph.cell[tid] = empty_cell;

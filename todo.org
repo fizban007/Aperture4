@@ -1,15 +1,23 @@
 #+TITLE: TODOs in the code
 
 
-* TODO Domain Communications
-
+* DONE Domain Communications
 ** [X] Communicate particles
-** [ ] Communicate fields
+** [X] Communicate fields
 
 * TODO Data Export
-
 ** [ ] Write tracked particles
-
+** [ ] How to make it easier to add more diagnostics?
 * TODO Snapshot and Restart
-
+** [ ] Figure out a way to deal with xmf interaction with restarts
 * TODO Implement various physical processes
+** [ ] Curvature radiation
+** [ ] Resonant scattering
+** [ ] ICS scattering with arbitrary background
+** [ ] Triplet pair production
+* TODO Figure out a way to streamline setting up a new problem
+** [ ] How to change pusher behavior?
+** [ ] How to change radiative transfer behavior?
+Partial answer: write a impl class for radiation then instantiate the
+~radiative_transfer~ class with it.
+* More general, how to make system interfaces even simpler?

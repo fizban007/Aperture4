@@ -106,7 +106,7 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
           auto flag = ptc.flag[n];
           if (check_flag(flag, PtcFlag::ignore_EM)) continue;
           if (pos[0] > grid.dims[0] - damping_length + 2) {
-            flag |= bit_or(PtcFlag::ignore_EM);
+            flag |= flag_or(PtcFlag::ignore_EM);
             ptc.flag[n] = flag;
           }
         }

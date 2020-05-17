@@ -531,9 +531,9 @@ ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
         ptc->cell[offset] = ptc->cell[offset + 1] = idx.linear;
         ptc->weight[offset] = ptc->weight[offset + 1] = weight;
         ptc->flag[offset] =
-            set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::electron);
+            set_ptc_type_flag(flag_or(PtcFlag::primary), PtcType::electron);
         ptc->flag[offset + 1] =
-            set_ptc_type_flag(bit_or(PtcFlag::primary), PtcType::positron);
+            set_ptc_type_flag(flag_or(PtcFlag::primary), PtcType::positron);
       }
     }
   }

@@ -42,32 +42,32 @@ check_flag(uint32_t flag, Flag bit) {
 
 template <typename Flag>
 HD_INLINE uint32_t
-bit_or(Flag bit) {
+flag_or(Flag bit) {
   return (1 << static_cast<int>(bit));
 }
 
 template <typename Flag, typename... P>
 HD_INLINE uint32_t
-bit_or(Flag bit, P... bits) {
-  return ((1 << static_cast<int>(bit)) | bit_or(bits...));
+flag_or(Flag bit, P... bits) {
+  return ((1 << static_cast<int>(bit)) | flag_or(bits...));
 }
 
 template <typename... Flag>
 HD_INLINE void
 set_flag(uint32_t& flag, Flag... bits) {
-  flag |= bit_or(bits...);
+  flag |= flag_or(bits...);
 }
 
 template <typename... Flag>
 HD_INLINE void
 clear_flag(uint32_t& flag, Flag... bits) {
-  flag &= ~static_cast<int>(bit_or(bits...));
+  flag &= ~static_cast<int>(flag_or(bits...));
 }
 
 template <typename... Flag>
 HD_INLINE void
 toggle_flag(uint32_t& flag, Flag... bits) {
-  flag ^= static_cast<int>(bit_or(bits...));
+  flag ^= static_cast<int>(flag_or(bits...));
 }
 
 // Get an integer representing particle type from a given flag

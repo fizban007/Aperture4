@@ -138,7 +138,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
 
             float u = rng();
             if (u < tracked_frac) {
-              ph.flag[offset] = bit_or(PhFlag::tracked);
+              ph.flag[offset] = flag_or(PhFlag::tracked);
               ph.id[offset] = dev_rank + atomicAdd(&dev_ph_id, 1);
             }
           }

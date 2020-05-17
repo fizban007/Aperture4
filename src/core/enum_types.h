@@ -51,8 +51,8 @@ enum class BoundaryPos : char {
   upper2
 };
 
-// Use util functions check_bit, set_bit, bit_or, clear_bit, and
-// toggle_bit to interact with particle and photon flags. These are
+// Use util functions check_flag, set_flag, flag_or, clear_flag, and
+// toggle_flag to interact with particle and photon flags. These are
 // defined from lower bits.
 enum class PtcFlag : uint32_t {
   nothing = 0,
@@ -64,8 +64,19 @@ enum class PtcFlag : uint32_t {
   primary,
   secondary,
   annihilate,
-  emit_photon
+  emit_photon,
+  max = emit_photon,
+  count = max + 1
 };
+
+// One can define new flags by starting after the maximum in `PtcFlag`. For example:
+//
+// enum class PtcFlagEx : uint32_t {
+//   thermal1 = (uint32_t)PtcFlag::count
+// };
+//
+// Since all the flag functions are insensitive of the actual type, one can use
+// them to set an extended flag on an existing uint32_t flag.
 
 enum class PhFlag : uint32_t { tracked = 1, ignore_pair_create };
 

@@ -47,9 +47,9 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
                 ptc.E[offset] = ptc.E[offset + 1] = 1.0;
                 ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
                 ptc.weight[offset] = ptc.weight[offset + 1] = sin(theta) * weight;
-                ptc.flag[offset] = set_ptc_type_flag(bit_or(PtcFlag::primary),
+                ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                      PtcType::electron);
-                ptc.flag[offset + 1] = set_ptc_type_flag(bit_or(PtcFlag::primary),
+                ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                          PtcType::positron);
               }
             }

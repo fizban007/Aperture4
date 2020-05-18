@@ -7,8 +7,11 @@
 
 * TODO Data Export
 ** [ ] Write tracked particles
+Should I put tracked particle data struct under the main particle data, or in
+the data exporter class? Or in the ~particle_data_t~ class?
 ** [ ] How to make it easier to add more diagnostics?
 * TODO Snapshot and Restart
+** [ ] How to specify which data components need to be saved in a snapshot?
 ** [ ] Figure out a way to deal with xmf interaction with restarts
 * TODO Implement various physical processes
 ** [ ] Curvature radiation

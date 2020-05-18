@@ -23,7 +23,7 @@ class sim_environment;
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
           int InterpOrder = default_interp_order,
-          template <int> typename Idx_t = idx_col_major_t>
+          template <int> typename Idx_t = default_idx_t>
 class Config {
  public:
   static constexpr int dim = Dim;

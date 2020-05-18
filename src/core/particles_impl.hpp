@@ -36,6 +36,11 @@ particles_base<BufferType>::resize(size_t size) {
                          [size](const char* name, auto& x) { x.resize(size); });
   m_size = size;
   m_zone_buffer_num.resize(27);
+  // Resize the particle id buffer to one, since it only holds a single number
+  // identifying all the tracked particles
+  m_ptc_id.resize(1);
+  m_ptc_id.assign(0);
+  m_ptc_id.assign_dev(0);
 }
 
 template <typename BufferType>

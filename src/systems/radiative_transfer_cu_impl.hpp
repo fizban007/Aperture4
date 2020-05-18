@@ -257,8 +257,4 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
 
 }
 
-// template class radiative_transfer_cu<Config<1>>;
-// template class radiative_transfer_cu<Config<2>>;
-// template class radiative_transfer_cu<Config<3>>;
-
 }  // namespace Aperture

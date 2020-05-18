@@ -20,26 +20,6 @@ class particles_base : public BufferType {
   typedef typename BufferType::single_type single_type;
   typedef typename BufferType::ptrs_type ptrs_type;
 
- private:
-  size_t m_size = 0;
-  size_t m_number = 0;
-  MemType m_mem_type;
-
-  // Temporary data for sorting particles on device
-  buffer<size_t> m_index;
-  buffer<double> m_tmp_data;
-  buffer<int> m_zone_buffer_num;
-  // Temporary data for sorting particles on host
-  std::vector<size_t> m_partition;
-
-  typename BufferType::ptrs_type m_host_ptrs;
-  typename BufferType::ptrs_type m_dev_ptrs;
-
-  void rearrange_arrays(const std::string& skip);
-  void rearrange_arrays_host();
-  void swap(size_t pos, single_type& p);
-
- public:
   particles_base(MemType model = default_mem_type);
   particles_base(size_t size, MemType model = default_mem_type);
   particles_base(const self_type& other) = delete;
@@ -91,6 +71,26 @@ class particles_base : public BufferType {
 
   typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
+
+ private:
+  size_t m_size = 0;
+  size_t m_number = 0;
+  MemType m_mem_type;
+  buffer<uint32_t> m_ptc_id;
+
+  // Temporary data for sorting particles on device
+  buffer<size_t> m_index;
+  buffer<double> m_tmp_data;
+  buffer<int> m_zone_buffer_num;
+  // Temporary data for sorting particles on host
+  std::vector<size_t> m_partition;
+
+  typename BufferType::ptrs_type m_host_ptrs;
+  typename BufferType::ptrs_type m_dev_ptrs;
+
+  void rearrange_arrays(const std::string& skip);
+  void rearrange_arrays_host();
+  void swap(size_t pos, single_type& p);
 };
 
 using particles_t = particles_base<ptc_buffer>;

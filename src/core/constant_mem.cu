@@ -13,7 +13,7 @@ __constant__ Grid<3> dev_grid_3d;
 __constant__ float dev_charges[max_ptc_types];
 __constant__ float dev_masses[max_ptc_types];
 
-__device__ uint64_t dev_rank = 0;
+__constant__ uint64_t dev_rank = 0;
 __device__ uint32_t dev_ptc_id = 0;
 __device__ uint32_t dev_ph_id = 0;
 

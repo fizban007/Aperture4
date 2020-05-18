@@ -117,7 +117,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   auto ph_num = this->ph->number();
   kernel_launch(
       [ptc_num, ph_num] __device__(auto ptc, auto ph, auto ph_pos,
-                                   auto ph_count, auto ph_cum, auto states,
+                                   auto ph_count, auto ph_cum, auto ph_id, auto states,
                                    auto rad, auto tracked_frac) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -139,13 +139,15 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
             float u = rng();
             if (u < tracked_frac) {
               ph.flag[offset] = flag_or(PhFlag::tracked);
-              ph.id[offset] = dev_rank + atomicAdd(&dev_ph_id, 1);
+              // ph.id[offset] = dev_rank + atomicAdd(&dev_ph_id, 1);
+              ph.id[offset] = dev_rank + atomicAdd(ph_id, 1);
             }
           }
         }
       },
       this->ptc->dev_ptrs(), this->ph->dev_ptrs(), m_pos_in_block.dev_ptr(),
       m_num_per_block.dev_ptr(), m_cum_num_per_block.dev_ptr(),
+      this->ph->ptc_id().dev_ptr(),
       m_rand_states->states(), m_rad, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -219,8 +221,8 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
   auto ptc_num = this->ptc->number();
   kernel_launch(
       [ptc_num, ph_num] __device__(auto ph, auto ptc, auto pair_pos,
-                                   auto pair_count, auto pair_cum, auto states,
-                                   auto rad, auto tracked_frac) {
+                                   auto pair_count, auto pair_cum, auto ptc_id,
+                                   auto states, auto rad, auto tracked_frac) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
         auto& grid = dev_grid<Conf::dim>();
@@ -243,14 +245,17 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
             if (u < tracked_frac) {
               set_flag(ptc.flag[offset], PtcFlag::tracked);
               set_flag(ptc.flag[offset + 1], PtcFlag::tracked);
-              ptc.id[offset] = dev_rank + atomicAdd(&dev_ptc_id, 1);
-              ptc.id[offset + 1] = dev_rank + atomicAdd(&dev_ptc_id, 1);
+              // ptc.id[offset] = dev_rank + atomicAdd(&dev_ptc_id, 1);
+              // ptc.id[offset + 1] = dev_rank + atomicAdd(&dev_ptc_id, 1);
+              ptc.id[offset] = dev_rank + atomicAdd(ptc_id, 1);
+              ptc.id[offset + 1] = dev_rank + atomicAdd(ptc_id, 1);
             }
           }
         }
       },
       this->ph->dev_ptrs(), this->ptc->dev_ptrs(), m_pos_in_block.dev_ptr(),
       m_num_per_block.dev_ptr(), m_cum_num_per_block.dev_ptr(),
+      this->ptc->ptc_id().dev_ptr(),
       m_rand_states->states(), m_rad, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();

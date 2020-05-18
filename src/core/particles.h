@@ -71,6 +71,7 @@ class particles_base : public BufferType {
 
   typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
+  buffer<uint32_t>& ptc_id() { return m_ptc_id; }
 
  private:
   size_t m_size = 0;

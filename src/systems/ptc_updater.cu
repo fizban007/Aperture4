@@ -13,18 +13,6 @@
 
 namespace Aperture {
 
-template <typename Pusher>
-struct pusher_impl_t {
-  Pusher pusher;
-
-  template <typename Scalar>
-  HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
-                            Scalar qdt_over_2m, Scalar dt) {
-    pusher(ptc.p1[n], ptc.p2[n], ptc.p3[n], ptc.E[n], EB.E1, EB.E2,
-           EB.E3, EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
-  }
-};
-
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::init() {
@@ -82,11 +70,14 @@ ptc_updater_cu<Conf>::push_default(double dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
-    push<pusher_impl_t<boris_pusher>>(dt);
+    auto pusher = pusher_impl_t<boris_pusher>{};
+    push(dt, pusher);
   } else if (this->m_pusher == Pusher::vay) {
-    push<pusher_impl_t<vay_pusher>>(dt);
+    auto pusher = pusher_impl_t<vay_pusher>{};
+    push(dt, pusher);
   } else if (this->m_pusher == Pusher::higuera) {
-    push<pusher_impl_t<higuera_pusher>>(dt);
+    auto pusher = pusher_impl_t<higuera_pusher>{};
+    push(dt, pusher);
   }
 }
 
@@ -480,7 +471,7 @@ template <typename Conf>
 void
 ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {}
 
-#include "ptc_updater_impl.hpp"
+#include "ptc_updater_cu_impl.hpp"
 
 template class ptc_updater_cu<Config<1>>;
 template class ptc_updater_cu<Config<2>>;

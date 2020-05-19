@@ -77,11 +77,14 @@ void
 ptc_updater<Conf>::push_default(double dt) {
   // dispatch according to enum
   if (m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt);
+    auto pusher = pusher_impl_t<boris_pusher>{};
+    push(dt, pusher);
   } else if (m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt);
+    auto pusher = pusher_impl_t<vay_pusher>{};
+    push(dt, pusher);
   } else if (m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt);
+    auto pusher = pusher_impl_t<higuera_pusher>{};
+    push(dt, pusher);
   }
 }
 
@@ -139,66 +142,6 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     sort_particles();
   }
 
-}
-
-template <typename Conf>
-template <typename T>
-void
-ptc_updater<Conf>::push(double dt) {
-  auto num = ptc->number();
-  auto ext = m_grid.extent();
-  T pusher;
-  if (num > 0) {
-    for (auto n : range(0, num)) {
-      uint32_t cell = ptc->cell[n];
-      if (cell == empty_cell) continue;
-      auto idx = E->at(0).idx_at(cell);
-      // auto pos = idx.get_pos();
-
-      auto interp = interpolator<spline_t, Conf::dim>{};
-      auto flag = ptc->flag[n];
-      int sp = get_ptc_type(flag);
-
-      Scalar qdt_over_2m = dt * 0.5f * m_q_over_m[sp];
-
-      auto x = vec_t<Pos_t, 3>(ptc->x1[n], ptc->x2[n], ptc->x3[n]);
-      //  Grab E & M fields at the particle position
-      Scalar E1 = interp(E->at(0), x, idx, stagger_t(0b110));
-      Scalar E2 = interp(E->at(1), x, idx, stagger_t(0b101));
-      Scalar E3 = interp(E->at(2), x, idx, stagger_t(0b011));
-      Scalar B1 = interp(B->at(0), x, idx, stagger_t(0b001));
-      Scalar B2 = interp(B->at(1), x, idx, stagger_t(0b010));
-      Scalar B3 = interp(B->at(2), x, idx, stagger_t(0b100));
-
-      // Logger::print_debug("E1 {}, E2 {}, E3 {}, B1 {}, B2 {}, B3 {}",
-      //                     E1, E2, E3, B1, B2, B3);
-
-      //  Push particles
-      Scalar p1 = ptc->p1[n], p2 = ptc->p2[n], p3 = ptc->p3[n],
-             gamma = ptc->E[n];
-      if (!check_flag(flag, PtcFlag::ignore_EM)) {
-        pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3, qdt_over_2m,
-               (Scalar)dt);
-      }
-
-      // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
-      //   sync_kill_perp(p1, p2, p3, gamma, B1, B2, B3, E1, E2, E3,
-      //                  q_over_m);
-      // }
-      ptc->p1[n] = p1;
-      ptc->p2[n] = p2;
-      ptc->p3[n] = p3;
-      ptc->E[n] = gamma;
-
-      if (p1 != p1 || p2 != p2 || p3 != p3) {
-        printf(
-            "NaN detected after push! p1 is %f, p2 is %f, p3 is %f, gamma "
-            "is %f\n",
-            p1, p2, p3, gamma);
-        exit(1);
-      }
-    }
-  }
 }
 
 template <typename Conf>
@@ -570,6 +513,8 @@ ptc_updater<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
 template <typename Conf>
 void
 ptc_updater<Conf>::filter_field(scalar_field<Conf>& f) {}
+
+#include "ptc_updater_impl.hpp"
 
 template class ptc_updater<Config<1>>;
 template class ptc_updater<Config<2>>;

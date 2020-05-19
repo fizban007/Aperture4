@@ -2,6 +2,8 @@
 #define __PTC_UPDATE_HELPER_H_
 
 #include "core/cuda_control.h"
+#include "core/particle_structs.h"
+#include <cstdint>
 
 namespace Aperture {
 
@@ -30,6 +32,17 @@ movement2d(FloatT sx0, FloatT sx1, FloatT sy0, FloatT sy1) {
   return (sy1 - sy0) * 0.5f * (sx0 + sx1);
 }
 
+template <typename Pusher>
+struct pusher_impl_t {
+  Pusher pusher;
+
+  template <typename Scalar>
+  HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
+                            Scalar qdt_over_2m, Scalar dt) {
+    pusher(ptc.p1[n], ptc.p2[n], ptc.p3[n], ptc.E[n], EB.E1, EB.E2,
+           EB.E3, EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
+  }
+};
 
 
 }

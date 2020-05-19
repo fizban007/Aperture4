@@ -1,4 +1,5 @@
 add_subdirectory(pulsar)
+add_subdirectory(magnetar)
 add_subdirectory(alfven_wave)
 add_subdirectory(vacuum_sph_wave_test)
 add_subdirectory(plasma_sph_wave_test)

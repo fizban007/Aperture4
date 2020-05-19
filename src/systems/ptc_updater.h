@@ -1,12 +1,12 @@
 #ifndef _PTC_UPDATER_H_
 #define _PTC_UPDATER_H_
 
-#include "algorithms/pushers.hpp"
 #include "core/enum_types.h"
 #include "data/particle_data.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
+#include "systems/forces/pushers.hpp"
 #include "systems/grid.h"
 #include "utils/interpolation.hpp"
 

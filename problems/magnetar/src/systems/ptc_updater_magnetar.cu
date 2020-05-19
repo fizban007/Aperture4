@@ -1,19 +1,30 @@
 #include "ptc_updater_magnetar.h"
 #include "framework/config.h"
+#include "systems/forces/sync_cooling.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
 
 template <typename Pusher>
-struct update_momentum_magnetar {
+struct pusher_impl_magnetar {
   Pusher pusher;
 
   template <typename Scalar>
   HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
                             Scalar qdt_over_2m, Scalar dt) {
-    pusher(ptc.p1[n], ptc.p2[n], ptc.p3[n], ptc.E[n], EB.E1, EB.E2,
+    Scalar p1 = ptc.p1[n], p2 = ptc.p2[n], p3 = ptc.p3[n];
+    Scalar gamma = ptc.E[n];
+    pusher(p1, p2, p3, gamma, EB.E1, EB.E2,
            EB.E3, EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
+
+    sync_cooling(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3,
+                 EB.B1, EB.B2, EB.B3, qdt_over_2m * 2.0f / dt, 0.0f, 0.0f);
+
+    ptc.p1[n] = p1;
+    ptc.p2[n] = p2;
+    ptc.p3[n] = p3;
+    ptc.E[n] = gamma;
   }
 };
 
@@ -24,96 +35,20 @@ ptc_updater_magnetar<Conf>::ptc_updater_magnetar(sim_environment& env,
     : ptc_updater_sph_cu<Conf>(env, grid, comm) {}
 
 template <typename Conf>
-template <typename P>
-void
-ptc_updater_cu<Conf>::push(double delta_t) {
-  value_t dt = delta_t;
-  auto num = this->ptc->number();
-  auto ext = this->m_grid.extent();
-  P pusher{};
-
-  auto pusher_kernel = [dt, num, ext] __device__(auto ptc, auto E, auto B,
-                                                 auto pusher) {
-    using value_t = typename Conf::value_t;
-    for (auto n : grid_stride_range(0, num)) {
-      uint32_t cell = ptc.cell[n];
-      if (cell == empty_cell) continue;
-      auto idx = E[0].idx_at(cell, ext);
-      // auto pos = idx.get_pos();
-
-      auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
-      auto flag = ptc.flag[n];
-      int sp = get_ptc_type(flag);
-
-      value_t qdt_over_2m = dt * 0.5f * dev_charges[sp] / dev_masses[sp];
-
-      auto x = vec_t<Pos_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
-      //  Grab E & M fields at the particle position
-      EB_t<value_t> EB;
-      EB.E1 = interp(E[0], x, idx, stagger_t(0b110));
-      EB.E2 = interp(E[1], x, idx, stagger_t(0b101));
-      EB.E3 = interp(E[2], x, idx, stagger_t(0b011));
-      EB.B1 = interp(B[0], x, idx, stagger_t(0b001));
-      EB.B2 = interp(B[1], x, idx, stagger_t(0b010));
-      EB.B3 = interp(B[2], x, idx, stagger_t(0b100));
-
-      //  Push particles
-      // value_t p1 = ptc.p1[n], p2 = ptc.p2[n], p3 = ptc.p3[n],
-      auto gamma = ptc.E[n];
-      if (gamma != gamma) {
-        printf(
-            "NaN detected in push! p1 is %f, p2 is %f, p3 is %f, gamma "
-            "is %f\n",
-            ptc.p1[n], ptc.p2[n], ptc.p3[n], gamma);
-        asm("trap;");
-      }
-
-      if (!check_flag(flag, PtcFlag::ignore_EM)) {
-        // pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3, qdt_over_2m,
-        //        (value_t)dt);
-        pusher(ptc, n, EB, qdt_over_2m, dt);
-      }
-
-      // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
-      //   sync_kill_perp(p1, p2, p3, gamma, B1, B2, B3, E1, E2, E3,
-      //                  q_over_m);
-      // }
-      // ptc.p1[n] = p1;
-      // ptc.p2[n] = p2;
-      // ptc.p3[n] = p3;
-      // ptc.E[n] = gamma;
-    }
-  };
-
-  if (num > 0) {
-    // exec_policy p;
-    // configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(),
-    // this->E->get_ptrs(),
-    //               this->B->get_ptrs(), pusher);
-    // Logger::print_info(
-    //     "pusher kernel: block_size: {}, grid_size: {}, shared_mem: {}",
-    //     p.get_block_size(), p.get_grid_size(), p.get_shared_mem_bytes());
-
-    kernel_launch(pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
-                  this->B->get_ptrs(), pusher);
-  }
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
 void
 ptc_updater_magnetar<Conf>::push_default(double dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
-    this->template push<update_momentum_magnetar<boris_pusher>>(dt);
+    this->template push<pusher_impl_magnetar<boris_pusher>>(dt);
   } else if (this->m_pusher == Pusher::vay) {
-    this->template push<update_momentum_magnetar<vay_pusher>>(dt);
+    this->template push<pusher_impl_magnetar<vay_pusher>>(dt);
   } else if (this->m_pusher == Pusher::higuera) {
-    this->template push<update_momentum_magnetar<higuera_pusher>>(dt);
+    this->template push<pusher_impl_magnetar<higuera_pusher>>(dt);
   }
 }
+
+#include "systems/ptc_updater_impl.hpp"
 
 template class ptc_updater_magnetar<Config<2>>;
 

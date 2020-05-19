@@ -20,6 +20,7 @@ struct pusher_impl_magnetar {
     env.params().get_value("gravity", g0);
     env.params().get_value("gravity_on", gravity_on);
   }
+
   HOST_DEVICE pusher_impl_magnetar(const pusher_impl_magnetar<Pusher>& other) = default;
 
   template <typename Scalar>
@@ -56,7 +57,13 @@ template <typename Conf>
 ptc_updater_magnetar<Conf>::ptc_updater_magnetar(sim_environment& env,
                                                  const grid_sph_t<Conf>& grid,
                                                  const domain_comm<Conf>* comm)
-    : ptc_updater_sph_cu<Conf>(env, grid, comm) {
+    : ptc_updater_sph_cu<Conf>(env, grid, comm) {}
+
+template <typename Conf>
+void
+ptc_updater_magnetar<Conf>::init() {
+  ptc_updater_sph_cu<Conf>::init();
+
   m_impl_boris = std::make_unique<pusher_impl_magnetar<boris_pusher>>(this->m_env);
   m_impl_vay = std::make_unique<pusher_impl_magnetar<vay_pusher>>(this->m_env);
   m_impl_higuera = std::make_unique<pusher_impl_magnetar<higuera_pusher>>(this->m_env);

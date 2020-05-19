@@ -18,6 +18,7 @@ class ptc_updater_magnetar : public ptc_updater_sph_cu<Conf> {
   ptc_updater_magnetar(sim_environment& env, const grid_sph_t<Conf>& grid,
                        const domain_comm<Conf>* comm = nullptr);
 
+  virtual void init() override;
   virtual void push_default(double dt) override;
 
  protected:

@@ -15,7 +15,11 @@ struct ph_freepath_dev_t {
   float photon_path = 0.0f;
 
   HOST_DEVICE ph_freepath_dev_t() {}
-  ph_freepath_dev_t(sim_environment& env) {}
+  ph_freepath_dev_t(sim_environment& env) {
+    env.params().get_value("gamma_thr", gamma_thr);
+    env.params().get_value("E_s", E_s);
+    env.params().get_value("photon_path", photon_path);
+  }
   HOST_DEVICE ph_freepath_dev_t(const ph_freepath_dev_t& other) = default;
 
   __device__ bool check_emit_photon(ptc_ptrs& ptc, uint32_t tid,

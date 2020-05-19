@@ -56,6 +56,14 @@ class Config {
     return idx_t(pos, ext);
   }
 
+  static HD_INLINE idx_t begin(const extent_t<Dim>& ext) {
+    return idx_t(0, ext);
+  }
+
+  static HD_INLINE idx_t end(const extent_t<Dim>& ext) {
+    return idx_t(ext.size(), ext);
+  }
+
   Config() {}
   Config(const Config& other) = delete;
   Config(Config&& other) = delete;

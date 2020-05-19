@@ -14,7 +14,6 @@ boundary_condition<Conf>::init() {
   m_env.get_data("B0", &B0);
 
   m_env.params().get_value("omega", m_omega_0);
-  m_env.params().get_value("omega_t", m_omega_t);
 }
 
 template <typename Conf>

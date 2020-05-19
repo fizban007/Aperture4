@@ -26,8 +26,6 @@ class boundary_condition : public system_t {
 
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  void register_data_components() {}
 };
 
 }

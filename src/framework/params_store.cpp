@@ -36,11 +36,11 @@ class params_store::params_store_impl {
         T f = std::get<T>(it->second);
         return f;
       } catch (std::bad_variant_access&) {
-        Logger::print_err("Parameter '{}' has the incorrect type!", name);
+        Logger::print_err("> Parameter '{}' has the incorrect type!", name);
         return default_value;
       }
     } else {
-      Logger::print_err("Parameter '{}' not found in store!", name);
+      Logger::print_err("> Parameter '{}' not found in store!", name);
       return default_value;
     }
   }

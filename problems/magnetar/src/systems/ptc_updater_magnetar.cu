@@ -9,11 +9,11 @@ namespace Aperture {
 template <typename Pusher>
 struct pusher_impl_magnetar {
   Pusher pusher;
-  double cooling_coef = 0.0, BQ = 1.0;
+  double cooling_coef = 0.0, B0 = 1.0;
 
   pusher_impl_magnetar(sim_environment& env) {
     env.params().get_value("sync_cooling_coef", cooling_coef);
-    env.params().get_value("BQ", BQ);
+    env.params().get_value("Bp", B0);
   }
   HOST_DEVICE pusher_impl_magnetar(const pusher_impl_magnetar<Pusher>& other) = default;
 
@@ -28,7 +28,7 @@ struct pusher_impl_magnetar {
 
     sync_kill_perp(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3,
                    EB.B1, EB.B2, EB.B3, qdt_over_2m * 2.0f / dt,
-                   (Scalar)cooling_coef, (Scalar)BQ);
+                   (Scalar)cooling_coef, (Scalar)B0);
 
     ptc.p1[n] = p1;
     ptc.p2[n] = p2;

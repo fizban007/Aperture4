@@ -14,7 +14,6 @@ class boundary_condition : public system_t {
  protected:
   const grid_curv_t<Conf>& m_grid;
   double m_omega_0 = 0.0;
-  double m_omega_t = 0.0;
 
   vector_field<Conf> *E, *B, *E0, *B0;
 
@@ -26,8 +25,6 @@ class boundary_condition : public system_t {
 
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  void register_data_components() {}
 };
 
 }

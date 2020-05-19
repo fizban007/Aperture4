@@ -14,7 +14,6 @@ boundary_condition<Conf>::init() {
   m_env.get_data("B0", &B0);
 
   m_env.params().get_value("omega", m_omega_0);
-  m_env.params().get_value("omega_t", m_omega_t);
 }
 
 template <typename Conf>
@@ -28,7 +27,6 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   value_t omega;
   value_t atm_time = 0.0;
   value_t sp_time = 10.0;
-  // if (m_omega_t * time < 5000.0)
   if (time <= atm_time) {
     omega = 0.0;
   } else if (time <= atm_time + sp_time) {

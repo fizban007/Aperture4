@@ -7,8 +7,7 @@
 
 namespace Aperture {
 
-sim_environment::sim_environment()
-    : sim_environment(nullptr, nullptr) {}
+sim_environment::sim_environment() : sim_environment(nullptr, nullptr) {}
 
 sim_environment::sim_environment(int* argc, char*** argv) {
   // Parse options
@@ -16,7 +15,10 @@ sim_environment::sim_environment(int* argc, char*** argv) {
       new cxxopts::Options("aperture", "Aperture PIC code"));
   m_options->add_options()("h,help", "Prints this help message.")(
       "c,config", "Configuration file for the simulation.",
-      cxxopts::value<std::string>()->default_value("config.toml"));
+      cxxopts::value<std::string>()->default_value("config.toml"))(
+      "d,dry-run",
+      "Only initialize, do not actualy run the simulation. Useful for looking "
+      "at initialization stage problems.");
 
   int is_initialized = 0;
   MPI_Initialized(&is_initialized);
@@ -92,6 +94,10 @@ sim_environment::init() {
 
 void
 sim_environment::run() {
+  if ((*m_commandline_args)["dry-run"].as<bool>()) {
+    return;
+  }
+
   for (; step < max_steps; step++) {
     Logger::print_info("=== Time step {}, Time is {:.3f} ===", step, time);
     for (auto& name : m_system_order) {
@@ -99,7 +105,8 @@ sim_environment::run() {
       m_system_map[name]->update(dt, step);
       float time_spent = timer::get_duration_since_stamp("us");
       if (step % perf_interval == 0 && time_spent > 10.0f)
-        Logger::print_info("Time for {} is {:.2f}ms", name, time_spent / 1000.0);
+        Logger::print_info("Time for {} is {:.2f}ms", name,
+                           time_spent / 1000.0);
       // timer::show_duration_since_stamp(name, "us");
     }
     time += dt;

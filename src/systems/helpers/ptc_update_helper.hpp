@@ -6,6 +6,11 @@
 namespace Aperture {
 
 template <typename FloatT>
+struct EB_t {
+  FloatT E1, E2, E3, B1, B2, B3;
+};
+
+template <typename FloatT>
 HD_INLINE FloatT
 center2d(FloatT sx0, FloatT sx1, FloatT sy0, FloatT sy1) {
   return (2.0f * sx1 * sy1 + sx0 * sy1 + sx1 * sy0 + 2.0f * sx0 * sy0) *

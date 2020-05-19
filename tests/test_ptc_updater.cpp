@@ -41,13 +41,14 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   std::vector<double> x2(N);
 
   SECTION("Boris push") {
+    pusher->use_pusher(Pusher::boris);
     for (uint32_t i = 0; i < N; i++) {
       auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
                                   vec_t<Scalar, 2>(ptc->x1[0], ptc->x2[0]));
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<boris_pusher>(dt);
+      pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
     }
 
@@ -58,13 +59,14 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   }
 
   SECTION("Vay push") {
+    pusher->use_pusher(Pusher::vay);
     for (uint32_t i = 0; i < N; i++) {
       auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
                                   vec_t<Scalar, 2>(ptc->x1[0], ptc->x2[0]));
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<vay_pusher>(dt);
+      pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
     }
 
@@ -75,13 +77,14 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   }
 
   SECTION("Higuera push") {
+    pusher->use_pusher(Pusher::higuera);
     for (uint32_t i = 0; i < N; i++) {
       auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
                                   vec_t<Scalar, 2>(ptc->x1[0], ptc->x2[0]));
       x1[i] = pos[0];
       x2[i] = pos[1];
 
-      pusher->push<higuera_pusher>(dt);
+      pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
     }
 

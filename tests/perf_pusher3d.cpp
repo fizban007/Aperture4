@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   double t = 0.0;
   for (int i = 0; i < N; i++) {
     timer::stamp();
-    pusher->push<higuera_pusher>(0.1);
+    pusher->push_default(0.1);
     double dt = 0.001 * timer::get_duration_since_stamp("us");
     t += dt;
     if (i % 10 == 0)

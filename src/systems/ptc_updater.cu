@@ -13,6 +13,18 @@
 
 namespace Aperture {
 
+template <typename Pusher>
+struct pusher_impl_t {
+  Pusher pusher;
+
+  template <typename Scalar>
+  HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
+                            Scalar qdt_over_2m, Scalar dt) {
+    pusher(ptc.p1[n], ptc.p2[n], ptc.p3[n], ptc.E[n], EB.E1, EB.E2,
+           EB.E3, EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
+  }
+};
+
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::init() {
@@ -26,8 +38,8 @@ ptc_updater_cu<Conf>::init() {
   m_rho_ptrs.copy_to_device();
 
   // Allocate the tmp array for current filtering
-  this->jtmp = std::make_unique<typename Conf::multi_array_t>
-      (this->m_grid.extent(), MemType::host_device);
+  this->jtmp = std::make_unique<typename Conf::multi_array_t>(
+      this->m_grid.extent(), MemType::host_device);
 
   this->m_env.get_data_optional("photons", &(this->ph));
   this->m_env.get_data_optional("rho_ph", &(this->rho_ph));
@@ -70,76 +82,80 @@ ptc_updater_cu<Conf>::push_default(double dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
-    push<boris_pusher>(dt);
+    push<pusher_impl_t<boris_pusher>>(dt);
   } else if (this->m_pusher == Pusher::vay) {
-    push<vay_pusher>(dt);
+    push<pusher_impl_t<vay_pusher>>(dt);
   } else if (this->m_pusher == Pusher::higuera) {
-    push<higuera_pusher>(dt);
+    push<pusher_impl_t<higuera_pusher>>(dt);
   }
 }
 
 template <typename Conf>
 template <typename P>
 void
-ptc_updater_cu<Conf>::push(double dt) {
+ptc_updater_cu<Conf>::push(double delta_t) {
+  value_t dt = delta_t;
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
-  P pusher;
+  P pusher{};
 
-  auto pusher_kernel = [dt, num, ext] __device__(auto ptrs, auto E, auto B,
+  auto pusher_kernel = [dt, num, ext] __device__(auto ptc, auto E, auto B,
                                                  auto pusher) {
     using value_t = typename Conf::value_t;
     for (auto n : grid_stride_range(0, num)) {
-      uint32_t cell = ptrs.cell[n];
+      uint32_t cell = ptc.cell[n];
       if (cell == empty_cell) continue;
       auto idx = E[0].idx_at(cell, ext);
       // auto pos = idx.get_pos();
 
       auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
-      auto flag = ptrs.flag[n];
+      auto flag = ptc.flag[n];
       int sp = get_ptc_type(flag);
 
-      value_t qdt_over_2m = (value_t)dt * 0.5f * dev_charges[sp] / dev_masses[sp];
+      value_t qdt_over_2m = dt * 0.5f * dev_charges[sp] / dev_masses[sp];
 
-      auto x = vec_t<Pos_t, 3>(ptrs.x1[n], ptrs.x2[n], ptrs.x3[n]);
+      auto x = vec_t<Pos_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
       //  Grab E & M fields at the particle position
-      value_t E1 = interp(E[0], x, idx, stagger_t(0b110));
-      value_t E2 = interp(E[1], x, idx, stagger_t(0b101));
-      value_t E3 = interp(E[2], x, idx, stagger_t(0b011));
-      value_t B1 = interp(B[0], x, idx, stagger_t(0b001));
-      value_t B2 = interp(B[1], x, idx, stagger_t(0b010));
-      value_t B3 = interp(B[2], x, idx, stagger_t(0b100));
+      EB_t<value_t> EB;
+      EB.E1 = interp(E[0], x, idx, stagger_t(0b110));
+      EB.E2 = interp(E[1], x, idx, stagger_t(0b101));
+      EB.E3 = interp(E[2], x, idx, stagger_t(0b011));
+      EB.B1 = interp(B[0], x, idx, stagger_t(0b001));
+      EB.B2 = interp(B[1], x, idx, stagger_t(0b010));
+      EB.B3 = interp(B[2], x, idx, stagger_t(0b100));
 
       //  Push particles
-      value_t p1 = ptrs.p1[n], p2 = ptrs.p2[n], p3 = ptrs.p3[n],
-             gamma = ptrs.E[n];
-      if (p1 != p1 || p2 != p2 || p3 != p3) {
+      // value_t p1 = ptc.p1[n], p2 = ptc.p2[n], p3 = ptc.p3[n],
+      auto gamma = ptc.E[n];
+      if (gamma != gamma) {
         printf(
             "NaN detected in push! p1 is %f, p2 is %f, p3 is %f, gamma "
             "is %f\n",
-            p1, p2, p3, gamma);
+            ptc.p1[n], ptc.p2[n], ptc.p3[n], gamma);
         asm("trap;");
       }
 
       if (!check_flag(flag, PtcFlag::ignore_EM)) {
-        pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3, qdt_over_2m,
-               (value_t)dt);
+        // pusher(p1, p2, p3, gamma, E1, E2, E3, B1, B2, B3, qdt_over_2m,
+        //        (value_t)dt);
+        pusher(ptc, n, EB, qdt_over_2m, dt);
       }
 
       // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
       //   sync_kill_perp(p1, p2, p3, gamma, B1, B2, B3, E1, E2, E3,
       //                  q_over_m);
       // }
-      ptrs.p1[n] = p1;
-      ptrs.p2[n] = p2;
-      ptrs.p3[n] = p3;
-      ptrs.E[n] = gamma;
+      // ptc.p1[n] = p1;
+      // ptc.p2[n] = p2;
+      // ptc.p3[n] = p3;
+      // ptc.E[n] = gamma;
     }
   };
 
   if (num > 0) {
     // exec_policy p;
-    // configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(), this->E->get_ptrs(),
+    // configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(),
+    // this->E->get_ptrs(),
     //               this->B->get_ptrs(), pusher);
     // Logger::print_info(
     //     "pusher kernel: block_size: {}, grid_size: {}, shared_mem: {}",
@@ -173,7 +189,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
             value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                   gamma = ptc.E[n];
+                    gamma = ptc.E[n];
 
             v1 /= gamma;
             v2 /= gamma;
@@ -261,7 +277,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
             value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                   gamma = ptc.E[n];
+                    gamma = ptc.E[n];
 
             v1 /= gamma;
             v2 /= gamma;
@@ -356,7 +372,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             // step 1: Move particles
             auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
             value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                   gamma = ptc.E[n];
+                    gamma = ptc.E[n];
 
             v1 /= gamma;
             v2 /= gamma;
@@ -393,7 +409,8 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
+            value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] =
+                {};
             for (int k = k_0; k <= k_1; k++) {
               value_t sz0 = interp(-x3 + k);
               value_t sz1 = interp(-new_x3 + k);
@@ -522,8 +539,8 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
               ptc.weight[offset] = ptc.weight[offset + 1] = weight;
               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                    PtcType::electron);
-              ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                       PtcType::positron);
+              ptc.flag[offset + 1] = set_ptc_type_flag(
+                  flag_or(PtcFlag::primary), PtcType::positron);
             }
           }
         }

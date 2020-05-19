@@ -33,7 +33,26 @@ main(int argc, char *argv[]) {
 
   double Bp = 10000.0;
   env.params().get_value("Bp", Bp);
-  set_initial_condition(env, *grid, 0, 1.0, Bp);
+  // Set initial condition
+  // set_initial_condition(env, *grid, 0, 1.0, Bp);
+  vector_field<Conf> *B0, *B;
+  env.get_data("B0", &B0);
+  env.get_data("B", &B);
+
+  // Set dipole initial magnetic field
+  B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
+    Scalar r = grid_sph_t<Conf>::radius(x);
+    // return Bp / (r * r);
+    return Bp * 2.0 * cos(theta) / cube(r);
+  });
+  B0->set_values(1, [Bp](Scalar x, Scalar theta, Scalar phi) {
+    Scalar r = grid_sph_t<Conf>::radius(x);
+    return Bp * sin(theta) / cube(r);
+  });
+  B->copy_from(*B0);
+
+  // Fill the magnetosphere with some multiplicity
+  pusher->fill_multiplicity(0, 1.0);
 
   env.run();
   return 0;

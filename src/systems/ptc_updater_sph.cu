@@ -1,4 +1,5 @@
 #include "core/math.hpp"
+#include "data/curand_states.h"
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
 #include "ptc_updater_sph.h"
@@ -455,6 +456,47 @@ ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
     bool is_boundary[4] = {true, true, true, true};
     filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV, is_boundary);
   }
+}
+
+template <typename Conf>
+void
+ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
+  auto num = this->ptc->number();
+  using idx_t = typename Conf::idx_t;
+
+  kernel_launch(
+      [num, mult, weight] __device__(auto ptc, auto states) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        cuda_rng_t rng(&states[id]);
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            for (int i = 0; i < mult; i++) {
+              uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+
+              ptc.x1[offset] = ptc.x1[offset + 1] = rng();
+              ptc.x2[offset] = ptc.x2[offset + 1] = rng();
+              ptc.x3[offset] = ptc.x3[offset + 1] = rng();
+              Scalar theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], ptc.x2[offset]));
+              ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
+              ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
+              ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
+              ptc.E[offset] = ptc.E[offset + 1] = 1.0;
+              ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
+              ptc.weight[offset] = ptc.weight[offset + 1] = math::sin(theta) * weight;
+              ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                                                   PtcType::electron);
+              ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                                                       PtcType::positron);
+            }
+          }
+        }
+      },
+      this->ptc->dev_ptrs(), this->m_rand_states->states());
+  CudaSafeCall(cudaDeviceSynchronize());
+  this->ptc->set_num(num + mult * 2 * this->m_grid.extent().size());
 }
 
 template class ptc_updater_sph_cu<Config<2>>;

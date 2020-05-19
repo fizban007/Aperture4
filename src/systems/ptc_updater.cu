@@ -64,23 +64,11 @@ ptc_updater_cu<Conf>::register_data_components() {
       "rand_states", size_t(512 * 1024), rand_seed);
 }
 
-// template <typename Conf>
-// void
-// ptc_updater_cu<Conf>::update(double dt, uint32_t step) {
-//   if (this->m_pusher == Pusher::boris) {
-//     push<boris_pusher>(dt, true);
-//   } else if (this->m_pusher == Pusher::vay) {
-//     push<vay_pusher>(dt, true);
-//   } else if (this->m_pusher == Pusher::higuera) {
-//     push<higuera_pusher>(dt, true);
-//   }
-
-// }
-
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::push_default(double dt) {
-  // dispatch according to enum
+  // dispatch according to enum. This will also instantiate all the versions of
+  // push
   if (this->m_pusher == Pusher::boris) {
     push<boris_pusher>(dt);
   } else if (this->m_pusher == Pusher::vay) {

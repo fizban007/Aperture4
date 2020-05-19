@@ -119,6 +119,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   void push(double dt);
   // void move_and_deposit(double dt, uint32_t step);
 
+  // Need to override this because we can't make push virtual
   virtual void push_default(double dt) override;
   virtual void move_deposit_1d(value_t dt, uint32_t step) override;
   virtual void move_deposit_2d(value_t dt, uint32_t step) override;
@@ -130,7 +131,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   virtual void sort_particles() override;
   virtual void filter_field(vector_field<Conf>& f, int comp) override;
   virtual void filter_field(scalar_field<Conf>& f) override;
-  virtual void fill_multiplicity(int n, typename Conf::value_t weight = 1.0) override;
+  virtual void fill_multiplicity(int n, value_t weight = 1.0) override;
 
   rho_ptrs_t& get_rho_ptrs() { return m_rho_ptrs; }
 

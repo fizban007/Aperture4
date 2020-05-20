@@ -1,6 +1,7 @@
 #ifndef _PTC_UPDATER_MAGNETAR_H_
 #define _PTC_UPDATER_MAGNETAR_H_
 
+#include "data/multi_array_data.hpp"
 #include "systems/ptc_updater_sph.h"
 #include <memory>
 
@@ -19,12 +20,15 @@ class ptc_updater_magnetar : public ptc_updater_sph_cu<Conf> {
                        const domain_comm<Conf>* comm = nullptr);
 
   virtual void init() override;
+  virtual void register_data_components() override;
   virtual void push_default(double dt) override;
 
  protected:
   std::unique_ptr<pusher_impl_magnetar<boris_pusher>> m_impl_boris;
   std::unique_ptr<pusher_impl_magnetar<vay_pusher>> m_impl_vay;
   std::unique_ptr<pusher_impl_magnetar<higuera_pusher>> m_impl_higuera;
+
+  multi_array_data<float, 2>* m_ph_flux;
 };
 
 }

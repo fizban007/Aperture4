@@ -507,7 +507,7 @@ domain_comm<Conf>::gather_to_root(buffer<T>& buf) const {
                  MPI_COMM_WORLD);
   buf.copy_to_device();
 // #endif
-  if (m_domain_info.rank == 0) {
+  if (is_root()) {
     buf.copy_from(tmp_buf, buf.size());
   }
 }
@@ -538,7 +538,13 @@ domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
 
 // Explicitly instantiate some of the configurations that may occur
 template class domain_comm<Config<1>>;
+template void domain_comm<Config<1>>::gather_to_root(buffer<float>& buf) const;
+template void domain_comm<Config<1>>::gather_to_root(buffer<double>& buf) const;
 template class domain_comm<Config<2>>;
+template void domain_comm<Config<2>>::gather_to_root(buffer<float>& buf) const;
+template void domain_comm<Config<2>>::gather_to_root(buffer<double>& buf) const;
 template class domain_comm<Config<3>>;
+template void domain_comm<Config<3>>::gather_to_root(buffer<float>& buf) const;
+template void domain_comm<Config<3>>::gather_to_root(buffer<double>& buf) const;
 
 }  // namespace Aperture

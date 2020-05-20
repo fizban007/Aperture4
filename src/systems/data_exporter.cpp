@@ -1,6 +1,7 @@
 #include "data_exporter.h"
 #include "core/detail/multi_array_helpers.h"
 #include "data/particle_data.h"
+#include "data/multi_array_data.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
@@ -126,18 +127,19 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       auto data = it.second.get();
       if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
         Logger::print_info("Writing vector field {}", it.first);
-        // Vector field has 3 components
-        for (int i = 0; i < 3; i++) {
-          std::string name = it.first + std::to_string(i + 1);
-          write_grid_multiarray(name, ptr->at(i), ptr->stagger(i), datafile);
-          write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
-        }
+        write(*ptr, it.first, datafile, false);
       } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
-        // Scalar field only has one component
-        std::string name = it.first;
-        write_grid_multiarray(name, ptr->at(0), ptr->stagger(0), datafile);
-        write_xmf_field_entry(m_xmf_buffer, m_fld_num, name);
+        write(*ptr, it.first, datafile, false);
+      } else if (auto ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
+        Logger::print_info("Writing 1D array {}", it.first);
+        write(*ptr, it.first, datafile, false);
+      } else if (auto ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
+        Logger::print_info("Writing 2D array {}", it.first);
+        write(*ptr, it.first, datafile, false);
+      } else if (auto ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
+        Logger::print_info("Writing 3D array {}", it.first);
+        write(*ptr, it.first, datafile, false);
       }
     }
 
@@ -366,6 +368,40 @@ data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
     m_xmf_buffer += fmt::format("      fld.{:05d}.h5:{}\n", num, name);
     m_xmf_buffer += "    </DataItem>\n";
     m_xmf_buffer += "  </Attribute>\n";
+  }
+}
+
+template <typename Conf>
+template <int N>
+void
+data_exporter<Conf>::write(field_t<N, Conf>& data,
+                           const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  if (!snapshot) {
+    // Loop over all components, downsample them, then write them to the file
+    for (int i = 0; i < N; i++) {
+      std::string namestr = name + std::to_string(i + 1);
+      write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
+      write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
+    }
+  } else {
+    // Loop over all components, write directly to the snapshot file
+  }
+}
+
+template <typename Conf>
+template <typename T, int Rank>
+void
+data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
+                           const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  if (!snapshot) {
+    if (m_comm != nullptr && m_comm->size() > 1) {
+      m_comm->gather_to_root(static_cast<buffer<T>&>(data));
+    }
+    if (is_root()) {
+      datafile.write(static_cast<multi_array<T, Rank>&>(data), name);
+    }
   }
 }
 

@@ -15,6 +15,10 @@
 namespace Aperture {
 
 class sim_environment;
+class particle_data_t;
+class curand_states_t;
+template <typename T, int Rank>
+class multi_array_data;
 
 template <typename Conf>
 class data_exporter : public system_t {
@@ -34,7 +38,8 @@ class data_exporter : public system_t {
   void write_xmf_step_header(std::string& buffer, double time);
   void write_xmf_step_close(std::string& buffer);
   void write_xmf_tail(std::string& buffer);
-  void write_xmf_field_entry(std::string& buffer, int num, const std::string& name);
+  void write_xmf_field_entry(std::string& buffer, int num,
+                             const std::string& name);
   void write_xmf(uint32_t step, double time);
   void prepare_xmf_restart(uint32_t restart_step, int data_interval,
                            float time);
@@ -89,6 +94,17 @@ class data_exporter : public system_t {
 
   // buffer<float>& grid_buffer() { return tmp_grid_data; }
   // buffer<double>& ptc_buffer() { return tmp_ptc_data; }
+  void write(particle_data_t& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
+  template <int N>
+  void write(field_t<N, Conf>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
+  void write(curand_states_t& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
+  template <typename T, int Rank>
+  void write(multi_array_data<T, Rank>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
+
  private:
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm;
@@ -103,12 +119,12 @@ class data_exporter : public system_t {
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;
   grid_t<Conf> m_output_grid;
-  vector_field<Conf> *E = nullptr;
-  vector_field<Conf> *B = nullptr;
-  vector_field<Conf> *Edelta = nullptr;
-  vector_field<Conf> *Bdelta = nullptr;
-  vector_field<Conf> *E0 = nullptr;
-  vector_field<Conf> *B0 = nullptr;
+  vector_field<Conf>* E = nullptr;
+  vector_field<Conf>* B = nullptr;
+  vector_field<Conf>* Edelta = nullptr;
+  vector_field<Conf>* Bdelta = nullptr;
+  vector_field<Conf>* E0 = nullptr;
+  vector_field<Conf>* B0 = nullptr;
 
   /// Sets the directory of all the data files
   std::string m_output_dir = "Data/";
@@ -131,7 +147,6 @@ class data_exporter : public system_t {
                                 const index_t<Conf::dim>& offsets,
                                 H5File& file);
   void add_E_B();
-
 };
 
 }  // namespace Aperture

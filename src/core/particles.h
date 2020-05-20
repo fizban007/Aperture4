@@ -2,7 +2,7 @@
 #define __PARTICLES_H_
 
 #include "particle_structs.h"
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 #include "utils/vec.hpp"
 #include "systems/grid.h"
 #include <vector>

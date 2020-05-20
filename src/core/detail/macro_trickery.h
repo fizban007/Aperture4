@@ -74,7 +74,7 @@
 
 ////////////////////////////////////////////////////////////////////
 
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 
 #define DEF_PARTICLE_STRUCT(name, content)                                     \
   namespace Aperture {                                                         \

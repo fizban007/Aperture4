@@ -1,12 +1,12 @@
 set(Aperture_src
   "utils/logger.cpp"
   "utils/timer.cpp"
-  "utils/buffer_impl.cpp"
   "utils/mpi_helper.cpp"
   "utils/hdf_wrapper.cpp"
   "framework/environment.cpp"
   "framework/params_store.cpp"
   "data/fields.cpp"
+  "core/buffer_impl.cpp"
   "core/detail/multi_array_helpers.cpp"
   "data/particle_data.cpp"
   "systems/data_exporter.cpp"
@@ -20,7 +20,7 @@ set(Aperture_src
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   list(APPEND Aperture_src
-    "utils/buffer_impl.cu"
+    "core/buffer_impl.cu"
     "core/constant_mem.cu"
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"

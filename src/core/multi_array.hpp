@@ -3,7 +3,7 @@
 
 #include "ndptr.hpp"
 #include "typedefs_and_constants.h"
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 #include "utils/index.hpp"
 #include "utils/range.hpp"
 #include "utils/vec.hpp"
@@ -26,7 +26,7 @@ class multi_array : public buffer<T> {
   typedef ndptr_const<T, Rank, Idx_t> const_ptr_t;
   typedef T value_t;
 
-  multi_array() {}
+  multi_array(MemType model = default_mem_type) : m_ext{}, base_type(model) {}
 
   template <typename... Args>
   multi_array(Args... args)

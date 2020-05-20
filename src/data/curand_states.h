@@ -3,7 +3,7 @@
 
 #ifdef CUDA_ENABLED
 #include "framework/data.h"
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 #include "core/cuda_control.h"
 
 #include <curand_kernel.h>

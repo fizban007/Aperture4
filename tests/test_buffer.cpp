@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 #include "utils/range.hpp"
 
 using namespace Aperture;

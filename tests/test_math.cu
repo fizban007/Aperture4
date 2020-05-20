@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include "core/math.hpp"
-#include "utils/buffer.h"
+#include "core/buffer.hpp"
 #include "utils/kernel_helper.hpp"
 
 using namespace Aperture;

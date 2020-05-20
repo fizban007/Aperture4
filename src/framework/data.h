@@ -14,6 +14,7 @@ class sim_environment;
 class data_t {
  private:
   bool m_skip_output = false;
+  bool m_in_snapshot = false;
 
  public:
   data_t() {}
@@ -22,6 +23,8 @@ class data_t {
   virtual void init() {}
   void set_skip_output() { m_skip_output = true; }
   bool skip_output() { return m_skip_output; }
+  void set_include_in_snapshot() { m_in_snapshot = true; }
+  bool in_snapshot() { return m_in_snapshot; }
 };
 
 }  // namespace Aperture

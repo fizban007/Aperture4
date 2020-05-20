@@ -490,6 +490,29 @@ domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
 }
 
 template <typename Conf>
+template <typename T>
+void
+domain_comm<Conf>::gather_to_root(buffer<T>& buf) const {
+  buffer<T> tmp_buf(buf.size(), buf.mem_type());
+// #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+//   auto result =
+//       MPI_Reduce(buf.dev_ptr(), tmp_buf.dev_ptr(), buf.size(),
+//                  MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
+//                  MPI_COMM_WORLD);
+// #else
+  buf.copy_to_host();
+  auto result =
+      MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
+                 MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
+                 MPI_COMM_WORLD);
+  buf.copy_to_device();
+// #endif
+  if (m_domain_info.rank == 0) {
+    buf.copy_from(tmp_buf, buf.size());
+  }
+}
+
+template <typename Conf>
 std::vector<particles_t> &
 domain_comm<Conf>::ptc_buffers(const particles_t &ptc) const {
   return m_ptc_buffers;

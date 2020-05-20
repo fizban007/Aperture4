@@ -3,6 +3,7 @@
 
 #include "core/domain_info.h"
 #include "core/particles.h"
+#include "core/buffer.hpp"
 #include "data/fields.h"
 #include "framework/system.h"
 #include <mpi.h>
@@ -75,6 +76,9 @@ class domain_comm : public system_t {
   void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
+
+  template <typename T>
+  void gather_to_root(buffer<T>& buf) const;
 
   const domain_info_t<Conf::dim>& domain_info() const { return m_domain_info; }
 };

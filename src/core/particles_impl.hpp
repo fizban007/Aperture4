@@ -25,14 +25,14 @@ void
 particles_base<BufferType>::set_memtype(MemType memtype) {
   m_zone_buffer_num.set_memtype(memtype);
   visit_struct::for_each(
-      *dynamic_cast<base_type*>(this),
+      *static_cast<base_type*>(this),
       [memtype](const char* name, auto& x) { x.set_memtype(memtype); });
 }
 
 template <typename BufferType>
 void
 particles_base<BufferType>::resize(size_t size) {
-  visit_struct::for_each(*dynamic_cast<base_type*>(this),
+  visit_struct::for_each(*static_cast<base_type*>(this),
                          [size](const char* name, auto& x) { x.resize(size); });
   m_size = size;
   m_zone_buffer_num.resize(27);
@@ -50,7 +50,7 @@ particles_base<BufferType>::copy_from(const self_type& other, size_t num,
   if (dst_pos + num > m_size)
     num = m_size - dst_pos;
   visit_struct::for_each(
-      *dynamic_cast<base_type*>(this), *dynamic_cast<const base_type*>(&other),
+      *static_cast<base_type*>(this), *static_cast<const base_type*>(&other),
       [num, src_pos, dst_pos](const char* name, auto& u, auto& v) {
         u.copy_from(v, num, src_pos, dst_pos);
       });
@@ -189,7 +189,7 @@ template <typename BufferType>
 void
 particles_base<BufferType>::copy_to_host() {
   if (m_mem_type == MemType::host_device)
-    visit_struct::for_each(*dynamic_cast<base_type*>(this),
+    visit_struct::for_each(*static_cast<base_type*>(this),
                            [](const char* name, auto& x) { x.copy_to_host(); });
 }
 
@@ -198,7 +198,7 @@ void
 particles_base<BufferType>::copy_to_device() {
   if (m_mem_type == MemType::host_device)
     visit_struct::for_each(
-        *dynamic_cast<base_type*>(this),
+        *static_cast<base_type*>(this),
         [](const char* name, auto& x) { x.copy_to_device(); });
 }
 

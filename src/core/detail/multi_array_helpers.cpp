@@ -134,7 +134,7 @@ template <typename T, int Rank>
 void
 copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-         const extent_t<Rank>& ext) {}
+         const extent_t<Rank>& ext, const cudaStream_t* stream) {}
 
 template void resample_dev(const multi_array<float, 1>&, multi_array<float, 1>&,
                            const index_t<1>&, const index_t<1>&, stagger_t,
@@ -192,26 +192,26 @@ template void add_dev(multi_array<double, 3>& dst,
 template void copy_dev(multi_array<float, 1>& dst,
                        const multi_array<float, 1>& src,
                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext);
+                       const extent_t<1>& ext, const cudaStream_t* stream);
 template void copy_dev(multi_array<float, 2>& dst,
                        const multi_array<float, 2>& src,
                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext);
+                       const extent_t<2>& ext, const cudaStream_t* stream);
 template void copy_dev(multi_array<float, 3>& dst,
                        const multi_array<float, 3>& src,
                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext);
+                       const extent_t<3>& ext, const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 1>& dst,
                        const multi_array<double, 1>& src,
                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext);
+                       const extent_t<1>& ext, const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 2>& dst,
                        const multi_array<double, 2>& src,
                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext);
+                       const extent_t<2>& ext, const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 3>& dst,
                        const multi_array<double, 3>& src,
                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext);
+                       const extent_t<3>& ext, const cudaStream_t* stream);
 #endif
 }  // namespace Aperture

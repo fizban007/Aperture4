@@ -2,6 +2,7 @@
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
+#include <cuda_runtime_api.h>
 
 namespace Aperture {
 
@@ -61,21 +62,25 @@ template <typename T, int Rank>
 void
 copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-         const extent_t<Rank>& ext) {
-  kernel_launch(
-      [ext] __device__(auto dst_ptr, auto src_ptr, auto dst_pos, auto src_pos,
-                       auto dst_ext, auto src_ext) {
-        for (auto n : grid_stride_range(0, ext.size())) {
-          // Always use column major inside loop to simplify conversion between
-          // different indexing schemes
-          idx_col_major_t<Rank> idx(n, ext);
-          auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
-          auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
-          dst_ptr[idx_dst] = src_ptr[idx_src];
-        }
-      },
-      dst.get_ptr(), src.get_const_ptr(), dst_pos, src_pos, dst.extent(),
-      src.extent());
+         const extent_t<Rank>& ext, const cudaStream_t* stream) {
+  auto copy_kernel = [ext] __device__(auto dst_ptr, auto src_ptr, auto dst_pos,
+                                      auto src_pos, auto dst_ext,
+                                      auto src_ext) {
+    for (auto n : grid_stride_range(0, ext.size())) {
+      // Always use column major inside loop to simplify conversion between
+      // different indexing schemes
+      idx_col_major_t<Rank> idx(n, ext);
+      auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
+      auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
+      dst_ptr[idx_dst] = src_ptr[idx_src];
+    }
+  };
+  exec_policy p;
+  configure_grid(p, copy_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+                 src_pos, dst.extent(), src.extent());
+  if (stream != nullptr) p.set_stream(*stream);
+  kernel_launch(p, copy_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+                src_pos, dst.extent(), src.extent());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -144,26 +149,32 @@ template void add_dev(multi_array<double, 3>& dst,
 template void copy_dev(multi_array<float, 1>& dst,
                        const multi_array<float, 1>& src,
                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext);
+                       const extent_t<1>& ext,
+                       const cudaStream_t* stream);
 template void copy_dev(multi_array<float, 2>& dst,
                        const multi_array<float, 2>& src,
                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext);
+                       const extent_t<2>& ext,
+                       const cudaStream_t* stream);
 template void copy_dev(multi_array<float, 3>& dst,
                        const multi_array<float, 3>& src,
                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext);
+                       const extent_t<3>& ext,
+                       const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 1>& dst,
                        const multi_array<double, 1>& src,
                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext);
+                       const extent_t<1>& ext,
+                       const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 2>& dst,
                        const multi_array<double, 2>& src,
                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext);
+                       const extent_t<2>& ext,
+                       const cudaStream_t* stream);
 template void copy_dev(multi_array<double, 3>& dst,
                        const multi_array<double, 3>& src,
                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext);
+                       const extent_t<3>& ext,
+                       const cudaStream_t* stream);
 
 }  // namespace Aperture

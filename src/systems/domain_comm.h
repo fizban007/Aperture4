@@ -1,9 +1,9 @@
 #ifndef __DOMAIN_COMM_H_
 #define __DOMAIN_COMM_H_
 
+#include "core/buffer.hpp"
 #include "core/domain_info.h"
 #include "core/particles.h"
-#include "core/buffer.hpp"
 #include "data/fields.h"
 #include "framework/system.h"
 #include <mpi.h>
@@ -16,7 +16,36 @@ struct Grid;
 
 template <typename Conf>
 class domain_comm : public system_t {
- private:
+ public:
+  static std::string name() { return "domain_comm"; }
+
+  domain_comm(sim_environment& env);
+  virtual ~domain_comm();
+
+  bool is_root() const { return m_rank == 0; }
+  int rank() const { return m_rank; }
+  int size() const { return m_size; }
+  void resize_buffers(const Grid<Conf::dim>& grid) const;
+
+  virtual void send_guard_cells(vector_field<Conf>& field) const;
+  virtual void send_guard_cells(scalar_field<Conf>& field) const;
+  virtual void send_guard_cells(typename Conf::multi_array_t& array,
+                                const Grid<Conf::dim>& grid) const;
+  virtual void send_add_guard_cells(vector_field<Conf>& field) const;
+  virtual void send_add_guard_cells(scalar_field<Conf>& field) const;
+  virtual void send_add_guard_cells(typename Conf::multi_array_t& array,
+                                    const Grid<Conf::dim>& grid) const;
+  virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
+  virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
+  void get_total_num_offset(uint64_t& num, uint64_t& total,
+                            uint64_t& offset) const;
+
+  template <typename T>
+  void gather_to_root(buffer<T>& buf) const;
+
+  const domain_info_t<Conf::dim>& domain_info() const { return m_domain_info; }
+
+ protected:
   MPI_Comm m_world;
   MPI_Comm m_cart;
   MPI_Datatype m_scalar_type;
@@ -39,10 +68,10 @@ class domain_comm : public system_t {
   mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
 
   void setup_domain();
-  void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
-                                         const Grid<Conf::dim>& grid, int dim,
-                                         int dir) const;
-  void send_add_array_guard_cells_single_dir(
+  virtual void send_array_guard_cells_single_dir(
+      typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+      int dir) const;
+  virtual void send_add_array_guard_cells_single_dir(
       typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
       int dir) const;
   template <typename PtcType>
@@ -56,31 +85,6 @@ class domain_comm : public system_t {
   std::vector<photons_t>& ptc_buffers(const photons_t& ptc) const;
   buffer<ptc_ptrs>& ptc_buffer_ptrs(const particles_t& ptc) const;
   buffer<ph_ptrs>& ptc_buffer_ptrs(const photons_t& ph) const;
-
- public:
-  static std::string name() { return "domain_comm"; }
-
-  domain_comm(sim_environment& env);
-  bool is_root() const { return m_rank == 0; }
-  int rank() const { return m_rank; }
-  int size() const { return m_size; }
-  void resize_buffers(const Grid<Conf::dim>& grid) const;
-
-  void send_guard_cells(vector_field<Conf>& field) const;
-  void send_guard_cells(scalar_field<Conf>& field) const;
-  void send_guard_cells(typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid) const;
-  void send_add_guard_cells(vector_field<Conf>& field) const;
-  void send_add_guard_cells(scalar_field<Conf>& field) const;
-  void send_add_guard_cells(typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid) const;
-  void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
-  void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
-  void get_total_num_offset(uint64_t& num, uint64_t& total,
-                            uint64_t& offset) const;
-
-  template <typename T>
-  void gather_to_root(buffer<T>& buf) const;
-
-  const domain_info_t<Conf::dim>& domain_info() const { return m_domain_info; }
 };
 
 }  // namespace Aperture

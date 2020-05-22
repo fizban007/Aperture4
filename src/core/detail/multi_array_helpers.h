@@ -5,6 +5,10 @@
 #include "data/fields.h"
 #include "utils/stagger.h"
 
+#ifndef CUDA_ENABLED
+typedef int cudaStream_t;
+#endif
+
 namespace Aperture {
 
 template <typename T, typename U, int Rank>
@@ -39,7 +43,7 @@ void copy(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 template <typename T, int Rank>
 void copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
               const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-              const extent_t<Rank>& ext);
+              const extent_t<Rank>& ext, const cudaStream_t* stream = nullptr);
 
 }
 

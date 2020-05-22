@@ -19,6 +19,9 @@ domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
 }
 
 template <typename Conf>
+domain_comm<Conf>::~domain_comm() {}
+
+template <typename Conf>
 void
 domain_comm<Conf>::setup_domain() {
   m_world = MPI_COMM_WORLD;

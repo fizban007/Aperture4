@@ -32,6 +32,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/ptc_updater_sph.cu"
     "systems/ptc_injector.cu"
     "systems/ph_freepath_dev.cu"
+    "systems/domain_comm_async.cpp"
     )
 else()
   list(APPEND Aperture_src

@@ -14,6 +14,8 @@
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
+#else
+typedef int cudaStream_t;
 #endif
 
 namespace Aperture {
@@ -246,11 +248,29 @@ class buffer {
     }
   }
 
+  void copy_to_host(cudaStream_t stream) {
+    if (m_model == MemType::host_device) {
+#ifdef CUDA_ENABLED
+      CudaSafeCall(cudaMemcpyAsync(m_data_h, m_data_d, m_size * sizeof(T),
+                                   cudaMemcpyDeviceToHost, stream));
+#endif
+    }
+  }
+
   void copy_to_device() {
     if (m_model == MemType::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_d, m_data_h, m_size * sizeof(T),
                               cudaMemcpyHostToDevice));
+#endif
+    }
+  }
+
+  void copy_to_device(cudaStream_t stream) {
+    if (m_model == MemType::host_device) {
+#ifdef CUDA_ENABLED
+      CudaSafeCall(cudaMemcpyAsync(m_data_d, m_data_h, m_size * sizeof(T),
+                                   cudaMemcpyHostToDevice, stream));
 #endif
     }
   }

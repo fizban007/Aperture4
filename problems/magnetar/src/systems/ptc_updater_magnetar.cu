@@ -59,7 +59,7 @@ struct pusher_impl_magnetar {
     pusher(p1, p2, p3, gamma, EB.E1, EB.E2,
            EB.E3, EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
 
-    printf("After pusher, p1, p2, p3 are %f, %f, %f\n", p1, p2, p3);
+    // printf("After pusher, p1, p2, p3 are %f, %f, %f\n", p1, p2, p3);
 
     if (gravity_on) {
       gravity(p1, p2, p3, gamma, r, dt, (Scalar)g0, qdt_over_2m * 2.0f / dt);
@@ -94,8 +94,8 @@ struct pusher_impl_magnetar {
       Scalar beta = sqrt(1.0f - 1.0f / (g * g));
       Scalar y = math::abs((B / BQ) /
                           (star_kT * (g - p_mag_signed * mu)));
-      printf("y is %f, res_drag_coef is %f, star_kT is %f\n", y,
-             res_drag_coef, star_kT);
+      // printf("y is %f, res_drag_coef is %f, star_kT is %f\n", y,
+      //        res_drag_coef, star_kT);
       if (y < 30.0f && y > 0.0f) {
         Scalar coef = res_drag_coef * square(star_kT) * y *
                       y / (r * r * (math::exp(y) - 1.0f));
@@ -104,7 +104,7 @@ struct pusher_impl_magnetar {
             min(g - 1.0f,
                 g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B / BQ)));
 
-        if (Eph > 1000.0f) {
+        if (Eph > 2.0f) {
           // Produce individual tracked photons
           if (Nph < 1.0f) {
             float u = rng();
@@ -117,7 +117,7 @@ struct pusher_impl_magnetar {
           // Compute analytically the drag force on the particle
           Scalar drag_coef =
               coef * star_kT * y * (g * mu - p_mag_signed);
-          printf("coef is %f, drag coef is %f\n", coef, drag_coef);
+          // printf("coef is %f, drag coef is %f\n", coef, drag_coef);
           Scalar theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], ptc.x2[n]));
           printf("r is %f, theta is %f, gamma is %f, p_par is %f\n", r, theta,
                  gamma, p_mag_signed);

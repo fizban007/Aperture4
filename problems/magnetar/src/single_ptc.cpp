@@ -3,6 +3,7 @@
 // #include "systems/field_solver_sph.h"
 #include "systems/ptc_updater_magnetar.h"
 #include "systems/data_exporter.h"
+#include "systems/rt_magnetar.h"
 // #include "systems/boundary_condition.h"
 #include <iostream>
 
@@ -20,6 +21,9 @@ main(int argc, char *argv[]) {
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
   auto pusher =
       env.register_system<ptc_updater_magnetar<Conf>>(env, *grid);
+  auto rt =
+      env.register_system<radiative_transfer_cu<Conf, rt_magnetar_impl_t<Conf>>>(
+          env, *grid);
   // auto solver =
   //     env.register_system<field_solver_sph<Conf>>(env, *grid);
   // auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);

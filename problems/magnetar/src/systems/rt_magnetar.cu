@@ -7,7 +7,7 @@
 namespace Aperture {
 
 template <typename Conf>
-struct rt_magnetar_dev_t {
+struct rt_magnetar_impl_t {
   typedef typename Conf::value_t value_t;
 
   float BQ = 1.0f;
@@ -15,8 +15,8 @@ struct rt_magnetar_dev_t {
 
   vec_t<typename Conf::ndptr_const_t, 3> B;
 
-  HOST_DEVICE rt_magnetar_dev_t() {}
-  rt_magnetar_dev_t(sim_environment& env) {
+  HOST_DEVICE rt_magnetar_impl_t() {}
+  rt_magnetar_impl_t(sim_environment& env) {
     env.params().get_value("BQ", BQ);
     env.params().get_value("photon_path", photon_path);
 
@@ -25,7 +25,7 @@ struct rt_magnetar_dev_t {
     B = B_data->get_ptrs();
   }
 
-  HOST_DEVICE rt_magnetar_dev_t(const rt_magnetar_dev_t& other) = default;
+  HOST_DEVICE rt_magnetar_impl_t(const rt_magnetar_impl_t& other) = default;
 
   __device__ bool check_emit_photon(ptc_ptrs& ptc, uint32_t tid,
                                     cuda_rng_t& rng) {
@@ -95,6 +95,6 @@ struct rt_magnetar_dev_t {
   }
 };
 
-template class radiative_transfer_cu<Config<2>, rt_magnetar_dev_t<Config<2>>>;
+template class radiative_transfer_cu<Config<2>, rt_magnetar_impl_t<Config<2>>>;
 
 }  // namespace Aperture

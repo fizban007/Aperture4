@@ -1,3 +1,6 @@
+#ifndef _RADIATIVE_TRANSFER_IMPL_H_
+#define _RADIATIVE_TRANSFER_IMPL_H_
+
 #include "radiative_transfer.h"
 #include "framework/config.h"
 #include "framework/environment.h"
@@ -34,11 +37,16 @@ template <typename Conf, typename RadImpl>
 radiative_transfer<Conf, RadImpl>::radiative_transfer(
     sim_environment& env, const grid_t<Conf>& grid,
     const domain_comm<Conf>* comm)
-    : radiative_transfer_common<Conf>(env, grid, comm), m_rad(env) {}
+    : radiative_transfer_common<Conf>(env, grid, comm) {
+  m_rad = std::make_unique<RadImpl>(env);
+}
 
 template <typename Conf, typename RadImpl>
-void
-radiative_transfer<Conf, RadImpl>::init() {}
+radiative_transfer<Conf, RadImpl>::~radiative_transfer() {}
+
+// template <typename Conf, typename RadImpl>
+// void
+// radiative_transfer<Conf, RadImpl>::init() {}
 
 template <typename Conf, typename RadImpl>
 void
@@ -72,3 +80,7 @@ radiative_transfer<Conf, RadImpl>::produce_pairs(double dt) {}
 // template class radiative_transfer<Config<3>>;
 
 }  // namespace Aperture
+
+
+
+#endif  // _RADIATIVE_TRANSFER_IMPL_H_

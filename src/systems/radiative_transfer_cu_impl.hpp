@@ -1,3 +1,6 @@
+#ifndef _RADIATIVE_TRANSFER_CU_IMPL_H_
+#define _RADIATIVE_TRANSFER_CU_IMPL_H_
+
 #include "core/constant_mem.h"
 #include "framework/environment.h"
 #include "radiative_transfer_impl.hpp"
@@ -10,7 +13,9 @@ template <typename Conf, typename RadImpl>
 radiative_transfer_cu<Conf, RadImpl>::radiative_transfer_cu(
     sim_environment& env, const grid_t<Conf>& grid,
     const domain_comm<Conf>* comm)
-    : radiative_transfer_common<Conf>(env, grid, comm), m_rad(env) {
+    : radiative_transfer_common<Conf>(env, grid, comm) {
+  m_rad = std::make_unique<RadImpl>(env);
+ 
   size_t max_ptc_num, max_ph_num;
   this->m_env.params().get_value("max_ptc_num", max_ptc_num);
   this->m_env.params().get_value("max_ph_num", max_ph_num);
@@ -19,6 +24,9 @@ radiative_transfer_cu<Conf, RadImpl>::radiative_transfer_cu(
   m_cum_num_per_block.resize(m_blocks_per_grid);
   m_pos_in_block.resize(std::max(max_ptc_num, max_ph_num));
 }
+
+template <typename Conf, typename RadImpl>
+radiative_transfer_cu<Conf, RadImpl>::~radiative_transfer_cu() {}
 
 template <typename Conf, typename RadImpl>
 void
@@ -94,7 +102,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
       },
       this->ptc->dev_ptrs(), m_num_per_block.dev_ptr(),
       m_pos_in_block.dev_ptr(), this->photon_produced->get_ptr(),
-      m_rand_states->states(), m_rad);
+      m_rand_states->states(), *m_rad);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -148,7 +156,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
       this->ptc->dev_ptrs(), this->ph->dev_ptrs(), m_pos_in_block.dev_ptr(),
       m_num_per_block.dev_ptr(), m_cum_num_per_block.dev_ptr(),
       this->ph->ptc_id().dev_ptr(),
-      m_rand_states->states(), m_rad, this->m_tracked_fraction);
+      m_rand_states->states(), *m_rad, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -198,7 +206,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
       },
       this->ph->dev_ptrs(), m_num_per_block.dev_ptr(),
       m_pos_in_block.dev_ptr(), this->pair_produced->get_ptr(),
-      m_rand_states->states(), m_rad);
+      m_rand_states->states(), *m_rad);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -256,10 +264,13 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
       this->ph->dev_ptrs(), this->ptc->dev_ptrs(), m_pos_in_block.dev_ptr(),
       m_num_per_block.dev_ptr(), m_cum_num_per_block.dev_ptr(),
       this->ptc->ptc_id().dev_ptr(),
-      m_rand_states->states(), m_rad, this->m_tracked_fraction);
+      m_rand_states->states(), *m_rad, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
 }
 
 }  // namespace Aperture
+
+
+#endif  // _RADIATIVE_TRANSFER_CU_IMPL_H_

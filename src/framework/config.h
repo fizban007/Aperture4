@@ -64,6 +64,9 @@ class Config {
     return idx_t(ext.size(), ext);
   }
 
+  static constexpr value_t value(float x) { return (value_t)x; }
+  static constexpr value_t value(double x) { return (value_t)x; }
+
   Config() {}
   Config(const Config& other) = delete;
   Config(Config&& other) = delete;

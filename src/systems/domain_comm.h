@@ -27,12 +27,12 @@ class domain_comm : public system_t {
   int size() const { return m_size; }
   void resize_buffers(const Grid<Conf::dim>& grid) const;
 
-  virtual void send_guard_cells(vector_field<Conf>& field) const;
-  virtual void send_guard_cells(scalar_field<Conf>& field) const;
+  void send_guard_cells(vector_field<Conf>& field) const;
+  void send_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_guard_cells(typename Conf::multi_array_t& array,
                                 const Grid<Conf::dim>& grid) const;
-  virtual void send_add_guard_cells(vector_field<Conf>& field) const;
-  virtual void send_add_guard_cells(scalar_field<Conf>& field) const;
+  void send_add_guard_cells(vector_field<Conf>& field) const;
+  void send_add_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_add_guard_cells(typename Conf::multi_array_t& array,
                                     const Grid<Conf::dim>& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
@@ -68,10 +68,10 @@ class domain_comm : public system_t {
   mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
 
   void setup_domain();
-  virtual void send_array_guard_cells_single_dir(
+  void send_array_guard_cells_single_dir(
       typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
       int dir) const;
-  virtual void send_add_array_guard_cells_single_dir(
+  void send_add_array_guard_cells_single_dir(
       typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
       int dir) const;
   template <typename PtcType>

@@ -47,15 +47,13 @@ template <typename BufferType>
 void
 particles_base<BufferType>::copy_from(const self_type& other, size_t num,
                                       size_t src_pos, size_t dst_pos) {
-  if (dst_pos + num > m_size)
-    num = m_size - dst_pos;
+  if (dst_pos + num > m_size) num = m_size - dst_pos;
   visit_struct::for_each(
       *static_cast<base_type*>(this), *static_cast<const base_type*>(&other),
       [num, src_pos, dst_pos](const char* name, auto& u, auto& v) {
         u.copy_from(v, num, src_pos, dst_pos);
       });
-  if (dst_pos + num > m_number)
-    set_num(dst_pos + num);
+  if (dst_pos + num > m_number) set_num(dst_pos + num);
 }
 
 template <typename BufferType>
@@ -102,8 +100,7 @@ template <typename BufferType>
 void
 particles_base<BufferType>::append(const vec_t<Pos_t, 3>& x,
                                    const vec_t<Scalar, 3>& p, uint32_t cell,
-                                   Scalar weight,
-                                   uint32_t flag) {
+                                   Scalar weight, uint32_t flag) {
   if (m_number == m_size) return;
   this->x1[m_number] = x[0];
   this->x2[m_number] = x[1];
@@ -195,11 +192,29 @@ particles_base<BufferType>::copy_to_host() {
 
 template <typename BufferType>
 void
+particles_base<BufferType>::copy_to_host(cudaStream_t stream) {
+  if (m_mem_type == MemType::host_device)
+    visit_struct::for_each(
+        *static_cast<base_type*>(this),
+        [stream](const char* name, auto& x) { x.copy_to_host(stream); });
+}
+
+template <typename BufferType>
+void
 particles_base<BufferType>::copy_to_device() {
   if (m_mem_type == MemType::host_device)
     visit_struct::for_each(
         *static_cast<base_type*>(this),
         [](const char* name, auto& x) { x.copy_to_device(); });
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_to_device(cudaStream_t stream) {
+  if (m_mem_type == MemType::host_device)
+    visit_struct::for_each(
+        *static_cast<base_type*>(this),
+        [stream](const char* name, auto& x) { x.copy_to_device(stream); });
 }
 
 }  // namespace Aperture

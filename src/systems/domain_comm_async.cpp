@@ -14,7 +14,7 @@
 namespace Aperture {
 
 template <typename Conf>
-domain_comm_async<Conf>::domain_comm_async(sim_environment& env)
+domain_comm_async<Conf>::domain_comm_async(sim_environment &env)
     : domain_comm<Conf>(env) {
   CudaSafeCall(cudaStreamCreate(&m_copy_stream));
 }
@@ -27,7 +27,7 @@ domain_comm_async<Conf>::~domain_comm_async() {
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_array_guard_cells_single_dir_async(
-    typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
     int dir) const {
   if (dim < 0 || dim >= Conf::dim) return;
 
@@ -115,7 +115,7 @@ domain_comm_async<Conf>::send_guard_cells(scalar_field<Conf> &field) const {
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_guard_cells(typename Conf::multi_array_t &array,
-                                    const Grid<Conf::dim> &grid) const {
+                                          const Grid<Conf::dim> &grid) const {
   send_array_guard_cells_single_dir_async(array, grid, 0, -1);
   send_array_guard_cells_single_dir_async(array, grid, 0, 1);
   send_array_guard_cells_single_dir_async(array, grid, 1, -1);

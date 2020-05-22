@@ -53,6 +53,8 @@ class particles_base : public BufferType {
 
   void copy_to_host();
   void copy_to_device();
+  void copy_to_host(cudaStream_t stream);
+  void copy_to_device(cudaStream_t stream);
 
   template <typename Conf>
   void copy_to_comm_buffers(std::vector<self_type>& buffers,

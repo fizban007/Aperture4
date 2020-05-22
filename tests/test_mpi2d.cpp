@@ -2,7 +2,7 @@
 #include "framework/environment.h"
 #include "framework/config.h"
 #include "systems/grid.h"
-#include "systems/domain_comm.h"
+#include "systems/domain_comm_async.h"
 #include "utils/logger.h"
 
 using namespace Aperture;
@@ -22,7 +22,7 @@ main(int argc, char* argv[]) {
   env.params().add("ptc_buffer_size", int64_t(100));
   env.params().add("ph_buffer_size", int64_t(100));
 
-  auto comm = env.register_system<domain_comm<Conf>>(env);
+  auto comm = env.register_system<domain_comm_async<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>(env, *comm);
 
   particles_t ptc(100, MemType::device_managed);

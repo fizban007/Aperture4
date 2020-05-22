@@ -99,6 +99,7 @@ class sim_environment {
 
   void parse_options(int argc, char** argv);
 
+  // These are variables governing the lifetime of the simulation
   double dt;
   double time;
   uint32_t step;

@@ -41,8 +41,8 @@ sync_cooling(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
 template <typename Scalar>
 HD_INLINE void
 sync_kill_perp(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
-               Scalar B1, Scalar B2, Scalar B3, Scalar E1,
-               Scalar E2, Scalar E3, Scalar q_over_m, Scalar cooling_coef,
+               Scalar E1, Scalar E2, Scalar E3, Scalar B1,
+               Scalar B2, Scalar B3, Scalar q_over_m, Scalar cooling_coef,
                Scalar B0) {
   B1 /= q_over_m;
   B2 /= q_over_m;
@@ -66,8 +66,8 @@ sync_kill_perp(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
   p1 += delta_p1 * f;
   p2 += delta_p2 * f;
   p3 += delta_p3 * f;
-  p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
-  gamma = math::sqrt(1.0f + p * p);
+  // p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
+  gamma = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
 }
 
 

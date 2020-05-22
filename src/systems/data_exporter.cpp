@@ -380,7 +380,11 @@ data_exporter<Conf>::write(field_t<N, Conf>& data,
   if (!snapshot) {
     // Loop over all components, downsample them, then write them to the file
     for (int i = 0; i < N; i++) {
-      std::string namestr = name + std::to_string(i + 1);
+      std::string namestr;
+      if (N == 1)
+        namestr = name;
+      else
+        namestr = name + std::to_string(i + 1);
       write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
       write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
     }

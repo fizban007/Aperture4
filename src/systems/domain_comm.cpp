@@ -200,7 +200,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
     } else {
 #if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
     !MPIX_CUDA_AWARE_SUPPORT
-      m_recv_buffers[dim].copy_to_dev();
+      m_recv_buffers[dim].copy_to_device();
 #endif
       copy_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
                m_recv_buffers[dim].extent());
@@ -267,7 +267,7 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
     } else {
 #if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
     !MPIX_CUDA_AWARE_SUPPORT
-      m_recv_buffers[dim].copy_to_dev();
+      m_recv_buffers[dim].copy_to_device();
 #endif
       add_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
               m_recv_buffers[dim].extent());

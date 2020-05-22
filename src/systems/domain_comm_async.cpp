@@ -87,7 +87,7 @@ domain_comm_async<Conf>::send_array_guard_cells_single_dir_async(
     } else {
 #if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
     !MPIX_CUDA_AWARE_SUPPORT
-      this->m_recv_buffers[dim].copy_to_dev(m_copy_stream);
+      this->m_recv_buffers[dim].copy_to_device(m_copy_stream);
 #endif
       copy_dev(array, this->m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
                this->m_recv_buffers[dim].extent(), &m_copy_stream);
@@ -157,7 +157,7 @@ domain_comm_async<Conf>::send_add_array_guard_cells_single_dir_async(
     } else {
 #if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
     !MPIX_CUDA_AWARE_SUPPORT
-      this->m_recv_buffers[dim].copy_to_dev(m_copy_stream);
+      this->m_recv_buffers[dim].copy_to_device(m_copy_stream);
 #endif
       add_dev(array, this->m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
               this->m_recv_buffers[dim].extent(), Conf::value(1.0), &m_copy_stream);

@@ -16,6 +16,12 @@ if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
 endif()
 
+# Detect C++ compiler features
+# message("Your C++ compiler supports these C++ features:")
+# foreach(i ${CMAKE_CXX_COMPILE_FEATURES})
+#   message("${i}")
+# endforeach()
+
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")

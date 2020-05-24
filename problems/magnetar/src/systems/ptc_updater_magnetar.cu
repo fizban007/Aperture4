@@ -119,15 +119,15 @@ struct pusher_impl_magnetar {
               coef * star_kT * y * (g * mu - p_mag_signed);
           // printf("coef is %f, drag coef is %f\n", coef, drag_coef);
           Scalar theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], ptc.x2[n]));
-          printf("r is %f, theta is %f, gamma is %f, p_par is %f\n", r, theta,
-                 gamma, p_mag_signed);
+          // printf("r is %f, theta is %f, gamma is %f, p_par is %f\n", r, theta,
+          //        gamma, p_mag_signed);
           if (EB.B1 < 0.0f)
             drag_coef = -drag_coef;
           p1 += EB.B1 * dt * drag_coef / B;
           p2 += EB.B2 * dt * drag_coef / B;
           p3 += EB.B3 * dt * drag_coef / B;
 
-          printf("After resonant drag, p1, p2, p3 are %f, %f, %f\n", p1, p2, p3);
+          // printf("After resonant drag, p1, p2, p3 are %f, %f, %f\n", p1, p2, p3);
 
           // Draw emission direction in the particle rest frame, z
           // direction is the particle moving direction

@@ -8,6 +8,9 @@ namespace Aperture {
 template <typename Conf>
 struct rt_magnetar_impl_t;
 
+template <typename Conf>
+using rt_magnetar = radiative_transfer_cu<Conf, rt_magnetar_impl_t<Conf>>;
+
 }
 
 

@@ -8,5 +8,10 @@ module load openmpi/gcc/1.10.2/64
 module load hdf5/gcc/openmpi-1.10.2/1.10.0
 mkdir -p ../build
 cd ../build
-BOOST_ROOT=/usr/local/boost/1.55.0/ cmake -DCMAKE_BUILD_TYPE=Release -Duse_cuda=1 -Duse_double=0 -Dbuild_tests=1 -DCXX_EXTRA_FLAGS="-DBOOST_NO_CXX11_SCOPED_ENUMS" ..
+BOOST_ROOT=/usr/local/boost/1.55.0/ cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -Duse_cuda=1 \
+  -Duse_double=0 \
+  -Dbuild_tests=1 \
+  -DCXX_EXTRA_FLAGS="-DBOOST_NO_CXX11_SCOPED_ENUMS" ..
 make -j4 VERBOSE=1

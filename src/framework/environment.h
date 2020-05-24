@@ -21,18 +21,18 @@ class ParseResult;
 
 namespace Aperture {
 
-class event_handler_t {
+class callback_handler_t {
  public:
   template <typename Func>
   void register_callback(const std::string& name, const Func& func) {
-    // event_map[name].push_back(func);
-    event_map.insert({name, func});
+    // callback_map[name].push_back(func);
+    callback_map.insert({name, func});
   }
 
   template <typename... Args>
   void invoke_callback(const std::string& name, Args&... args) const {
-    auto it = event_map.find(name);
-    if (it == event_map.end()) {
+    auto it = callback_map.find(name);
+    if (it == callback_map.end()) {
       Logger::print_err("Failed to find callback '{}'", name);
       return;
     } else {
@@ -49,8 +49,8 @@ class event_handler_t {
   }
 
  private:
-  // std::unordered_map<std::string, std::vector<std::any>> event_map;
-  std::unordered_map<std::string, boost::any> event_map;
+  // std::unordered_map<std::string, std::vector<std::any>> callback_map;
+  std::unordered_map<std::string, boost::any> callback_map;
 };
 
 class data_store_t {
@@ -88,8 +88,8 @@ class sim_environment {
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
 
-  // Modules that manage events, shared data pointers, and parameters
-  event_handler_t m_event_handler;
+  // Modules that manage callback, shared data pointers, and parameters
+  callback_handler_t m_callback_handler;
   data_store_t m_shared_data;
   params_store m_params;
 
@@ -287,8 +287,8 @@ class sim_environment {
 
   data_store_t& shared_data() { return m_shared_data; }
   const data_store_t& shared_data() const { return m_shared_data; }
-  event_handler_t& event_handler() { return m_event_handler; }
-  const event_handler_t& event_handler() const { return m_event_handler; }
+  callback_handler_t& callback_handler() { return m_callback_handler; }
+  const callback_handler_t& callback_handler() const { return m_callback_handler; }
   params_store& params() { return m_params; }
   const params_store& params() const { return m_params; }
   const cxxopts::ParseResult* commandline_args() const {

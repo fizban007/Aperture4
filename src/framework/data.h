@@ -21,10 +21,10 @@ class data_t {
   virtual ~data_t() {}
 
   virtual void init() {}
-  void set_skip_output() { m_skip_output = true; }
+  void skip_output(bool b) { m_skip_output = b; }
   bool skip_output() { return m_skip_output; }
-  void set_include_in_snapshot() { m_in_snapshot = true; }
-  bool in_snapshot() { return m_in_snapshot; }
+  void include_in_snapshot(bool b) { m_in_snapshot = b; }
+  bool include_in_snapshot() { return m_in_snapshot; }
 };
 
 }  // namespace Aperture

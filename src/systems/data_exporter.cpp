@@ -57,14 +57,6 @@ data_exporter<Conf>::init() {
   // obtain dependent data components
   // m_env.get_data_optional("E", &E);
   // m_env.get_data_optional("B", &B);
-  m_env.get_data_optional("Edelta", &Edelta);
-  m_env.get_data_optional("Bdelta", &Bdelta);
-  m_env.get_data_optional("E0", &E0);
-  m_env.get_data_optional("B0", &B0);
-  if (Edelta != nullptr) Edelta->set_skip_output();
-  if (Bdelta != nullptr) Bdelta->set_skip_output();
-  if (E0 != nullptr) E0->set_skip_output();
-  if (B0 != nullptr) B0->set_skip_output();
 
   // make sure output directory is a directory
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
@@ -89,18 +81,18 @@ data_exporter<Conf>::register_data_components() {
   //                                                 field_type::vert_centered);
 }
 
-template <typename Conf>
-void
-data_exporter<Conf>::add_E_B() {
-  if (E != nullptr && E0 != nullptr && Edelta != nullptr) {
-    E->copy_from(*E0);
-    E->add_by(*Edelta);
-  }
-  if (B != nullptr && B0 != nullptr && Bdelta != nullptr) {
-    B->copy_from(*B0);
-    B->add_by(*Bdelta);
-  }
-}
+// template <typename Conf>
+// void
+// data_exporter<Conf>::add_E_B() {
+//   if (E != nullptr && E0 != nullptr && Edelta != nullptr) {
+//     E->copy_from(*E0);
+//     E->add_by(*Edelta);
+//   }
+//   if (B != nullptr && B0 != nullptr && Bdelta != nullptr) {
+//     B->copy_from(*B0);
+//     B->add_by(*Bdelta);
+//   }
+// }
 
 template <typename Conf>
 void

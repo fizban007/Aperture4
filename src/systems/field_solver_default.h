@@ -40,12 +40,16 @@ class field_solver_default : public system_t {
 
     E = m_env.register_data<vector_field<Conf>>("Edelta", m_grid,
                                                 field_type::edge_centered);
+    E->skip_output(true);
     E0 = m_env.register_data<vector_field<Conf>>("E0", m_grid,
                                                  field_type::edge_centered);
+    E0->skip_output(true);
     B = m_env.register_data<vector_field<Conf>>("Bdelta", m_grid,
                                                 field_type::face_centered);
+    B->skip_output(true);
     B0 = m_env.register_data<vector_field<Conf>>("B0", m_grid,
                                                  field_type::face_centered);
+    B0->skip_output(true);
     J = m_env.register_data<vector_field<Conf>>("J", m_grid,
                                                 field_type::edge_centered);
     divB = m_env.register_data<scalar_field<Conf>>("divB", m_grid,

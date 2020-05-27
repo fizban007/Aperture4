@@ -236,16 +236,19 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
                     const index_t<Dim>& idx_src, const extent_t<Dim>& ext,
                     const index_t<Dim>& idx_dst) {
   hsize_t dims[Dim], array_dims[Dim];
-  for (int i = 0; i < ext.dim(); i++) {
+  for (int i = 0; i < Dim; i++) {
     // dims[i] = ext_total[ext_total.dim() - 1 - i];
-    array_dims[i] = array.extent()[array.dim() - 1 - i];
+    array_dims[i] = array.extent()[Dim - 1 - i];
   }
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
   int dim = H5Sget_simple_extent_ndims(dataspace);
+  if (dim != Dim) {
+    throw std::runtime_error(fmt::format("Dimesion of {} from hdf5 file mismatch with given multi_array", name));
+  }
   H5Sget_simple_extent_dims(dataspace, dims, NULL);
 
-  auto memspace = H5Screate_simple(ext.dim(), array_dims, NULL);
+  auto memspace = H5Screate_simple(dim, array_dims, NULL);
 
   hsize_t offsets[Dim];
   hsize_t offsets_l[Dim];

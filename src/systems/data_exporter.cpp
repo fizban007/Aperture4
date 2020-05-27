@@ -196,7 +196,42 @@ data_exporter<Conf>::write_snapshot(const std::string& filename,
 template <typename Conf>
 void
 data_exporter<Conf>::load_snapshot(const std::string& filename,
-                                   uint32_t& step, double& time) {}
+                                   uint32_t& step, double& time) {
+  H5File snapfile(filename, H5OpenMode::read_parallel);
+
+  // Read simulation stats
+  step = snapfile.read_scalar<uint32_t>("step");
+  time = snapfile.read_scalar<double>("time");
+  m_fld_num = snapfile.read_scalar<int>("output_fld_num");
+  m_ptc_num = snapfile.read_scalar<int>("output_ptc_num");
+
+  // Walk over all data components and read them from the snapshot file according
+  // to their `include_in_snapshot`
+  for (auto& it : m_env.data_map()) {
+    auto data = it.second.get();
+    if (!data->include_in_snapshot()) {
+      continue;
+    }
+    Logger::print_info("Writing {} to snapshot", it.first);
+    if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+      read(*ptr, it.first, snapfile, true);
+      if (m_comm != nullptr) {
+        m_comm->send_guard_cells(*ptr);
+      }
+    } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+      read(*ptr, it.first, snapfile, true);
+      if (m_comm != nullptr) {
+        m_comm->send_guard_cells(*ptr);
+      }
+    }
+  }
+
+  // read field output interval to sort out the xmf file
+  auto fld_interval = snapfile.read_scalar<int>("output_fld_interval");
+  // TODO: touch up the xmf file
+
+  snapfile.close();
+}
 
 template <typename Conf>
 void
@@ -458,8 +493,8 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
       if (m_comm != nullptr && m_comm->size() > 1) {
         datafile.read_subset(data[i], namestr, pos_src, ext, pos_dst);
       } else {
-        auto array = datafile.read_multi_array<Conf::value_t, Conf::dim>(namestr);
-        data[i].host_copy_from_(array);
+        auto array = datafile.read_multi_array<typename Conf::value_t, Conf::dim>(namestr);
+        data[i].host_copy_from(array);
       }
       data[i].copy_to_device();
     }

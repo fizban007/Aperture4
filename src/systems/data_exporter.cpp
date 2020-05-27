@@ -160,7 +160,8 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_snapshot(const std::string& filename) {
+data_exporter<Conf>::write_snapshot(const std::string& filename,
+                                    uint32_t step, double time) {
   H5File snapfile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
   // Walk over all data components and write them to the snapshot file according
@@ -178,12 +179,23 @@ data_exporter<Conf>::write_snapshot(const std::string& filename) {
     }
   }
 
+  // Write simulation stats
+  snapfile.write(step, "step");
+  snapfile.write(time, "time");
+  snapfile.write(m_fld_num, "output_fld_num");
+  snapfile.write(m_ptc_num, "output_ptc_num");
+  snapfile.write(m_fld_output_interval, "output_fld_interval");
+  snapfile.write(m_ptc_output_interval, "output_ptc_interval");
+  int num_ranks = 1;
+  if (m_comm != nullptr) num_ranks = m_comm->size();
+
   snapfile.close();
 }
 
 template <typename Conf>
 void
-data_exporter<Conf>::load_snapshot(const std::string& filename) {}
+data_exporter<Conf>::load_snapshot(const std::string& filename,
+                                   uint32_t& step, double& time) {}
 
 template <typename Conf>
 void
@@ -390,9 +402,31 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
       write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
       write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
     } else {
-      // TODO: Figure out ext and offsets
-      write_multi_array_helper(namestr, data[i], m_grid.extent_less(),
-                               m_grid.offsets(), datafile);
+      extent_t<Conf::dim> ext_total = m_global_ext * m_downsample;
+      extent_t<Conf::dim> ext = m_grid.extent_less();
+      index_t<Conf::dim> pos_dst = m_grid.offsets();
+      index_t<Conf::dim> pos_src{};
+      for (int n = 0; n < Conf::dim; n++) {
+        if (pos_dst[n] > 0) {
+          pos_dst[n] += m_grid.guard[n];
+          pos_src[n] += m_grid.guard[n];
+        }
+        if (m_comm != nullptr && m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
+          ext[n] += m_grid.guard[n];
+        }
+        if (m_comm != nullptr && m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
+          ext[n] += m_grid.guard[n];
+        }
+
+        if (m_comm != nullptr && m_comm->size() > 1) {
+          datafile.write_parallel(data[i], ext_total, pos_dst, ext,
+                                  pos_src, namestr);
+        } else {
+          datafile.write(data[i], namestr);
+        }
+     
+      }
+
     }
   }
 }

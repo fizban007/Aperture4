@@ -52,8 +52,8 @@ class data_exporter : public system_t {
                              const typename Conf::multi_array_t& array,
                              stagger_t stagger, H5File& file);
 
-  void write_snapshot(const std::string& filename);
-  void load_snapshot(const std::string& filename);
+  void write_snapshot(const std::string& filename, uint32_t step, double time);
+  void load_snapshot(const std::string& filename, uint32_t& step, double& time);
 
   bool is_root() const {
     if (m_comm != nullptr)

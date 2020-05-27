@@ -1,12 +1,13 @@
 #include "data_exporter.h"
 #include "core/detail/multi_array_helpers.h"
-#include "data/particle_data.h"
 #include "data/multi_array_data.hpp"
+#include "data/particle_data.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include <boost/filesystem.hpp>
-#include <fmt/ostream.h>
+// #include <fmt/ostream.h>
+#include <fmt/core.h>
 
 namespace fs = boost::filesystem;
 
@@ -54,10 +55,6 @@ data_exporter<Conf>::~data_exporter() {
 template <typename Conf>
 void
 data_exporter<Conf>::init() {
-  // obtain dependent data components
-  // m_env.get_data_optional("E", &E);
-  // m_env.get_data_optional("B", &B);
-
   // make sure output directory is a directory
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
@@ -80,19 +77,6 @@ data_exporter<Conf>::register_data_components() {
   // tmp_B = m_env.register_data<vector_field<Conf>>("B_output", m_output_grid,
   //                                                 field_type::vert_centered);
 }
-
-// template <typename Conf>
-// void
-// data_exporter<Conf>::add_E_B() {
-//   if (E != nullptr && E0 != nullptr && Edelta != nullptr) {
-//     E->copy_from(*E0);
-//     E->add_by(*Edelta);
-//   }
-//   if (B != nullptr && B0 != nullptr && Bdelta != nullptr) {
-//     B->copy_from(*B0);
-//     B->add_by(*Bdelta);
-//   }
-// }
 
 template <typename Conf>
 void
@@ -168,13 +152,45 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     }
     m_ptc_num += 1;
   }
+
+  if (step % m_snapshot_interval == 0) {
+    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string());
+  }
 }
+
+template <typename Conf>
+void
+data_exporter<Conf>::write_snapshot(const std::string& filename) {
+  H5File snapfile = hdf_create(filename, H5CreateMode::trunc_parallel);
+
+  // Walk over all data components and write them to the snapshot file according
+  // to their `include_in_snapshot`
+  for (auto& it : m_env.data_map()) {
+    auto data = it.second.get();
+    if (!data->include_in_snapshot()) {
+      continue;
+    }
+    Logger::print_info("Writing {} to snapshot", it.first);
+    if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+      write(*ptr, it.first, snapfile, true);
+    } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+      write(*ptr, it.first, snapfile, true);
+    }
+  }
+
+  snapfile.close();
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::load_snapshot(const std::string& filename) {}
 
 template <typename Conf>
 void
 data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
-  std::string conf_file = m_env.params().template get_as<std::string>("config_file");
+  std::string conf_file =
+      m_env.params().template get_as<std::string>("config_file");
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
@@ -206,20 +222,14 @@ data_exporter<Conf>::write_grid() {
     if constexpr (Conf::dim > 2) x3_array[idx] = x[2];
   }
 
-  write_multi_array_helper("x1", x1_array, m_global_ext, m_output_grid.offsets(), meshfile);
-  // meshfile.write_parallel(x1_array, m_global_ext, m_output_grid.offsets(),
-  //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
-  //                         "x1");
+  write_multi_array_helper("x1", x1_array, m_global_ext,
+                           m_output_grid.offsets(), meshfile);
   if constexpr (Conf::dim > 1)
-    write_multi_array_helper("x2", x2_array, m_global_ext, m_output_grid.offsets(), meshfile);
-    // meshfile.write_parallel(x2_array, m_global_ext, m_output_grid.offsets(),
-    //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
-    //                         "x2");
+    write_multi_array_helper("x2", x2_array, m_global_ext,
+                             m_output_grid.offsets(), meshfile);
   if constexpr (Conf::dim > 2)
-    write_multi_array_helper("x3", x3_array, m_global_ext, m_output_grid.offsets(), meshfile);
-    // meshfile.write_parallel(x3_array, m_global_ext, m_output_grid.offsets(),
-    //                         m_output_grid.extent_less(), index_t<Conf::dim>{},
-    //                         "x3");
+    write_multi_array_helper("x3", x3_array, m_global_ext,
+                             m_output_grid.offsets(), meshfile);
 
   meshfile.close();
 }
@@ -325,20 +335,19 @@ data_exporter<Conf>::write_grid_multiarray(
   // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0],
   // m_global_ext[1]);
 
-  // file.write_parallel(tmp_grid_data, m_global_ext, m_output_grid.offsets(),
-  //                     m_output_grid.extent_less(), index_t<Conf::dim>{}, name);
-  write_multi_array_helper(name, tmp_grid_data, m_global_ext, m_output_grid.offsets(), file);
+  write_multi_array_helper(name, tmp_grid_data, m_global_ext,
+                           m_output_grid.offsets(), file);
 }
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_multi_array_helper(const std::string& name,
-                                              const typename Conf::multi_array_t& array,
-                                              const extent_t<Conf::dim>& global_ext,
-                                              const index_t<Conf::dim>& offsets,
-                                              H5File& file) {
+data_exporter<Conf>::write_multi_array_helper(
+    const std::string& name, const typename Conf::multi_array_t& array,
+    const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
+    H5File& file) {
   if (m_comm != nullptr && m_comm->size() > 1) {
-    file.write_parallel(array, global_ext, offsets, array.extent(), index_t<Conf::dim>{}, name);
+    file.write_parallel(array, global_ext, offsets, array.extent(),
+                        index_t<Conf::dim>{}, name);
   } else {
     file.write(array, name);
   }
@@ -366,22 +375,25 @@ data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
 template <typename Conf>
 template <int N>
 void
-data_exporter<Conf>::write(field_t<N, Conf>& data,
-                           const std::string& name,
+data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
-  if (!snapshot) {
-    // Loop over all components, downsample them, then write them to the file
-    for (int i = 0; i < N; i++) {
-      std::string namestr;
-      if (N == 1)
-        namestr = name;
-      else
-        namestr = name + std::to_string(i + 1);
+  // Loop over all components, downsample them, then write them to the file
+  for (int i = 0; i < N; i++) {
+    std::string namestr;
+    if (N == 1) {
+      namestr = name;
+    } else {
+      namestr = name + std::to_string(i + 1);
+    }
+
+    if (!snapshot) {
       write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
       write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
+    } else {
+      // TODO: Figure out ext and offsets
+      write_multi_array_helper(namestr, data[i], m_grid.extent_less(),
+                               m_grid.offsets(), datafile);
     }
-  } else {
-    // Loop over all components, write directly to the snapshot file
   }
 }
 
@@ -389,8 +401,8 @@ template <typename Conf>
 template <typename T, int Rank>
 void
 data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
-                           const std::string& name,
-                           H5File& datafile, bool snapshot) {
+                           const std::string& name, H5File& datafile,
+                           bool snapshot) {
   if (!snapshot) {
     if (m_comm != nullptr && m_comm->size() > 1) {
       m_comm->gather_to_root(static_cast<buffer<T>&>(data));

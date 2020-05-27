@@ -42,6 +42,7 @@ ptc_updater_cu<Conf>::register_data_components() {
   // there
   this->ptc = this->m_env.template register_data<particle_data_t>(
       "particles", max_ptc_num, MemType::device_only);
+  this->ptc->include_in_snapshot(true);
 
   this->E = this->m_env.template register_data<vector_field<Conf>>(
       "E", this->m_grid, field_type::edge_centered, MemType::host_device);
@@ -62,6 +63,7 @@ ptc_updater_cu<Conf>::register_data_components() {
   this->m_env.params().get_value("rand_seed", rand_seed);
   m_rand_states = this->m_env.template register_data<curand_states_t>(
       "rand_states", size_t(512 * 1024), rand_seed);
+  m_rand_states->include_in_snapshot(true);
 }
 
 template <typename Conf>

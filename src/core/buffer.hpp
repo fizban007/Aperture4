@@ -175,24 +175,60 @@ class buffer {
   ///  \param other  The other buffer that we are copying from
   ///  \param num    Number of elements to copy
   ///  \param src_pos   Starting position in the other buffer
-  ///  \param dest_pos  Starting position in this buffer (the target)
+  ///  \param dst_pos  Starting position in this buffer (the target)
   void copy_from(const self_type& other, size_t num, size_t src_pos = 0,
-                 size_t dest_pos = 0) {
-    // Sanitize input
-    if (dest_pos + num > m_size) num = m_size - dest_pos;
-    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
-    if (m_model == MemType::host_only) {
-      if (m_host_allocated && other.m_host_allocated)
-        ptr_copy(other.m_data_h, m_data_h, num, src_pos, dest_pos);
+                 size_t dst_pos = 0) {
+    if (other.m_model == MemType::host_only ||
+        m_model == MemType::host_only) {
+      host_copy_from(other, num, src_pos, dst_pos);
     } else {
-      if (m_dev_allocated && other.m_dev_allocated)
-        ptr_copy_dev(other.m_data_d, m_data_d, num, src_pos, dest_pos);
+      dev_copy_from(other, num, src_pos, dst_pos);
+    }
+  }
+
+  ///  Copy a part from another buffer through host memory.
+  ///  \param other  The other buffer that we are copying from
+  ///  \param num    Number of elements to copy
+  ///  \param src_pos   Starting position in the other buffer
+  ///  \param dst_pos  Starting position in this buffer (the target)
+  void host_copy_from(const self_type& other, size_t num, size_t src_pos = 0,
+                      size_t dst_pos = 0) {
+    // Sanitize input
+    if (dst_pos + num > m_size) num = m_size - dst_pos;
+    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
+    if (m_host_allocated && other.m_host_allocated) {
+      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos);
+    }
+  }
+
+  ///  Copy a part from another buffer through device memory
+  ///  \param other  The other buffer that we are copying from
+  ///  \param num    Number of elements to copy
+  ///  \param src_pos   Starting position in the other buffer
+  ///  \param dst_pos  Starting position in this buffer (the target)
+  void dev_copy_from(const self_type& other, size_t num, size_t src_pos = 0,
+                      size_t dst_pos = 0) {
+    // Sanitize input
+    if (dst_pos + num > m_size) num = m_size - dst_pos;
+    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
+    if (m_host_allocated && other.m_host_allocated) {
+      ptr_copy_dev(other.m_data_h, m_data_h, num, src_pos, dst_pos);
     }
   }
 
   ///  Copy from the whole other buffer
   void copy_from(const self_type& other) {
     copy_from(other, other.m_size, 0, 0);
+  }
+
+  ///  Copy from the whole other buffer through host memory
+  void host_copy_from(const self_type& other) {
+    host_copy_from(other, other.m_size, 0, 0);
+  }
+
+  ///  Copy from the whole other buffer through device memory
+  void dev_copy_from(const self_type& other) {
+    dev_copy_from(other, other.m_size, 0, 0);
   }
 
   ///  Place some values directly at and after @pos. Very useful for

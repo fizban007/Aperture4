@@ -508,10 +508,11 @@ domain_comm<Conf>::gather_to_root(buffer<T>& buf) const {
       MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
                  MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
                  MPI_COMM_WORLD);
-  buf.copy_to_device();
+  // buf.copy_to_device();
 // #endif
   if (is_root()) {
-    buf.copy_from(tmp_buf, buf.size());
+    buf.host_copy_from(tmp_buf, buf.size());
+    // buf.copy_to_host();
   }
 }
 

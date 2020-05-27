@@ -81,8 +81,8 @@ data_exporter<Conf>::register_data_components() {
 template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
+  double time = m_env.get_time();
   if (step % m_fld_output_interval == 0) {
-    double time = m_env.get_time();
 
     // Output downsampled fields!
     std::string filename =
@@ -154,7 +154,8 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
   }
 
   if (step % m_snapshot_interval == 0) {
-    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string());
+    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(),
+                   step, time);
   }
 }
 
@@ -402,31 +403,17 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
       write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
       write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
     } else {
-      extent_t<Conf::dim> ext_total = m_global_ext * m_downsample;
-      extent_t<Conf::dim> ext = m_grid.extent_less();
-      index_t<Conf::dim> pos_dst = m_grid.offsets();
-      index_t<Conf::dim> pos_src{};
-      for (int n = 0; n < Conf::dim; n++) {
-        if (pos_dst[n] > 0) {
-          pos_dst[n] += m_grid.guard[n];
-          pos_src[n] += m_grid.guard[n];
-        }
-        if (m_comm != nullptr && m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
-          ext[n] += m_grid.guard[n];
-        }
-        if (m_comm != nullptr && m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
-          ext[n] += m_grid.guard[n];
-        }
+      extent_t<Conf::dim> ext_total, ext;
+      index_t<Conf::dim> pos_src, pos_dst;
+      compute_snapshot_ext_offset(ext_total, ext, pos_src, pos_dst);
 
-        if (m_comm != nullptr && m_comm->size() > 1) {
-          datafile.write_parallel(data[i], ext_total, pos_dst, ext,
-                                  pos_src, namestr);
-        } else {
-          datafile.write(data[i], namestr);
-        }
-     
+      data[i].copy_to_host();
+      if (m_comm != nullptr && m_comm->size() > 1) {
+        datafile.write_parallel(data[i], ext_total, pos_dst, ext,
+                                pos_src, namestr);
+      } else {
+        datafile.write(data[i], namestr);
       }
-
     }
   }
 }
@@ -441,8 +428,64 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
     if (m_comm != nullptr && m_comm->size() > 1) {
       m_comm->gather_to_root(static_cast<buffer<T>&>(data));
     }
+    // gather_to_root only touches host memory, so we can directly use it to
+    // write output
     if (is_root()) {
       datafile.write(static_cast<multi_array<T, Rank>&>(data), name);
+    }
+  }
+}
+
+template <typename Conf>
+template <int N>
+void
+data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
+                          H5File& datafile, bool snapshot) {
+  // Loop over all components, downsample them, then write them to the file
+  for (int i = 0; i < N; i++) {
+    std::string namestr;
+    if (N == 1) {
+      namestr = name;
+    } else {
+      namestr = name + std::to_string(i + 1);
+    }
+
+    if (snapshot) {
+      extent_t<Conf::dim> ext_total, ext;
+      index_t<Conf::dim> pos_src, pos_dst;
+      compute_snapshot_ext_offset(ext_total, ext, pos_dst, pos_src);
+
+      if (m_comm != nullptr && m_comm->size() > 1) {
+        datafile.read_subset(data[i], namestr, pos_src, ext, pos_dst);
+      } else {
+        auto array = datafile.read_multi_array<Conf::value_t, Conf::dim>(namestr);
+        data[i].host_copy_from_(array);
+      }
+      data[i].copy_to_device();
+    }
+  }
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
+                                                 extent_t<Conf::dim>& ext,
+                                                 index_t<Conf::dim>& pos_array,
+                                                 index_t<Conf::dim>& pos_file) {
+  ext_total = m_global_ext * m_downsample;
+  ext = m_grid.extent_less();
+  pos_file = m_grid.offsets();
+  pos_array = index_t<Conf::dim>{};
+  for (int n = 0; n < Conf::dim; n++) {
+    if (pos_file[n] > 0) {
+      pos_array[n] += m_grid.guard[n];
+      pos_file[n] += m_grid.guard[n];
+    }
+    if (m_comm != nullptr && m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
+      ext[n] += m_grid.guard[n];
+    }
+    if (m_comm != nullptr && m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
+      ext[n] += m_grid.guard[n];
     }
   }
 }

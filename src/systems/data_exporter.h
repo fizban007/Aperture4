@@ -108,6 +108,16 @@ class data_exporter : public system_t {
   template <typename T, int Rank>
   void write(multi_array_data<T, Rank>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
+  void read(particle_data_t& data, const std::string& name,
+            H5File& datafile, bool snapshot = false);
+  template <int N>
+  void read(field_t<N, Conf>& data, const std::string& name,
+            H5File& datafile, bool snapshot = false);
+  void read(curand_states_t& data, const std::string& name,
+            H5File& datafile, bool snapshot = false);
+  template <typename T, int Rank>
+  void read(multi_array_data<T, Rank>& data, const std::string& name,
+            H5File& datafile, bool snapshot = false);
 
  private:
   const grid_t<Conf>& m_grid;
@@ -139,6 +149,10 @@ class data_exporter : public system_t {
   stagger_t m_output_stagger = stagger_t(0b000);
 
   void copy_config_file();
+  void compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
+                                   extent_t<Conf::dim>& ext,
+                                   index_t<Conf::dim>& pos_array,
+                                   index_t<Conf::dim>& pos_file);
   void write_multi_array_helper(const std::string& name,
                                 const typename Conf::multi_array_t& array,
                                 const extent_t<Conf::dim>& global_ext,

@@ -184,7 +184,7 @@ H5File::read_multi_array(const std::string& name) {
     ext[i] = dims[dim - i - 1];
   }
 
-  multi_array<T, Dim> result(ext);
+  multi_array<T, Dim> result(ext, MemType::host_only);
   H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
           result.host_ptr());
 

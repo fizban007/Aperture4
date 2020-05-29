@@ -71,6 +71,11 @@ sim_environment::parse_options(int argc, char** argv) {
 
 void
 sim_environment::init() {
+  // Set log level independent of domain comm
+  int log_level = (int)LogLevel::info;
+  m_params.get_value("log_level", log_level);
+  Logger::set_log_level((LogLevel)log_level);
+
   step = 0;
   time = 0.0;
   max_steps = m_params.get_as<int64_t>("max_steps", 1l);

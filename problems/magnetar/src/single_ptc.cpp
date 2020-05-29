@@ -1,8 +1,8 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 // #include "systems/field_solver_sph.h"
-#include "systems/ptc_updater_magnetar.h"
 #include "systems/data_exporter.h"
+#include "systems/ptc_updater_magnetar.h"
 #include "systems/rt_magnetar.h"
 // #include "systems/boundary_condition.h"
 #include <iostream>
@@ -19,11 +19,8 @@ main(int argc, char *argv[]) {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto pusher =
-      env.register_system<ptc_updater_magnetar<Conf>>(env, *grid);
-  auto rt =
-      env.register_system<rt_magnetar<Conf>>(
-          env, *grid);
+  auto pusher = env.register_system<ptc_updater_magnetar<Conf>>(env, *grid);
+  auto rt = env.register_system<rt_magnetar<Conf>>(env, *grid);
   // auto solver =
   //     env.register_system<field_solver_sph<Conf>>(env, *grid);
   // auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
@@ -55,8 +52,8 @@ main(int argc, char *argv[]) {
 
   // Add a single particle to the magnetosphere
   Scalar p0 = 100.0f;
-  ptc->append_dev({0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f},
-                  10 + 60 * grid->dims[0], 100.0);
+  ptc->append_dev({0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],
+                  100.0);
 
   env.run();
   return 0;

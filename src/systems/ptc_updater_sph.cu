@@ -46,14 +46,13 @@ template <typename Conf>
 void
 filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
        const typename Conf::ndptr_const_t& geom_factor,
-       const bool is_boundary[4]) {
+       vec_t<bool, 4> is_boundary) {
   kernel_launch(
       [] __device__(auto result, auto f, auto A, auto is_boundary) {
-        typedef typename Conf::idx_t idx_t;
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = idx_t(n, ext);
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          // auto idx = idx_t(n, ext);
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
@@ -87,7 +86,8 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
       result.get_ptr(), f.get_const_ptr(), geom_factor,
       vec_t<bool, 4>(is_boundary));
   CudaSafeCall(cudaDeviceSynchronize());
-  f.copy_from(result);
+  CudaCheckError();
+  f.dev_copy_from(result);
 }
 
 template <typename Conf>
@@ -320,7 +320,8 @@ template <typename Conf>
 void
 ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
-  if (ph_num) {
+  // Logger::print_debug("Moving {} photons", ph_num);
+  if (ph_num > 0) {
     kernel_launch(
         [ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
                                       auto r_cutoff) {
@@ -436,11 +437,12 @@ void
 ptc_updater_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
-    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp],
+    filter<Conf>(*(this->jtmp), f[comp], grid.get_grid_ptrs().Ae[comp],
                  this->m_comm->domain_info().is_boundary);
   } else {
-    bool is_boundary[4] = {true, true, true, true};
-    filter<Conf>(*(this->jtmp), f.at(comp), grid.get_grid_ptrs().Ae[comp],
+    // bool is_boundary[4] = {true, true, true, true};
+    vec_t<bool, 4> is_boundary(true, true, true, true);
+    filter<Conf>(*(this->jtmp), f[comp], grid.get_grid_ptrs().Ae[comp],
                  is_boundary);
   }
 }
@@ -450,11 +452,12 @@ void
 ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
-    filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV,
+    filter<Conf>(*(this->jtmp), f[0], grid.get_grid_ptrs().dV,
                  this->m_comm->domain_info().is_boundary);
   } else {
-    bool is_boundary[4] = {true, true, true, true};
-    filter<Conf>(*(this->jtmp), f.at(0), grid.get_grid_ptrs().dV, is_boundary);
+    // bool is_boundary[4] = {true, true, true, true};
+    vec_t<bool, 4> is_boundary(true, true, true, true);
+    filter<Conf>(*(this->jtmp), f[0], grid.get_grid_ptrs().dV, is_boundary);
   }
 }
 

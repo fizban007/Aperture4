@@ -58,12 +58,15 @@ template <typename Conf, typename RadImpl>
 void
 radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   auto ptc_num = this->ptc->number();
+  if (ptc_num == 0) return;
+
   m_pos_in_block.assign_dev(0, ptc_num, 0);
   m_num_per_block.assign_dev(0);
   m_cum_num_per_block.assign_dev(0);
 
+  Logger::print_debug("Before kernel launch!");
   // First count number of photons produced
-  kernel_launch(
+  kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ptc_num] __device__(auto ptc, auto ph_count, auto ph_pos,
                            auto ph_produced, auto states, auto rad) {
         auto& grid = dev_grid<Conf::dim>();
@@ -106,6 +109,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
+  Logger::print_info("Before photon scan");
   thrust::device_ptr<int> ptrNumPerBlock(m_num_per_block.dev_ptr());
   thrust::device_ptr<int> ptrCumNum(m_cum_num_per_block.dev_ptr());
 
@@ -123,7 +127,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
 
   // Then emit the number of photons computed
   auto ph_num = this->ph->number();
-  kernel_launch(
+  kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ptc_num, ph_num] __device__(auto ptc, auto ph, auto ph_pos,
                                    auto ph_count, auto ph_cum, auto ph_id, auto states,
                                    auto rad, auto tracked_frac) {
@@ -164,13 +168,15 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
 template <typename Conf, typename RadImpl>
 void
 radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
-  auto ph_num = this->ptc->number();
+  auto ph_num = this->ph->number();
+  if (ph_num == 0) return;
+
   m_pos_in_block.assign_dev(0, ph_num, 0);
   m_num_per_block.assign_dev(0);
   m_cum_num_per_block.assign_dev(0);
 
   // First count number of pairs produced
-  kernel_launch(
+  kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ph_num] __device__(auto ph, auto pair_count, auto pair_pos,
                            auto pair_produced, auto states, auto rad) {
         auto& grid = dev_grid<Conf::dim>();
@@ -210,6 +216,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
+  Logger::print_debug("Before pairs scan");
   thrust::device_ptr<int> ptrNumPerBlock(m_num_per_block.dev_ptr());
   thrust::device_ptr<int> ptrCumNum(m_cum_num_per_block.dev_ptr());
 
@@ -227,7 +234,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
 
   // Then emit the number of photons computed
   auto ptc_num = this->ptc->number();
-  kernel_launch(
+  kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ptc_num, ph_num] __device__(auto ph, auto ptc, auto pair_pos,
                                    auto pair_count, auto pair_cum, auto ptc_id,
                                    auto states, auto rad, auto tracked_frac) {

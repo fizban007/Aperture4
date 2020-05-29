@@ -83,10 +83,6 @@ struct pusher_impl_magnetar {
       Scalar B = math::sqrt(EB.B1 * EB.B1 + EB.B2 * EB.B2 + EB.B3 * EB.B3);
       Scalar pdotB = (p1 * EB.B1 + p2 * EB.B2 + p3 * EB.B3) / B;
 
-      // Scalar pB1 = p1 / p;
-      // Scalar pB2 = p2 / p;
-      // Scalar pB3 = p3 / p;
-
       Scalar mu = math::abs(EB.B1 / B);
       Scalar p_mag_signed = sgn(pdotB) * sgn(EB.B1) * math::abs(pdotB);
       Scalar g = sqrt(1.0f + p_mag_signed * p_mag_signed);
@@ -114,7 +110,7 @@ struct pusher_impl_magnetar {
             set_flag(ptc.flag[n], PtcFlag::emit_photon);
           }
         } else {
-          // Compute analytically the drag force on the particle
+          // Compute analytically the drag force on the particle and apply it
           Scalar drag_coef =
               coef * star_kT * y * (g * mu - p_mag_signed);
           // printf("coef is %f, drag coef is %f\n", coef, drag_coef);
@@ -129,53 +125,54 @@ struct pusher_impl_magnetar {
 
           // printf("After resonant drag, p1, p2, p3 are %f, %f, %f\n", p1, p2, p3);
 
-          // Draw emission direction in the particle rest frame, z
+          // Draw emission direction in the particle rest frame,
           // direction is the particle moving direction
-          // Scalar theta_p = M_PI * rng();
-          // Scalar phi_p = 2.0f * M_PI * rng();
-          // Scalar u = cos(theta_p);
-          // Scalar cphi = cos(phi_p);
-          // Scalar sphi = sin(phi_p);
+          Scalar phi_p = 2.0f * M_PI * rng();
+          Scalar u = 2.0f * rng() - 1.0f;
+          Scalar cphi = cos(phi_p);
+          Scalar sphi = sin(phi_p);
 
-          // Eph = g * (1.0f + math::abs(beta) * u) *
-          //     (1.0f - 1.0f / sqrt(1.0f + 2.0f * B / BQ));
+          Eph = g * (1.0f + math::abs(beta) * u) *
+              (1.0f - 1.0f / sqrt(1.0f + 2.0f * B / BQ));
 
-          // // Lorentz transform u to the lab frame
-          // u = (u + beta) / (1 + beta * u);
-          // Scalar ph1, ph2, ph3;
-          // Scalar sth = sqrt(1.0f - u * u);
-          // ph1 = (pB1 * u - sth * ((pB3 * pB3 + pB2 * pB2) * sphi));
-          // ph2 = (pB2 * u + sth * (pB3 * cphi + pB1 * pB2 * sphi));
-          // ph3 = (pB3 * u - sth * (pB2 * cphi + pB1 * pB3 * sphi));
+          // Lorentz transform u to the lab frame
+          u = (u + beta) / (1 + beta * u);
+          Scalar n1 = p1 / p;
+          Scalar n2 = p2 / p;
+          Scalar n3 = p3 / p;
+          Scalar np = math::sqrt(n1 * n1 + n2 * n2);
 
-          // // Compute the theta of the photon outgoing direction
-          // if (ph1 > 0.0f) {
-          //   Scalar phi = ptc.x3[n];
+          Scalar ph1, ph2;
+          Scalar sth = sqrt(1.0f - u * u);
+          ph1 = (n1 * u - sth * (n2 * cphi + n1 * n3 * sphi) / np);
+          ph2 = (n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np);
+          // ph3 = (n3 * u - sth * (-np * sphi));
 
-          //   sph2cart(ph1, ph2, ph3, r, theta, phi);
-          //   theta_p = acos(ph3);
-          //   Eph = math::log(math::abs(Eph)) / math::log(10.0f);
-          //   if (Eph > 2.0f)
-          //     Eph = 2.0f;
-          //   if (Eph < -6.0f)
-          //     Eph = -6.0f;
-          //   int n0 = ((Eph + 6.0f) / 8.02f * (flux_n_E - 1));
-          //   if (n0 < 0)
-          //     n0 = 0;
-          //   if (n0 >= flux_n_E)
-          //     n0 = flux_n_E - 1;
-          //   int n1 =
-          //       (math::abs(theta_p) / (M_PI + 1.0e-5f)) * (flux_n_th - 1);
-          //   if (n1 < 0)
-          //     n1 = 0;
-          //   if (n1 >= flux_n_th)
-          //     n1 = flux_n_th - 1;
-          //   auto ph_idx = idx_col_major_t<2>(index(n0, n1), extent(flux_n_E, flux_n_th));
-          //   atomicAdd(&ph_flux[ph_idx], Nph * ptc.weight[n]);
-          //   // printf("n0 is %d, n1 is %d, Ndot is %f, ph_flux is %f\n",
-          //   // n0,
-          //   //        n1, Ndot, ph_flux(n0, n1));
-          // }
+          // Compute the theta of the photon outgoing direction
+          if (ph1 > 0.0f) {
+            Scalar theta_p = ph1 * math::cos(theta) - ph2 * math::sin(theta);
+            Eph = math::log(math::abs(Eph)) / math::log(10.0f);
+            if (Eph > 2.0f)
+              Eph = 2.0f;
+            if (Eph < -6.0f)
+              Eph = -6.0f;
+            int n0 = ((Eph + 6.0f) / 8.02f * (flux_n_E - 1));
+            if (n0 < 0)
+              n0 = 0;
+            if (n0 >= flux_n_E)
+              n0 = flux_n_E - 1;
+            int n1 =
+                (math::abs(theta_p) / (M_PI + 1.0e-5f)) * (flux_n_th - 1);
+            if (n1 < 0)
+              n1 = 0;
+            if (n1 >= flux_n_th)
+              n1 = flux_n_th - 1;
+            auto ph_idx = idx_col_major_t<2>(index(n0, n1), extent(flux_n_E, flux_n_th));
+            atomicAdd(&ph_flux[ph_idx], Nph * ptc.weight[n]);
+            // printf("n0 is %d, n1 is %d, Ndot is %f, ph_flux is %f\n",
+            // n0,
+            //        n1, Ndot, ph_flux(n0, n1));
+          }
         }
       }
     }

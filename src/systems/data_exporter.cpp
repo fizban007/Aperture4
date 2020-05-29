@@ -117,6 +117,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       }
+      if (data->reset_after_output()) {
+        data->init();
+      }
     }
 
     datafile.close();
@@ -462,6 +465,8 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
   if (!snapshot) {
     if (m_comm != nullptr && m_comm->size() > 1) {
       m_comm->gather_to_root(static_cast<buffer<T>&>(data));
+    } else {
+      data.copy_to_host();
     }
     // gather_to_root only touches host memory, so we can directly use it to
     // write output

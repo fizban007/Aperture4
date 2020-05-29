@@ -1,5 +1,6 @@
 #include "core/math.hpp"
 #include "core/particle_structs.h"
+#include "data/multi_array_data.hpp"
 #include "framework/config.h"
 #include "systems/radiative_transfer_cu_impl.hpp"
 #include "utils/util_functions.h"
@@ -14,6 +15,9 @@ struct rt_magnetar_impl_t {
   float photon_path = 0.0f;
 
   vec_t<typename Conf::ndptr_const_t, 3> B;
+  ndptr<float, 2> ph_flux;
+  int flux_n_th;
+  int flux_n_E;
 
   HOST_DEVICE rt_magnetar_impl_t() {}
   rt_magnetar_impl_t(sim_environment& env) {
@@ -23,6 +27,13 @@ struct rt_magnetar_impl_t {
     const vector_field<Conf>* B_data;
     env.get_data("B", &B_data);
     B = B_data->get_ptrs();
+
+    multi_array_data<float, 2>* ph_flux_data;
+    env.get_data("ph_flux", &ph_flux_data);
+    ph_flux = ph_flux_data->get_ptr();
+    auto ext = ph_flux_data->extent();
+    flux_n_E = ext[0];
+    flux_n_th = ext[1];
   }
 
   HOST_DEVICE rt_magnetar_impl_t(const rt_magnetar_impl_t& other) = default;

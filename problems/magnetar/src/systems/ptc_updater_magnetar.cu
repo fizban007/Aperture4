@@ -100,7 +100,7 @@ struct pusher_impl_magnetar {
             min(g - 1.0f,
                 g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B / BQ)));
 
-        if (Eph > 2.0f) {
+        if (Eph > 20000.0f) {
           // Produce individual tracked photons
           if (Nph < 1.0f) {
             float u = rng();
@@ -144,13 +144,13 @@ struct pusher_impl_magnetar {
 
           Scalar ph1, ph2;
           Scalar sth = sqrt(1.0f - u * u);
-          ph1 = (n1 * u - sth * (n2 * cphi + n1 * n3 * sphi) / np);
+          ph1 = (n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np);
           ph2 = (n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np);
           // ph3 = (n3 * u - sth * (-np * sphi));
 
           // Compute the theta of the photon outgoing direction
           if (ph1 > 0.0f) {
-            Scalar theta_p = ph1 * math::cos(theta) - ph2 * math::sin(theta);
+            Scalar cth_p = ph1 * math::cos(theta) - ph2 * math::sin(theta);
             Eph = math::log(math::abs(Eph)) / math::log(10.0f);
             if (Eph > 2.0f)
               Eph = 2.0f;
@@ -162,7 +162,7 @@ struct pusher_impl_magnetar {
             if (n0 >= flux_n_E)
               n0 = flux_n_E - 1;
             int n1 =
-                (math::abs(theta_p) / (M_PI + 1.0e-5f)) * (flux_n_th - 1);
+                (0.5f * (cth_p + 1.0f)) * (flux_n_th - 1);
             if (n1 < 0)
               n1 = 0;
             if (n1 >= flux_n_th)
@@ -211,6 +211,9 @@ ptc_updater_magnetar<Conf>::init() {
   m_impl_boris = new pusher_impl_magnetar<boris_pusher>(this->m_env);
   m_impl_vay = new pusher_impl_magnetar<vay_pusher>(this->m_env);
   m_impl_higuera = new pusher_impl_magnetar<higuera_pusher>(this->m_env);
+
+  m_ph_flux->assign_dev(0.0f);
+  m_ph_flux->assign_host(0.0f);
 }
 
 template <typename Conf>
@@ -223,6 +226,7 @@ ptc_updater_magnetar<Conf>::register_data_components() {
   this->m_env.params().get_value("ph_flux_n_E", ph_flux_n_E);
   m_ph_flux = this->m_env.template register_data<multi_array_data<float, 2>>(
       "ph_flux", extent(ph_flux_n_E, ph_flux_n_th), MemType::host_device);
+  m_ph_flux->reset_after_output(true);
 }
 
 template <typename Conf>

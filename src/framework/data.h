@@ -21,8 +21,13 @@ class data_t {
   virtual ~data_t() {}
 
   virtual void init() {}
+  // By default, data output is "opt-out", so by default all data components
+  // will be included in every data output
   void skip_output(bool b) { m_skip_output = b; }
   bool skip_output() { return m_skip_output; }
+
+  // By default, snapshot is "opt-in", so by default any data component will not
+  // be included in a snapshot
   void include_in_snapshot(bool b) { m_in_snapshot = b; }
   bool include_in_snapshot() { return m_in_snapshot; }
 };

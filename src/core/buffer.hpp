@@ -211,8 +211,8 @@ class buffer {
     // Sanitize input
     if (dst_pos + num > m_size) num = m_size - dst_pos;
     if (src_pos + num > other.m_size) num = other.m_size - src_pos;
-    if (m_host_allocated && other.m_host_allocated) {
-      ptr_copy_dev(other.m_data_h, m_data_h, num, src_pos, dst_pos);
+    if (m_dev_allocated && other.m_dev_allocated) {
+      ptr_copy_dev(other.m_data_d, m_data_d, num, src_pos, dst_pos);
     }
   }
 

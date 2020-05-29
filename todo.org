@@ -21,6 +21,8 @@ Basically, data output is "opt-out", and snapshot is "opt-in".
 ** [ ] Curvature radiation
 ** [X] Synchrotron cooling
 ** [ ] Resonant scattering
+Partially done. Need to add a reliable way to extract the outgoing photon
+direction from scattering events, and deposit it to the photon flux buffer.
 ** [X] Simple gravity force
 ** [ ] ICS scattering with arbitrary background
 ** [ ] Triplet pair production

@@ -15,6 +15,51 @@ namespace Aperture {
 
 template <typename Conf>
 void
+filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
+       vec_t<bool, 4> is_boundary) {
+  kernel_launch(
+      [] __device__(auto result, auto f, auto is_boundary) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          // auto idx = idx_t(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
+            if (is_boundary[0] && pos[0] == grid.skirt[0]) dx_minus = 0;
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+              dx_plus = 0;
+            if (is_boundary[2] && pos[1] == grid.skirt[1]) dy_minus = 0;
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+              dy_plus = 0;
+            result[idx] = 0.25f * f[idx];
+            auto idx_px = idx.inc_x(dx_plus);
+            auto idx_mx = idx.dec_x(dx_minus);
+            auto idx_py = idx.inc_y(dy_plus);
+            auto idx_my = idx.dec_y(dy_minus);
+            result[idx] += 0.125f * f[idx_px];
+            result[idx] += 0.125f * f[idx_mx];
+            result[idx] += 0.125f * f[idx_py];
+            result[idx] += 0.125f * f[idx_my];
+            result[idx] +=
+                0.0625f * f[idx_px.inc_y(dy_plus)];
+            result[idx] +=
+                0.0625f * f[idx_px.dec_y(dy_minus)];
+            result[idx] +=
+                0.0625f * f[idx_mx.inc_y(dy_plus)];
+            result[idx] +=
+                0.0625f * f[idx_mx.dec_y(dy_minus)];
+          }
+        }
+      },
+      result.get_ptr(), f.get_const_ptr(), vec_t<bool, 4>(is_boundary));
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+  f.dev_copy_from(result);
+}
+
+template <typename Conf>
+void
 ptc_updater_cu<Conf>::init() {
   init_dev_charge_mass(this->m_charges, this->m_masses);
 
@@ -166,21 +211,16 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
   auto num = this->ptc->number();
   if (num > 0) {
-    auto ext = this->m_grid.extent();
-
     kernel_launch(
-        [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
+        [num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                         auto rho_interval) {
           using spline_t = typename base_class::spline_t;
           auto& grid = dev_grid<Conf::dim>();
+          auto ext = grid.extent();
           // Obtain a local pointer to the shared array
           extern __shared__ char shared_array[];
           value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
                                                  (2 * spline_t::radius + 1)];
-#pragma unroll
-          for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-            djy[j] = 0.0f;
-          }
 
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
@@ -210,7 +250,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
             ptc.x3[n] = x3 + v3 * dt;
 
-            ptc.cell[n] = J[0].get_idx(pos, ext).linear;
+            ptc.cell[n] = Conf::idx(pos, ext).linear;
 
             // step 2: Deposit current
             auto flag = ptc.flag[n];
@@ -223,6 +263,12 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+
+            // Reset djy since it could be nonzero from previous particle
+#pragma unroll
+            for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+              djy[j] = 0.0;
+            }
 
             // value_t djy[2 * spline_t::radius + 1] = {};
             for (int j = j_0; j <= j_1; j++) {
@@ -252,7 +298,9 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
                 // rho is deposited at the final position
                 if (step % rho_interval == 0) {
-                  atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+                  if (math::abs(sx1 * sy1) > TINY) {
+                    atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+                  }
                 }
               }
             }
@@ -376,15 +424,30 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {}
+ptc_updater_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {
+  auto ph_num = this->ph->number();
+  if (ph_num > 0) {
+
+  }
+}
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {}
+ptc_updater_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
+  auto ph_num = this->ph->number();
+  if (ph_num > 0) {
+   
+  }
+}
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {}
+ptc_updater_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {
+  auto ph_num = this->ph->number();
+  if (ph_num > 0) {
+
+  }
+}
 
 template <typename Conf>
 void
@@ -467,11 +530,27 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
+ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
+  if (this->m_comm != nullptr) {
+    filter<Conf>(*(this->jtmp), f[comp], this->m_comm->domain_info().is_boundary);
+  } else {
+    // bool is_boundary[4] = {true, true, true, true};
+    vec_t<bool, 4> is_boundary(true, true, true, true);
+    filter<Conf>(*(this->jtmp), f[comp], is_boundary);
+  }
+}
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {}
+ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {
+  if (this->m_comm != nullptr) {
+    filter<Conf>(*(this->jtmp), f[0], this->m_comm->domain_info().is_boundary);
+  } else {
+    // bool is_boundary[4] = {true, true, true, true};
+    vec_t<bool, 4> is_boundary(true, true, true, true);
+    filter<Conf>(*(this->jtmp), f[0], is_boundary);
+  }
+}
 
 #include "ptc_updater_cu_impl.hpp"
 

@@ -53,10 +53,9 @@ struct rt_magnetar_impl_t {
   __device__ void emit_photon(ptc_ptrs& ptc, uint32_t tid, ph_ptrs& ph,
                               uint32_t offset, cuda_rng_t& rng) {
     auto& grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
     auto c = ptc.cell[tid];
-    auto idx = Conf::idx(c, ext);
-    auto pos = idx.get_pos();
+    auto idx = Conf::idx(c, grid.extent());
+    // auto pos = idx.get_pos();
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
@@ -118,9 +117,8 @@ struct rt_magnetar_impl_t {
                                      cuda_rng_t& rng) {
     // return ph.path_left[tid] < photon_path;
     auto& grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
     uint32_t cell = ph.cell[tid];
-    auto idx = Conf::idx(cell, ext);
+    auto idx = Conf::idx(cell, grid.extent());
     auto pos = idx.get_pos();
     auto x = vec_t<Pos_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto p1 = ph.p1[tid];

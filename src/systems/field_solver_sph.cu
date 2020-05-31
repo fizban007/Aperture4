@@ -351,6 +351,8 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
              const vector_field<Conf>& e, const vector_field<Conf>& b,
              const grid_curv_t<Conf>& grid,
              const bool is_boundary[Conf::dim * 2]) {
+             // const vec_t<bool, Conf::dim * 2> is_boundary) {
+  vec_t<bool, Conf::dim * 2> boundary(is_boundary);
   auto ext = grid.extent();
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp,
@@ -388,7 +390,7 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         }
       },
       divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
-      grid.get_grid_ptrs(), vec_t<bool, Conf::dim * 2>(is_boundary));
+      grid.get_grid_ptrs(), is_boundary);
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
@@ -488,6 +490,7 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
     compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
                  this->m_comm->domain_info().is_boundary);
   } else {
+    // vec_t<bool, 4> is_boundary(true, true, true, true);
     bool is_boundary[4] = {true, true, true, true};
     compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
                  is_boundary);

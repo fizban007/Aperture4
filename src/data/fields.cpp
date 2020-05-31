@@ -16,7 +16,7 @@ field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid, MemType memtype)
 
 template <int N, typename Conf>
 field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
-                          const std::array<stagger_t, N> st, MemType memtype)
+                          const vec_t<stagger_t, N> st, MemType memtype)
     : m_stagger(st), m_memtype(memtype) {
   set_memtype(memtype);
   resize(grid);

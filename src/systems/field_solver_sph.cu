@@ -420,7 +420,6 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
 template <typename Conf>
 void
 field_solver_sph<Conf>::init() {
-  // this->m_env.params().get_value("implicit_alpha", m_alpha);
   this->m_env.params().get_value("implicit_beta", m_beta);
   m_alpha = 1.0 - m_beta;
   this->m_env.params().get_value("damping_length", m_damping_length);

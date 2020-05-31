@@ -27,6 +27,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/detail/multi_array_helpers.cu"
     "data/curand_states.cu"
     # "systems/ffe_solver_EZ.cu"
+    "systems/field_solver.cu"
     "systems/field_solver_default.cu"
     "systems/field_solver_sph.cu"
     "systems/ptc_updater.cu"

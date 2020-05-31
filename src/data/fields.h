@@ -33,14 +33,14 @@ template <int N, typename Conf>
 class field_t : public data_t {
  private:
   std::array<typename Conf::multi_array_t, N> m_data;
-  std::array<stagger_t, N> m_stagger;
+  vec_t<stagger_t, N> m_stagger;
   const Grid<Conf::dim>* m_grid = nullptr;
   MemType m_memtype;
 
  public:
   field_t(MemType memtype = default_mem_type) : m_memtype(memtype) {}
   field_t(const Grid<Conf::dim>& grid, MemType memtype = default_mem_type);
-  field_t(const Grid<Conf::dim>& grid, const std::array<stagger_t, N> st,
+  field_t(const Grid<Conf::dim>& grid, const vec_t<stagger_t, N> st,
           MemType memtype = default_mem_type);
   field_t(const Grid<Conf::dim>& grid, field_type type,
           MemType memtype = default_mem_type);
@@ -100,6 +100,7 @@ class field_t : public data_t {
   }
 
   stagger_t stagger(int n = 0) const { return m_stagger[n]; }
+  vec_t<stagger_t, N> stagger_vec() const { return m_stagger; }
 
   void copy_from(const field_t<N, Conf>& other) {
     for (int i = 0; i < N; i++) {

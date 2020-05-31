@@ -14,6 +14,7 @@ template <class T, int Rank, class Idx_t = default_idx_t<Rank>>
 struct ndptr {
   typedef Idx_t idx_t;
   typedef T value_t;
+  static constexpr int dim = Rank;
 
   T* p = nullptr;
 
@@ -43,6 +44,7 @@ template <class T, int Rank, class Idx_t = default_idx_t<Rank>>
 struct ndptr_const {
   typedef Idx_t idx_t;
   typedef T value_t;
+  static constexpr int dim = Rank;
 
   const T* p = nullptr;
 

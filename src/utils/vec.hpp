@@ -17,13 +17,13 @@ class vec_t {
   typedef vec_t<T, Rank> self_type;
 
   HOST_DEVICE vec_t() {}
-  template <typename... Args>
-  HOST_DEVICE vec_t(Args... args) : memory{T(args)...} {}
   HOST_DEVICE vec_t(const T (&v)[Rank]) {
 #pragma unroll
     for (int i = 0; i < Rank; i++)
       memory[i] = v[i];
   }
+  template <typename... Args>
+  HOST_DEVICE vec_t(Args... args) : memory{T(args)...} {}
   HOST_DEVICE ~vec_t() {}
 
   HD_INLINE T& operator[](std::size_t n) { return memory[n]; }

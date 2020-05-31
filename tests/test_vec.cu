@@ -52,3 +52,12 @@ TEST_CASE("extent_t", "[vec]") {
   REQUIRE(ext[0] == 12);
   REQUIRE(ext[1] == 32);
 }
+
+TEST_CASE("construction using an array", "[vec]") {
+  bool v[4] = {false, true, false, true};
+  vec_t<bool, 4> b(v);
+
+  for (int i = 0; i < 4; i++) {
+    REQUIRE(b[i] == v[i]);
+  }
+}

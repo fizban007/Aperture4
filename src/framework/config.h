@@ -74,6 +74,12 @@ class Config {
   Config& operator=(Config&& other) = delete;
 };
 
+// Define a macro to help instantiate classes with config
+#define INSTANTIATE_CONFIG(class_name)          \
+  template class class_name<Config<1>>;         \
+  template class class_name<Config<2>>;         \
+  template class class_name<Config<3>>
+
 }  // namespace Aperture
 
 #endif

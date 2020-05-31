@@ -13,6 +13,7 @@ set(Aperture_src
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
   "systems/grid_sph.cpp"
+  "systems/field_solver.cpp"
   "systems/ptc_updater.cpp"
   "systems/ptc_injector.cpp"
   # "systems/radiative_transfer.cpp"

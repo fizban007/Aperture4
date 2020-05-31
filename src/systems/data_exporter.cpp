@@ -530,8 +530,6 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
   }
 }
 
-template class data_exporter<Config<1>>;
-template class data_exporter<Config<2>>;
-template class data_exporter<Config<3>>;
+INSTANTIATE_WITH_CONFIG(data_exporter);
 
 }  // namespace Aperture

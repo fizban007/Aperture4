@@ -347,10 +347,10 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 
 template <typename Conf>
 void
-compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
-             const vector_field<Conf>& e, const vector_field<Conf>& b,
-             const grid_curv_t<Conf>& grid,
-             const bool is_boundary[Conf::dim * 2]) {
+compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
+                const vector_field<Conf>& e, const vector_field<Conf>& b,
+                const grid_curv_t<Conf>& grid,
+                const bool is_boundary[Conf::dim * 2]) {
              // const vec_t<bool, Conf::dim * 2> is_boundary) {
   vec_t<bool, Conf::dim * 2> boundary(is_boundary);
   auto ext = grid.extent();
@@ -390,8 +390,9 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         }
       },
       divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
-      grid.get_grid_ptrs(), is_boundary);
+      grid.get_grid_ptrs(), boundary);
   CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
 }
 
 template <typename Conf>
@@ -486,13 +487,13 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
   if (this->m_comm != nullptr) {
-    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
-                 this->m_comm->domain_info().is_boundary);
+    compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                    this->m_comm->domain_info().is_boundary);
   } else {
     // vec_t<bool, 4> is_boundary(true, true, true, true);
     bool is_boundary[4] = {true, true, true, true};
-    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
-                 is_boundary);
+    compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                    is_boundary);
   }
 }
 
@@ -549,12 +550,12 @@ field_solver_sph<Conf>::update_semi_impl(double dt, double alpha, double beta,
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
   if (this->m_comm != nullptr) {
-    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
-                 this->m_comm->domain_info().is_boundary);
+    compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                    this->m_comm->domain_info().is_boundary);
   } else {
     bool is_boundary[4] = {true, true, true, true};
-    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
-                 is_boundary);
+    compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
+                    is_boundary);
   }
 }
 

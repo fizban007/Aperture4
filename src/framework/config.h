@@ -75,7 +75,7 @@ class Config {
 };
 
 // Define a macro to help instantiate classes with config
-#define INSTANTIATE_CONFIG(class_name)          \
+#define INSTANTIATE_WITH_CONFIG(class_name)          \
   template class class_name<Config<1>>;         \
   template class class_name<Config<2>>;         \
   template class class_name<Config<3>>

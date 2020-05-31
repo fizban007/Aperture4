@@ -93,6 +93,6 @@ field_solver<Conf>::update_semi_implicit(double dt, double alpha, double beta,
                                          double time) {}
 
 //// Explicit instantiation for 1d, 2d, and 3d
-INSTANTIATE_CONFIG(field_solver);
+INSTANTIATE_WITH_CONFIG(field_solver);
 
 }  // namespace Aperture

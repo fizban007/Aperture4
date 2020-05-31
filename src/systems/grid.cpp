@@ -69,8 +69,6 @@ grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>& comm)
 template <typename Conf>
 grid_t<Conf>::~grid_t() {}
 
-template class grid_t<Config<1>>;
-template class grid_t<Config<2>>;
-template class grid_t<Config<3>>;
+INSTANTIATE_WITH_CONFIG(grid_t);
 
 }  // namespace Aperture

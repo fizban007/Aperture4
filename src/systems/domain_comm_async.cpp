@@ -208,8 +208,6 @@ domain_comm_async<Conf>::send_guard_cells(typename Conf::multi_array_t &array,
 }
 
 // Explicitly instantiate some of the configurations that may occur
-template class domain_comm_async<Config<1>>;
-template class domain_comm_async<Config<2>>;
-template class domain_comm_async<Config<3>>;
+INSTANTIATE_WITH_CONFIG(domain_comm_async);
 
 }  // namespace Aperture

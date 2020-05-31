@@ -27,7 +27,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
                                     - j[1][idx]);
 
             result[2][idx] += dt * (finite_diff<Conf::dim>::curl2(b, idx, stagger)
-                                    - j[1][idx]);
+                                    - j[2][idx]);
           }
         }
       },
@@ -111,6 +111,7 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   // FIXME: implement semi implicit update!!!
 }
 
-INSTANTIATE_CONFIG(field_solver_cu);
+INSTANTIATE_WITH_CONFIG(field_solver_cu);
+
 
 }  // namespace Aperture

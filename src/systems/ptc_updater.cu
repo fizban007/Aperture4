@@ -554,8 +554,6 @@ ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {
 
 #include "ptc_updater_cu_impl.hpp"
 
-template class ptc_updater_cu<Config<1>>;
-template class ptc_updater_cu<Config<2>>;
-template class ptc_updater_cu<Config<3>>;
+INSTANTIATE_WITH_CONFIG(ptc_updater_cu);
 
 }  // namespace Aperture

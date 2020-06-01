@@ -72,24 +72,24 @@ template <typename Conf>
 void
 field_solver<Conf>::init() {
   this->m_env.params().get_value("use_implicit", m_use_implicit);
-  this->m_env.params().get_value("implicit_beta", m_beta);
-  m_alpha = 1.0 - m_beta;
+  if (m_use_implicit) {
+    this->m_env.params().get_value("implicit_beta", m_beta);
+    m_alpha = 1.0 - m_beta;
+    this->init_impl_tmp_fields();
+  }
   this->m_env.params().get_value("fld_output_interval", m_data_interval);
 
-  this->init_impl_tmp_fields();
 }
 
 template <typename Conf>
 void
 field_solver<Conf>::init_impl_tmp_fields() {
-  if (m_use_implicit) {
-    m_tmp_b1 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
-    m_tmp_b2 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
-    m_bnew =
-        std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
-  }
+  m_tmp_b1 =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
+  m_tmp_b2 =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
+  m_bnew =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
 }
 
 template <typename Conf>

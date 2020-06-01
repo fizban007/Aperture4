@@ -105,14 +105,12 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
 template <typename Conf>
 void
 field_solver_cu<Conf>::init_impl_tmp_fields() {
-  if (this->m_use_implicit) {
-    this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(this->m_grid,
-                                                          MemType::device_only);
-    this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(this->m_grid,
-                                                          MemType::device_only);
-    this->m_bnew = std::make_unique<vector_field<Conf>>(this->m_grid,
+  this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(this->m_grid,
                                                         MemType::device_only);
-  }
+  this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(this->m_grid,
+                                                        MemType::device_only);
+  this->m_bnew = std::make_unique<vector_field<Conf>>(this->m_grid,
+                                                      MemType::device_only);
 }
 
 template <typename Conf>

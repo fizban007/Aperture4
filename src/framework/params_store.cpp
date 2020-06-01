@@ -1,10 +1,17 @@
 #include "params_store.h"
 #include "cpptoml.h"
 #include <memory>
+#include <type_traits>
 #include <variant>
 #include <boost/filesystem.hpp>
+#include <fmt/format.h>
 
 namespace fs = boost::filesystem;
+
+template<typename T> struct is_vector : public std::false_type {};
+
+template<typename T, typename A>
+struct is_vector<std::vector<T, A>> : public std::true_type {};
 
 namespace Aperture {
 
@@ -40,7 +47,13 @@ class params_store::params_store_impl {
         return default_value;
       }
     } else {
-      Logger::print_err("> Parameter '{}' not found in store!", name);
+      if constexpr (is_vector<T>::value) {
+        Logger::print_err("> Parameter '{}' not found in store, using default [{}]",
+                          name, fmt::join(default_value, ","));
+      } else {
+        Logger::print_err("> Parameter '{}' not found in store, using default {}", name,
+                          default_value);
+      }
       return default_value;
     }
   }

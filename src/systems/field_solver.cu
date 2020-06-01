@@ -22,15 +22,15 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
                 dt *
-                (finite_diff<Conf::dim>::curl0(b, idx, stagger) - j[0][idx]);
+                (finite_diff<Conf::dim>::curl0(b, idx, stagger, grid) - j[0][idx]);
 
             result[1][idx] +=
                 dt *
-                (finite_diff<Conf::dim>::curl1(b, idx, stagger) - j[1][idx]);
+                (finite_diff<Conf::dim>::curl1(b, idx, stagger, grid) - j[1][idx]);
 
             result[2][idx] +=
                 dt *
-                (finite_diff<Conf::dim>::curl2(b, idx, stagger) - j[2][idx]);
+                (finite_diff<Conf::dim>::curl2(b, idx, stagger, grid) - j[2][idx]);
           }
         }
       },
@@ -52,13 +52,13 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
-                dt * finite_diff<Conf::dim>::curl0(e, idx, stagger);
+                - dt * finite_diff<Conf::dim>::curl0(e, idx, stagger, grid);
 
             result[1][idx] +=
-                dt * finite_diff<Conf::dim>::curl1(e, idx, stagger);
+                - dt * finite_diff<Conf::dim>::curl1(e, idx, stagger, grid);
 
             result[2][idx] +=
-                dt * finite_diff<Conf::dim>::curl2(e, idx, stagger);
+                - dt * finite_diff<Conf::dim>::curl2(e, idx, stagger, grid);
           }
         }
       },
@@ -81,8 +81,8 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            divE[idx] = finite_diff<Conf::dim>::div(e, idx, st_e);
-            divB[idx] = finite_diff<Conf::dim>::div(b, idx, st_b);
+            divE[idx] = finite_diff<Conf::dim>::div(e, idx, st_e, grid);
+            divB[idx] = finite_diff<Conf::dim>::div(b, idx, st_b, grid);
 
             // Check boundary
             // if (is_boundary[0] && pos[0] == grid.skirt[0])

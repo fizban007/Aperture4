@@ -135,6 +135,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                         auto rho_interval) {
           using spline_t = typename base_class::spline_t;
+          auto& grid = dev_grid<Conf::dim>();
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
             if (cell == empty_cell) continue;
@@ -151,7 +152,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             v2 /= gamma;
             v3 /= gamma;
 
-            auto new_x1 = x1 + (v1 * dt) * dev_grid_1d.inv_delta[0];
+            auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
             int dc1 = std::floor(new_x1);
             pos[0] += dc1;
             ptc.x1[n] = new_x1 - (Pos_t)dc1;
@@ -177,7 +178,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
               // j1 is movement in x1
               int offset = i + pos[0] - dc1;
               djx += sx1 - sx0;
-              atomicAdd(&J[0][offset], -weight * djx);
+              atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
               // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
               // j2 is simply v2 times rho at center
@@ -389,19 +390,22 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
                   auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
                   djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
                   if (math::abs(djx) > TINY)
-                    atomicAdd(&J[0][offset], -weight * djx);
+                    atomicAdd(&J[0][offset],
+                              -weight * djx * grid.delta[0] / dt);
                   // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
                   // j2 is movement in x2
                   djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
                   if (math::abs(djy[i - i_0]) > TINY)
-                    atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
+                    atomicAdd(&J[1][offset],
+                              -weight * djy[i - i_0] * grid.delta[1] / dt);
 
                   // j3 is movement in x3
                   djz[j - j_0][i - i_0] +=
                       movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
                   if (math::abs(djz[j - j_0][i - i_0]) > TINY)
-                    atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
+                    atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0] *
+                                                 grid.delta[2] / dt);
 
                   // rho is deposited at the final position
                   if (step % rho_interval == 0) {

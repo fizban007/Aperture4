@@ -31,7 +31,7 @@ main(int argc, char *argv[]) {
       env.register_system<ptc_updater_cu<Conf>>(env, *grid, comm);
   auto solver =
       env.register_system<field_solver_cu<Conf>>(env, *grid, comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);
 
   env.init();
@@ -52,7 +52,7 @@ main(int argc, char *argv[]) {
   });
   pusher->fill_multiplicity(10);
   // ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 100.0f, 0.0f}, 200 + 258 * grid->dims[0],
-  //                 100.0);
+  //                 100.0, set_ptc_type_flag(0, PtcType::positron));
 
   env.run();
   return 0;

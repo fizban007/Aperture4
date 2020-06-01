@@ -77,25 +77,25 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
           // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
           //                                                 zone_offset].cell[pos],
           //                                                 ptc_data.cell[n]);
-          printf("target zone is %lu\n", zone - zone_offset);
+          // printf("target zone is %lu\n", zone - zone_offset);
           // Compute particle cell delta
           int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
           int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
           int dx = zone % 3 - 1;
           auto idx = Conf::idx(cell, ext);
-          int dcell =
-              -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
-              dy * grid.reduced_dim(1) * grid.dims[0] -
-              dx * grid.reduced_dim(0);
+          // int dcell =
+          //     -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
+          //     dy * grid.reduced_dim(1) * grid.dims[0] -
+          //     dx * grid.reduced_dim(0);
           ptc_buffers[zone - zone_offset].cell[pos] =
               idx.dec_z(dz * grid.reduced_dim(2))
                   .dec_y(dy * grid.reduced_dim(1))
                   .dec_x(dx * grid.reduced_dim(0))
                   .linear;
-          printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n", dcell,
-                 ptc_data.cell[n],
-                 ptc_buffers[zone - zone_offset].cell[pos],
-                 zone - zone_offset);
+          // printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n", dcell,
+          //        ptc_data.cell[n],
+          //        ptc_buffers[zone - zone_offset].cell[pos],
+          //        zone - zone_offset);
           // Set the particle to empty
           ptc_data.cell[n] = empty_cell;
         }

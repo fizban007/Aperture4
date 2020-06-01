@@ -229,11 +229,11 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
   send_idx[dim] = (dir == -1 ? 0 : grid.dims[dim] - grid.guard[dim]);
 
   if (array.mem_type() == MemType::host_only) {
-    add(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
-        m_send_buffers[dim].extent());
+    copy(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+         m_send_buffers[dim].extent());
   } else {
-    add_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
-            m_send_buffers[dim].extent());
+    copy_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+             m_send_buffers[dim].extent());
   }
 
 #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT

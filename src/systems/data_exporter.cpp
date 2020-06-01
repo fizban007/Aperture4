@@ -156,7 +156,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     m_ptc_num += 1;
   }
 
-  if (step % m_snapshot_interval == 0) {
+  if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0) {
     write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(),
                    step, time);
   }

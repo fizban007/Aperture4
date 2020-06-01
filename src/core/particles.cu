@@ -5,6 +5,7 @@
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
+#include "utils/timer.h"
 #include "visit_struct/visit_struct.hpp"
 
 #include <thrust/binary_search.h>
@@ -19,7 +20,7 @@ namespace Aperture {
 template <typename Conf>
 void
 compute_target_buffers(const uint32_t* cells, size_t num,
-                       buffer<int>& buffer_num, size_t* idx) {
+                       buffer<int>& buffer_num, size_t* index) {
   kernel_launch(
       [num] __device__(auto cells, auto buffer_num, auto index) {
         auto& grid = dev_grid<Conf::dim>();
@@ -44,61 +45,62 @@ compute_target_buffers(const uint32_t* cells, size_t num,
           index[n] = ((zone & 0b11111) << (sizeof(size_t) * 8 - 5)) + pos;
         }
       },
-      cells, buffer_num.dev_ptr(), idx);
+      cells, buffer_num.dev_ptr(), index);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf, typename PtcPtrs>
 void
-copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* idx,
+copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
                          buffer<PtcPtrs>& ptc_buffers) {
   kernel_launch(
       [num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
+        int bitshift_width = (sizeof(size_t) * 8 - 5);
+        int zone_offset = 0;
+        if (Conf::dim == 2)
+          zone_offset = 9;
+        else if (Conf::dim == 1)
+          zone_offset = 12;
+        // loop through the particle array
         for (auto n : grid_stride_range(0, num)) {
-          int bitshift_width = (sizeof(size_t) * 8 - 5);
-          int zone_offset = 0;
-          if (Conf::dim == 2)
-            zone_offset = 9;
-          else if (Conf::dim == 1)
-            zone_offset = 12;
-          // loop through the particle array
-          for (auto n : grid_stride_range(0, num)) {
-            auto cell = ptc_data.cell[n];
-            if (cell == empty_cell) continue;
-            size_t i = index[n];
-            size_t zone = ((i >> bitshift_width) & 0b11111);
-            if (zone == 13 || zone > 27) continue;
-            size_t pos = i - (zone << bitshift_width);
-            // printf("in copy, pos is %lu, zone is %lu\n", pos, zone);
-            // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
-            assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
-            // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
-            //                                                 zone_offset].cell[pos], ptc_data.cell[n]);
-            // Compute particle cell delta
-            int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
-            int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
-            int dx = zone % 3 - 1;
-            auto idx = Conf::idx(cell, ext);
-            // int dcell =
-            //     -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
-            //     dy * grid.reduced_dim(1) * grid.dims[0] -
-            //     dx * grid.reduced_dim(0);
-            ptc_buffers[zone - zone_offset].cell[pos] =
-                idx.dec_z(dz * grid.reduced_dim(2))
-                .dec_y(dy * grid.reduced_dim(1))
-                .dec_x(dx * grid.reduced_dim(0)).linear;
-            // printf("dc is %d, cell is %u, cell after is %u\n", dcell,
-            //        ptc_data.cell[n],
-            //        ptc_buffers[zone - zone_offset].cell[pos]);
-            // Set the particle to empty
-            ptc_data.cell[n] = empty_cell;
-          }
+          auto cell = ptc_data.cell[n];
+          if (cell == empty_cell) continue;
+          size_t i = index[n];
+          size_t zone = ((i >> bitshift_width) & 0b11111);
+          if (zone == 13 || zone > 27) continue;
+          size_t pos = i - (zone << bitshift_width);
+          // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
+          assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
+          // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
+          //                                                 zone_offset].cell[pos],
+          //                                                 ptc_data.cell[n]);
+          printf("target zone is %lu\n", zone - zone_offset);
+          // Compute particle cell delta
+          int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
+          int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
+          int dx = zone % 3 - 1;
+          auto idx = Conf::idx(cell, ext);
+          int dcell =
+              -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
+              dy * grid.reduced_dim(1) * grid.dims[0] -
+              dx * grid.reduced_dim(0);
+          ptc_buffers[zone - zone_offset].cell[pos] =
+              idx.dec_z(dz * grid.reduced_dim(2))
+                  .dec_y(dy * grid.reduced_dim(1))
+                  .dec_x(dx * grid.reduced_dim(0))
+                  .linear;
+          printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n", dcell,
+                 ptc_data.cell[n],
+                 ptc_buffers[zone - zone_offset].cell[pos],
+                 zone - zone_offset);
+          // Set the particle to empty
+          ptc_data.cell[n] = empty_cell;
         }
       },
-      ptc_data, idx, ptc_buffers.dev_ptr());
+      ptc_data, index, ptc_buffers.dev_ptr());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -154,7 +156,8 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
                                    empty_cell - 1) -
                ptr_cell;
 
-    // Logger::print_info("Sorting complete, there are {} particles in the pool",
+    // Logger::print_info("Sorting complete, there are {} particles in the
+    // pool",
     //                    m_number);
     cudaDeviceSynchronize();
     CudaCheckError();
@@ -192,17 +195,18 @@ particles_base<BufferType>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Conf>& grid) {
   if (m_number > 0) {
+    // timer::stamp("compute_buffer");
     if (m_index.size() != m_size) m_index.resize(m_size);
+    m_index.assign_dev(0, m_number, -1);
     auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
-    thrust::fill_n(ptr_idx, m_number, -1);
-    for (int i = 0; i < 27; i++) {
-      m_zone_buffer_num[i] = 0;
-    }
-    m_zone_buffer_num.copy_to_device();
-    compute_target_buffers<Conf>(this->cell.dev_ptr(), m_number, m_zone_buffer_num,
-                                 m_index.dev_ptr());
 
+    m_zone_buffer_num.assign_dev(0);
+    compute_target_buffers<Conf>(this->cell.dev_ptr(), m_number,
+                                 m_zone_buffer_num, m_index.dev_ptr());
+    m_zone_buffer_num.copy_to_host();
     CudaSafeCall(cudaDeviceSynchronize());
+    // timer::show_duration_since_stamp("Computing target buffers", "ms",
+    // "compute_buffer");
 
     int zone_offset = 0;
     if (buffers.size() == 9)
@@ -215,10 +219,21 @@ particles_base<BufferType>::copy_to_comm_buffers(
       if (i + zone_offset == 13) continue;
       buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
     }
+    // timer::stamp("copy_to_buffer");
     copy_component_to_buffer<Conf>(m_dev_ptrs, m_number, m_index.dev_ptr(),
                                    buf_ptrs);
-
+    for (unsigned int i = 0; i < buffers.size(); i++) {
+      if (buffers[i].number() > 0) {
+        buffers[i].copy_to_host();
+      }
+    }
+    // if (buffers[7].number() > 0) {
+    //   buffers[7].copy_to_host();
+    //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
+    // }
     CudaSafeCall(cudaDeviceSynchronize());
+    // timer::show_duration_since_stamp("Copy to buffer", "ms",
+    // "copy_to_buffer");
   }
 }
 

@@ -61,9 +61,9 @@ grid_t<Conf>::grid_t(sim_environment& env,
 }
 
 template <typename Conf>
-grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>& comm)
-    : grid_t(env, comm.domain_info()) {
-  comm.resize_buffers(*this);
+grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>* comm)
+    : grid_t(env, comm->domain_info()) {
+  comm->resize_buffers(*this);
 }
 
 template <typename Conf>

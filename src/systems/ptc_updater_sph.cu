@@ -154,11 +154,6 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
       extern __shared__ char shared_array[];
       value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
                                              (2 * spline_t::radius + 1)];
-      // #pragma unroll
-      //       for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-      //         djy[j] = 0.0f;
-      //       }
-
       for (auto n : grid_stride_range(0, num)) {
         uint32_t cell = ptc.cell[n];
         if (cell == empty_cell) continue;

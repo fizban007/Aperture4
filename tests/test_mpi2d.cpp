@@ -23,7 +23,7 @@ main(int argc, char* argv[]) {
   env.params().add("ph_buffer_size", int64_t(100));
 
   auto comm = env.register_system<domain_comm_async<Conf>>(env);
-  auto grid = env.register_system<grid_t<Conf>>(env, *comm);
+  auto grid = env.register_system<grid_t<Conf>>(env, comm);
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);
@@ -67,6 +67,7 @@ main(int argc, char* argv[]) {
     }
   }
 
+  v.assign_dev(comm->rank());
   comm->send_add_guard_cells(v, *grid);
   // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, -1);
   // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, 1);

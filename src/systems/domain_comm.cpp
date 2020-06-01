@@ -5,6 +5,7 @@
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "utils/logger.h"
+#include "utils/timer.h"
 #include "utils/mpi_helper.h"
 
 #if defined(OPEN_MPI) && OPEN_MPI
@@ -341,7 +342,11 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
   // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
-  send_buffer.copy_to_host();
+  // send_buffer.copy_to_host();
+  // if (num_send > 0) {
+  //   Logger::print_debug("Send count is {}, send cell[0] is {}, send cell[1] is {}",
+  //                       num_send, send_buffer.cell[0], send_buffer.cell[1]);
+  // }
   int num_recv = 0;
   visit_struct::for_each(
       send_buffer.get_host_ptrs(), recv_buffer.get_host_ptrs(),
@@ -358,8 +363,10 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
                      recv_stat);
         // MPI_Wait(recv_req, recv_stat);
         if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
-          // Logger::print_debug("Send count is {}, send cell[0] is {}",
-          //                     num_send, u[0]);
+          if (num_send > 0) {
+            Logger::print_debug("Send count is {}, send cell[0] is {}",
+                                num_send, u[0]);
+          }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
         }
@@ -374,10 +381,14 @@ template <typename PtcType>
 void
 domain_comm<Conf>::send_particles_impl(PtcType &ptc,
                                        const grid_t<Conf> &grid) const {
+  Logger::print_info("Sending paticles");
+  timer::stamp("send_ptc");
   if (!m_buffers_ready) resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);
   auto &buf_ptrs = ptc_buffer_ptrs(ptc);
+  // timer::stamp("copy_comm");
   ptc.copy_to_comm_buffers(buffers, buf_ptrs, grid);
+  // timer::show_duration_since_stamp("Coping to comm buffers", "ms", "copy_comm");
 
   // Define the central zone and number of send_recv in x direction
   int central = 13;
@@ -455,11 +466,12 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
 
   // Copy the central recv buffer into the main array
   ptc.copy_from(buffers[central], buffers[central].number(), 0, ptc.number());
-  // Logger::print_debug(
-  //     "Communication resulted in {} ptc in total, ptc has {} particles "
-  //     "now",
-  //     buffers[central].number(), ptc.number());
+  Logger::print_debug(
+      "Communication resulted in {} ptc in total, ptc has {} particles "
+      "now",
+      buffers[central].number(), ptc.number());
   buffers[central].set_num(0);
+  timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
 }
 
 template <typename Conf>

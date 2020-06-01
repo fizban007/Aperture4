@@ -137,8 +137,8 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   // Clear guard cells
   clear_guard_cells();
 
-  // sort at the given interval
-  if ((step % m_sort_interval) == 0) {
+  // sort at the given interval. Turn off sorting if m_sort_interval is 0
+  if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
   }
 

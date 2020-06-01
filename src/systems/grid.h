@@ -20,7 +20,7 @@ class grid_t : public system_t, public Grid<Conf::dim> {
 
   grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
                                    domain_info_t<Conf::dim>{});
-  grid_t(sim_environment& env, const domain_comm<Conf>& comm);
+  grid_t(sim_environment& env, const domain_comm<Conf>* comm);
   grid_t(const grid_t<Conf>& grid) = default;
   virtual ~grid_t();
 

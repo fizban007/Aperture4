@@ -25,7 +25,7 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
   m_env.params().get_value("downsample", m_downsample);
 
   // Resize the tmp data array
-  size_t max_ptc_num = 1, max_ph_num = 1;
+  size_t max_ptc_num = 100, max_ph_num = 100;
   m_env.params().get_value("max_ptc_num", max_ptc_num);
   m_env.params().get_value("max_ph_num", max_ph_num);
 

@@ -23,7 +23,11 @@ particles_base<BufferType>::particles_base(size_t size, MemType model)
 template <typename BufferType>
 void
 particles_base<BufferType>::set_memtype(MemType memtype) {
-  m_zone_buffer_num.set_memtype(memtype);
+  if (memtype == MemType::host_only) {
+    m_zone_buffer_num.set_memtype(memtype);
+  } else {
+    m_zone_buffer_num.set_memtype(MemType::host_device);
+  }
   visit_struct::for_each(
       *static_cast<base_type*>(this),
       [memtype](const char* name, auto& x) { x.set_memtype(memtype); });
@@ -185,9 +189,10 @@ particles_base<BufferType>::sort_by_cell_host(size_t num_cells) {
 template <typename BufferType>
 void
 particles_base<BufferType>::copy_to_host() {
-  if (m_mem_type == MemType::host_device)
+  if (m_mem_type == MemType::host_device) {
     visit_struct::for_each(*static_cast<base_type*>(this),
                            [](const char* name, auto& x) { x.copy_to_host(); });
+  }
 }
 
 template <typename BufferType>

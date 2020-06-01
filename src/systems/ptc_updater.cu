@@ -41,14 +41,10 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
             result[idx] += 0.125f * f[idx_mx];
             result[idx] += 0.125f * f[idx_py];
             result[idx] += 0.125f * f[idx_my];
-            result[idx] +=
-                0.0625f * f[idx_px.inc_y(dy_plus)];
-            result[idx] +=
-                0.0625f * f[idx_px.dec_y(dy_minus)];
-            result[idx] +=
-                0.0625f * f[idx_mx.inc_y(dy_plus)];
-            result[idx] +=
-                0.0625f * f[idx_mx.dec_y(dy_minus)];
+            result[idx] += 0.0625f * f[idx_px.inc_y(dy_plus)];
+            result[idx] += 0.0625f * f[idx_px.dec_y(dy_minus)];
+            result[idx] += 0.0625f * f[idx_mx.inc_y(dy_plus)];
+            result[idx] += 0.0625f * f[idx_mx.dec_y(dy_minus)];
           }
         }
       },
@@ -213,7 +209,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   if (num > 0) {
     kernel_launch(
         [num, dt, step] __device__(auto ptc, auto J, auto Rho,
-                                        auto rho_interval) {
+                                   auto rho_interval) {
           using spline_t = typename base_class::spline_t;
           auto& grid = dev_grid<Conf::dim>();
           auto ext = grid.extent();
@@ -264,7 +260,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            // Reset djy since it could be nonzero from previous particle
+        // Reset djy since it could be nonzero from previous particle
 #pragma unroll
             for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
               djy[j] = 0.0;
@@ -284,13 +280,14 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
                 auto offset = idx.inc_x(i).inc_y(j);
                 djx += movement2d(sy0, sy1, sx0, sx1);
                 if (math::abs(djx) > TINY)
-                  atomicAdd(&J[0][offset], -weight * djx);
+                  atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
                 // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
                 // j2 is movement in x2
                 djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
                 if (math::abs(djy[i - i_0]) > TINY)
-                  atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
+                  atomicAdd(&J[1][offset],
+                            -weight * djy[i - i_0] * grid.delta[1] / dt);
 
                 // j3 is simply v3 times rho at center
                 atomicAdd(&J[2][offset],
@@ -427,7 +424,6 @@ void
 ptc_updater_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
-
   }
 }
 
@@ -436,7 +432,6 @@ void
 ptc_updater_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
-   
   }
 }
 
@@ -445,7 +440,6 @@ void
 ptc_updater_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
-
   }
 }
 
@@ -532,7 +526,8 @@ template <typename Conf>
 void
 ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
   if (this->m_comm != nullptr) {
-    filter<Conf>(*(this->jtmp), f[comp], this->m_comm->domain_info().is_boundary);
+    filter<Conf>(*(this->jtmp), f[comp],
+                 this->m_comm->domain_info().is_boundary);
   } else {
     // bool is_boundary[4] = {true, true, true, true};
     vec_t<bool, 4> is_boundary(true, true, true, true);

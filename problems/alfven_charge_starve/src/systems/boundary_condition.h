@@ -15,7 +15,6 @@ template <typename Conf>
 class boundary_condition : public system_t {
  protected:
   const grid_t<Conf>& m_grid;
-  // typename Conf::value_t m_rpert1 = 5.0, m_rpert2 = 10.0;
   typename Conf::value_t m_tp_start, m_tp_end, m_nT, m_dw0;
 
   vector_field<Conf> *E, *B, *E0, *B0;

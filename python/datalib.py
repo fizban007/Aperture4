@@ -93,5 +93,26 @@ class Data:
     self.__dict__[key] = data[key][()]
     data.close()
 
+  def load(self, step):
+    self.load_fld(step)
+    self.load_ptc(step)
+
+  def load_fld(self, step):
+    if not step in self.fld_steps:
+      print("Field step not in data directory!")
+      return
+    self._current_fld_step = step
+    for k in self._fld_keys:
+      self.__dict__[k] = None
+        # self._mesh_loaded = False
+
+  def load_ptc(self, step):
+    if not step in self.ptc_steps:
+      print("Ptc step not in data directory!")
+      return
+    self._current_ptc_step = step
+    for k in self._ptc_keys:
+      self.__dict__[k] = None
+
   def load_conf(self, path):
     return toml.load(path)

@@ -103,7 +103,8 @@ class Data:
       return
     self._current_fld_step = step
     for k in self._fld_keys:
-      self.__dict__[k] = None
+      if k in self.__dict__:
+        self.__dict__.pop(k, None)
         # self._mesh_loaded = False
 
   def load_ptc(self, step):
@@ -112,7 +113,8 @@ class Data:
       return
     self._current_ptc_step = step
     for k in self._ptc_keys:
-      self.__dict__[k] = None
+      if k in self.__dict__:
+        self.__dict__.pop(k, None)
 
   def load_conf(self, path):
     return toml.load(path)

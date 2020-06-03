@@ -16,7 +16,13 @@ class Data:
     self._meshfile = os.path.join(path, "grid.h5")
     f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
     self._mesh_keys = list(f_mesh.keys())
+    for k in self._mesh_keys:
+      self.__dict__[k] = f_mesh[k][()]
     f_mesh.close()
+    # find mesh deltas
+    self.delta = np.zeros(len(self._conf["N"]))
+    for n in range(len(delta)):
+      self.delta[n] = self._conf["size"][n] / self._conf["N"] * self._conf["downsample"]
 
     num_re = re.compile(r"\d+")
     # generate a list of output steps for fields
@@ -75,7 +81,7 @@ class Data:
   def __load_fld_quantity(self, key):
     path = os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5")
     if key == "flux":
-      self.__dict__[key] = np.cumsum(self.B2, axis=1)
+      self.__dict__[key] = np.cumsum(self.B2 * self.delta[0], axis=1)
     elif key == "B":
       self.__dict__[key] = np.sqrt(self.B1 * self.B1 + self.B2 * self.B2 + self.B3 * self.B3)
     elif key == "J":

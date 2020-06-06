@@ -13,8 +13,9 @@ tmp/
 *.h5
 result*
 build*
-cmake*
 doc
+doxygen
+sphinx
 bin
 Data
 ninja
@@ -28,3 +29,4 @@ GRTAGS
 GTAGS
 ID
 src_*
+Doxyfile

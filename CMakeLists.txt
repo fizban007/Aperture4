@@ -22,6 +22,9 @@ endif()
 #   message("${i}")
 # endforeach()
 
+# Set customized module path
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
@@ -96,23 +99,6 @@ if(build_tests)
   add_subdirectory(tests)
 endif()
 
-if(build_doc)
-  find_package(Doxygen)
-
-  # Find all the public headers get_target_property(CAT_CUTIFIER_PUBLIC_HEADER_DIR
-  # CatCutifier INTERFACE_INCLUDE_DIRECTORIES)
-  file(GLOB_RECURSE APERTURE_HEADERS ${CMAKE_SOURCE_DIR}/src/*/*.h
-    ${CMAKE_SOURCE_DIR}/src/*/*.hpp)
-
-  # This will be the main output of our command
-  set(DOXYGEN_INDEX_FILE ${CMAKE_SOURCE_DIR}/doc/index.html)
-
-  add_custom_command(
-    OUTPUT ${DOXYGEN_INDEX_FILE}
-    DEPENDS ${APERTURE_HEADERS}
-    COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    MAIN_DEPENDENCY Doxyfile
-    COMMENT "Generating docs")
-  add_custom_target(Doxygen ALL DEPENDS ${DOXYGEN_INDEX_FILE})
+if(build_docs)
+  add_subdirectory(docs)
 endif()

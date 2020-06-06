@@ -6,20 +6,20 @@
 Welcome to Aperture's documentation!
 ====================================
 
+*Aperture* is a Particle-in-Cell (PIC) code framework that targets CUDA-capable
+GPUs. It is designed to be fast, flexible, and easy to extend.
+
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
+   :glob:
 
-Docs
-====
+   docsrc/*
+   test
 
-.. doxygenclass:: Aperture::ptc_updater
-   :members:
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+..
+   Indices and tables
+   ==================
+   * :ref:`genindex`
+   * :ref:`modindex`
+   * :ref:`search`

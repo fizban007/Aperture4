@@ -38,8 +38,6 @@ set(SPHINX_INDEX_FILE ${SPHINX_BUILD}/index.html)
 add_custom_command(OUTPUT ${SPHINX_INDEX_FILE}
                    COMMAND
                      ${SPHINX_EXECUTABLE} -b html
-                     # Tell Breathe where to find the Doxygen output
-                     -Dbreathe_projects.Aperture=${DOXYGEN_OUTPUT_DIR}/xml
                    ${SPHINX_SOURCE} ${SPHINX_BUILD}
                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                    DEPENDS

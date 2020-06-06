@@ -9,8 +9,9 @@ message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
 option(use_cuda "Include the GPU part of the code" OFF)
 option(use_double "Use double precision" OFF)
-option(build_doc "Build the doxygen documentation" OFF)
-option(build_test "Build the test suite" OFF)
+option(build_docs "Build the doxygen documentation" OFF)
+option(build_tests "Build the test suite" OFF)
+option(lib_only "Only build the core Aperture library" ON)
 
 if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)

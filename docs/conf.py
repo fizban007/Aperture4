@@ -20,14 +20,16 @@
 project = 'Aperture'
 copyright = '2020, Alex Chen'
 author = 'Alex Chen'
-
+html_logo = '../logo_icon.png'
 
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["breathe"]
+extensions = [
+  "breathe",
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -51,4 +53,15 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
 # Breathe Configuration
+breathe_projects = {
+  "Aperture": "./doxygen/xml"
+}
+
+#
 breathe_default_project = "Aperture"
+
+# Tell sphinx what the primary language being documented is.
+primary_domain = 'cpp'
+
+# Tell sphinx what the pygments highlight language should be.
+highlight_language = 'cpp'

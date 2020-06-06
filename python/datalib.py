@@ -21,8 +21,8 @@ class Data:
     f_mesh.close()
     # find mesh deltas
     self.delta = np.zeros(len(self._conf["N"]))
-    for n in range(len(delta)):
-      self.delta[n] = self._conf["size"][n] / self._conf["N"] * self._conf["downsample"]
+    for n in range(len(self.delta)):
+      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
 
     num_re = re.compile(r"\d+")
     # generate a list of output steps for fields
@@ -81,7 +81,7 @@ class Data:
   def __load_fld_quantity(self, key):
     path = os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5")
     if key == "flux":
-      self.__dict__[key] = np.cumsum(self.B2 * self.delta[0], axis=1)
+        self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
     elif key == "B":
       self.__dict__[key] = np.sqrt(self.B1 * self.B1 + self.B2 * self.B2 + self.B3 * self.B3)
     elif key == "J":

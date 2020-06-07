@@ -11,12 +11,16 @@ GPUs. It is designed to be fast, flexible, and easy to extend.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :caption: Contents
    :glob:
 
    docsrc/*
-   api/index
-   test
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
+
+   api/framework/index
 
 ..
    Indices and tables

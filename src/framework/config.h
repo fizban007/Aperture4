@@ -15,28 +15,34 @@ namespace Aperture {
 class sim_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
-///  The `Config` class basically maintains all the compile time type
+///  The Config class basically maintains all the compile time type
 ///  configurations of all modules. Instead of individually specifying default
 ///  types, indexing schemes, and dimension of the grid, a module can simply use
-///  `Config` as the general template parameter. `Config` has no members, no
-///  member functions, and only has static `typedef`s and static functions.
+///  Config as the general template parameter. Config has no members, no
+///  member functions, and only has static typedefs and static functions.
+///
+///  \tparam Dim              Number of dimensions of the simulation
+///  \tparam FloatT           The floating point type, `float` or `double`
+///  \tparam InterpOrder      Interpolation order, 0, 1, 2, or 3
+///  \tparam Idx_t            Indexing scheme for multiarrays
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
           int InterpOrder = default_interp_order,
           template <int> typename Idx_t = default_idx_t>
 class Config {
  public:
-  static constexpr int dim = Dim;
+  static constexpr int dim = Dim; //!< Access the dimension of the simulation
   static constexpr bool is_zorder =
-      std::is_same<Idx_t<Dim>, idx_zorder_t<Dim>>::value;
+      std::is_same<Idx_t<Dim>, idx_zorder_t<Dim>>::value; //!< Whether this is zorder
 
-  typedef FloatT value_t;
-  typedef Idx_t<Dim> idx_t;
-  typedef multi_array<FloatT, Dim, Idx_t<Dim>> multi_array_t;
-  typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t;
-  typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t;
-  typedef buffer<FloatT> buffer_t;
-  typedef bspline<InterpOrder> spline_t;
+  typedef FloatT value_t; //!< Access the floating point type
+  typedef Idx_t<Dim> idx_t; //!< Access the indexing type
+  typedef multi_array<FloatT, Dim, Idx_t<Dim>> multi_array_t; //!< Access the multi_array type
+  typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t; //!< Access the ndptr type
+  typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t; //!< Access the const ndptr type
+  typedef buffer<FloatT> buffer_t; //!< Access the buffer type
+  typedef bspline<InterpOrder> spline_t; //!< Access the spline type
+
 
   template <typename... Args>
   static multi_array_t make_multi_array(Args... args) {

@@ -13,7 +13,7 @@ The following code sets up a simple PIC simulation:
         sim_environment env(&argc, &argv); // Initialize the coordinator
 
         // Setup the simulation grid
-        auto grid = env.register_system<grid_t<Conf>>(env, comm);
+        auto grid = env.register_system<grid_t<Conf>>(env);
         // Add a particle pusher
         auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid);
         // Add a field solver

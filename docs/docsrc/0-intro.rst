@@ -8,15 +8,6 @@ Energies. As the name suggests, its main goal is to simulation the interaction
 of ultra-relativistic particles with electromagnetic field and radiation, which
 occurs very often in astrophysical scenarios.
 
-The *Aperture* framework is inspired by the Entity-Component-System (ECS)
-paradigm of modern game engines. In a sense, a numerical simulation is very
-similar to a video game, where different quantities are evolved over time in a
-giant loop, inside which every module is called sequentially to do their job. A
-simulation can be much simpler than a video game, since usually no interactivity
-is needed. However, there can still be very complex logical dependency between
-different modules, and this framework is designed to make it relatively easy to
-add new modules to setup new physical scenarios.
-
 Quickstart
 ----------
 
@@ -24,7 +15,7 @@ To download and compile *Aperture*, you can clone it from the github repo:
 
 .. code-block:: console
 
-   $ git clone git@github.com:fizban007/Aperture4.git
+   $ git clone https://github.com/fizban007/Aperture4.git
 
 To compile, you will need to have several libraries ready:
 

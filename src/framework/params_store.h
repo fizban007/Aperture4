@@ -148,8 +148,8 @@ class params_store {
   /// store, update it to the new value provided. Type of the parameter is
   /// automatically deduced. However, since the only integer type supported
   /// internally is `int64_t`, the compiler will be confused if a integer of
-  /// another type is sent in. In that case, specify the type explicitly, or use
-  /// a literal to enforce the type.
+  /// another type is sent in. In that case, cast the type to `int64_t`
+  /// explicitly, or use a literal to enforce the type.
   template <typename T>
   void add(const std::string& name, const T& value);
 

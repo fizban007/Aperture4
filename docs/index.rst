@@ -15,6 +15,7 @@ GPUs. It is designed to be fast, flexible, and easy to extend.
    :glob:
 
    docsrc/*
+   api/index
    test
 
 ..

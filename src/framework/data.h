@@ -24,9 +24,10 @@ class data_t {
   /// Initialize the data component.
   /*!
    * Similar to systems, this will be called by the init() method in
-   * sim_environment. This will reset the data to a "zero" state, however it is
-   * defined. The actual resource allocation should happen in the constructor.
-   * This method will be called whenever a data component needs to be reset.
+   * sim_environment. This will reset the data to a "zero" state, whenever it is
+   * appropriately defined. This method should not handle resource allocation,
+   * which should happen in the constructor. This method will be called whenever
+   * a data component needs to be reset.
    */
   virtual void init() {}
 

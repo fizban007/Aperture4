@@ -28,6 +28,10 @@ enum field_type : char {
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  Data class that stores an N-component field on the simulation grid.
+///
+///  \tparam N    Number of components in the field
+///  \tparam Conf The Config type for dimensionality, floating type, and other
+///               things
 ////////////////////////////////////////////////////////////////////////////////
 template <int N, typename Conf>
 class field_t : public data_t {

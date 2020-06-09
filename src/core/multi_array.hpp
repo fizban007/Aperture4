@@ -12,6 +12,20 @@
 
 namespace Aperture {
 
+
+////////////////////////////////////////////////////////////////////////////////
+///  This is the multi-dimensional array class of *Aperture*.
+///
+///  Since all underlying memory is linear, a multi-dimensional array is simply
+///  a linear segment of memory with an indexing scheme. The structure of this
+///  class reflect that. The multi_array class inherits the \ref buffer class (so
+///  that it inherits the host-device copying functionality), extends it with an
+///  indexing scheme, and keeps track of its n-dimensional size.
+///
+///  \tparam T      The datatype stored in the multi_array
+///  \tparam Rank   The dimensionality of the multi_array
+///  \tparam Idx_t  An indexing scheme for the multi_array
+////////////////////////////////////////////////////////////////////////////////
 template <typename T, int Rank,
           typename Idx_t = default_idx_t<Rank>>
 class multi_array : public buffer<T> {
@@ -26,31 +40,48 @@ class multi_array : public buffer<T> {
   typedef ndptr_const<T, Rank, Idx_t> const_ptr_t;
   typedef T value_t;
 
-  multi_array(MemType model = default_mem_type) : m_ext{}, base_type(model) {}
+  /// Default constructor, initialize an empty multi_array
+  multi_array(MemType type = default_mem_type) : m_ext{}, base_type(type) {}
 
+  /// Initialize a multi_array specifying its dimensions using a number of
+  /// integers.
+  ///
+  /// For example,
+  ///
+  ///     multi_array<2, float> v(32, 32);
+  ///
+  /// This will initialize a 2D `float` array of size 32x32.
   template <typename... Args>
   multi_array(Args... args)
       : m_ext(args...), base_type(extent_t<Rank>(args...).size()) {
     check_dimension();
   }
 
+  /// Initialize a multi_array specifying its dimensions using an extent_t
+  /// object, and optionally specifying its memory location.
+  ///
+  /// For example,
+  ///
+  ///     multi_array<2, float> v(extent(32, 32), MemType::host_device);
+  ///
+  /// This will initialize a 2D `float` array of size 32x32, both allocating on
+  /// the device and the host.
   multi_array(const extent_t<Rank>& extent,
-              MemType model = default_mem_type)
-      : m_ext(extent), base_type(extent.size(), model) {
+              MemType type = default_mem_type)
+      : m_ext(extent), base_type(extent.size(), type) {
     check_dimension();
   }
 
   // Disallow copy
   multi_array(const self_type& other) = delete;
 
+  // Only allow move
   multi_array(self_type&& other)
       : m_ext(other.m_ext), base_type(std::move(other)) {
     other.m_ext = extent_t<Rank>{};
   }
 
   ~multi_array() {}
-
-  void set_memtype(MemType type) { this->m_model = type; }
 
   void assign(const T& value) { base_type::assign(value); }
 
@@ -141,18 +172,29 @@ class multi_array : public buffer<T> {
   }
 };
 
-template <typename T,
-          typename... Args>
-auto
-make_multi_array(Args... args) {
-  return multi_array<T, sizeof...(Args), default_idx_t<sizeof...(Args)>>(args...);
-}
+// template <typename T,
+//           typename... Args>
+// auto
+// make_multi_array(Args... args) {
+//   return multi_array<T, sizeof...(Args), default_idx_t<sizeof...(Args)>>(args...);
+// }
 
+/// Helper function to construct a multi_array.
+/**
+ *  This can be useful for initializing a multi_array without specifying
+ *  template parameters (specifically the dimensionality, which is deduced from
+ *  the supplied extent_t struct). For example:
+ *
+ *      auto array = make_multi_array<float>(extent(32, 32), MemType::host_only);
+ *
+ *  This will create a 2D `float` multi_array with size 32x32 that lives on the
+ *  host only.
+ */
 template <typename T,
           template <int> class Index_t = default_idx_t, int Rank>
 auto
-make_multi_array(const extent_t<Rank>& ext, MemType model) {
-  return multi_array<T, Rank, Index_t<Rank>>(ext, model);
+make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
+  return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
 
 }  // namespace Aperture

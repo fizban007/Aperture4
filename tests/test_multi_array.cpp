@@ -249,7 +249,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
       auto array =
           make_multi_array<float, idx_zorder_t>(
               extent(32, 32),
-                                                         MemType::host_only);
+              MemType::host_only);
       auto p = array.get_ptr();
 
       auto idx = p.idx_at(63, a.extent());
@@ -541,8 +541,8 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
 
 TEST_CASE("Assign and copy", "[multi_array]") {
   SECTION("host only") {
-    auto v1 = make_multi_array<float>(30, 30);
-    auto v2 = make_multi_array<float>(30, 30);
+    auto v1 = make_multi_array<float>(extent(30, 30));
+    auto v2 = make_multi_array<float>(extent(30, 30));
 
     v1.assign_host(3.0f);
     for (auto idx : v1.indices()) {

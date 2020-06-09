@@ -176,8 +176,8 @@ TEST_CASE("Performance of different indexing schemes",
 }
 
 TEST_CASE("Assign and copy on device", "[multi_array][kernel]") {
-  auto v1 = make_multi_array<float>(30, 30);
-  auto v2 = make_multi_array<float>(30, 30);
+  auto v1 = make_multi_array<float>(extent(30, 30));
+  auto v2 = make_multi_array<float>(extent(30, 30));
 
   v1.assign(3.0f);
   v1.copy_to_host();

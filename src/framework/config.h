@@ -43,29 +43,51 @@ class Config {
   typedef buffer<FloatT> buffer_t; //!< Access the buffer type
   typedef bspline<InterpOrder> spline_t; //!< Access the spline type
 
-
-  template <typename... Args>
-  static multi_array_t make_multi_array(Args... args) {
-    return multi_array_t(args...);
-  }
-
+  /// Construct and return a multi_array.
+  /**
+   * This is a helper function to construct a multi_array directly without using
+   * the typedef. This version takes an extent, and can specify where the array
+   * is located in memory:
+   *
+   *     auto array = Conf::make_multi_array(extent(32, 32))
+   *     // The first argument can be abbreviated as an initializer list
+   *     auto array = Conf::make_multi_array({32, 32}, MemType::host_device);
+   *
+   * \param ext   The extent of the resulting multi_array
+   * \param type  Location of memory allocation
+   * \return The constructed multi_array, by value.
+   */
   static multi_array_t make_multi_array(const extent_t<Dim>& ext,
-                                        MemType model = default_mem_type) {
-    return multi_array_t(ext, model);
+                                        MemType type = default_mem_type) {
+    return multi_array_t(ext, type);
   }
 
+  /// Make an idx object from a linear position and an extent.
+  /**
+   * \param n    The linear index in memory
+   * \param ext  The n-dimensional extent
+   */
   static HD_INLINE idx_t idx(size_t n, const extent_t<Dim>& ext) {
     return idx_t(n, ext);
   }
 
+  /// Make an idx object from an n-dimensional position and an extent.
+  /**
+   * \param pos  The n-dimensional position
+   * \param ext  The n-dimensional extent
+   */
   static HD_INLINE idx_t idx(const index_t<Dim>& pos, const extent_t<Dim>& ext) {
     return idx_t(pos, ext);
   }
 
+  /// Make an idx object with given extent and 0 linear position, equivalent to
+  /// calling `idx(0, ext)`.
   static HD_INLINE idx_t begin(const extent_t<Dim>& ext) {
     return idx_t(0, ext);
   }
 
+  /// Make an idx object with given extent and linear position at the end of the
+  /// array, equivalent to calling `idx(ext.size(), ext)`.
   static HD_INLINE idx_t end(const extent_t<Dim>& ext) {
     return idx_t(ext.size(), ext);
   }

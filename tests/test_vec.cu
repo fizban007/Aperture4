@@ -10,6 +10,8 @@ knl_print_vec_t(T v) {
   printf("rank is %d, v0 is %d, v1 is %d\n", v.rank(), v[0], v[1]);
 }
 
+void test_ext_func(const extent_t<2>& ext) {}
+
 TEST_CASE("constructing vec_t", "[vec]") {
   auto v = vec<uint32_t>(32, 32);
   REQUIRE(v.rank() == 2);
@@ -60,4 +62,8 @@ TEST_CASE("construction using an array", "[vec]") {
   for (int i = 0; i < 4; i++) {
     REQUIRE(b[i] == v[i]);
   }
+}
+
+TEST_CASE("construction using initializer lists", "[vec]") {
+  test_ext_func({32, 32});
 }

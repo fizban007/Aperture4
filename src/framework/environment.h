@@ -21,60 +21,60 @@ class ParseResult;
 
 namespace Aperture {
 
-class callback_handler_t {
- public:
-  template <typename Func>
-  void register_callback(const std::string& name, const Func& func) {
-    // callback_map[name].push_back(func);
-    callback_map.insert({name, func});
-  }
+// class callback_handler_t {
+//  public:
+//   template <typename Func>
+//   void register_callback(const std::string& name, const Func& func) {
+//     // callback_map[name].push_back(func);
+//     callback_map.insert({name, func});
+//   }
 
-  template <typename... Args>
-  void invoke_callback(const std::string& name, Args&... args) const {
-    auto it = callback_map.find(name);
-    if (it == callback_map.end()) {
-      Logger::print_err("Failed to find callback '{}'", name);
-      return;
-    } else {
-      auto& any_p = it->second;
-      std::function<void(Args & ...)> f;
-      try {
-        f = boost::any_cast<std::function<void(Args & ...)>>(any_p);
-      } catch (const boost::bad_any_cast& e) {
-        Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
-        return;
-      }
-      f(args...);
-    }
-  }
+//   template <typename... Args>
+//   void invoke_callback(const std::string& name, Args&... args) const {
+//     auto it = callback_map.find(name);
+//     if (it == callback_map.end()) {
+//       Logger::print_err("Failed to find callback '{}'", name);
+//       return;
+//     } else {
+//       auto& any_p = it->second;
+//       std::function<void(Args & ...)> f;
+//       try {
+//         f = boost::any_cast<std::function<void(Args & ...)>>(any_p);
+//       } catch (const boost::bad_any_cast& e) {
+//         Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
+//         return;
+//       }
+//       f(args...);
+//     }
+//   }
 
- private:
-  // std::unordered_map<std::string, std::vector<std::any>> callback_map;
-  std::unordered_map<std::string, boost::any> callback_map;
-};
+//  private:
+//   // std::unordered_map<std::string, std::vector<std::any>> callback_map;
+//   std::unordered_map<std::string, boost::any> callback_map;
+// };
 
-class data_store_t {
- public:
-  template <typename Data>
-  void save(const std::string& name, const Data& data) {
-    store_map[name] = &data;
-  }
+// class data_store_t {
+//  public:
+//   template <typename Data>
+//   void save(const std::string& name, const Data& data) {
+//     store_map[name] = &data;
+//   }
 
-  template <typename T>
-  const T* get(const std::string& name) const {
-    auto it = store_map.find(name);
-    if (it != store_map.end()) {
-      auto& any_p = it->second;
-      if (any_p != nullptr) {
-        return reinterpret_cast<const T*>(any_p);
-      }
-    }
-    return nullptr;
-  }
+//   template <typename T>
+//   const T* get(const std::string& name) const {
+//     auto it = store_map.find(name);
+//     if (it != store_map.end()) {
+//       auto& any_p = it->second;
+//       if (any_p != nullptr) {
+//         return reinterpret_cast<const T*>(any_p);
+//       }
+//     }
+//     return nullptr;
+//   }
 
- private:
-  std::unordered_map<std::string, const void*> store_map;
-};
+//  private:
+//   std::unordered_map<std::string, const void*> store_map;
+// };
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  Environment class that keeps a registry of parameters, data components, and
@@ -89,8 +89,8 @@ class sim_environment {
   std::vector<std::string> m_data_order;
 
   // Modules that manage callback, shared data pointers, and parameters
-  callback_handler_t m_callback_handler;
-  data_store_t m_shared_data;
+  // callback_handler_t m_callback_handler;
+  // data_store_t m_shared_data;
   params_store m_params;
 
   // Information about commandline arguments
@@ -172,7 +172,7 @@ class sim_environment {
   ///  then a `nullptr` is returned.
   ///
   ///  \param name  Name of the system.
-  ///  \return A `shared_ptr` to the system
+  ///  \return A raw pointer to the system
   ////////////////////////////////////////////////////////////////////////////////
   system_t* get_system(const std::string& name) {
     auto it = m_system_map.find(name);
@@ -185,11 +185,11 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a const `shared_ptr` to the named system. If the system is not
+  ///  Obtain a const raw pointer to the named system. If the system is not
   ///  found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the system.
-  ///  \return A const `shared_ptr` to the system
+  ///  \return A const raw pointer to the system
   ////////////////////////////////////////////////////////////////////////////////
   const system_t* get_system(const std::string& name) const {
     auto it = m_system_map.find(name);
@@ -202,11 +202,11 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a `shared_ptr` to the named data component. If the data component
+  ///  Obtain an optional raw pointer to the named data component. If the data component
   ///  is not found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the data component.
-  ///  \return A `shared_ptr` to the data component
+  ///  \return A raw pointer to the data component
   ////////////////////////////////////////////////////////////////////////////////
   data_t* get_data_optional(const std::string& name) {
     auto it = m_data_map.find(name);
@@ -219,11 +219,11 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a `shared_ptr` to the named data component. If the data component
-  ///  is not found then a `nullptr` is returned.
+  ///  Obtain a raw pointer to the named data component. If the data component
+  ///  is not found then an exception is thrown.
   ///
   ///  \param name  Name of the data component.
-  ///  \return A `shared_ptr` to the data component
+  ///  \return A raw pointer to the data component
   ////////////////////////////////////////////////////////////////////////////////
   data_t* get_data(const std::string& name) {
     auto it = m_data_map.find(name);
@@ -235,11 +235,11 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a const `shared_ptr` to the named data component. If the data
+  ///  Obtain an optional const raw pointer to the named data component. If the data
   ///  component is not found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the data component.
-  ///  \param ptr   A const `shared_ptr` to the data component, supplied to be
+  ///  \param ptr   A const raw pointer to the data component, supplied to be
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
@@ -254,11 +254,11 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a const `shared_ptr` to the named data component. If the data
-  ///  component is not found then a `nullptr` is returned.
+  ///  Obtain a const raw pointer to the named data component. If the data
+  ///  component is not found then an exception is thrown.
   ///
   ///  \param name  Name of the data component.
-  ///  \param ptr   A const `shared_ptr` to the data component, supplied to be
+  ///  \param ptr   A const raw pointer to the data component, supplied to be
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
@@ -285,10 +285,10 @@ class sim_environment {
   ////////////////////////////////////////////////////////////////////////////////
   void run();
 
-  data_store_t& shared_data() { return m_shared_data; }
-  const data_store_t& shared_data() const { return m_shared_data; }
-  callback_handler_t& callback_handler() { return m_callback_handler; }
-  const callback_handler_t& callback_handler() const { return m_callback_handler; }
+  // data_store_t& shared_data() { return m_shared_data; }
+  // const data_store_t& shared_data() const { return m_shared_data; }
+  // callback_handler_t& callback_handler() { return m_callback_handler; }
+  // const callback_handler_t& callback_handler() const { return m_callback_handler; }
   params_store& params() { return m_params; }
   const params_store& params() const { return m_params; }
   const cxxopts::ParseResult* commandline_args() const {

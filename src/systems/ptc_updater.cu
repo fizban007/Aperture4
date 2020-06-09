@@ -211,7 +211,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
     kernel_launch(
         [num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                    auto rho_interval) {
-          using spline_t = typename base_class::spline_t;
+          using spline_t = typename Conf::spline_t;
           auto& grid = dev_grid<Conf::dim>();
           auto ext = grid.extent();
           // Obtain a local pointer to the shared array

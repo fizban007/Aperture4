@@ -16,6 +16,7 @@ set(Aperture_src
   "systems/field_solver.cpp"
   "systems/ptc_updater.cpp"
   "systems/ptc_injector.cpp"
+  "systems/compute_lorentz_factor.cpp"
   # "systems/radiative_transfer.cpp"
   )
 
@@ -35,6 +36,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/ptc_injector.cu"
     "systems/ph_freepath_dev.cu"
     "systems/domain_comm_async.cpp"
+    "systems/compute_lorentz_factor.cu"
     )
 else()
   list(APPEND Aperture_src

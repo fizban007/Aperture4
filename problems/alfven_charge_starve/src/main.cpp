@@ -6,6 +6,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
 #include "systems/ptc_updater.h"
+#include "systems/compute_lorentz_factor.h"
 #include <iostream>
 
 using namespace std;
@@ -27,6 +28,7 @@ int main(int argc, char *argv[]) {
   auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>(env, comm);
   auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, *grid, comm);
+  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(env, *grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(env, *grid, comm);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);

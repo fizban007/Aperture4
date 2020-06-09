@@ -40,6 +40,9 @@ struct ndptr {
   }
 };
 
+/// An thin wrapper around a naked const pointer, purely to facilitate device
+/// access to the underlying memory. Since one can't pass a multi_array directly
+/// to a cuda kernel, this is the next best thing.
 template <class T, int Rank, class Idx_t = default_idx_t<Rank>>
 struct ndptr_const {
   typedef Idx_t idx_t;

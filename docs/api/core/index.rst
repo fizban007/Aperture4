@@ -9,3 +9,4 @@ These are classes that are the core data structures of *Aperture*.
 
    buffer
    multi_array
+   ndptr

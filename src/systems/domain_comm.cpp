@@ -364,8 +364,8 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
         // MPI_Wait(recv_req, recv_stat);
         if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
           if (num_send > 0) {
-            Logger::print_debug("Send count is {}, send cell[0] is {}",
-                                num_send, u[0]);
+            // Logger::print_debug("Send count is {}, send cell[0] is {}",
+            //                     num_send, u[0]);
           }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
@@ -466,10 +466,10 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
 
   // Copy the central recv buffer into the main array
   ptc.copy_from(buffers[central], buffers[central].number(), 0, ptc.number());
-  Logger::print_debug(
-      "Communication resulted in {} ptc in total, ptc has {} particles "
-      "now",
-      buffers[central].number(), ptc.number());
+  // Logger::print_debug(
+  //     "Communication resulted in {} ptc in total, ptc has {} particles "
+  //     "now",
+  //     buffers[central].number(), ptc.number());
   buffers[central].set_num(0);
   timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
 }

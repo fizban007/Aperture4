@@ -21,7 +21,7 @@ class boundary_condition : public system_t {
   particle_data_t *ptc;
   curand_states_t *rand_states;
 
-  buffer<float> m_surface_n;
+  buffer<float> m_surface_np, m_surface_ne;
 
  public:
   static std::string name() { return "boundary_condition"; }

@@ -31,14 +31,15 @@ struct wpert_cart_t {
 template <typename Conf>
 void
 inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
-                 buffer<float>& surface_n, int num_per_cell,
+                 buffer<float>& surface_ne, buffer<float>& surface_np, int num_per_cell,
                  typename Conf::value_t weight, const grid_t<Conf>& grid) {
-  surface_n.assign_dev(0.0f);
+  surface_ne.assign_dev(0.0f);
+  surface_np.assign_dev(0.0f);
 
   auto ptc_num = ptc.number();
   // First measure surface density
   kernel_launch(
-      [ptc_num] __device__(auto ptc, auto surface_n) {
+      [ptc_num] __device__(auto ptc, auto surface_ne, auto surface_np) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto n : grid_stride_range(0, ptc_num)) {
@@ -50,19 +51,23 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
           if (pos[0] == grid.skirt[0]) {
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
-            // surface_n[pos[1]] += ptc.weight[n];
-            atomicAdd(&surface_n[pos[1]],
-                      ptc.weight[n] * math::abs(dev_charges[sp]));
-          }
+
+            if (sp == 0)
+              atomicAdd(&surface_ne[pos[1]],
+                        ptc.weight[n] * math::abs(dev_charges[sp]));
+            else if (sp == 1)
+              atomicAdd(&surface_np[pos[1]],
+                        ptc.weight[n] * math::abs(dev_charges[sp]));
+           }
         }
       },
-      ptc.get_dev_ptrs(), surface_n.dev_ptr());
+      ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr());
   CudaSafeCall(cudaDeviceSynchronize());
 
   // Then inject particles
   kernel_launch(
-      [ptc_num, weight] __device__(auto ptc, auto surface_n, auto num_inj,
-                                   auto states) {
+      [ptc_num, weight] __device__(auto ptc, auto surface_ne, auto surface_np,
+                                   auto num_inj, auto states) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int inj_n0 = grid.skirt[0];
@@ -73,11 +78,11 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
           size_t offset = ptc_num + n1 * num_inj * 2;
           auto pos = index_t<Conf::dim>(inj_n0, n1);
           auto idx = typename Conf::idx_t(pos, ext);
-          if (surface_n[pos[1]] > square(0.5f / grid.delta[0]))
+          if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) > square(2.0f / grid.delta[0]))
             continue;
           for (int i = 0; i < num_inj; i++) {
             float x2 = rng();
-            ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 0.5f;
+            ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 1.0f;
             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
             ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
             ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
@@ -94,7 +99,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
           }
         }
       },
-      ptc.get_dev_ptrs(), surface_n.dev_ptr(), num_per_cell,
+      ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr(), num_per_cell,
       rand_states.states());
   CudaSafeCall(cudaDeviceSynchronize());
 
@@ -116,8 +121,10 @@ boundary_condition<Conf>::init() {
   m_env.params().get_value("nT", m_nT);
   m_env.params().get_value("dw0", m_dw0);
 
-  m_surface_n.set_memtype(MemType::host_device);
-  m_surface_n.resize(m_grid.dims[1]);
+  m_surface_ne.set_memtype(MemType::host_device);
+  m_surface_ne.resize(m_grid.dims[1]);
+  m_surface_np.set_memtype(MemType::host_device);
+  m_surface_np.resize(m_grid.dims[1]);
 }
 
 template <typename Conf>
@@ -167,8 +174,8 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaSafeCall(cudaDeviceSynchronize());
 
   // Inject particles
-  if (step % 1 == 0) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 5, 1.0, m_grid);
+  if (step % 1 == 0 && time > m_tp_start && time < m_tp_end) {
+    inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 5, 1.0, m_grid);
   }
 }
 

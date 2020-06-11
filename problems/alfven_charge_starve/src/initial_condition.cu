@@ -34,6 +34,8 @@ void set_initial_condition(sim_environment &env, vector_field<Conf> &B0,
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = Conf::idx(n, ext);
           auto pos = idx.get_pos();
+          if (pos[0] > grid.dims[0] / 2)
+            continue;
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < mult; i++) {
               uint32_t offset = num + idx.linear * mult * 2 + i * 2;
@@ -48,7 +50,7 @@ void set_initial_condition(sim_environment &env, vector_field<Conf> &B0,
               ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
               Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
               ptc.weight[offset] = ptc.weight[offset + 1] =
-                  cube(math::abs(grid.sizes[0] - x) / grid.sizes[0]);
+                  cube(math::abs(0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]);
               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                    PtcType::electron);
               ptc.flag[offset + 1] = set_ptc_type_flag(

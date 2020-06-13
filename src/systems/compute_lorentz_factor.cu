@@ -82,7 +82,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
             }
           }
         }
-      }, this->m_gamma_ptrs.dev_ptr(), m_nums_ptrs.dev_ptrs());
+      }, this->m_gamma_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }

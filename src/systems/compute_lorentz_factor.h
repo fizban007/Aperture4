@@ -25,6 +25,7 @@ class compute_lorentz_factor : public system_t {
  protected:
   const grid_t<Conf>& m_grid;
   int m_data_interval = 1;
+  int m_num_species = 2;
 
   std::vector<scalar_field<Conf>*> gamma;
   particle_data_t* ptc;

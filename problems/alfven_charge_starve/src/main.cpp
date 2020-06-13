@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
   env.get_data("rand_states", &states);
 
-  set_initial_condition(env, *B0, *ptc, *states, 20, 1.0);
+  set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
 
   env.run();
   return 0;

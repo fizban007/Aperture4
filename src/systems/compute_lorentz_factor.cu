@@ -1,5 +1,6 @@
 #include "compute_lorentz_factor.h"
 #include "framework/environment.h"
+#include "framework/config.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
 #include <memory>
@@ -86,5 +87,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
     CudaCheckError();
   }
 }
+
+INSTANTIATE_WITH_CONFIG(compute_lorentz_factor_cu);
 
 }  // namespace Aperture

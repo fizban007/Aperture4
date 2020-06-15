@@ -29,7 +29,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "data/curand_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
-    "systems/field_solver_default.cu"
     "systems/field_solver_sph.cu"
     "systems/ptc_updater.cu"
     "systems/ptc_updater_sph.cu"

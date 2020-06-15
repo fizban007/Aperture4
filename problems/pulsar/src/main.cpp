@@ -22,7 +22,7 @@ main(int argc, char *argv[]) {
   auto pusher =
       env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
   auto solver =
-      env.register_system<field_solver_sph<Conf>>(env, *grid);
+      env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
   auto injector =
       env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);

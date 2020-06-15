@@ -21,7 +21,7 @@ main(int argc, char *argv[]) {
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
   auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
   auto rt = env.register_system<rt_magnetar<Conf>>(env, *grid);
-  auto solver = env.register_system<field_solver_sph<Conf>>(env, *grid);
+  auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
 

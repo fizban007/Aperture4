@@ -420,26 +420,17 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::init() {
-  this->m_env.params().get_value("implicit_beta", m_beta);
-  m_alpha = 1.0 - m_beta;
+field_solver_sph_cu<Conf>::init() {
+  field_solver_cu<Conf>::init();
+
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
-  this->m_env.params().get_value("use_implicit", m_use_implicit);
-  this->m_env.params().get_value("fld_output_interval", m_data_interval);
-
-  m_tmp_b1 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  m_tmp_b2 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  m_bnew =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
 }
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::register_data_components() {
-  field_solver_default<Conf>::register_data_components();
+field_solver_sph_cu<Conf>::register_data_components() {
+  field_solver_cu<Conf>::register_data_components();
 
   flux = this->m_env.template register_data<scalar_field<Conf>>(
       "flux", this->m_grid, field_type::vert_centered);
@@ -447,19 +438,10 @@ field_solver_sph<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::update(double dt, uint32_t step) {
-  double time = this->m_env.get_time();
-  if (m_use_implicit)
-    update_semi_impl(dt, m_alpha, m_beta, time);
-  else
-    update_explicit(dt, time);
+field_solver_sph_cu<Conf>::update(double dt, uint32_t step) {
+  field_solver_cu<Conf>::update(dt, step);
 
-  this->Etotal->copy_from(*(this->E0));
-  this->Etotal->add_by(*(this->E));
-  this->Btotal->copy_from(*(this->B0));
-  this->Btotal->add_by(*(this->B));
-
-  if (step % m_data_interval == 0) {
+  if (step % this->m_data_interval == 0) {
     auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     compute_flux(*flux, *(this->Btotal), grid);
   }
@@ -467,7 +449,7 @@ field_solver_sph<Conf>::update(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::update_explicit(double dt, double time) {
+field_solver_sph_cu<Conf>::update_explicit(double dt, double time) {
   auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   if (time < TINY)
     compute_b_update_explicit(*(this->B), *(this->E), grid, 0.5 * dt);
@@ -499,8 +481,8 @@ field_solver_sph<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_sph<Conf>::update_semi_impl(double dt, double alpha, double beta,
-                                         double time) {
+field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double beta,
+                                                double time) {
   // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
 
@@ -559,6 +541,6 @@ field_solver_sph<Conf>::update_semi_impl(double dt, double alpha, double beta,
   }
 }
 
-template class field_solver_sph<Config<2>>;
+template class field_solver_sph_cu<Config<2>>;
 
 }  // namespace Aperture

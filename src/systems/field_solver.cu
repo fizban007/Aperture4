@@ -13,7 +13,7 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& b,
                              const vector_field<Conf>& j,
                              typename Conf::value_t dt) {
-  using fd = finite_diff<Conf::dim, 4>;
+  using fd = finite_diff<Conf::dim, 2>;
   kernel_launch(
       [dt] __device__(auto result, auto b, auto stagger, auto j) {
         auto& grid = dev_grid<Conf::dim>();
@@ -42,7 +42,7 @@ void
 compute_b_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& e,
                              typename Conf::value_t dt) {
-  using fd = finite_diff<Conf::dim, 4>;
+  using fd = finite_diff<Conf::dim, 2>;
   kernel_launch(
       [dt] __device__(auto result, auto e, auto stagger) {
         auto& grid = dev_grid<Conf::dim>();

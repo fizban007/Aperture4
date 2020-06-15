@@ -13,6 +13,7 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& b,
                              const vector_field<Conf>& j,
                              typename Conf::value_t dt) {
+  using fd = finite_diff<Conf::dim, 4>;
   kernel_launch(
       [dt] __device__(auto result, auto b, auto stagger, auto j) {
         auto& grid = dev_grid<Conf::dim>();
@@ -21,16 +22,13 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
-                dt *
-                (finite_diff<Conf::dim>::curl0(b, idx, stagger, grid) - j[0][idx]);
+                dt * (fd::curl0(b, idx, stagger, grid) - j[0][idx]);
 
             result[1][idx] +=
-                dt *
-                (finite_diff<Conf::dim>::curl1(b, idx, stagger, grid) - j[1][idx]);
+                dt * (fd::curl1(b, idx, stagger, grid) - j[1][idx]);
 
             result[2][idx] +=
-                dt *
-                (finite_diff<Conf::dim>::curl2(b, idx, stagger, grid) - j[2][idx]);
+                dt * (fd::curl2(b, idx, stagger, grid) - j[2][idx]);
           }
         }
       },
@@ -44,6 +42,7 @@ void
 compute_b_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& e,
                              typename Conf::value_t dt) {
+  using fd = finite_diff<Conf::dim, 4>;
   kernel_launch(
       [dt] __device__(auto result, auto e, auto stagger) {
         auto& grid = dev_grid<Conf::dim>();
@@ -51,14 +50,11 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            result[0][idx] +=
-                - dt * finite_diff<Conf::dim>::curl0(e, idx, stagger, grid);
+            result[0][idx] += -dt * fd::curl0(e, idx, stagger, grid);
 
-            result[1][idx] +=
-                - dt * finite_diff<Conf::dim>::curl1(e, idx, stagger, grid);
+            result[1][idx] += -dt * fd::curl1(e, idx, stagger, grid);
 
-            result[2][idx] +=
-                - dt * finite_diff<Conf::dim>::curl2(e, idx, stagger, grid);
+            result[2][idx] += -dt * fd::curl2(e, idx, stagger, grid);
           }
         }
       },
@@ -105,12 +101,12 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
 template <typename Conf>
 void
 field_solver_cu<Conf>::init_impl_tmp_fields() {
-  this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(this->m_grid,
-                                                        MemType::device_only);
-  this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(this->m_grid,
-                                                        MemType::device_only);
-  this->m_bnew = std::make_unique<vector_field<Conf>>(this->m_grid,
-                                                      MemType::device_only);
+  this->m_tmp_b1 =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
+  this->m_tmp_b2 =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
+  this->m_bnew =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
 }
 
 template <typename Conf>

@@ -1,6 +1,7 @@
 #include "field_solver_sph.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "helpers/field_solver_helper_cu.hpp"
 #include "utils/double_buffer.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
@@ -28,24 +29,6 @@ circ2(const VecType& f, const VecType& dl, const Idx_t& idx_mx,
       const Idx_t& idx_my, const Idx_t& idx_px, const Idx_t& idx_py) {
   return f[1][idx_px] * dl[1][idx_px] - f[1][idx_mx] * dl[1][idx_mx] +
          f[0][idx_my] * dl[0][idx_my] - f[0][idx_py] * dl[0][idx_py];
-}
-
-template <typename Conf>
-void
-add_alpha_beta(vector_field<Conf>& result, const vector_field<Conf>& b1,
-               const vector_field<Conf>& b2, typename Conf::value_t alpha,
-               typename Conf::value_t beta) {
-  auto ext = result.grid().extent();
-  kernel_launch(
-      [alpha, beta, ext] __device__(auto result, auto b1, auto b2) {
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = typename Conf::idx_t(n, ext);
-          result[0][idx] = alpha * b1[0][idx] + beta * b2[0][idx];
-          result[1][idx] = alpha * b1[1][idx] + beta * b2[1][idx];
-          result[2][idx] = alpha * b1[2][idx] + beta * b2[2][idx];
-        }
-      },
-      result.get_ptrs(), b1.get_ptrs(), b2.get_ptrs());
 }
 
 template <typename Conf>
@@ -517,7 +500,7 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double 
     buffer.swap();
   }
   // m_bnew now holds B^{n+1}
-  add_alpha_beta(buffer.main(), *(this->B), *m_bnew, alpha, beta);
+  add_alpha_beta_cu(buffer.main(), *(this->B), *m_bnew, alpha, beta);
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this

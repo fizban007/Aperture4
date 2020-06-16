@@ -8,12 +8,14 @@
 namespace Aperture {
 
 template <typename Conf>
+using fd = finite_diff<Conf::dim, 2>;
+
+template <typename Conf>
 void
 compute_e_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& b,
                              const vector_field<Conf>& j,
                              typename Conf::value_t dt) {
-  using fd = finite_diff<Conf::dim, 2>;
   kernel_launch(
       [dt] __device__(auto result, auto b, auto stagger, auto j) {
         auto& grid = dev_grid<Conf::dim>();
@@ -22,13 +24,13 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
-                dt * (fd::curl0(b, idx, stagger, grid) - j[0][idx]);
+                dt * (1.025f * fd<Conf>::curl0(b, idx, stagger, grid) - j[0][idx]);
 
             result[1][idx] +=
-                dt * (fd::curl1(b, idx, stagger, grid) - j[1][idx]);
+                dt * (1.025f * fd<Conf>::curl1(b, idx, stagger, grid) - j[1][idx]);
 
             result[2][idx] +=
-                dt * (fd::curl2(b, idx, stagger, grid) - j[2][idx]);
+                dt * (1.025f * fd<Conf>::curl2(b, idx, stagger, grid) - j[2][idx]);
           }
         }
       },
@@ -42,7 +44,6 @@ void
 compute_b_update_explicit_cu(vector_field<Conf>& result,
                              const vector_field<Conf>& e,
                              typename Conf::value_t dt) {
-  using fd = finite_diff<Conf::dim, 2>;
   kernel_launch(
       [dt] __device__(auto result, auto e, auto stagger) {
         auto& grid = dev_grid<Conf::dim>();
@@ -50,11 +51,11 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            result[0][idx] += -dt * fd::curl0(e, idx, stagger, grid);
+            result[0][idx] += -dt * 1.025f * fd<Conf>::curl0(e, idx, stagger, grid);
 
-            result[1][idx] += -dt * fd::curl1(e, idx, stagger, grid);
+            result[1][idx] += -dt * 1.025f * fd<Conf>::curl1(e, idx, stagger, grid);
 
-            result[2][idx] += -dt * fd::curl2(e, idx, stagger, grid);
+            result[2][idx] += -dt * 1.025f * fd<Conf>::curl2(e, idx, stagger, grid);
           }
         }
       },
@@ -77,8 +78,8 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            divE[idx] = finite_diff<Conf::dim>::div(e, idx, st_e, grid);
-            divB[idx] = finite_diff<Conf::dim>::div(b, idx, st_b, grid);
+            divE[idx] = fd<Conf>::div(e, idx, st_e, grid);
+            divB[idx] = fd<Conf>::div(b, idx, st_b, grid);
 
             // Check boundary
             // if (is_boundary[0] && pos[0] == grid.skirt[0])
@@ -118,6 +119,7 @@ field_solver_cu<Conf>::register_data_components() {
 template <typename Conf>
 void
 field_solver_cu<Conf>::update_explicit(double dt, double time) {
+  // dt *= 1.025;
   if (time < TINY) {
     compute_e_update_explicit_cu(*(this->E), *(this->B), *(this->J), 0.5f * dt);
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));

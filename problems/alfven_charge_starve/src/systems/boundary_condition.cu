@@ -175,7 +175,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Inject particles
   if (step % 1 == 0 && time > m_tp_start && time < m_tp_end) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 5, 1.0, m_grid);
+    inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 2, 1.0, m_grid);
   }
 }
 

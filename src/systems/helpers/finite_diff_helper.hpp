@@ -24,10 +24,10 @@ HD_INLINE typename PtrType::value_t
 diff(const PtrType& p, const typename PtrType::idx_t& idx, stagger_t stagger,
      order_tag<4> tag) {
   return (-p[idx.template inc<Dir>(stagger[Dir] + 1)] +
-          8.0f * p[idx.template inc<Dir>(stagger[Dir])] -
-          8.0f * p[idx.template dec<Dir>(1 - stagger[Dir])] +
+          27.0f * p[idx.template inc<Dir>(stagger[Dir])] -
+          27.0f * p[idx.template dec<Dir>(1 - stagger[Dir])] +
           p[idx.template dec<Dir>(2 - stagger[Dir])]) /
-         12.0f;
+         24.0f;
 }
 
 template <int Dir, typename PtrType>

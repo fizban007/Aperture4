@@ -6,6 +6,9 @@
 namespace Aperture {
 
 template <typename Conf>
+using fd = finite_diff<Conf::dim, 2>;
+
+template <typename Conf>
 void
 compute_e_update_explicit(vector_field<Conf>& result,
                           const vector_field<Conf>& b,
@@ -17,15 +20,15 @@ compute_e_update_explicit(vector_field<Conf>& result,
     if (grid.is_in_bound(pos)) {
       result[0][idx] +=
           dt *
-          (finite_diff<Conf::dim>::curl0(b, idx, b.stagger_vec(), grid) - j[0][idx]);
+          (fd<Conf>::curl0(b, idx, b.stagger_vec(), grid) - j[0][idx]);
 
       result[1][idx] +=
           dt *
-          (finite_diff<Conf::dim>::curl1(b, idx, b.stagger_vec(), grid) - j[1][idx]);
+          (fd<Conf>::curl1(b, idx, b.stagger_vec(), grid) - j[1][idx]);
 
       result[2][idx] +=
           dt *
-          (finite_diff<Conf::dim>::curl2(b, idx, b.stagger_vec(), grid) - j[2][idx]);
+          (fd<Conf>::curl2(b, idx, b.stagger_vec(), grid) - j[2][idx]);
     }
   }
 }
@@ -40,13 +43,13 @@ compute_b_update_explicit(vector_field<Conf>& result,
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos)) {
       result[0][idx] +=
-          dt * finite_diff<Conf::dim>::curl0(e, idx, e.stagger_vec(), grid);
+          dt * fd<Conf>::curl0(e, idx, e.stagger_vec(), grid);
 
       result[1][idx] +=
-          dt * finite_diff<Conf::dim>::curl1(e, idx, e.stagger_vec(), grid);
+          dt * fd<Conf>::curl1(e, idx, e.stagger_vec(), grid);
 
       result[2][idx] +=
-          dt * finite_diff<Conf::dim>::curl2(e, idx, e.stagger_vec(), grid);
+          dt * fd<Conf>::curl2(e, idx, e.stagger_vec(), grid);
     }
   }
 }
@@ -60,8 +63,8 @@ compute_divs(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
   for (auto idx : divE[0].indices()) {
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos)) {
-      divE[idx] = finite_diff<Conf::dim>::div(e, idx, e.stagger_vec(), grid);
-      divB[idx] = finite_diff<Conf::dim>::div(b, idx, b.stagger_vec(), grid);
+      divE[idx] = fd<Conf>::div(e, idx, e.stagger_vec(), grid);
+      divB[idx] = fd<Conf>::div(b, idx, b.stagger_vec(), grid);
 
       // TODO: Maybe check boundary and skip some cells?
     }

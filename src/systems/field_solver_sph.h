@@ -16,7 +16,6 @@ template <typename Conf>
 // class field_solver_sph : public field_solver_default<Conf> {
 class field_solver_sph_cu : public field_solver_cu<Conf> {
  private:
-  std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
   int m_damping_length = 64;
   double m_damping_coef = 0.003;
 

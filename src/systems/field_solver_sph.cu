@@ -467,40 +467,40 @@ void
 field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double beta,
                                                 double time) {
   // set m_tmp_b1 to B
-  m_tmp_b1->copy_from(*(this->B));
+  this->m_tmp_b1->copy_from(*(this->B));
 
   // Assemble the RHS
   auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   // compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
   //                     -alpha * beta * dt * dt);
-  compute_double_circ(*m_tmp_b2, *m_tmp_b1, grid, -alpha * beta * dt * dt);
-  m_tmp_b1->add_by(*m_tmp_b2);
+  compute_double_circ(*(this->m_tmp_b2), *(this->m_tmp_b1), grid, -alpha * beta * dt * dt);
+  this->m_tmp_b1->add_by(*(this-> m_tmp_b2 ));
 
   // Send guard cells for m_tmp_b1
-  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*m_tmp_b1);
+  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this-> m_tmp_b1 ));
 
-  compute_implicit_rhs(*m_tmp_b1, *(this->E), *(this->J), grid, alpha, beta,
+  compute_implicit_rhs(*(this-> m_tmp_b1 ), *(this->E), *(this->J), grid, alpha, beta,
                        dt);
-  axis_boundary_b(*m_tmp_b1, grid);
+  axis_boundary_b(*(this->m_tmp_b1), grid);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
 
   // Since we need to iterate, define a double buffer to switch quickly between
   // operand and result.
-  m_bnew->copy_from(*m_tmp_b1);
+  this->m_bnew->copy_from(*(this->m_tmp_b1));
   // m_tmp_b1->add_by(*(this->B0), -1.0);
-  auto buffer = make_double_buffer(*m_tmp_b1, *m_tmp_b2);
+  auto buffer = make_double_buffer(*(this->m_tmp_b1), *(this->m_tmp_b2));
   for (int i = 0; i < 6; i++) {
     compute_double_circ(buffer.alt(), buffer.main(), grid,
                         -beta * beta * dt * dt);
 
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
     axis_boundary_b(buffer.alt(), grid);
-    m_bnew->add_by(buffer.alt());
+    this->m_bnew->add_by(buffer.alt());
 
     buffer.swap();
   }
   // m_bnew now holds B^{n+1}
-  add_alpha_beta_cu(buffer.main(), *(this->B), *m_bnew, alpha, beta);
+  add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this
@@ -510,7 +510,7 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double 
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
-  this->B->copy_from(*m_bnew);
+  this->B->copy_from(*(this->m_bnew));
 
   // apply coordinate boundary condition
   damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);

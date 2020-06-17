@@ -27,7 +27,8 @@ class boundary_condition : public system_t {
   buffer<float> m_surface_np, m_surface_ne;
   std::unique_ptr<typename Conf::multi_array_t> m_prev_E1, m_prev_E2, m_prev_E3;
   std::unique_ptr<typename Conf::multi_array_t> m_prev_B1, m_prev_B2, m_prev_B3;
-  vec_t<typename Conf::ndptr_t, 3> m_prev_E, m_prev_B;
+  // vec_t<typename Conf::ndptr_t, 3> m_prev_E, m_prev_B;
+  buffer<typename Conf::ndptr_t> m_prev_E, m_prev_B;
 
  public:
   static std::string name() { return "boundary_condition"; }

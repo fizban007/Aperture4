@@ -147,12 +147,18 @@ boundary_condition<Conf>::boundary_condition(sim_environment& env,
   m_prev_B2->assign_dev(0.0f);
   m_prev_B3->assign_dev(0.0f);
 
+  m_prev_E.set_memtype(MemType::host_device);
+  m_prev_B.set_memtype(MemType::host_device);
+  m_prev_E.resize(3);
+  m_prev_B.resize(3);
   m_prev_E[0] = m_prev_E1->dev_ptr();
   m_prev_E[1] = m_prev_E2->dev_ptr();
   m_prev_E[2] = m_prev_E3->dev_ptr();
   m_prev_B[0] = m_prev_B1->dev_ptr();
   m_prev_B[1] = m_prev_B2->dev_ptr();
   m_prev_B[2] = m_prev_B3->dev_ptr();
+  m_prev_E.copy_to_device();
+  m_prev_B.copy_to_device();
 }
 
 template <typename Conf>
@@ -249,7 +255,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
               auto exp_sig = math::exp(-sig_s);
               e[1][idx] = exp_sig * prev_e[1][idx_damping] +
                   (1.0f - exp_sig) / sig * (e[1][idx] - prev_e[1][idx_damping]);
-              e[2][idx] = exp_sig * prev_e[0][idx_damping] +
+              e[2][idx] = exp_sig * prev_e[2][idx_damping] +
                   (1.0f - exp_sig) / sig * (e[2][idx] - prev_e[2][idx_damping]);
               b[0][idx] = exp_sig * prev_b[0][idx_damping] +
                   (1.0f - exp_sig) / sig * (b[0][idx] - prev_b[0][idx_damping]);
@@ -257,7 +263,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           }
         }
       },
-      E->get_ptrs(), B->get_ptrs(), m_prev_E, m_prev_B,
+      E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
       m_damping_length, m_pmllen, m_sigpml);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -284,7 +290,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           prev_b[2][idx_damping] = b[2][idx];
         }
       }
-    }, E->get_ptrs(), m_prev_E, B->get_ptrs(), m_prev_B, m_damping_length);
+    }, E->get_ptrs(), m_prev_E.dev_ptr(), B->get_ptrs(), m_prev_B.dev_ptr(), m_damping_length);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 

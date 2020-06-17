@@ -8,19 +8,24 @@
 namespace Aperture {
 
 struct wpert_cart_t {
-  float tp_start, tp_end, nT, dw0;
+  float tp_start, tp_end, nT, dw0, y_start, y_end, y_m;
 
   HD_INLINE wpert_cart_t(float tp_s, float tp_e, float nT_,
                          float dw0_)
       : tp_start(tp_s),
         tp_end(tp_e),
         nT(nT_),
-        dw0(dw0_) {}
+        dw0(dw0_) {
+    y_start = 0.5f;
+    y_m = 1.0f;
+    y_end = 1.5f;
+  }
 
   HD_INLINE Scalar operator()(Scalar t, Scalar x, Scalar y) {
-    if (t >= tp_start && t <= tp_end) {
+    if (t >= tp_start && t <= tp_end && y > y_start && y < y_end) {
       Scalar omega =
-          dw0 * math::sin((t - tp_start) * 2.0 * M_PI * nT / (tp_end - tp_start));
+          dw0 * math::sin((t - tp_start) * 2.0f * M_PI * nT / (tp_end - tp_start))
+          * math::sin(M_PI * (y - y_start) / (y_end - y_start));
       return omega;
     } else {
       return 0.0;

@@ -342,14 +342,21 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
   // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
-  // send_buffer.copy_to_host();
+#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+  auto send_ptrs = send_buffer.get_dev_ptrs();
+  auto recv_ptrs = recv_buffer.get_dev_ptrs();
+#else
+  send_buffer.copy_to_host();
+  auto send_ptrs = send_buffer.get_host_ptrs();
+  auto recv_ptrs = recv_buffer.get_host_ptrs();
+#endif
   // if (num_send > 0) {
   //   Logger::print_debug("Send count is {}, send cell[0] is {}, send cell[1] is {}",
   //                       num_send, send_buffer.cell[0], send_buffer.cell[1]);
   // }
   int num_recv = 0;
   visit_struct::for_each(
-      send_buffer.get_host_ptrs(), recv_buffer.get_host_ptrs(),
+      send_ptrs, recv_ptrs,
       [&](const char *name, auto &u, auto &v) {
         // MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
         //           MPI_Helper::get_mpi_datatype(v[0]), src, tag,
@@ -363,15 +370,18 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
                      recv_stat);
         // MPI_Wait(recv_req, recv_stat);
         if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
-          if (num_send > 0) {
+          // if (num_send > 0) {
             // Logger::print_debug("Send count is {}, send cell[0] is {}",
             //                     num_send, u[0]);
-          }
+          // }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
         }
       });
+#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#else
   recv_buffer.copy_to_device();
+#endif
   recv_buffer.set_num(recv_offset + num_recv);
   send_buffer.set_num(0);
 }

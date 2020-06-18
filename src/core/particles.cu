@@ -222,11 +222,11 @@ particles_base<BufferType>::copy_to_comm_buffers(
     // timer::stamp("copy_to_buffer");
     copy_component_to_buffer<Conf>(m_dev_ptrs, m_number, m_index.dev_ptr(),
                                    buf_ptrs);
-    for (unsigned int i = 0; i < buffers.size(); i++) {
-      if (buffers[i].number() > 0) {
-        buffers[i].copy_to_host();
-      }
-    }
+    // for (unsigned int i = 0; i < buffers.size(); i++) {
+    //   if (buffers[i].number() > 0) {
+    //     buffers[i].copy_to_host();
+    //   }
+    // }
     // if (buffers[7].number() > 0) {
     //   buffers[7].copy_to_host();
     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);

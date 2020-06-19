@@ -46,7 +46,7 @@ endif()
 
 add_library(Aperture ${Aperture_src})
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
-  ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+  ${HDF5_LIBRARIES})
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(Aperture ${CUDART_LIBRARY})

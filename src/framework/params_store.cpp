@@ -1,12 +1,12 @@
 #include "params_store.h"
 #include "cpptoml.h"
+#include <filesystem>
 #include <memory>
 #include <type_traits>
 #include <variant>
-#include <boost/filesystem.hpp>
 #include <fmt/format.h>
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 template<typename T> struct is_vector : public std::false_type {};
 

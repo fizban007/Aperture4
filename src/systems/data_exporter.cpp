@@ -5,11 +5,11 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
-#include <boost/filesystem.hpp>
+#include <filesystem>
 // #include <fmt/ostream.h>
 #include <fmt/core.h>
 
-namespace fs = boost::filesystem;
+namespace fs = std::filesystem;
 
 namespace Aperture {
 
@@ -59,7 +59,7 @@ data_exporter<Conf>::init() {
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
 
-  boost::system::error_code returnedError;
+  std::error_code returnedError;
   fs::create_directories(outPath, returnedError);
 
   // Copy config file to the output directory
@@ -245,7 +245,7 @@ data_exporter<Conf>::copy_config_file() {
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
-    fs::copy_file(conf_file, path, fs::copy_option::overwrite_if_exists);
+    fs::copy_file(conf_file, path, fs::copy_options::overwrite_existing);
   }
 }
 

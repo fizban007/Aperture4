@@ -41,7 +41,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 # Find required packages
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
-find_package(Boost COMPONENTS system filesystem REQUIRED)
+# find_package(Boost COMPONENTS system filesystem REQUIRED)
 
 # Set include directories
 set(FMT_INCLUDE_DIR deps/fmt/include)
@@ -93,6 +93,7 @@ endif()
 
 add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)
+link_libraries(stdc++fs)
 add_subdirectory(src)
 add_subdirectory(problems)
 

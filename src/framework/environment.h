@@ -12,7 +12,6 @@
 #include "system.h"
 #include "utils/logger.h"
 #include "gsl/pointers"
-#include <boost/any.hpp>
 
 namespace cxxopts {
 class Options;

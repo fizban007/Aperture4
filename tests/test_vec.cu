@@ -32,8 +32,8 @@ TEST_CASE("Aritmetic operators", "[vec]") {
   auto u = vec<int>(10, 20);
   auto v = vec<int>(3, 4);
 
-  REQUIRE(u.size() == 200);
-  REQUIRE(v.size() == 12);
+  REQUIRE(u.product() == 200);
+  REQUIRE(v.product() == 12);
 
   auto x = u + v;
   REQUIRE(x[0] == 13);

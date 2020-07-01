@@ -31,17 +31,21 @@ template <int Dim, typename FloatT = Scalar,
           template <int> typename Idx_t = default_idx_t>
 class Config {
  public:
-  static constexpr int dim = Dim; //!< Access the dimension of the simulation
+  static constexpr int dim = Dim;  //!< Access the dimension of the simulation
   static constexpr bool is_zorder =
-      std::is_same<Idx_t<Dim>, idx_zorder_t<Dim>>::value; //!< Whether this is zorder
+      std::is_same<Idx_t<Dim>,
+                   idx_zorder_t<Dim>>::value;  //!< Whether this is zorder
 
-  typedef FloatT value_t; //!< Access the floating point type
-  typedef Idx_t<Dim> idx_t; //!< Access the indexing type
-  typedef multi_array<FloatT, Dim, Idx_t<Dim>> multi_array_t; //!< Access the multi_array type
-  typedef ndptr<FloatT, Dim, Idx_t<Dim>> ndptr_t; //!< Access the ndptr type
-  typedef ndptr_const<FloatT, Dim, Idx_t<Dim>> ndptr_const_t; //!< Access the const ndptr type
-  typedef buffer<FloatT> buffer_t; //!< Access the buffer type
-  typedef bspline<InterpOrder> spline_t; //!< Access the spline type
+  using value_t = FloatT;    //!< The floating point type
+  using idx_t = Idx_t<Dim>;  //!< The indexing type
+  using coord_t = vec_t<FloatT, Dim>; //!< The floating point coordinate type
+  using multi_array_t =
+      multi_array<FloatT, Dim, Idx_t<Dim>>;  //!< The multi_array type
+  using ndptr_t = ndptr<FloatT, Dim, Idx_t<Dim>>;  //!< The ndptr type
+  using ndptr_const_t =
+      ndptr_const<FloatT, Dim, Idx_t<Dim>>;  //!< The const ndptr type
+  using buffer_t = buffer<FloatT>;           //!< The buffer type
+  using spline_t = bspline<InterpOrder>;     //!< The interpolation b-spline type
 
   /// Construct and return a multi_array.
   /**
@@ -76,7 +80,8 @@ class Config {
    * \param pos  The n-dimensional position
    * \param ext  The n-dimensional extent
    */
-  static HD_INLINE idx_t idx(const index_t<Dim>& pos, const extent_t<Dim>& ext) {
+  static HD_INLINE idx_t idx(const index_t<Dim>& pos,
+                             const extent_t<Dim>& ext) {
     return idx_t(pos, ext);
   }
 
@@ -86,7 +91,7 @@ class Config {
     return idx_t(0, ext);
   }
 
-  /// Make an idx object with given extent and linear position at the end of the
+  /// Make an idx_t with given extent and linear position at the end of the
   /// array, equivalent to calling `idx(ext.size(), ext)`.
   static HD_INLINE idx_t end(const extent_t<Dim>& ext) {
     return idx_t(ext.size(), ext);
@@ -103,9 +108,9 @@ class Config {
 };
 
 // Define a macro to help instantiate classes with config
-#define INSTANTIATE_WITH_CONFIG(class_name)          \
-  template class class_name<Config<1>>;         \
-  template class class_name<Config<2>>;         \
+#define INSTANTIATE_WITH_CONFIG(class_name) \
+  template class class_name<Config<1>>;     \
+  template class class_name<Config<2>>;     \
   template class class_name<Config<3>>
 
 }  // namespace Aperture

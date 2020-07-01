@@ -197,7 +197,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
   if (m_number > 0) {
     // timer::stamp("compute_buffer");
     if (m_index.size() != m_size) m_index.resize(m_size);
-    m_index.assign_dev(0, m_number, -1);
+    m_index.assign_dev(0, m_number, size_t(-1));
     auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
 
     m_zone_buffer_num.assign_dev(0);

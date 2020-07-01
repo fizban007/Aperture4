@@ -5,7 +5,7 @@
 #include "systems/data_exporter.h"
 #include "systems/boundary_condition.h"
 #include "systems/initial_condition.h"
-#include "systems/ptc_injector.h"
+// #include "systems/ptc_injector.h"
 #include <iostream>
 
 using namespace std;
@@ -24,8 +24,8 @@ main(int argc, char *argv[]) {
       env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  auto injector =
-      env.register_system<ptc_injector_cu<Conf>>(env, *grid);
+  // auto injector =
+  //     env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
 

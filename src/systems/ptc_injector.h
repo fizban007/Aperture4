@@ -21,6 +21,8 @@ class ptc_injector : public system_t {
 
   ptc_injector(sim_environment& env, const grid_t<Conf>& grid)
       : system_t(env), m_grid(grid) {}
+  ptc_injector(sim_environment& env, const grid_t<Conf>& grid, const vec_t<value_t, Conf::dim>& lower,
+               const extent_t<Conf::dim>& extent, value_t inj_rate, value_t inj_weight);
   virtual ~ptc_injector() {}
 
   virtual void init() override;
@@ -31,9 +33,11 @@ class ptc_injector : public system_t {
   const grid_t<Conf>& m_grid;
 
   particle_data_t* ptc;
-  vector_field<Conf>* B;
+  value_t m_inj_rate;
+  value_t m_inj_weight;
+  // vector_field<Conf>* B;
 
-  value_t m_target_sigma = 100.0;
+  // value_t m_target_sigma = 100.0;
 };
 
 template <typename Conf>
@@ -54,7 +58,6 @@ class ptc_injector_cu : public ptc_injector<Conf> {
   multi_array<int, Conf::dim> m_num_per_cell;
   multi_array<int, Conf::dim> m_cum_num_per_cell;
   scalar_field<Conf>* m_sigma;
-
 };
 
 

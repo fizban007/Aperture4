@@ -175,8 +175,8 @@ template <typename Conf>
 void
 ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
   // Compute sigma and number of pairs to inject per cells
-  compute_sigma(*m_sigma, m_num_per_cell, *(this->ptc), *(this->B),
-                this->m_grid, this->m_target_sigma, m_rand_states->states());
+  // compute_sigma(*m_sigma, m_num_per_cell, *(this->ptc), *(this->B),
+  //               this->m_grid, this->m_target_sigma, m_rand_states->states());
 
   size_t grid_size = this->m_grid.extent().size();
   thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());

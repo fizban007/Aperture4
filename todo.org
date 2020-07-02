@@ -35,3 +35,4 @@ implementation function that will be overridden by new pushers.
 Partial answer: write a custom impl class for radiation then instantiate the
 ~radiative_transfer~ class with it.
 * More general, how to make system interfaces even simpler?
+* TODO Added a dry run mode where one can see all the default parameters

@@ -10,8 +10,7 @@ class ptc_injector_mult : public ptc_injector<Conf> {
  public:
   static std::string name() { return "ptc_injector"; }
 
-  ptc_injector_mult(sim_environment& env, const grid_t<Conf>& grid)
-      : ptc_injector<Conf>(env, grid) {}
+  using ptc_injector<Conf>::ptc_injector;
   virtual ~ptc_injector_mult() {}
 
   virtual void init() override;
@@ -27,7 +26,6 @@ class ptc_injector_mult : public ptc_injector<Conf> {
   rho_ptrs_t m_rho_ptrs;
   multi_array<int, Conf::dim> m_num_per_cell;
   multi_array<int, Conf::dim> m_cum_num_per_cell;
-  // std::unique_ptr<scalar_field<Conf>> m_sigma;
   // buffer<int> m_pos_in_array;
 
   const rho_ptrs_t& get_rho_ptrs() { return m_rho_ptrs; }

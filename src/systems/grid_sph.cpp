@@ -21,16 +21,6 @@ V3(double r, double rs) {
 }
 
 template <typename Conf>
-grid_sph_t<Conf>::grid_sph_t(sim_environment& env,
-                             const domain_info_t<Conf::dim>& domain_info)
-    : grid_curv_t<Conf>(env, domain_info) {}
-
-template <typename Conf>
-grid_sph_t<Conf>::grid_sph_t(sim_environment& env,
-                             const domain_comm<Conf>& comm)
-    : grid_sph_t<Conf>(env, comm.domain_info()) {}
-
-template <typename Conf>
 grid_sph_t<Conf>::~grid_sph_t() {}
 
 template <typename Conf>

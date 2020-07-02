@@ -21,8 +21,10 @@ class ptc_injector : public system_t {
 
   ptc_injector(sim_environment& env, const grid_t<Conf>& grid)
       : system_t(env), m_grid(grid) {}
-  ptc_injector(sim_environment& env, const grid_t<Conf>& grid, const vec_t<value_t, Conf::dim>& lower,
-               const extent_t<Conf::dim>& extent, value_t inj_rate, value_t inj_weight);
+  ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
+               const vec_t<value_t, Conf::dim>& lower,
+               const extent_t<Conf::dim>& extent, value_t inj_rate,
+               value_t inj_weight);
   virtual ~ptc_injector() {}
 
   virtual void init() override;
@@ -45,8 +47,7 @@ class ptc_injector_cu : public ptc_injector<Conf> {
  public:
   static std::string name() { return "ptc_injector"; }
 
-  ptc_injector_cu(sim_environment& env, const grid_t<Conf>& grid)
-      : ptc_injector<Conf>(env, grid) {}
+  using ptc_injector<Conf>::ptc_injector;
   virtual ~ptc_injector_cu() {}
 
   virtual void init() override;
@@ -60,7 +61,6 @@ class ptc_injector_cu : public ptc_injector<Conf> {
   scalar_field<Conf>* m_sigma;
 };
 
-
-}
+}  // namespace Aperture
 
 #endif  // _PTC_INJECTOR_H_

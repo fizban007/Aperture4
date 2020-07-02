@@ -30,6 +30,8 @@ class vec_t {
   HD_INLINE T& at(std::size_t n) { return memory[n]; }
   HD_INLINE const T& at(std::size_t n) const { return memory[n]; }
 
+  HD_INLINE self_type& operator=(const self_type& other) = default;
+
   HD_INLINE bool operator<(const self_type& other) const {
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
@@ -153,18 +155,10 @@ vec(Args... args) {
 template <int Rank>
 class extent_t : public vec_t<uint32_t, Rank> {
  public:
-  HOST_DEVICE extent_t() {}
-  HOST_DEVICE extent_t(const uint32_t (&v)[Rank]) {
-#pragma unroll
-    for (int i = 0; i < Rank; i++) this->memory[i] = v[i];
-  }
-  template <typename... Args>
-  HOST_DEVICE extent_t(Args... args)
-      : vec_t<uint32_t, Rank>{args...} {}
-  HOST_DEVICE ~extent_t() {}
+  using base_class = vec_t<uint32_t, Rank>;
+  using base_class::base_class;
 
-  HOST_DEVICE extent_t(const extent_t<Rank>& other) = default;
-
+  HOST_DEVICE extent_t(const base_class& other) : base_class(other) {}
   HOST_DEVICE extent_t<Rank>& operator=(const extent_t<Rank>& other) = default;
 
   HOST_DEVICE uint32_t size() const { return this->product(); }

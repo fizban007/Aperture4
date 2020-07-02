@@ -17,10 +17,7 @@ class grid_sph_t : public grid_curv_t<Conf> {
   static std::string name() { return "grid"; }
   typedef typename Conf::value_t value_t;
 
-  grid_sph_t(sim_environment &env, const domain_info_t<Conf::dim> &domain_info =
-                                       domain_info_t<Conf::dim>{});
-
-  grid_sph_t(sim_environment &env, const domain_comm<Conf> &comm);
+  using grid_curv_t<Conf>::grid_curv_t;
   ~grid_sph_t();
 
   // static HD_INLINE value_t radius(value_t x1) { return x1; }

@@ -55,9 +55,7 @@ class field_solver_cu : public field_solver<Conf> {
  public:
   static std::string name() { return "field_solver"; }
 
-  field_solver_cu(sim_environment& env, const grid_t<Conf>& grid,
-                  const domain_comm<Conf>* comm = nullptr)
-      : field_solver<Conf>(env, grid, comm) {}
+  using field_solver<Conf>::field_solver;
 
   virtual ~field_solver_cu() {}
 

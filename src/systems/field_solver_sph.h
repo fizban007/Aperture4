@@ -13,7 +13,6 @@ namespace Aperture {
 // System that updates Maxwell equations using an explicit scheme in Spherical
 // coordinates
 template <typename Conf>
-// class field_solver_sph : public field_solver_default<Conf> {
 class field_solver_sph_cu : public field_solver_cu<Conf> {
  private:
   int m_damping_length = 64;
@@ -24,9 +23,7 @@ class field_solver_sph_cu : public field_solver_cu<Conf> {
  public:
   static std::string name() { return "field_solver"; }
 
-  field_solver_sph_cu(sim_environment& env, const grid_curv_t<Conf>& grid,
-                      const domain_comm<Conf>* comm = nullptr)
-      : field_solver_cu<Conf>(env, grid, comm) {}
+  using field_solver_cu<Conf>::field_solver_cu;
 
   void init() override;
   void update(double dt, uint32_t step) override;

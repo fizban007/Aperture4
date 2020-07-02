@@ -107,9 +107,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
 
   typedef ptc_updater<Conf> base_class;
 
-  ptc_updater_cu(sim_environment& env, const grid_t<Conf>& grid,
-                 const domain_comm<Conf>* comm = nullptr) :
-      ptc_updater<Conf>(env, grid, comm) {}
+  using base_class::base_class;
 
   void init() override;
   // void update(double dt, uint32_t step);

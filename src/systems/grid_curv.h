@@ -27,13 +27,7 @@ class grid_curv_t : public grid_t<Conf> {
   typedef grid_ptrs<value_t, Conf::dim, typename Conf::idx_t>
       grid_ptrs_t;
 
-  grid_curv_t(
-      sim_environment &env,
-      const domain_info_t<Conf::dim> &domain_info = domain_info_t<Conf::dim>{}) :
-      grid_t<Conf>(env, domain_info) {}
-
-  grid_curv_t(sim_environment &env, const domain_comm<Conf> &comm) :
-      grid_t<Conf>(env, comm) {}
+  using grid_t<Conf>::grid_t;
   virtual ~grid_curv_t() {}
 
   void init() {

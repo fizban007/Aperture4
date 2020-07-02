@@ -12,9 +12,7 @@ class ptc_updater_sph_cu : public ptc_updater_cu<Conf> {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  ptc_updater_sph_cu(sim_environment& env, const grid_sph_t<Conf>& grid,
-                        const domain_comm<Conf>* comm = nullptr) :
-      ptc_updater_cu<Conf>(env, grid, comm) {}
+  using ptc_updater_cu<Conf>::ptc_updater_cu;
 
   void init() override;
   void register_data_components() override;

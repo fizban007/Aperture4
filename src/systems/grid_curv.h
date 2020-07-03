@@ -64,12 +64,12 @@ class grid_curv_t : public grid_t<Conf> {
     grid_ptrs_t result;
 
     for (int i = 0; i < 3; i++) {
-      result.le[i] = m_le[i].get_const_ptr();
-      result.lb[i] = m_lb[i].get_const_ptr();
-      result.Ae[i] = m_Ae[i].get_const_ptr();
-      result.Ab[i] = m_Ab[i].get_const_ptr();
+      result.le[i] = m_le[i].dev_ndptr_const();
+      result.lb[i] = m_lb[i].dev_ndptr_const();
+      result.Ae[i] = m_Ae[i].dev_ndptr_const();
+      result.Ab[i] = m_Ab[i].dev_ndptr_const();
     }
-    result.dV = m_dV.get_const_ptr();
+    result.dV = m_dV.dev_ndptr_const();
 
     return result;
   }

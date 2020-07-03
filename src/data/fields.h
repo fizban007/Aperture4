@@ -135,7 +135,7 @@ class field_t : public data_t {
   vec_t<typename Conf::ndptr_const_t, M> get_ptrs() const {
     vec_t<typename Conf::ndptr_const_t, M> result;
     for (int i = 0; i < M; i++) {
-      result[i] = m_data[i].get_const_ptr();
+      result[i] = m_data[i].dev_ndptr_const();
     }
     return result;
   }
@@ -145,17 +145,17 @@ class field_t : public data_t {
   vec_t<typename Conf::ndptr_t, M> get_ptrs() {
     vec_t<typename Conf::ndptr_t, M> result;
     for (int i = 0; i < M; i++) {
-      result[i] = m_data[i].get_ptr();
+      result[i] = m_data[i].dev_ndptr();
     }
     return result;
   }
 
   void set_memtype(MemType type);
 
-  typename Conf::ndptr_const_t get_ptr(int n = 0) const {
-    return m_data[n].get_const_ptr();
+  typename Conf::ndptr_const_t dev_ndptr(int n = 0) const {
+    return m_data[n].dev_ndptr_const();
   }
-  typename Conf::ndptr_t get_ptr(int n = 0) { return m_data[n].get_ptr(); }
+  typename Conf::ndptr_t dev_ndptr(int n = 0) { return m_data[n].dev_ndptr(); }
 
   const Grid<Conf::dim>& grid() const { return *m_grid; }
 };

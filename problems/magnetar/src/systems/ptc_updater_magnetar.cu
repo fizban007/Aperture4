@@ -35,7 +35,7 @@ struct pusher_impl_magnetar {
 
     multi_array_data<float, 2>* ph_flux_data;
     env.get_data("ph_flux", &ph_flux_data);
-    ph_flux = ph_flux_data->get_ptr();
+    ph_flux = ph_flux_data->dev_ndptr();
     auto ext = ph_flux_data->extent();
     flux_n_E = ext[0];
     flux_n_th = ext[1];
@@ -100,7 +100,7 @@ struct pusher_impl_magnetar {
         Scalar Eph =
             min(g - 1.0f, g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B / BQ)));
 
-        if (Eph > 2000.0f) {
+        if (Eph > 2.0f) {
           // Produce individual tracked photons
           if (Nph < 1.0f) {
             float u = rng();

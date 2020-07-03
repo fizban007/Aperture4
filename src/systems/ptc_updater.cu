@@ -65,7 +65,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
           }
         }
       },
-      result.get_ptr(), f.get_const_ptr(), vec_t<bool, 4>(is_boundary));
+      result.dev_ndptr(), f.dev_ndptr_const(), vec_t<bool, 4>(is_boundary));
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
   f.dev_copy_from(result);
@@ -79,7 +79,7 @@ ptc_updater_cu<Conf>::init() {
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);
   for (int i = 0; i < this->m_num_species; i++) {
-    m_rho_ptrs[i] = this->Rho[i]->get_ptr();
+    m_rho_ptrs[i] = this->Rho[i]->dev_ndptr();
   }
   m_rho_ptrs.copy_to_device();
 

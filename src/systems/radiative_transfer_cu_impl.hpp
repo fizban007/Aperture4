@@ -121,7 +121,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
         }
       },
       this->ptc->dev_ptrs(), m_num_per_block.dev_ptr(),
-      m_pos_in_block.dev_ptr(), this->photon_produced->get_ptr(),
+      m_pos_in_block.dev_ptr(), this->photon_produced->dev_ndptr(),
       m_rand_states->states(), *m_rad);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -228,7 +228,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
         }
       },
       this->ph->dev_ptrs(), m_num_per_block.dev_ptr(),
-      m_pos_in_block.dev_ptr(), this->pair_produced->get_ptr(),
+      m_pos_in_block.dev_ptr(), this->pair_produced->dev_ndptr(),
       m_rand_states->states(), *m_rad);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();

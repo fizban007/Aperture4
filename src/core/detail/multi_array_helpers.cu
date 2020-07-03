@@ -51,10 +51,10 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
     }
   };
   exec_policy p;
-  configure_grid(p, resample_kernel, from.get_const_ptr(), to.get_ptr(),
+  configure_grid(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
                  offset_src, offset_dst, st_src, st_dst);
   if (stream != nullptr) p.set_stream(*stream);
-  kernel_launch(p, resample_kernel, from.get_const_ptr(), to.get_ptr(),
+  kernel_launch(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
                 offset_src, offset_dst, st_src, st_dst);
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -75,10 +75,10 @@ add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     }
   };
   exec_policy p;
-  configure_grid(p, add_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+  configure_grid(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
                  src_pos, dst.extent(), src.extent());
   if (stream != nullptr) p.set_stream(*stream);
-  kernel_launch(p, add_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+  kernel_launch(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
                 src_pos, dst.extent(), src.extent());
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -101,10 +101,10 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     }
   };
   exec_policy p;
-  configure_grid(p, copy_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+  configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
                  src_pos, dst.extent(), src.extent());
   if (stream != nullptr) p.set_stream(*stream);
-  kernel_launch(p, copy_kernel, dst.get_ptr(), src.get_const_ptr(), dst_pos,
+  kernel_launch(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
                 src_pos, dst.extent(), src.extent());
   CudaSafeCall(cudaDeviceSynchronize());
 }

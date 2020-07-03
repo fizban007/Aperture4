@@ -171,7 +171,7 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
           }
         }
       },
-      divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
+      divE.dev_ndptr(), divB.dev_ndptr(), e.get_ptrs(), b.get_ptrs(),
       e.stagger_vec(), b.stagger_vec(), boundary);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();

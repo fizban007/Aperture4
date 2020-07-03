@@ -31,7 +31,7 @@ struct rt_magnetar_impl_t {
 
     multi_array_data<float, 2>* ph_flux_data;
     env.get_data("ph_flux", &ph_flux_data);
-    ph_flux = ph_flux_data->get_ptr();
+    ph_flux = ph_flux_data->dev_ndptr();
     auto ext = ph_flux_data->extent();
     flux_n_E = ext[0];
     flux_n_th = ext[1];

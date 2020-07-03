@@ -67,7 +67,7 @@ compute_sigma(scalar_field<Conf>& sigma,
           atomicAdd(&sigma[cell], gamma * weight);
         }
       },
-      sigma.get_ptr(), ptc.get_dev_ptrs());
+      sigma.dev_ndptr(), ptc.get_dev_ptrs());
   CudaCheckError();
 
   // Then compute sigma = B^2/(gamma * n) using the results computed above.
@@ -116,7 +116,7 @@ compute_sigma(scalar_field<Conf>& sigma,
           }
         }
       },
-      sigma.get_ptr(), B.get_ptrs(), num_per_cell.get_ptr(), dv_ptr, states);
+      sigma.dev_ndptr(), B.get_ptrs(), num_per_cell.dev_ndptr(), dv_ptr, states);
   CudaCheckError();
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -158,8 +158,8 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
           }
         }
       },
-      ptc.get_dev_ptrs(), num_per_cell.get_const_ptr(),
-      cum_num_per_cell.get_const_ptr(), states);
+      ptc.get_dev_ptrs(), num_per_cell.dev_ndptr_const(),
+      cum_num_per_cell.dev_ndptr_const(), states);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }

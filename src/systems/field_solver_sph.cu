@@ -389,7 +389,7 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
           }
         }
       },
-      divE.get_ptr(), divB.get_ptr(), e.get_ptrs(), b.get_ptrs(),
+      divE.dev_ndptr(), divB.dev_ndptr(), e.get_ptrs(), b.get_ptrs(),
       grid.get_grid_ptrs(), boundary);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -413,7 +413,7 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
           }
         }
       },
-      flux.get_ptr(), b.get_ptrs(), grid.get_grid_ptrs());
+      flux.dev_ndptr(), b.get_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }

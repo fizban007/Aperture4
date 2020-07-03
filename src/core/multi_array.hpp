@@ -160,10 +160,13 @@ class multi_array : public buffer<T> {
 
   inline Idx_t idx_at(uint64_t n) const { return Idx_t(n, m_ext); }
 
-  inline ptr_t get_ptr() { return ptr_t(this->m_data_d); }
-
-  inline const_ptr_t get_const_ptr() const {
+  inline ptr_t dev_ndptr() { return ptr_t(this->m_data_d); }
+  inline ptr_t host_ndptr() { return ptr_t(this->m_data_h); }
+  inline const_ptr_t dev_ndptr_const() const {
     return const_ptr_t(this->m_data_d);
+  }
+  inline const_ptr_t host_ndptr_const() const {
+    return const_ptr_t(this->m_data_h);
   }
 
   const extent_t<Rank>& extent() const { return m_ext; }

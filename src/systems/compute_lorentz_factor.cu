@@ -47,8 +47,8 @@ compute_lorentz_factor_cu<Conf>::init() {
   m_gamma_ptrs.resize(this->gamma.size());
   m_nums_ptrs.resize(this->gamma.size());
   for (int i = 0; i < this->gamma.size(); i++) {
-    m_gamma_ptrs[i] = this->gamma[i]->get_ptr();
-    m_nums_ptrs[i] = m_nums[i]->get_ptr();
+    m_gamma_ptrs[i] = this->gamma[i]->dev_ndptr();
+    m_nums_ptrs[i] = m_nums[i]->dev_ndptr();
   }
   m_gamma_ptrs.copy_to_device();
   m_nums_ptrs.copy_to_device();

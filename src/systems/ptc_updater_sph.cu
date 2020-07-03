@@ -100,7 +100,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
           }
         }
       },
-      result.get_ptr(), f.get_const_ptr(), geom_factor,
+      result.dev_ndptr(), f.dev_ndptr_const(), geom_factor,
       vec_t<bool, 4>(is_boundary));
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -439,7 +439,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             }
           }
         },
-        this->ph->get_dev_ptrs(), this->rho_ph->get_ptr(),
+        this->ph->get_dev_ptrs(), this->rho_ph->dev_ndptr(),
         this->m_data_interval, m_r_cutoff);
   }
 }

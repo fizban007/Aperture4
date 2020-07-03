@@ -38,4 +38,6 @@ TEST_CASE("Multi array is indexable", "[type_traits]") {
       is_indexable<typename Conf::ndptr_t>::value);
   static_assert(
       is_const_indexable<typename Conf::ndptr_const_t>::value);
+  static_assert(std::is_same<all_const_indexable<typename Conf::multi_array_t,
+                typename Conf::ndptr_const_t>, void>::value);
 }

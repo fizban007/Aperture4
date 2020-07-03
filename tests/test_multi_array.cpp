@@ -17,6 +17,7 @@
 
 #include "catch.hpp"
 #include "core/multi_array.hpp"
+#include "core/multi_array_exp.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/logger.h"
 #include "utils/range.hpp"
@@ -119,8 +120,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
     }
 
     SECTION("Row Major indexing") {
-      multi_array<float, 2, idx_row_major_t<2>>
-          row_array(extent(4, 5),
+      multi_array<float, 2, idx_row_major_t<2>> row_array(extent(4, 5),
                                                           MemType::host_only);
 
       for (uint32_t j = 0; j < 4; j++) {
@@ -137,8 +137,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
     }
 
     SECTION("Z-order indexing") {
-      multi_array<float, 2, idx_zorder_t<2>>
-          zorder_array(extent(32, 32),
+      multi_array<float, 2, idx_zorder_t<2>> zorder_array(extent(32, 32),
                                                           MemType::host_only);
 
       for (uint32_t j = 0; j < 32; j++) {
@@ -158,12 +157,9 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
       REQUIRE(idx.inc<0>().linear == zorder_array.get_idx(8, 7).linear);
     }
 
-    SECTION(
-        "Z-order indexing throws when dimensions are not powers of 2") {
-      REQUIRE_THROWS(multi_array<float, 2,
-                                 idx_zorder_t<2>>(32, 10));
-      REQUIRE_THROWS(multi_array<float, 2,
-                                 idx_zorder_t<2>>(10, 16));
+    SECTION("Z-order indexing throws when dimensions are not powers of 2") {
+      REQUIRE_THROWS(multi_array<float, 2, idx_zorder_t<2>>(32, 10));
+      REQUIRE_THROWS(multi_array<float, 2, idx_zorder_t<2>>(10, 16));
     }
   }
 
@@ -180,8 +176,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   }
 
   SECTION("Index manipulation, col major") {
-    multi_array<float, 4>::idx_t idx(
-        index(0, 0, 0, 0), extent(10, 20, 30, 40));
+    multi_array<float, 4>::idx_t idx(index(0, 0, 0, 0), extent(10, 20, 30, 40));
 
     REQUIRE(idx.linear == 0);
     REQUIRE(idx.strides[0] == 1);
@@ -189,8 +184,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
     REQUIRE(idx.strides[2] == 10 * 20);
     REQUIRE(idx.strides[3] == 10 * 20 * 30);
 
-    auto p =
-        idx.get_pos(7 + 13 * 10 + 15 * 10 * 20 + 34 * 10 * 20 * 30);
+    auto p = idx.get_pos(7 + 13 * 10 + 15 * 10 * 20 + 34 * 10 * 20 * 30);
     REQUIRE(p[0] == 7);
     REQUIRE(p[1] == 13);
     REQUIRE(p[2] == 15);
@@ -205,8 +199,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   }
 
   SECTION("Index manipulation, row major") {
-    idx_row_major_t<4> idx(index(12, 5, 8, 9),
-                           extent(20, 20, 20, 20));
+    idx_row_major_t<4> idx(index(12, 5, 8, 9), extent(20, 20, 20, 20));
 
     REQUIRE(idx.linear == 9 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
     REQUIRE(idx.strides[0] == 20 * 20 * 20);
@@ -215,10 +208,8 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
     REQUIRE(idx.strides[3] == 1);
 
     auto idx2 = idx++;
-    REQUIRE(idx2.linear ==
-            9 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
-    REQUIRE(idx.linear ==
-            10 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
+    REQUIRE(idx2.linear == 9 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
+    REQUIRE(idx.linear == 10 + 8 * 20 + 5 * 20 * 20 + 12 * 20 * 20 * 20);
     REQUIRE(idx2.strides[0] == 20 * 20 * 20);
     REQUIRE(idx2.strides[1] == 20 * 20);
     REQUIRE(idx2.strides[2] == 20);
@@ -249,7 +240,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
   SECTION("ndptr") {
     multi_array<float, 2> a(30, 20);
-    auto p = a.get_ptr();
+    auto p = a.dev_ndptr();
 
     auto idx = p.idx_at(100, a.extent());
     REQUIRE(idx.linear == 100);
@@ -263,11 +254,9 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
       // multi_array<float, MemType::host_only, idx_zorder_t<>>
       // array(
       //     32, 32, 1);
-      auto array =
-          make_multi_array<float, idx_zorder_t>(
-              extent(32, 32),
-              MemType::host_only);
-      auto p = array.get_ptr();
+      auto array = make_multi_array<float, idx_zorder_t>(extent(32, 32),
+                                                         MemType::host_only);
+      auto p = array.dev_ndptr();
 
       auto idx = p.idx_at(63, a.extent());
 
@@ -292,8 +281,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   }
 
   SECTION("make_multi_array") {
-    auto arr = make_multi_array<float,
-                                idx_row_major_t>(extent(30, 30, 30),
+    auto arr = make_multi_array<float, idx_row_major_t>(extent(30, 30, 30),
                                                         MemType::host_only);
 
     REQUIRE(arr.size() == 30 * 30 * 30);
@@ -346,12 +334,8 @@ TEST_CASE("Performance of interpolation on CPU",
 
   auto ext = extent(N1, N2, N3);
 
-  auto v1 =
-      make_multi_array<float, idx_col_major_t>(
-          ext, MemType::host_only);
-  auto v2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_only);
+  auto v1 = make_multi_array<float, idx_col_major_t>(ext, MemType::host_only);
+  auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -389,9 +373,9 @@ TEST_CASE("Performance of interpolation on CPU",
   // std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
   // std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
 
-  auto interp_kernel = [N1, N2, N3, M](const auto& f, float* result,
-                                       float* xs, float* ys, float* zs,
-                                       uint32_t* cells, auto ext) {
+  auto interp_kernel = [N1, N2, N3, M](const auto& f, float* result, float* xs,
+                                       float* ys, float* zs, uint32_t* cells,
+                                       auto ext) {
     for (uint32_t i : range(0, M)) {
       uint32_t cell = cells[i];
       auto idx = f.idx_at(cell);
@@ -426,18 +410,10 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
 
   auto ext = extent(N1, N2, N3);
 
-  auto v1 =
-      make_multi_array<float, idx_row_major_t>(
-          ext, MemType::host_only);
-  auto v2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_only);
-  auto u1 =
-      make_multi_array<float, idx_row_major_t>(
-          ext, MemType::host_only);
-  auto u2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_only);
+  auto v1 = make_multi_array<float, idx_row_major_t>(ext, MemType::host_only);
+  auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
+  auto u1 = make_multi_array<float, idx_row_major_t>(ext, MemType::host_only);
+  auto u2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -461,12 +437,9 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
       if (pos[0] > 1 && pos[1] > 1 && pos[2] > 1 && pos[0] < N1 - 2 &&
           pos[1] < N2 - 2 && pos[2] < N3 - 2) {
         u[idx] =
-            0.2f * (f[idx.template inc<1>(2)] -
-                    f[idx.template dec<1>(2)]) +
-            0.15f *
-                (f[idx.template inc<2>(2)] + f[idx.template dec<2>()]) +
-            0.1f *
-                (f[idx.template inc<0>()] - f[idx.template dec<0>()]) -
+            0.2f * (f[idx.template inc<1>(2)] - f[idx.template dec<1>(2)]) +
+            0.15f * (f[idx.template inc<2>(2)] + f[idx.template dec<2>()]) +
+            0.1f * (f[idx.template inc<0>()] - f[idx.template dec<0>()]) -
             0.5f * f[idx];
       }
     }
@@ -482,8 +455,7 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
 
   for (auto idx : u1.indices()) {
     auto pos = idx.get_pos();
-    REQUIRE(u1(pos[0], pos[1], pos[2]) ==
-            Approx(u2(pos[0], pos[1], pos[2])));
+    REQUIRE(u1(pos[0], pos[1], pos[2]) == Approx(u2(pos[0], pos[1], pos[2])));
   }
 }
 
@@ -495,18 +467,10 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
 
   auto ext = extent(N1, N2);
 
-  auto v1 =
-      make_multi_array<float, idx_row_major_t>(
-          ext, MemType::host_only);
-  auto v2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_only);
-  auto u1 =
-      make_multi_array<float, idx_row_major_t>(
-          ext, MemType::host_only);
-  auto u2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_only);
+  auto v1 = make_multi_array<float, idx_row_major_t>(ext, MemType::host_only);
+  auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
+  auto u1 = make_multi_array<float, idx_row_major_t>(ext, MemType::host_only);
+  auto u2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -527,17 +491,13 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
   auto diff_kernel = [N1, N2](const auto& f, auto& u) {
     for (auto idx : u.indices()) {
       auto pos = idx.get_pos();
-      if (pos[0] > 1 && pos[1] > 1 && pos[0] < N1 - 2 &&
-          pos[1] < N2 - 2) {
-        u[idx] = 0.2f * (f[idx.template inc<0>(2)] -
-                         f[idx.template inc<0>(1)] +
-                         f[idx.template dec<0>(1)] -
-                         f[idx.template dec<0>(2)]) +
-                 0.1f * (f[idx.template inc<1>(2)] -
-                         f[idx.template inc<1>(1)] +
-                         f[idx.template dec<1>(1)] -
-                         f[idx.template dec<1>(2)]) -
-                 0.5f * f[idx];
+      if (pos[0] > 1 && pos[1] > 1 && pos[0] < N1 - 2 && pos[1] < N2 - 2) {
+        u[idx] =
+            0.2f * (f[idx.template inc<0>(2)] - f[idx.template inc<0>(1)] +
+                    f[idx.template dec<0>(1)] - f[idx.template dec<0>(2)]) +
+            0.1f * (f[idx.template inc<1>(2)] - f[idx.template inc<1>(1)] +
+                    f[idx.template dec<1>(1)] - f[idx.template dec<1>(2)]) -
+            0.5f * f[idx];
       }
     }
   };
@@ -570,17 +530,18 @@ TEST_CASE("Assign and copy", "[multi_array]") {
 
 TEST_CASE("Memtype is correct", "[multi_array]") {
   {
-  auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_only);
-  REQUIRE(m.mem_type() == MemType::device_only);
-  REQUIRE(m.host_allocated() == false);
+    auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_only);
+    REQUIRE(m.mem_type() == MemType::device_only);
+    REQUIRE(m.host_allocated() == false);
   }
 
   {
-  auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_managed);
-  REQUIRE(m.mem_type() == MemType::device_managed);
-  REQUIRE(m.host_allocated() == false);
+    auto m =
+        make_multi_array<float>(extent(32, 32, 32), MemType::device_managed);
+    REQUIRE(m.mem_type() == MemType::device_managed);
+    REQUIRE(m.host_allocated() == false);
 #ifdef CUDA_ENABLED
-  REQUIRE(m.host_ptr() != nullptr);
+    REQUIRE(m.host_ptr() != nullptr);
 #endif
   }
 
@@ -591,5 +552,33 @@ TEST_CASE("Memtype is correct", "[multi_array]") {
 #ifdef CUDA_ENABLED
     REQUIRE(m.dev_allocated() == true);
 #endif
+  }
+}
+
+TEST_CASE("Expression before subscript", "[multi_array][exp_template]") {
+  auto v1 = make_multi_array<float>(extent(30, 30), MemType::host_only);
+  auto v2 = make_multi_array<float>(extent(30, 30), MemType::host_only);
+
+  v1.assign_host(1.0);
+  v2.assign_host(2.0);
+
+  auto ex = -(v1 + v2) * v2 - v1;
+
+  for (auto idx : v1.indices()) {
+    REQUIRE(ex[idx] == -7.0);
+  }
+}
+
+TEST_CASE("Expression templates with constants",
+          "[multi_array][exp_template]") {
+  auto v = make_multi_array<float>(extent(30, 30), MemType::host_only);
+
+  v.assign_host(5.0f);
+
+  auto ex = (3.0f - v) * 4.0f / 2.0f;
+
+  for (auto idx : v.indices()) {
+    REQUIRE((v.host_ndptr_const() + 3.0f)[idx] == 8.0f);
+    REQUIRE(ex[idx] == -4.0f);
   }
 }

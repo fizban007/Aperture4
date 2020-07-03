@@ -60,7 +60,7 @@ compute_inject_num(multi_array<int, Conf::dim>& num_per_cell,
           }
         }
       },
-      J.get_ptrs(), rho_ptrs.dev_ptr(), num_per_cell.get_ptr(),
+      J.get_ptrs(), rho_ptrs.dev_ptr(), num_per_cell.dev_ndptr(),
       states);
   CudaCheckError();
   CudaSafeCall(cudaDeviceSynchronize());
@@ -103,8 +103,8 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
           }
         }
       },
-      ptc.get_dev_ptrs(), num_per_cell.get_const_ptr(),
-      cum_num_per_cell.get_const_ptr(), states);
+      ptc.get_dev_ptrs(), num_per_cell.dev_ndptr_const(),
+      cum_num_per_cell.dev_ndptr_const(), states);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -125,7 +125,7 @@ ptc_injector_mult<Conf>::init() {
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(num_species);
   for (int i = 0; i < num_species; i++) {
-    m_rho_ptrs[i] = Rho[i]->get_ptr();
+    m_rho_ptrs[i] = Rho[i]->dev_ndptr();
   }
   m_rho_ptrs.copy_to_device();
 }

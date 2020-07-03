@@ -19,6 +19,7 @@
 #include "core/constant_mem_func.h"
 #include "core/constant_mem.h"
 #include "core/multi_array.hpp"
+#include "core/multi_array_exp.hpp"
 #include "core/ndptr.hpp"
 #include "utils/logger.h"
 #include "utils/interpolation.hpp"
@@ -33,12 +34,6 @@ using namespace Aperture;
 
 #ifdef CUDA_ENABLED
 
-template <typename Ptr, typename Index>
-HOST_DEVICE float
-finite_diff(const Ptr f, const Index& idx) {
-  return f[idx.template inc<2>()] - f[idx.template inc<2>(-1)];
-}
-
 TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   uint32_t N1 = 100, N2 = 300;
   auto ext = extent(N1, N2);
@@ -52,7 +47,7 @@ TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
           p[idx] = value;
         }
       },
-      array.get_ptr(), 3.0f, ext);
+      array.dev_ndptr(), 3.0f, ext);
   CudaSafeCall(cudaDeviceSynchronize());
 
   array.copy_to_host();
@@ -74,7 +69,7 @@ TEST_CASE("Different indexing on multi_array",
   // auto array = make_multi_array<float, MemType::device_managed,
   // idx_row_major_t>(ext);
 
-  // assign_idx_array<<<128, 512>>>(array.get_ptr(), ext);
+  // assign_idx_array<<<128, 512>>>(array.dev_ndptr(), ext);
   kernel_launch(
       [] __device__(auto p, auto ext) {
         for (auto i : grid_stride_range(0u, ext.size())) {
@@ -83,7 +78,7 @@ TEST_CASE("Different indexing on multi_array",
           p[i] = pos[0] * pos[1];
         }
       },
-      array.get_ptr(), ext);
+      array.dev_ndptr(), ext);
   CudaSafeCall(cudaDeviceSynchronize());
 
   for (auto idx : array.indices()) {
@@ -171,14 +166,14 @@ TEST_CASE("Performance of different indexing schemes",
   cudaDeviceSynchronize();
 
   timer::stamp();
-  kernel_launch(interp_kernel, v1.get_const_ptr(), result1.dev_ptr(),
+  kernel_launch(interp_kernel, v1.dev_ndptr_const(), result1.dev_ptr(),
                 xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(),
                 cells1.dev_ptr(), ext);
   cudaDeviceSynchronize();
   timer::show_duration_since_stamp("normal indexing", "us");
 
   timer::stamp();
-  kernel_launch(interp_kernel, v2.get_const_ptr(), result2.dev_ptr(),
+  kernel_launch(interp_kernel, v2.dev_ndptr_const(), result2.dev_ptr(),
                 xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(),
                 cells2.dev_ptr(), ext);
   cudaDeviceSynchronize();
@@ -196,10 +191,34 @@ TEST_CASE("Assign and copy on device", "[multi_array][kernel]") {
   auto v1 = make_multi_array<float>(extent(30, 30));
   auto v2 = make_multi_array<float>(extent(30, 30));
 
-  v1.assign(3.0f);
+  v1.assign_dev(3.0f);
   v1.copy_to_host();
   for (auto idx : v1.indices()) {
     REQUIRE(v1[idx] == 3.0f);
+  }
+}
+
+TEST_CASE("Add ndptr on device", "[multi_array][exp_template]") {
+  auto ext = extent(30, 30);
+  auto v1 = make_multi_array<float>(ext);
+  auto v2 = make_multi_array<float>(ext);
+  auto v3 = make_multi_array<float>(ext);
+
+  v1.assign_dev(1.0f);
+  v2.assign_dev(2.0f);
+
+  kernel_launch({30, 30}, [ext]__device__(auto p1, auto p2, auto p3) {
+      using idx_t = default_idx_t<2>;
+      for (auto idx : grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+        p3[idx] = (p1 * p2)[idx];
+      }
+    }, v1.dev_ndptr_const(), v2.dev_ndptr_const(), v3.dev_ndptr());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+
+  v3.copy_to_host();
+  for (auto idx : v3.indices()) {
+    REQUIRE(v3[idx] == 2.0f);
   }
 }
 

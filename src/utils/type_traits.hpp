@@ -33,12 +33,17 @@ template <class... Ts>
 using conjunction =
     std::is_same<bool_pack<true, Ts::value...>, bool_pack<Ts::value..., true>>;
 
+// This checks if a given type pack Ts are all convertible to T
 template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<
     conjunction<std::is_convertible<Ts, T>...>::value>::type;
 
 // This is a template struct to check if a type is indexable using an idx type
-template<typename Type>
+// template <typename Type, class dummy = void>
+// struct is_indexable;
+
+template<typename Type, typename = typename Type::idx_t>
+// struct is_indexable<Type, typename Type::idx_t> {
 struct is_indexable {
 private:
     template<typename T>
@@ -58,8 +63,11 @@ public:
     static constexpr bool value = result_t::value;
 };
 
-// This is a template struct to check if a type is indexable using an idx type
-template<typename Type>
+// This is a template struct to check if a type is const indexable using an idx type
+// template <typename Type, class Idx_t = void>
+// struct is_const_indexable;
+
+template<typename Type, typename = typename Type::idx_t>
 struct is_const_indexable {
 private:
     template<typename T>
@@ -79,6 +87,10 @@ public:
     static constexpr bool value = result_t::value;
 };
 
+// This checks whether a given pack of types are all const indexable
+template <typename... Ts>
+using all_const_indexable = typename std::enable_if<
+    conjunction<is_const_indexable<Ts>...>::value>::type;
 
 
 }  // namespace Aperture

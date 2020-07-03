@@ -57,7 +57,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::init() {
-  init_dev_charge_mass(this->m_charges, this->m_masses);
+  init_dev_charge_mass(this->m_charges.data(), this->m_masses.data());
 
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(this->m_num_species);

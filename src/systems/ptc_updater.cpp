@@ -13,6 +13,26 @@
 namespace Aperture {
 
 template <typename Conf>
+void
+ptc_updater<Conf>::init_charge_mass() {
+  // Default values are 1.0
+  float q_e = 1.0;
+  float ion_mass = 1.0;
+  m_env.params().get_value("q_e", q_e);
+  m_env.params().get_value("ion_mass", ion_mass);
+
+  for (int i = 0; i < (max_ptc_types); i++) {
+    m_charges[i] = q_e;
+    m_masses[i] = q_e;
+  }
+  m_charges[(int)PtcType::electron] *= -1.0;
+  m_masses[(int)PtcType::ion] *= ion_mass;
+  for (int i = 0; i < (max_ptc_types); i++) {
+    m_q_over_m[i] = m_charges[i] / m_masses[i];
+  }
+}
+
+template <typename Conf>
 ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
                                const domain_comm<Conf>* comm) :
     system_t(env), m_grid(grid), m_comm(comm) {
@@ -147,23 +167,24 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 template <typename Conf>
 void
 ptc_updater<Conf>::move_and_deposit(double dt, uint32_t step) {
-  if (Conf::dim == 1)
+  if constexpr (Conf::dim == 1)
     move_deposit_1d(dt, step);
-  else if (Conf::dim == 2)
+  else if constexpr (Conf::dim == 2)
     move_deposit_2d(dt, step);
-  else if (Conf::dim == 3)
+  else if constexpr (Conf::dim == 3)
     move_deposit_3d(dt, step);
 }
 
 template <typename Conf>
 void
 ptc_updater<Conf>::move_photons(double dt, uint32_t step) {
-  if (Conf::dim == 1)
+  if constexpr (Conf::dim == 1) {
     move_photons_1d(dt, step);
-  else if (Conf::dim == 2)
+  } else if constexpr (Conf::dim == 2) {
     move_photons_2d(dt, step);
-  else if (Conf::dim == 3)
+  } else if constexpr (Conf::dim == 3) {
     move_photons_3d(dt, step);
+  }
 }
 
 template <typename Conf>
@@ -237,141 +258,50 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 template <typename Conf>
 void
 ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
-  auto num = ptc->number();
-  if (num > 0) {
-    auto ext = m_grid.extent();
+  if constexpr (Conf::dim >= 2) {
+    auto num = ptc->number();
+    if (num > 0) {
+      auto ext = m_grid.extent();
 
-    for (auto n : range(0, num)) {
-      uint32_t cell = ptc->cell[n];
-      if (cell == empty_cell) continue;
-      auto idx = (*E)[0].idx_at(cell);
-      auto pos = idx.get_pos();
+      for (auto n : range(0, num)) {
+        uint32_t cell = ptc->cell[n];
+        if (cell == empty_cell) continue;
+        auto idx = (*E)[0].idx_at(cell);
+        auto pos = idx.get_pos();
 
-      // step 1: Move particles
-      auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
-      Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
-             gamma = ptc->E[n];
+        // step 1: Move particles
+        auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
+        Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
+            gamma = ptc->E[n];
 
-      v1 /= gamma;
-      v2 /= gamma;
-      v3 /= gamma;
+        v1 /= gamma;
+        v2 /= gamma;
+        v3 /= gamma;
 
-      auto new_x1 = x1 + (v1 * dt) * m_grid.inv_delta[0];
-      int dc1 = std::floor(new_x1);
-      pos[0] += dc1;
-      ptc->x1[n] = new_x1 - (Pos_t)dc1;
+        auto new_x1 = x1 + (v1 * dt) * m_grid.inv_delta[0];
+        int dc1 = std::floor(new_x1);
+        pos[0] += dc1;
+        ptc->x1[n] = new_x1 - (Pos_t)dc1;
 
-      auto new_x2 = x2 + (v2 * dt) * m_grid.inv_delta[1];
-      int dc2 = std::floor(new_x2);
-      pos[1] += dc2;
-      ptc->x2[n] = new_x2 - (Pos_t)dc2;
-      ptc->x3[n] = x3 + v3 * dt;
+        auto new_x2 = x2 + (v2 * dt) * m_grid.inv_delta[1];
+        int dc2 = std::floor(new_x2);
+        pos[1] += dc2;
+        ptc->x2[n] = new_x2 - (Pos_t)dc2;
+        ptc->x3[n] = x3 + v3 * dt;
 
-      ptc->cell[n] = m_grid.get_idx(pos).linear;
+        ptc->cell[n] = m_grid.get_idx(pos).linear;
 
-      // step 2: Deposit current
-      auto flag = ptc->flag[n];
-      auto sp = get_ptc_type(flag);
-      auto interp = spline_t{};
-      if (check_flag(flag, PtcFlag::ignore_current)) continue;
-      auto weight = m_charges[sp] * ptc->weight[n];
+        // step 2: Deposit current
+        auto flag = ptc->flag[n];
+        auto sp = get_ptc_type(flag);
+        auto interp = spline_t{};
+        if (check_flag(flag, PtcFlag::ignore_current)) continue;
+        auto weight = m_charges[sp] * ptc->weight[n];
 
-      int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-      int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-      int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      Scalar djy[2 * spline_t::radius + 1] = {};
-      for (int j = j_0; j <= j_1; j++) {
-        Scalar sy0 = interp(-x2 + j);
-        Scalar sy1 = interp(-new_x2 + j);
-
-        Scalar djx = 0.0f;
-        for (int i = i_0; i <= i_1; i++) {
-          Scalar sx0 = interp(-x1 + i);
-          Scalar sx1 = interp(-new_x1 + i);
-
-          // j1 is movement in x1
-          auto offset = idx.inc_x(i).inc_y(j);
-          djx += movement2d(sy0, sy1, sx0, sx1);
-          (*J)[0][offset] += -weight * djx;
-
-          // j2 is movement in x2
-          djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
-          (*J)[1][offset] += -weight * djy[i - i_0];
-          // Logger::print_debug("J1 is {}", (*J)[1][offset]);
-
-          // j3 is simply v3 times rho at center
-          (*J)[2][offset] += weight * v3 * center2d(sx0, sx1, sy0, sy1);
-
-          // rho is deposited at the final position
-          // if ((step + 1) % m_data_interval == 0) {
-          if (step % m_rho_interval == 0) {
-            (*Rho[sp])[0][offset] += weight * sx1 * sy1;
-          }
-        }
-      }
-    }
-  }
-}
-
-template <typename Conf>
-void
-ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
-  auto num = ptc->number();
-  if (num > 0) {
-    auto ext = m_grid.extent();
-
-    for (auto n : range(0, num)) {
-      uint32_t cell = ptc->cell[n];
-      if (cell == empty_cell) continue;
-      auto idx = (*E)[0].idx_at(cell);
-      auto pos = idx.get_pos();
-
-      // step 1: Move particles
-      auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
-      Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
-             gamma = ptc->E[n];
-
-      v1 /= gamma;
-      v2 /= gamma;
-      v3 /= gamma;
-
-      auto new_x1 = x1 + (v1 * dt) * m_grid.inv_delta[0];
-      int dc1 = std::floor(new_x1);
-      pos[0] += dc1;
-      ptc->x1[n] = new_x1 - (Pos_t)dc1;
-
-      auto new_x2 = x2 + (v2 * dt) * m_grid.inv_delta[1];
-      int dc2 = std::floor(new_x2);
-      pos[1] += dc2;
-      ptc->x2[n] = new_x2 - (Pos_t)dc2;
-
-      auto new_x3 = x3 + (v3 * dt) * m_grid.inv_delta[2];
-      int dc3 = std::floor(new_x3);
-      pos[2] += dc3;
-      ptc->x3[n] = new_x3 - (Pos_t)dc3;
-
-      ptc->cell[n] = m_grid.get_idx(pos).linear;
-
-      // step 2: Deposit current
-      auto flag = ptc->flag[n];
-      auto sp = get_ptc_type(flag);
-      auto interp = spline_t{};
-      if (check_flag(flag, PtcFlag::ignore_current)) continue;
-      auto weight = m_charges[sp] * ptc->weight[n];
-
-      int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-      int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-      int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-      int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
-
-      Scalar djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
-      for (int k = k_0; k <= k_1; k++) {
-        Scalar sz0 = interp(-x3 + k);
-        Scalar sz1 = interp(-new_x3 + k);
-
+        int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+        int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+        int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+        int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
         Scalar djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
           Scalar sy0 = interp(-x2 + j);
@@ -383,22 +313,117 @@ ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             Scalar sx1 = interp(-new_x1 + i);
 
             // j1 is movement in x1
-            auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
-            djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
+            auto offset = idx.inc_x(i).inc_y(j);
+            djx += movement2d(sy0, sy1, sx0, sx1);
             (*J)[0][offset] += -weight * djx;
 
             // j2 is movement in x2
-            djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
+            djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
             (*J)[1][offset] += -weight * djy[i - i_0];
             // Logger::print_debug("J1 is {}", (*J)[1][offset]);
 
-            // j3 is movement in x3
-            djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
-            (*J)[2][offset] += -weight * djz[j - j_0][i - i_0];
+            // j3 is simply v3 times rho at center
+            (*J)[2][offset] += weight * v3 * center2d(sx0, sx1, sy0, sy1);
 
             // rho is deposited at the final position
+            // if ((step + 1) % m_data_interval == 0) {
             if (step % m_rho_interval == 0) {
-              (*Rho[sp])[0][offset] += weight * sx1 * sy1 * sz1;
+              (*Rho[sp])[0][offset] += weight * sx1 * sy1;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
+  if constexpr (Conf::dim == 3) {
+    auto num = ptc->number();
+    if (num > 0) {
+      auto ext = m_grid.extent();
+
+      for (auto n : range(0, num)) {
+        uint32_t cell = ptc->cell[n];
+        if (cell == empty_cell) continue;
+        auto idx = (*E)[0].idx_at(cell);
+        auto pos = idx.get_pos();
+
+        // step 1: Move particles
+        auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
+        Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
+            gamma = ptc->E[n];
+
+        v1 /= gamma;
+        v2 /= gamma;
+        v3 /= gamma;
+
+        auto new_x1 = x1 + (v1 * dt) * m_grid.inv_delta[0];
+        int dc1 = std::floor(new_x1);
+        pos[0] += dc1;
+        ptc->x1[n] = new_x1 - (Pos_t)dc1;
+
+        auto new_x2 = x2 + (v2 * dt) * m_grid.inv_delta[1];
+        int dc2 = std::floor(new_x2);
+        pos[1] += dc2;
+        ptc->x2[n] = new_x2 - (Pos_t)dc2;
+
+        auto new_x3 = x3 + (v3 * dt) * m_grid.inv_delta[2];
+        int dc3 = std::floor(new_x3);
+        pos[2] += dc3;
+        ptc->x3[n] = new_x3 - (Pos_t)dc3;
+
+        ptc->cell[n] = m_grid.get_idx(pos).linear;
+
+        // step 2: Deposit current
+        auto flag = ptc->flag[n];
+        auto sp = get_ptc_type(flag);
+        auto interp = spline_t{};
+        if (check_flag(flag, PtcFlag::ignore_current)) continue;
+        auto weight = m_charges[sp] * ptc->weight[n];
+
+        int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+        int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+        int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+        int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
+        int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+        int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
+
+        Scalar djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
+        for (int k = k_0; k <= k_1; k++) {
+          Scalar sz0 = interp(-x3 + k);
+          Scalar sz1 = interp(-new_x3 + k);
+
+          Scalar djy[2 * spline_t::radius + 1] = {};
+          for (int j = j_0; j <= j_1; j++) {
+            Scalar sy0 = interp(-x2 + j);
+            Scalar sy1 = interp(-new_x2 + j);
+
+            Scalar djx = 0.0f;
+            for (int i = i_0; i <= i_1; i++) {
+              Scalar sx0 = interp(-x1 + i);
+              Scalar sx1 = interp(-new_x1 + i);
+
+              // j1 is movement in x1
+              auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
+              djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
+              (*J)[0][offset] += -weight * djx;
+
+              // j2 is movement in x2
+              djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
+              (*J)[1][offset] += -weight * djy[i - i_0];
+              // Logger::print_debug("J1 is {}", (*J)[1][offset]);
+
+              // j3 is movement in x3
+              djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
+              (*J)[2][offset] += -weight * djz[j - j_0][i - i_0];
+
+              // rho is deposited at the final position
+              if (step % m_rho_interval == 0) {
+                (*Rho[sp])[0][offset] += weight * sx1 * sy1 * sz1;
+              }
             }
           }
         }

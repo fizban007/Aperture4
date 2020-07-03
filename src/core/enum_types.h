@@ -25,17 +25,19 @@ constexpr int max_ptc_type_bits = 3;
 constexpr int max_ptc_types = 1 << max_ptc_type_bits;
 
 inline std::string ptc_type_name(int type) {
+  std::string result;
   if (type == (int)PtcType::electron) {
-    return "e";
+    result = "e";
   } else if (type == (int)PtcType::positron) {
-    return "p";
+    result = "p";
   } else if (type == (int)PtcType::ion) {
-    return "i";
+    result = "i";
   } else if (type == (int)PtcType::ion + 1) {
-    return "ph";
+    result = "ph";
   } else {
-    return "unknown";
+    result = "unknown";
   }
+  return result;
 }
 
 enum class CommTags : char { left = 0, right };

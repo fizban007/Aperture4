@@ -20,7 +20,7 @@ class system_t {
   /// Constructor. The `system` has to know about the environment so that it can
   /// register data or get parameters
   system_t(sim_environment& env) : m_env(env) {}
-  virtual ~system_t() {}
+  virtual ~system_t() = default;
 
   /// Register data components.
   /*!If implemented, this method will be called right after the `system` is

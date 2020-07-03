@@ -18,33 +18,31 @@
 #ifndef __MULTI_ARRAY_H_
 #define __MULTI_ARRAY_H_
 
+#include "core/buffer.hpp"
 #include "ndptr.hpp"
 #include "typedefs_and_constants.h"
-#include "core/buffer.hpp"
 #include "utils/index.hpp"
 #include "utils/range.hpp"
+#include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
 #include <exception>
-#include <type_traits>
 
 namespace Aperture {
-
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  This is the multi-dimensional array class of *Aperture*.
 ///
 ///  Since all underlying memory is linear, a multi-dimensional array is simply
 ///  a linear segment of memory with an indexing scheme. The structure of this
-///  class reflect that. The multi_array class inherits the \ref buffer class (so
-///  that it inherits the host-device copying functionality), extends it with an
-///  indexing scheme, and keeps track of its n-dimensional size.
+///  class reflect that. The multi_array class inherits the \ref buffer class
+///  (so that it inherits the host-device copying functionality), extends it
+///  with an indexing scheme, and keeps track of its n-dimensional size.
 ///
 ///  \tparam T      The datatype stored in the multi_array
 ///  \tparam Rank   The dimensionality of the multi_array
 ///  \tparam Idx_t  An indexing scheme for the multi_array
 ////////////////////////////////////////////////////////////////////////////////
-template <typename T, int Rank,
-          typename Idx_t = default_idx_t<Rank>>
+template <typename T, int Rank, typename Idx_t = default_idx_t<Rank>>
 class multi_array : public buffer<T> {
  private:
   extent_t<Rank> m_ext;
@@ -68,7 +66,7 @@ class multi_array : public buffer<T> {
   ///     multi_array<2, float> v(32, 32);
   ///
   /// This will initialize a 2D `float` array of size 32x32.
-  template <typename... Args>
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   multi_array(Args... args)
       : m_ext(args...), base_type(extent_t<Rank>(args...).size()) {
     check_dimension();
@@ -83,8 +81,7 @@ class multi_array : public buffer<T> {
   ///
   /// This will initialize a 2D `float` array of size 32x32, both allocating on
   /// the device and the host.
-  multi_array(const extent_t<Rank>& extent,
-              MemType type = default_mem_type)
+  multi_array(const extent_t<Rank>& extent, MemType type = default_mem_type)
       : m_ext(extent), base_type(extent.size(), type) {
     check_dimension();
   }
@@ -102,16 +99,14 @@ class multi_array : public buffer<T> {
 
   void assign(const T& value) { base_type::assign(value); }
 
-  void copy_from(const self_type& other) {
-    base_type::copy_from(other);
-  }
+  void copy_from(const self_type& other) { base_type::copy_from(other); }
 
   void resize(const extent_t<Rank>& ext) {
     m_ext = ext;
     base_type::resize(ext.size());
   }
 
-  template <typename... Args>
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   void resize(Args... args) {
     resize(extent(args...));
   }
@@ -138,43 +133,33 @@ class multi_array : public buffer<T> {
 
   using base_type::operator[];
 
-  inline T
-  operator[](const Idx_t& idx) const {
+  inline T operator[](const Idx_t& idx) const {
     return this->m_data_h[idx.linear];
   }
 
-  inline T&
-  operator[](const Idx_t& idx) {
-    return this->m_data_h[idx.linear];
-  }
+  inline T& operator[](const Idx_t& idx) { return this->m_data_h[idx.linear]; }
 
-  template <typename... Args>
-  inline T
-  operator()(Args... args) const {
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
+  inline T operator()(Args... args) const {
     auto idx = get_idx(args...);
     return this->m_data_h[idx.linear];
   }
 
-  template <typename... Args>
-  inline T&
-  operator()(Args... args) {
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
+  inline T& operator()(Args... args) {
     auto idx = get_idx(args...);
     return this->m_data_h[idx.linear];
   }
 
-  template <typename... Args>
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   inline Idx_t get_idx(Args... args) {
     auto idx = Idx_t(index_t<Rank>(args...), m_ext);
     return idx;
   }
 
-  inline Idx_t get_idx(index_t<Rank> pos) const {
-    return Idx_t(pos, m_ext);
-  }
+  inline Idx_t get_idx(index_t<Rank> pos) const { return Idx_t(pos, m_ext); }
 
-  inline Idx_t idx_at(uint64_t n) const {
-    return Idx_t(n, m_ext);
-  }
+  inline Idx_t idx_at(uint64_t n) const { return Idx_t(n, m_ext); }
 
   inline ptr_t get_ptr() { return ptr_t(this->m_data_d); }
 
@@ -193,7 +178,8 @@ class multi_array : public buffer<T> {
 //           typename... Args>
 // auto
 // make_multi_array(Args... args) {
-//   return multi_array<T, sizeof...(Args), default_idx_t<sizeof...(Args)>>(args...);
+//   return multi_array<T, sizeof...(Args),
+//   default_idx_t<sizeof...(Args)>>(args...);
 // }
 
 /// Helper function to construct a multi_array.
@@ -202,13 +188,13 @@ class multi_array : public buffer<T> {
  *  template parameters (specifically the dimensionality, which is deduced from
  *  the supplied extent_t struct). For example:
  *
- *      auto array = make_multi_array<float>(extent(32, 32), MemType::host_only);
+ *      auto array = make_multi_array<float>(extent(32, 32),
+ * MemType::host_only);
  *
  *  This will create a 2D `float` multi_array with size 32x32 that lives on the
  *  host only.
  */
-template <typename T,
-          template <int> class Index_t = default_idx_t, int Rank>
+template <typename T, template <int> class Index_t = default_idx_t, int Rank>
 auto
 make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);

@@ -15,28 +15,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MULTI_ARRAY_DATA_HPP_
-#define __MULTI_ARRAY_DATA_HPP_
+#ifndef __TYPE_TRAITS_H_
+#define __TYPE_TRAITS_H_
 
-#include "framework/data.h"
-#include "core/multi_array.hpp"
+#include <type_traits>
 
 namespace Aperture {
 
-////////////////////////////////////////////////////////////////////////////////
-///  Thin wrapper around a multi_array for the purpose of unified data
-///  management.
-////////////////////////////////////////////////////////////////////////////////
-template <typename T, int Rank>
-class multi_array_data : public data_t, public multi_array<T, Rank> {
- public:
-  using multi_array<T, Rank>::multi_array;
+// This is taken from
+// https://www.fluentcpp.com/2019/01/25/variadic-number-function-parameters-type/
+template <bool...>
+struct bool_pack {};
+template <class... Ts>
+using conjunction =
+    std::is_same<bool_pack<true, Ts::value...>, bool_pack<Ts::value..., true>>;
+template <typename T, typename... Ts>
+using all_convertible_to = typename std::enable_if<
+    conjunction<std::is_convertible<Ts, T>...>::value>::type;
 
-  void init() override {
-    this->assign(0.0);
-  }
-};
+}  // namespace Aperture
 
-}
-
-#endif // __MULTI_ARRAY_DATA_HPP_
+#endif  // __TYPE_TRAITS_H_

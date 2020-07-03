@@ -22,16 +22,64 @@
 
 namespace Aperture {
 
-// This is taken from
+// This implementation of conjunction is taken from
 // https://www.fluentcpp.com/2019/01/25/variadic-number-function-parameters-type/
+// In c++17 there is std::conjunction, but this implementation is to keep
+// compatibility with c++14 which CUDA uses.
 template <bool...>
 struct bool_pack {};
+
 template <class... Ts>
 using conjunction =
     std::is_same<bool_pack<true, Ts::value...>, bool_pack<Ts::value..., true>>;
+
 template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<
     conjunction<std::is_convertible<Ts, T>...>::value>::type;
+
+// This is a template struct to check if a type is indexable using an idx type
+template<typename Type>
+struct is_indexable {
+private:
+    template<typename T>
+    static constexpr auto check(T*)
+    -> typename
+        std::is_same<
+            decltype( std::declval<T>()[std::declval<typename Type::idx_t>()] ),
+            typename Type::value_t& // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        >::type;  // attempt to call it and see if the return type is correct
+
+    template<typename>
+    static constexpr std::false_type check(...);
+
+    typedef decltype(check<Type>(0)) result_t;
+
+public:
+    static constexpr bool value = result_t::value;
+};
+
+// This is a template struct to check if a type is indexable using an idx type
+template<typename Type>
+struct is_const_indexable {
+private:
+    template<typename T>
+    static constexpr auto check(T*)
+    -> typename
+        std::is_same<
+            decltype( std::declval<const T>()[std::declval<typename Type::idx_t>()] ),
+            typename Type::value_t // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        >::type;  // attempt to call it and see if the return type is correct
+
+    template<typename>
+    static constexpr std::false_type check(...);
+
+    typedef decltype(check<Type>(0)) result_t;
+
+public:
+    static constexpr bool value = result_t::value;
+};
+
+
 
 }  // namespace Aperture
 

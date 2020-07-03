@@ -48,15 +48,14 @@ class multi_array : public buffer<T> {
   extent_t<Rank> m_ext;
 
  public:
-  typedef buffer<T> base_type;
   typedef multi_array<T, Rank, Idx_t> self_type;
+  typedef T value_t;
   typedef Idx_t idx_t;
   typedef ndptr<T, Rank, Idx_t> ptr_t;
   typedef ndptr_const<T, Rank, Idx_t> const_ptr_t;
-  typedef T value_t;
 
   /// Default constructor, initialize an empty multi_array
-  multi_array(MemType type = default_mem_type) : m_ext{}, base_type(type) {}
+  multi_array(MemType type = default_mem_type) : m_ext{}, buffer<T>(type) {}
 
   /// Initialize a multi_array specifying its dimensions using a number of
   /// integers.
@@ -68,7 +67,7 @@ class multi_array : public buffer<T> {
   /// This will initialize a 2D `float` array of size 32x32.
   template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   multi_array(Args... args)
-      : m_ext(args...), base_type(extent_t<Rank>(args...).size()) {
+      : m_ext(args...), buffer<T>(extent_t<Rank>(args...).size()) {
     check_dimension();
   }
 
@@ -82,7 +81,7 @@ class multi_array : public buffer<T> {
   /// This will initialize a 2D `float` array of size 32x32, both allocating on
   /// the device and the host.
   multi_array(const extent_t<Rank>& extent, MemType type = default_mem_type)
-      : m_ext(extent), base_type(extent.size(), type) {
+      : m_ext(extent), buffer<T>(extent.size(), type) {
     check_dimension();
   }
 
@@ -91,19 +90,19 @@ class multi_array : public buffer<T> {
 
   // Only allow move
   multi_array(self_type&& other)
-      : m_ext(other.m_ext), base_type(std::move(other)) {
+      : m_ext(other.m_ext), buffer<T>(std::move(other)) {
     other.m_ext = extent_t<Rank>{};
   }
 
   ~multi_array() {}
 
-  void assign(const T& value) { base_type::assign(value); }
+  void assign(const T& value) { buffer<T>::assign(value); }
 
-  void copy_from(const self_type& other) { base_type::copy_from(other); }
+  void copy_from(const self_type& other) { buffer<T>::copy_from(other); }
 
   void resize(const extent_t<Rank>& ext) {
     m_ext = ext;
-    base_type::resize(ext.size());
+    buffer<T>::resize(ext.size());
   }
 
   template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
@@ -125,13 +124,13 @@ class multi_array : public buffer<T> {
   self_type& operator=(const self_type& other) = delete;
 
   self_type& operator=(self_type&& other) {
-    base_type::operator=(std::move(other));
+    buffer<T>::operator=(std::move(other));
     m_ext = other.m_ext;
     other.m_ext = extent_t<Rank>{};
     return *this;
   }
 
-  using base_type::operator[];
+  using buffer<T>::operator[];
 
   inline T operator[](const Idx_t& idx) const {
     return this->m_data_h[idx.linear];

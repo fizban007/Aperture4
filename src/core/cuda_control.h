@@ -27,8 +27,8 @@
 #endif
 
 #if defined(CUDA_ENABLED)
-#include <cuda_runtime.h>
 #include <cstdlib>
+#include <cuda_runtime.h>
 
 #define CUDA_ERROR_CHECK  //!< Defines whether to check error
 #define CudaSafeCall(err) \
@@ -48,8 +48,8 @@ __cudaCheckError(const char *file, const int line) {
 #ifdef CUDA_ERROR_CHECK
   cudaError err = cudaGetLastError();
   if (cudaSuccess != err) {
-    fprintf(stderr, "cudaCheckError() failed at %s:%i : %s\n", file,
-            line, cudaGetErrorString(err));
+    fprintf(stderr, "cudaCheckError() failed at %s:%i : %s\n", file, line,
+            cudaGetErrorString(err));
     std::exit(-1);
   }
 
@@ -58,15 +58,13 @@ __cudaCheckError(const char *file, const int line) {
 #ifndef NDEBUG
   err = cudaDeviceSynchronize();
   if (cudaSuccess != err) {
-    fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
-            file, line, cudaGetErrorString(err));
+    fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n", file,
+            line, cudaGetErrorString(err));
     std::exit(-1);
   }
 #endif
 
 #endif
-
-  return;
 }
 
 ///  Checks memory allocation error
@@ -81,8 +79,6 @@ __cudaSafeCall(cudaError err, const char *file, const int line) {
     throw(cudaGetErrorString(err));
   }
 #endif
-
-  return;
 }
 #else
 #define CudaSafeCall(err) err

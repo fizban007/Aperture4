@@ -48,8 +48,6 @@ class buffer {
 
   mutable T* m_data_h = nullptr;
   mutable T* m_data_d = nullptr;
-  // mutable bool m_host_valid = true;
-  // mutable bool m_dev_valid = true;
   bool m_host_allocated = false;
   bool m_dev_allocated = false;
   MemType m_type = default_mem_type;
@@ -124,15 +122,11 @@ class buffer {
   /// Subscript operator, const version. This is only defined for the host
   /// pointer, so if the buffer is device_only then this will give a
   /// segmentation fault.
-  inline T operator[](size_t n) const {
-    return m_data_h[n];
-  }
+  inline T operator[](size_t n) const { return m_data_h[n]; }
 
   /// Subscript operator. This is only defined for the host pointer, so if the
   /// buffer is device_only then this will give a segmentation fault.
-  inline T& operator[](size_t n) {
-    return m_data_h[n];
-  }
+  inline T& operator[](size_t n) { return m_data_h[n]; }
 
   /// Check the memory type of this buffer.
   MemType mem_type() const { return m_type; }
@@ -149,8 +143,6 @@ class buffer {
       free_mem();
     }
     alloc_mem(size);
-    // m_host_valid = true;
-    // m_dev_valid = true;
   }
 
   /// Assign a single value to part of the buffer, host version
@@ -158,7 +150,9 @@ class buffer {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_host_allocated) ptr_assign(m_data_h, start, end, value);
+    if (m_host_allocated) {
+      ptr_assign(m_data_h, start, end, value);
+    }
   }
 
   /// Assign a single value to part of the buffer, device version
@@ -199,8 +193,7 @@ class buffer {
   ///  \param dst_pos  Starting position in this buffer (the target)
   void copy_from(const self_type& other, size_t num, size_t src_pos = 0,
                  size_t dst_pos = 0) {
-    if (other.m_type == MemType::host_only ||
-        m_type == MemType::host_only) {
+    if (other.m_type == MemType::host_only || m_type == MemType::host_only) {
       host_copy_from(other, num, src_pos, dst_pos);
     } else {
       dev_copy_from(other, num, src_pos, dst_pos);
@@ -216,8 +209,12 @@ class buffer {
   void host_copy_from(const self_type& other, size_t num, size_t src_pos = 0,
                       size_t dst_pos = 0) {
     // Sanitize input
-    if (dst_pos + num > m_size) num = m_size - dst_pos;
-    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
+    if (dst_pos + num > m_size) {
+      num = m_size - dst_pos;
+    }
+    if (src_pos + num > other.m_size) {
+      num = other.m_size - src_pos;
+    }
     if (m_host_allocated && other.m_host_allocated) {
       ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos);
     }
@@ -230,10 +227,14 @@ class buffer {
   ///  \param src_pos   Starting position in the other buffer
   ///  \param dst_pos  Starting position in this buffer (the target)
   void dev_copy_from(const self_type& other, size_t num, size_t src_pos = 0,
-                      size_t dst_pos = 0) {
+                     size_t dst_pos = 0) {
     // Sanitize input
-    if (dst_pos + num > m_size) num = m_size - dst_pos;
-    if (src_pos + num > other.m_size) num = other.m_size - src_pos;
+    if (dst_pos + num > m_size) {
+      num = m_size - dst_pos;
+    }
+    if (src_pos + num > other.m_size) {
+      num = other.m_size - src_pos;
+    }
     if (m_dev_allocated && other.m_dev_allocated) {
       ptr_copy_dev(other.m_data_d, m_data_d, num, src_pos, dst_pos);
     }
@@ -265,7 +266,10 @@ class buffer {
   ///  Place some values directly at and after @pos. Very useful for
   ///  initialization.
   void emplace(size_t pos, const std::initializer_list<T>& list) {
-    if (m_type == MemType::device_only) return;
+    // Do nothing if the buffer only lives on device
+    if (m_type == MemType::device_only) {
+      return;
+    }
     for (auto& t : list) {
       if (pos >= m_size) break;
       m_data_h[pos] = t;
@@ -286,20 +290,22 @@ class buffer {
   /// compatibility with std data structures. The user is encouraged to use
   /// host_ptr() or dev_ptr() directly depending on the use case.
   const T* data() const {
-    if (m_type == MemType::host_only || m_type == MemType::host_device)
+    if (m_type == MemType::host_only || m_type == MemType::host_device) {
       return m_data_h;
-    else
+    } else {
       return m_data_d;
+    }
   }
 
   /// Return the pointer to the data. This is only for interface
   /// compatibility with std data structures. The user is encouraged to use
   /// host_ptr() or dev_ptr() directly depending on the use case.
   T* data() {
-    if (m_type == MemType::host_only || m_type == MemType::host_device)
+    if (m_type == MemType::host_only || m_type == MemType::host_device) {
       return m_data_h;
-    else
+    } else {
       return m_data_d;
+    }
   }
 
   /// Return the pointer to the host memory, const version
@@ -316,6 +322,7 @@ class buffer {
 
   /// Copy from device to host. This will block host code execution.
   void copy_to_host() {
+    // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_h, m_data_d, m_size * sizeof(T),
@@ -328,6 +335,7 @@ class buffer {
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
   void copy_to_host(cudaStream_t stream) {
+    // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpyAsync(m_data_h, m_data_d, m_size * sizeof(T),
@@ -338,6 +346,7 @@ class buffer {
 
   /// Copy from host to device. This will block host code execution.
   void copy_to_device() {
+    // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpy(m_data_d, m_data_h, m_size * sizeof(T),
@@ -350,6 +359,7 @@ class buffer {
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
   void copy_to_device(cudaStream_t stream) {
+    // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
       CudaSafeCall(cudaMemcpyAsync(m_data_d, m_data_h, m_size * sizeof(T),
@@ -362,5 +372,3 @@ class buffer {
 }  // namespace Aperture
 
 #endif  // __BUFFER_H_
-
-

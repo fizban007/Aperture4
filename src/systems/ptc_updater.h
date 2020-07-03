@@ -57,9 +57,6 @@ class ptc_updater : public system_t {
   uint32_t m_filter_times = 1;
 
   // By default the maximum number of species is 8
-  // float m_charges[max_ptc_types];
-  // float m_masses[max_ptc_types];
-  // float m_q_over_m[max_ptc_types];
   std::array<float, max_ptc_types> m_charges;
   std::array<float, max_ptc_types> m_masses;
   std::array<float, max_ptc_types> m_q_over_m;
@@ -83,7 +80,6 @@ class ptc_updater : public system_t {
 
   template <typename P>
   void push(double dt, P& pusher);
-  // void move(double dt);
 
   virtual void push_default(double dt);
   virtual void move_deposit_1d(value_t dt, uint32_t step);

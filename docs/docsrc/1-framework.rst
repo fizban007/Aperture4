@@ -58,7 +58,8 @@ after the constructor of the system, in ``register_system()``.
 init()
 ^^^^^^
 
-
+update()
+^^^^^^^^
 
 Data Components
 ---------------

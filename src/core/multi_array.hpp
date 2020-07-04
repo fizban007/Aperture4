@@ -96,7 +96,7 @@ class multi_array : public buffer<T> {
 
   ~multi_array() {}
 
-  void assign(const T& value) { buffer<T>::assign(value); }
+  using buffer<T>::assign;
 
   void copy_from(const self_type& other) { buffer<T>::copy_from(other); }
 

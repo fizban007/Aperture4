@@ -101,114 +101,53 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     }
   };
   exec_policy p;
-  configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
-                 src_pos, dst.extent(), src.extent());
+  configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
+                 dst_pos, src_pos, dst.extent(), src.extent());
   if (stream != nullptr) p.set_stream(*stream);
   kernel_launch(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
                 src_pos, dst.extent(), src.extent());
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
-template void resample_dev(const multi_array<float, 1>& from,
-                           multi_array<float, 1>& to, const index_t<1>& offset,
-                           const index_t<1>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<float, 2>& from,
-                           multi_array<float, 2>& to, const index_t<2>& offset,
-                           const index_t<2>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<float, 3>& from,
-                           multi_array<float, 3>& to, const index_t<3>& offset,
-                           const index_t<3>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 1>& from,
-                           multi_array<float, 1>& to, const index_t<1>& offset,
-                           const index_t<1>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 2>& from,
-                           multi_array<float, 2>& to, const index_t<2>& offset,
-                           const index_t<2>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 3>& from,
-                           multi_array<float, 3>& to, const index_t<3>& offset,
-                           const index_t<3>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 1>& from,
-                           multi_array<double, 1>& to, const index_t<1>& offset,
-                           const index_t<1>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 2>& from,
-                           multi_array<double, 2>& to, const index_t<2>& offset,
-                           const index_t<2>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
-template void resample_dev(const multi_array<double, 3>& from,
-                           multi_array<double, 3>& to, const index_t<3>& offset,
-                           const index_t<3>& offset_dst, stagger_t st_src,
-                           stagger_t st_dst, int downsample,
-                           const cudaStream_t* stream);
+#define INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, dim)                 \
+  template void resample_dev(                                           \
+      const multi_array<type1, dim>& from, multi_array<type2, dim>& to, \
+      const index_t<dim>& offset, const index_t<dim>& offset_dst,       \
+      stagger_t st_src, stagger_t st_dst, int downsample,               \
+      const cudaStream_t* stream)
 
-template void add_dev(multi_array<float, 1>& dst,
-                      const multi_array<float, 1>& src,
-                      const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, float scale,
-                      const cudaStream_t* stream);
-template void add_dev(multi_array<float, 2>& dst,
-                      const multi_array<float, 2>& src,
-                      const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, float scale,
-                      const cudaStream_t* stream);
-template void add_dev(multi_array<float, 3>& dst,
-                      const multi_array<float, 3>& src,
-                      const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, float scale,
-                      const cudaStream_t* stream);
-template void add_dev(multi_array<double, 1>& dst,
-                      const multi_array<double, 1>& src,
-                      const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, double scale,
-                      const cudaStream_t* stream);
-template void add_dev(multi_array<double, 2>& dst,
-                      const multi_array<double, 2>& src,
-                      const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, double scale,
-                      const cudaStream_t* stream);
-template void add_dev(multi_array<double, 3>& dst,
-                      const multi_array<double, 3>& src,
-                      const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, double scale,
-                      const cudaStream_t* stream);
+#define INSTANTIATE_RESAMPLE_DEV(type1, type2)   \
+  INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, 1); \
+  INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, 2); \
+  INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, 3)
 
-template void copy_dev(multi_array<float, 1>& dst,
-                       const multi_array<float, 1>& src,
-                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext, const cudaStream_t* stream);
-template void copy_dev(multi_array<float, 2>& dst,
-                       const multi_array<float, 2>& src,
-                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext, const cudaStream_t* stream);
-template void copy_dev(multi_array<float, 3>& dst,
-                       const multi_array<float, 3>& src,
-                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext, const cudaStream_t* stream);
-template void copy_dev(multi_array<double, 1>& dst,
-                       const multi_array<double, 1>& src,
-                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext, const cudaStream_t* stream);
-template void copy_dev(multi_array<double, 2>& dst,
-                       const multi_array<double, 2>& src,
-                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext, const cudaStream_t* stream);
-template void copy_dev(multi_array<double, 3>& dst,
-                       const multi_array<double, 3>& src,
-                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext, const cudaStream_t* stream);
+INSTANTIATE_RESAMPLE_DEV(float, float);
+INSTANTIATE_RESAMPLE_DEV(float, double);
+
+#define INSTANTIATE_ADD_DEV(type, dim)                                \
+  template void add_dev(                                              \
+      multi_array<type, dim>& dst, const multi_array<type, dim>& src, \
+      const index_t<dim>& dst_pos, const index_t<dim>& src_pos,       \
+      const extent_t<dim>& ext, type scale, const cudaStream_t* stream)
+
+INSTANTIATE_ADD_DEV(float, 1);
+INSTANTIATE_ADD_DEV(float, 2);
+INSTANTIATE_ADD_DEV(float, 3);
+INSTANTIATE_ADD_DEV(double, 1);
+INSTANTIATE_ADD_DEV(double, 2);
+INSTANTIATE_ADD_DEV(double, 3);
+
+#define INSTANTIATE_COPY_DEV(type, dim)                               \
+  template void copy_dev(                                             \
+      multi_array<type, dim>& dst, const multi_array<type, dim>& src, \
+      const index_t<dim>& dst_pos, const index_t<dim>& src_pos,       \
+      const extent_t<dim>& ext, const cudaStream_t* stream)
+
+INSTANTIATE_COPY_DEV(float, 1);
+INSTANTIATE_COPY_DEV(float, 2);
+INSTANTIATE_COPY_DEV(float, 3);
+INSTANTIATE_COPY_DEV(double, 1);
+INSTANTIATE_COPY_DEV(double, 2);
+INSTANTIATE_COPY_DEV(double, 3);
 
 }  // namespace Aperture

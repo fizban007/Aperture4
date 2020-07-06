@@ -19,7 +19,6 @@
 #define __MULTI_ARRAY_H_
 
 #include "core/buffer.hpp"
-#include "core/indexable.hpp"
 #include "ndptr.hpp"
 #include "typedefs_and_constants.h"
 #include "utils/index.hpp"
@@ -138,11 +137,19 @@ class multi_array : public buffer<T> {
   }
   inline T& operator[](const Idx_t& idx) { return this->m_data_h[idx.linear]; }
 
-  inline T at(const Idx_t& idx) const { return this->m_data_h[idx.linear]; }
-  inline T& at(const Idx_t& idx) { return this->m_data_h[idx.linear]; }
+  inline T at(const index_t<Rank>& pos) const {
+    return this->m_data_h[Idx_t(pos, m_ext).linear];
+  }
+  inline T& at(const index_t<Rank>& pos) {
+    return this->m_data_h[Idx_t(pos, m_ext).linear];
+  }
 
-  HD_INLINE T at_dev(const Idx_t& idx) const { return this->m_data_d[idx.linear]; }
-  HD_INLINE T& at_dev(const Idx_t& idx) { return this->m_data_d[idx.linear]; }
+  HD_INLINE T at_dev(const index_t<Rank>& pos) const {
+    return this->m_data_d[Idx_t(pos, m_ext).linear];
+  }
+  HD_INLINE T& at_dev(const index_t<Rank>& pos) {
+    return this->m_data_d[Idx_t(pos, m_ext).linear];
+  }
 
   template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   inline T operator()(Args... args) const {
@@ -179,9 +186,7 @@ class multi_array : public buffer<T> {
 
   inline Idx_t begin() const { return idx_at(0); }
   inline Idx_t end() const { return idx_at(this->m_size); }
-  inline range_proxy<Idx_t> indices() const {
-    return range(begin(), end());
-  }
+  inline range_proxy<Idx_t> indices() const { return range(begin(), end()); }
 
   class cref_t {
    public:
@@ -189,18 +194,25 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
-    cref_t(const multi_array_t& array) : m_ptr(array.host_ndptr_const()),
-    m_dev_ptr(array.dev_ndptr_const()) {}
+    cref_t(const multi_array_t& array)
+        : m_ptr(array.host_ndptr_const()),
+          m_dev_ptr(array.dev_ndptr_const()),
+          m_ext(array.extent()) {}
     HOST_DEVICE cref_t(const cref_t& other) = default;
     HOST_DEVICE virtual ~cref_t() {}
 
     HD_INLINE value_t operator[](const idx_t& idx) const { return m_ptr[idx]; }
-    value_t at(const idx_t& idx) const { return m_ptr[idx]; }
-    HD_INLINE value_t at_dev(const idx_t& idx) const { return m_dev_ptr[idx]; }
+    value_t at(const index_t<Rank>& pos) const {
+      return m_ptr[Idx_t(pos, m_ext)];
+    }
+    HD_INLINE value_t at_dev(const index_t<Rank>& pos) const {
+      return m_dev_ptr[Idx_t(pos, m_ext)];
+    }
 
    private:
     const_ptr_t m_ptr;
     const_ptr_t m_dev_ptr;
+    extent_t<Rank> m_ext;
   };
 
   cref_t cref() const { return cref_t(*this); }
@@ -211,17 +223,23 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
-    ref_t(multi_array_t& array) : m_ptr(array.host_ndptr()), m_dev_ptr(array.dev_ndptr()) {}
+    ref_t(multi_array_t& array)
+        : m_ptr(array.host_ndptr()),
+          m_dev_ptr(array.dev_ndptr()),
+          m_ext(array.extent()) {}
     HOST_DEVICE ref_t(const ref_t& other) = default;
     HOST_DEVICE virtual ~ref_t() {}
 
     HD_INLINE value_t& operator[](const idx_t& idx) { return m_ptr[idx]; }
-    value_t& at(const idx_t& idx) { return m_ptr[idx]; }
-    HD_INLINE value_t& at_dev(const idx_t& idx) { return m_dev_ptr[idx]; }
+    value_t& at(const index_t<Rank>& pos) { return m_ptr[Idx_t(pos, m_ext)]; }
+    HD_INLINE value_t& at_dev(const index_t<Rank>& pos) {
+      return m_dev_ptr[Idx_t(pos, m_ext)];
+    }
 
    private:
     ptr_t m_ptr;
     ptr_t m_dev_ptr;
+    extent_t<Rank> m_ext;
   };
 
   ref_t ref() { return ref_t(*this); }
@@ -253,32 +271,33 @@ make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-///  Class for a reference to multi_array.
-////////////////////////////////////////////////////////////////////////////////
-template <typename T, int Rank, typename Idx_t>
-class multi_array_cref {
- public:
-  typedef multi_array<T, Rank, Idx_t> multi_array_t;
-  typedef T value_t;
-  typedef Idx_t idx_t;
+// ////////////////////////////////////////////////////////////////////////////////
+// ///  Class for a reference to multi_array.
+// ////////////////////////////////////////////////////////////////////////////////
+// template <typename T, int Rank, typename Idx_t>
+// class multi_array_cref {
+//  public:
+//   typedef multi_array<T, Rank, Idx_t> multi_array_t;
+//   typedef T value_t;
+//   typedef Idx_t idx_t;
 
-  multi_array_cref(const multi_array_t& array) : m_array(array) {}
-  multi_array_cref(const multi_array_cref<T, Rank, Idx_t>& other) = default;
-  virtual ~multi_array_cref() {}
+//   multi_array_cref(const multi_array_t& array) : m_array(array) {}
+//   multi_array_cref(const multi_array_cref<T, Rank, Idx_t>& other) = default;
+//   virtual ~multi_array_cref() {}
 
-  value_t operator[](const idx_t& idx) const { return m_array[idx]; }
-  value_t at(const idx_t& idx) const { return m_array[idx]; }
-  value_t at_dev(const idx_t& idx) const { return m_array.at_dev(idx); }
+//   value_t operator[](const idx_t& idx) const { return m_array[idx]; }
+//   value_t at(const idx_t& idx) const { return m_array[idx]; }
+//   value_t at_dev(const idx_t& idx) const { return m_array.at_dev(idx); }
 
- private:
-  const multi_array_t& m_array;
-};
+//  private:
+//   const multi_array_t& m_array;
+// };
 
-template <typename T, int Rank, typename Idx_t>
-auto cref(const multi_array<T, Rank, Idx_t>& array) {
-  return multi_array_cref<T, Rank, Idx_t>(array);
-}
+// template <typename T, int Rank, typename Idx_t>
+// auto
+// cref(const multi_array<T, Rank, Idx_t>& array) {
+//   return multi_array_cref<T, Rank, Idx_t>(array);
+// }
 
 }  // namespace Aperture
 

@@ -20,7 +20,9 @@
 #include "core/constant_mem_func.h"
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
+#include "core/detail/multi_array_helpers.h"
 #include "core/ndptr.hpp"
+#include "core/ndsubset.hpp"
 #include "core/ndsubset_dev.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
@@ -161,6 +163,9 @@ TEST_CASE("Performance of different indexing schemes",
   };
 
   cudaDeviceSynchronize();
+  Logger::print_info(
+      "Measuring interpolation speed with different indexing schemes on "
+      "Device");
 
   timer::stamp();
   kernel_launch(interp_kernel, v1.dev_ndptr_const(), result1.dev_ptr(),
@@ -229,7 +234,7 @@ TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
   v.assign_dev(3.0f);
 
   auto w = select_dev(v, index(0, 0), extent(10, 10));
-  w += select_dev((v * 3.0f + 4.0f), index(0, 0), extent(10, 10), v.extent());
+  w += select_dev((v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
   v.copy_to_host();
 
   for (auto idx : v.indices()) {
@@ -240,6 +245,101 @@ TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
       REQUIRE(v[idx] == 3.0f);
     }
   }
+
+  select_dev(v) = 2.5f;
+  REQUIRE(v[0] != 2.5f);
+  v.copy_to_host();
+  for (auto idx : v.indices()) {
+    REQUIRE(v[idx] == 2.5f);
+  }
+
+  select_dev(v) = v * 3.0f;
+  v.copy_to_host();
+  for (auto idx : v.indices()) {
+    REQUIRE(v[idx] == 7.5f);
+  }
+
+  select(v) = 4.0f * v - 2.0f;
+  for (auto idx : v.indices()) {
+    REQUIRE(v[idx] == 28.0f);
+  }
+  v.copy_to_device();
+
+  auto v2 = make_multi_array<float>(extent(30, 30), MemType::host_device);
+  v2.assign_dev(0.0f);
+  select_dev(v2, index(10, 10), extent(10, 10)) =
+      select_dev(v / 7.0f + 1.0f, index(0, 0), extent(10, 10));
+  v2.copy_to_host();
+  for (auto idx : v.indices()) {
+    auto pos = idx.get_pos();
+    if (pos[0] >= 10 && pos[0] < 20 && pos[1] >= 10 && pos[1] < 20) {
+      REQUIRE(v2[idx] == 5.0f);
+    } else {
+      REQUIRE(v2[idx] == 0.0f);
+    }
+  }
+}
+
+TEST_CASE("Performance of expression template",
+          "[performance][exp_template][.]") {
+  uint32_t N = 256;
+  // using Conf = Config<3>;
+  using idx_t = default_idx_t<3>;
+  auto ext = extent(N, N, N);
+  auto v1 = make_multi_array<float>(ext);
+
+  v1.assign_dev(3.0f);
+  Logger::print_info("Measuring performance of expression templates");
+
+  cudaDeviceSynchronize();
+
+  timer::stamp();
+  select_dev(v1) = v1 * 7.0f + 9.0f / v1;
+  timer::show_duration_since_stamp("Exp template", "us");
+  v1.copy_to_host();
+  REQUIRE(v1[0] == 24.0f);
+
+  v1.assign_dev(3.0f);
+
+  timer::stamp();
+  kernel_launch(
+      [ext] __device__(auto p) {
+        for (auto idx :
+             grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+          p[idx] = p[idx] * 7.0f + 9.0f / p[idx];
+        }
+      },
+      v1.dev_ndptr());
+  CudaSafeCall(cudaDeviceSynchronize());
+  timer::show_duration_since_stamp("Kernel Launch", "us");
+
+  v1.copy_to_host();
+  REQUIRE(v1[0] == 24.0f);
+
+  auto v2 = make_multi_array<float>(ext);
+  auto v3 = make_multi_array<float>(ext);
+  v2.assign_dev(0.0f);
+  v3.assign_dev(0.0f);
+
+  timer::stamp();
+  add_dev(v2, v1, index(0, 0, 0), index(0, 0, 0), ext);
+  timer::show_duration_since_stamp("Copy using copy_dev", "us");
+  v2.copy_to_host();
+
+  for (auto idx : v2.indices()) {
+    REQUIRE(v2[idx] == v1[idx]);
+  }
+
+  timer::stamp();
+  select_dev(v3) += v1.cref();
+  CudaSafeCall(cudaDeviceSynchronize());
+  timer::show_duration_since_stamp("Copy using expression template", "us");
+  v3.copy_to_host();
+
+  for (auto idx : v3.indices()) {
+    REQUIRE(v3[idx] == v1[idx]);
+  }
+
 }
 
 #endif

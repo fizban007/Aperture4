@@ -18,6 +18,7 @@
 #include "catch.hpp"
 #include "framework/config.h"
 #include "utils/type_traits.hpp"
+#include "utils/indexable.hpp"
 
 using namespace Aperture;
 
@@ -30,7 +31,7 @@ TEST_CASE("Making multi_array", "[config]") {
 
 TEST_CASE("Multi array is indexable", "[type_traits]") {
   typedef Config<3> Conf;
-  typedef multi_array_cref<float, 3, idx_col_major_t<3>> mcref;
+  typedef multi_array<float, 3, idx_col_major_t<3>>::cref_t mcref;
   static_assert(
       is_indexable<typename Conf::multi_array_t>::value);
   static_assert(

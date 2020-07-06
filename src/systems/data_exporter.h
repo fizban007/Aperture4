@@ -115,23 +115,23 @@ class data_exporter : public system_t {
 
   // buffer<float>& grid_buffer() { return tmp_grid_data; }
   // buffer<double>& ptc_buffer() { return tmp_ptc_data; }
-  void write(particle_data_t& data, const std::string& name,
-             H5File& datafile, bool snapshot = false);
+  void write(particle_data_t& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
   template <int N>
-  void write(field_t<N, Conf>& data, const std::string& name,
-             H5File& datafile, bool snapshot = false);
-  void write(curand_states_t& data, const std::string& name,
-             H5File& datafile, bool snapshot = false);
+  void write(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
+  void write(curand_states_t& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
   template <typename T, int Rank>
   void write(multi_array_data<T, Rank>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
-  void read(particle_data_t& data, const std::string& name,
-            H5File& datafile, bool snapshot = false);
+  void read(particle_data_t& data, const std::string& name, H5File& datafile,
+            bool snapshot = false);
   template <int N>
-  void read(field_t<N, Conf>& data, const std::string& name,
-            H5File& datafile, bool snapshot = false);
-  void read(curand_states_t& data, const std::string& name,
-            H5File& datafile, bool snapshot = false);
+  void read(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
+            bool snapshot = false);
+  void read(curand_states_t& data, const std::string& name, H5File& datafile,
+            bool snapshot = false);
   template <typename T, int Rank>
   void read(multi_array_data<T, Rank>& data, const std::string& name,
             H5File& datafile, bool snapshot = false);
@@ -170,11 +170,11 @@ class data_exporter : public system_t {
                                    extent_t<Conf::dim>& ext,
                                    index_t<Conf::dim>& pos_array,
                                    index_t<Conf::dim>& pos_file);
-  void write_multi_array_helper(const std::string& name,
-                                const typename Conf::multi_array_t& array,
-                                const extent_t<Conf::dim>& global_ext,
-                                const index_t<Conf::dim>& offsets,
-                                H5File& file);
+  void write_multi_array_helper(
+      const std::string& name,
+      const multi_array<float, Conf::dim, typename Conf::idx_t>& array,
+      const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
+      H5File& file);
 };
 
 }  // namespace Aperture

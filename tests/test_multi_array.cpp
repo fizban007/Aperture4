@@ -563,7 +563,7 @@ TEST_CASE("Expression before subscript", "[multi_array][exp_template]") {
   v1.assign_host(1.0);
   v2.assign_host(2.0);
 
-  REQUIRE(is_host_const_indexable<multi_array_cref<float, 2, idx_col_major_t<2>>>::value == true);
+  REQUIRE(is_host_const_indexable<multi_array<float, 2, idx_col_major_t<2>>::cref_t>::value);
   // auto ex = -(v1 + v2) * v2 - v1;
 
   // for (auto idx : v1.indices()) {
@@ -582,7 +582,7 @@ TEST_CASE("Expression templates with constants",
 
   for (auto idx : v.indices()) {
     REQUIRE((v + 3.0f)[idx] == 8.0f);
-    REQUIRE(ex.at(idx) == -4.0f);
+    REQUIRE(ex[idx] == -4.0f);
   }
 }
 
@@ -592,7 +592,7 @@ TEST_CASE("Testing select", "[multi_array][exp_template]") {
   v.assign_host(3.0f);
 
   auto w = select(v, index(0, 0), extent(10, 10));
-  w += select((v * 3.0f + 4.0f), index(0, 0), extent(10, 10), v.extent());
+  w += select((v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
 
   for (auto idx : v.indices()) {
     auto pos = idx.get_pos();
@@ -603,4 +603,13 @@ TEST_CASE("Testing select", "[multi_array][exp_template]") {
     }
   }
 
+  select(v) = 5.0f;
+  for (auto idx : v.indices()) {
+    REQUIRE(v[idx] == 5.0f);
+  }
+
+  select(v) *= v + 4.0f;
+  for (auto idx : v.indices()) {
+    REQUIRE(v[idx] == 45.0f);
+  }
 }

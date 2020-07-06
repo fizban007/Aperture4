@@ -20,6 +20,7 @@
 
 #include "core/cuda_control.h"
 #include "utils/type_traits.hpp"
+#include "utils/indexable.hpp"
 #include <functional>
 
 namespace Aperture {
@@ -51,16 +52,17 @@ struct binary_exp_t {
       typename L = Left, typename R = Right,
       typename = typename std::enable_if<conjunction<
           is_host_const_indexable<L>, is_host_const_indexable<R>>::value>::type>
-  inline auto at(const idx_t& idx) const {
-    return op(left.at(idx), right.at(idx));
+  // inline auto at(const idx_t& idx) const {
+  inline auto at(const index_t<Left::idx_t::dim>& pos) const {
+    return op(left.at(pos), right.at(pos));
   }
 
   template <
       typename L = Left, typename R = Right,
       typename = typename std::enable_if<conjunction<
           is_dev_const_indexable<L>, is_dev_const_indexable<R>>::value>::type>
-  HD_INLINE auto at_dev(const idx_t& idx) const {
-    return op(left.at_dev(idx), right.at_dev(idx));
+  HD_INLINE auto at_dev(const index_t<Left::idx_t::dim>& pos) const {
+    return op(left.at_dev(pos), right.at_dev(pos));
   }
 };
 
@@ -89,14 +91,14 @@ struct unary_exp_t {
 
   template <typename A = Arg, typename = typename std::enable_if_t<
                                   is_host_const_indexable<A>::value>>
-  inline auto at(const idx_t& idx) const {
-    return op(arg.at(idx));
+  inline auto at(const index_t<Arg::idx_t::dim>& pos) const {
+    return op(arg.at(pos));
   }
 
   template <typename A = Arg, typename = typename std::enable_if_t<
                                   is_dev_const_indexable<A>::value>>
-  HD_INLINE auto at_dev(const idx_t& idx) const {
-    return op(arg.at_dev(idx));
+  HD_INLINE auto at_dev(const index_t<Arg::idx_t::dim>& pos) const {
+    return op(arg.at_dev(pos));
   }
 };
 
@@ -118,9 +120,9 @@ struct const_exp_t {
 
   HD_INLINE auto operator[](const idx_t& idx) const { return v; }
 
-  inline auto at(const idx_t& idx) const { return v; }
+  inline auto at(const index_t<idx_t::dim>& pos) const { return v; }
 
-  HD_INLINE auto at_dev(const idx_t& idx) const { return v; }
+  HD_INLINE auto at_dev(const index_t<idx_t::dim>& pos) const { return v; }
 };
 
 // Functions

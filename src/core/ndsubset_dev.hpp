@@ -20,6 +20,7 @@
 
 #include "core/cuda_control.h"
 #include "core/multi_array.hpp"
+#include "utils/indexable.hpp"
 #include "utils/range.hpp"
 #include "utils/type_traits.hpp"
 
@@ -31,18 +32,20 @@ template <typename Indexable, typename Idx_t>
 class ndsubset_dev_const_t {
  public:
   ndsubset_dev_const_t(const Indexable& array, const index_t<Idx_t::dim>& begin,
-                       const extent_t<Idx_t::dim>& ext,
-                       const extent_t<Idx_t::dim>& parent_ext)
-      : m_array(array), m_begin(begin), m_ext(ext), m_parent_ext(parent_ext) {}
+                       const extent_t<Idx_t::dim>& ext)
+      // const extent_t<Idx_t::dim>& parent_ext)
+      : m_array(array), m_begin(begin), m_ext(ext) {}
   ~ndsubset_dev_const_t() {}
 
-  inline auto at_dev(const Idx_t& idx) const { return m_array.at_dev(idx); }
+  // inline auto at_dev(const Idx_t& idx) const { return m_array.at_dev(idx); }
+  // HD_INLINE auto at_dev(const index_t<Idx_t::dim>& pos) const { return
+  // m_array.at(pos); }
 
   // private:
   Indexable m_array;
   index_t<Idx_t::dim> m_begin;
   extent_t<Idx_t::dim> m_ext;
-  extent_t<Idx_t::dim> m_parent_ext;
+  // extent_t<Idx_t::dim> m_parent_ext;
 };
 
 template <typename Indexable, typename Idx_t>
@@ -51,12 +54,14 @@ class ndsubset_dev_t {
   typedef ndsubset_dev_t<Indexable, Idx_t> self_type;
 
   ndsubset_dev_t(const Indexable& array, const index_t<Idx_t::dim>& begin,
-                 const extent_t<Idx_t::dim>& ext,
-                 const extent_t<Idx_t::dim>& parent_ext)
-      : m_array(array), m_begin(begin), m_ext(ext), m_parent_ext(parent_ext) {}
+                 const extent_t<Idx_t::dim>& ext)
+      // const extent_t<Idx_t::dim>& parent_ext)
+      : m_array(array), m_begin(begin), m_ext(ext) {}
   ~ndsubset_dev_t() {}
 
-  inline auto& at_dev(const Idx_t& idx) { return m_array.at_dev(idx); }
+  // inline auto& at_dev(const Idx_t& idx) { return m_array.at_dev(idx); }
+  // HD_INLINE auto& at_dev(const index_t<Idx_t::dim>& pos) { return
+  // m_array.at(pos); }
 
   template <typename Other>
   void check_ext(const ndsubset_dev_const_t<Other, Idx_t>& subset) {
@@ -71,23 +76,72 @@ class ndsubset_dev_t {
     check_ext(subset);
     kernel_launch(
         [op] __device__(auto dst, auto src, auto dst_pos, auto src_pos,
-                        auto dst_ext, auto src_ext, auto ext) {
-          for (auto n : grid_stride_range(0, ext.size())) {
+                        auto ext) {
+          using col_idx_t = idx_col_major_t<Idx_t::dim>;
+          for (auto idx : grid_stride_range(col_idx_t(0, ext),
+                                            col_idx_t(ext.size(), ext))) {
             // Always use column major inside loop to simplify conversion
             // between different indexing schemes
-            idx_col_major_t<Idx_t::dim> idx(n, ext);
-            auto idx_dst = Idx_t(dst_pos + idx.get_pos(), dst_ext);
-            auto idx_src = Idx_t(src_pos + idx.get_pos(), src_ext);
-            op(dst.at_dev(idx_dst), src.at_dev(idx_src));
+            op(dst.at_dev(dst_pos + idx.get_pos()),
+               src.at_dev(src_pos + idx.get_pos()));
           }
         },
-        m_array, subset.m_array, m_begin, subset.m_begin, m_parent_ext,
-        subset.m_parent_ext, m_ext);
+        m_array, subset.m_array, m_begin, subset.m_begin, m_ext);
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
   }
+
+  template <typename OtherIndexable, typename Op>
+  void loop_indexable(const OtherIndexable& other, const Op& op) {
+    auto kernel = [] __device__(Indexable dst, OtherIndexable src,
+                                index_t<Idx_t::dim> pos,
+                                extent_t<Idx_t::dim> ext, Op op) {
+      using col_idx_t = idx_col_major_t<Idx_t::dim>;
+      for (auto idx :
+           grid_stride_range(col_idx_t(0, ext), col_idx_t(ext.size(), ext))) {
+        // Always use column major inside loop to simplify conversion
+        // between different indexing schemes
+        op(dst.at_dev(pos + idx.get_pos()), src.at_dev(pos + idx.get_pos()));
+      }
+    };
+    kernel_launch(kernel, m_array, other, m_begin, m_ext, op);
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
+  }
+
+  template <typename Op>
+  void loop_self(const Op& op) {
+    kernel_launch(
+        [op] __device__(auto dst, auto pos, auto ext) {
+          using col_idx_t = idx_col_major_t<Idx_t::dim>;
+          for (auto idx : grid_stride_range(col_idx_t(0, ext),
+                                            col_idx_t(ext.size(), ext))) {
+            // Always use column major inside loop to simplify conversion
+            // between different indexing schemes
+            op(dst.at_dev(pos + idx.get_pos()));
+          }
+        },
+        m_array, m_begin, m_ext);
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
+  }
+
+  self_type& operator=(const self_type& other) = delete;
 
   template <typename Other>
   self_type& operator=(const ndsubset_dev_const_t<Other, Idx_t>& subset) {
     loop_subset(subset, [] __device__(auto& x, const auto& y) { x = y; });
+    return *this;
+  }
+
+  template <typename OtherIndexable>
+  self_type& operator=(const OtherIndexable& other) {
+    loop_indexable(other, [] __device__(auto& x, const auto& y) { x = y; });
+    return *this;
+  }
+
+  self_type& operator=(const typename Indexable::value_t& value) {
+    loop_self([value] __device__(auto& x) { x = value; });
     return *this;
   }
 
@@ -97,9 +151,31 @@ class ndsubset_dev_t {
     return *this;
   }
 
+  template <typename OtherIndexable>
+  self_type& operator+=(const OtherIndexable& other) {
+    loop_indexable(other, [] __device__(auto& x, const auto& y) { x += y; });
+    return *this;
+  }
+
+  self_type& operator+=(const typename Indexable::value_t& value) {
+    loop_self([value] __device__(auto& x) { x += value; });
+    return *this;
+  }
+
   template <typename Other>
   self_type& operator-=(const ndsubset_dev_const_t<Other, Idx_t>& subset) {
     loop_subset(subset, [] __device__(auto& x, const auto& y) { x -= y; });
+    return *this;
+  }
+
+  template <typename OtherIndexable>
+  self_type& operator-=(const OtherIndexable& other) {
+    loop_indexable(other, [] __device__(auto& x, const auto& y) { x -= y; });
+    return *this;
+  }
+
+  self_type& operator-=(const typename Indexable::value_t& value) {
+    loop_self([value] __device__(auto& x) { x -= value; });
     return *this;
   }
 
@@ -109,9 +185,31 @@ class ndsubset_dev_t {
     return *this;
   }
 
+  template <typename OtherIndexable>
+  self_type& operator*=(const OtherIndexable& other) {
+    loop_indexable(other, [] __device__(auto& x, const auto& y) { x *= y; });
+    return *this;
+  }
+
+  self_type& operator*=(const typename Indexable::value_t& value) {
+    loop_self([value] __device__(auto& x) { x *= value; });
+    return *this;
+  }
+
   template <typename Other>
   self_type& operator/=(const ndsubset_dev_const_t<Other, Idx_t>& subset) {
     loop_subset(subset, [] __device__(auto& x, const auto& y) { x /= y; });
+    return *this;
+  }
+
+  template <typename OtherIndexable>
+  self_type& operator/=(const OtherIndexable& other) {
+    loop_indexable(other, [] __device__(auto& x, const auto& y) { x /= y; });
+    return *this;
+  }
+
+  self_type& operator/=(const typename Indexable::value_t& value) {
+    loop_self([value] __device__(auto& x) { x /= value; });
     return *this;
   }
 
@@ -119,17 +217,32 @@ class ndsubset_dev_t {
   Indexable m_array;
   index_t<Idx_t::dim> m_begin;
   extent_t<Idx_t::dim> m_ext;
-  extent_t<Idx_t::dim> m_parent_ext;
+  // extent_t<Idx_t::dim> m_parent_ext;
 };
 
 template <typename Indexable, typename = typename std::enable_if_t<
                                   is_dev_const_indexable<Indexable>::value>>
 ndsubset_dev_const_t<Indexable, typename Indexable::idx_t>
 select_dev(const Indexable& array, const index_t<Indexable::idx_t::dim>& begin,
-           const extent_t<Indexable::idx_t::dim>& ext,
-           const extent_t<Indexable::idx_t::dim>& parent_ext) {
-  return ndsubset_dev_const_t<Indexable, typename Indexable::idx_t>(
-      array, begin, ext, parent_ext);
+           const extent_t<Indexable::idx_t::dim>& ext) {
+  // const extent_t<Indexable::idx_t::dim>& parent_ext) {
+  return ndsubset_dev_const_t<Indexable, typename Indexable::idx_t>(array,
+                                                                    begin, ext);
+}
+
+template <typename T, int Rank, typename Idx_t>
+auto
+select_dev(const multi_array<T, Rank, Idx_t>& array, const index_t<Rank>& begin,
+           const extent_t<Rank>& ext) {
+  return ndsubset_dev_const_t<typename multi_array<T, Rank, Idx_t>::cref_t, Idx_t>(
+      array.cref(), begin, ext);
+}
+
+template <typename T, int Rank, typename Idx_t>
+auto
+select_dev(const multi_array<T, Rank, Idx_t>& array) {
+  return ndsubset_dev_const_t<typename multi_array<T, Rank, Idx_t>::cref_t, Idx_t>(
+      array.cref(), array.begin().get_pos(), array.extent());
 }
 
 template <typename T, int Rank, typename Idx_t>
@@ -137,14 +250,14 @@ auto
 select_dev(multi_array<T, Rank, Idx_t>& array, const index_t<Rank>& begin,
            const extent_t<Rank>& ext) {
   return ndsubset_dev_t<typename multi_array<T, Rank, Idx_t>::ref_t, Idx_t>(
-      array.ref(), begin, ext, array.extent());
+      array.ref(), begin, ext);
 }
 
 template <typename T, int Rank, typename Idx_t>
 auto
 select_dev(multi_array<T, Rank, Idx_t>& array) {
   return ndsubset_dev_t<typename multi_array<T, Rank, Idx_t>::ref_t, Idx_t>(
-      array.ref(), array.begin().get_pos(), array.extent(), array.extent());
+      array.ref(), array.begin().get_pos(), array.extent());
 }
 
 #endif

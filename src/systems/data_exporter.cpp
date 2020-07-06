@@ -100,7 +100,6 @@ void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   double time = m_env.get_time();
   if (step % m_fld_output_interval == 0) {
-
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
@@ -174,15 +173,15 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
   }
 
   if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0) {
-    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(),
-                   step, time);
+    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(), step,
+                   time);
   }
 }
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_snapshot(const std::string& filename,
-                                    uint32_t step, double time) {
+data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
+                                    double time) {
   H5File snapfile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
   // Walk over all data components and write them to the snapshot file according
@@ -215,8 +214,8 @@ data_exporter<Conf>::write_snapshot(const std::string& filename,
 
 template <typename Conf>
 void
-data_exporter<Conf>::load_snapshot(const std::string& filename,
-                                   uint32_t& step, double& time) {
+data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
+                                   double& time) {
   H5File snapfile(filename, H5OpenMode::read_parallel);
 
   // Read simulation stats
@@ -225,8 +224,8 @@ data_exporter<Conf>::load_snapshot(const std::string& filename,
   m_fld_num = snapfile.read_scalar<int>("output_fld_num");
   m_ptc_num = snapfile.read_scalar<int>("output_ptc_num");
 
-  // Walk over all data components and read them from the snapshot file according
-  // to their `include_in_snapshot`
+  // Walk over all data components and read them from the snapshot file
+  // according to their `include_in_snapshot`
   for (auto& it : m_env.data_map()) {
     auto data = it.second.get();
     if (!data->include_in_snapshot()) {
@@ -410,7 +409,8 @@ data_exporter<Conf>::write_grid_multiarray(
 template <typename Conf>
 void
 data_exporter<Conf>::write_multi_array_helper(
-    const std::string& name, const typename Conf::multi_array_t& array,
+    const std::string& name,
+    const multi_array<float, Conf::dim, typename Conf::idx_t>& array,
     const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
     H5File& file) {
   if (m_comm != nullptr && m_comm->size() > 1) {
@@ -464,8 +464,8 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 
       data[i].copy_to_host();
       if (m_comm != nullptr && m_comm->size() > 1) {
-        datafile.write_parallel(data[i], ext_total, pos_dst, ext,
-                                pos_src, namestr);
+        datafile.write_parallel(data[i], ext_total, pos_dst, ext, pos_src,
+                                namestr);
       } else {
         datafile.write(data[i], namestr);
       }
@@ -515,7 +515,9 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
       if (m_comm != nullptr && m_comm->size() > 1) {
         datafile.read_subset(data[i], namestr, pos_src, ext, pos_dst);
       } else {
-        auto array = datafile.read_multi_array<typename Conf::value_t, Conf::dim>(namestr);
+        auto array =
+            datafile.read_multi_array<typename Conf::value_t, Conf::dim>(
+                namestr);
         data[i].host_copy_from(array);
       }
       data[i].copy_to_device();
@@ -538,10 +540,12 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
       pos_array[n] += m_grid.guard[n];
       pos_file[n] += m_grid.guard[n];
     }
-    if (m_comm != nullptr && m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
+    if (m_comm != nullptr &&
+        m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
       ext[n] += m_grid.guard[n];
     }
-    if (m_comm != nullptr && m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
+    if (m_comm != nullptr &&
+        m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
       ext[n] += m_grid.guard[n];
     }
   }

@@ -33,65 +33,152 @@ template <class... Ts>
 using conjunction =
     std::is_same<bool_pack<true, Ts::value...>, bool_pack<Ts::value..., true>>;
 
+// This disjunction implementation is from cppreference.com
+template <class...>
+struct disjunction : std::false_type {};
+template <class B1>
+struct disjunction<B1> : B1 {};
+template <class B1, class... Bn>
+struct disjunction<B1, Bn...>
+    : std::conditional_t<B1::value, B1, disjunction<Bn...>> {};
+
 // This checks if a given type pack Ts are all convertible to T
 template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<
     conjunction<std::is_convertible<Ts, T>...>::value>::type;
 
-// This is a template struct to check if a type is indexable using an idx type
-// template <typename Type, class dummy = void>
-// struct is_indexable;
+// This is a series of template structs to check if a type is indexable using an
+// idx type
 
-template<typename Type, typename = typename Type::idx_t>
+template <typename Type, typename = typename Type::idx_t>
 // struct is_indexable<Type, typename Type::idx_t> {
-struct is_indexable {
-private:
-    template<typename T>
-    static constexpr auto check(T*)
-    -> typename
-        std::is_same<
-            decltype( std::declval<T>()[std::declval<typename Type::idx_t>()] ),
-            typename Type::value_t& // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        >::type;  // attempt to call it and see if the return type is correct
+struct is_host_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(std::declval<T>().at(std::declval<typename Type::idx_t>())),
+      typename Type::value_t&  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
 
-    template<typename>
-    static constexpr std::false_type check(...);
+  template <typename>
+  static constexpr std::false_type check(...);
 
-    typedef decltype(check<Type>(0)) result_t;
+  typedef decltype(check<Type>(0)) result_t;
 
-public:
-    static constexpr bool value = result_t::value;
+ public:
+  static constexpr bool value = result_t::value;
 };
 
-// This is a template struct to check if a type is const indexable using an idx type
-// template <typename Type, class Idx_t = void>
-// struct is_const_indexable;
+template <typename Type, typename = typename Type::idx_t>
+// struct is_indexable<Type, typename Type::idx_t> {
+struct is_dev_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(std::declval<T>().at_dev(std::declval<typename Type::idx_t>())),
+      typename Type::value_t&  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
 
-template<typename Type, typename = typename Type::idx_t>
-struct is_const_indexable {
-private:
-    template<typename T>
-    static constexpr auto check(T*)
-    -> typename
-        std::is_same<
-            decltype( std::declval<const T>()[std::declval<typename Type::idx_t>()] ),
-            typename Type::value_t // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        >::type;  // attempt to call it and see if the return type is correct
+  template <typename>
+  static constexpr std::false_type check(...);
 
-    template<typename>
-    static constexpr std::false_type check(...);
+  typedef decltype(check<Type>(0)) result_t;
 
-    typedef decltype(check<Type>(0)) result_t;
-
-public:
-    static constexpr bool value = result_t::value;
+ public:
+  static constexpr bool value = result_t::value;
 };
+
+template <typename Type, typename = typename Type::idx_t>
+// struct is_indexable<Type, typename Type::idx_t> {
+struct is_plain_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(std::declval<T>()[std::declval<typename Type::idx_t>()]),
+      typename Type::value_t&  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
+
+  template <typename>
+  static constexpr std::false_type check(...);
+
+  typedef decltype(check<Type>(0)) result_t;
+
+ public:
+  static constexpr bool value = result_t::value;
+};
+
+// This is a template struct to check if a type is const indexable using an idx
+// type template <typename Type, class Idx_t = void> struct is_const_indexable;
+
+template <typename Type, typename = typename Type::idx_t>
+struct is_plain_const_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(std::declval<const T>()[std::declval<typename Type::idx_t>()]),
+      typename Type::value_t  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
+
+  template <typename>
+  static constexpr std::false_type check(...);
+
+  typedef decltype(check<Type>(0)) result_t;
+
+ public:
+  static constexpr bool value = result_t::value;
+};
+
+template <typename Type, typename = typename Type::idx_t>
+struct is_host_const_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(
+          std::declval<const T>().at(std::declval<typename Type::idx_t>())),
+      typename Type::value_t  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
+
+  template <typename>
+  static constexpr std::false_type check(...);
+
+  typedef decltype(check<Type>(0)) result_t;
+
+ public:
+  static constexpr bool value = result_t::value;
+};
+
+template <typename Type, typename = typename Type::idx_t>
+struct is_dev_const_indexable {
+ private:
+  template <typename T>
+  static constexpr auto check(T*) -> typename std::is_same<
+      decltype(
+          std::declval<const T>().at_dev(std::declval<typename Type::idx_t>())),
+      typename Type::value_t  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      >::type;  // attempt to call it and see if the return type is correct
+
+  template <typename>
+  static constexpr std::false_type check(...);
+
+  typedef decltype(check<Type>(0)) result_t;
+
+ public:
+  static constexpr bool value = result_t::value;
+};
+
+template <typename T>
+using is_const_indexable =
+    disjunction<is_dev_const_indexable<T>, is_host_const_indexable<T>,
+                is_plain_const_indexable<T>>;
+
+template <typename T>
+using is_indexable = disjunction<is_dev_indexable<T>, is_host_indexable<T>,
+                                 is_plain_indexable<T>>;
 
 // This checks whether a given pack of types are all const indexable
 template <typename... Ts>
 using all_const_indexable = typename std::enable_if<
     conjunction<is_const_indexable<Ts>...>::value>::type;
-
 
 }  // namespace Aperture
 

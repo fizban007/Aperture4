@@ -30,6 +30,7 @@ TEST_CASE("Making multi_array", "[config]") {
 
 TEST_CASE("Multi array is indexable", "[type_traits]") {
   typedef Config<3> Conf;
+  typedef multi_array_cref<float, 3, idx_col_major_t<3>> mcref;
   static_assert(
       is_indexable<typename Conf::multi_array_t>::value);
   static_assert(
@@ -38,6 +39,4 @@ TEST_CASE("Multi array is indexable", "[type_traits]") {
       is_indexable<typename Conf::ndptr_t>::value);
   static_assert(
       is_const_indexable<typename Conf::ndptr_const_t>::value);
-  static_assert(std::is_same<all_const_indexable<typename Conf::multi_array_t,
-                typename Conf::ndptr_const_t>, void>::value);
 }

@@ -39,8 +39,28 @@ struct binary_exp_t {
   HOST_DEVICE binary_exp_t(const Left& t1, const Right& t2, const Op& o)
       : left(t1), right(t2), op(o) {}
 
+  template <typename L = Left, typename R = Right,
+            typename = typename std::enable_if<
+                conjunction<is_plain_const_indexable<L>,
+                            is_plain_const_indexable<R>>::value>::type>
   HD_INLINE auto operator[](const idx_t& idx) const {
     return op(left[idx], right[idx]);
+  }
+
+  template <
+      typename L = Left, typename R = Right,
+      typename = typename std::enable_if<conjunction<
+          is_host_const_indexable<L>, is_host_const_indexable<R>>::value>::type>
+  inline auto at(const idx_t& idx) const {
+    return op(left.at(idx), right.at(idx));
+  }
+
+  template <
+      typename L = Left, typename R = Right,
+      typename = typename std::enable_if<conjunction<
+          is_dev_const_indexable<L>, is_dev_const_indexable<R>>::value>::type>
+  HD_INLINE auto at_dev(const idx_t& idx) const {
+    return op(left.at_dev(idx), right.at_dev(idx));
   }
 };
 
@@ -61,9 +81,22 @@ struct unary_exp_t {
 
   HOST_DEVICE unary_exp_t(const Arg& t, const Op& o) : arg(t), op(o) {}
 
-  template <typename Idx_t>
-  HD_INLINE auto operator[](const Idx_t& idx) const {
+  template <typename A = Arg, typename = typename std::enable_if_t<
+                                  is_plain_const_indexable<A>::value>>
+  HD_INLINE auto operator[](const idx_t& idx) const {
     return op(arg[idx]);
+  }
+
+  template <typename A = Arg, typename = typename std::enable_if_t<
+                                  is_host_const_indexable<A>::value>>
+  inline auto at(const idx_t& idx) const {
+    return op(arg.at(idx));
+  }
+
+  template <typename A = Arg, typename = typename std::enable_if_t<
+                                  is_dev_const_indexable<A>::value>>
+  HD_INLINE auto at_dev(const idx_t& idx) const {
+    return op(arg.at_dev(idx));
   }
 };
 
@@ -83,7 +116,11 @@ struct const_exp_t {
 
   HOST_DEVICE const_exp_t(const Value_t& t) : v(t) {}
 
-  HD_INLINE auto operator[](const Idx_t& idx) const { return v; }
+  HD_INLINE auto operator[](const idx_t& idx) const { return v; }
+
+  inline auto at(const idx_t& idx) const { return v; }
+
+  HD_INLINE auto at_dev(const idx_t& idx) const { return v; }
 };
 
 // Functions
@@ -92,27 +129,27 @@ struct const_exp_t {
   template <typename Left, typename Right,                                 \
             typename = all_const_indexable<Left, Right>>                   \
   HD_INLINE auto operator op(const Left& l, const Right& r) {              \
-    return make_binary_exp(l, r, std::name<typename Left::value_t>());     \
+    return make_binary_exp(l, r, name<typename Left::value_t>{});          \
   }                                                                        \
                                                                            \
   template <typename Left, typename = is_const_indexable<Left>>            \
   HD_INLINE auto operator op(const Left& l, typename Left::value_t r) {    \
     return make_binary_exp(                                                \
         l, const_exp_t<typename Left::value_t, typename Left::idx_t>(r),   \
-        std::name<typename Left::value_t>());                              \
+        name<typename Left::value_t>{});                                   \
   }                                                                        \
                                                                            \
   template <typename Right, typename = is_const_indexable<Right>>          \
   HD_INLINE auto operator op(typename Right::value_t l, const Right& r) {  \
     return make_binary_exp(                                                \
         const_exp_t<typename Right::value_t, typename Right::idx_t>(l), r, \
-        std::name<typename Right::value_t>());                             \
+        name<typename Right::value_t>{});                                  \
   }
 
-INSTANTIATE_BINARY_OPS(plus, +)
-INSTANTIATE_BINARY_OPS(minus, -)
-INSTANTIATE_BINARY_OPS(multiplies, *)
-INSTANTIATE_BINARY_OPS(divides, /)
+INSTANTIATE_BINARY_OPS(std::plus, +)
+INSTANTIATE_BINARY_OPS(std::minus, -)
+INSTANTIATE_BINARY_OPS(std::multiplies, *)
+INSTANTIATE_BINARY_OPS(std::divides, /)
 
 template <typename Arg, typename = is_const_indexable<Arg>>
 HD_INLINE auto
@@ -126,29 +163,39 @@ operator-(const Arg& arg) {
 
 namespace Aperture {
 
-#define INSTANTIATE_MULTIARRAY_BINARY_OPS(name, op)                      \
-  template <typename T, int Rank, typename Idx_t, typename Right>        \
-  HD_INLINE auto operator op(const multi_array<T, Rank, Idx_t>& array,   \
-                             const Right& r) {                           \
-    return operator op(array.host_ndptr_const(), r);                     \
-  }                                                                      \
-                                                                         \
-  template <typename T, int Rank, typename Idx_t, typename Left>         \
-  HD_INLINE auto operator op(const Left& l,                              \
-                             const multi_array<T, Rank, Idx_t>& array) { \
-    return operator op(l, array.host_ndptr_const());                     \
-  }                                                                      \
-                                                                         \
-  template <typename T, int Rank, typename Idx_t>                        \
-  HD_INLINE auto operator op(const multi_array<T, Rank, Idx_t>& v1,      \
-                             const multi_array<T, Rank, Idx_t>& v2) {    \
-    return operator op(v1.host_ndptr_const(), v2.host_ndptr_const());    \
+#define INSTANTIATE_MULTIARRAY_BINARY_OPS(op)                                  \
+  template <typename T, int Rank, typename Idx_t, typename Right>              \
+  auto operator op(const multi_array<T, Rank, Idx_t>& array, const Right& r) { \
+    return operator op(array.cref(), r);                                       \
+  }                                                                            \
+                                                                               \
+  template <typename T, int Rank, typename Idx_t, typename Left>               \
+  auto operator op(const Left& l, const multi_array<T, Rank, Idx_t>& array) {  \
+    return operator op(l, array.cref());                                       \
+  }                                                                            \
+                                                                               \
+  template <typename T, int Rank, typename Idx_t>                              \
+  auto operator op(const multi_array<T, Rank, Idx_t>& v1,                      \
+                   const multi_array<T, Rank, Idx_t>& v2) {                    \
+    return operator op(v1.cref(), v2.cref());                                  \
   }
 
-INSTANTIATE_MULTIARRAY_BINARY_OPS(plus, +);
-INSTANTIATE_MULTIARRAY_BINARY_OPS(minus, -);
-INSTANTIATE_MULTIARRAY_BINARY_OPS(multiplies, *);
-INSTANTIATE_MULTIARRAY_BINARY_OPS(divides, /);
+INSTANTIATE_MULTIARRAY_BINARY_OPS(+);
+INSTANTIATE_MULTIARRAY_BINARY_OPS(-);
+INSTANTIATE_MULTIARRAY_BINARY_OPS(*);
+INSTANTIATE_MULTIARRAY_BINARY_OPS(/);
+
+#define INSTANTIATE_MULTIARRAY_UNARY_OPS(name, op)                     \
+  template <typename T, int Rank, typename Idx_t>                      \
+  HD_INLINE auto operator op(const multi_array<T, Rank, Idx_t>& arg) { \
+    return make_unary_exp(cref(arg), name<T>());                       \
+  }
+
+INSTANTIATE_MULTIARRAY_UNARY_OPS(std::negate, -);
+
+#ifdef CUDA_ENABLED
+
+#endif
 
 }  // namespace Aperture
 

@@ -18,6 +18,7 @@
 #include "catch.hpp"
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
+#include "core/ndsubset.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/logger.h"
 #include "utils/range.hpp"
@@ -562,11 +563,12 @@ TEST_CASE("Expression before subscript", "[multi_array][exp_template]") {
   v1.assign_host(1.0);
   v2.assign_host(2.0);
 
-  auto ex = -(v1 + v2) * v2 - v1;
+  REQUIRE(is_host_const_indexable<multi_array_cref<float, 2, idx_col_major_t<2>>>::value == true);
+  // auto ex = -(v1 + v2) * v2 - v1;
 
-  for (auto idx : v1.indices()) {
-    REQUIRE(ex[idx] == -7.0);
-  }
+  // for (auto idx : v1.indices()) {
+    // REQUIRE(ex.at(idx) == -7.0);
+  // }
 }
 
 TEST_CASE("Expression templates with constants",
@@ -576,9 +578,29 @@ TEST_CASE("Expression templates with constants",
   v.assign_host(5.0f);
 
   auto ex = (3.0f - v) * 4.0f / 2.0f;
+  // auto v2 = ex.select_dev(index(0, 0), extent(20, 10)).to_multi_array();
 
   for (auto idx : v.indices()) {
-    REQUIRE((v.host_ndptr_const() + 3.0f)[idx] == 8.0f);
-    REQUIRE(ex[idx] == -4.0f);
+    REQUIRE((v + 3.0f)[idx] == 8.0f);
+    REQUIRE(ex.at(idx) == -4.0f);
   }
+}
+
+TEST_CASE("Testing select", "[multi_array][exp_template]") {
+  auto v = make_multi_array<float>(extent(30, 30), MemType::host_only);
+
+  v.assign_host(3.0f);
+
+  auto w = select(v, index(0, 0), extent(10, 10));
+  w += select((v * 3.0f + 4.0f), index(0, 0), extent(10, 10), v.extent());
+
+  for (auto idx : v.indices()) {
+    auto pos = idx.get_pos();
+    if (pos[0] < 10 && pos[1] < 10) {
+      REQUIRE(v[idx] == 16.0f);
+    } else {
+      REQUIRE(v[idx] == 3.0f);
+    }
+  }
+
 }

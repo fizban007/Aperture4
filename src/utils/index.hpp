@@ -38,6 +38,7 @@ struct idx_base_t {
   uint64_t linear;
 
   typedef idx_base_t<Derived, Rank> self_type;
+  static constexpr int dim = Rank;
 
   HD_INLINE Derived operator++(int) {
     Derived result = (Derived&)*this;

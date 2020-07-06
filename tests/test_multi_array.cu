@@ -16,14 +16,15 @@
  */
 
 #include "catch.hpp"
-#include "core/constant_mem_func.h"
 #include "core/constant_mem.h"
+#include "core/constant_mem_func.h"
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndptr.hpp"
-#include "utils/logger.h"
+#include "core/ndsubset_dev.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
+#include "utils/logger.h"
 #include "utils/range.hpp"
 #include "utils/timer.h"
 #include <algorithm>
@@ -57,15 +58,14 @@ TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   }
 }
 
-TEST_CASE("Different indexing on multi_array",
-          "[multi_array][kernel]") {
+TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
   Logger::init(0, LogLevel::debug);
   uint32_t N1 = 32, N2 = 32;
   // Extent ext(1, N2, N1);
   auto ext = extent(N2, N1);
   // multi_array<float, idx_row_major_t<>> array(
-  auto array = make_multi_array<float,
-                                idx_zorder_t>(ext, MemType::device_managed);
+  auto array =
+      make_multi_array<float, idx_zorder_t>(ext, MemType::device_managed);
   // auto array = make_multi_array<float, MemType::device_managed,
   // idx_row_major_t>(ext);
 
@@ -98,11 +98,8 @@ TEST_CASE("Performance of different indexing schemes",
 
   auto ext = extent(N1, N2, N3);
   // multi_array<float, idx_row_major_t<>> array(
-  auto v1 = make_multi_array<float,
-                             idx_col_major_t>(ext, MemType::host_device);
-  auto v2 =
-      make_multi_array<float, idx_zorder_t>(
-          ext, MemType::host_device);
+  auto v1 = make_multi_array<float, idx_col_major_t>(ext, MemType::host_device);
+  auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_device);
 
   for (auto idx : v1.indices()) {
     auto pos = idx.get_pos();
@@ -167,15 +164,15 @@ TEST_CASE("Performance of different indexing schemes",
 
   timer::stamp();
   kernel_launch(interp_kernel, v1.dev_ndptr_const(), result1.dev_ptr(),
-                xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(),
-                cells1.dev_ptr(), ext);
+                xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(), cells1.dev_ptr(),
+                ext);
   cudaDeviceSynchronize();
   timer::show_duration_since_stamp("normal indexing", "us");
 
   timer::stamp();
   kernel_launch(interp_kernel, v2.dev_ndptr_const(), result2.dev_ptr(),
-                xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(),
-                cells2.dev_ptr(), ext);
+                xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(), cells2.dev_ptr(),
+                ext);
   cudaDeviceSynchronize();
   timer::show_duration_since_stamp("morton indexing", "us");
 
@@ -207,12 +204,16 @@ TEST_CASE("Add ndptr on device", "[multi_array][exp_template]") {
   v1.assign_dev(1.0f);
   v2.assign_dev(2.0f);
 
-  kernel_launch({30, 30}, [ext]__device__(auto p1, auto p2, auto p3) {
-      using idx_t = default_idx_t<2>;
-      for (auto idx : grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
-        p3[idx] = (p1 * p2)[idx];
-      }
-    }, v1.dev_ndptr_const(), v2.dev_ndptr_const(), v3.dev_ndptr());
+  kernel_launch(
+      {30, 30},
+      [ext] __device__(auto p1, auto p2, auto p3) {
+        using idx_t = default_idx_t<2>;
+        for (auto idx :
+             grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+          p3[idx] = (p1 * p2)[idx];
+        }
+      },
+      v1.dev_ndptr_const(), v2.dev_ndptr_const(), v3.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -222,5 +223,23 @@ TEST_CASE("Add ndptr on device", "[multi_array][exp_template]") {
   }
 }
 
+TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
+  auto v = make_multi_array<float>(extent(30, 30), MemType::host_device);
+
+  v.assign_dev(3.0f);
+
+  auto w = select_dev(v, index(0, 0), extent(10, 10));
+  w += select_dev((v * 3.0f + 4.0f), index(0, 0), extent(10, 10), v.extent());
+  v.copy_to_host();
+
+  for (auto idx : v.indices()) {
+    auto pos = idx.get_pos();
+    if (pos[0] < 10 && pos[1] < 10) {
+      REQUIRE(v[idx] == 16.0f);
+    } else {
+      REQUIRE(v[idx] == 3.0f);
+    }
+  }
+}
 
 #endif

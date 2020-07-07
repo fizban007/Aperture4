@@ -164,6 +164,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 
   // Also move photons if the data component exists
   if (ph != nullptr) {
+    Logger::print_info("Moving {} photons", ph->number());
     move_photons(dt, step);
 
     if (m_comm != nullptr)

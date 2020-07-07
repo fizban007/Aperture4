@@ -23,6 +23,7 @@
 #include "utils/indexable.hpp"
 #include "utils/range.hpp"
 #include "utils/type_traits.hpp"
+#include "utils/kernel_helper.hpp"
 
 namespace Aperture {
 
@@ -74,18 +75,21 @@ class ndsubset_dev_t {
   void loop_subset(const ndsubset_dev_const_t<Other, Idx_t>& subset,
                    const Op& op) {
     check_ext(subset);
-    kernel_launch(
-        [op] __device__(auto dst, auto src, auto dst_pos, auto src_pos,
-                        auto ext) {
-          using col_idx_t = idx_col_major_t<Idx_t::dim>;
-          for (auto idx : grid_stride_range(col_idx_t(0, ext),
-                                            col_idx_t(ext.size(), ext))) {
-            // Always use column major inside loop to simplify conversion
-            // between different indexing schemes
-            op(dst.at_dev(dst_pos + idx.get_pos()),
-               src.at_dev(src_pos + idx.get_pos()));
-          }
-        },
+    auto kernel = [op] __device__(auto dst, auto src, auto dst_pos, auto src_pos,
+                                  auto ext) {
+      using col_idx_t = idx_col_major_t<Idx_t::dim>;
+      for (auto idx : grid_stride_range(col_idx_t(0, ext),
+                                        col_idx_t(ext.size(), ext))) {
+        // Always use column major inside loop to simplify conversion
+        // between different indexing schemes
+        op(dst.at_dev(dst_pos + idx.get_pos()),
+           src.at_dev(src_pos + idx.get_pos()));
+      }
+    };
+    exec_policy p;
+    configure_grid(p, kernel, m_array, subset.m_array, m_begin, subset.m_begin, m_ext);
+    if (m_stream != 0) { p.set_stream(m_stream); }
+    kernel_launch(p, kernel,
         m_array, subset.m_array, m_begin, subset.m_begin, m_ext);
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
@@ -104,14 +108,17 @@ class ndsubset_dev_t {
         op(dst.at_dev(pos + idx.get_pos()), src.at_dev(pos + idx.get_pos()));
       }
     };
-    kernel_launch(kernel, m_array, other, m_begin, m_ext, op);
+    exec_policy p;
+    configure_grid(p, kernel, m_array, other, m_begin, m_ext, op);
+    if (m_stream != 0) { p.set_stream(m_stream); }
+    kernel_launch(p, kernel, m_array, other, m_begin, m_ext, op);
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }
 
   template <typename Op>
   void loop_self(const Op& op) {
-    kernel_launch(
+    auto kernel =
         [op] __device__(auto dst, auto pos, auto ext) {
           using col_idx_t = idx_col_major_t<Idx_t::dim>;
           for (auto idx : grid_stride_range(col_idx_t(0, ext),
@@ -120,8 +127,11 @@ class ndsubset_dev_t {
             // between different indexing schemes
             op(dst.at_dev(pos + idx.get_pos()));
           }
-        },
-        m_array, m_begin, m_ext);
+        };
+    exec_policy p;
+    configure_grid(p, kernel, m_array, m_begin, m_ext);
+    if (m_stream != 0) { p.set_stream(m_stream); }
+    kernel_launch(p, kernel, m_array, m_begin, m_ext);
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }
@@ -213,10 +223,16 @@ class ndsubset_dev_t {
     return *this;
   }
 
+  self_type& with_stream(cudaStream_t stream) {
+    m_stream = stream;
+    return *this;
+  }
+
   // private:
   Indexable m_array;
   index_t<Idx_t::dim> m_begin;
   extent_t<Idx_t::dim> m_ext;
+  cudaStream_t m_stream = 0;
   // extent_t<Idx_t::dim> m_parent_ext;
 };
 

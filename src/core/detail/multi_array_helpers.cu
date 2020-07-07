@@ -15,6 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/multi_array_exp.hpp"
+#include "core/ndsubset_dev.hpp"
 #include "multi_array_helpers.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
@@ -64,23 +66,31 @@ void
 add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
         const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
         const extent_t<Rank>& ext, T scale, const cudaStream_t* stream) {
-  auto add_kernel = [ext, scale] __device__(auto dst_ptr, auto src_ptr,
-                                            auto dst_pos, auto src_pos,
-                                            auto dst_ext, auto src_ext) {
-    for (auto n : grid_stride_range(0, ext.size())) {
-      idx_col_major_t<Rank> idx(n, ext);
-      auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
-      auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
-      dst_ptr[idx_dst] += src_ptr[idx_src] * scale;
-    }
-  };
-  exec_policy p;
-  configure_grid(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
-                 src_pos, dst.extent(), src.extent());
-  if (stream != nullptr) p.set_stream(*stream);
-  kernel_launch(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
-                src_pos, dst.extent(), src.extent());
-  CudaSafeCall(cudaDeviceSynchronize());
+  // auto add_kernel = [ext, scale] __device__(auto dst_ptr, auto src_ptr,
+  //                                           auto dst_pos, auto src_pos,
+  //                                           auto dst_ext, auto src_ext) {
+  //   for (auto n : grid_stride_range(0, ext.size())) {
+  //     idx_col_major_t<Rank> idx(n, ext);
+  //     auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
+  //     auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
+  //     dst_ptr[idx_dst] += src_ptr[idx_src] * scale;
+  //   }
+  // };
+  // exec_policy p;
+  // configure_grid(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
+  // dst_pos,
+  //                src_pos, dst.extent(), src.extent());
+  // if (stream != nullptr) p.set_stream(*stream);
+  // kernel_launch(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
+  // dst_pos,
+  //               src_pos, dst.extent(), src.extent());
+  // CudaSafeCall(cudaDeviceSynchronize());
+  if (stream != nullptr) {
+    select_dev(dst, dst_pos, ext).with_stream(*stream) +=
+        select_dev(scale * src, src_pos, ext);
+  } else {
+    select_dev(dst, dst_pos, ext) += select_dev(scale * src, src_pos, ext);
+  }
 }
 
 template <typename T, int Rank>
@@ -88,25 +98,33 @@ void
 copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
          const extent_t<Rank>& ext, const cudaStream_t* stream) {
-  auto copy_kernel = [ext] __device__(auto dst_ptr, auto src_ptr, auto dst_pos,
-                                      auto src_pos, auto dst_ext,
-                                      auto src_ext) {
-    for (auto n : grid_stride_range(0, ext.size())) {
-      // Always use column major inside loop to simplify conversion between
-      // different indexing schemes
-      idx_col_major_t<Rank> idx(n, ext);
-      auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
-      auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
-      dst_ptr[idx_dst] = src_ptr[idx_src];
-    }
-  };
-  exec_policy p;
-  configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
-                 dst_pos, src_pos, dst.extent(), src.extent());
-  if (stream != nullptr) p.set_stream(*stream);
-  kernel_launch(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(), dst_pos,
-                src_pos, dst.extent(), src.extent());
-  CudaSafeCall(cudaDeviceSynchronize());
+  // auto copy_kernel = [ext] __device__(auto dst_ptr, auto src_ptr, auto
+  // dst_pos,
+  //                                     auto src_pos, auto dst_ext,
+  //                                     auto src_ext) {
+  //   for (auto n : grid_stride_range(0, ext.size())) {
+  //     // Always use column major inside loop to simplify conversion between
+  //     // different indexing schemes
+  //     idx_col_major_t<Rank> idx(n, ext);
+  //     auto idx_dst = dst_ptr.get_idx(dst_pos + idx.get_pos(), dst_ext);
+  //     auto idx_src = src_ptr.get_idx(src_pos + idx.get_pos(), src_ext);
+  //     dst_ptr[idx_dst] = src_ptr[idx_src];
+  //   }
+  // };
+  // exec_policy p;
+  // configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
+  //                dst_pos, src_pos, dst.extent(), src.extent());
+  // if (stream != nullptr) p.set_stream(*stream);
+  // kernel_launch(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
+  // dst_pos,
+  //               src_pos, dst.extent(), src.extent());
+  // CudaSafeCall(cudaDeviceSynchronize());
+  if (stream != nullptr) {
+    select_dev(dst, dst_pos, ext).with_stream(*stream) =
+        select_dev(src, src_pos, ext);
+  } else {
+    select_dev(dst, dst_pos, ext) = select_dev(src, src_pos, ext);
+  }
 }
 
 #define INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, dim)                 \

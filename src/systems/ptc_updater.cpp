@@ -167,9 +167,9 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
     Logger::print_info("Moving {} photons", ph->number());
     move_photons(dt, step);
 
-    if (m_comm != nullptr)
+    if (m_comm != nullptr) {
       m_comm->send_particles(*ph, m_grid);
-
+    }
   }
 
   // Clear guard cells

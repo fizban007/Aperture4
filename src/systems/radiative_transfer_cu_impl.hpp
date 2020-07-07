@@ -69,6 +69,8 @@ radiative_transfer_cu<Conf, RadImpl>::register_data_components() {
   this->pair_produced = this->m_env.template register_data<scalar_field<Conf>>(
       "pair_produced", this->m_grid, field_type::vert_centered,
       MemType::host_device);
+  this->photon_produced->reset_after_output();
+  this->pair_produced->reset_after_output();
 }
 
 template <typename Conf, typename RadImpl>
@@ -139,7 +141,8 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   m_cum_num_per_block.copy_to_host();
   m_num_per_block.copy_to_host();
   int new_photons = m_cum_num_per_block[m_blocks_per_grid - 1] +
-                    m_num_per_block[m_blocks_per_grid - 1];
+      m_num_per_block[m_blocks_per_grid - 1];
+  this->ph->add_num(new_photons);
   Logger::print_info("{} photons are produced!", new_photons);
 
   // Then emit the number of photons computed
@@ -246,7 +249,8 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
   m_cum_num_per_block.copy_to_host();
   m_num_per_block.copy_to_host();
   int new_pairs = m_cum_num_per_block[m_blocks_per_grid - 1] +
-                    m_num_per_block[m_blocks_per_grid - 1];
+      m_num_per_block[m_blocks_per_grid - 1];
+  this->ptc->add_num(new_pairs * 2);
   Logger::print_info("{} pairs are produced!", new_pairs);
 
   // Then emit the number of photons computed

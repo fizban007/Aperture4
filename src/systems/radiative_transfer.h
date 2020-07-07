@@ -18,11 +18,11 @@
 #ifndef _RADIATIVE_TRANSFER_H_
 #define _RADIATIVE_TRANSFER_H_
 
-#include "data/particle_data.h"
 #include "data/curand_states.h"
+#include "data/particle_data.h"
 #include "framework/system.h"
-#include "systems/grid.h"
 #include "systems/domain_comm.h"
+#include "systems/grid.h"
 #include <memory>
 
 namespace Aperture {
@@ -48,7 +48,7 @@ class radiative_transfer_common : public system_t {
 
  public:
   radiative_transfer_common(sim_environment& env, const grid_t<Conf>& grid,
-                     const domain_comm<Conf>* comm = nullptr);
+                            const domain_comm<Conf>* comm = nullptr);
   virtual ~radiative_transfer_common() {}
 
   virtual void init() override;
@@ -115,6 +115,6 @@ class radiative_transfer_cu : public radiative_transfer_common<Conf> {
   int m_blocks_per_grid = 256;
 };
 
-}
+}  // namespace Aperture
 
 #endif  // _RADIATIVE_TRANSFER_H_

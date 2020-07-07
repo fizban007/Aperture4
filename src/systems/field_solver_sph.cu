@@ -15,10 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/multi_array_exp.hpp"
+#include "core/ndsubset_dev.hpp"
 #include "field_solver_sph.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "helpers/field_solver_helper_cu.hpp"
+// #include "helpers/field_solver_helper_cu.hpp"
 #include "utils/double_buffer.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
@@ -351,7 +353,7 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                 const vector_field<Conf>& e, const vector_field<Conf>& b,
                 const grid_curv_t<Conf>& grid,
                 const bool is_boundary[Conf::dim * 2]) {
-             // const vec_t<bool, Conf::dim * 2> is_boundary) {
+  // const vec_t<bool, Conf::dim * 2> is_boundary) {
   vec_t<bool, Conf::dim * 2> boundary(is_boundary);
   auto ext = grid.extent();
   kernel_launch(
@@ -481,8 +483,8 @@ field_solver_sph_cu<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double beta,
-                                                double time) {
+field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
+                                                double beta, double time) {
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
 
@@ -490,14 +492,16 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double 
   auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   // compute_double_circ(*m_tmp_b2, *m_tmp_b1, *(this->B0), grid,
   //                     -alpha * beta * dt * dt);
-  compute_double_circ(*(this->m_tmp_b2), *(this->m_tmp_b1), grid, -alpha * beta * dt * dt);
-  this->m_tmp_b1->add_by(*(this-> m_tmp_b2 ));
+  compute_double_circ(*(this->m_tmp_b2), *(this->m_tmp_b1), grid,
+                      -alpha * beta * dt * dt);
+  this->m_tmp_b1->add_by(*(this->m_tmp_b2));
 
   // Send guard cells for m_tmp_b1
-  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this-> m_tmp_b1 ));
+  if (this->m_comm != nullptr)
+    this->m_comm->send_guard_cells(*(this->m_tmp_b1));
 
-  compute_implicit_rhs(*(this-> m_tmp_b1 ), *(this->E), *(this->J), grid, alpha, beta,
-                       dt);
+  compute_implicit_rhs(*(this->m_tmp_b1), *(this->E), *(this->J), grid, alpha,
+                       beta, dt);
   axis_boundary_b(*(this->m_tmp_b1), grid);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
 
@@ -517,7 +521,13 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha, double 
     buffer.swap();
   }
   // m_bnew now holds B^{n+1}
-  add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
+  // add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
+  select_dev(buffer.main()[0]) =
+      alpha * this->B->at(0) + beta * this->m_bnew->at(0);
+  select_dev(buffer.main()[1]) =
+      alpha * this->B->at(1) + beta * this->m_bnew->at(1);
+  select_dev(buffer.main()[2]) =
+      alpha * this->B->at(2) + beta * this->m_bnew->at(2);
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this

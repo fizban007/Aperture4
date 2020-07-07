@@ -16,10 +16,12 @@
  */
 
 #include "core/cuda_control.h"
+#include "core/multi_array_exp.hpp"
+#include "core/ndsubset_dev.hpp"
 #include "field_solver.h"
 #include "framework/config.h"
 #include "systems/helpers/finite_diff_helper.hpp"
-#include "systems/helpers/field_solver_helper_cu.hpp"
+// #include "systems/helpers/field_solver_helper_cu.hpp"
 #include "utils/double_buffer.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
@@ -240,8 +242,8 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   if (this->m_comm != nullptr)
     this->m_comm->send_guard_cells(*(this->m_tmp_b1));
 
-  compute_implicit_rhs(*(this->m_tmp_b1), *(this->E), *(this->J), alpha,
-                       beta, dt);
+  compute_implicit_rhs(*(this->m_tmp_b1), *(this->E), *(this->J), alpha, beta,
+                       dt);
 
   // Since we need to iterate, define a double buffer to switch quickly between
   // operand and result.
@@ -249,8 +251,7 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
 
   auto buffer = make_double_buffer(*(this->m_tmp_b1), *(this->m_tmp_b2));
   for (int i = 0; i < 6; i++) {
-    compute_double_curl(buffer.alt(), buffer.main(),
-                        -beta * beta * dt * dt);
+    compute_double_curl(buffer.alt(), buffer.main(), -beta * beta * dt * dt);
 
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
     this->m_bnew->add_by(buffer.alt());
@@ -258,7 +259,13 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
     buffer.swap();
   }
   // m_bnew now holds B^{n+1}
-  add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
+  // add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
+  select_dev(buffer.main()[0]) =
+      alpha * this->B->at(0) + beta * this->m_bnew->at(0);
+  select_dev(buffer.main()[1]) =
+      alpha * this->B->at(1) + beta * this->m_bnew->at(1);
+  select_dev(buffer.main()[2]) =
+      alpha * this->B->at(2) + beta * this->m_bnew->at(2);
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this

@@ -57,6 +57,7 @@ void
 radiative_transfer_cu<Conf, RadImpl>::register_data_components() {
   size_t max_ph_num = 10000;
   this->m_env.params().get_value("max_ph_num", max_ph_num);
+  Logger::print_info("Maximum photon number is {}", max_ph_num);
 
   this->ph = this->m_env.template register_data<photon_data_t>(
       "photons", max_ph_num, MemType::device_only);
@@ -69,8 +70,8 @@ radiative_transfer_cu<Conf, RadImpl>::register_data_components() {
   this->pair_produced = this->m_env.template register_data<scalar_field<Conf>>(
       "pair_produced", this->m_grid, field_type::vert_centered,
       MemType::host_device);
-  this->photon_produced->reset_after_output();
-  this->pair_produced->reset_after_output();
+  this->photon_produced->reset_after_output(true);
+  this->pair_produced->reset_after_output(true);
 }
 
 template <typename Conf, typename RadImpl>
@@ -83,7 +84,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   m_num_per_block.assign_dev(0);
   m_cum_num_per_block.assign_dev(0);
 
-  Logger::print_debug("Before kernel launch!");
+  // Logger::print_debug("Before kernel launch!");
   // First count number of photons produced
   kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ptc_num] __device__(auto ptc, auto ph_count, auto ph_pos,
@@ -116,6 +117,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
             atomicAdd(&ph_produced[idx], w);
           }
         }
+        __syncthreads();
 
         // Record the number of photons produced this block to global array
         if (threadIdx.x == 0) {
@@ -128,7 +130,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
-  Logger::print_info("Before photon scan");
+  // Logger::print_info("Before photon scan");
   thrust::device_ptr<int> ptrNumPerBlock(m_num_per_block.dev_ptr());
   thrust::device_ptr<int> ptrCumNum(m_cum_num_per_block.dev_ptr());
 
@@ -224,6 +226,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
             atomicAdd(&pair_produced[idx], w);
           }
         }
+        __syncthreads();
 
         // Record the number of photons produced this block to global array
         if (threadIdx.x == 0) {
@@ -236,7 +239,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
-  Logger::print_debug("Before pairs scan");
+  // Logger::print_debug("Before pairs scan");
   thrust::device_ptr<int> ptrNumPerBlock(m_num_per_block.dev_ptr());
   thrust::device_ptr<int> ptrCumNum(m_cum_num_per_block.dev_ptr());
 

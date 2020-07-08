@@ -179,6 +179,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
   send_idx[dim] =
       (dir == -1 ? grid.guard[dim] : grid.dims[dim] - 2 * grid.guard[dim]);
 
+  // timer::stamp();
   if (array.mem_type() == MemType::host_only) {
     copy(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
          m_send_buffers[dim].extent());
@@ -186,8 +187,10 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
     copy_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
              m_send_buffers[dim].extent());
   }
+  // timer::show_duration_since_stamp("copy guard cells", "ms");
 
 #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#pragma message "CUDA-aware MPI found!"
   auto send_ptr = m_send_buffers[dim].dev_ptr();
   auto recv_ptr = m_recv_buffers[dim].dev_ptr();
 #else
@@ -196,6 +199,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
   m_send_buffers[dim].copy_to_host();
 #endif
 
+  // timer::stamp();
   MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, 0,
                recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, 0,
                m_cart, &status);
@@ -206,6 +210,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
   // MPI_Isend(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest,
   //           0, m_world, &req_send);
   // MPI_Wait(&req_recv, &status);
+  // timer::show_duration_since_stamp("MPI sendrecv", "ms");
 
   if (origin != MPI_PROC_NULL) {
     // Index recv_idx(0, 0, 0);

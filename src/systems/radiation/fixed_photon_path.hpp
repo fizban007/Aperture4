@@ -79,7 +79,7 @@ struct fixed_photon_path {
 
   __device__ bool check_produce_pair(ph_ptrs& ph, uint32_t tid,
                                      cuda_rng_t& rng) {
-    return ph.path_left[tid] < photon_path;
+    return ph.path_left[tid] < 0.0f;
   }
 };
 

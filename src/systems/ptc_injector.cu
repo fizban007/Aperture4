@@ -15,6 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/multi_array_exp.hpp"
+#include "core/ndsubset_dev.hpp"
 #include "data/curand_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
@@ -116,7 +118,8 @@ compute_sigma(scalar_field<Conf>& sigma,
           }
         }
       },
-      sigma.dev_ndptr(), B.get_ptrs(), num_per_cell.dev_ndptr(), dv_ptr, states);
+      sigma.dev_ndptr(), B.get_ptrs(), num_per_cell.dev_ndptr(), dv_ptr,
+      states);
   CudaCheckError();
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -126,11 +129,11 @@ void
 inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
              const multi_array<int, Conf::dim>& cum_num_per_cell,
              particle_data_t& ptc, const grid_t<Conf>& grid,
-             curandState* states) {
+             typename Conf::value_t weight, curandState* states) {
   auto ptc_num = ptc.number();
   kernel_launch(
-      [ptc_num] __device__(auto ptc, auto num_per_cell, auto cum_num,
-                           auto states) {
+      [ptc_num, weight] __device__(auto ptc, auto num_per_cell, auto cum_num,
+                                   auto states) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -142,8 +145,10 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
             ptc.x1[offset] = ptc.x1[offset + 1] = rng();
             ptc.x2[offset] = ptc.x2[offset + 1] = rng();
-            ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
-            Scalar th = grid.template pos<1>(pos[1], ptc.x2[offset]);
+            ptc.x3[offset] = ptc.x3[offset + 1] = rng();
+            // Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
+            // Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
+            // Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
             ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
             ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
             ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
@@ -151,9 +156,10 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
             ptc.cell[offset] = ptc.cell[offset + 1] = cell;
             // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
             //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
-            ptc.weight[offset] = ptc.weight[offset + 1] = sin(th),
+            // ptc.weight[offset] = ptc.weight[offset + 1] = f(x1, x2, x3);
+            ptc.weight[offset] = ptc.weight[offset + 1] = weight;
             // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
-                ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
+            ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
             ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
           }
         }
@@ -170,6 +176,12 @@ ptc_injector_cu<Conf>::init() {
   ptc_injector<Conf>::init();
 
   this->m_env.get_data("rand_states", &m_rand_states);
+  m_num_per_cell.set_memtype(MemType::host_device);
+  m_cum_num_per_cell.set_memtype(MemType::host_device);
+  // m_pos_in_array.set_memtype(MemType::host_device);
+
+  m_num_per_cell.resize(this->m_grid.extent());
+  m_cum_num_per_cell.resize(this->m_grid.extent());
 }
 
 template <typename Conf>
@@ -177,15 +189,10 @@ void
 ptc_injector_cu<Conf>::register_data_components() {
   ptc_injector<Conf>::register_data_components();
 
-  m_num_per_cell.set_memtype(MemType::host_device);
-  m_cum_num_per_cell.set_memtype(MemType::host_device);
-  // m_pos_in_array.set_memtype(MemType::host_device);
-
-  m_num_per_cell.resize(this->m_grid.extent());
-  m_cum_num_per_cell.resize(this->m_grid.extent());
   // m_posInBlock.resize()
-  m_sigma = this->m_env.template register_data<scalar_field<Conf>>(
-      "sigma", this->m_grid, field_type::cell_centered, MemType::host_device);
+  // m_sigma = this->m_env.template register_data<scalar_field<Conf>>(
+  //     "sigma", this->m_grid, field_type::cell_centered,
+  //     MemType::host_device);
 }
 
 template <typename Conf>
@@ -194,6 +201,11 @@ ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
   // Compute sigma and number of pairs to inject per cells
   // compute_sigma(*m_sigma, m_num_per_cell, *(this->ptc), *(this->B),
   //               this->m_grid, this->m_target_sigma, m_rand_states->states());
+  m_num_per_cell.assign_dev(0);
+  m_cum_num_per_cell.assign_dev(0);
+
+  select_dev(m_num_per_cell, this->m_inj_begin, this->m_inj_ext) =
+      this->m_inj_rate;
 
   size_t grid_size = this->m_grid.extent().size();
   thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());
@@ -210,7 +222,7 @@ ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
 
   // Use the num_per_cell and cum_num info to inject actual pairs
   inject_pairs(m_num_per_cell, m_cum_num_per_cell, *(this->ptc), this->m_grid,
-               m_rand_states->states());
+               this->m_inj_weight, m_rand_states->states());
   this->ptc->add_num(new_pairs);
 }
 

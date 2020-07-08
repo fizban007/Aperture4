@@ -64,7 +64,7 @@ class data_t {
   void skip_output(bool b) { m_skip_output = b; }
 
   /// Get whether this data component will skip the output.
-  bool skip_output() { return m_skip_output; }
+  bool skip_output() const { return m_skip_output; }
 
   // By default, snapshot is "opt-in", so by default any data component will not
   // be included in a snapshot
@@ -80,7 +80,7 @@ class data_t {
   void include_in_snapshot(bool b) { m_in_snapshot = b; }
 
   /// Get whether this data component will be included in a snapshot.
-  bool include_in_snapshot() { return m_in_snapshot; }
+  bool include_in_snapshot() const { return m_in_snapshot; }
 
   // Data components can be reset after each output, so that they always track
   // the cumulative amount between two data dumps
@@ -96,7 +96,7 @@ class data_t {
   void reset_after_output(bool b) { m_reset_after_output = b; }
 
   /// Get wether this data component should be reset after output.
-  bool reset_after_output() { return m_reset_after_output; }
+  bool reset_after_output() const { return m_reset_after_output; }
 };
 
 }  // namespace Aperture

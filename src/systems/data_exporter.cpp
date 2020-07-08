@@ -117,19 +117,19 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
-      if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+      if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
         Logger::print_info("Writing vector field {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+      } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
+      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
         Logger::print_info("Writing 1D array {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
+      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
         Logger::print_info("Writing 2D array {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
+      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       }
@@ -163,9 +163,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
     for (auto& it : m_env.data_map()) {
       auto data = it.second.get();
-      if (auto ptr = dynamic_cast<particle_data_t*>(data)) {
+      if (auto *ptr = dynamic_cast<particle_data_t*>(data)) {
         Logger::print_info("Writing tracked particles");
-      } else if (auto ptr = dynamic_cast<photon_data_t*>(data)) {
+      } else if (auto *ptr = dynamic_cast<photon_data_t*>(data)) {
         Logger::print_info("Writing tracked photons");
       }
     }
@@ -192,9 +192,9 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
       continue;
     }
     Logger::print_info("Writing {} to snapshot", it.first);
-    if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+    if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
-    } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+    } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
     }
   }
@@ -232,12 +232,12 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
       continue;
     }
     Logger::print_info("Writing {} to snapshot", it.first);
-    if (auto ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+    if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       read(*ptr, it.first, snapfile, true);
       if (m_comm != nullptr) {
         m_comm->send_guard_cells(*ptr);
       }
-    } else if (auto ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+    } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       read(*ptr, it.first, snapfile, true);
       if (m_comm != nullptr) {
         m_comm->send_guard_cells(*ptr);

@@ -40,20 +40,22 @@ class ptc_injector : public system_t {
       : system_t(env), m_grid(grid) {}
   ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
                const vec_t<value_t, Conf::dim>& lower,
-               const extent_t<Conf::dim>& extent, value_t inj_rate,
+               const vec_t<value_t, Conf::dim>& size, int inj_rate,
                value_t inj_weight);
   virtual ~ptc_injector() {}
 
-  virtual void init() override;
-  virtual void update(double dt, uint32_t step) override;
-  virtual void register_data_components() override;
+  void init() override;
+  void update(double dt, uint32_t step) override;
+  void register_data_components() override;
 
  protected:
   const grid_t<Conf>& m_grid;
 
   particle_data_t* ptc;
-  value_t m_inj_rate;
+  int m_inj_rate;
   value_t m_inj_weight;
+  index_t<Conf::dim> m_inj_begin;
+  extent_t<Conf::dim> m_inj_ext;
   // vector_field<Conf>* B;
 
   // value_t m_target_sigma = 100.0;
@@ -67,15 +69,15 @@ class ptc_injector_cu : public ptc_injector<Conf> {
   using ptc_injector<Conf>::ptc_injector;
   virtual ~ptc_injector_cu() {}
 
-  virtual void init() override;
-  virtual void update(double dt, uint32_t step) override;
-  virtual void register_data_components() override;
+  void init() override;
+  void update(double dt, uint32_t step) override;
+  void register_data_components() override;
 
  protected:
   curand_states_t* m_rand_states;
   multi_array<int, Conf::dim> m_num_per_cell;
   multi_array<int, Conf::dim> m_cum_num_per_cell;
-  scalar_field<Conf>* m_sigma;
+  // scalar_field<Conf>* m_sigma;
 };
 
 }  // namespace Aperture

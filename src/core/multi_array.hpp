@@ -245,14 +245,6 @@ class multi_array : public buffer<T> {
   ref_t ref() { return ref_t(*this); }
 };
 
-// template <typename T,
-//           typename... Args>
-// auto
-// make_multi_array(Args... args) {
-//   return multi_array<T, sizeof...(Args),
-//   default_idx_t<sizeof...(Args)>>(args...);
-// }
-
 /// Helper function to construct a multi_array.
 /**
  *  This can be useful for initializing a multi_array without specifying
@@ -270,34 +262,6 @@ auto
 make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
-
-// ////////////////////////////////////////////////////////////////////////////////
-// ///  Class for a reference to multi_array.
-// ////////////////////////////////////////////////////////////////////////////////
-// template <typename T, int Rank, typename Idx_t>
-// class multi_array_cref {
-//  public:
-//   typedef multi_array<T, Rank, Idx_t> multi_array_t;
-//   typedef T value_t;
-//   typedef Idx_t idx_t;
-
-//   multi_array_cref(const multi_array_t& array) : m_array(array) {}
-//   multi_array_cref(const multi_array_cref<T, Rank, Idx_t>& other) = default;
-//   virtual ~multi_array_cref() {}
-
-//   value_t operator[](const idx_t& idx) const { return m_array[idx]; }
-//   value_t at(const idx_t& idx) const { return m_array[idx]; }
-//   value_t at_dev(const idx_t& idx) const { return m_array.at_dev(idx); }
-
-//  private:
-//   const multi_array_t& m_array;
-// };
-
-// template <typename T, int Rank, typename Idx_t>
-// auto
-// cref(const multi_array<T, Rank, Idx_t>& array) {
-//   return multi_array_cref<T, Rank, Idx_t>(array);
-// }
 
 }  // namespace Aperture
 

@@ -40,7 +40,7 @@ class ptc_injector : public system_t {
       : system_t(env), m_grid(grid) {}
   ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
                const vec_t<value_t, Conf::dim>& lower,
-               const vec_t<value_t, Conf::dim>& size, int inj_rate,
+               const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
                value_t inj_weight);
   virtual ~ptc_injector() {}
 
@@ -52,7 +52,9 @@ class ptc_injector : public system_t {
   const grid_t<Conf>& m_grid;
 
   particle_data_t* ptc;
-  int m_inj_rate;
+  value_t m_inj_rate;
+  int m_inj_num;
+  int m_inj_interval;
   value_t m_inj_weight;
   index_t<Conf::dim> m_inj_begin;
   extent_t<Conf::dim> m_inj_ext;

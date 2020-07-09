@@ -25,7 +25,7 @@ template <typename Conf>
 ptc_injector<Conf>::ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
                                  const vec_t<value_t, Conf::dim>& lower,
                                  const vec_t<value_t, Conf::dim>& size,
-                                 int inj_rate, value_t inj_weight)
+                                 value_t inj_rate, value_t inj_weight)
     : system_t(env),
       m_grid(grid),
       m_inj_rate(inj_rate),
@@ -44,6 +44,13 @@ ptc_injector<Conf>::ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
       m_inj_begin[n] = 0;
       m_inj_ext[n] = 0;
     }
+  }
+  if (inj_rate > 1.0f) {
+    m_inj_interval = 1;
+    m_inj_num = std::round(inj_rate);
+  } else {
+    m_inj_interval = std::round(1.0 / inj_rate);
+    m_inj_num = 1;
   }
 }
 

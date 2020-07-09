@@ -37,6 +37,10 @@ implementation function that will be overridden by new pushers.
 ** [X] How to change radiative transfer behavior?
 Partial answer: write a custom impl class for radiation then instantiate the
 ~radiative_transfer~ class with it.
+
+A more elaborate scheme right now is to separate the implementation of different
+functions in different reusable classes. This way one can mix and match between
+different schemes.
 * More general, how to make system interfaces even simpler?
 * TODO Added a dry run mode where one can see all the default parameters
 * TODO An idea for handling Z-order size is to always pad the arrays to power of 2

@@ -198,14 +198,12 @@ ptc_injector_cu<Conf>::register_data_components() {
 template <typename Conf>
 void
 ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
-  // Compute sigma and number of pairs to inject per cells
-  // compute_sigma(*m_sigma, m_num_per_cell, *(this->ptc), *(this->B),
-  //               this->m_grid, this->m_target_sigma, m_rand_states->states());
+  if (step % this->m_inj_interval != 0) return;
   m_num_per_cell.assign_dev(0);
   m_cum_num_per_cell.assign_dev(0);
 
   select_dev(m_num_per_cell, this->m_inj_begin, this->m_inj_ext) =
-      this->m_inj_rate;
+      this->m_inj_num;
 
   size_t grid_size = this->m_grid.extent().size();
   thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());

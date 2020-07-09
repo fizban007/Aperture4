@@ -17,11 +17,11 @@
 
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/field_solver_sph.h"
-#include "systems/ptc_updater_sph.h"
-#include "systems/data_exporter.h"
 #include "systems/boundary_condition.h"
-// #include "systems/ptc_injector.h"
+#include "systems/data_exporter.h"
+#include "systems/field_solver_sph.h"
+#include "systems/ptc_injector.h"
+#include "systems/ptc_updater_sph.h"
 #include <iostream>
 
 using namespace std;
@@ -33,15 +33,18 @@ main(int argc, char *argv[]) {
   sim_environment env(&argc, &argv);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
+  double Omega = 0.16667;
+  env.params().get_value("omega", Omega);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto pusher =
-      env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
-  auto solver =
-      env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  // auto injector =
-  //     env.register_system<ptc_injector_cu<Conf>>(env, *grid);
+  auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
+  auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
+  auto injector = env.register_system<ptc_injector_cu<Conf>>(
+      env, *grid,
+      vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.5),
+      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 1.0),
+      0.1f, 0.5f);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
 
@@ -68,7 +71,7 @@ main(int argc, char *argv[]) {
   B->copy_from(*B0);
 
   // Fill the magnetosphere with some multiplicity
-  pusher->fill_multiplicity(0, 1.0);
+  pusher->fill_multiplicity(2, 1.0);
 
   env.run();
   return 0;

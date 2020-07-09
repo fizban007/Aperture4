@@ -42,9 +42,9 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
   auto injector = env.register_system<ptc_injector_cu<Conf>>(
       env, *grid,
-      vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.5),
-      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 1.0),
-      0.1f, 0.5f);
+      vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.2),
+      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 0.4),
+      0.001f, 0.5f);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
 

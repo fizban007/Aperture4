@@ -36,15 +36,18 @@ ptc_injector<Conf>::ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
         m_grid.lower[n] <= lower[n] + size[n] ) {
       m_inj_begin[n] = std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
                            m_grid.inv_delta[n]) +
-                       m_grid.guard[n];
+          m_grid.guard[n];
+      // FIXME: Ext calculation still has problems
       m_inj_ext[n] =
-          std::round(std::min(lower[n] + size[n] - m_grid.lower[n], m_grid.sizes[n]) *
+          std::round(std::min(size[n], m_grid.sizes[n]) *
                      m_grid.inv_delta[n]);
     } else {
       m_inj_begin[n] = 0;
       m_inj_ext[n] = 0;
     }
   }
+  Logger::print_info("Injector begin is ({}, {}), extent is ({}, {})", m_inj_begin[0], m_inj_begin[1],
+                     m_inj_ext[0], m_inj_ext[1]);
   if (inj_rate > 1.0f) {
     m_inj_interval = 1;
     m_inj_num = std::round(inj_rate);

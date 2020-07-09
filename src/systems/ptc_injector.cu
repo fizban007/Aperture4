@@ -124,16 +124,17 @@ compute_sigma(scalar_field<Conf>& sigma,
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
-template <typename Conf>
+template <typename Conf, typename Func>
 void
 inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
              const multi_array<int, Conf::dim>& cum_num_per_cell,
              particle_data_t& ptc, const grid_t<Conf>& grid,
-             typename Conf::value_t weight, curandState* states) {
+             typename Conf::value_t weight, curandState* states,
+             const Func& f) {
   auto ptc_num = ptc.number();
   kernel_launch(
-      [ptc_num, weight] __device__(auto ptc, auto num_per_cell, auto cum_num,
-                                   auto states) {
+      [ptc_num, weight, f] __device__(auto ptc, auto num_per_cell, auto cum_num,
+                                      auto states) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -146,9 +147,7 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
             ptc.x1[offset] = ptc.x1[offset + 1] = rng();
             ptc.x2[offset] = ptc.x2[offset + 1] = rng();
             ptc.x3[offset] = ptc.x3[offset + 1] = rng();
-            // Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
-            // Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
-            // Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
+
             ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
             ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
             ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
@@ -157,7 +156,14 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
             // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
             //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
             // ptc.weight[offset] = ptc.weight[offset + 1] = f(x1, x2, x3);
-            ptc.weight[offset] = ptc.weight[offset + 1] = weight;
+            if (f == nullptr) {
+              ptc.weight[offset] = ptc.weight[offset + 1] = weight;
+            } else {
+              Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
+              Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
+              Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
+              ptc.weight[offset] = ptc.weight[offset + 1] = weight * f(x1, x2, x3);
+            }
             // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
             ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
             ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
@@ -198,32 +204,36 @@ ptc_injector_cu<Conf>::register_data_components() {
 template <typename Conf>
 void
 ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
-  if (step % this->m_inj_interval != 0) return;
-  m_num_per_cell.assign_dev(0);
-  m_cum_num_per_cell.assign_dev(0);
+  for (auto& inj : this->m_injectors) {
+    if (step % inj.interval != 0) return;
+    m_num_per_cell.assign_dev(0);
+    m_cum_num_per_cell.assign_dev(0);
 
-  select_dev(m_num_per_cell, this->m_inj_begin, this->m_inj_ext) =
-      this->m_inj_num;
+    select_dev(m_num_per_cell, inj.begin, inj.ext) =
+        inj.num;
 
-  size_t grid_size = this->m_grid.extent().size();
-  thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());
-  thrust::device_ptr<int> p_cum_num_per_block(m_cum_num_per_cell.dev_ptr());
+    size_t grid_size = this->m_grid.extent().size();
+    thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());
+    thrust::device_ptr<int> p_cum_num_per_block(m_cum_num_per_cell.dev_ptr());
 
-  thrust::exclusive_scan(p_num_per_block, p_num_per_block + grid_size,
-                         p_cum_num_per_block);
-  CudaCheckError();
-  m_num_per_cell.copy_to_host();
-  m_cum_num_per_cell.copy_to_host();
-  int new_pairs =
-      2 * (m_cum_num_per_cell[grid_size - 1] + m_num_per_cell[grid_size - 1]);
-  Logger::print_info("{} new pairs are injected in the box!", new_pairs);
+    thrust::exclusive_scan(p_num_per_block, p_num_per_block + grid_size,
+                           p_cum_num_per_block);
+    CudaCheckError();
+    m_num_per_cell.copy_to_host();
+    m_cum_num_per_cell.copy_to_host();
+    int new_pairs =
+        2 * (m_cum_num_per_cell[grid_size - 1] + m_num_per_cell[grid_size - 1]);
+    Logger::print_info("{} new pairs are injected in the box!", new_pairs);
 
-  // Use the num_per_cell and cum_num info to inject actual pairs
-  inject_pairs(m_num_per_cell, m_cum_num_per_cell, *(this->ptc), this->m_grid,
-               this->m_inj_weight, m_rand_states->states());
-  this->ptc->add_num(new_pairs);
+    // Use the num_per_cell and cum_num info to inject actual pairs
+    inject_pairs(m_num_per_cell, m_cum_num_per_cell, *(this->ptc), this->m_grid,
+                 inj.weight, m_rand_states->states(), inj.weight_func);
+    this->ptc->add_num(new_pairs);
+  }
 }
 
+template class ptc_injector_cu<Config<1>>;
 template class ptc_injector_cu<Config<2>>;
+template class ptc_injector_cu<Config<3>>;
 
 }  // namespace Aperture

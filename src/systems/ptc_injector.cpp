@@ -22,39 +22,42 @@
 namespace Aperture {
 
 template <typename Conf>
-ptc_injector<Conf>::ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
-                                 const vec_t<value_t, Conf::dim>& lower,
-                                 const vec_t<value_t, Conf::dim>& size,
-                                 value_t inj_rate, value_t inj_weight)
-    : system_t(env),
-      m_grid(grid),
-      m_inj_rate(inj_rate),
-      m_inj_weight(inj_weight) {
-  // Figure out the cell corresponding to the given region
+void
+ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
+                                 const vec_t<value_t, Conf::dim> &size,
+                                 value_t inj_rate, value_t inj_weight) {
+  injector_params new_injector{};
+  new_injector.weight = inj_weight;
   for (int n = 0; n < Conf::dim; n++) {
     if (lower[n] < m_grid.lower[n] + m_grid.sizes[n] &&
-        m_grid.lower[n] <= lower[n] + size[n] ) {
-      m_inj_begin[n] = std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
-                           m_grid.inv_delta[n]) +
+        m_grid.lower[n] <= lower[n] + size[n]) {
+      new_injector.begin[n] =
+          std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
+                     m_grid.inv_delta[n]) +
           m_grid.guard[n];
       // FIXME: Ext calculation still has problems
-      m_inj_ext[n] =
-          std::round(std::min(size[n], m_grid.sizes[n]) *
-                     m_grid.inv_delta[n]);
+      new_injector.ext[n] =
+          std::round(std::min(size[n], m_grid.sizes[n]) * m_grid.inv_delta[n]);
+      new_injector.ext[n] = std::min(
+          new_injector.ext[n],
+          m_grid.reduced_dim(n) + m_grid.guard[n] - new_injector.begin[n]);
     } else {
-      m_inj_begin[n] = 0;
-      m_inj_ext[n] = 0;
+      new_injector.begin[n] = 0;
+      new_injector.ext[n] = 0;
     }
   }
-  Logger::print_info("Injector begin is ({}, {}), extent is ({}, {})", m_inj_begin[0], m_inj_begin[1],
-                     m_inj_ext[0], m_inj_ext[1]);
+  Logger::print_info("Injector begin is ({}, {}), extent is ({}, {})",
+                     new_injector.begin[0], new_injector.begin[1],
+                     new_injector.ext[0], new_injector.ext[1]);
   if (inj_rate > 1.0f) {
-    m_inj_interval = 1;
-    m_inj_num = std::round(inj_rate);
+    new_injector.interval = 1;
+    new_injector.num = std::round(inj_rate);
   } else {
-    m_inj_interval = std::round(1.0 / inj_rate);
-    m_inj_num = 1;
+    new_injector.interval = std::round(1.0 / inj_rate);
+    new_injector.num = 1;
   }
+
+  m_injectors.push_back(new_injector);
 }
 
 template <typename Conf>
@@ -74,6 +77,8 @@ template <typename Conf>
 void
 ptc_injector<Conf>::register_data_components() {}
 
+template class ptc_injector<Config<1>>;
 template class ptc_injector<Config<2>>;
+template class ptc_injector<Config<3>>;
 
 }  // namespace Aperture

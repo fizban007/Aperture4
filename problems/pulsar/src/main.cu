@@ -40,11 +40,17 @@ main(int argc, char *argv[]) {
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
   auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  auto injector = env.register_system<ptc_injector_cu<Conf>>(
-      env, *grid,
+  auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
+  injector->add_injector(
       vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.2),
-      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 0.4),
-      0.001f, 0.5f);
+      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 0.4), 0.001f,
+      0.5f);
+  injector->add_injector(
+      vec<Scalar>(0.0, 0.0), vec<Scalar>(grid->delta[0], M_PI), 0.5f, 1.0f,
+      [] __host__ __device__(Scalar x1, Scalar x2, Scalar x3) {
+        return math::sin(x2);
+      });
+
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
 

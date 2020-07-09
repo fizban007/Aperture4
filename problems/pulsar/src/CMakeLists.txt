@@ -1,5 +1,5 @@
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_executable(pulsar "main.cpp"
+  add_executable(pulsar "main.cu"
     "systems/boundary_condition.cu"
     )
   set_target_properties(pulsar PROPERTIES OUTPUT_NAME "aperture")

@@ -24,7 +24,12 @@
 #include "data/particle_data.h"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include <functional>
 #include <memory>
+
+#ifdef CUDA_ENABLED
+#include <nvfunctional>
+#endif
 
 namespace Aperture {
 
@@ -38,11 +43,18 @@ class ptc_injector : public system_t {
 
   ptc_injector(sim_environment& env, const grid_t<Conf>& grid)
       : system_t(env), m_grid(grid) {}
-  ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
-               const vec_t<value_t, Conf::dim>& lower,
-               const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
-               value_t inj_weight);
   virtual ~ptc_injector() {}
+
+  void add_injector(const vec_t<value_t, Conf::dim>& lower,
+                    const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
+                    value_t inj_weight);
+  template <typename WeightFunc>
+  void add_injector(const vec_t<value_t, Conf::dim>& lower,
+                    const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
+                    value_t inj_weight, const WeightFunc& f) {
+    add_injector(lower, size, inj_rate, inj_weight);
+    m_injectors.back().weight_func = f;
+  }
 
   void init() override;
   void update(double dt, uint32_t step) override;
@@ -50,22 +62,30 @@ class ptc_injector : public system_t {
 
  protected:
   const grid_t<Conf>& m_grid;
-
   particle_data_t* ptc;
-  value_t m_inj_rate;
-  int m_inj_num;
-  int m_inj_interval;
-  value_t m_inj_weight;
-  index_t<Conf::dim> m_inj_begin;
-  extent_t<Conf::dim> m_inj_ext;
+
+ private:
+  struct injector_params {
+    int num;
+    int interval;
+    value_t weight;
+    index_t<Conf::dim> begin;
+    extent_t<Conf::dim> ext;
+    std::function<value_t(value_t, value_t, value_t)> weight_func = nullptr;
+  };
+
+  std::vector<injector_params> m_injectors;
   // vector_field<Conf>* B;
 
   // value_t m_target_sigma = 100.0;
 };
 
+#ifdef CUDA_ENABLED
+
 template <typename Conf>
 class ptc_injector_cu : public ptc_injector<Conf> {
  public:
+  typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_injector"; }
 
   using ptc_injector<Conf>::ptc_injector;
@@ -75,12 +95,36 @@ class ptc_injector_cu : public ptc_injector<Conf> {
   void update(double dt, uint32_t step) override;
   void register_data_components() override;
 
+  using ptc_injector<Conf>::add_injector;
+  template <typename WeightFunc>
+  void add_injector(const vec_t<value_t, Conf::dim>& lower,
+                    const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
+                    value_t inj_weight, const WeightFunc& f) {
+    this->add_injector(lower, size, inj_rate, inj_weight);
+    m_injectors.back().weight_func = f;
+  }
+
  protected:
   curand_states_t* m_rand_states;
   multi_array<int, Conf::dim> m_num_per_cell;
   multi_array<int, Conf::dim> m_cum_num_per_cell;
+
+ private:
+  // struct
   // scalar_field<Conf>* m_sigma;
+  struct injector_params_dev {
+    int num;
+    int interval;
+    value_t weight;
+    index_t<Conf::dim> begin;
+    extent_t<Conf::dim> ext;
+    nvstd::function<value_t(value_t, value_t, value_t)> weight_func = nullptr;
+  };
+
+  std::vector<injector_params_dev> m_injectors;
 };
+
+#endif
 
 }  // namespace Aperture
 

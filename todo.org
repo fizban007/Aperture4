@@ -16,8 +16,11 @@ Added an ~include_in_snapshot~ option in ~data_t~ interface. Anything that needs
 to be included in the snapshot will need to explicitly declare this option.
 
 Basically, data output is "opt-out", and snapshot is "opt-in".
+
+However, particle snapshot is yet to be implemented.
 ** [ ] Figure out a way to deal with xmf interaction with restarts
 * TODO Implement various physical processes
+** [ ] Instant pair production according to a threshold
 ** [ ] Curvature radiation
 ** [X] Synchrotron cooling
 ** [ ] Resonant scattering
@@ -36,3 +39,6 @@ Partial answer: write a custom impl class for radiation then instantiate the
 ~radiative_transfer~ class with it.
 * More general, how to make system interfaces even simpler?
 * TODO Added a dry run mode where one can see all the default parameters
+* TODO An idea for handling Z-order size is to always pad the arrays to power of 2
+A lot of indexing has to change accordingly. For example, grid.dims won't be
+enough to identify the extent of the array in memory.

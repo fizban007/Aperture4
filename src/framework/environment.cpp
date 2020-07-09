@@ -76,6 +76,9 @@ sim_environment::parse_options(int argc, char** argv) {
       std::cout << m_options->help() << std::endl;
       exit(0);
     }
+    if (result["dry-run"].as<bool>()) {
+      is_dry_run = true;
+    }
     auto conf_file = result["config"].as<std::string>();
     m_params.add("config_file", conf_file);
 
@@ -116,7 +119,7 @@ sim_environment::init() {
 
 void
 sim_environment::run() {
-  if ((*m_commandline_args)["dry-run"].as<bool>()) {
+  if (is_dry_run) {
     return;
   }
 

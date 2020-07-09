@@ -26,9 +26,9 @@
 
 #include "data.h"
 #include "framework/params_store.h"
+#include "gsl/pointers"
 #include "system.h"
 #include "utils/logger.h"
-#include "gsl/pointers"
 
 namespace cxxopts {
 class Options;
@@ -57,8 +57,8 @@ namespace Aperture {
 //       try {
 //         f = boost::any_cast<std::function<void(Args & ...)>>(any_p);
 //       } catch (const boost::bad_any_cast& e) {
-//         Logger::print_err("Failed to cast callback '{}': {}", name, e.what());
-//         return;
+//         Logger::print_err("Failed to cast callback '{}': {}", name,
+//         e.what()); return;
 //       }
 //       f(args...);
 //     }
@@ -116,6 +116,7 @@ class sim_environment {
   void parse_options(int argc, char** argv);
 
   // These are variables governing the lifetime of the simulation
+  bool is_dry_run = false;
   double dt;
   double time;
   uint32_t step;
@@ -124,7 +125,7 @@ class sim_environment {
 
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
- 
+
   sim_environment();
   sim_environment(int* argc, char*** argv);
   ~sim_environment();
@@ -137,7 +138,8 @@ class sim_environment {
   ///  method. There cannot be more than one system registered under the same
   ///  name.
   ///
-  ///  \tparam System  Type of the system to be registered. This template parameter
+  ///  \tparam System  Type of the system to be registered. This template
+  ///  parameter
   ///                 has to be specified.
   ///  \tparam Args    Types of the parameters to be sent to the constructor
   ///  \param args    The parameters to be sent to the system constructor
@@ -152,7 +154,8 @@ class sim_environment {
       return dynamic_cast<System*>(it->second.get());
 
     // Otherwise, make the system, and return the pointer
-    std::unique_ptr<system_t> ptr = std::make_unique<System>(std::forward<Args>(args)...);
+    std::unique_ptr<system_t> ptr =
+        std::make_unique<System>(std::forward<Args>(args)...);
     ptr->register_data_components();
     m_system_map.insert({name, std::move(ptr)});
     m_system_order.push_back(name);
@@ -169,7 +172,8 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the data constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename Data, typename... Args>
-  auto register_data(const std::string& name, Args&&... args) -> gsl::not_null<Data*> {
+  auto register_data(const std::string& name, Args&&... args)
+      -> gsl::not_null<Data*> {
     // Check if the data component has already been installed
     auto it = m_data_map.find(name);
     if (it != m_data_map.end())
@@ -218,8 +222,8 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain an optional raw pointer to the named data component. If the data component
-  ///  is not found then a `nullptr` is returned.
+  ///  Obtain an optional raw pointer to the named data component. If the data
+  ///  component is not found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the data component.
   ///  \return A raw pointer to the data component
@@ -251,8 +255,8 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain an optional const raw pointer to the named data component. If the data
-  ///  component is not found then a `nullptr` is returned.
+  ///  Obtain an optional const raw pointer to the named data component. If the
+  ///  data component is not found then a `nullptr` is returned.
   ///
   ///  \param name  Name of the data component.
   ///  \param ptr   A const raw pointer to the data component, supplied to be
@@ -304,7 +308,8 @@ class sim_environment {
   // data_store_t& shared_data() { return m_shared_data; }
   // const data_store_t& shared_data() const { return m_shared_data; }
   // callback_handler_t& callback_handler() { return m_callback_handler; }
-  // const callback_handler_t& callback_handler() const { return m_callback_handler; }
+  // const callback_handler_t& callback_handler() const { return
+  // m_callback_handler; }
   params_store& params() { return m_params; }
   const params_store& params() const { return m_params; }
   const cxxopts::ParseResult* commandline_args() const {

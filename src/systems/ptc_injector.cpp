@@ -16,10 +16,43 @@
  */
 
 #include "ptc_injector.h"
-#include "framework/environment.h"
 #include "framework/config.h"
+#include "framework/environment.h"
 
 namespace Aperture {
+
+template <typename Conf>
+ptc_injector<Conf>::ptc_injector(sim_environment& env, const grid_t<Conf>& grid,
+                                 const vec_t<value_t, Conf::dim>& lower,
+                                 const vec_t<value_t, Conf::dim>& size,
+                                 value_t inj_rate, value_t inj_weight)
+    : system_t(env),
+      m_grid(grid),
+      m_inj_rate(inj_rate),
+      m_inj_weight(inj_weight) {
+  // Figure out the cell corresponding to the given region
+  for (int n = 0; n < Conf::dim; n++) {
+    if (lower[n] < m_grid.lower[n] + m_grid.sizes[n] &&
+        m_grid.lower[n] <= lower[n] + size[n] ) {
+      m_inj_begin[n] = std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
+                           m_grid.inv_delta[n]) +
+                       m_grid.guard[n];
+      m_inj_ext[n] =
+          std::round(std::min(lower[n] + size[n] - m_grid.lower[n], m_grid.sizes[n]) *
+                     m_grid.inv_delta[n]);
+    } else {
+      m_inj_begin[n] = 0;
+      m_inj_ext[n] = 0;
+    }
+  }
+  if (inj_rate > 1.0f) {
+    m_inj_interval = 1;
+    m_inj_num = std::round(inj_rate);
+  } else {
+    m_inj_interval = std::round(1.0 / inj_rate);
+    m_inj_num = 1;
+  }
+}
 
 template <typename Conf>
 void
@@ -36,9 +69,8 @@ ptc_injector<Conf>::update(double dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_injector<Conf>::register_data_components() {
-}
+ptc_injector<Conf>::register_data_components() {}
 
 template class ptc_injector<Config<2>>;
 
-}
+}  // namespace Aperture

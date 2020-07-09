@@ -32,11 +32,11 @@
 namespace Aperture {
 
 template <typename Conf>
-void
-compute_sigma(scalar_field<Conf>& sigma,
-              multi_array<int, Conf::dim>& num_per_cell, particle_data_t& ptc,
-              const vector_field<Conf>& B, const grid_t<Conf>& grid,
-              typename Conf::value_t target_sigma, curandState* states) {
+void compute_sigma(scalar_field<Conf> &sigma,
+                   multi_array<int, Conf::dim> &num_per_cell,
+                   particle_data_t &ptc, const vector_field<Conf> &B,
+                   const grid_t<Conf> &grid,
+                   typename Conf::value_t target_sigma, curandState *states) {
   using value_t = typename Conf::value_t;
   auto ext = grid.extent();
   auto num = ptc.number();
@@ -44,8 +44,8 @@ compute_sigma(scalar_field<Conf>& sigma,
   num_per_cell.assign_dev(0);
 
   // Solve the case for curvilinear grid
-  const grid_curv_t<Conf>* grid_curv =
-      dynamic_cast<const grid_curv_t<Conf>*>(&grid);
+  const grid_curv_t<Conf> *grid_curv =
+      dynamic_cast<const grid_curv_t<Conf> *>(&grid);
   typename Conf::ndptr_const_t dv_ptr;
 
   if (grid_curv != nullptr) {
@@ -58,7 +58,8 @@ compute_sigma(scalar_field<Conf>& sigma,
         // grid
         for (auto n : grid_stride_range(0, num)) {
           auto cell = ptc.cell[n];
-          if (cell == empty_cell) continue;
+          if (cell == empty_cell)
+            continue;
 
           value_t gamma = ptc.E[n];
           auto flag = ptc.flag[n];
@@ -78,7 +79,7 @@ compute_sigma(scalar_field<Conf>& sigma,
   kernel_launch(
       [target_sigma] __device__(auto sigma, auto b, auto num_per_cell,
                                 auto dv_ptr, auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -98,7 +99,8 @@ compute_sigma(scalar_field<Conf>& sigma,
               dv = interp(dv_ptr, idx, stagger_t(0b111), stagger_t(0b000));
 
             value_t s = sigma[idx];
-            if (s < TINY) s = TINY;
+            if (s < TINY)
+              s = TINY;
             s = B_sqr * dv / s;
             sigma[idx] = s;
 
@@ -111,7 +113,8 @@ compute_sigma(scalar_field<Conf>& sigma,
               // pos<1>(pos[1], false)); value_t ds = B_sqr * (cube(r) /
               // target_sigma - 1.0f / s) * dv /
               //     std::abs(dev_charges[0]) / sin(th);
-              if (rng() < 0.01f / r) num_per_cell[idx] = 1;
+              if (rng() < 0.01f / r)
+                num_per_cell[idx] = 1;
             }
           } else {
             num_per_cell[idx] = 0;
@@ -125,17 +128,16 @@ compute_sigma(scalar_field<Conf>& sigma,
 }
 
 template <typename Conf, typename Func>
-void
-inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
-             const multi_array<int, Conf::dim>& cum_num_per_cell,
-             particle_data_t& ptc, const grid_t<Conf>& grid,
-             typename Conf::value_t weight, curandState* states,
-             const Func& f) {
+void inject_pairs(const multi_array<int, Conf::dim> &num_per_cell,
+                  const multi_array<int, Conf::dim> &cum_num_per_cell,
+                  particle_data_t &ptc, const grid_t<Conf> &grid,
+                  typename Conf::value_t weight, curandState *states,
+                  const Func *f) {
   auto ptc_num = ptc.number();
   kernel_launch(
       [ptc_num, weight, f] __device__(auto ptc, auto num_per_cell, auto cum_num,
                                       auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -162,7 +164,8 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
               Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
               Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
               Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
-              ptc.weight[offset] = ptc.weight[offset + 1] = weight * f(x1, x2, x3);
+              ptc.weight[offset] = ptc.weight[offset + 1] =
+                  weight * (*f)(x1, x2, x3);
             }
             // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
             ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
@@ -176,9 +179,15 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
   CudaCheckError();
 }
 
-template <typename Conf>
-void
-ptc_injector_cu<Conf>::init() {
+template <typename Conf> ptc_injector_cu<Conf>::~ptc_injector_cu() {
+  for (auto &inj : m_weight_funcs_dev) {
+    if (inj != nullptr) {
+      CudaSafeCall(cudaFree(inj));
+    }
+  }
+}
+
+template <typename Conf> void ptc_injector_cu<Conf>::init() {
   ptc_injector<Conf>::init();
 
   this->m_env.get_data("rand_states", &m_rand_states);
@@ -191,8 +200,7 @@ ptc_injector_cu<Conf>::init() {
 }
 
 template <typename Conf>
-void
-ptc_injector_cu<Conf>::register_data_components() {
+void ptc_injector_cu<Conf>::register_data_components() {
   ptc_injector<Conf>::register_data_components();
 
   // m_posInBlock.resize()
@@ -202,15 +210,17 @@ ptc_injector_cu<Conf>::register_data_components() {
 }
 
 template <typename Conf>
-void
-ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
-  for (auto& inj : this->m_injectors) {
-    if (step % inj.interval != 0) return;
+void ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
+  // for (auto& inj : this->m_injectors) {
+  for (int i = 0; i < this->m_injectors.size(); i++) {
+    Logger::print_info("Working on {} of {} injectors", i, this->m_injectors.size());
+    auto &inj = this->m_injectors[i];
+    if (step % inj.interval != 0)
+      continue;
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
 
-    select_dev(m_num_per_cell, inj.begin, inj.ext) =
-        inj.num;
+    select_dev(m_num_per_cell, inj.begin, inj.ext) = inj.num;
 
     size_t grid_size = this->m_grid.extent().size();
     thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());
@@ -227,7 +237,7 @@ ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
 
     // Use the num_per_cell and cum_num info to inject actual pairs
     inject_pairs(m_num_per_cell, m_cum_num_per_cell, *(this->ptc), this->m_grid,
-                 inj.weight, m_rand_states->states(), inj.weight_func);
+                 inj.weight, m_rand_states->states(), m_weight_funcs_dev[i]);
     this->ptc->add_num(new_pairs);
   }
 }
@@ -236,4 +246,4 @@ template class ptc_injector_cu<Config<1>>;
 template class ptc_injector_cu<Config<2>>;
 template class ptc_injector_cu<Config<3>>;
 
-}  // namespace Aperture
+} // namespace Aperture

@@ -56,8 +56,11 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
     new_injector.interval = std::round(1.0 / inj_rate);
     new_injector.num = 1;
   }
+  Logger::print_info("Injector interval is {}, num is {}",
+                     new_injector.interval, new_injector.num);
 
   m_injectors.push_back(new_injector);
+  m_weight_funcs.push_back(nullptr);
 }
 
 template <typename Conf>

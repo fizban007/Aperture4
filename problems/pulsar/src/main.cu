@@ -42,10 +42,6 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
   auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   injector->add_injector(
-      vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.2),
-      vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 0.4), 0.001f,
-      0.5f);
-  injector->add_injector(
       vec<Scalar>(grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], M_PI), 2.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         return math::sin(x2);
@@ -79,6 +75,16 @@ main(int argc, char *argv[]) {
   // Fill the magnetosphere with some multiplicity
   pusher->fill_multiplicity(2, 1.0);
 
-  env.run();
+  // env.run();
+  for (int step = env.get_step(); step < env.get_max_steps(); step++) {
+    env.update();
+
+    if (step == 10000) {
+      injector->add_injector(
+          vec<Scalar>(math::log(1.0 / Omega), 0.5 * M_PI - 0.2),
+          vec<Scalar>(math::log(1.5 / Omega) - math::log(1.0 / Omega), 0.4), 0.001f,
+          0.5f);
+    }
+  }
   return 0;
 }

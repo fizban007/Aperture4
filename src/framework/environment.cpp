@@ -118,23 +118,28 @@ sim_environment::init() {
 }
 
 void
+sim_environment::update() {
+  Logger::print_info("=== Time step {}, Time is {:.3f} ===", step, time);
+  for (auto& name : m_system_order) {
+    timer::stamp();
+    m_system_map[name]->update(dt, step);
+    float time_spent = timer::get_duration_since_stamp("us");
+    if (step % perf_interval == 0 && time_spent > 10.0f)
+      Logger::print_info("Time for {} is {:.2f}ms", name,
+                         time_spent / 1000.0);
+    // timer::show_duration_since_stamp(name, "us");
+  }
+  time += dt;
+}
+
+void
 sim_environment::run() {
   if (is_dry_run) {
     return;
   }
 
   for (; step < max_steps; step++) {
-    Logger::print_info("=== Time step {}, Time is {:.3f} ===", step, time);
-    for (auto& name : m_system_order) {
-      timer::stamp();
-      m_system_map[name]->update(dt, step);
-      float time_spent = timer::get_duration_since_stamp("us");
-      if (step % perf_interval == 0 && time_spent > 10.0f)
-        Logger::print_info("Time for {} is {:.2f}ms", name,
-                           time_spent / 1000.0);
-      // timer::show_duration_since_stamp(name, "us");
-    }
-    time += dt;
+    update();
   }
 }
 

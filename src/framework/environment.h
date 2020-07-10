@@ -300,6 +300,13 @@ class sim_environment {
   void init();
 
   ////////////////////////////////////////////////////////////////////////////////
+  ///  Update all system by one timestep. This is the method called in the main
+  ///  loop. One can call this directly in a main file to customize the
+  ///  simulation loop.
+  ////////////////////////////////////////////////////////////////////////////////
+  void update();
+
+  ////////////////////////////////////////////////////////////////////////////////
   ///  Start the main simulation loop. This enters a loop that calls the
   ///  `update()` function of each system in order at every time step.
   ////////////////////////////////////////////////////////////////////////////////
@@ -317,8 +324,10 @@ class sim_environment {
   }
 
   uint32_t get_step() const { return step; }
-  void set_step(uint32_t s) { step = s; }
+  uint32_t get_max_steps() const { return max_steps; }
   double get_time() const { return time; }
+
+  void set_step(uint32_t s) { step = s; }
   void set_time(double s) { step = s; }
   const data_map_t& data_map() { return m_data_map; }
 };

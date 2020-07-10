@@ -366,9 +366,10 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             }
 
             value_t r2 = grid.template pos<1>(pos[1], x2);
-            value_t x = radius * math::sin(r2) * math::cos(x3);
-            value_t y = radius * math::sin(r2) * math::sin(x3);
-            value_t z = radius * math::cos(r2);
+            value_t theta = grid_sph_t<Conf>::theta(r2);
+            value_t x = radius * math::sin(theta) * math::cos(x3);
+            value_t y = radius * math::sin(theta) * math::sin(x3);
+            value_t z = radius * math::cos(theta);
 
             sph2cart(v1, v2, v3, r1, r2, x3);
             x += v1 * dt;
@@ -394,7 +395,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             // reflect around the axis
             if (pos[1] <= grid.guard[1] ||
                 pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
-              value_t theta = grid_sph_t<Conf>::theta(r2p);
+              theta = grid_sph_t<Conf>::theta(r2p);
               if (theta < 0.0f) {
                 dc2 += 1;
                 new_x2 = 1.0f - new_x2;

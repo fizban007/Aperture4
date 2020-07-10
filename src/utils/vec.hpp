@@ -68,6 +68,16 @@ class vec_t {
     return true;
   }
 
+  HD_INLINE bool operator<=(const self_type& other) const {
+#pragma unroll
+    for (int i = 0; i < Rank; i++) {
+      if (memory[i] > other.memory[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   HD_INLINE bool operator==(const self_type& other) const {
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
@@ -82,15 +92,17 @@ class vec_t {
     return !operator==(other);
   }
 
-  HD_INLINE self_type& operator+=(const self_type& other) {
+  template <typename U, typename = typename std::enable_if<std::is_convertible<U, T>::value>::type>
+  HD_INLINE self_type& operator+=(const vec_t<U, Rank>& other) {
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
-      memory[i] += other.memory[i];
+      memory[i] += T(other[i]);
     }
     return *this;
   }
 
-  HD_INLINE self_type operator+(const self_type& other) const {
+  template <typename U, typename = typename std::enable_if<std::is_convertible<U, T>::value>::type>
+  HD_INLINE self_type operator+(const vec_t<U, Rank>& other) const {
     self_type result = *this;
     result += other;
     return result;

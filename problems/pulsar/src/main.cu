@@ -27,12 +27,6 @@
 using namespace std;
 using namespace Aperture;
 
-struct sin_weight_func_t {
-  __device__ Scalar operator()(Scalar x1, Scalar x2, Scalar x3) {
-    return math::sin(x2);
-  }
-};
-
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
@@ -56,7 +50,6 @@ main(int argc, char *argv[]) {
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         return math::sin(x2);
       });
-      // sin_weight_func_t{});
 
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);

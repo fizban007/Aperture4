@@ -58,8 +58,7 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
   }
   Logger::print_info("Injector interval is {}, num is {}",
                      new_injector.interval, new_injector.num);
-
-  m_injectors.push_back(new_injector);
+  m_injectors.push_back(std::move(new_injector));
   m_weight_funcs.push_back(nullptr);
 }
 
@@ -67,8 +66,8 @@ template <typename Conf>
 void
 ptc_injector<Conf>::init() {
   m_env.get_data("particles", &ptc);
-  // m_env.get_data("B", &B);
 
+  m_ptc_density = make_multi_array<value_t>(m_grid.extent(), MemType::host_only);
   // m_env.params().get_value("target_sigma", m_target_sigma);
 }
 

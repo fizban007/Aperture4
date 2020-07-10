@@ -49,13 +49,13 @@ class ptc_injector : public system_t {
   void add_injector(const vec_t<value_t, Conf::dim>& lower,
                     const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
                     value_t inj_weight);
+
   template <typename WeightFunc>
   void add_injector(const vec_t<value_t, Conf::dim>& lower,
                     const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
                     value_t inj_weight, WeightFunc f) {
     add_injector(lower, size, inj_rate, inj_weight);
-    m_weight_funcs.emplace_back(f);
-    // m_injectors.back().weight_func = f;
+    m_weight_funcs.back() = f;
   }
 
   void init() override;
@@ -77,9 +77,8 @@ class ptc_injector : public system_t {
 
   std::vector<injector_params> m_injectors;
   std::vector<std::function<value_t(value_t, value_t, value_t)>> m_weight_funcs;
-  // vector_field<Conf>* B;
+  typename Conf::multi_array_t m_ptc_density;
 
-  // value_t m_target_sigma = 100.0;
 };
 
 #if defined(CUDA_ENABLED) && defined(__CUDACC__)
@@ -104,6 +103,7 @@ class ptc_injector_cu : public ptc_injector<Conf> {
     ptc_injector<Conf>::add_injector(lower, size, inj_rate, inj_weight);
     m_weight_funcs_dev.push_back(nullptr);
   }
+
   template <typename WeightFunc>
   void add_injector(const vec_t<value_t, Conf::dim>& lower,
                     const vec_t<value_t, Conf::dim>& size, value_t inj_rate,

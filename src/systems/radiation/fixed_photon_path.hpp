@@ -72,6 +72,7 @@ struct fixed_photon_path {
     ph.p1[offset] = Eph * p1 / pi;
     ph.p2[offset] = Eph * p2 / pi;
     ph.p3[offset] = Eph * p3 / pi;
+    ph.E[offset] = Eph;
     ph.weight[offset] = ptc.weight[tid];
     ph.path_left[offset] = path;
     ph.cell[offset] = ptc.cell[tid];

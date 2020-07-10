@@ -81,7 +81,7 @@ ptc_updater<Conf>::init() {
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
 
   m_env.get_data_optional("photons", &ph);
-  m_env.get_data_optional("rho_ph", &rho_ph);
+  m_env.get_data_optional("Rho_ph", &rho_ph);
 }
 
 template <typename Conf>

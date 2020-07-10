@@ -88,7 +88,7 @@ ptc_updater_cu<Conf>::init() {
       this->m_grid.extent(), MemType::host_device);
 
   this->m_env.get_data_optional("photons", &(this->ph));
-  this->m_env.get_data_optional("rho_ph", &(this->rho_ph));
+  this->m_env.get_data_optional("Rho_ph", &(this->rho_ph));
 }
 
 template <typename Conf>

@@ -241,7 +241,7 @@ ptc_injector_cu<Conf>::init() {
   m_cum_num_per_cell.resize(this->m_grid.extent());
 
   this->m_ptc_density =
-      make_multi_array<value_t>(this->m_grid.extent(), MemType::host_only);
+      make_multi_array<value_t>(this->m_grid.extent(), MemType::device_only);
 }
 
 template <typename Conf>

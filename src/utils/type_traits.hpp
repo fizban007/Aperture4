@@ -42,6 +42,10 @@ template <class B1, class... Bn>
 struct disjunction<B1, Bn...>
     : std::conditional_t<B1::value, B1, disjunction<Bn...>> {};
 
+template <typename T, typename U>
+using is_convertible_to = typename std::enable_if<
+  std::is_convertible<U, T>::value>::type;
+
 // This checks if a given type pack Ts are all convertible to T
 template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<

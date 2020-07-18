@@ -130,6 +130,7 @@ sim_environment::update() {
     // timer::show_duration_since_stamp(name, "us");
   }
   time += dt;
+  step += 1;
 }
 
 void
@@ -138,7 +139,7 @@ sim_environment::run() {
     return;
   }
 
-  for (; step < max_steps; step++) {
+  for (int n = 0; n < max_steps; n++) {
     update();
   }
 }

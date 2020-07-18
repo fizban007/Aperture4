@@ -123,7 +123,7 @@ ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
     // Use the num_per_cell and cum_num info to inject actual pairs
     inject_pairs_along_B<Conf>(this->m_num_per_cell, this->m_cum_num_per_cell,
                                this->m_ptc_density, *(this->ptc), inj.weight,
-                               200, this->m_rand_states->states(),
+                               10, this->m_rand_states->states(),
                                this->m_weight_funcs_dev[i]);
     this->ptc->add_num(new_pairs);
   }

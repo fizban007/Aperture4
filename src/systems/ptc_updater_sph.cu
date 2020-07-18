@@ -334,6 +334,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   // Logger::print_debug("Moving {} photons", ph_num);
   if (ph_num > 0) {
+    this->rho_ph->init();
     kernel_launch(
         [ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
                                       auto r_cutoff) {

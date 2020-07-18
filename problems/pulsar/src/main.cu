@@ -47,13 +47,13 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
   auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, *grid);
   injector->add_injector(
-      vec<Scalar>(grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], M_PI), 2.0f, 1.0f,
+      vec<Scalar>(grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], M_PI), 20.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         return math::sin(x2);
       });
   // injector->add_injector(
-  //     vec<Scalar>(math::log(0.6 / Omega), 0.5 * M_PI - 0.2),
-  //     vec<Scalar>(math::log(1.2 / Omega) - math::log(0.6 / Omega), 0.4), 0.001f,
+  //     vec<Scalar>(math::log(0.8 / Omega), 0.5 * M_PI - 0.2),
+  //     vec<Scalar>(math::log(1.3 / Omega) - math::log(0.8 / Omega), 0.4), 0.01f,
   //     0.5f);
 
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);

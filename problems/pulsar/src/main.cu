@@ -23,7 +23,7 @@
 #include "systems/field_solver_sph.h"
 #include "systems/ph_freepath_dev.h"
 #include "systems/ptc_injector_pulsar.h"
-#include "systems/ptc_updater_sph.h"
+#include "systems/ptc_updater_pulsar.h"
 #include <iostream>
 
 using namespace std;
@@ -40,7 +40,7 @@ main(int argc, char *argv[]) {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
+  auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, *grid);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(env, *grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid);

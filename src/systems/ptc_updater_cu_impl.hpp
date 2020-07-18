@@ -63,10 +63,6 @@ ptc_updater_cu<Conf>::push(double delta_t, P& pusher) {
       //   sync_kill_perp(p1, p2, p3, gamma, B1, B2, B3, E1, E2, E3,
       //                  q_over_m);
       // }
-      // ptc.p1[n] = p1;
-      // ptc.p2[n] = p2;
-      // ptc.p3[n] = p3;
-      // ptc.E[n] = gamma;
       auto gamma = ptc.E[n];
       if (gamma != gamma) {
         printf(

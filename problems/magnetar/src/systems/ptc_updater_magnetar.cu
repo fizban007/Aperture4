@@ -218,9 +218,13 @@ ptc_updater_magnetar<Conf>::init() {
   // std::make_unique<pusher_impl_magnetar<vay_pusher>>(this->m_env);
   // m_impl_higuera =
   // std::make_unique<pusher_impl_magnetar<higuera_pusher>>(this->m_env);
-  m_impl_boris = new pusher_impl_magnetar<boris_pusher>(this->m_env);
-  m_impl_vay = new pusher_impl_magnetar<vay_pusher>(this->m_env);
-  m_impl_higuera = new pusher_impl_magnetar<higuera_pusher>(this->m_env);
+  if (this->m_pusher == Pusher::boris) {
+    m_impl_boris = new pusher_impl_magnetar<boris_pusher>(this->m_env);
+  } else if (this->m_pusher == Pusher::vay) {
+    m_impl_vay = new pusher_impl_magnetar<vay_pusher>(this->m_env);
+  } else if (this->m_pusher == Pusher::higuera) {
+    m_impl_higuera = new pusher_impl_magnetar<higuera_pusher>(this->m_env);
+  }
 
   m_ph_flux->assign_dev(0.0f);
   m_ph_flux->assign_host(0.0f);
@@ -257,8 +261,8 @@ ptc_updater_magnetar<Conf>::push_default(double dt) {
 #include "systems/ptc_updater_cu_impl.hpp"
 
 template class ptc_updater_magnetar<Config<2>>;
-template struct pusher_impl_magnetar<boris_pusher>;
-template struct pusher_impl_magnetar<vay_pusher>;
-template struct pusher_impl_magnetar<higuera_pusher>;
+// template struct pusher_impl_magnetar<boris_pusher>;
+// template struct pusher_impl_magnetar<vay_pusher>;
+// template struct pusher_impl_magnetar<higuera_pusher>;
 
 }  // namespace Aperture

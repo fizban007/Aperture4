@@ -15,28 +15,38 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PTC_INJECTOR_PULSAR_H_
-#define _PTC_INJECTOR_PULSAR_H_
+#ifndef _PTC_UPDATER_PULSAR_H_
+#define _PTC_UPDATER_PULSAR_H_
 
-
-#include "systems/ptc_injector.h"
+#include "data/multi_array_data.hpp"
+#include "systems/ptc_updater_sph.h"
+#include <memory>
 
 namespace Aperture {
 
+template <typename Pusher>
+struct pusher_impl_pulsar;
+
 template <typename Conf>
-class ptc_injector_pulsar : public ptc_injector_cu<Conf> {
+class ptc_updater_pulsar : public ptc_updater_sph_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
-  typedef nvstd::function<value_t(value_t, value_t, value_t)> weight_func_t;
-  static std::string name() { return "ptc_injector"; }
+  static std::string name() { return "ptc_updater"; }
 
-  using ptc_injector_cu<Conf>::ptc_injector_cu;
+  using ptc_updater_sph_cu<Conf>::ptc_updater_sph_cu;
+  ~ptc_updater_pulsar();
 
-  void update(double dt, uint32_t step) override;
+  void init() override;
+  void push_default(double dt) override;
+
+ protected:
+  pusher_impl_pulsar<boris_pusher>* m_impl_boris = nullptr;
+  pusher_impl_pulsar<vay_pusher>* m_impl_vay = nullptr;
+  pusher_impl_pulsar<higuera_pusher>* m_impl_higuera = nullptr;
 };
-
 
 }
 
 
-#endif  // _PTC_INJECTOR_PULSAR_H_
+
+#endif  // _PTC_UPDATER_PULSAR_H_

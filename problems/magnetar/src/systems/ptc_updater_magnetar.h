@@ -37,9 +37,9 @@ class ptc_updater_magnetar : public ptc_updater_sph_cu<Conf> {
                        const domain_comm<Conf>* comm = nullptr);
   ~ptc_updater_magnetar();
 
-  virtual void init() override;
-  virtual void register_data_components() override;
-  virtual void push_default(double dt) override;
+  void init() override;
+  void register_data_components() override;
+  void push_default(double dt) override;
 
  protected:
   pusher_impl_magnetar<boris_pusher>* m_impl_boris = nullptr;

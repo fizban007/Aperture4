@@ -17,6 +17,9 @@ if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
 endif()
 
+if(POLICY CMP0104)
+  cmake_policy(SET CMP0104 OLD)
+endif()
 # Detect C++ compiler features
 # message("Your C++ compiler supports these C++ features:")
 # foreach(i ${CMAKE_CXX_COMPILE_FEATURES})

@@ -25,13 +25,12 @@
 namespace Aperture {
 
 struct wpert_cart_t {
-  float tp_start, tp_end, nT, dw0, y_start, y_end, y_m;
+  float tp_start, tp_end, nT, dw0, y_start, y_end, q_e;
 
-  HD_INLINE wpert_cart_t(float tp_s, float tp_e, float nT_, float dw0_)
-      : tp_start(tp_s), tp_end(tp_e), nT(nT_), dw0(dw0_) {
+  HD_INLINE wpert_cart_t(float tp_s, float tp_e, float nT_, float dw0_, float qe)
+      : tp_start(tp_s), tp_end(tp_e), nT(nT_), dw0(dw0_), q_e(qe) {
     y_start = 0.5f;
-    y_m = 1.0f;
-    y_end = 1.5f;
+    y_end = 4.5f;
   }
 
   HD_INLINE Scalar operator()(Scalar t, Scalar x, Scalar y) {
@@ -40,17 +39,26 @@ struct wpert_cart_t {
           dw0 *
           math::sin((t - tp_start) * 2.0f * M_PI * nT / (tp_end - tp_start)) *
           math::sin(M_PI * (y - y_start) / (y_end - y_start));
+          // math::sin((t - tp_start) * 2.0f * M_PI * nT / (tp_end - tp_start));
       return omega;
     } else {
       return 0.0;
     }
+  }
+
+  HD_INLINE Scalar j_x(Scalar t, Scalar x, Scalar y, Scalar theta) {
+    return 0.0;
+  }
+
+  HD_INLINE Scalar j_y(Scalar t, Scalar x, Scalar y, Scalar theta) {
+    return 0.0;
   }
 };
 
 HOST_DEVICE Scalar
 pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
   if (x > xh)
-    return sig0 * cube((x - xh) / pmlscale);
+    return sig0 * square((x - xh) / pmlscale);
   else
     return 0.0;
 }
@@ -60,7 +68,8 @@ void
 inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
                  buffer<float>& surface_ne, buffer<float>& surface_np,
                  int num_per_cell, typename Conf::value_t weight,
-                 const grid_t<Conf>& grid) {
+                 const grid_t<Conf>& grid, const wpert_cart_t& wpert,
+                 int multiplicity) {
   surface_ne.assign_dev(0.0f);
   surface_np.assign_dev(0.0f);
 
@@ -105,9 +114,11 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
              grid_stride_range(grid.skirt[1], grid.dims[1] - grid.skirt[1])) {
           size_t offset = ptc_num + n1 * num_inj * 2;
           auto pos = index_t<Conf::dim>(inj_n0, n1);
+          auto cell_x2 = grid.template pos<1>(n1, false);
+          if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
           auto idx = typename Conf::idx_t(pos, ext);
           if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
-              square(2.0f / grid.delta[0]))
+              square(1.0f / grid.delta[0]))
             continue;
           for (int i = 0; i < num_inj; i++) {
             float x2 = rng();
@@ -192,6 +203,7 @@ boundary_condition<Conf>::init() {
   m_env.params().get_value("tp_end", m_tp_end);
   m_env.params().get_value("nT", m_nT);
   m_env.params().get_value("dw0", m_dw0);
+  m_env.params().get_value("q_e", m_qe);
 
   m_surface_ne.set_memtype(MemType::host_device);
   m_surface_ne.resize(m_grid.dims[1]);
@@ -206,41 +218,41 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   typedef typename Conf::value_t value_t;
 
   value_t time = m_env.get_time();
-  wpert_cart_t wpert(m_tp_start, m_tp_end, m_nT, m_dw0);
+  wpert_cart_t wpert(m_tp_start, m_tp_end, m_nT, m_dw0, m_qe);
 
   // Apply twist on the stellar surface
-  kernel_launch(
-      [time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
-        auto& grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          value_t y = grid.template pos<1>(n1, false);
-          value_t y_s = grid.template pos<1>(n1, true);
+  // kernel_launch(
+  //     [time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
+  //       auto& grid = dev_grid<Conf::dim>();
+  //       auto ext = grid.extent();
+  //       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+  //         value_t y = grid.template pos<1>(n1, false);
+  //         value_t y_s = grid.template pos<1>(n1, true);
 
-          // For quantities that are not continuous across the surface
-          for (int n0 = 0; n0 < grid.skirt[0]; n0++) {
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t x = grid.template pos<0>(n0, false);
-            value_t omega = wpert(time, x, y_s);
-            // printf("omega is %f\n", omega);
-            e[0][idx] = omega * b0[1][idx];
-            b[1][idx] = 0.0;
-            b[2][idx] = 0.0;
-          }
-          // For quantities that are continuous across the surface
-          for (int n0 = 0; n0 < grid.skirt[0] + 1; n0++) {
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t x_s = grid.template pos<0>(n0, true);
-            value_t omega = wpert(time, x_s, y);
-            b[0][idx] = 0.0;
-            e[1][idx] = -omega * b0[0][idx];
-            e[2][idx] = 0.0;
-          }
-        }
-      },
-      E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs(), wpert);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  //         // For quantities that are not continuous across the surface
+  //         for (int n0 = 0; n0 < grid.skirt[0]; n0++) {
+  //           auto idx = idx_t(index_t<2>(n0, n1), ext);
+  //           value_t x = grid.template pos<0>(n0, false);
+  //           value_t omega = wpert(time, x, y_s);
+  //           // printf("omega is %f\n", omega);
+  //           e[0][idx] = omega * b0[1][idx];
+  //           b[1][idx] = 0.0;
+  //           b[2][idx] = 0.0;
+  //         }
+  //         // For quantities that are continuous across the surface
+  //         for (int n0 = 0; n0 < grid.skirt[0] + 1; n0++) {
+  //           auto idx = idx_t(index_t<2>(n0, n1), ext);
+  //           value_t x_s = grid.template pos<0>(n0, true);
+  //           value_t omega = wpert(time, x_s, y);
+  //           b[0][idx] = 0.0;
+  //           e[1][idx] = -omega * b0[0][idx];
+  //           e[2][idx] = 0.0;
+  //         }
+  //       }
+  //     },
+  //     E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs(), wpert);
+  // CudaSafeCall(cudaDeviceSynchronize());
+  // CudaCheckError();
 
   // Apply damping boundary condition on the other side
   kernel_launch(
@@ -260,22 +272,32 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
             auto sig = pml_sigma(x, xh, pmllen, sigpml);
             if (sig > TINY) {
               auto exp_sig = math::exp(-sig);
-              e[0][idx] = exp_sig * prev_e[0][idx_damping] +
-                  (1.0f - exp_sig) / sig * (e[0][idx] - prev_e[0][idx_damping]);
-              b[1][idx] = exp_sig * prev_b[1][idx_damping] +
-                  (1.0f - exp_sig) / sig * (b[1][idx] - prev_b[1][idx_damping]);
-              b[2][idx] = exp_sig * prev_b[2][idx_damping] +
-                  (1.0f - exp_sig) / sig * (b[2][idx] - prev_b[2][idx_damping]);
+              // e[0][idx] = exp_sig * prev_e[0][idx_damping] +
+              //     (1.0f - exp_sig) / sig * (e[0][idx] - prev_e[0][idx_damping]);
+              // b[1][idx] = exp_sig * prev_b[1][idx_damping] +
+              //     (1.0f - exp_sig) / sig * (b[1][idx] - prev_b[1][idx_damping]);
+              // b[2][idx] = exp_sig * prev_b[2][idx_damping] +
+              //     (1.0f - exp_sig) / sig * (b[2][idx] - prev_b[2][idx_damping]);
+              e[0][idx] *= exp_sig;
+              b[1][idx] *= exp_sig;
+              b[2][idx] *= exp_sig;
             }
+            // if (n1 == 50 && n0 - n0_start == 64) {
+            //   printf("sig is %f, b2 is %f, prev_b2 is %f\n", sig,
+            //          b[2][idx], prev_b[2][idx_damping]);
+            // }
             auto sig_s = pml_sigma(x_s, xh, pmllen, sigpml);
             if (sig_s > TINY) {
               auto exp_sig = math::exp(-sig_s);
-              e[1][idx] = exp_sig * prev_e[1][idx_damping] +
-                  (1.0f - exp_sig) / sig * (e[1][idx] - prev_e[1][idx_damping]);
-              e[2][idx] = exp_sig * prev_e[2][idx_damping] +
-                  (1.0f - exp_sig) / sig * (e[2][idx] - prev_e[2][idx_damping]);
-              b[0][idx] = exp_sig * prev_b[0][idx_damping] +
-                  (1.0f - exp_sig) / sig * (b[0][idx] - prev_b[0][idx_damping]);
+              // e[1][idx] = exp_sig * prev_e[1][idx_damping] +
+              //     (1.0f - exp_sig) / sig_s * (e[1][idx] - prev_e[1][idx_damping]);
+              // e[2][idx] = exp_sig * prev_e[2][idx_damping] +
+              //     (1.0f - exp_sig) / sig_s * (e[2][idx] - prev_e[2][idx_damping]);
+              // b[0][idx] = exp_sig * prev_b[0][idx_damping] +
+              //     (1.0f - exp_sig) / sig_s * (b[0][idx] - prev_b[0][idx_damping]);
+              b[0][idx] *= exp_sig;
+              e[1][idx] *= exp_sig;
+              e[2][idx] *= exp_sig;
             }
           }
         }
@@ -312,10 +334,10 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaCheckError();
 
   // Inject particles
-  if (step % 1 == 0 && time > m_tp_start && time < m_tp_end) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 2,
-                           1.0, m_grid);
-  }
+  // if (step % 1 == 0 && time > m_tp_start && time < m_tp_end) {
+  //   inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 1,
+  //                          0.2, m_grid, wpert, 1);
+  // }
 }
 
 template class boundary_condition<Config<2>>;

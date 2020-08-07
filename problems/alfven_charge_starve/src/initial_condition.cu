@@ -81,6 +81,14 @@ void set_initial_condition(sim_environment &env, vector_field<Conf> &B0,
   ptc.set_num(num + mult * 2 * B0.grid().extent().size());
 }
 
+template <typename Conf>
+void initial_condition_wave(sim_environment &env, vector_field<Conf> &B, vector_field<Conf> &E,
+                            vector_field<Conf> &B0,
+                            particle_data_t &ptc, curand_states_t &states,
+                            int mult, Scalar weight) {
+
+}
+
 template void set_initial_condition<Config<2>>(sim_environment &env,
                                                vector_field<Config<2>> &B0,
                                                particle_data_t &ptc,

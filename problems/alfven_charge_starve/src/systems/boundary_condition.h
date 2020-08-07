@@ -34,8 +34,9 @@ class boundary_condition : public system_t {
   const grid_t<Conf>& m_grid;
   typename Conf::value_t m_tp_start, m_tp_end, m_nT, m_dw0;
   int m_damping_length = 64;
-  int m_pmllen = 10;
-  float m_sigpml = 10.0f;
+  float m_pmllen = 1.0f;
+  float m_sigpml = 1.0f;
+  float m_qe = 1.0f;
 
   vector_field<Conf> *E, *B, *E0, *B0;
   particle_data_t *ptc;

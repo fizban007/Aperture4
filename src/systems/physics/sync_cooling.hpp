@@ -76,7 +76,7 @@ sync_kill_perp(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
                     (p3 - B3 * pdotB / B_sqr);
   // Scalar dp = sqrt(delta_p1 * delta_p1 + delta_p2 * delta_p2 +
   //                  delta_p3 * delta_p3);
-  Scalar f = math::sqrt(B_sqr) / B0;
+  Scalar f = cube(math::sqrt(B_sqr) / B0);
   // Scalar f = B_sqr / square(dev_params.B0);
   // Scalar f = 1.0f;
   // if (sp == (int)ParticleType::ion) f *= 0.1f;

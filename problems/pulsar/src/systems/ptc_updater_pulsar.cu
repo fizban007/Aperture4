@@ -41,8 +41,8 @@ struct pusher_impl_pulsar {
   template <typename Scalar>
   __device__ void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
                              Scalar qdt_over_2m, Scalar dt) {
-    Scalar p1 = ptc.p1[n], p2 = ptc.p2[n], p3 = ptc.p3[n];
-    Scalar gamma = ptc.E[n];
+    Scalar &p1 = ptc.p1[n], &p2 = ptc.p2[n], &p3 = ptc.p3[n];
+    Scalar &gamma = ptc.E[n];
     pusher(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
            qdt_over_2m, dt);
 

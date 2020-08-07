@@ -28,11 +28,22 @@ class ptc_injector_pulsar : public ptc_injector_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
   typedef nvstd::function<value_t(value_t, value_t, value_t)> weight_func_t;
-  static std::string name() { return "ptc_injector"; }
+  static std::string name() { return "ptc_injector_pulsar"; }
 
   using ptc_injector_cu<Conf>::ptc_injector_cu;
 
   void update(double dt, uint32_t step) override;
+  void init() override;
+  // template <typename WeightFunc>
+  // void add_injector(const vec_t<value_t, Conf::dim>& lower,
+  //                   const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
+  //                   value_t p0, value_t inj_weight, WeightFunc f) {
+  //   ptc_injector_cu<Conf>::add_injector(lower, size, inj_rate, inj_weight, f);
+
+  // }
+
+ protected:
+  vector_field<Conf> *B;
 };
 
 

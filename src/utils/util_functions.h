@@ -51,6 +51,12 @@ sgn(T val) {
   return (T(0) < val) - (val < T(0));
 }
 
+template <typename T>
+HD_INLINE T
+clamp(T val, T a, T b) {
+  return std::max(a, std::min(b, val));
+}
+
 template <typename Flag>
 HD_INLINE bool
 check_flag(uint32_t flag, Flag bit) {

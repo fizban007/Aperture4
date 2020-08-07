@@ -35,10 +35,15 @@ template <typename Conf>
 void set_initial_condition(sim_environment &env, vector_field<Conf> &B0,
                            particle_data_t &ptc, curand_states_t &states,
                            int mult, Scalar weight);
-}
 
-int
-main(int argc, char *argv[]) {
+template <typename Conf>
+void initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
+                            vector_field<Conf> &E, vector_field<Conf> &B0,
+                            particle_data_t &ptc, curand_states_t &states,
+                            int mult, Scalar weight);
+} // namespace Aperture
+
+int main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   sim_environment env(&argc, &argv);
 
@@ -56,14 +61,17 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *B, *E;
   particle_data_t *ptc;
   curand_states_t *states;
   env.get_data("B0", &B0);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &E);
   env.get_data("particles", &ptc);
   env.get_data("rand_states", &states);
 
-  set_initial_condition(env, *B0, *ptc, *states, 4, 1.0);
+  // set_initial_condition(env, *B0, *ptc, *states, 4, 1.0);
+  initial_condition_wave(env, *B, *E, *B0, *ptc, *states, 8, 1.0);
 
   env.run();
   return 0;

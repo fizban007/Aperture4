@@ -159,11 +159,11 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
                        particle_data_t &ptc, curand_states_t &states, int mult,
                        Scalar weight) {
-  Scalar sinth = env.params().get_as<double>("muB");
-  Scalar Bp = env.params().get_as<double>("Bp");
+  Scalar sinth = env.params().get_as<double>("muB", 0.1);
+  Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar Bwave = 0.1 * Bp;
 
-  alfven_wave_solution wave(sinth, 1.0, 1.0, 1.0, Bwave);
+  alfven_wave_solution wave(sinth, 0.5, 4.0, 2.0, Bwave);
 
   B0.set_values(
       0, [Bp, sinth](Scalar x, Scalar y, Scalar z) { return Bp * sinth; });
@@ -177,6 +177,11 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   E.set_values(
       1, [wave](Scalar x, Scalar y, Scalar z) { return wave.Ey(0.0, x, y); });
 
+  // Compute injection number per cell
+  multi_array<int, Conf::dim> num_per_cell;
+  multi_array<int, Conf::dim> cum_num_per_cell;
+
+  // Actually inject particles
   auto num = ptc.number();
   kernel_launch(
       [num, mult, weight] __device__(auto ptc, auto states) {
@@ -185,12 +190,13 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
         for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = idx_row_major_t<Conf::dim>(n, ext);
+          auto idx = idx_col_major_t<Conf::dim>(n, ext);
           auto pos = idx.get_pos();
+          auto idx_row = idx_row_major_t<Conf::dim>(pos, ext);
           if (pos[0] > grid.dims[0] / 2) continue;
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < mult; i++) {
-              uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+              uint32_t offset = num + idx_row.linear * mult * 2 + i * 2;
 
               ptc.x1[offset] = ptc.x1[offset + 1] = rng();
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();

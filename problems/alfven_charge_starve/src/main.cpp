@@ -54,24 +54,24 @@ int main(int argc, char *argv[]) {
   auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, *grid, comm);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(env, *grid);
-  auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid, comm);
   auto solver = env.register_system<field_solver_cu<Conf>>(env, *grid, comm);
+  // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid, comm);
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);
 
   env.init();
 
-  vector_field<Conf> *B0, *B, *E;
+  vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
   curand_states_t *states;
   env.get_data("B0", &B0);
-  env.get_data("Bdelta", &B);
-  env.get_data("Edelta", &E);
+  env.get_data("Bdelta", &Bdelta);
+  env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rand_states", &states);
 
-  // set_initial_condition(env, *B0, *ptc, *states, 4, 1.0);
-  initial_condition_wave(env, *B, *E, *B0, *ptc, *states, 8, 1.0);
+  // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
+  initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 10, 3.0);
 
   env.run();
   return 0;

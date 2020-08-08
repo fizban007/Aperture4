@@ -31,6 +31,9 @@ namespace Aperture {
 template <typename Conf>
 using fd = finite_diff<Conf::dim, 2>;
 
+// constexpr float cherenkov_factor = 1.025f;
+constexpr float cherenkov_factor = 1.0f;
+
 template <typename Conf>
 void
 compute_e_update_explicit_cu(vector_field<Conf>& result,
@@ -46,15 +49,15 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
                 dt *
-                (1.025f * fd<Conf>::curl0(b, idx, stagger, grid) - j[0][idx]);
+                (cherenkov_factor * fd<Conf>::curl0(b, idx, stagger, grid) - j[0][idx]);
 
             result[1][idx] +=
                 dt *
-                (1.025f * fd<Conf>::curl1(b, idx, stagger, grid) - j[1][idx]);
+                (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) - j[1][idx]);
 
             result[2][idx] +=
                 dt *
-                (1.025f * fd<Conf>::curl2(b, idx, stagger, grid) - j[2][idx]);
+                (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) - j[2][idx]);
           }
         }
       },
@@ -76,13 +79,13 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
-                -dt * 1.025f * fd<Conf>::curl0(e, idx, stagger, grid);
+                -dt * cherenkov_factor * fd<Conf>::curl0(e, idx, stagger, grid);
 
             result[1][idx] +=
-                -dt * 1.025f * fd<Conf>::curl1(e, idx, stagger, grid);
+                -dt * cherenkov_factor * fd<Conf>::curl1(e, idx, stagger, grid);
 
             result[2][idx] +=
-                -dt * 1.025f * fd<Conf>::curl2(e, idx, stagger, grid);
+                -dt * cherenkov_factor * fd<Conf>::curl2(e, idx, stagger, grid);
           }
         }
       },

@@ -18,6 +18,7 @@
 #include "core/cuda_control.h"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
+#include "core/math.hpp"
 #include "field_solver.h"
 #include "framework/config.h"
 #include "systems/helpers/finite_diff_helper.hpp"
@@ -109,7 +110,11 @@ compute_double_curl(vector_field<Conf>& result, const vector_field<Conf>& b,
             result[0][idx] = -coef * (fd<Conf>::laplacian(b[0], idx, grid));
             result[1][idx] = -coef * (fd<Conf>::laplacian(b[1], idx, grid));
             result[2][idx] = -coef * (fd<Conf>::laplacian(b[2], idx, grid));
+
           }
+          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] == grid.dims[1] / 2) {
+          //   printf("B3 result is %.9f, B3 input is %.9f\n", result[2][idx], b[2][idx]);
+          // }
         }
       },
       result.get_ptrs(), b.get_ptrs(), b.stagger_vec());
@@ -140,6 +145,9 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                 -dt * (fd<Conf>::curl2(e, idx, stagger, grid) -
                        dt * beta * fd<Conf>::curl2(j, idx, stagger, grid));
           }
+          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] == grid.dims[1] / 2) {
+          //   printf("J2 is %.9f, E2 is %.9f\n", j[1][idx], e[1][idx]);
+          // }
         }
       },
       result.get_ptrs(), e.get_ptrs(), j.get_ptrs(), e.stagger_vec());
@@ -178,6 +186,24 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
       },
       divE.dev_ndptr(), divB.dev_ndptr(), e.get_ptrs(), b.get_ptrs(),
       e.stagger_vec(), b.stagger_vec(), boundary);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename Conf>
+void
+clean_field(vector_field<Conf>& f) {
+  kernel_launch([] __device__(auto f) {
+      auto& grid = dev_grid<Conf::dim>();
+      auto ext = grid.extent();
+      for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+        for (int i = 0; i < 3; i++) {
+          if (math::abs(f[i][idx]) < TINY) {
+            f[i][idx] = 0.0f;
+          }
+        }
+      }
+    }, f.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -233,6 +259,7 @@ template <typename Conf>
 void
 field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
                                             double beta, double time) {
+  this->m_tmp_b2->init();
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
 
@@ -250,6 +277,7 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
 
   // Since we need to iterate, define a double buffer to switch quickly between
   // operand and result.
+  // clean_field(*(this->m_tmp_b1));
   this->m_bnew->copy_from(*(this->m_tmp_b1));
 
   auto buffer = make_double_buffer(*(this->m_tmp_b1), *(this->m_tmp_b2));
@@ -278,6 +306,9 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
   this->B->copy_from(*(this->m_bnew));
+
+  clean_field(*(this->B));
+  clean_field(*(this->E));
 
   if (this->m_comm != nullptr) {
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B),

@@ -41,6 +41,14 @@ void initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                             vector_field<Conf> &E, vector_field<Conf> &B0,
                             particle_data_t &ptc, curand_states_t &states,
                             int mult, Scalar weight);
+
+template <typename Conf>
+void
+initial_condition_standing_alfven(sim_environment &env, vector_field<Conf> &B,
+                                  vector_field<Conf> &E, vector_field<Conf> &B0,
+                                  particle_data_t &ptc, curand_states_t &states, int mult,
+                                  Scalar weight);
+
 } // namespace Aperture
 
 int main(int argc, char *argv[]) {
@@ -49,15 +57,17 @@ int main(int argc, char *argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_t<Conf>>(env, comm);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, *grid, comm);
-  auto lorentz =
-      env.register_system<compute_lorentz_factor_cu<Conf>>(env, *grid);
-  auto solver = env.register_system<field_solver_cu<Conf>>(env, *grid, comm);
+  // auto comm = env.register_system<domain_comm<Conf>>(env);
+  domain_comm<Conf> comm(env);
+  // auto grid = env.register_system<grid_t<Conf>>(env, comm);
+  grid_t<Conf> grid(env, &comm);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid, comm);
-  auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);
+  auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, grid, &comm);
+  auto lorentz =
+      env.register_system<compute_lorentz_factor_cu<Conf>>(env, grid);
+  auto solver = env.register_system<field_solver_cu<Conf>>(env, grid, &comm);
+  auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(env, grid, &comm);
 
   env.init();
 
@@ -71,7 +81,7 @@ int main(int argc, char *argv[]) {
   env.get_data("rand_states", &states);
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
-  initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 10, 3.0);
+  initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 7, 3.0);
 
   env.run();
   return 0;

@@ -38,14 +38,14 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
                      const typename Conf::multi_array_t &ptc_density,
                      const vector_field<Conf> &B,
                      particle_data_t &ptc, typename Conf::value_t weight,
-                     typename Conf::value_t p0, curandState *states,
-                     const Func *f) {
+                     typename Conf::value_t p0, typename Conf::value_t out_fraction,
+                     curandState *states, const Func *f) {
   using value_t = typename Conf::value_t;
   auto ptc_num = ptc.number();
   kernel_launch(
-      [p0, ptc_num, weight, f] __device__(auto ptc, auto ptc_density, auto B,
-                                      auto num_per_cell, auto cum_num,
-                                      auto states) {
+      [p0, out_fraction, ptc_num, weight, f] __device__(auto ptc, auto ptc_density, auto B,
+                                                        auto num_per_cell, auto cum_num,
+                                                        auto states) {
         auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -73,6 +73,8 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
             // value_t mag = math::sqrt(3.0f * cth * cth + 1.0f);
             value_t p = p0;
             if (B1 < 0.0f)
+              p = -p;
+            if (rng() > out_fraction)
               p = -p;
             // auto u = rng();
             // if (u < 0.5) p = 1.0;
@@ -120,6 +122,9 @@ void
 ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
   // for (auto& inj : this->m_injectors) {
   for (int i = 0; i < this->m_injectors.size(); i++) {
+    Scalar p0 = m_inj_p0[i];
+    Scalar outward_fraction = m_outward_fraction[i];
+
     Logger::print_info("Working on {} of {} injectors", i,
                        this->m_injectors.size());
     auto &inj = this->m_injectors[i];
@@ -152,7 +157,7 @@ ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
       weight *= time / 10.0;
     inject_pairs_along_B<Conf>(this->m_num_per_cell, this->m_cum_num_per_cell,
                                this->m_ptc_density, *(this->B), *(this->ptc), weight,
-                               5.0, this->m_rand_states->states(),
+                               p0, outward_fraction, this->m_rand_states->states(),
                                this->m_weight_funcs_dev[i]);
     this->ptc->add_num(new_pairs);
   }

@@ -41,49 +41,50 @@ main(int argc, char *argv[]) {
   env.params().get_value("omega", Omega);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto injector_surface = env.register_system<ptc_injector_pulsar<Conf>>(env, *grid);
-  auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
-  auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, *grid);
+  // auto grid = env.register_system<grid_sph_t<Conf>>(env);
+  grid_sph_t<Conf> grid(env);
+  auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, grid);
+  // auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
+  auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, grid);
   auto lorentz =
-      env.register_system<compute_lorentz_factor_cu<Conf>>(env, *grid);
+      env.register_system<compute_lorentz_factor_cu<Conf>>(env, grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid);
-  auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  injector_surface->add_injector(
+  auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, grid);
+  injector->add_injector(
       // vec<Scalar>(-1.0 * grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
-      vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid->delta[0], 0.62f), 4.0f, 1.0f,
+      vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 4.0f, 1.0f,
       // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid->delta[0], M_PI), 5.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
         // Scalar sth = math::sin(x2);
         // Scalar cth = math::cos(x2);
         // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
-      });
-  injector_surface->add_injector(
+      }, 2.0f, 1.0f);
+  injector->add_injector(
       // vec<Scalar>(-1.0 * grid->delta[0], 0.62f), vec<Scalar>(grid->delta[0], M_PI - 1.24f), 0.5f, 1.0f,
-      vec<Scalar>(0.0f, 0.62f), vec<Scalar>(grid->delta[0], M_PI - 1.24f), 0.5f, 1.0f,
+      vec<Scalar>(0.0f, 0.62f), vec<Scalar>(grid.delta[0], M_PI - 1.24f), 0.5f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         // return math::sin(x2) * math::abs(math::cos(x2));
         Scalar sth = math::sin(x2);
         Scalar cth = math::cos(x2);
         return math::abs(cth) * sth;
-      });
-  injector_surface->add_injector(
+      }, 2.0f, 1.0f);
+  injector->add_injector(
       // vec<Scalar>(-1.0 * grid->delta[0], M_PI - 0.62f), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
-      vec<Scalar>(0.0f, M_PI - 0.62f), vec<Scalar>(grid->delta[0], 0.62f), 4.0f, 1.0f,
+      vec<Scalar>(0.0f, M_PI - 0.62f), vec<Scalar>(grid.delta[0], 0.62f), 4.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
         // Scalar sth = math::sin(x2);
         // Scalar cth = math::cos(x2);
         // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
-      });
+      }, 2.0f, 1.0f);
   // injector->add_injector(
   //     vec<Scalar>(math::log(0.8 / Omega), 0.5 * M_PI - 0.2),
   //     vec<Scalar>(math::log(1.3 / Omega) - math::log(0.8 / Omega), 0.4), 0.01f,
   //     0.5f);
 
-  auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(env, grid);
 
   env.init();
 

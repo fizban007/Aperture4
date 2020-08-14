@@ -34,16 +34,21 @@ class ptc_injector_pulsar : public ptc_injector_cu<Conf> {
 
   void update(double dt, uint32_t step) override;
   void init() override;
-  // template <typename WeightFunc>
-  // void add_injector(const vec_t<value_t, Conf::dim>& lower,
-  //                   const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
-  //                   value_t p0, value_t inj_weight, WeightFunc f) {
-  //   ptc_injector_cu<Conf>::add_injector(lower, size, inj_rate, inj_weight, f);
 
-  // }
+  template <typename WeightFunc>
+  void add_injector(const vec_t<value_t, Conf::dim>& lower,
+                    const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
+                    value_t inj_weight, WeightFunc f, value_t p0 = 1.0, value_t outward_fraction = 1.0) {
+    ptc_injector_cu<Conf>::add_injector(lower, size, inj_rate, inj_weight, f);
+
+    m_inj_p0.push_back(p0);
+    m_outward_fraction.push_back(outward_fraction);
+  }
 
  protected:
   vector_field<Conf> *B;
+
+  std::vector<value_t> m_inj_p0, m_outward_fraction;
 };
 
 

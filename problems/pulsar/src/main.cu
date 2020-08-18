@@ -43,6 +43,7 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   // auto grid = env.register_system<grid_sph_t<Conf>>(env);
   grid_sph_t<Conf> grid(env);
+  grid.init();
   auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, grid);
   // auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, grid);
@@ -51,33 +52,42 @@ main(int argc, char *argv[]) {
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid);
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, grid);
   injector->add_injector(
-      // vec<Scalar>(-1.0 * grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
-      vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 4.0f, 1.0f,
-      // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid->delta[0], M_PI), 5.0f, 1.0f,
+      // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
+      vec<Scalar>(0.05f, 0.0), vec<Scalar>(grid.delta[0], M_PI), 2.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
-        return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
-        // Scalar sth = math::sin(x2);
-        // Scalar cth = math::cos(x2);
-        // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
-      }, 2.0f, 1.0f);
-  injector->add_injector(
-      // vec<Scalar>(-1.0 * grid->delta[0], 0.62f), vec<Scalar>(grid->delta[0], M_PI - 1.24f), 0.5f, 1.0f,
-      vec<Scalar>(0.0f, 0.62f), vec<Scalar>(grid.delta[0], M_PI - 1.24f), 0.5f, 1.0f,
-      [] __device__(Scalar x1, Scalar x2, Scalar x3) {
-        // return math::sin(x2) * math::abs(math::cos(x2));
+        // return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
         Scalar sth = math::sin(x2);
         Scalar cth = math::cos(x2);
-        return math::abs(cth) * sth;
-      }, 2.0f, 1.0f);
-  injector->add_injector(
-      // vec<Scalar>(-1.0 * grid->delta[0], M_PI - 0.62f), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
-      vec<Scalar>(0.0f, M_PI - 0.62f), vec<Scalar>(grid.delta[0], 0.62f), 4.0f, 1.0f,
-      [] __device__(Scalar x1, Scalar x2, Scalar x3) {
-        return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
-        // Scalar sth = math::sin(x2);
-        // Scalar cth = math::cos(x2);
-        // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
-      }, 2.0f, 1.0f);
+        return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.01;
+      }, 1.0f, 0.9f, 0.5f);
+  // injector->add_injector(
+  //     // vec<Scalar>(-1.0 * grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
+  //     vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
+  //     // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid->delta[0], M_PI), 5.0f, 1.0f,
+  //     [] __device__(Scalar x1, Scalar x2, Scalar x3) {
+  //       return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
+  //       // Scalar sth = math::sin(x2);
+  //       // Scalar cth = math::cos(x2);
+  //       // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
+  //     }, 2.0f, 1.0f);
+  // injector->add_injector(
+  //     // vec<Scalar>(-1.0 * grid->delta[0], 0.62f), vec<Scalar>(grid->delta[0], M_PI - 1.24f), 0.5f, 1.0f,
+  //     vec<Scalar>(0.0f, 0.62f), vec<Scalar>(grid.delta[0], M_PI - 1.24f), 5.0f, 0.5f,
+  //     [] __device__(Scalar x1, Scalar x2, Scalar x3) {
+  //       // return math::sin(x2) * math::abs(math::cos(x2));
+  //       Scalar sth = math::sin(x2);
+  //       Scalar cth = math::cos(x2);
+  //       return math::abs(cth) * sth;
+  //     }, 2.0f, 1.0f);
+  // injector->add_injector(
+  //     // vec<Scalar>(-1.0 * grid->delta[0], M_PI - 0.62f), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
+  //     vec<Scalar>(0.0f, M_PI - 0.62f), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
+  //     [] __device__(Scalar x1, Scalar x2, Scalar x3) {
+  //       return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
+  //       // Scalar sth = math::sin(x2);
+  //       // Scalar cth = math::cos(x2);
+  //       // return sth * math::abs(3.0f * cth * cth - 1.0f) + 0.01;
+  //     }, 2.0f, 1.0f);
   // injector->add_injector(
   //     vec<Scalar>(math::log(0.8 / Omega), 0.5 * M_PI - 0.2),
   //     vec<Scalar>(math::log(1.3 / Omega) - math::log(0.8 / Omega), 0.4), 0.01f,
@@ -114,13 +124,20 @@ main(int argc, char *argv[]) {
   // env.run();
   for (int step = env.get_step(); step < env.get_max_steps(); step++) {
     env.update();
+    Scalar time = env.get_time();
 
-    // if (step == 10000) {
-    //   injector->add_injector(
-    //       vec<Scalar>(math::log(0.6 / Omega), 0.5 * M_PI - 0.2),
-    //       vec<Scalar>(math::log(1.3 / Omega) - math::log(0.6 / Omega), 0.4), 2.0f,
-    //       2.0f);
-    // }
+    if (step == 15000) {
+      Scalar d_theta = 0.5;
+      injector->add_injector(
+          vec<Scalar>(math::log(0.6 / Omega), 0.5 * M_PI - 0.5 * d_theta),
+          vec<Scalar>(math::log(1.3 / Omega) - math::log(0.6 / Omega), d_theta), 1.0f,
+          0.5f, [d_theta] __device__(Scalar x1, Scalar x2, Scalar x3) {
+            return 1.0f;
+            // Scalar sth = math::sin(M_PI * (x2 - 0.5f * M_PI) / d_theta);
+            // Scalar cth = math::cos(x2);
+            // return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.01;
+          }, 0.5f, 0.5f, 1.0f);
+    }
   }
   return 0;
 }

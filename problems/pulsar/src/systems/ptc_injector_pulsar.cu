@@ -15,9 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/math.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
-#include "core/math.hpp"
 #include "data/curand_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
@@ -32,20 +32,21 @@ void compute_n_ptc(typename Conf::multi_array_t &n_ptc, particle_data_t &ptc,
                    const extent_t<Conf::dim> &region_ext);
 
 template <typename Conf, typename Func>
-void
-inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
-                     const multi_array<int, Conf::dim> &cum_num_per_cell,
-                     const typename Conf::multi_array_t &ptc_density,
-                     const vector_field<Conf> &B,
-                     particle_data_t &ptc, typename Conf::value_t weight,
-                     typename Conf::value_t p0, typename Conf::value_t out_fraction,
-                     curandState *states, const Func *f) {
+void inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
+                          const multi_array<int, Conf::dim> &cum_num_per_cell,
+                          const typename Conf::multi_array_t &ptc_density,
+                          const vector_field<Conf> &B, particle_data_t &ptc,
+                          typename Conf::value_t weight,
+                          typename Conf::value_t p0,
+                          typename Conf::value_t out_fraction,
+                          typename Conf::value_t limit,
+                          curandState *states, const Func *f) {
   using value_t = typename Conf::value_t;
   auto ptc_num = ptc.number();
   kernel_launch(
-      [p0, out_fraction, ptc_num, weight, f] __device__(auto ptc, auto ptc_density, auto B,
-                                                        auto num_per_cell, auto cum_num,
-                                                        auto states) {
+      [p0, out_fraction, ptc_num, weight, f,
+       limit] __device__(auto ptc, auto ptc_density, auto B, auto num_per_cell,
+                         auto cum_num, auto states) {
         auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -53,11 +54,13 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
         // for (auto cell : grid_stride_range(0, ext.size())) {
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(cell, ext);
-          if (ptc_density[idx] > square(0.5f / grid.delta[0])) continue;
+          if (ptc_density[idx] > square(limit / grid.delta[0]))
+            continue;
           auto pos = idx.get_pos();
           for (int i = 0; i < num_per_cell[cell]; i++) {
             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
-            auto x = vec_t<Pos_t, 3>(0.8f, rng(), 0.0f);
+            // value_t u = rng();
+            auto x = vec_t<Pos_t, 3>(rng(), rng(), 0.0f);
             ptc.x1[offset] = ptc.x1[offset + 1] = x[0];
             ptc.x2[offset] = ptc.x2[offset + 1] = x[1];
             ptc.x3[offset] = ptc.x3[offset + 1] = x[2];
@@ -109,26 +112,25 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
   CudaCheckError();
 }
 
-template <typename Conf>
-void
-ptc_injector_pulsar<Conf>::init() {
+template <typename Conf> void ptc_injector_pulsar<Conf>::init() {
   ptc_injector_cu<Conf>::init();
 
   this->m_env.get_data("B", &B);
 }
 
 template <typename Conf>
-void
-ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
+void ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
   // for (auto& inj : this->m_injectors) {
   for (int i = 0; i < this->m_injectors.size(); i++) {
     Scalar p0 = m_inj_p0[i];
     Scalar outward_fraction = m_outward_fraction[i];
+    Scalar limit = m_limit[i];
 
-    Logger::print_info("Working on {} of {} injectors", i,
+    Logger::print_info("Working on {} of {} injectors", i + 1,
                        this->m_injectors.size());
     auto &inj = this->m_injectors[i];
-    if (step % inj.interval != 0) continue;
+    if (step % inj.interval != 0)
+      continue;
     this->m_num_per_cell.assign_dev(0);
     this->m_cum_num_per_cell.assign_dev(0);
 
@@ -155,14 +157,14 @@ ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
     Scalar weight = inj.weight;
     if (time < 10.0)
       weight *= time / 10.0;
-    inject_pairs_along_B<Conf>(this->m_num_per_cell, this->m_cum_num_per_cell,
-                               this->m_ptc_density, *(this->B), *(this->ptc), weight,
-                               p0, outward_fraction, this->m_rand_states->states(),
-                               this->m_weight_funcs_dev[i]);
+    inject_pairs_along_B<Conf>(
+        this->m_num_per_cell, this->m_cum_num_per_cell, this->m_ptc_density,
+        *(this->B), *(this->ptc), weight, p0, outward_fraction, limit,
+        this->m_rand_states->states(), this->m_weight_funcs_dev[i]);
     this->ptc->add_num(new_pairs);
   }
 }
 
 template class ptc_injector_pulsar<Config<2>>;
 
-}  // namespace Aperture
+} // namespace Aperture

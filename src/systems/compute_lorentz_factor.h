@@ -45,6 +45,7 @@ class compute_lorentz_factor : public system_t {
   int m_num_species = 2;
 
   std::vector<scalar_field<Conf>*> gamma;
+  std::vector<vector_field<Conf>*> avg_p;
   particle_data_t* ptc;
 
   virtual void register_data_impl(MemType type);
@@ -67,6 +68,7 @@ class compute_lorentz_factor_cu : public compute_lorentz_factor<Conf> {
  protected:
   buffer<typename Conf::ndptr_t> m_gamma_ptrs;
   buffer<typename Conf::ndptr_t> m_nums_ptrs;
+  buffer<vec_t<typename Conf::ndptr_t, 3>> m_avgp_ptrs;
 
   std::vector<std::unique_ptr<scalar_field<Conf>>> m_nums;
 };

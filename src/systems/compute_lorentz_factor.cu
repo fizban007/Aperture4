@@ -35,7 +35,7 @@ void
 compute_lorentz_factor_cu<Conf>::init() {
   compute_lorentz_factor<Conf>::init();
 
-  m_nums.resize(this->gamma.size());
+  m_nums.resize(this->m_num_species);
   for (auto& p : m_nums) {
     p = std::make_unique<scalar_field<Conf>>(
         this->m_grid, field_type::cell_centered, MemType::device_only);
@@ -44,13 +44,18 @@ compute_lorentz_factor_cu<Conf>::init() {
   // Initialize the gamma and particle number pointers
   m_gamma_ptrs.set_memtype(MemType::host_device);
   m_nums_ptrs.set_memtype(MemType::host_device);
-  m_gamma_ptrs.resize(this->gamma.size());
-  m_nums_ptrs.resize(this->gamma.size());
-  for (int i = 0; i < this->gamma.size(); i++) {
+  m_gamma_ptrs.resize(this->m_num_species);
+  m_nums_ptrs.resize(this->m_num_species);
+  m_avgp_ptrs.resize(this->m_num_species);
+  for (int i = 0; i < this->m_num_species; i++) {
     m_gamma_ptrs[i] = this->gamma[i]->dev_ndptr();
     m_nums_ptrs[i] = m_nums[i]->dev_ndptr();
+    m_avgp_ptrs[i][0] = this->avg_p[i]->dev_ndptr(0);
+    m_avgp_ptrs[i][1] = this->avg_p[i]->dev_ndptr(1);
+    m_avgp_ptrs[i][2] = this->avg_p[i]->dev_ndptr(2);
   }
   m_gamma_ptrs.copy_to_device();
+  m_avgp_ptrs.copy_to_device();
   m_nums_ptrs.copy_to_device();
 }
 
@@ -65,7 +70,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
 
   auto num = this->ptc->number();
   if (num > 0) {
-    kernel_launch([num] __device__(auto ptc, auto gammas, auto nums) {
+    kernel_launch([num] __device__(auto ptc, auto gammas, auto avg_p, auto nums) {
           auto& grid = dev_grid<Conf::dim>();
           auto ext = grid.extent();
           for (auto n : grid_stride_range(0, num)) {
@@ -80,26 +85,35 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
             auto sp = get_ptc_type(flag);
 
             atomicAdd(&gammas[sp][idx], weight * g);
+            atomicAdd(&avg_p[sp][0][idx], weight * ptc.p1[n]);
+            atomicAdd(&avg_p[sp][1][idx], weight * ptc.p2[n]);
+            atomicAdd(&avg_p[sp][2][idx], weight * ptc.p3[n]);
             atomicAdd(&nums[sp][idx], weight);
           }
       }, this->ptc->dev_ptrs(), this->m_gamma_ptrs.dev_ptr(),
-      m_nums_ptrs.dev_ptr());
+      this->m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
     CudaCheckError();
 
     int num_species = this->m_num_species;
-    kernel_launch([num_species] __device__(auto gammas, auto nums) {
+    kernel_launch([num_species] __device__(auto gammas, auto avg_p, auto nums) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           for (int i = 0; i < num_species; i++) {
             if (nums[i][idx] > TINY) {
               gammas[i][idx] /= nums[i][idx];
+              avg_p[i][0][idx] /= nums[i][idx];
+              avg_p[i][1][idx] /= nums[i][idx];
+              avg_p[i][2][idx] /= nums[i][idx];
             } else {
               gammas[i][idx] = 0.0f;
+              avg_p[i][0][idx] = 0.0f;
+              avg_p[i][1][idx] = 0.0f;
+              avg_p[i][2][idx] = 0.0f;
             }
           }
         }
-      }, this->m_gamma_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
+      }, m_gamma_ptrs.dev_ptr(), m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }

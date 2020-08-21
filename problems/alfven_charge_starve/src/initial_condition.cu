@@ -337,8 +337,10 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                   ptc.p3[offset + 1] = v_d * gamma;
                   ptc.E[offset] = 1.0f;
                   ptc.E[offset + 1] = gamma;
-                  ptc.weight[offset] = weight + math::abs(rho) * 2.0f / (q_e * mult);
-                  ptc.weight[offset + 1] = weight + math::abs(rho) * 3.0f / (q_e * mult);
+                  // ptc.weight[offset] = weight + math::abs(rho) * 2.0f / (q_e * mult);
+                  // ptc.weight[offset + 1] = weight + math::abs(rho) * 3.0f / (q_e * mult);
+                  ptc.weight[offset] = weight;
+                  ptc.weight[offset + 1] = weight;
                 } else {
                   ptc.p1[offset] = v * wave.sinth * gamma;
                   ptc.p1[offset + 1] = 0.0f;
@@ -348,8 +350,10 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                   ptc.p3[offset + 1] = 0.0f;
                   ptc.E[offset] = gamma;
                   ptc.E[offset + 1] = 1.0f;
-                  ptc.weight[offset] = weight + math::abs(rho) * 3.0f / (q_e * mult);
-                  ptc.weight[offset + 1] = weight + math::abs(rho) * 2.0f / (q_e * mult);
+                  // ptc.weight[offset] = weight + math::abs(rho) * 3.0f / (q_e * mult);
+                  // ptc.weight[offset + 1] = weight + math::abs(rho) * 2.0f / (q_e * mult);
+                  ptc.weight[offset] = weight;
+                  ptc.weight[offset + 1] = weight;
                 }
                 // ptc.p1[offset] = -jx * gamma / (2.0f * q_e * mult * weight);
                 // ptc.p1[offset + 1] = jx * gamma / (2.0f * q_e * mult * weight);

@@ -37,32 +37,44 @@ def make_plot(step):
 
     plot_data = [
         data.B3,
-        data.Rho_e,
-        data.Rho_p,
+        # data.Rho_e,
+        (data.J1 * data.B1 + data.J2 * data.B2 + data.J3 * data.B3) / data.B,
+        # data.Rho_p,
         (data.E1 * data.B1 + data.E2 * data.B2 + data.E3 * data.B3) / data.B,
+        (data.Rho_p - data.Rho_e) / np.maximum(1e-5, data.J),
         data.gamma_e,
         data.gamma_p,
     ]
     titles = [
-        "$B_\\phi$",
-        r"$\rho_e$",
-        r"$\rho_p$",
+        "$B_z$",
+        # r"$\rho_e$",
+        r"$J\cdot B/B$",
         r"$E\cdot B/B$",
+        r"$|\rho_p - \rho_e| / J$",
         r"$\gamma_e$",
         r"$\gamma_p$",
     ]
-    lims = [5e2, 5e3, 5e3, 20.0, 100.0, 100.0]
+    lims = [3e2, 3e3, 10.0, 10.0, 10.0, 10.0]
     ticksize = 22
     labelsize = 30
 
     for i in range(len(plot_data)):
-        if i < 4:
+        if i < 3:
             pmesh = axes[i].pcolormesh(
                 data.x1,
                 data.x2,
                 plot_data[i],
                 cmap=hot_cold_cmap,
                 vmin=-lims[i],
+                vmax=lims[i],
+            )
+        elif i == 3:
+            pmesh = axes[i].pcolormesh(
+                data.x1,
+                data.x2,
+                plot_data[i],
+                cmap=plt.get_cmap("Paired"),
+                vmin=0,
                 vmax=lims[i],
             )
         else:
@@ -82,10 +94,10 @@ def make_plot(step):
         cax = divider.append_axes("right", size="2%", pad=0.05)
         cb = plt.colorbar(pmesh, cax=cax)
         cb.ax.tick_params(labelsize=ticksize)
-        cb.ax.set_ylabel(titles[i], fontsize=labelsize, rotation=0)
+        cb.ax.set_ylabel(titles[i], fontsize=labelsize, rotation=270, labelpad=20)
     #     cb.ax.set_title(titles[i], fontsize=labelsize)
 
-    axes[0].text(8, 3.0, f"Time = {time:.2f}", fontsize=labelsize)
+    axes[0].text(8, 1.3, f"Time = {time:.2f}", fontsize=labelsize)
     fig.savefig("plots/%05d.png" % step, bbox_inches='tight')
     plt.close(fig)
 
@@ -93,3 +105,4 @@ num_agents = 7
 
 with Pool(processes=num_agents) as pool:
     pool.map(make_plot, data.fld_steps)
+    # pool.map(make_plot, [91, 92, 93, 94, 95])

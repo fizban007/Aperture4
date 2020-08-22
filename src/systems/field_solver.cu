@@ -266,14 +266,16 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   // Assemble the RHS
   compute_double_curl(*(this->m_tmp_b2), *(this->m_tmp_b1),
                       -alpha * beta * dt * dt);
+  if (this->m_comm != nullptr)
+    this->m_comm->send_guard_cells(*(this->m_tmp_b2));
   this->m_tmp_b1->add_by(*(this->m_tmp_b2));
 
   // Send guard cells for m_tmp_b1
-  if (this->m_comm != nullptr)
-    this->m_comm->send_guard_cells(*(this->m_tmp_b1));
 
   compute_implicit_rhs(*(this->m_tmp_b1), *(this->E), *(this->J), alpha, beta,
                        dt);
+  if (this->m_comm != nullptr)
+    this->m_comm->send_guard_cells(*(this->m_tmp_b1));
 
   // Since we need to iterate, define a double buffer to switch quickly between
   // operand and result.

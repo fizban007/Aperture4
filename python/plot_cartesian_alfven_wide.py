@@ -38,22 +38,21 @@ def make_plot(step):
     fig.set_size_inches(20.5, 26.5)
 
     plot_data = [
-        [data.B3, data.Rho_e],
+        [data.B3, data.Rho_e + data.Rho_p],
         [
             data.Rho_p,
             # (data.E1 * data.B1 + data.E2 * data.B2 + data.E3 * data.B3) / data.B,
             data.E1 * sinth + data.E2 * costh
         ],
-        [data.gamma_e, data.pair_produced],
-        # [data.gamma_e, data.gamma_p],
+        # [data.gamma_e, data.pair_produced],
+        [data.gamma_e, data.gamma_p],
     ]
     titles = [
-        [r"$B_z$", r"$\rho_e$"], [r"$\rho_p$",
-        # r"$E\cdot B/B$"], [r"$\gamma_e$", r"Pair Produced"],
-        # r"$E\cdot B_0/B_0$"], [r"$\gamma_e$", r"$\gamma_p$"],
-        r"$E\cdot B_0/B_0$"], [r"$\gamma_e$", r"Pair Produced"],
+        [r"$B_z$", r"$\rho$"], [r"$\rho_p$",
+        r"$E\cdot B_0/B_0$"], [r"$\gamma_e$", r"$\gamma_p$"],
+        # r"$E\cdot B_0/B_0$"], [r"$\gamma_e$", r"Pair Produced"],
     ]
-    lims = [[2e3, 5e4], [5e4, 20.0], [100.0, 100.0]]
+    lims = [[2e3, 2e4], [2e4, 20.0], [100.0, 100.0]]
     ticksize = 22
     labelsize = 30
 
@@ -71,7 +70,7 @@ def make_plot(step):
                     vmax=lims[j][i],
                 )
             else:
-              if lin_idx == 4:
+              # if lin_idx == 4:
                 pmesh = axes[j][i].pcolormesh(
                     data.x1,
                     data.x2,
@@ -79,15 +78,15 @@ def make_plot(step):
                     cmap=plt.get_cmap("inferno"),
                     norm=colors.LogNorm(vmin=1.0, vmax=lims[j][i]),
                 )
-              else:
-                pmesh = axes[j][i].pcolormesh(
-                    data.x1,
-                    data.x2,
-                    plot_data[j][i],
-                    cmap=plt.get_cmap("inferno"),
-                    vmin=0,
-                    vmax=0.2
-                )
+              # else:
+              #   pmesh = axes[j][i].pcolormesh(
+              #       data.x1,
+              #       data.x2,
+              #       plot_data[j][i],
+              #       cmap=plt.get_cmap("inferno"),
+              #       vmin=0,
+              #       vmax=0.2
+              #   )
 
             axes[j][i].contour(
                 data.x1, data.x2, data.flux, 20, colors="green", linestyles="solid", linewidths=0.5

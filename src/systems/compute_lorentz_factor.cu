@@ -66,6 +66,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
 
   // Compute average Lorentz factors of all particles in every cell
   for (auto g : this->gamma) g->init();
+  for (auto avgp : this->avg_p) avgp->init();
   for (auto& p : this->m_nums) p->init();
 
   auto num = this->ptc->number();

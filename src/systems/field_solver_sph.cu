@@ -469,7 +469,10 @@ field_solver_sph_cu<Conf>::update_explicit(double dt, double time) {
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
   // apply coordinate boundary condition
-  damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  if (this->m_comm != nullptr && this->m_comm->domain_info().is_boundary[1]) {
+    damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  }
+
   if (this->m_comm != nullptr) {
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
                     this->m_comm->domain_info().is_boundary);
@@ -540,7 +543,10 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
   this->B->copy_from(*(this->m_bnew));
 
   // apply coordinate boundary condition
-  damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  if (this->m_comm != nullptr && this->m_comm->domain_info().is_boundary[1]) {
+    damping_boundary(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+  }
+
   if (this->m_comm != nullptr) {
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B), grid,
                     this->m_comm->domain_info().is_boundary);

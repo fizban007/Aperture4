@@ -7,4 +7,11 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   set_target_properties(pulsar PROPERTIES OUTPUT_NAME "aperture")
   target_link_libraries(pulsar Aperture)
   add_dependencies(problems pulsar)
+
+  add_executable(pulsar_single_ptc "single_particle.cu"
+    "systems/ptc_updater_pulsar.cu"
+    )
+  set_target_properties(pulsar_single_ptc PROPERTIES OUTPUT_NAME "single_ptc")
+  target_link_libraries(pulsar_single_ptc Aperture)
+  add_dependencies(problems pulsar_single_ptc)
 endif()

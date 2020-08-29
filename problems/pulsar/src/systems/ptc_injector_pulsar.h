@@ -18,7 +18,6 @@
 #ifndef _PTC_INJECTOR_PULSAR_H_
 #define _PTC_INJECTOR_PULSAR_H_
 
-
 #include "systems/ptc_injector.h"
 
 namespace Aperture {
@@ -38,7 +37,8 @@ class ptc_injector_pulsar : public ptc_injector_cu<Conf> {
   template <typename WeightFunc>
   void add_injector(const vec_t<value_t, Conf::dim>& lower,
                     const vec_t<value_t, Conf::dim>& size, value_t inj_rate,
-                    value_t inj_weight, WeightFunc f, value_t p0 = 1.0, value_t outward_fraction = 1.0, value_t limit = 1.0) {
+                    value_t inj_weight, WeightFunc f, value_t p0 = 1.0,
+                    value_t outward_fraction = 1.0, value_t limit = 1.0) {
     ptc_injector_cu<Conf>::add_injector(lower, size, inj_rate, inj_weight, f);
 
     m_inj_p0.push_back(p0);
@@ -47,14 +47,12 @@ class ptc_injector_pulsar : public ptc_injector_cu<Conf> {
   }
 
  protected:
-  vector_field<Conf> *B;
+  vector_field<Conf>* B;
 
   std::vector<value_t> m_inj_p0, m_outward_fraction, m_limit;
   // std::vector<bool> m_limit;
 };
 
-
-}
-
+}  // namespace Aperture
 
 #endif  // _PTC_INJECTOR_PULSAR_H_

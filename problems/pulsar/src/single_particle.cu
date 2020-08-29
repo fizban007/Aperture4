@@ -56,10 +56,10 @@ main(int argc, char *argv[]) {
   double Bp = 10000.0;
   env.params().get_value("Bp", Bp);
 
-  vector_field<Conf> *B0, *B;
+  vector_field<Conf> *B0, *E0;
   particle_data_t *ptc;
-  env.get_data("B0", &B0);
-  env.get_data("B", &B);
+  env.get_data("B", &B0);
+  env.get_data("E", &E0);
   env.get_data("particles", &ptc);
 
   // Set dipole initial magnetic field
@@ -72,12 +72,20 @@ main(int argc, char *argv[]) {
     Scalar r = grid_sph_t<Conf>::radius(x);
     return Bp * sin(theta) / cube(r);
   });
-  B->copy_from(*B0);
+  E0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
+    Scalar r = grid_sph_t<Conf>::radius(x);
+    return -Bp * sin(theta) / (cube(r) * r);
+  });
+  E0->set_values(1, [Bp](Scalar x, Scalar theta, Scalar phi) {
+    Scalar r = grid_sph_t<Conf>::radius(x);
+    return Bp * 2.0 * cos(theta) / (cube(r) * r);
+  });
+  // B->copy_from(*B0);
 
   // Add a single particle to the magnetosphere
   Scalar p0 = -100.0f;
-  for (int i = 0; i < 1000; i++) {
-    ptc->append_dev({0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 1130 + 500 * grid->dims[0],
+  for (int i = 0; i < 1; i++) {
+    ptc->append_dev({0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 800 + 500 * grid.dims[0],
                     100.0);
   }
 

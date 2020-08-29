@@ -16,6 +16,7 @@
  */
 
 #include "core/constant_mem.h"
+#include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/config.h"
 #include "particles_impl.hpp"
@@ -195,6 +196,7 @@ particles_base<BufferType>::append_dev(const vec_t<Pos_t, 3>& x,
         ptrs.p1[pos] = p[0];
         ptrs.p2[pos] = p[1];
         ptrs.p3[pos] = p[2];
+        ptrs.E[pos] = math::sqrt(1.0f + p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
         ptrs.weight[pos] = weight;
         ptrs.cell[pos] = cell;
         ptrs.flag[pos] = flag;

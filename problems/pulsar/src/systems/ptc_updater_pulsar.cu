@@ -43,11 +43,16 @@ struct pusher_impl_pulsar {
                              Scalar qdt_over_2m, Scalar dt) {
     Scalar &p1 = ptc.p1[n], &p2 = ptc.p2[n], &p3 = ptc.p3[n];
     Scalar &gamma = ptc.E[n];
+    printf("before push, p1 is %f, p2 is %f, p3 is %f, gamma is %f\n", p1, p2, p3, gamma);
     pusher(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
            qdt_over_2m, dt);
 
-    sync_kill_perp(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
-                   qdt_over_2m * 2.0f / dt, (Scalar)cooling_coef, (Scalar)B0);
+    // sync_kill_perp(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
+    //                qdt_over_2m * 2.0f / dt, (Scalar)cooling_coef, (Scalar)B0);
+    printf("after push, p1 is %f, p2 is %f, p3 is %f, gamma is %f\n", p1, p2, p3, gamma);
+    sync_kill_gyration(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
+                       qdt_over_2m * 2.0f / dt, (Scalar)cooling_coef, (Scalar)B0);
+    printf("gamma is %f\n", gamma);
   }
 };
 

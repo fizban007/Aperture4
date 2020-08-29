@@ -60,22 +60,25 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
       auto& grid = dev_grid<Conf::dim>();
       auto ext = grid.extent();
 
-      for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+      // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+      for (auto n : grid_stride_range(0, ext.size())) {
+        auto idx = Conf::idx(n, ext);
         auto pos = idx.get_pos();
         value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], false));
         value_t r_s = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+        value_t r_reduced = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
         // value_t theta = grid_sph_t<Conf>::radius(grid.template pos<1>(pos[1], false));
         // value_t theta_s = grid_sph_t<Conf>::radius(grid.template pos<1>(pos[1], true));
 
         if (r < 1.0f) {
-          value_t theta_s = grid_sph_t<Conf>::radius(grid.template pos<1>(pos[1], true));
+          value_t theta_s = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], true));
           e[0][idx] = omega * sin(theta_s) * r * b0[1][idx];
           b[1][idx] = 0.0f;
           b[2][idx] = 0.0f;
         }
 
-        if (r_s < 1.0f) {
-          value_t theta = grid_sph_t<Conf>::radius(grid.template pos<1>(pos[1], false));
+        if (r_reduced < 1.0f) {
+          value_t theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], false));
           b[0][idx] = 0.0f;
           e[1][idx] = -omega * sin(theta) * r_s * b0[0][idx];
           e[2][idx] = 0.0f;

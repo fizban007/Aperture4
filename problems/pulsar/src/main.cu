@@ -53,13 +53,13 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, grid);
   injector->add_injector(
       // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
-      vec<Scalar>(8 * grid.delta[0], 0.0), vec<Scalar>(grid.delta[0], M_PI), 2.0f, 1.0f,
+      vec<Scalar>(grid.delta[0], 0.0), vec<Scalar>(grid.delta[0], M_PI), 3.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         // return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
         Scalar sth = math::sin(x2);
         Scalar cth = math::cos(x2);
-        return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.1f;
-      }, 1.0f, 0.9f, 1.0f);
+        return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.001f;
+      }, 8.0f, 1.0f, 1.0f);
   // injector->add_injector(
   //     // vec<Scalar>(-1.0 * grid->delta[0], 0.0), vec<Scalar>(grid->delta[0], 0.62f), 5.0f, 1.5f,
   //     vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
@@ -136,7 +136,7 @@ main(int argc, char *argv[]) {
     //         // Scalar sth = math::sin(M_PI * (x2 - 0.5f * M_PI) / d_theta);
     //         // Scalar cth = math::cos(x2);
     //         // return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.01;
-    //       }, 0.5f, 0.5f, 1.0f);
+    //       }, 4.0f, 0.75f, 1.0f);
     // }
   }
   return 0;

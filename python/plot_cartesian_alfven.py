@@ -54,7 +54,7 @@ def make_plot(step):
         r"$\gamma_e$",
         r"$\gamma_p$",
     ]
-    lims = [3e2, 3e3, 10.0, 10.0, 10.0, 10.0]
+    lims = [6e2, 6e3, 10.0, 10.0, 20.0, 20.0]
     ticksize = 22
     labelsize = 30
 
@@ -67,6 +67,7 @@ def make_plot(step):
                 cmap=hot_cold_cmap,
                 vmin=-lims[i],
                 vmax=lims[i],
+                shading="gouraud"
             )
         elif i == 3:
             pmesh = axes[i].pcolormesh(
@@ -76,6 +77,7 @@ def make_plot(step):
                 cmap=plt.get_cmap("Paired"),
                 vmin=0,
                 vmax=lims[i],
+                shading="gouraud"
             )
         else:
             pmesh = axes[i].pcolormesh(
@@ -84,6 +86,7 @@ def make_plot(step):
                 plot_data[i],
                 cmap=plt.get_cmap('inferno'),
                 norm=colors.LogNorm(vmin=1.0, vmax=lims[i]),
+                shading="gouraud"
             )
         axes[i].contour(
             data.x1, data.x2, data.flux, 20, colors="green", linestyles="solid"

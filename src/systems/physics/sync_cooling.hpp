@@ -106,7 +106,7 @@ sync_kill_gyration(Scalar& p1, Scalar& p2, Scalar& p3, Scalar& gamma,
   Scalar vd2 = (E3 * B1 - E1 * B3) / EB;
   Scalar vd3 = (E1 * B2 - E2 * B1) / EB;
   Scalar vd_sqr = square(vd1) + square(vd2) + square(vd3);
-  printf("vd1 is %f, vd2 is %f, vd3 is %f, EB is %f, vd_sqr is %f\n", vd1, vd2, vd3, EB, vd_sqr);
+  // printf("vd1 is %f, vd2 is %f, vd3 is %f, EB is %f, vd_sqr is %f\n", vd1, vd2, vd3, EB, vd_sqr);
 
   if (vd_sqr > 1.0e-5) {
     vd1 *= (1.0f - math::sqrt(max(1.0f - 4.0f * vd_sqr, 0.0f))) / (2.0f * vd_sqr);

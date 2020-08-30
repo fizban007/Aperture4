@@ -53,7 +53,7 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, grid);
   injector->add_injector(
       // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
-      vec<Scalar>(grid.delta[0], 0.0), vec<Scalar>(grid.delta[0], M_PI), 3.0f, 1.0f,
+      vec<Scalar>(grid.delta[0], 0.0), vec<Scalar>(grid.delta[0], M_PI), 5.0f, 1.0f,
       [] __device__(Scalar x1, Scalar x2, Scalar x3) {
         // return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
         Scalar sth = math::sin(x2);

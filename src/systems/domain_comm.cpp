@@ -29,6 +29,8 @@
 #include <mpi-ext.h>  // Needed for CUDA-aware check
 #endif
 
+#define USE_CUDA_AWARE_MPI false
+
 namespace Aperture {
 
 template <typename Conf>
@@ -189,7 +191,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
   }
   // timer::show_duration_since_stamp("copy guard cells", "ms");
 
-#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
 #pragma message "CUDA-aware MPI found!"
   auto send_ptr = m_send_buffers[dim].dev_ptr();
   auto recv_ptr = m_recv_buffers[dim].dev_ptr();
@@ -221,8 +223,8 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
       copy(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
            m_recv_buffers[dim].extent());
     } else {
-#if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-    !MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+    !MPIX_CUDA_AWARE_SUPPORT)
       m_recv_buffers[dim].copy_to_device();
 #endif
       copy_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
@@ -258,7 +260,7 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
              m_send_buffers[dim].extent());
   }
 
-#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
   auto send_ptr = m_send_buffers[dim].dev_ptr();
   auto recv_ptr = m_recv_buffers[dim].dev_ptr();
 #else
@@ -288,8 +290,8 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
       add(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
           m_recv_buffers[dim].extent());
     } else {
-#if CUDA_ENABLED && !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-    !MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+    !MPIX_CUDA_AWARE_SUPPORT)
       m_recv_buffers[dim].copy_to_device();
 #endif
       add_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
@@ -364,7 +366,7 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
   // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
-#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
   auto send_ptrs = send_buffer.get_dev_ptrs();
   auto recv_ptrs = recv_buffer.get_dev_ptrs();
 #else
@@ -400,7 +402,7 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
                         &num_recv);
         }
       });
-#if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
 #else
   recv_buffer.copy_to_device();
 #endif

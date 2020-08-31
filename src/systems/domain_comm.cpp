@@ -380,11 +380,10 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
   auto send_ptrs = send_buffer.get_host_ptrs();
   auto recv_ptrs = recv_buffer.get_host_ptrs();
 #endif
-  // if (num_send > 0) {
-  //   Logger::print_debug("Send count is {}, send cell[0] is {}, send cell[1]
-  //   is {}",
-  //                       num_send, send_buffer.cell[0], send_buffer.cell[1]);
-  // }
+  if (num_send > 0) {
+    Logger::print_info_all("Sending {} particles from rank {} to rank {}", num_send,
+                           src, dst);
+  }
   int num_recv = 0;
   visit_struct::for_each(
       send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
@@ -406,7 +405,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
           // }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
-          Logger::print_info_all("Rank {} received {} particles", m_rank, num_recv);
+          Logger::print_info_all("Rank {}, dst {}, received {} particles", m_rank, dst, num_recv);
         }
       });
 #if CUDA_ENABLED &&                                                            \

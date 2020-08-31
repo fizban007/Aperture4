@@ -102,6 +102,8 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
     MPI_Cart_shift(m_cart, n, 1, &rank, &right);
     m_domain_info.neighbor_left[n] = left;
     m_domain_info.neighbor_right[n] = right;
+    Logger::print_info_all("Rank {} has neighbors in {} direction: left {}, right {}",
+                           m_rank, n, left, right);
     if (left < 0)
       m_domain_info.is_boundary[2 * n] = true;
     if (right < 0)
@@ -371,6 +373,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
   // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
+  // Logger::print_info_all("rank {}, src {}, dst {}, num_send {}", m_rank, src, dst, num_send);
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) &&  \
     MPIX_CUDA_AWARE_SUPPORT
   auto send_ptrs = send_buffer.get_dev_ptrs();
@@ -380,10 +383,10 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
   auto send_ptrs = send_buffer.get_host_ptrs();
   auto recv_ptrs = recv_buffer.get_host_ptrs();
 #endif
-  if (num_send > 0) {
-    Logger::print_info_all("Sending {} particles from rank {} to rank {}", num_send,
-                           src, dst);
-  }
+  // if (num_send > 0) {
+  //   Logger::print_info_all("Sending {} particles from rank {} to rank {}", num_send,
+  //                          m_rank, dst);
+  // }
   int num_recv = 0;
   visit_struct::for_each(
       send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
@@ -405,7 +408,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
           // }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
-          Logger::print_info_all("Rank {}, dst {}, received {} particles", m_rank, dst, num_recv);
+          Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
         }
       });
 #if CUDA_ENABLED &&                                                            \
@@ -415,6 +418,8 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
 #endif
   recv_buffer.set_num(recv_offset + num_recv);
   send_buffer.set_num(0);
+
+  MPI_Barrier(m_cart);
 }
 
 template <typename Conf>

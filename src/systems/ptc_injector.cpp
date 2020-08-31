@@ -32,8 +32,8 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
     if (lower[n] < m_grid.lower[n] + m_grid.sizes[n] &&
         m_grid.lower[n] <= lower[n] + size[n]) {
       new_injector.begin[n] =
-          // std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
-          std::round(std::max(lower[n] - m_grid.lower[n], value_t(-m_grid.guard[n] * m_grid.delta[n])) *
+          std::round(std::max(lower[n] - m_grid.lower[n], value_t(0.0)) *
+          // std::round(std::max(lower[n] - m_grid.lower[n], value_t(-m_grid.guard[n] * m_grid.delta[n])) *
                      m_grid.inv_delta[n]) +
           m_grid.guard[n];
       // FIXME: Ext calculation still has problems
@@ -47,9 +47,9 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
       new_injector.ext[n] = 0;
     }
   }
-  Logger::print_info("Injector begin is ({}, {}), extent is ({}, {})",
-                     new_injector.begin[0], new_injector.begin[1],
-                     new_injector.ext[0], new_injector.ext[1]);
+  Logger::print_info_all("Injector begin is ({}, {}), extent is ({}, {})",
+                         new_injector.begin[0], new_injector.begin[1],
+                         new_injector.ext[0], new_injector.ext[1]);
   if (inj_rate > 1.0f) {
     new_injector.interval = 1;
     new_injector.num = std::round(inj_rate);

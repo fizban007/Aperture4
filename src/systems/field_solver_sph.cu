@@ -523,6 +523,9 @@ field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
 
     buffer.swap();
   }
+  // Communicate B new
+  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->m_bnew));
+
   // m_bnew now holds B^{n+1}
   // add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
   select_dev(buffer.main()[0]) =

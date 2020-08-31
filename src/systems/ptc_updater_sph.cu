@@ -38,15 +38,15 @@ process_j_rho(vector_field<Conf>& j,
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
           auto pos = idx.get_pos();
-          if (grid.is_in_bound(pos)) {
-            auto w = grid.delta[0] * grid.delta[1] / dt;
-            j[0][idx] *= w / gp.Ae[0][idx];
-            j[1][idx] *= w / gp.Ae[1][idx];
-            j[2][idx] /= gp.dV[idx];
-            for (int n = 0; n < num_species; n++) {
-              rho[n][idx] /= gp.dV[idx];
-            }
+          // if (grid.is_in_bound(pos)) {
+          auto w = grid.delta[0] * grid.delta[1] / dt;
+          j[0][idx] *= w / gp.Ae[0][idx];
+          j[1][idx] *= w / gp.Ae[1][idx];
+          j[2][idx] /= gp.dV[idx];
+          for (int n = 0; n < num_species; n++) {
+            rho[n][idx] /= gp.dV[idx];
           }
+          // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (math::abs(theta) < 0.1 * grid.delta[1]) {
             // j[1][idx] = 0.0;
@@ -155,7 +155,7 @@ template <typename Conf>
 void
 ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   this->J->init();
-  for (auto rho : this->Rho) rho->init();
+  for (auto& rho : this->Rho) rho->init();
 
   auto num = this->ptc->number();
   if (num > 0) {
@@ -514,6 +514,8 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
       this->ptc->dev_ptrs(), this->m_rand_states->states());
   CudaSafeCall(cudaDeviceSynchronize());
   this->ptc->set_num(num + mult * 2 * this->m_grid.extent().size());
+
+  this->sort_particles();
 }
 
 template class ptc_updater_sph_cu<Config<2>>;

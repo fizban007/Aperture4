@@ -23,7 +23,7 @@
 #include "systems/data_exporter.h"
 #include "systems/field_solver_sph.h"
 #include "systems/ph_freepath_dev.h"
-// #include "systems/ptc_injector_pulsar.h"
+#include "systems/ptc_injector_pulsar.h"
 // #include "systems/ptc_injector.h"
 #include "systems/ptc_updater_pulsar.h"
 #include <iostream>
@@ -45,7 +45,16 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm(env);
   grid_sph_t<Conf> grid(env);
   grid.init();
-  // auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, grid);
+  auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, grid);
+  injector->add_injector(
+      // vec<Scalar>(0.0f, 0.0), vec<Scalar>(grid.delta[0], 0.62f), 5.0f, 0.5f,
+      vec<Scalar>(grid.delta[0], 0.0), vec<Scalar>(grid.delta[0], M_PI), 6.0f, 1.0f,
+      [] __device__(Scalar x1, Scalar x2, Scalar x3) {
+        // return math::sin(x2) * math::abs(math::cos(x2)) + 0.01;
+        Scalar sth = math::sin(x2);
+        Scalar cth = math::cos(x2);
+        return sth * math::abs(3.0f * cth * cth - 1.0f) * math::abs(cth) + 0.001f;
+      }, 8.0f, 1.0f, 1.0f);
   // auto injector = env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, grid, &comm);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid);

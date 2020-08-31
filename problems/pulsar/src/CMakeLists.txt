@@ -17,6 +17,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 
   add_executable(debug "debug.cu"
     "systems/ptc_updater_pulsar.cu"
+    "systems/ptc_injector_pulsar.cu"
     "systems/boundary_condition.cu"
     )
   target_link_libraries(debug Aperture)

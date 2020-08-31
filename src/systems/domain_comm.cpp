@@ -29,7 +29,7 @@
 #include <mpi-ext.h>  // Needed for CUDA-aware check
 #endif
 
-#define USE_CUDA_AWARE_MPI false
+#define USE_CUDA_AWARE_MPI true
 
 namespace Aperture {
 
@@ -47,10 +47,6 @@ domain_comm<Conf>::setup_domain() {
   m_world = MPI_COMM_WORLD;
   MPI_Comm_rank(m_world, &m_rank);
   MPI_Comm_size(m_world, &m_size);
-
-#ifdef CUDA_ENABLED
-  init_dev_rank(m_rank);
-#endif
 
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
@@ -117,11 +113,16 @@ domain_comm<Conf>::setup_domain() {
   if (n_devices <= 0) {
     std::cerr << "No usable Cuda device found!!" << std::endl;
     exit(1);
+  } else {
+    Logger::print_info("Found {} Cuda devices!", n_devices);
   }
   // TODO: This way of finding device id may not be reliable
   int dev_id = m_rank % n_devices;
+  std::cout << "Rank " << m_rank << " is on device #" << dev_id << std::endl;
   cudaSetDevice(dev_id);
+  init_dev_rank(m_rank);
 #endif
+
 }
 
 template <typename Conf>

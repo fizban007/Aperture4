@@ -411,12 +411,12 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
           Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
         }
       });
-#if CUDA_ENABLED &&                                                            \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
-     !MPIX_CUDA_AWARE_SUPPORT)
-  recv_buffer.copy_to_device();
-#endif
   recv_buffer.set_num(recv_offset + num_recv);
+// #if CUDA_ENABLED &&                                                            \
+//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
+//      !MPIX_CUDA_AWARE_SUPPORT)
+//   recv_buffer.copy_to_device();
+// #endif
   send_buffer.set_num(0);
 
   MPI_Barrier(m_cart);
@@ -513,6 +513,11 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   }
 
   // Copy the central recv buffer into the main array
+#if CUDA_ENABLED &&                                                   \
+  (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||        \
+   !MPIX_CUDA_AWARE_SUPPORT)
+  buffers[central].copy_to_device();
+#endif
   ptc.copy_from(buffers[central], buffers[central].number(), 0, ptc.number());
   // Logger::print_debug(
   //     "Communication resulted in {} ptc in total, ptc has {} particles "

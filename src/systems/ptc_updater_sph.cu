@@ -324,7 +324,9 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
     auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
     process_j_rho(*(this->J), this->m_rho_ptrs, this->m_num_species, grid, dt);
 
-    ptc_outflow(*(this->ptc), grid, m_damping_length);
+    if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
+      ptc_outflow(*(this->ptc), grid, m_damping_length);
+    }
   }
 }
 

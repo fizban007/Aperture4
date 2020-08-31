@@ -406,7 +406,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
           // }
           MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                         &num_recv);
-          Logger::print_info("Rank {} received {} particles", m_rank, num_recv);
+          Logger::print_info_all("Rank {} received {} particles", m_rank, num_recv);
         }
       });
 #if CUDA_ENABLED &&                                                            \

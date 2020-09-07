@@ -145,7 +145,7 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
             auto rho = wave.Rho(0.0f, x, y);
             int num = floor(math::abs(rho) / q_e);
 
-            atomicAdd(&num_per_cell[idx], num * mult_wave);
+            atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
           }
         }
       }
@@ -168,7 +168,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
   Scalar Bwave = 0.1 * Bp;
-  int mult_wave = 3;
+  int mult_wave = 2;
 
   alfven_wave_solution wave(sinth, 1.0, 0.05, 4.0, 2.0, Bwave);
 
@@ -204,7 +204,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   CudaCheckError();
   num_per_cell.copy_to_host();
   cum_num_per_cell.copy_to_host();
-  int new_particles = 2 * (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
+  int new_particles = (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
   Logger::print_info("Initializing {} particles", new_particles);
 
   // Actually inject particles
@@ -291,17 +291,28 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                 // auto width_arg = wave.width_arg(x, y);
                 auto wave_arg = wave.wave_arg(0.0f, x, y);
                 auto rho = wave.Rho(0.0f, x, y);
+                int num = floor(math::abs(rho) / q_e);
 
-                auto v = 1.0f / mult_wave;
+                Scalar v;
+                if (i < mult * 2 + mult_wave * num) {
+                  v = 0.0f;
+                } else {
+                  v = 1.0f / (mult_wave + 1);
+                }
                 auto v_d = wave.Bz(0.0f, x, y) / math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
                 auto gamma = 1.0f / math::sqrt(1.0f - v * v - v_d * v_d);
                 ptc.p1[offset] = v * wave.sinth * gamma;
                 ptc.p2[offset] = v * wave.costh * gamma;
                 ptc.p3[offset] = v_d * gamma;
                 ptc.E[offset] = gamma;
-                ptc.weight[offset] = math::abs(rho) / floor(math::abs(rho) / q_e);
-                ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                     ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
+                ptc.weight[offset] = math::abs(rho) / num / q_e;
+                if (i < mult * 2 + mult_wave * num) {
+                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                                                       ((rho < 0.0f) ? PtcType::positron : PtcType::electron));
+                } else {
+                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                                                       ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
+                }
               }
 
 

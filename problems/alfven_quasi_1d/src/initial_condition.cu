@@ -270,8 +270,8 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
             for (int i = 0; i < num_per_cell[idx]; i++) {
               uint32_t offset = num + cum_num_per_cell[idx] + i;
               // uint32_t offset = num + idx_row.linear * mult * 2 + i * 2;
-              ptc.x1[offset] = 0.0f;
-              ptc.x2[offset] = 0.0f;
+              ptc.x1[offset] = 0.1f * rng();
+              ptc.x2[offset] = 0.1f * rng();
               ptc.x3[offset] = 0.0f;
 
               ptc.cell[offset] = cell;

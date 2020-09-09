@@ -128,7 +128,7 @@ template <typename Conf>
 void
 compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &num_per_cell,
                      Scalar q_e, int mult, int mult_wave) {
-  num_per_cell.assign_dev(2 * mult);
+  // num_per_cell.assign_dev(2 * mult);
   kernel_launch([q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
       auto &grid = dev_grid<Conf::dim>();
       auto ext = grid.extent();
@@ -137,6 +137,7 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
         auto idx = Conf::idx(n, ext);
         auto pos = idx.get_pos();
         if (grid.is_in_bound(pos)) {
+          num_per_cell[idx] = 2 * mult;
           Scalar x = grid.template pos<0>(pos, 0.0f);
           Scalar y = grid.template pos<1>(pos, 0.0f);
           auto wave_arg = wave.wave_arg(0.0f, x, y);
@@ -145,7 +146,8 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
             auto rho = wave.Rho(0.0f, x, y);
             int num = floor(math::abs(rho) / q_e);
 
-            atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
+            // atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
+            num_per_cell[idx] += num * (mult_wave * 2 + 1);
           }
         }
       }

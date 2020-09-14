@@ -31,25 +31,35 @@ class momentum_space : public data_t {
   const Grid<Conf::dim>& m_grid;
   extent_t<Conf::dim> m_grid_ext;
   int m_downsample = 16;
-  int m_num_bins = 256;
+  int m_num_bins[3] = {256, 256, 256};
+  float m_lower[3] = {0.0f, 0.0f, 0.0f};
+  float m_upper[3] = {0.0f, 0.0f, 0.0f};
 
-  momentum_space(const Grid<Conf::dim>& grid, int downsample, int num_bins,
+  momentum_space(const Grid<Conf::dim>& grid, int downsample, int num_bins[3],
+                 float lower[3], float upper[3],
                  MemType memtype = default_mem_type)
       : m_grid(grid) {
     m_downsample = downsample;
-    m_num_bins = num_bins;
+    // m_num_bins = num_bins;
     auto g_ext = grid.extent_less();
     extent_t<Conf::dim + 1> ext;
-    ext[0] = m_num_bins;
     for (int i = 0; i < Conf::dim; i++) {
       ext[i + 1] = g_ext[i] / m_downsample;
       m_grid_ext[i] = g_ext[i] / m_downsample;
     }
+    for (int i = 0; i < 3; i++) {
+      m_num_bins[i] = num_bins[i];
+      m_lower[i] = lower[i];
+      m_upper[i] = upper[i];
+    }
+    ext[0] = m_num_bins[0];
     e_p1.resize(ext);
-    e_p2.resize(ext);
-    e_p3.resize(ext);
     p_p1.resize(ext);
+    ext[0] = m_num_bins[1];
+    e_p2.resize(ext);
     p_p2.resize(ext);
+    ext[0] = m_num_bins[2];
+    e_p3.resize(ext);
     p_p3.resize(ext);
   }
 

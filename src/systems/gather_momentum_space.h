@@ -20,6 +20,7 @@
 
 #include "core/multi_array.hpp"
 #include "data/particle_data.h"
+#include "data/momentum_space.hpp"
 #include "framework/system.h"
 #include "systems/grid.h"
 #include <vector>
@@ -41,10 +42,8 @@ class gather_momentum_space : public system_t {
 
  protected:
   const grid_t<Conf>& m_grid;
-  int m_downsample = 16; // Number of cells to include in momentum space histogram
-  int m_num_bins = 256; // Number of momentum space bins in each direction
-  multi_array<float, Conf::dim + 1> m_p1, m_p2, m_p3; // Momentum space arrays
 
+  momentum_space<Conf>* momentum;
   particle_data_t* ptc;
 };
 
@@ -58,8 +57,8 @@ class gather_momentum_space_cu : public gather_momentum_space<Conf> {
       : gather_momentum_space<Conf>(env, grid) {}
   virtual ~gather_momentum_space_cu() {}
 
-  virtual void register_data_components() override;
-  virtual void init() override;
+  // virtual void register_data_components() override;
+  // virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
 
 };

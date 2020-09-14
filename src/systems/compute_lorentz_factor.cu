@@ -76,7 +76,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
           auto ext = grid.extent();
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
-            if (cell == empty_cell) return;
+            if (cell == empty_cell) continue;
 
             auto idx = typename Conf::idx_t(cell, ext);
 

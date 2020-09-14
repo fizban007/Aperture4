@@ -483,8 +483,8 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
   data.copy_to_host();
 
   // First figure out the extent and offset of each node
-  extent_t<Conf::dim + 1> ext_total(data.m_num_bins, m_global_ext * m_downsample / data.m_downsample);
-  extent_t<Conf::dim + 1> ext = data.e_p1.extent();
+  extent_t<Conf::dim + 1> ext_total(data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
+  extent_t<Conf::dim + 1> ext = data.m_num_bins[0];
   index_t<Conf::dim + 1> idx_src = 0;
   index_t<Conf::dim + 1> idx_dst = 0;
   // FIXME: This again assumes a uniform grid, which is no good in the long term
@@ -494,17 +494,21 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
     }
 
     datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_e");
-    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
-    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
     datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_p");
+    ext[0] = ext_total[0] = data.m_num_bins[1];
+    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
     datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_p");
+    ext[0] = ext_total[0] = data.m_num_bins[2];
+    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
     datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_p");
   } else {
     datafile.write(data.e_p1, name + "_p1_e");
-    datafile.write(data.e_p2, name + "_p2_e");
-    datafile.write(data.e_p3, name + "_p3_e");
     datafile.write(data.p_p1, name + "_p1_p");
+    ext[0] = ext_total[0] = data.m_num_bins[1];
+    datafile.write(data.e_p2, name + "_p2_e");
     datafile.write(data.p_p2, name + "_p2_p");
+    ext[0] = ext_total[0] = data.m_num_bins[2];
+    datafile.write(data.e_p3, name + "_p3_e");
     datafile.write(data.p_p3, name + "_p3_p");
   }
 }

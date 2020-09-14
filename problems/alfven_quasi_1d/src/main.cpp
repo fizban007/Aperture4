@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
   env.get_data("rand_states", &states);
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
-  initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 15, 0.02);
+  initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 7, 1.0);
 
   env.run();
   return 0;

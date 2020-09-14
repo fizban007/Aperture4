@@ -374,52 +374,77 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
   // Logger::print_info_all("rank {}, src {}, dst {}, num_send {}", m_rank, src, dst, num_send);
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) &&  \
-    MPIX_CUDA_AWARE_SUPPORT
-  auto send_ptrs = send_buffer.get_dev_ptrs();
-  auto recv_ptrs = recv_buffer.get_dev_ptrs();
-#else
-  send_buffer.copy_to_host();
-  auto send_ptrs = send_buffer.get_host_ptrs();
-  auto recv_ptrs = recv_buffer.get_host_ptrs();
-#endif
   // if (num_send > 0) {
   //   Logger::print_info_all("Sending {} particles from rank {} to rank {}", num_send,
   //                          m_rank, dst);
   // }
-  int num_recv = 0;
-  visit_struct::for_each(
-      send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
-        // MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
-        //           MPI_Helper::get_mpi_datatype(v[0]), src, tag,
-        //           m_cart, recv_req);
-        // MPI_Isend((void*)u, num_send,
-        //           MPI_Helper::get_mpi_datatype(u[0]), dst, tag,
-        //           m_cart, send_req);
-        MPI_Sendrecv((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
-                     dst, tag, (void *)(v + recv_offset), recv_buffer.size(),
-                     MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
-                     recv_stat);
-        // MPI_Wait(recv_req, recv_stat);
-        if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
-          // if (num_send > 0) {
-          // Logger::print_debug("Send count is {}, send cell[0] is {}",
-          //                     num_send, u[0]);
-          // }
-          MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
-                        &num_recv);
-          Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
-        }
-      });
-  recv_buffer.set_num(recv_offset + num_recv);
+  if (m_size == 1 && m_rank == 0) {
+#if CUDA_ENABLED
+    auto send_ptrs = send_buffer.get_dev_ptrs();
+    auto recv_ptrs = recv_buffer.get_dev_ptrs();
+#else
+    auto send_ptrs = send_buffer.get_host_ptrs();
+    auto recv_ptrs = recv_buffer.get_host_ptrs();
+#endif
+    int num_recv = num_send;
+    // Logger::print_info("sending rank {}, src {}, dst {}", m_rank, src, dst);
+    if (src != MPI_PROC_NULL && dst != MPI_PROC_NULL) {
+      visit_struct::for_each(
+          send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
+#if CUDA_ENABLED
+            // Logger::print_info("Sending size {} * {}", num_send, sizeof(u[0]));
+            CudaSafeCall(cudaMemcpy((void*)(v + recv_offset), (void*)u, num_send * sizeof(u[0]), cudaMemcpyDeviceToDevice));
+#else
+            std::copy(u, u + num_send, v + recv_offset);
+#endif
+          });
+      recv_buffer.set_num(recv_offset + num_recv);
+    }
+  } else {
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+  MPIX_CUDA_AWARE_SUPPORT
+    auto send_ptrs = send_buffer.get_dev_ptrs();
+    auto recv_ptrs = recv_buffer.get_dev_ptrs();
+#else
+    send_buffer.copy_to_host();
+    auto send_ptrs = send_buffer.get_host_ptrs();
+    auto recv_ptrs = recv_buffer.get_host_ptrs();
+#endif
+
+    int num_recv = 0;
+    visit_struct::for_each(
+        send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
+          // MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
+          //           MPI_Helper::get_mpi_datatype(v[0]), src, tag,
+          //           m_cart, recv_req);
+          // MPI_Isend((void*)u, num_send,
+          //           MPI_Helper::get_mpi_datatype(u[0]), dst, tag,
+          //           m_cart, send_req);
+          MPI_Sendrecv((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
+                       dst, tag, (void *)(v + recv_offset), recv_buffer.size(),
+                       MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
+                       recv_stat);
+          // MPI_Wait(recv_req, recv_stat);
+          if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
+            // if (num_send > 0) {
+            // Logger::print_debug("Send count is {}, send cell[0] is {}",
+            //                     num_send, u[0]);
+            // }
+            MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
+                          &num_recv);
+            Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
+          }
+        });
+    recv_buffer.set_num(recv_offset + num_recv);
+
+    MPI_Barrier(m_cart);
+  }
 // #if CUDA_ENABLED &&                                                            \
 //     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
 //      !MPIX_CUDA_AWARE_SUPPORT)
 //   recv_buffer.copy_to_device();
 // #endif
   send_buffer.set_num(0);
-
-  MPI_Barrier(m_cart);
 }
 
 template <typename Conf>

@@ -20,6 +20,7 @@
 
 #include "core/multi_array.hpp"
 #include "data/fields.h"
+#include "data/momentum_space.hpp"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
@@ -120,6 +121,8 @@ class data_exporter : public system_t {
   template <int N>
   void write(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
+  void write(momentum_space<Conf>& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
   void write(curand_states_t& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
   template <typename T, int Rank>
@@ -170,6 +173,10 @@ class data_exporter : public system_t {
                                    extent_t<Conf::dim>& ext,
                                    index_t<Conf::dim>& pos_array,
                                    index_t<Conf::dim>& pos_file);
+  void compute_ext_offset(const extent_t<Conf::dim>& ext_total,
+                          const extent_t<Conf::dim>& ext,
+                          int downsample,
+                          index_t<Conf::dim>& offsets) const;
   void write_multi_array_helper(
       const std::string& name,
       const multi_array<float, Conf::dim, typename Conf::idx_t>& array,

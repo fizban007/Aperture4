@@ -47,6 +47,20 @@ class vec_t {
       memory[i] = v[i];
     }
   }
+  HOST_DEVICE vec_t(const T &v, const vec_t<T, Rank - 1>& vec) {
+    memory[0] = v;
+#pragma unroll
+    for (int i = 1; i < Rank; i++) {
+      memory[i] = vec[i - 1];
+    }
+  }
+  HOST_DEVICE vec_t(const vec_t<T, Rank - 1>& vec, const T &v) {
+    memory[Rank - 1] = v;
+#pragma unroll
+    for (int i = 0; i < Rank - 1; i++) {
+      memory[i] = vec[i];
+    }
+  }
   template <typename... Args, typename = all_convertible_to<T, Args...>>
   HOST_DEVICE vec_t(Args... args) : memory{T(args)...} {}
   HOST_DEVICE ~vec_t() {}
@@ -57,6 +71,13 @@ class vec_t {
   HD_INLINE const T& at(std::size_t n) const { return memory[n]; }
 
   HD_INLINE self_type& operator=(const self_type& other) = default;
+  HD_INLINE self_type& operator=(const T& v) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++) {
+      memory[i] = v;
+    }
+    return *this;
+  }
 
   template <typename U, typename = is_convertible_to<U, T>>
   HD_INLINE bool operator<(const vec_t<U, Rank>& other) const {

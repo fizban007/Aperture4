@@ -117,19 +117,22 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
-      if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+      if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
         Logger::print_info("Writing vector field {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+      } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_info("Writing scalar field {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
+      } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
+        Logger::print_info("Writing momentum space data");
+        write(*ptr, it.first, datafile, false);
+      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
         Logger::print_info("Writing 1D array {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
+      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
         Logger::print_info("Writing 2D array {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto *ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
+      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       }
@@ -163,9 +166,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
     for (auto& it : m_env.data_map()) {
       auto data = it.second.get();
-      if (auto *ptr = dynamic_cast<particle_data_t*>(data)) {
+      if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
         Logger::print_info("Writing tracked particles");
-      } else if (auto *ptr = dynamic_cast<photon_data_t*>(data)) {
+      } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
         Logger::print_info("Writing tracked photons");
       }
     }
@@ -192,9 +195,9 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
       continue;
     }
     Logger::print_info("Writing {} to snapshot", it.first);
-    if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+    if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
-    } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+    } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
     }
   }
@@ -232,12 +235,12 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
       continue;
     }
     Logger::print_info("Writing {} to snapshot", it.first);
-    if (auto *ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+    if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       read(*ptr, it.first, snapfile, true);
       if (m_comm != nullptr) {
         m_comm->send_guard_cells(*ptr);
       }
-    } else if (auto *ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+    } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       read(*ptr, it.first, snapfile, true);
       if (m_comm != nullptr) {
         m_comm->send_guard_cells(*ptr);
@@ -474,6 +477,39 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 }
 
 template <typename Conf>
+void
+data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  data.copy_to_host();
+
+  // First figure out the extent and offset of each node
+  extent_t<Conf::dim + 1> ext_total(data.m_num_bins, m_global_ext * m_downsample / data.m_downsample);
+  extent_t<Conf::dim + 1> ext = data.e_p1.extent();
+  index_t<Conf::dim + 1> idx_src = 0;
+  index_t<Conf::dim + 1> idx_dst = 0;
+  // FIXME: This again assumes a uniform grid, which is no good in the long term
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    for (int i = 1; i < Conf::dim + 1; i++) {
+      idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i - 1];
+    }
+
+    datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_e");
+    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
+    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
+    datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_p");
+    datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_p");
+    datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_p");
+  } else {
+    datafile.write(data.e_p1, name + "_p1_e");
+    datafile.write(data.e_p2, name + "_p2_e");
+    datafile.write(data.e_p3, name + "_p3_e");
+    datafile.write(data.p_p1, name + "_p1_p");
+    datafile.write(data.p_p2, name + "_p2_p");
+    datafile.write(data.p_p3, name + "_p3_p");
+  }
+}
+
+template <typename Conf>
 template <typename T, int Rank>
 void
 data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
@@ -550,6 +586,13 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
     }
   }
 }
+
+template <typename Conf>
+void
+data_exporter<Conf>::compute_ext_offset(const extent_t<Conf::dim>& ext_total,
+                                        const extent_t<Conf::dim>& ext,
+                                        int downsample,
+                                        index_t<Conf::dim>& offsets) const {}
 
 INSTANTIATE_WITH_CONFIG(data_exporter);
 

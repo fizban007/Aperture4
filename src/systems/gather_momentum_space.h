@@ -51,7 +51,7 @@ template <typename Conf>
 class gather_momentum_space_cu : public gather_momentum_space<Conf> {
  public:
   typedef typename Conf::value_t value_t;
-  static std::string name() { return "compute_lorentz_factor"; }
+  static std::string name() { return "gather_momentum_space"; }
 
   gather_momentum_space_cu(sim_environment& env, const grid_t<Conf>& grid)
       : gather_momentum_space<Conf>(env, grid) {}

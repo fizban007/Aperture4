@@ -27,6 +27,7 @@ template <typename Conf>
 void
 gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
   if (step % this->m_data_interval != 0) return;
+  this->momentum->init();
   // Convert these into things that can be passed onto the gpu
   vec_t<int, 3> num_bins(this->momentum->m_num_bins);
   vec_t<float, 3> lower(this->momentum->m_lower);
@@ -69,20 +70,20 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
               pos_out[0] = bin1;
               atomicAdd(&e_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[0], ext_out))],
                         weight);
-              pos_out[1] = bin2;
+              pos_out[0] = bin2;
               atomicAdd(&e_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[1], ext_out))],
                         weight);
-              pos_out[2] = bin3;
+              pos_out[0] = bin3;
               atomicAdd(&e_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[2], ext_out))],
                         weight);
             } else if (sp == (int)PtcType::positron) {
               pos_out[0] = bin1;
               atomicAdd(&p_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[0], ext_out))],
                         weight);
-              pos_out[1] = bin2;
+              pos_out[0] = bin2;
               atomicAdd(&p_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[1], ext_out))],
                         weight);
-              pos_out[2] = bin3;
+              pos_out[0] = bin3;
               atomicAdd(&p_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(num_bins[2], ext_out))],
                         weight);
             }

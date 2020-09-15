@@ -42,6 +42,7 @@ class gather_momentum_space : public system_t {
 
  protected:
   const grid_t<Conf>& m_grid;
+  int m_data_interval = 1;
 
   momentum_space<Conf>* momentum;
   particle_data_t* ptc;

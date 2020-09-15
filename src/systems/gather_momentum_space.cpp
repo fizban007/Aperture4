@@ -33,6 +33,7 @@ gather_momentum_space<Conf>::register_data_components() {
   this->m_env.params().get_array("momentum_lower", lim_lower);
   float lim_upper[3] = {};
   this->m_env.params().get_array("momentum_upper", lim_upper);
+  this->m_env.params().get_value("fld_output_interval", m_data_interval);
 
   momentum = m_env.register_data<momentum_space<Conf>>("momentum", m_grid, downsample, num_bins,
                                                        lim_lower, lim_upper);

@@ -26,6 +26,7 @@ namespace Aperture {
 template <typename Conf>
 void
 gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
+  if (step % this->m_data_interval != 0) return;
   // Convert these into things that can be passed onto the gpu
   vec_t<int, 3> num_bins(this->momentum->m_num_bins);
   vec_t<float, 3> lower(this->momentum->m_lower);
@@ -34,6 +35,7 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
   // Loop over the particle array to gather momentum space information
   auto num = this->ptc->number();
 
+  Logger::print_info("gathering particle momentum space");
   kernel_launch(
       [num, num_bins, lower, upper] __device__(auto ptc, auto e_p1, auto e_p2,
                                                auto e_p3, auto p_p1, auto p_p2,

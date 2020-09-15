@@ -279,28 +279,28 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaCheckError();
 
   // Apply damping to particle momenta in the region behind the alfven wave
-  value_t x_damp = time * m_muB - 0.5f;
-  value_t ptc_damping_factor = 0.999f;
-  auto num = ptc->number();
-  kernel_launch(
-      [x_damp, num, ptc_damping_factor] __device__(auto ptc) {
-        auto& grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        for (auto n : grid_stride_range(0, num)) {
-          auto cell = ptc.cell[n];
-          auto idx = Conf::idx(cell, ext);
-          auto pos = idx.get_pos();
+  // value_t x_damp = time * m_muB - 0.5f;
+  // value_t ptc_damping_factor = 0.999f;
+  // auto num = ptc->number();
+  // kernel_launch(
+  //     [x_damp, num, ptc_damping_factor] __device__(auto ptc) {
+  //       auto& grid = dev_grid<Conf::dim>();
+  //       auto ext = grid.extent();
+  //       for (auto n : grid_stride_range(0, num)) {
+  //         auto cell = ptc.cell[n];
+  //         auto idx = Conf::idx(cell, ext);
+  //         auto pos = idx.get_pos();
 
-          auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
-          if (x < x_damp) {
-            ptc.p1[n] *= ptc_damping_factor;
-            ptc.p2[n] *= ptc_damping_factor;
-            ptc.p3[n] *= ptc_damping_factor;
-            ptc.E[n] = math::sqrt(1.0f + ptc.p1[n] * ptc.p1[n] + ptc.p2[n] * ptc.p2[n]
-                                  + ptc.p3[n] * ptc.p3[n]);
-          }
-        }
-      }, ptc->get_dev_ptrs());
+  //         auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
+  //         if (x < x_damp) {
+  //           ptc.p1[n] *= ptc_damping_factor;
+  //           ptc.p2[n] *= ptc_damping_factor;
+  //           ptc.p3[n] *= ptc_damping_factor;
+  //           ptc.E[n] = math::sqrt(1.0f + ptc.p1[n] * ptc.p1[n] + ptc.p2[n] * ptc.p2[n]
+  //                                 + ptc.p3[n] * ptc.p3[n]);
+  //         }
+  //       }
+  //     }, ptc->get_dev_ptrs());
 }
 
 template class boundary_condition<Config<2>>;

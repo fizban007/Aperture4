@@ -62,9 +62,9 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
             auto p2 = ptc.p2[n];
             auto p3 = ptc.p3[n];
 
-            int bin1 = floor((p1 - lower[0]) / (upper[0] - lower[0]) * num_bins[0]);
-            int bin2 = floor((p2 - lower[1]) / (upper[1] - lower[1]) * num_bins[1]);
-            int bin3 = floor((p3 - lower[2]) / (upper[2] - lower[2]) * num_bins[2]);
+            int bin1 = floor((p1 - lower[0]) / (upper[0] - lower[0]) * (num_bins[0] - 1));
+            int bin2 = floor((p2 - lower[1]) / (upper[1] - lower[1]) * (num_bins[1] - 1));
+            int bin3 = floor((p3 - lower[2]) / (upper[2] - lower[2]) * (num_bins[2] - 1));
 
             if (sp == (int)PtcType::electron) {
               pos_out[0] = bin1;

@@ -53,30 +53,39 @@ class momentum_space : public data_t {
       m_upper[i] = upper[i];
     }
     ext[0] = m_num_bins[0];
+    Logger::print_info("resizing p1 to {}x{}x{}", ext[0], ext[1], ext[2]);
     e_p1.resize(ext);
     p_p1.resize(ext);
     ext[0] = m_num_bins[1];
+    Logger::print_info("resizing p2 to {}x{}x{}", ext[0], ext[1], ext[2]);
     e_p2.resize(ext);
     p_p2.resize(ext);
     ext[0] = m_num_bins[2];
+    Logger::print_info("resizing p3 to {}x{}x{}", ext[0], ext[1], ext[2]);
     e_p3.resize(ext);
     p_p3.resize(ext);
   }
 
   void init() override {
+#ifdef CUDA_ENABLED
     e_p1.assign_dev(0.0f);
     e_p2.assign_dev(0.0f);
     e_p3.assign_dev(0.0f);
+#else
     e_p1.assign(0.0f);
     e_p2.assign(0.0f);
     e_p3.assign(0.0f);
+#endif
 
+#ifdef CUDA_ENABLED
     p_p1.assign_dev(0.0f);
     p_p2.assign_dev(0.0f);
     p_p3.assign_dev(0.0f);
+#else
     p_p1.assign(0.0f);
     p_p2.assign(0.0f);
     p_p3.assign(0.0f);
+#endif
   }
 
   void copy_to_host() {

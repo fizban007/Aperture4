@@ -170,7 +170,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
   Scalar Bwave = 0.1 * Bp;
-  int mult_wave = 2;
+  int mult_wave = 1;
 
   alfven_wave_solution wave(sinth, 1.0, 0.05, 4.0, 2.0, Bwave);
 

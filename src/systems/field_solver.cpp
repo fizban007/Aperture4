@@ -99,6 +99,8 @@ field_solver<Conf>::init() {
   }
   this->m_env.params().get_value("fld_output_interval", m_data_interval);
 
+  this->m_env.params().get_value("update_e", m_update_e);
+  this->m_env.params().get_value("update_b", m_update_b);
 }
 
 template <typename Conf>

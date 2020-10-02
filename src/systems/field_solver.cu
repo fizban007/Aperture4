@@ -234,14 +234,17 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   }
 
-  compute_b_update_explicit_cu(*(this->B), *(this->E), dt);
+  if (this->m_update_b) {
+    compute_b_update_explicit_cu(*(this->B), *(this->E), dt);
+    // Communicate the new B values to guard cells
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+  }
 
-  // Communicate the new B values to guard cells
-  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-
-  compute_e_update_explicit_cu(*(this->E), *(this->B), *(this->J), dt);
-  // Communicate the new E values to guard cells
-  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+  if (this->m_update_e) {
+    compute_e_update_explicit_cu(*(this->E), *(this->B), *(this->J), dt);
+    // Communicate the new E values to guard cells
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+  }
 
   if (this->m_comm != nullptr) {
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B),

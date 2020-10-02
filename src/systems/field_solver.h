@@ -58,6 +58,8 @@ class field_solver : public system_t {
   double m_alpha = 0.45;
   double m_beta = 0.55;
   int m_data_interval = 100;
+  bool m_update_e = true;
+  bool m_update_b = true;
 
   // These are temporary fields used in the semi-implicit update
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;

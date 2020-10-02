@@ -263,7 +263,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto ext_damping = extent(damping_length, grid.dims[1]);
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+        for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           // auto n0_start = grid.dims[0] - damping_length;
           // auto xh = grid.template pos<0>(n0_start, true);
           // for (int n0 = n0_start; n0 < grid.dims[0]; n0++) {
@@ -303,15 +303,16 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           //   }
           // }
           for (int i = 0; i < damping_length; i++) {
-            int n0 = grid.dims[0] - damping_length + i;
+            int n1 = i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t lambda =
-                1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+            // value_t lambda =
+            //     1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+            value_t lambda = 0.0f;
             e[0][idx] *= lambda;
-            e[1][idx] *= lambda;
-            e[2][idx] *= lambda;
-            b[1][idx] *= lambda;
-            b[2][idx] *= lambda;
+            // e[1][idx] *= lambda;
+            // e[2][idx] *= lambda;
+            // b[1][idx] *= lambda;
+            // b[2][idx] *= lambda;
           }
         }
       },
@@ -319,62 +320,6 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
       m_damping_length, m_damping_coef);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
-
-  // Store the current values of the field for the damping boundary of next time
-  // step
-  // kernel_launch([] __device__(auto e, auto prev_e, auto b, auto prev_b,
-  //                             auto damping_length) {
-  //     auto& grid = dev_grid<Conf::dim>();
-  //     auto ext = grid.extent();
-  //     auto ext_damping = extent(damping_length, grid.dims[1]);
-  //     for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-  //       auto n0_start = grid.dims[0] - damping_length;
-  //       for (int n0 = n0_start; n0 < grid.dims[0]; n0++) {
-  //         auto pos = index(n0, n1);
-  //         auto idx = idx_t(pos, ext);
-  //         auto idx_damping = idx_t(index(n0 - n0_start, n1), ext_damping);
-
-  //         prev_e[0][idx_damping] = e[0][idx];
-  //         prev_e[1][idx_damping] = e[1][idx];
-  //         prev_e[2][idx_damping] = e[2][idx];
-  //         prev_b[0][idx_damping] = b[0][idx];
-  //         prev_b[1][idx_damping] = b[1][idx];
-  //         prev_b[2][idx_damping] = b[2][idx];
-  //       }
-  //     }
-  //   }, E->get_ptrs(), m_prev_E.dev_ptr(), B->get_ptrs(), m_prev_B.dev_ptr(), m_damping_length);
-  // CudaSafeCall(cudaDeviceSynchronize());
-  // CudaCheckError();
-
-  // Inject particles
-  // if (step % 1 == 0 && time > m_tp_start && time < m_tp_end) {
-  //   inject_particles<Conf>(*ptc, *rand_states, m_surface_ne, m_surface_np, 1,
-  //                          0.2, m_grid, wpert, 1);
-  // }
-
-  // Apply damping to particle momenta in the region behind the alfven wave
-  value_t x_damp = time * m_muB - 0.5f;
-  value_t ptc_damping_factor = 0.99f;
-  auto num = ptc->number();
-  kernel_launch(
-      [x_damp, num, ptc_damping_factor] __device__(auto ptc) {
-        auto& grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        for (auto n : grid_stride_range(0, num)) {
-          auto cell = ptc.cell[n];
-          auto idx = Conf::idx(cell, ext);
-          auto pos = idx.get_pos();
-
-          auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
-          if (x < x_damp) {
-            ptc.p1[n] *= ptc_damping_factor;
-            ptc.p2[n] *= ptc_damping_factor;
-            ptc.p3[n] *= ptc_damping_factor;
-            ptc.E[n] = math::sqrt(1.0f + ptc.p1[n] * ptc.p1[n] + ptc.p2[n] * ptc.p2[n]
-                                  + ptc.p3[n] * ptc.p3[n]);
-          }
-        }
-      }, ptc->get_dev_ptrs());
 }
 
 template class boundary_condition<Config<2>>;

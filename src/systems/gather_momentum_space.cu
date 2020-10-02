@@ -58,9 +58,9 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
 
-            auto p1 = ptc.p1[n];
-            auto p2 = ptc.p2[n];
-            auto p3 = ptc.p3[n];
+            auto p1 = clamp(ptc.p1[n], lower[0], upper[0]);
+            auto p2 = clamp(ptc.p2[n], lower[1], upper[1]);
+            auto p3 = clamp(ptc.p3[n], lower[2], upper[2]);
 
             int bin1 = floor((p1 - lower[0]) / (upper[0] - lower[0]) * (num_bins[0] - 1));
             int bin2 = floor((p2 - lower[1]) / (upper[1] - lower[1]) * (num_bins[1] - 1));

@@ -23,6 +23,7 @@
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
+#include "systems/gather_momentum_space.h"
 #include "systems/ph_freepath_dev.h"
 #include "systems/ptc_updater.h"
 #include <iostream>
@@ -53,8 +54,10 @@ int main(int argc, char *argv[]) {
   auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, grid, &comm);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(env, grid);
+  auto momentum =
+      env.register_system<gather_momentum_space_cu<Conf>>(env, grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(env, grid, &comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid, comm);
   auto exporter = env.register_system<data_exporter<Conf>>(env, grid, &comm);
 
@@ -70,7 +73,7 @@ int main(int argc, char *argv[]) {
   env.get_data("rand_states", &states);
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
-  initial_condition_two_stream(env, *Bdelta, *Edelta, *B0, *ptc, *states, 10, 0.0);
+  initial_condition_two_stream(env, *Bdelta, *Edelta, *B0, *ptc, *states, 30, 0.0);
 
   env.run();
   return 0;

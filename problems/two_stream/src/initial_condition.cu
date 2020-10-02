@@ -36,18 +36,31 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
 
+  // Scalar j = env.params().get_as<double>("j_parallel", 100.0);
+  Scalar p0 = env.params().get_as<double>("p_0", 0.0);
+  Scalar gamma0 = math::sqrt(1.0 + p0 * p0);
+  Scalar beta0 = p0 / gamma0;
+  Scalar j = (mult - 5) * q_e * beta0;
+  Scalar delta_p = env.params().get_as<double>("delta_p", 0.0);
+  // Scalar p0 = env.params().get_as<double>("p_0", 0.0);
+  auto& grid = B.grid();
+
   B0.set_values(
       0, [Bp](Scalar x, Scalar y, Scalar z) { return Bp; });
-  E.set_values(
-      0, [Bp](Scalar x, Scalar y, Scalar z) { return 0.01*Bp; });
+  B.set_values(
+      2, [j](Scalar x, Scalar y, Scalar z) { return 0.5 * j * (2.0 * y - 1.0); });
+  // E.set_values(
+      // 0, [Bp](Scalar x, Scalar y, Scalar z) { return 0.01*Bp; });
 
   auto num = ptc.number();
 
   kernel_launch(
-      [mult, num, q_e, p_init, Bp] __device__(auto ptc, auto states, auto w) {
+      [mult, num, q_e, p0, delta_p, Bp] __device__(auto ptc, auto states, auto w) {
         // int mult = 1;
         auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
+        Scalar gamma0 = sqrt(1.0f + p0 * p0);
+        Scalar beta0 = p0 / gamma0;
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
         for (auto n : grid_stride_range(0, ext.size())) {
@@ -66,17 +79,22 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
               Scalar y = grid.template pos<1>(pos[1], ptc.x2[offset]);
 
               // ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
-              Scalar u = rng();
-              if (u < 0.5f) {
-                // ptc.p1[offset] = ptc.p1[offset + 1] = p_init;
-                ptc.p1[offset] = p_init + 0.1f * p_init * (rng() - 0.5f);
-                ptc.p1[offset + 1] = p_init + 0.1f * p_init * (rng() - 0.5f);
-              } else {
-                ptc.p1[offset] = -p_init + 0.1f * p_init * (rng() - 0.5f);
-                ptc.p1[offset + 1] = -p_init + 0.1f * p_init * (rng() - 0.5f);
-              }
-              // ptc.p1[offset] = 0.0f;
-              // ptc.p1[offset + 1] = -
+              // Scalar u = rng();
+              // if (u < 0.5f) {
+              //   // ptc.p1[offset] = ptc.p1[offset + 1] = p_init;
+              //   ptc.p1[offset] = p_init + 0.1f * p_init * (rng() - 0.5f);
+              //   ptc.p1[offset + 1] = p_init + 0.1f * p_init * (rng() - 0.5f);
+              // } else {
+              //   ptc.p1[offset] = -p_init + 0.1f * p_init * (rng() - 0.5f);
+              //   ptc.p1[offset + 1] = -p_init + 0.1f * p_init * (rng() - 0.5f);
+              // }
+              ptc.p1[offset + 1] = rng.gaussian(delta_p);
+              Scalar p = rng.gaussian(0.3 * delta_p);
+              Scalar g = sqrt(1.0f + p * p);
+              if (i < 5)
+                ptc.p1[offset] = rng.gaussian(delta_p);
+              else
+                ptc.p1[offset] = gamma0 * (p - g * beta0);
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
               ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
               ptc.E[offset] = math::sqrt(1.0f + ptc.p1[offset] * ptc.p1[offset]);
@@ -96,7 +114,7 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
       },
       ptc.dev_ptrs(), states.states(), 1.0);
   CudaSafeCall(cudaDeviceSynchronize());
-  ptc.set_num(num + 2 * mult * B0.grid().extent().size());
+  ptc.set_num(num + 2 * mult * grid.extent().size());
 }
 
 template void initial_condition_two_stream<Config<2>>(

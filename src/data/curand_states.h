@@ -41,6 +41,10 @@ struct cuda_rng_t {
     return curand_uniform(&m_local_state);
   }
 
+  __device__ __forceinline__ float gaussian(float sigma) {
+    return curand_normal(&m_local_state) * sigma;
+  }
+
   curandState* m_state;
   curandState m_local_state;
 };

@@ -41,25 +41,27 @@ def make_plot(step):
         (data.J1 * data.B1 + data.J2 * data.B2 + data.J3 * data.B3) / data.B,
         # data.Rho_p,
         (data.E1 * data.B1 + data.E2 * data.B2 + data.E3 * data.B3) / data.B,
-        (data.Rho_p - data.Rho_e) / np.maximum(1e-5, data.J),
+        # (data.Rho_p - data.Rho_e) / np.maximum(1e-5, data.J),
+        data.Rho_e,
         data.gamma_e,
         data.gamma_p,
     ]
     titles = [
         "$B_z$",
         # r"$\rho_e$",
-        r"$J\cdot B/B$",
-        r"$E\cdot B/B$",
-        r"$|\rho_p - \rho_e| / J$",
+        r"$J_\parallel$",
+        r"$E_\parallel$",
+        # r"$|\rho_p - \rho_e| / J$",
+        r"$\rho_e$",
         r"$\gamma_e$",
         r"$\gamma_p$",
     ]
-    lims = [6e2, 6e3, 10.0, 10.0, 20.0, 20.0]
+    lims = [5e2, 5e3, 10.0, 5e3, 20.0, 20.0]
     ticksize = 22
     labelsize = 30
 
     for i in range(len(plot_data)):
-        if i < 3:
+        if i < 4:
             pmesh = axes[i].pcolormesh(
                 data.x1,
                 data.x2,
@@ -69,16 +71,16 @@ def make_plot(step):
                 vmax=lims[i],
                 shading="gouraud"
             )
-        elif i == 3:
-            pmesh = axes[i].pcolormesh(
-                data.x1,
-                data.x2,
-                plot_data[i],
-                cmap=plt.get_cmap("Paired"),
-                vmin=0,
-                vmax=lims[i],
-                shading="gouraud"
-            )
+        # elif i == 3:
+        #     pmesh = axes[i].pcolormesh(
+        #         data.x1,
+        #         data.x2,
+        #         plot_data[i],
+        #         cmap=plt.get_cmap("Paired"),
+        #         vmin=0,
+        #         vmax=lims[i],
+        #         shading="gouraud"
+        #     )
         else:
             pmesh = axes[i].pcolormesh(
                 data.x1,
@@ -100,7 +102,7 @@ def make_plot(step):
         cb.ax.set_ylabel(titles[i], fontsize=labelsize, rotation=270, labelpad=20)
     #     cb.ax.set_title(titles[i], fontsize=labelsize)
 
-    axes[0].text(8, 1.3, f"Time = {time:.2f}", fontsize=labelsize)
+    axes[0].text(0.8 * data.conf['size'][0], 1.2 * data.conf['size'][1], f"Time = {time:.2f}", fontsize=labelsize)
     fig.savefig("plots/%05d.png" % step, bbox_inches='tight')
     plt.close(fig)
 

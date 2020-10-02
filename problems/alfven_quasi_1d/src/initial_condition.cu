@@ -130,6 +130,7 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
                      Scalar q_e, int mult, int mult_wave) {
   // num_per_cell.assign_dev(2 * mult);
   kernel_launch([q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
+      // q_e *= 10.0;
       auto &grid = dev_grid<Conf::dim>();
       auto ext = grid.extent();
 
@@ -169,7 +170,9 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   Scalar sinth = env.params().get_as<double>("muB", 0.1);
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
-  Scalar Bwave = 0.1 * Bp;
+  q_e *= 10.0;
+  Scalar Bwave_factor = env.params().get_as<double>("waveB", 0.1);
+  Scalar Bwave = Bwave_factor * Bp;
   int mult_wave = 1;
 
   alfven_wave_solution wave(sinth, 1.0, 0.05, 4.0, 2.0, Bwave);
@@ -267,7 +270,6 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
           auto idx = Conf::idx(cell, ext);
           auto pos = idx.get_pos();
           // auto idx_row = idx_row_major_t<Conf::dim>(pos, ext);
-          Scalar weight = w;
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < num_per_cell[idx]; i++) {
               uint32_t offset = num + cum_num_per_cell[idx] + i;
@@ -278,8 +280,10 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
 
               ptc.cell[offset] = cell;
 
-              // Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
               if (i < mult * 2) {
+                Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+                Scalar weight = w * (1.0f + 29.0f * (1.0f - x / grid.sizes[0]));
+                // Scalar weight = w;
                 ptc.p1[offset] = 0.0f;
                 ptc.p2[offset] = 0.0f;
                 ptc.p3[offset] = 0.0f;
@@ -307,12 +311,12 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                 ptc.p2[offset] = v * wave.costh * gamma;
                 ptc.p3[offset] = v_d * gamma;
                 ptc.E[offset] = gamma;
-                ptc.weight[offset] = math::abs(rho) / num / q_e;
+                ptc.weight[offset] = 10.0f * math::abs(rho) / num / q_e;
                 if (i < mult * 2 + mult_wave * num) {
-                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::initial),
                                                        ((rho < 0.0f) ? PtcType::positron : PtcType::electron));
                 } else {
-                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::initial),
                                                        ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
                 }
               }

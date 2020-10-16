@@ -318,7 +318,7 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
 
   HD_INLINE self_type dec_y(int n = 1) const {
     auto result = *this;
-    // result.pos[1] += n;
+    // result.pos[1] -= n;
     auto m = morton2(result.linear).decY(n);
     result.linear = m.key;
     return result;

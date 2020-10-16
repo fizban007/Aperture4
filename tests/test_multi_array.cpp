@@ -503,6 +503,29 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
     }
   };
 
+  auto diff_kernel2 = [N1, N2](const auto& f, auto& u) {
+    auto idx = typename std::remove_reference_t<decltype(u)>::idx_t(0, u.extent());
+    // for (auto idx : u.indices()) {
+    for (auto n : range(0, u.extent().size())) {
+      // auto pos = idx.get_pos();
+      int i = n % N1;
+      int j = n / N1;
+      if (i > 1 && j > 1 && i < N1 - 2 && j < N2 - 2) {
+        u[n] =
+            // 0.2f * (f[idx.template inc<0>(2)] - f[idx.template inc<0>(1)] +
+            //         f[idx.template dec<0>(1)] - f[idx.template dec<0>(2)]) +
+            // 0.1f * (f[idx.template inc<1>(2)] - f[idx.template inc<1>(1)] +
+            //         f[idx.template dec<1>(1)] - f[idx.template dec<1>(2)]) -
+            // 0.5f * f[idx];
+            0.2f * (f[n + 2 * idx.strides[0]] - f[n + idx.strides[0]] +
+                    f[n - idx.strides[0]] - f[n - 2 * idx.strides[0]]) +
+            0.1f * (f[n + 2 * idx.strides[1]] - f[n + idx.strides[1]] +
+                    f[n - idx.strides[1]] - f[n - 2 * idx.strides[1]]) -
+            0.5f * f[n];
+      }
+    }
+  };
+
   timer::stamp();
   diff_kernel(v1, u1);
   timer::show_duration_since_stamp("normal indexing", "ms");

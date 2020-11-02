@@ -82,8 +82,8 @@ class field_t : public data_t {
   template <typename Func>
   void set_values(int n, const Func& f) {
     if (n >= 0 && n < N) {
-      Logger::print_debug("data[{}] has extent {}x{}", n, m_data[n].extent()[0],
-                          m_data[n].extent()[1]);
+      // Logger::print_debug("data[{}] has extent {}x{}", n, m_data[n].extent()[0],
+      //                     m_data[n].extent()[1]);
       for (auto idx : m_data[n].indices()) {
         auto pos = idx.get_pos();
         double x0 = m_grid->template pos<0>(pos, m_stagger[n]);

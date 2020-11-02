@@ -277,8 +277,8 @@ struct idx_col_major_t<2>
   // Dir<Rank, self_type> inc(int n = 1) const {
   HD_INLINE self_type inc(int n = 1) const {
     // auto result = *this;
-    // result.linear = (long)linear + (Dir == 0 ? n : n * ext[0]);
-    return self_type((long)linear + (Dir == 0 ? n : n * ext[0]), ext);
+    long result = (long)linear + (Dir == 0 ? n : n * (int)ext[0]);
+    return self_type(result, ext);
   }
 
   template <int Dir>
@@ -288,7 +288,7 @@ struct idx_col_major_t<2>
     // auto result = *this;
     // result.linear = (long)linear - (Dir == 0 ? n : n * ext[0]);
     // return result;
-    return self_type((long)linear - (Dir == 0 ? n : n * ext[0]), ext);
+    return self_type((long)linear - (Dir == 0 ? n : n * (int)ext[0]), ext);
   }
 
   using base_type::operator+;

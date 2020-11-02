@@ -30,8 +30,10 @@ resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
     auto pos = idx.get_pos();
     bool in_bound = true;
     for (int i = 0; i < Rank; i++) {
-      if (pos[i] < offset_dst[i] || pos[i] >= to.extent()[i] - offset_dst[i])
+      if (pos[i] < offset_dst[i] || pos[i] >= to.extent()[i] - offset_dst[i]) {
         in_bound = false;
+        break;
+      }
     }
     if (!in_bound) continue;
     auto idx_src = from.get_idx((pos - offset_dst) * downsample + offset_src);

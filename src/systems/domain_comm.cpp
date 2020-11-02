@@ -114,7 +114,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
   // Poll the system to detect how many GPUs are on the node, set the
   // GPU corresponding to the rank
   int n_devices;
-  cudaGetDeviceCount(&n_devices);
+  CudaSafeCall(cudaGetDeviceCount(&n_devices));
   if (n_devices <= 0) {
     std::cerr << "No usable Cuda device found!!" << std::endl;
     exit(1);
@@ -378,7 +378,9 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
   //   Logger::print_info_all("Sending {} particles from rank {} to rank {}", num_send,
   //                          m_rank, dst);
   // }
-  if (m_size == 1 && m_rank == 0) {
+  // if (m_size == 1 && m_rank == 0) {
+  if (false) {
+    // Logger::print_info("Not using MPI!");
 #if CUDA_ENABLED
     auto send_ptrs = send_buffer.get_dev_ptrs();
     auto recv_ptrs = recv_buffer.get_dev_ptrs();
@@ -388,7 +390,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
 #endif
     int num_recv = num_send;
     // Logger::print_info("sending rank {}, src {}, dst {}", m_rank, src, dst);
-    if (src != MPI_PROC_NULL && dst != MPI_PROC_NULL) {
+    if (src != MPI_PROC_NULL || dst != MPI_PROC_NULL) {
       visit_struct::for_each(
           send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
 #if CUDA_ENABLED
@@ -432,18 +434,19 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
             // }
             MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                           &num_recv);
-            Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
+            // Logger::print_info_all("Rank {} received {} particles from {}", m_rank, num_recv, src);
           }
         });
     recv_buffer.set_num(recv_offset + num_recv);
 
     MPI_Barrier(m_cart);
+
+#if CUDA_ENABLED &&                                             \
+  (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||  \
+   !MPIX_CUDA_AWARE_SUPPORT)
+    recv_buffer.copy_to_device();
+#endif
   }
-// #if CUDA_ENABLED &&                                                            \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-//   recv_buffer.copy_to_device();
-// #endif
   send_buffer.set_num(0);
 }
 

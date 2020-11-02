@@ -167,10 +167,11 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
                        particle_data_t &ptc, curand_states_t &states, int mult,
                        Scalar weight) {
+  Scalar weight_enhance_factor = 1.0f;
   Scalar sinth = env.params().get_as<double>("muB", 0.1);
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
-  q_e *= 10.0;
+  q_e *= weight_enhance_factor;
   Scalar Bwave_factor = env.params().get_as<double>("waveB", 0.1);
   Scalar Bwave = Bwave_factor * Bp;
   int mult_wave = 1;
@@ -260,8 +261,8 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   // Initialize the particles
   num = ptc.number();
   kernel_launch(
-      [mult, mult_wave, num, q_e, wave, Bp] __device__(auto ptc, auto states, auto w,
-                                                       auto num_per_cell, auto cum_num_per_cell) {
+      [mult, mult_wave, num, q_e, wave, Bp, weight_enhance_factor]
+      __device__(auto ptc, auto states, auto w, auto num_per_cell, auto cum_num_per_cell) {
         auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -279,18 +280,21 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               ptc.x3[offset] = 0.0f;
 
               ptc.cell[offset] = cell;
+              Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
 
               if (i < mult * 2) {
-                Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
-                Scalar weight = w * (1.0f + 29.0f * (1.0f - x / grid.sizes[0]));
-                // Scalar weight = w;
-                ptc.p1[offset] = 0.0f;
-                ptc.p2[offset] = 0.0f;
-                ptc.p3[offset] = 0.0f;
-                ptc.E[offset] = 1.0f;
-                ptc.weight[offset] = weight;
-                ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                     ((i % 2 == 0) ? PtcType::electron : PtcType::positron));
+                if (x < 0.4 * grid.sizes[0]) {
+                  // Scalar weight = w * (1.0f + 29.0f * (1.0f - x / grid.sizes[0]));
+                  Scalar weight = w;
+                  // if (x > 0.4 * grid.sizes[0]) weight *= 0.02;
+                  ptc.p1[offset] = 0.0f;
+                  ptc.p2[offset] = 0.0f;
+                  ptc.p3[offset] = 0.0f;
+                  ptc.E[offset] = 1.0f;
+                  ptc.weight[offset] = weight;
+                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+                                                       ((i % 2 == 0) ? PtcType::electron : PtcType::positron));
+                }
               } else {
                 Scalar x = grid.template pos<0>(pos, 0.0f);
                 Scalar y = grid.template pos<1>(pos, 0.0f);
@@ -311,7 +315,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                 ptc.p2[offset] = v * wave.costh * gamma;
                 ptc.p3[offset] = v_d * gamma;
                 ptc.E[offset] = gamma;
-                ptc.weight[offset] = 10.0f * math::abs(rho) / num / q_e;
+                ptc.weight[offset] = weight_enhance_factor * math::abs(rho) / num / q_e;
                 if (i < mult * 2 + mult_wave * num) {
                   ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::initial),
                                                        ((rho < 0.0f) ? PtcType::positron : PtcType::electron));

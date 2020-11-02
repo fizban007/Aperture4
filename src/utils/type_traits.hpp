@@ -27,6 +27,7 @@ struct less_than {
   enum { value = A < B };
 };
 
+
 // This implementation of conjunction is taken from
 // https://www.fluentcpp.com/2019/01/25/variadic-number-function-parameters-type/
 // In c++17 there is std::conjunction, but this implementation is to keep

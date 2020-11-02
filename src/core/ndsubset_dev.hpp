@@ -82,8 +82,10 @@ class ndsubset_dev_t {
                                         col_idx_t(ext.size(), ext))) {
         // Always use column major inside loop to simplify conversion
         // between different indexing schemes
-        op(dst.at_dev(dst_pos + idx.get_pos()),
-           src.at_dev(src_pos + idx.get_pos()));
+        // op(dst.at_dev(dst_pos + idx.get_pos()),
+        //    src.at_dev(src_pos + idx.get_pos()));
+        op(dst.at_dev(dst_pos + get_pos(idx, ext)),
+           src.at_dev(src_pos + get_pos(idx, ext)));
       }
     };
     exec_policy p;
@@ -105,7 +107,8 @@ class ndsubset_dev_t {
            grid_stride_range(col_idx_t(0, ext), col_idx_t(ext.size(), ext))) {
         // Always use column major inside loop to simplify conversion
         // between different indexing schemes
-        op(dst.at_dev(pos + idx.get_pos()), src.at_dev(pos + idx.get_pos()));
+        // op(dst.at_dev(pos + idx.get_pos()), src.at_dev(pos + idx.get_pos()));
+        op(dst.at_dev(pos + get_pos(idx, ext)), src.at_dev(pos + get_pos(idx, ext)));
       }
     };
     exec_policy p;
@@ -125,7 +128,8 @@ class ndsubset_dev_t {
                                             col_idx_t(ext.size(), ext))) {
             // Always use column major inside loop to simplify conversion
             // between different indexing schemes
-            op(dst.at_dev(pos + idx.get_pos()));
+            // op(dst.at_dev(pos + idx.get_pos()));
+            op(dst.at_dev(pos + get_pos(idx, ext)));
           }
         };
     exec_policy p;

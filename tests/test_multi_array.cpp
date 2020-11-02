@@ -28,6 +28,14 @@
 
 using namespace Aperture;
 
+struct Tuple {
+  int32_t x, y;
+};
+
+// inline index_t<2> get_pos(const idx_col_major_t<2>& idx, const extent_t<2>& ext) {
+//   return index_t<2>(idx.linear % ext[0], idx.linear / ext[0]);
+// }
+
 TEST_CASE("Morton incX and incY", "[morton]") {
   SECTION("2d case") {
     auto m = morton2(10, 5);
@@ -328,10 +336,10 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
   // }
 }
 
-TEST_CASE("Performance of interpolation on CPU",
+TEST_CASE("Performance of 3d interpolation on CPU",
           "[multi_array][performance][.]") {
   Logger::print_info("3d interpolation");
-  uint32_t N = 8;
+  uint32_t N = 128;
   uint32_t N1 = N, N2 = N, N3 = N;
   std::default_random_engine g;
   std::uniform_real_distribution<float> dist(0.0, 1.0);
@@ -371,29 +379,33 @@ TEST_CASE("Performance of interpolation on CPU",
     // cells1[n]
     auto c = cell_dist(g);
     auto pos = v1.idx_at(c).get_pos();
-    cells1[n] = v1.get_idx(std::min(pos[0], int(N1 - 2)),
-                          std::min(pos[1], int(N2 - 2)),
-                          std::min(pos[2], int(N3 - 2))).linear;
-    auto idx = v2.get_idx(std::min(pos[0], int(N1 - 2)),
-                          std::min(pos[1], int(N2 - 2)),
-                          std::min(pos[2], int(N3 - 2)));
+    cells1[n] =
+        v1.get_idx(clamp(pos[0], 2, int(N1 - 3)), clamp(pos[1], 2, int(N2 - 3)),
+                   clamp(pos[2], 2, int(N3 - 3)))
+            .linear;
+    auto idx =
+        v2.get_idx(clamp(pos[0], 2, int(N1 - 3)), clamp(pos[1], 2, int(N2 - 3)),
+                   clamp(pos[2], 2, int(N3 - 3)));
     cells2[n] = idx.linear;
     result1[n] = 0.0f;
     result2[n] = 0.0f;
   }
-  // std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
-  // std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
+  std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
+  std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
 
   auto interp_kernel = [N1, N2, N3, M](const auto& f, float* result, float* xs,
                                        float* ys, float* zs, uint32_t* cells,
-                                       auto ext) {
+                                       const auto& ext) {
+    auto interp = interpolator<bspline<1>, 3>{};
     for (uint32_t i : range(0, M)) {
       uint32_t cell = cells[i];
       auto idx = f.idx_at(cell);
-      auto pos = idx.get_pos();
-      if (pos[0] < N1 - 1 && pos[1] < N2 - 1 && pos[2] < N3 - 1) {
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
+      if (pos[0] < N1 - 2 && pos[1] < N2 - 2 && pos[2] < N3 - 2) {
         // result[i] = x;
-        result[i] = lerp3(f, xs[i], ys[i], zs[i], idx);
+        // result[i] = lerp3(f, xs[i], ys[i], zs[i], idx);
+        result[i] = interp(f, vec_t<float, 3>(xs[i], ys[i], zs[i]), idx);
       }
     }
   };
@@ -406,6 +418,91 @@ TEST_CASE("Performance of interpolation on CPU",
   timer::stamp();
   interp_kernel(v2, result2.host_ptr(), xs.host_ptr(), ys.host_ptr(),
                 zs.host_ptr(), cells2.host_ptr(), ext);
+  timer::show_duration_since_stamp("morton indexing", "ms");
+
+  // for (auto idx : range(0, result1.size())) {
+  //   CHECK(result1[idx] == result2[idx]);
+  // }
+}
+
+TEST_CASE("Performance of 2d interpolation on CPU",
+          "[multi_array][performance][.]") {
+  Logger::print_info("2d interpolation");
+  uint32_t N = 1024;
+  uint32_t N1 = N, N2 = N;
+  std::default_random_engine g;
+  std::uniform_real_distribution<float> dist(0.0, 1.0);
+  std::uniform_int_distribution<uint32_t> cell_dist(0, N1 * N2);
+
+  auto ext = extent(N1, N2);
+
+  auto v1 = make_multi_array<float, idx_col_major_t>(ext, MemType::host_only);
+  auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_only);
+
+  for (auto idx : v1.indices()) {
+    auto pos = idx.get_pos();
+    v1[idx] = float(0.3 * pos[0] + 0.4 * pos[1]);
+  }
+  for (auto idx : v2.indices()) {
+    auto pos = idx.get_pos();
+    v2[idx] = float(0.3 * pos[0] + 0.4 * pos[1]);
+  }
+  for (auto idx : v1.indices()) {
+    auto pos = idx.get_pos();
+    REQUIRE(v1(pos[0], pos[1]) == v2(pos[0], pos[1]));
+  }
+
+  // Generate M random numbers
+  int M = 1000000;
+  buffer<float> xs(M, MemType::host_only);
+  buffer<float> ys(M, MemType::host_only);
+  // buffer<float> zs(M, MemType::host_only);
+  buffer<float> result1(M, MemType::host_only);
+  buffer<float> result2(M, MemType::host_only);
+  buffer<uint32_t> cells1(M, MemType::host_only);
+  buffer<uint32_t> cells2(M, MemType::host_only);
+  for (int n = 0; n < M; n++) {
+    xs[n] = dist(g);
+    ys[n] = dist(g);
+    // zs[n] = dist(g);
+    // cells1[n]
+    auto c = cell_dist(g);
+    auto pos = v1.idx_at(c).get_pos();
+    cells1[n] = v1.get_idx(clamp(pos[0], 2, int(N1 - 3)),
+                          clamp(pos[1], 2, int(N2 - 3))).linear;
+    auto idx = v2.get_idx(clamp(pos[0], 2, int(N1 - 3)),
+                          clamp(pos[1], 2, int(N2 - 3)));
+    cells2[n] = idx.linear;
+    result1[n] = 0.0f;
+    result2[n] = 0.0f;
+  }
+  // std::sort(cells1.host_ptr(), cells1.host_ptr() + cells1.size());
+  // std::sort(cells2.host_ptr(), cells2.host_ptr() + cells2.size());
+
+  auto interp_kernel = [N1, N2, M](const auto& f, float* result, float* xs,
+                                       float* ys, uint32_t* cells,
+                                   const auto& ext) {
+    auto interp = interpolator<bspline<1>, 2>{};
+    for (uint32_t i : range(0, M)) {
+      uint32_t cell = cells[i];
+      auto idx = f.idx_at(cell);
+      auto pos = get_pos(idx, ext);
+      if (pos[0] < N1 - 2 && pos[1] < N2 - 2) {
+        // result[i] = x;
+        // result[i] = lerp2(f, xs[i], ys[i], idx);
+        result[i] = interp(f, vec_t<float, 3>(xs[i], ys[i], 0.0f), idx);
+      }
+    }
+  };
+
+  timer::stamp();
+  interp_kernel(v1, result1.host_ptr(), xs.host_ptr(), ys.host_ptr(),
+                cells1.host_ptr(), ext);
+  timer::show_duration_since_stamp("normal indexing", "ms");
+
+  timer::stamp();
+  interp_kernel(v2, result2.host_ptr(), xs.host_ptr(), ys.host_ptr(),
+                cells2.host_ptr(), ext);
   timer::show_duration_since_stamp("morton indexing", "ms");
 
   for (auto idx : range(0, result1.size())) {
@@ -437,14 +534,16 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
     u2[idx] = 0.0f;
   }
   for (auto idx : v1.indices()) {
-    auto pos = idx.get_pos();
+    // auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
     REQUIRE(v1(pos[0], pos[1], pos[2]) == v2(pos[0], pos[1], pos[2]));
     REQUIRE(u1(pos[0], pos[1], pos[2]) == u2(pos[0], pos[1], pos[2]));
   }
 
-  auto diff_kernel = [N1, N2, N3](const auto& f, auto& u) {
+  auto diff_kernel = [N1, N2, N3, ext](const auto& f, auto& u) {
     for (auto idx : u.indices()) {
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
       if (pos[0] > 1 && pos[1] > 1 && pos[2] > 1 && pos[0] < N1 - 2 &&
           pos[1] < N2 - 2 && pos[2] < N3 - 2) {
         u[idx] =
@@ -504,24 +603,24 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
       auto pos = idx.get_pos();
       if (pos[0] > 1 && pos[1] > 1 && pos[0] < N1 - 2 && pos[1] < N2 - 2) {
         u[idx] =
-            0.2f * (f[idx.template inc<0>(2)] - f[idx.template inc<0>(1)] +
-                    f[idx.template dec<0>(1)] - f[idx.template dec<0>(2)]) +
-            0.1f * (f[idx.template inc<1>(2)] - f[idx.template inc<1>(1)] +
-                    f[idx.template dec<1>(1)] - f[idx.template dec<1>(2)]) -
+            0.2f * (f[idx.inc_x(2)] - f[idx.inc_x(1)] +
+                    f[idx.dec_x(1)] - f[idx.dec_x(2)]) +
+            0.1f * (f[idx.inc_y(2)] - f[idx.inc_y(1)] +
+                    f[idx.dec_y(1)] - f[idx.dec_y(2)]) -
             0.5f * f[idx];
       }
     }
   };
 
-  auto diff_kernel3 = [N1, N2](const auto& f, auto& u) {
+  auto diff_kernel3 = [N1, N2, ext](const auto& f, auto& u) {
     for (auto idx : u.indices()) {
-      auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
       if (pos[0] > 1 && pos[1] > 1 && pos[0] < N1 - 2 && pos[1] < N2 - 2) {
         u[idx] =
-            0.2f * (f[idx + index(2, 0)] - f[idx + index(1, 0)] +
-                    f[idx - index(1, 0)] - f[idx - index(2, 0)]) +
-            0.1f * (f[idx + index(0, 2)] - f[idx + index(0, 1)] +
-                    f[idx - index(0, 1)] - f[idx - index(0, 2)]) -
+            0.2f * (f[idx.inc_x(2)] - f[idx.inc_x(1)] +
+                    f[idx.dec_x(1)] - f[idx.dec_x(2)]) +
+            0.1f * (f[idx.inc_y(2)] - f[idx.inc_y(1)] +
+                    f[idx.dec_y(1)] - f[idx.dec_y(2)]) -
             0.5f * f[idx];
       }
     }

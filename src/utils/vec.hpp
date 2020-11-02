@@ -34,27 +34,27 @@ namespace Aperture {
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T, int Rank>
 class vec_t {
- private:
+ protected:
   T memory[Rank] = {};
 
  public:
   typedef vec_t<T, Rank> self_type;
 
-  HOST_DEVICE vec_t() {}
-  HOST_DEVICE vec_t(const T (&v)[Rank]) {
+  HD_INLINE vec_t() {}
+  HD_INLINE vec_t(const T (&v)[Rank]) {
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
       memory[i] = v[i];
     }
   }
-  HOST_DEVICE vec_t(const T &v, const vec_t<T, Rank - 1>& vec) {
+  HD_INLINE vec_t(const T &v, const vec_t<T, Rank - 1>& vec) {
     memory[0] = v;
 #pragma unroll
     for (int i = 1; i < Rank; i++) {
       memory[i] = vec[i - 1];
     }
   }
-  HOST_DEVICE vec_t(const vec_t<T, Rank - 1>& vec, const T &v) {
+  HD_INLINE vec_t(const vec_t<T, Rank - 1>& vec, const T &v) {
     memory[Rank - 1] = v;
 #pragma unroll
     for (int i = 0; i < Rank - 1; i++) {
@@ -62,8 +62,10 @@ class vec_t {
     }
   }
   template <typename... Args, typename = all_convertible_to<T, Args...>>
-  HOST_DEVICE vec_t(Args... args) : memory{T(args)...} {}
-  HOST_DEVICE ~vec_t() {}
+  HD_INLINE vec_t(Args... args) : memory{T(args)...} {}
+  HD_INLINE vec_t(const self_type& vec) = default;
+  HD_INLINE vec_t(self_type&& vec) = default;
+  HD_INLINE ~vec_t() {}
 
   HD_INLINE T& operator[](std::size_t n) { return memory[n]; }
   HD_INLINE const T& operator[](std::size_t n) const { return memory[n]; }
@@ -214,11 +216,12 @@ class vec_t {
     }
   }
 
-  HD_INLINE T dot(const self_type& other) const {
+  template <typename U>
+  HD_INLINE T dot(const vec_t<U, Rank>& other) const {
     T result = 0;
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
-      result += memory[i] * other.memory[i];
+      result += memory[i] * other[i];
     }
     return result;
   }
@@ -246,9 +249,34 @@ template <int Rank>
 class extent_t : public vec_t<uint32_t, Rank> {
  public:
   using base_class = vec_t<uint32_t, Rank>;
-  using base_class::base_class;
+  // using base_class::base_class;
 
-  HOST_DEVICE extent_t(const base_class& other) : base_class(other) {}
+  vec_t<int64_t, Rank> strides;
+
+  HD_INLINE void get_strides() {
+    strides[0] = 1;
+    for (int i = 1; i < Rank; i++) {
+      strides[i] = strides[i - 1] * this->memory[i - 1];
+    }
+  }
+
+  HOST_DEVICE extent_t(uint32_t v, const extent_t<Rank - 1>& vec) : base_class(v, vec) {
+    get_strides();
+  }
+
+  HOST_DEVICE extent_t(const extent_t<Rank - 1>& vec, uint32_t v) : base_class(vec, v) {
+    get_strides();
+  }
+
+  template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
+  HOST_DEVICE extent_t(Args... args) : base_class(args...) {
+    get_strides();
+  }
+
+  HOST_DEVICE extent_t(const base_class& other) : base_class(other) {
+    get_strides();
+  }
+
   HOST_DEVICE extent_t<Rank>& operator=(const extent_t<Rank>& other) = default;
 
   HOST_DEVICE uint32_t size() const { return this->product(); }
@@ -263,7 +291,7 @@ extent(Args... args) {
 template <int Rank>
 using index_t = vec_t<int32_t, Rank>;
 
-template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
+template <typename... Args, typename = all_convertible_to<int32_t, Args...>>
 HD_INLINE auto
 index(Args... args) {
   return index_t<sizeof...(Args)>(int32_t(args)...);

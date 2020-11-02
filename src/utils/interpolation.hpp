@@ -88,17 +88,17 @@ struct bspline<3> {
 
 template <typename Interp, typename FloatT>
 FloatT HD_INLINE
-interp_cell(const Interp& interp, FloatT rel_pos, int c, int t) {
+interp_cell(const Interp& interp, FloatT rel_pos, int rel_c) {
   // The actual distance between particle and t
-  FloatT x = (FloatT)(t - c) - rel_pos;
+  FloatT x = (FloatT)rel_c - rel_pos;
   return interp(x);
 }
 
 template <typename Interp, typename FloatT>
 FloatT HD_INLINE
-interp_cell(const Interp& interp, FloatT rel_pos, int c, int t, int stagger) {
+interp_cell(const Interp& interp, FloatT rel_pos, int rel_c, int stagger) {
   // The actual distance between particle and t
-  FloatT x = (FloatT)(t - c) + 0.5f * (1 - stagger) - rel_pos;
+  FloatT x = (FloatT)rel_c + 0.5f * (1 - stagger) - rel_pos;
   return interp(x);
 }
 
@@ -117,7 +117,7 @@ struct interpolator<Interp, 1> {
 #pragma unroll
     for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius; i++) {
       // int ii = i + pos[0] - Interp::radius;
-      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], 0, i);
+      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], i);
     }
     return result;
   }
@@ -130,7 +130,7 @@ struct interpolator<Interp, 1> {
 #pragma unroll
     for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius; i++) {
       // int ii = i + pos[0] - Interp::radius;
-      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], 0, i, stagger[0]);
+      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], i, stagger[0]);
     }
     return result;
   }
@@ -148,12 +148,14 @@ struct interpolator<Interp, 2> {
 #pragma unroll
     for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
+      auto idx_j = idx.inc_y(j);
 #pragma unroll
       for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
            i++) {
-        result += f[idx.inc_x(i).inc_y(j)] *
-                  interp_cell(interp, x[0], 0, i) *
-                  interp_cell(interp, x[1], 0, j);
+        result += f[idx_j.inc_x(i)] *
+        // result += f[idx.inc_x(i).inc_y(j)] *
+                  interp_cell(interp, x[0], i) *
+                  interp_cell(interp, x[1], j);
       }
     }
     return result;
@@ -167,12 +169,13 @@ struct interpolator<Interp, 2> {
 #pragma unroll
     for (int j = stagger[1] - Interp::radius; j <= Interp::support - Interp::radius;
          j++) {
+      auto idx_j = idx.inc_y(j);
 #pragma unroll
       for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius;
            i++) {
-        result += f[idx.inc_x(i).inc_y(j)] *
-                  interp_cell(interp, x[0], 0, i, stagger[0]) *
-                  interp_cell(interp, x[1], 0, j, stagger[1]);
+        result += f[idx_j.inc_x(i)] *
+                  interp_cell(interp, x[0], i, stagger[0]) *
+                  interp_cell(interp, x[1], j, stagger[1]);
       }
     }
     return result;
@@ -201,9 +204,9 @@ struct interpolator<Interp, 3> {
         for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
              i++) {
           result += f[idx_j.inc_x(i)] *
-                    interp_cell(interp, x[0], 0, i) *
-                    interp_cell(interp, x[1], 0, j) *
-                    interp_cell(interp, x[2], 0, k);
+                    interp_cell(interp, x[0], i) *
+                    interp_cell(interp, x[1], j) *
+                    interp_cell(interp, x[2], k);
         }
       }
     }
@@ -227,9 +230,9 @@ struct interpolator<Interp, 3> {
         for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius;
              i++) {
           result += f[idx_j.inc_x(i)] *
-                    interp_cell(interp, x[0], 0, i, stagger[0]) *
-                    interp_cell(interp, x[1], 0, j, stagger[1]) *
-                    interp_cell(interp, x[2], 0, k, stagger[2]);
+                    interp_cell(interp, x[0], i, stagger[0]) *
+                    interp_cell(interp, x[1], j, stagger[1]) *
+                    interp_cell(interp, x[2], k, stagger[2]);
         }
       }
     }
@@ -335,6 +338,16 @@ struct lerp<3> {
     return 0.5f * (f1 + f0);
   }
 };
+
+//// The following two functions do not know the stagger, but are just written
+//// for quick tests. Avoid using these in production code
+template <typename Ptr, typename Index>
+HOST_DEVICE float
+lerp2(const Ptr& f, float x, float y, const Index& idx) {
+  float f1 = y * f[idx.inc_x().inc_y()] + (1.0f - y) * f[idx.inc_x()];
+  float f0 = y * f[idx.inc_y()] + (1.0f - y) * f[idx];
+  return x * f1 + (1.0f - x) * f0;
+}
 
 template <typename Ptr, typename Index>
 HOST_DEVICE float

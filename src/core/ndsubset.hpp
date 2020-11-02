@@ -72,7 +72,8 @@ class ndsubset_t {
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
     for (auto idx : range(col_idx_t(0, m_ext),
                           col_idx_t(m_ext.size(), m_ext))) {
-      op(at(idx.get_pos()), subset.at(idx.get_pos()));
+      // op(at(idx.get_pos()), subset.at(idx.get_pos()));
+      op(at(get_pos(idx, m_ext)), subset.at(get_pos(idx, m_ext)));
     }
   }
 
@@ -82,8 +83,10 @@ class ndsubset_t {
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
     for (auto idx : range(col_idx_t(0, m_ext),
                           col_idx_t(m_ext.size(), m_ext))) {
-      op(m_array.at(m_begin + idx.get_pos()),
-         other.at(m_begin + idx.get_pos()));
+      // op(m_array.at(m_begin + idx.get_pos()),
+      //    other.at(m_begin + idx.get_pos()));
+      op(m_array.at(m_begin + get_pos(idx, m_ext)),
+         other.at(m_begin + get_pos(idx, m_ext)));
     }
   }
 
@@ -92,7 +95,8 @@ class ndsubset_t {
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
     for (auto idx : range(col_idx_t(0, m_ext),
                           col_idx_t(m_ext.size(), m_ext))) {
-      op(m_array.at(m_begin + idx.get_pos()));
+      // op(m_array.at(m_begin + idx.get_pos()));
+      op(m_array.at(m_begin + get_pos(idx, m_ext)));
     }
   }
 

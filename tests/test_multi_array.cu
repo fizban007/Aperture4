@@ -151,13 +151,16 @@ TEST_CASE("Performance of different indexing schemes",
   auto interp_kernel = [N1, N2, N3, M] __device__(
                            auto f, float* result, float* xs, float* ys,
                            float* zs, uint32_t* cells, auto ext) {
+    auto interp = interpolator<bspline<1>, 3>{};
     for (uint32_t i : grid_stride_range(0, M)) {
       uint32_t cell = cells[i];
       auto idx = f.idx_at(cell, ext);
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
       if (pos[0] < N1 - 1 && pos[1] < N2 - 1 && pos[2] < N3 - 1) {
         // result[i] = x;
-        result[i] = lerp3(f, xs[i], ys[i], zs[i], idx);
+        // result[i] = lerp3(f, xs[i], ys[i], zs[i], idx);
+        result[i] = interp(f, vec_t<float, 3>(xs[i], ys[i], zs[i]), idx);
       }
     }
   };

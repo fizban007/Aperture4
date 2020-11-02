@@ -297,25 +297,24 @@ TEST_CASE("Performance of expression template",
   cudaDeviceSynchronize();
 
   timer::stamp();
-  select_dev(v1) = v1 * 7.0f + 9.0f / v1;
-  timer::show_duration_since_stamp("Exp template", "us");
-  v1.copy_to_host();
-  REQUIRE(v1[0] == 24.0f);
-
-  v1.assign_dev(3.0f);
-
-  timer::stamp();
   kernel_launch(
       [ext] __device__(auto p) {
         for (auto idx :
              grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
           p[idx] = p[idx] * 7.0f + 9.0f / p[idx];
         }
-      },
-      v1.dev_ndptr());
+      }, v1.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
-  timer::show_duration_since_stamp("Kernel Launch", "us");
+  timer::show_duration_since_stamp("Evaluation using Kernel Launch", "us");
 
+  v1.copy_to_host();
+  REQUIRE(v1[0] == 24.0f);
+
+  v1.assign_dev(3.0f);
+
+  timer::stamp();
+  select_dev(v1) = v1 * 7.0f + 9.0f / v1;
+  timer::show_duration_since_stamp("Evaluation using Exp template", "us");
   v1.copy_to_host();
   REQUIRE(v1[0] == 24.0f);
 

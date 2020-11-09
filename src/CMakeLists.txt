@@ -13,6 +13,7 @@ set(Aperture_src
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
   "systems/grid_sph.cpp"
+  "systems/grid_ks.cpp"
   "systems/field_solver.cpp"
   "systems/ptc_updater.cpp"
   "systems/ptc_injector.cpp"
@@ -31,6 +32,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
     "systems/field_solver_sph.cu"
+    "systems/field_solver_gr_ks.cu"
     "systems/ptc_updater.cu"
     "systems/ptc_updater_sph.cu"
     "systems/ptc_injector.cu"
@@ -46,12 +48,12 @@ else()
     )
 endif()
 
-add_library(Aperture ${Aperture_src})
+add_library(Aperture STATIC ${Aperture_src})
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
   ${HDF5_LIBRARIES})
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  target_link_libraries(Aperture ${CUDART_LIBRARY})
+  target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
 endif()
 
 # add_executable(aperture "main.cpp")

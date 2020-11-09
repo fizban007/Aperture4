@@ -15,42 +15,44 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIELD_SOLVER_SPH_H_
-#define __FIELD_SOLVER_SPH_H_
+#ifndef _FIELD_SOLVER_GR_KS_H_
+#define _FIELD_SOLVER_GR_KS_H_
 
+#include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/field_solver.h"
-#include "systems/grid_curv.h"
-#include <memory>
+#include "systems/grid_ks.h"
 
 namespace Aperture {
 
-// System that updates Maxwell equations using an explicit scheme in Spherical
+// System that solves curved spacetime Maxwell equations in Kerr-Schild
 // coordinates
 template <typename Conf>
-class field_solver_sph_cu : public field_solver_cu<Conf> {
+class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
  private:
-  int m_damping_length = 64;
-  double m_damping_coef = 0.003;
+  float m_a = 0.99;  // BH spin parameter a
+
+  typename Conf::multi_array_t m_tmp_rhs;
+  buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du;
 
   scalar_field<Conf>* flux;
 
  public:
   static std::string name() { return "field_solver"; }
 
-  using field_solver_cu<Conf>::field_solver_cu;
+  field_solver_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+                        const domain_comm<Conf>* comm = nullptr)
+      : field_solver_cu<Conf>(env, grid, comm) {}
+
+  virtual ~field_solver_gr_ks_cu();
 
   void init() override;
   void update(double dt, uint32_t step) override;
   void register_data_components() override;
-
-  void update_explicit(double dt, double time) override;
-  void update_semi_implicit(double dt, double alpha, double beta,
-                            double time) override;
 };
 
 }  // namespace Aperture
 
-#endif
+#endif  // _FIELD_SOLVER_GR_KS_H_

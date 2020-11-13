@@ -4,6 +4,7 @@ else()
   add_custom_target(problems ALL)
 endif()
 
+add_subdirectory(bh_vacuum)
 add_subdirectory(pulsar)
 add_subdirectory(magnetar)
 add_subdirectory(monopole)

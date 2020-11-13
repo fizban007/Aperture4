@@ -19,6 +19,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_params.cu"
     "test_grid.cu"
     "test_math.cu"
+    "test_cusparse.cu"
     )
 else()
   target_sources(tests PUBLIC

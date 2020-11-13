@@ -136,9 +136,11 @@ sim_environment::update() {
 void
 sim_environment::run() {
   if (is_dry_run) {
+    Logger::print_info("This is a dry-run, exiting...");
     return;
   }
 
+  Logger::print_debug("Max steps is: {}", max_steps);
   for (int n = 0; n < max_steps; n++) {
     update();
   }

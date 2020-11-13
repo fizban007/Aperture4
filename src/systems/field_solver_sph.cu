@@ -27,6 +27,8 @@
 
 namespace Aperture {
 
+namespace {
+
 // template <typename PtrType, typename Idx_t>
 template <typename VecType, typename Idx_t>
 HD_INLINE Scalar
@@ -418,6 +420,8 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
       flux.dev_ndptr(), b.get_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
+}
+
 }
 
 template <typename Conf>

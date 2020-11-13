@@ -33,24 +33,40 @@ template <typename Conf>
 class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
  private:
   float m_a = 0.99;  // BH spin parameter a
+  const grid_ks_t<Conf>& m_ks_grid;
 
-  typename Conf::multi_array_t m_tmp_rhs;
-  buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du;
+  typename Conf::multi_array_t m_tmp_rhs, m_tmp_prev_field;
+  buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
 
   scalar_field<Conf>* flux;
 
  public:
   static std::string name() { return "field_solver"; }
+  using value_t = typename Conf::value_t;
 
   field_solver_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
                         const domain_comm<Conf>* comm = nullptr)
-      : field_solver_cu<Conf>(env, grid, comm) {}
+      : field_solver_cu<Conf>(env, grid, comm), m_ks_grid(grid) {}
 
   virtual ~field_solver_gr_ks_cu();
 
   void init() override;
   void update(double dt, uint32_t step) override;
   void register_data_components() override;
+
+  void solve_tridiagonal();
+  void update_Br(vector_field<Conf>& B, const vector_field<Conf>& D,
+                 value_t dt);
+  void update_Bth(vector_field<Conf>& B, const vector_field<Conf>& D,
+                  value_t dt);
+  void update_Bph(vector_field<Conf>& B, const vector_field<Conf>& D,
+                  value_t dt);
+  void update_Dr(vector_field<Conf>& D, const vector_field<Conf>& B,
+                 const vector_field<Conf>& J, value_t dt);
+  void update_Dth(vector_field<Conf>& D, const vector_field<Conf>& B,
+                  const vector_field<Conf>& J, value_t dt);
+  void update_Dph(vector_field<Conf>& D, const vector_field<Conf>& B,
+                  const vector_field<Conf>& J, value_t dt);
 };
 
 }  // namespace Aperture

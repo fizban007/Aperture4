@@ -141,6 +141,7 @@ void domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
       else
         ext[j] = grid.dims[j];
     }
+    // ext.get_strides();
     m_send_buffers.emplace_back(ext);
     m_recv_buffers.emplace_back(ext);
   }

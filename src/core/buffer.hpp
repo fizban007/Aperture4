@@ -142,7 +142,9 @@ class buffer {
     if (m_host_allocated || m_dev_allocated) {
       free_mem();
     }
-    alloc_mem(size);
+    if (size > 0) {
+      alloc_mem(size);
+    }
   }
 
   /// Assign a single value to part of the buffer, host version

@@ -167,8 +167,9 @@ TEST_CASE("Resampling field 2D", "[fields]") {
   resample(f[1], f3[1], grid.guards(), grid.guards(),
            f.stagger(), f3.stagger());
   for (auto idx : f3[1].indices()) {
+    // auto pos = idx.get_pos();
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos))
-      REQUIRE(f3[1][idx] == Approx(f2[1][idx]));
+      CHECK(f3[1][idx] == Approx(f2[1][idx]));
   }
 }

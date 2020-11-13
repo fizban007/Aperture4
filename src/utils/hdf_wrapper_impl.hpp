@@ -200,6 +200,7 @@ H5File::read_multi_array(const std::string& name) {
   for (int i = 0; i < dim; i++) {
     ext[i] = dims[dim - i - 1];
   }
+  // ext.get_strides();
 
   multi_array<T, Dim> result(ext, MemType::host_only);
   H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,

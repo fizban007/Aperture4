@@ -60,6 +60,7 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
   // Obtain the global extent of the grid
   m_env.params().get_vec_t("N", m_global_ext);
   m_global_ext /= m_downsample;
+  m_global_ext.get_strides();
 }
 
 template <typename Conf>
@@ -393,14 +394,19 @@ void
 data_exporter<Conf>::write_grid_multiarray(
     const std::string& name, const typename Conf::multi_array_t& array,
     stagger_t stagger, H5File& file) {
-  if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-    resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-                 stagger, m_output_stagger, m_downsample);
-    tmp_grid_data.copy_to_host();
-  } else {
-    resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-             stagger, m_output_stagger, m_downsample);
-  }
+  // if (m_downsample != 1) {
+    if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
+      resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+                   stagger, m_output_stagger, m_downsample);
+      tmp_grid_data.copy_to_host();
+    } else {
+      resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+               stagger, m_output_stagger, m_downsample);
+    }
+  // } else {
+  //   tmp_grid_data.copy_from(array);
+  //   tmp_grid_data.copy_to_host();
+  // }
 
   // Logger::print_debug("writing global_ext {}x{}", m_global_ext[0],
   // m_global_ext[1]);
@@ -484,7 +490,9 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
 
   // First figure out the extent and offset of each node
   extent_t<Conf::dim + 1> ext_total(data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
-  extent_t<Conf::dim + 1> ext = data.m_num_bins[0];
+  extent_t<Conf::dim + 1> ext(data.m_num_bins[0], data.m_grid_ext);
+  // ext.get_strides();
+  // ext_total.get_strides();
   index_t<Conf::dim + 1> idx_src = 0;
   index_t<Conf::dim + 1> idx_dst = 0;
   // FIXME: This again assumes a uniform grid, which is no good in the long term
@@ -496,9 +504,13 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
     datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_e");
     datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_p");
     ext[0] = ext_total[0] = data.m_num_bins[1];
+    ext.get_strides();
+    ext_total.get_strides();
     datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
     datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_p");
     ext[0] = ext_total[0] = data.m_num_bins[2];
+    ext.get_strides();
+    ext_total.get_strides();
     datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
     datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_p");
   } else {
@@ -589,6 +601,8 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
       ext[n] += m_grid.guard[n];
     }
   }
+  ext.get_strides();
+  ext_total.get_strides();
 }
 
 template <typename Conf>

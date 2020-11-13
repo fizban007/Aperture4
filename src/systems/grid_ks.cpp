@@ -8,6 +8,8 @@ template <typename Conf>
 grid_ks_t<Conf>::grid_ks_t(sim_environment& env, const domain_comm<Conf>* comm)  :
     grid_t<Conf>(env, comm) {
   env.params().get_value("bh_spin", a);
+
+  Logger::print_info("In grid, a is {}", a);
 }
 
 template class grid_ks_t<Config<2>>;

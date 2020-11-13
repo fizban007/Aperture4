@@ -134,7 +134,7 @@ struct idx_col_major_t
 //       result += pos[i] * stride;
 //     }
     // return result;
-    return pos.dot(ext.strides);
+    return pos.dot(ext.strides());
   }
 
   template <int Dir>
@@ -148,7 +148,7 @@ struct idx_col_major_t
 //     for (int i = 1; i < Dir + 1; i++) {
 //       stride *= this->ext[i - 1];
 //     }
-    result.linear = (long)result.linear + n * ext.strides[Dir];
+    result.linear = (long)result.linear + n * ext.strides()[Dir];
     return result;
   }
 
@@ -163,18 +163,18 @@ struct idx_col_major_t
 //     for (int i = 1; i < Dir + 1; i++) {
 //       stride *= this->ext[i - 1];
 //     }
-    result.linear = (long)result.linear - n * ext.strides[Dir];
+    result.linear = (long)result.linear - n * ext.strides()[Dir];
     return result;
   }
 
   using base_type::operator+;
 
   HD_INLINE uint64_t operator+(const index_t<Rank>& pos) {
-    return this->linear + pos.dot(ext.strides);
+    return this->linear + pos.dot(ext.strides());
   }
 
   HD_INLINE uint64_t operator-(const index_t<Rank>& pos) {
-    return this->linear - pos.dot(ext.strides);
+    return this->linear - pos.dot(ext.strides());
   }
 
   HD_INLINE self_type inc_x(int n = 1) const { return inc<0>(n); }

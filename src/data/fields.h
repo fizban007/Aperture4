@@ -132,6 +132,16 @@ class field_t : public data_t {
 
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>
+  vec_t<typename Conf::ndptr_const_t, M> get_const_ptrs() const {
+    vec_t<typename Conf::ndptr_const_t, M> result;
+    for (int i = 0; i < M; i++) {
+      result[i] = m_data[i].dev_ndptr_const();
+    }
+    return result;
+  }
+
+  // Only provides this method for N > 1
+  template <int M = N, greater_than_unity<M> = true>
   vec_t<typename Conf::ndptr_const_t, M> get_ptrs() const {
     vec_t<typename Conf::ndptr_const_t, M> result;
     for (int i = 0; i < M; i++) {

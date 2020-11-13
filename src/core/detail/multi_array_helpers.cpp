@@ -26,8 +26,10 @@ resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
          const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
          stagger_t st_src, stagger_t st_dst, int downsample) {
   auto interp = lerp<Rank>{};
+  auto ext_from = from.extent();
+  auto ext_to = to.extent();
   for (auto idx : to.indices()) {
-    auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext_to);
     bool in_bound = true;
     for (int i = 0; i < Rank; i++) {
       if (pos[i] < offset_dst[i] || pos[i] >= to.extent()[i] - offset_dst[i]) {

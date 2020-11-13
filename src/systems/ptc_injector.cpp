@@ -46,6 +46,7 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
       new_injector.begin[n] = 0;
       new_injector.ext[n] = 0;
     }
+    new_injector.ext.get_strides();
   }
   Logger::print_info_all("Injector begin is ({}, {}), extent is ({}, {})",
                          new_injector.begin[0], new_injector.begin[1],

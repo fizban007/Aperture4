@@ -47,14 +47,14 @@ class vec_t {
       memory[i] = v[i];
     }
   }
-  HD_INLINE vec_t(const T &v, const vec_t<T, Rank - 1>& vec) {
+  HD_INLINE vec_t(const T& v, const vec_t<T, Rank - 1>& vec) {
     memory[0] = v;
 #pragma unroll
     for (int i = 1; i < Rank; i++) {
       memory[i] = vec[i - 1];
     }
   }
-  HD_INLINE vec_t(const vec_t<T, Rank - 1>& vec, const T &v) {
+  HD_INLINE vec_t(const vec_t<T, Rank - 1>& vec, const T& v) {
     memory[Rank - 1] = v;
 #pragma unroll
     for (int i = 0; i < Rank - 1; i++) {
@@ -247,24 +247,31 @@ vec(Args... args) {
 
 template <int Rank>
 class extent_t : public vec_t<uint32_t, Rank> {
+ private:
+  mutable vec_t<int64_t, Rank> m_strides;
+  mutable bool has_strides = false;
+
  public:
   using base_class = vec_t<uint32_t, Rank>;
   // using base_class::base_class;
 
-  vec_t<int64_t, Rank> strides;
+  // vec_t<int64_t, Rank> strides;
 
-  HD_INLINE void get_strides() {
-    strides[0] = 1;
+  HD_INLINE void get_strides() const {
+    m_strides[0] = 1;
     for (int i = 1; i < Rank; i++) {
-      strides[i] = strides[i - 1] * this->memory[i - 1];
+      m_strides[i] = m_strides[i - 1] * this->memory[i - 1];
     }
+    has_strides = true;
   }
 
-  HOST_DEVICE extent_t(uint32_t v, const extent_t<Rank - 1>& vec) : base_class(v, vec) {
+  HOST_DEVICE extent_t(uint32_t v, const extent_t<Rank - 1>& vec)
+      : base_class(v, vec) {
     get_strides();
   }
 
-  HOST_DEVICE extent_t(const extent_t<Rank - 1>& vec, uint32_t v) : base_class(vec, v) {
+  HOST_DEVICE extent_t(const extent_t<Rank - 1>& vec, uint32_t v)
+      : base_class(vec, v) {
     get_strides();
   }
 
@@ -280,6 +287,11 @@ class extent_t : public vec_t<uint32_t, Rank> {
   HOST_DEVICE extent_t<Rank>& operator=(const extent_t<Rank>& other) = default;
 
   HOST_DEVICE uint32_t size() const { return this->product(); }
+
+  HOST_DEVICE const vec_t<int64_t, Rank>& strides() const {
+    if (!has_strides) get_strides();
+    return m_strides;
+  }
 };
 
 template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
@@ -289,7 +301,56 @@ extent(Args... args) {
 }
 
 template <int Rank>
-using index_t = vec_t<int32_t, Rank>;
+// using index_t = vec_t<int32_t, Rank>;
+class index_t : public vec_t<int32_t, Rank> {
+ public:
+  HD_INLINE index_t(const vec_t<int32_t, Rank>& v) : vec_t<int32_t, Rank>(v) {}
+
+  HD_INLINE index_t(const int32_t& v, const vec_t<int32_t, Rank - 1>& vec)
+      : vec_t<int32_t, Rank>(v, vec) {}
+
+  HD_INLINE index_t(const vec_t<int32_t, Rank - 1>& vec, const int32_t& v)
+      : vec_t<int32_t, Rank>(vec, v) {}
+
+  template <typename... Args, typename = all_convertible_to<int32_t, Args...>>
+  HD_INLINE index_t(Args... args) : vec_t<int32_t, Rank>(args...) {}
+
+  HD_INLINE index_t<Rank> inc_x(int n) {
+    index_t<Rank> result = *this;
+    result.memory[0] += n;
+    return result;
+  }
+
+  HD_INLINE index_t<Rank> inc_y(int n) {
+    index_t<Rank> result = *this;
+    result.memory[1] += n;
+    return result;
+  }
+
+  HD_INLINE index_t<Rank> inc_z(int n) {
+    index_t<Rank> result = *this;
+    result.memory[2] += n;
+    return result;
+  }
+
+  HD_INLINE index_t<Rank> dec_x(int n) {
+    index_t<Rank> result = *this;
+    result.memory[0] -= n;
+    return result;
+  }
+
+  HD_INLINE index_t<Rank> dec_y(int n) {
+    index_t<Rank> result = *this;
+    result.memory[1] -= n;
+    return result;
+  }
+
+  HD_INLINE index_t<Rank> dec_z(int n) {
+    index_t<Rank> result = *this;
+    result.memory[2] -= n;
+    return result;
+  }
+};
 
 template <typename... Args, typename = all_convertible_to<int32_t, Args...>>
 HD_INLINE auto

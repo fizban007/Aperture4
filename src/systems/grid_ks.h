@@ -107,8 +107,13 @@ ag_13(Scalar a, Scalar r, Scalar th) {
 
 HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar th) {
-  Scalar tmp = (1.0f + Z(a, r, th)) * square(math::sin(th));
-  return math::sqrt(tmp * (Sigma(a, r, th) - rho2(a, r, th) * a * a * tmp));
+  // Scalar tmp = (1.0f + Z(a, r, th)) * square(math::sin(th));
+  Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
+  // return math::sqrt(tmp * (Sigma(a, r, th) - rho2(a, r, th) * a * a * tmp));
+  return 0.5f * math::sin(th) *
+         math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  // return math::sqrt(r * r * r * (2.0f + r)) * math::sin(th);
+  // return r * r * math::sin(th);
 }
 
 // This returns the composite value of sqrt(gamma) * beta1

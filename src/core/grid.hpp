@@ -154,6 +154,7 @@ struct Grid {
       z[i] = (pos[i] >= skirt[i]) + (pos[i] >= (dims[i] - skirt[i]));
       ext[i] = 3;
     }
+    ext.get_strides();
 
     // For now we always use col major for zone index
     idx_col_major_t<Dim> idx(z, ext);
@@ -193,6 +194,7 @@ struct Grid {
 #pragma unroll
     for (int i = 0; i < Dim; i++)
       result[i] = dims[i];
+    result.get_strides();
     return result;
   }
 
@@ -201,6 +203,7 @@ struct Grid {
 #pragma unroll
     for (int i = 0; i < Dim; i++)
       result[i] = reduced_dim(i);
+    result.get_strides();
     return result;
   }
 

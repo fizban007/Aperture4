@@ -33,8 +33,18 @@ rho2(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+rho2(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return r * r + a * a * cth * cth;
+}
+
+HD_INLINE Scalar
 Z(Scalar a, Scalar r, Scalar th) {
   return 2.0f * r / rho2(a, r, th);
+}
+
+HD_INLINE Scalar
+Z(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 2.0f * r / rho2(a, r, sth, cth);
 }
 
 HD_INLINE Scalar
@@ -50,8 +60,19 @@ Sigma(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+Sigma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  Scalar r2a2 = r * r + a * a;
+  return square(r2a2) - square(a * sth) * (r2a2 - 2.0f * r);
+}
+
+HD_INLINE Scalar
 alpha(Scalar a, Scalar r, Scalar th) {
   return 1.0f / math::sqrt(1.0f + Z(a, r, th));
+}
+
+HD_INLINE Scalar
+alpha(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 1.0f / math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -61,13 +82,29 @@ beta1(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  Scalar z = Z(a, r, sth, cth);
+  return z / (1.0f + z);
+}
+
+HD_INLINE Scalar
 g_11(Scalar a, Scalar r, Scalar th) {
   return 1.0f + Z(a, r, th);
 }
 
 HD_INLINE Scalar
+g_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 1.0f + Z(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
 g_22(Scalar a, Scalar r, Scalar th) {
   return rho2(a, r, th);
+}
+
+HD_INLINE Scalar
+g_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return rho2(a, r, sth, cth);
 }
 
 HD_INLINE Scalar
@@ -77,9 +114,19 @@ g_33(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+g_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return Sigma(a, r, sth, cth) * sth * sth / rho2(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
 g_13(Scalar a, Scalar r, Scalar th) {
   Scalar sth = math::sin(th);
   return -a * sth * sth * (1.0f + Z(a, r, th));
+}
+
+HD_INLINE Scalar
+g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -88,8 +135,18 @@ ag_11(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+ag_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return math::sqrt(1.0f + Z(a, r, sth, cth));
+}
+
+HD_INLINE Scalar
 ag_22(Scalar a, Scalar r, Scalar th) {
   return rho2(a, r, th) / math::sqrt(1.0f + Z(a, r, th));
+}
+
+HD_INLINE Scalar
+ag_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return rho2(a, r, sth, cth) / math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -100,31 +157,54 @@ ag_33(Scalar a, Scalar r, Scalar th) {
 }
 
 HD_INLINE Scalar
+ag_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return Sigma(a, r, sth, cth) * sth * sth /
+         (rho2(a, r, sth, cth) / math::sqrt(1.0f + Z(a, r, sth, cth)));
+}
+
+HD_INLINE Scalar
 ag_13(Scalar a, Scalar r, Scalar th) {
   Scalar sth = math::sin(th);
   return -a * sth * sth * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
+ag_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return -a * sth * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
+}
+
+HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar th) {
-  // Scalar tmp = (1.0f + Z(a, r, th)) * square(math::sin(th));
   Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
-  // return math::sqrt(tmp * (Sigma(a, r, th) - rho2(a, r, th) * a * a * tmp));
-  return 0.5f * math::sin(th) *
+  return 0.5f * math::abs(math::sin(th)) *
          math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
-  // return math::sqrt(r * r * r * (2.0f + r)) * math::sin(th);
   // return r * r * math::sin(th);
+}
+
+HD_INLINE Scalar
+sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
+  return 0.5f * math::abs(sth) *
+         math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
 }
 
 // This returns the composite value of sqrt(gamma) * beta1
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar th) {
-  Scalar sinth2 = square(math::sin(th));
-  Scalar z = Z(a, r, th);
-  return math::sqrt(
-      z * sinth2 *
-      (Sigma(a, r, th) - rho2(a, r, th) * a * a * (1.0f + z) * sinth2) /
-      (1.0f + z));
+  Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
+  return r * math::abs(math::sin(th)) *
+         math::sqrt((a2c2th + 2.0f * r * r) *
+                    (a2c2th + 2.0f * r * (2.0f + r))) /
+         (r * (2.0f + r) + square(a * math::cos(th)));
+}
+
+HD_INLINE Scalar
+sq_gamma_beta(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
+  return r * math::abs(sth) *
+         math::sqrt((a2c2th + 2.0f * r * r) *
+                    (a2c2th + 2.0f * r * (2.0f + r))) /
+         (r * (2.0f + r) + square(a * cth));
 }
 
 }  // namespace Metric_KS

@@ -55,18 +55,26 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   void register_data_components() override;
 
   void solve_tridiagonal();
-  void update_Br(vector_field<Conf>& B, const vector_field<Conf>& D,
+  void update_Br(vector_field<Conf>& B, const vector_field<Conf>& B0,
+                 const vector_field<Conf>& D, const vector_field<Conf>& D0,
                  value_t dt);
-  void update_Bth(vector_field<Conf>& B, const vector_field<Conf>& D,
+  void update_Bth(vector_field<Conf>& B, const vector_field<Conf>& B0,
+                  const vector_field<Conf>& D, const vector_field<Conf>& D0,
                   value_t dt);
-  void update_Bph(vector_field<Conf>& B, const vector_field<Conf>& D,
+  void update_Bph(vector_field<Conf>& B, const vector_field<Conf>& B0,
+                  const vector_field<Conf>& D, const vector_field<Conf>& D0,
                   value_t dt);
-  void update_Dr(vector_field<Conf>& D, const vector_field<Conf>& B,
+  void update_Dr(vector_field<Conf>& D, const vector_field<Conf>& D0,
+                 const vector_field<Conf>& B, const vector_field<Conf>& B0,
                  const vector_field<Conf>& J, value_t dt);
-  void update_Dth(vector_field<Conf>& D, const vector_field<Conf>& B,
+  void update_Dth(vector_field<Conf>& D, const vector_field<Conf>& D0,
+                  const vector_field<Conf>& B, const vector_field<Conf>& B0,
                   const vector_field<Conf>& J, value_t dt);
-  void update_Dph(vector_field<Conf>& D, const vector_field<Conf>& B,
+  void update_Dph(vector_field<Conf>& D, const vector_field<Conf>& D0,
+                  const vector_field<Conf>& B, const vector_field<Conf>& B0,
                   const vector_field<Conf>& J, value_t dt);
+
+  // void horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B);
 };
 
 }  // namespace Aperture

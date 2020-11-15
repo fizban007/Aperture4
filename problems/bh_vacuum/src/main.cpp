@@ -26,8 +26,10 @@ using namespace std;
 
 namespace Aperture {
 template <typename Conf>
-void initial_nonrotating_vacuum_wald(sim_environment& env, vector_field<Conf> &B0,
-                                   const grid_ks_t<Conf>& grid);
+void initial_nonrotating_vacuum_wald(sim_environment &env,
+                                     vector_field<Conf> &B0,
+                                     vector_field<Conf> &D0,
+                                     const grid_ks_t<Conf> &grid);
 }
 
 using namespace Aperture;
@@ -50,10 +52,15 @@ main(int argc, char *argv[]) {
   env.init();
 
   // Prepare initial condition here
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *D0, *B, *D;
   env.get_data("B0", &B0);
+  env.get_data("E0", &D0);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &D);
 
-  initial_nonrotating_vacuum_wald(env, *B0, grid);
+  initial_nonrotating_vacuum_wald(env, *B0, *D0, grid);
+  B->copy_from(*B0);
+  D->copy_from(*D0);
 
   env.run();
 

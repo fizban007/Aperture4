@@ -108,6 +108,9 @@ struct idx_col_major_t
     this->linear = to_linear(pos);
   }
 
+  HD_INLINE idx_col_major_t(const self_type& idx) = default;
+  HD_INLINE self_type& operator=(const self_type& idx) = default;
+
   HD_INLINE index_t<Rank> get_pos() const {
     return pos(this->linear);
   }

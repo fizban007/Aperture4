@@ -49,6 +49,7 @@ else()
 endif()
 
 add_library(Aperture STATIC ${Aperture_src})
+# set_property(TARGET Aperture PROPERTY CUDA_ARCHITECTURES 60 61)
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
   ${HDF5_LIBRARIES})
 

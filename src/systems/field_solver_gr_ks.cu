@@ -137,6 +137,7 @@ axis_boundary_e(vector_field<Conf>& D, const grid_ks_t<Conf>& grid) {
             D[2][idx] = 0.0f;
             // e[1][idx] = 0.0;
             D[1][idx.dec_y()] = D[1][idx];
+            D[0][idx.dec_y()] = D[0][idx];
             // e[0][idx] = 0.0f;
           }
           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
@@ -147,6 +148,7 @@ axis_boundary_e(vector_field<Conf>& D, const grid_ks_t<Conf>& grid) {
             D[2][idx] = 0.0f;
             // e[1][idx] = 0.0;
             D[1][idx] = D[1][idx.dec_y()];
+            D[0][idx] = D[0][idx.dec_y()];
             // e[0][idx] = 0.0f;
           }
         }
@@ -165,30 +167,32 @@ axis_boundary_b(vector_field<Conf>& B, const grid_ks_t<Conf>& grid) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-          auto n1_0 = grid.guard[1];
-          auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true))) <
-              0.1f * grid.delta[1]) {
-            // At the theta = 0 axis
+          for (int n1_0 = grid.guard[1]; n1_0 >= 0; n1_0--) {
+            if (grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true)) <
+                0.1f * grid.delta[1]) {
+              // At the theta = 0 axis
 
-            // Set E_phi and B_theta to zero
-            auto idx = idx_t(index_t<2>(n0, n1_0), ext);
-            B[1][idx] = 0.0f;
-            B[2][idx] = 0.0f;
-            // B[2][idx.dec_y()] = B[2][idx];
-            B[0][idx.dec_y()] = B[0][idx];
+              // Set E_phi and B_theta to zero
+              auto idx = idx_t(index_t<2>(n0, n1_0), ext);
+              B[1][idx] = 0.0f;
+              B[2][idx] = 0.0f;
+              // B[2][idx.dec_y()] = B[2][idx];
+              B[0][idx.dec_y()] = B[0][idx];
+            }
           }
-          // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
-                  M_PI) < 0.1f * grid.delta[1]) {
-            // At the theta = pi axis
-            auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
-            B[1][idx] = 0.0f;
-            // B[1][idx.dec_y()] = 0.0f;
-            // B[2][idx] = B[2][idx.dec_y()];
-            B[2][idx] = 0.0f;
-            B[2][idx.dec_y()] = 0.0f;
-            B[0][idx] = B[0][idx.dec_y()];
+          for (int n1_pi = grid.dims[1] - grid.guard[1]; n1_pi <= grid.dims[1] - 1; n1_pi++) {
+            // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
+            if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
+                    M_PI) < 0.1f * grid.delta[1]) {
+              // At the theta = pi axis
+              auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
+              B[1][idx] = 0.0f;
+              // B[1][idx.dec_y()] = 0.0f;
+              // B[2][idx] = B[2][idx.dec_y()];
+              B[2][idx] = 0.0f;
+              B[2][idx.dec_y()] = 0.0f;
+              B[0][idx] = B[0][idx.dec_y()];
+            }
           }
         }
       },
@@ -402,8 +406,8 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
 
             rhs[idx] = B[1][idx] - prefactor * (Eph0 - Eph1);
           }
-          if (pos[1] == 2 && pos[0] == 200)
-            printf("Bth is %f, rhs is %f\n", B[1][idx], rhs[idx]);
+          // if (pos[1] == 2 && pos[0] == 200)
+          //   printf("rhs is %f, D0 is %f, B1 is %f\n", rhs[idx], D[0][idx], B[1][idx]);
 
           value_t du_coef = prefactor * 0.5f * sq_gamma_beta(a, r_sp, sth, cth);
           value_t dl_coef =
@@ -416,9 +420,9 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
-          if (pos[0] == 6 && pos[1] == 300) {
-            printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
-          }
+          // if (pos[0] == 6 && pos[1] == 300) {
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          // }
         }
       },
       B.get_const_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
@@ -524,9 +528,9 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
-          if (pos[0] == 6 && pos[1] == 300) {
-            printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
-          }
+          // if (pos[0] == 6 && pos[1] == 300) {
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          // }
         }
       },
       B.get_const_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
@@ -591,10 +595,10 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf>& B,
                                // (B[1][idx] + B[1][idx.dec_x()] +
                                //  B0[1][idx] + B0[1][idx.dec_x()]);
                                (tmp_field[idx] + tmp_field[idx.dec_x()]);
-            if (pos[0] == 200 && pos[1] == 2) {
-              printf("Eph1 is %f, Eph0 is %f, D0 is %f, B1 is %f\n", Eph1, Eph0,
-                     D[0][idx], tmp_field[idx]);
-            }
+            // if (pos[0] == 200 && pos[1] == 2) {
+            //   printf("Eph1 is %f, Eph0 is %f, D0 is %f, B1 is %f\n", Eph1, Eph0,
+            //          D[0][idx], tmp_field[idx]);
+            // }
 
             B[0][idx] = B[0][idx] - prefactor * (Eph1 - Eph0);
           }
@@ -666,9 +670,9 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
-          if (pos[0] == 6 && pos[1] == 300) {
-            printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
-          }
+          // if (pos[0] == 6 && pos[1] == 300) {
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          // }
         }
       },
       D.get_const_ptrs(), D0.get_const_ptrs(), B.get_const_ptrs(),
@@ -678,6 +682,21 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
   CudaCheckError();
 
   solve_tridiagonal();
+
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[2]) {
+    kernel_launch(
+        [] __device__(auto f) {
+          auto& grid = dev_grid<Conf::dim>();
+          auto ext = grid.extent();
+          for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+            int n1 = grid.guard[1];
+            auto idx = Conf::idx({n0, n1}, ext);
+
+            f[idx] = 0.0f;
+          }
+        },
+        m_tmp_rhs.dev_ndptr());
+  }
 
   D[1].copy_from(m_tmp_rhs);
   select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
@@ -758,9 +777,9 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
-          if (pos[0] == 6 && pos[1] == 300) {
-            printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
-          }
+          // if (pos[0] == 6 && pos[1] == 300) {
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          // }
         }
       },
       D.get_const_ptrs(), B.get_const_ptrs(), J.get_const_ptrs(),
@@ -821,6 +840,13 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf>& D,
 
             D[0][idx] = D[0][idx] - dt * J[0][idx] + prefactor * (Hph1 - Hph0);
 
+            if (D[0][idx] != D[0][idx]) {
+                printf(
+                    "NaN detected in Dr update! B2 is %f, B0 is %f, tmp_field is "
+                    "%f\n",
+                    B[2][idx.dec_y()], B[0][idx.dec_y()], tmp_field[idx.dec_y()]);
+                asm("trap;");
+            }
             // prefactor *
             //     (H_ph<Conf>(B[2], B[0], tmp_field, idx, pos, grid, a) -
             //      H_ph<Conf>(B[2], B[0], tmp_field, idx.dec_y(1),

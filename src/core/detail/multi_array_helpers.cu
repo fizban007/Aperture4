@@ -141,6 +141,7 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 
 INSTANTIATE_RESAMPLE_DEV(float, float);
 INSTANTIATE_RESAMPLE_DEV(float, double);
+INSTANTIATE_RESAMPLE_DEV(double, float);
 
 #define INSTANTIATE_ADD_DEV(type, dim)                                \
   template void add_dev(                                              \

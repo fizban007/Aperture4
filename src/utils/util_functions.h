@@ -51,10 +51,10 @@ sgn(T val) {
   return (T(0) < val) - (val < T(0));
 }
 
-template <typename T>
+template <typename T, typename U>
 HD_INLINE T
-clamp(T val, T a, T b) {
-  return std::max(a, std::min(b, val));
+clamp(T val, U a, U b) {
+  return std::max(T(a), std::min(T(b), val));
 }
 
 template <typename Flag>

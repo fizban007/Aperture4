@@ -87,47 +87,47 @@ beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return z / (1.0f + z);
 }
 
-HD_INLINE Scalar
-g_11(Scalar a, Scalar r, Scalar th) {
-  return 1.0f + Z(a, r, th);
-}
+// HD_INLINE Scalar
+// g_11(Scalar a, Scalar r, Scalar th) {
+//   return 1.0f + Z(a, r, th);
+// }
 
-HD_INLINE Scalar
-g_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return 1.0f + Z(a, r, sth, cth);
-}
+// HD_INLINE Scalar
+// g_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+//   return 1.0f + Z(a, r, sth, cth);
+// }
 
-HD_INLINE Scalar
-g_22(Scalar a, Scalar r, Scalar th) {
-  return rho2(a, r, th);
-}
+// HD_INLINE Scalar
+// g_22(Scalar a, Scalar r, Scalar th) {
+//   return rho2(a, r, th);
+// }
 
-HD_INLINE Scalar
-g_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return rho2(a, r, sth, cth);
-}
+// HD_INLINE Scalar
+// g_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+//   return rho2(a, r, sth, cth);
+// }
 
-HD_INLINE Scalar
-g_33(Scalar a, Scalar r, Scalar th) {
-  Scalar sth = math::sin(th);
-  return Sigma(a, r, th) * sth * sth / rho2(a, r, th);
-}
+// HD_INLINE Scalar
+// g_33(Scalar a, Scalar r, Scalar th) {
+//   Scalar sth = math::sin(th);
+//   return Sigma(a, r, th) * sth * sth / rho2(a, r, th);
+// }
 
-HD_INLINE Scalar
-g_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return Sigma(a, r, sth, cth) * sth * sth / rho2(a, r, sth, cth);
-}
+// HD_INLINE Scalar
+// g_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+//   return Sigma(a, r, sth, cth) * sth * sth / rho2(a, r, sth, cth);
+// }
 
-HD_INLINE Scalar
-g_13(Scalar a, Scalar r, Scalar th) {
-  Scalar sth = math::sin(th);
-  return -a * sth * sth * (1.0f + Z(a, r, th));
-}
+// HD_INLINE Scalar
+// g_13(Scalar a, Scalar r, Scalar th) {
+//   Scalar sth = math::sin(th);
+//   return -a * sth * sth * (1.0f + Z(a, r, th));
+// }
 
-HD_INLINE Scalar
-g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
-}
+// HD_INLINE Scalar
+// g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+//   return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
+// }
 
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar th) {
@@ -229,11 +229,11 @@ class grid_ks_t : public grid_t<Conf> {
 
   grid_ks_t<Conf>& operator=(const grid_ks_t<Conf>& grid) = default;
 
-  static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
-  // static HD_INLINE value_t radius(value_t x1) { return x1; }
+  // static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
+  static HD_INLINE value_t radius(value_t x1) { return x1; }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
-  // static HD_INLINE value_t from_radius(value_t r) { return r; }
-  static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
+  static HD_INLINE value_t from_radius(value_t r) { return r; }
+  // static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
 
   inline vec_t<float, Conf::dim> cart_coord(

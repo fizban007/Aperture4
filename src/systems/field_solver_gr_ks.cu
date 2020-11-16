@@ -212,18 +212,20 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
         auto ext = grid.extent();
         int boundary_length = 4;
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+          auto pos_ref = index_t<2>(grid.guard[0] + boundary_length, n1);
+          auto idx_ref = Conf::idx(pos_ref, ext);
           for (int n0 = 0; n0 < grid.guard[0] + boundary_length; n0++) {
             auto pos = index_t<2>(n0, n1);
             auto idx = Conf::idx(pos, ext);
 
-            B[1][idx] = B0[1][idx];
+            B[1][idx] = B[1][idx_ref];
             // B[1][idx] = 0.0f;
-            B[2][idx] = B0[2][idx];
-            D[0][idx] = D0[0][idx];
+            B[2][idx] = B[2][idx_ref];
+            D[0][idx] = D[0][idx_ref];
 
-            B[0][idx] = B0[0][idx];
-            D[1][idx] = D0[1][idx];
-            D[2][idx] = D0[2][idx];
+            B[0][idx] = B[0][idx_ref];
+            D[1][idx] = D[1][idx_ref];
+            D[2][idx] = D[2][idx_ref];
           }
           // for (int n0 = 0; n0 <= grid.guard[0] + boundary_length; n0++) {
           //   auto pos = index_t<2>(n0, n1);
@@ -291,6 +293,7 @@ field_solver_gr_ks_cu<Conf>::init() {
   field_solver<Conf>::init();
 
   this->m_env.params().get_value("bh_spin", m_a);
+  Logger::print_info("bh_spin in field solver is {}", m_a);
 
   cusparseCreate(&sp_handle);
   auto extl = this->m_grid.extent_less();
@@ -315,9 +318,9 @@ field_solver_gr_ks_cu<Conf>::init() {
 
   size_t buffer_size;
 #if USE_DOUBLE
-  cusparseDgtsv2_bufferSizeExt(sp_handle, ext[0], ext[1], m_tri_dl.dev_ptr(),
+  cusparseDgtsv2_bufferSizeExt(sp_handle, extl[0], extl[1], m_tri_dl.dev_ptr(),
                                m_tri_d.dev_ptr(), m_tri_du.dev_ptr(),
-                               m_tmp_rhs.dev_ptr(), ext[0], &buffer_size);
+                               m_tmp_rhs.dev_ptr(), extl[0], &buffer_size);
 #else
   cusparseSgtsv2_bufferSizeExt(sp_handle, extl[0], extl[1], m_tri_dl.dev_ptr(),
                                m_tri_d.dev_ptr(), m_tri_du.dev_ptr(),
@@ -388,14 +391,15 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             value_t r_sm =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
             value_t dr = r_sp - r_sm;
+
             value_t th = grid.template pos<1>(pos[1], true);
             // if (math::abs(th) < TINY) th = sgn(th) * 1.0e-4;
             if (math::abs(th) < TINY)
               // th = (th < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
               th = 0.01f * grid.delta[1];
 
-            value_t cth = math::cos(th);
             value_t sth = math::sin(th);
+            value_t cth = math::cos(th);
             value_t prefactor = dt / (sqrt_gamma(a, r, sth, cth) * dr);
 
             auto Eph1 = ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
@@ -432,6 +436,12 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
                 prefactor * 0.25f * sq_gamma_beta(a, r_sp, sth, cth);
             value_t dl_coef =
                 -prefactor * 0.25f * sq_gamma_beta(a, r_sm, sth, cth);
+
+            if (pos[0] == grid.guard[0]) {
+              rhs[idx_rhs] += dl_coef * B[1][idx.dec_x()];
+            } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
+              rhs[idx_rhs] += du_coef * B[1][idx.inc_x()];
+            }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
 
@@ -520,34 +530,24 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
             value_t dth = th_sp - th_sm;
             if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
 
-            value_t cth = math::cos(th);
             value_t sth = math::sin(th);
+            value_t cth = math::cos(th);
             value_t prefactor = dt / (sqrt_gamma(a, r, th) * dr * dth);
 
-            // if (pos[0] > 0 && pos[0] < grid.dims[0] - 1 &&
-            //     pos[1] < grid.dims[0] - 1) {
             auto Er1 = ag_11(a, r, th_sp) * D[0][idx.inc_y()] +
                        ag_13(a, r, th_sp) * 0.5f *
-                           // (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()] +
-                           //  D0[2][idx.inc_y()] + D0[2][idx.inc_y().inc_x()]);
                            (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
 
             auto Er0 = ag_11(a, r, th_sm) * D[0][idx] +
                        ag_13(a, r, th_sm) * 0.5f *
-                           // (D[2][idx] + D[2][idx.inc_x()] + D0[2][idx] +
-                           //  D0[2][idx.inc_x()]);
                            (D[2][idx] + D[2][idx.inc_x()]);
 
             auto Eth1 = ag_22(a, r, sth, cth) * D[1][idx.inc_x()] -
                         sq_gamma_beta(a, r, sth, cth) * 0.25f *
-                            // (B[2][idx.inc_x()] + B[2][idx] +
-                            //  B0[2][idx.inc_x()] + B0[2][idx]);
                             (B[2][idx.inc_x()] + B[2][idx]);
 
             auto Eth0 = ag_22(a, r, sth, cth) * D[1][idx] -
                         sq_gamma_beta(a, r, sth, cth) * 0.25f *
-                            // (B[2][idx] + B[2][idx.dec_x()] + B0[2][idx] +
-                            //  B0[2][idx.dec_x()]);
                             (B[2][idx] + B[2][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
@@ -559,6 +559,12 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                 prefactor * dth * 0.25f * sq_gamma_beta(a, r_sp, th);
             value_t dl_coef =
                 -prefactor * dth * 0.25f * sq_gamma_beta(a, r_sm, th);
+
+            if (pos[0] == grid.guard[0]) {
+              rhs[idx_rhs] += dl_coef * B[2][idx.dec_x()];
+            } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
+              rhs[idx_rhs] += du_coef * B[2][idx.inc_x()];
+            }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
             du[pos[0] - grid.guard[0]] = du_coef;
@@ -675,6 +681,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             value_t r_sm = grid_ks_t<Conf>::radius(
                 grid.template pos<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
+
             value_t th = grid.template pos<1>(pos[1], false);
 
             value_t sth = math::sin(th);
@@ -703,6 +710,12 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
                 prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sp, th);
             value_t dl_coef =
                 -prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sm, th);
+
+            if (pos[0] == grid.guard[0]) {
+              rhs[idx_rhs] += dl_coef * D[1][idx.dec_x()];
+            } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
+              rhs[idx_rhs] += du_coef * D[1][idx.inc_x()];
+            }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
             du[pos[0] - grid.guard[0]] = du_coef;
@@ -830,14 +843,16 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
             value_t dl_coef = -prefactor * dth * 0.25f *
                               Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
+            if (pos[0] == grid.guard[0]) {
+              rhs[idx_rhs] += dl_coef * D[2][idx.dec_x()];
+            } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
+              rhs[idx_rhs] += du_coef * D[2][idx.inc_x()];
+            }
+
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
             du[pos[0] - grid.guard[0]] = du_coef;
             dl[pos[0] - grid.guard[0]] = dl_coef;
           }
-          // if (pos[0] == 6 && pos[1] == 300) {
-          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]],
-          //   dl[pos[0]]);
-          // }
         }
       },
       D.get_const_ptrs(), B.get_const_ptrs(), J.get_const_ptrs(),
@@ -926,16 +941,6 @@ void
 field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("In GR KS solver! a is {}", m_a);
 
-  if (this->m_update_b) {
-    update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-
-    axis_boundary_b(*(this->B), m_ks_grid);
-    // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-  }
-
   if (this->m_update_e) {
     update_Dth(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
                dt);
@@ -946,6 +951,16 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
     axis_boundary_e(*(this->E), m_ks_grid);
     // Communicate the new E values to guard cells
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+  }
+
+  if (this->m_update_b) {
+    update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+    update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+    update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+
+    axis_boundary_b(*(this->B), m_ks_grid);
+    // Communicate the new B values to guard cells
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {

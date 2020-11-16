@@ -267,6 +267,21 @@ select_dev(const multi_array<T, Rank, Idx_t>& array) {
 
 template <typename T, int Rank, typename Idx_t>
 auto
+select_dev_const(multi_array<T, Rank, Idx_t>& array, const index_t<Rank>& begin,
+                 const extent_t<Rank>& ext) {
+  return ndsubset_dev_const_t<typename multi_array<T, Rank, Idx_t>::cref_t, Idx_t>(
+      array.cref(), begin, ext);
+}
+
+template <typename T, int Rank, typename Idx_t>
+auto
+select_dev_const(multi_array<T, Rank, Idx_t>& array) {
+  return ndsubset_dev_const_t<typename multi_array<T, Rank, Idx_t>::cref_t, Idx_t>(
+      array.cref(), array.begin().get_pos(), array.extent());
+}
+
+template <typename T, int Rank, typename Idx_t>
+auto
 select_dev(multi_array<T, Rank, Idx_t>& array, const index_t<Rank>& begin,
            const extent_t<Rank>& ext) {
   return ndsubset_dev_t<typename multi_array<T, Rank, Idx_t>::ref_t, Idx_t>(

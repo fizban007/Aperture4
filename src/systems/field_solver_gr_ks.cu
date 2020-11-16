@@ -30,7 +30,6 @@ namespace Aperture {
 namespace {
 
 cusparseHandle_t sp_handle;
-// buffer<char> sp_buffer;
 
 // template <typename Conf, typename ArrayType>
 // HD_INLINE typename Conf::value_t
@@ -180,7 +179,8 @@ axis_boundary_b(vector_field<Conf>& B, const grid_ks_t<Conf>& grid) {
               B[0][idx.dec_y()] = B[0][idx];
             }
           }
-          for (int n1_pi = grid.dims[1] - grid.guard[1]; n1_pi <= grid.dims[1] - 1; n1_pi++) {
+          for (int n1_pi = grid.dims[1] - grid.guard[1];
+               n1_pi <= grid.dims[1] - 1; n1_pi++) {
             // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
             if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
                     M_PI) < 0.1f * grid.delta[1]) {
@@ -210,18 +210,31 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
       [] __device__(auto D, auto D0, auto B, auto B0) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
+        int boundary_length = 4;
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int n0 = 0; n0 < grid.guard[0] + 2; n0++) {
+          for (int n0 = 0; n0 < grid.guard[0] + boundary_length; n0++) {
             auto pos = index_t<2>(n0, n1);
             auto idx = Conf::idx(pos, ext);
 
-            B[0][idx] = B0[0][idx];
             B[1][idx] = B0[1][idx];
+            // B[1][idx] = 0.0f;
             B[2][idx] = B0[2][idx];
             D[0][idx] = D0[0][idx];
+
+            B[0][idx] = B0[0][idx];
             D[1][idx] = D0[1][idx];
             D[2][idx] = D0[2][idx];
           }
+          // for (int n0 = 0; n0 <= grid.guard[0] + boundary_length; n0++) {
+          //   auto pos = index_t<2>(n0, n1);
+          //   auto idx = Conf::idx(pos, ext);
+
+          //   B[0][idx] = B0[0][idx];
+          //   // B[0][idx] = 0.0f;
+          //   D[1][idx] = D0[1][idx];
+          //   D[2][idx] = D0[2][idx];
+          //   // D[2][idx] = 0.0f;
+          // }
         }
       },
       D.get_ptrs(), D0.get_ptrs(), B.get_ptrs(), B0.get_ptrs());
@@ -340,7 +353,8 @@ field_solver_gr_ks_cu<Conf>::solve_tridiagonal() {
                           m_tmp_rhs.dev_ptr(), ext[0], sp_buffer.dev_ptr());
 #endif
   if (status != CUSPARSE_STATUS_SUCCESS) {
-    Logger::print_err("cusparse failure at Bth update! Error code {}", status);
+    Logger::print_err("cusparse failure during field update! Error code {}",
+                      status);
   }
 }
 
@@ -389,7 +403,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
                             // (D[0][idx.inc_x()] + D[0][idx] +
                             (D[0][idx.inc_x()] + D[0][idx]) +
                         // D0[0][idx.inc_x()] + D0[0][idx]) +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
                             // (B[1][idx.inc_x()] + B[1][idx] +
                             (B[1][idx.inc_x()] + B[1][idx]);
             // B0[1][idx.inc_x()] + B0[1][idx]);
@@ -399,19 +413,32 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
                             // (D[0][idx] + D[0][idx.dec_x()] + D0[0][idx] +
                             //  D0[0][idx.dec_x()]) +
                             (D[0][idx] + D[0][idx.dec_x()]) +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
                             // (B[1][idx] + B[1][idx.dec_x()] + B0[1][idx] +
                             //  B0[1][idx.dec_x()]);
                             (B[1][idx] + B[1][idx.dec_x()]);
 
             rhs[idx] = B[1][idx] - prefactor * (Eph0 - Eph1);
+
+            // if (pos[0] == 6 && pos[1] == 200) {
+              // printf(
+              //     "Eph1 is %f, Eph0 is %f, dEphi is %f, B1 is %f, "
+              //     "rhs is %f\n",
+              //     Eph1, Eph0, (Eph0 - Eph1), B[1][idx],
+              //     rhs[idx]);
+              // printf("ag33 is %f, ag13 is %f, sqgb is %f\n",
+              //        ag_33(a, r, sth, cth), ag_13(a, r, sth, cth),
+              //        sq_gamma_beta(a, r, sth, cth));
+            // }
+
           }
           // if (pos[1] == 2 && pos[0] == 200)
-          //   printf("rhs is %f, D0 is %f, B1 is %f\n", rhs[idx], D[0][idx], B[1][idx]);
+          //   printf("rhs is %f, D0 is %f, B1 is %f\n", rhs[idx], D[0][idx],
+          //   B[1][idx]);
 
-          value_t du_coef = prefactor * 0.5f * sq_gamma_beta(a, r_sp, sth, cth);
+          value_t du_coef = prefactor * 0.25f * sq_gamma_beta(a, r_sp, sth, cth);
           value_t dl_coef =
-              -prefactor * 0.5f * sq_gamma_beta(a, r_sm, sth, cth);
+              -prefactor * 0.25f * sq_gamma_beta(a, r_sm, sth, cth);
           // if (pos[0] == 6 && pos[1] == 3)
           //   printf("du is %f, d is %f\n", du_coef, 1.0f - (du_coef +
           //   dl_coef));
@@ -421,7 +448,8 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
           dl[pos[0]] = dl_coef;
 
           // if (pos[0] == 6 && pos[1] == 300) {
-          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]],
+          //   dl[pos[0]]);
           // }
         }
       },
@@ -505,13 +533,13 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                            (D[2][idx] + D[2][idx.inc_x()]);
 
             auto Eth1 = ag_22(a, r, sth, cth) * D[1][idx.inc_x()] -
-                        sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r, sth, cth) * 0.25f *
                             // (B[2][idx.inc_x()] + B[2][idx] +
                             //  B0[2][idx.inc_x()] + B0[2][idx]);
                             (B[2][idx.inc_x()] + B[2][idx]);
 
             auto Eth0 = ag_22(a, r, sth, cth) * D[1][idx] -
-                        sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r, sth, cth) * 0.25f *
                             // (B[2][idx] + B[2][idx.dec_x()] + B0[2][idx] +
                             //  B0[2][idx.dec_x()]);
                             (B[2][idx] + B[2][idx.dec_x()]);
@@ -520,16 +548,17 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                        prefactor * (dr * (Er0 - Er1) + dth * (Eth1 - Eth0));
           }
 
-          value_t du_coef = prefactor * dth * 0.5f * sq_gamma_beta(a, r_sp, th);
+          value_t du_coef = prefactor * dth * 0.25f * sq_gamma_beta(a, r_sp, th);
           value_t dl_coef =
-              -prefactor * dth * 0.5f * sq_gamma_beta(a, r_sm, th);
+              -prefactor * dth * 0.25f * sq_gamma_beta(a, r_sm, th);
           d[pos[0]] = 1.0f - (du_coef + dl_coef);
 
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
           // if (pos[0] == 6 && pos[1] == 300) {
-          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]],
+          //   dl[pos[0]]);
           // }
         }
       },
@@ -595,9 +624,15 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf>& B,
                                // (B[1][idx] + B[1][idx.dec_x()] +
                                //  B0[1][idx] + B0[1][idx.dec_x()]);
                                (tmp_field[idx] + tmp_field[idx.dec_x()]);
-            // if (pos[0] == 200 && pos[1] == 2) {
-            //   printf("Eph1 is %f, Eph0 is %f, D0 is %f, B1 is %f\n", Eph1, Eph0,
-            //          D[0][idx], tmp_field[idx]);
+            // if (pos[0] == 6 && pos[1] == 200) {
+            //   printf(
+            //       "Eph1 is %f, Eph0 is %f, dEphi is %f, tmpf is %f, "
+            //       "tmpf+ is %f\n",
+            //       Eph1, Eph0, Eph1 - Eph0, tmp_field[idx],
+            //       tmp_field[idx.inc_y()]);
+            //   printf("ag33 is %f, ag13 is %f, sqgb is %f\n",
+            //          ag_33(a, r, sth, cth), ag_13(a, r, sth, cth),
+            //          sq_gamma_beta(a, r, sth, cth));
             // }
 
             B[0][idx] = B[0][idx] - prefactor * (Eph1 - Eph0);
@@ -650,28 +685,29 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             auto Hph1 = ag_33(a, r_sp, sth, cth) * B[2][idx] +
                         ag_13(a, r_sp, sth, cth) * 0.5f *
                             (B[0][idx.inc_x()] + B[0][idx]) -
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
                             (D[1][idx.inc_x()] + D[1][idx]);
 
             auto Hph0 = ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
                         ag_13(a, r_sm, sth, cth) * 0.5f *
                             (B[0][idx] + B[0][idx.dec_x()]) -
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
                             (D[1][idx] + D[1][idx.dec_x()]);
 
             rhs[idx] = D[1][idx] - dt * J[1][idx] + prefactor * (Hph0 - Hph1);
           }
           value_t du_coef =
-              prefactor * 0.5f * Metric_KS::sq_gamma_beta(a, r_sp, th);
+              prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sp, th);
           value_t dl_coef =
-              -prefactor * 0.5f * Metric_KS::sq_gamma_beta(a, r_sm, th);
+              -prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sm, th);
           d[pos[0]] = 1.0f - (du_coef + dl_coef);
 
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
           // if (pos[0] == 6 && pos[1] == 300) {
-          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]],
+          //   dl[pos[0]]);
           // }
         }
       },
@@ -752,11 +788,11 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                 ag_13(a, r, th_sp) * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
 
             auto Hth0 = ag_22(a, r_sm, sth, cth) * B[1][idx.dec_x()] +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
                             (D[2][idx] + D[2][idx.dec_x()]);
 
             auto Hth1 = ag_22(a, r_sp, sth, cth) * B[1][idx] +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
                             (D[2][idx.inc_x()] + D[2][idx]);
 
             rhs[idx] = D[2][idx] - dt * J[2][idx] +
@@ -767,18 +803,23 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
             //              dth * (H_th<Conf>(B[1], D[2], idx.dec_x(1),
             //                                pos.dec_x(1), grid, a) -
             //                     H_th<Conf>(B[1], D[2], idx, pos, grid, a)));
+            if (pos[0] == 100 && pos[1] == 250) {
+              printf("Hr0 is %f, Hr1 is %f, Hth0 is %f, Hth1 is %f, dDphi is %f\n",
+                     Hr0, Hr1, Hth0, Hth1, prefactor * (dr * (Hr0 - Hr1) + dth * (Hth1 - Hth0)));
+            }
           }
           value_t du_coef =
-              prefactor * dth * 0.5f * Metric_KS::sq_gamma_beta(a, r_sp, th);
+              prefactor * dth * 0.25f * Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
           value_t dl_coef =
-              -prefactor * dth * 0.5f * Metric_KS::sq_gamma_beta(a, r_sm, th);
+              -prefactor * dth * 0.25f * Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
           d[pos[0]] = 1.0f - (du_coef + dl_coef);
           du[pos[0]] = du_coef;
           dl[pos[0]] = dl_coef;
 
           // if (pos[0] == 6 && pos[1] == 300) {
-          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]], dl[pos[0]]);
+          //   printf("d is %f, du is %f, dl is %f\n", d[pos[0]], du[pos[0]],
+          //   dl[pos[0]]);
           // }
         }
       },
@@ -841,11 +882,11 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf>& D,
             D[0][idx] = D[0][idx] - dt * J[0][idx] + prefactor * (Hph1 - Hph0);
 
             if (D[0][idx] != D[0][idx]) {
-                printf(
-                    "NaN detected in Dr update! B2 is %f, B0 is %f, tmp_field is "
-                    "%f\n",
-                    B[2][idx.dec_y()], B[0][idx.dec_y()], tmp_field[idx.dec_y()]);
-                asm("trap;");
+              printf(
+                  "NaN detected in Dr update! B2 is %f, B0 is %f, tmp_field is "
+                  "%f\n",
+                  B[2][idx.dec_y()], B[0][idx.dec_y()], tmp_field[idx.dec_y()]);
+              asm("trap;");
             }
             // prefactor *
             //     (H_ph<Conf>(B[2], B[0], tmp_field, idx, pos, grid, a) -
@@ -888,7 +929,8 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   }
 
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
-    horizon_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0), m_ks_grid);
+    horizon_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
+                     m_ks_grid);
   }
 
   this->Etotal->copy_from(*(this->E));

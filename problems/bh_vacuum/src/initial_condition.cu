@@ -63,31 +63,64 @@ initial_nonrotating_vacuum_wald(sim_environment& env, vector_field<Conf>& B0,
           auto sth = math::sin(th_s);
           auto cth = math::cos(th_s);
           r2 = r * r;
-          B[1][idx] =
-              -0.5f * Bp *
-              (2.0f * r * (a * a + r2) * (r2 + a * a * math::cos(2.0f * th_s)) *
-                   sth2 -
-               2.0f * a * a * sth2 * sth2 *
-                   (r2 - a * a * r + a * a * (r - 1.0f) * cth2)) /
-              (square(r2 + a * a * cth2) * Metric_KS::sqrt_gamma(a, r, sth, cth));
+          B[1][idx] = -0.5f * Bp *
+                      (2.0f * r * (a * a + r2) *
+                           (r2 + a * a * math::cos(2.0f * th_s)) * sth2 -
+                       2.0f * a * a * sth2 * sth2 *
+                           (r2 - a * a * r + a * a * (r - 1.0f) * cth2)) /
+                      (square(r2 + a * a * cth2) *
+                       Metric_KS::sqrt_gamma(a, r, sth, cth));
           // B[1][idx] = 2.0 * Bp * math::sin(th_s) / r;
           // if (pos[1] == 2 && pos[0] == 10)
           //   printf("Bth is %f, gamma is %f, th_s is %f\n", B[1][idx],
           //   Metric_KS::sqrt_gamma(a, r, th_s), th_s);
 
-          r2 = r_s * r_s;
-          // D[2][idx] = -(Metric_KS::beta1(a, r_s, sth, cth) /
-          // Metric_KS::alpha(a, r_s, sth, cth) / Metric_KS::sqrt_gamma(a, r,
-          // sth, cth))
-          D[2][idx] = -(Metric_KS::sq_gamma_beta(a, r_s, sth, cth) /
-                        Metric_KS::ag_33(a, r_s, sth, cth)) *
-                      (-0.5f * Bp) *
-                      (2.0f * r_s * (a * a + r2) *
-                           (r2 + a * a * math::cos(2.0f * th_s)) * sth2 -
-                       2.0f * a * a * sth2 * sth2 *
-                           (r2 - a * a * r_s + a * a * (r_s - 1.0f) * cth2)) /
-                      (square(r2 + a * a * cth2) *
-                       Metric_KS::sqrt_gamma(a, r_s, sth, cth));
+          // r2 = r_s * r_s;
+          // D[2][idx] = -(Metric_KS::sq_gamma_beta(a, r_s, sth, cth) /
+          //               Metric_KS::ag_33(a, r_s, sth, cth)) *
+          //             (-0.5f * Bp) *
+          //             (2.0f * r_s * (a * a + r2) *
+          //                  (r2 + a * a * math::cos(2.0f * th_s)) * sth2 -
+          //              2.0f * a * a * sth2 * sth2 *
+          //                  (r2 - a * a * r_s + a * a * (r_s - 1.0f) * cth2))
+          //                  /
+          //             (square(r2 + a * a * cth2) *
+          //              Metric_KS::sqrt_gamma(a, r_s, sth, cth));
+        }
+      },
+      B0.get_ptrs(), D0.get_ptrs(), 0.0f);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+
+  kernel_launch(
+      [Bp] __device__(auto B, auto D, auto a) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          if (pos[0] > 0) {
+            auto r =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+            auto r_s =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            auto th =
+                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+            auto th_s =
+                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+            if (math::abs(th_s) < TINY)
+              th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
+
+            auto sth2 = square(math::sin(th_s));
+            auto cth2 = square(math::cos(th_s));
+            auto sth = math::sin(th_s);
+            auto cth = math::cos(th_s);
+
+            auto r2 = r_s * r_s;
+            D[2][idx] = -(Metric_KS::sq_gamma_beta(a, r_s, sth, cth) /
+                          Metric_KS::ag_33(a, r_s, sth, cth)) *
+                        0.5 * (B[1][idx] + B[1][idx.dec_x()]);
+          }
         }
       },
       B0.get_ptrs(), D0.get_ptrs(), 0.0f);

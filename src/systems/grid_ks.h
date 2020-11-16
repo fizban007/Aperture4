@@ -230,6 +230,7 @@ class grid_ks_t : public grid_t<Conf> {
   grid_ks_t<Conf>& operator=(const grid_ks_t<Conf>& grid) = default;
 
   static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
+  // static HD_INLINE value_t radius(value_t x1) { return x1; }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
   // static HD_INLINE value_t from_radius(value_t r) { return r; }
   static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }

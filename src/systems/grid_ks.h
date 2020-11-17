@@ -153,13 +153,13 @@ HD_INLINE Scalar
 ag_33(Scalar a, Scalar r, Scalar th) {
   Scalar sth = math::sin(th);
   return Sigma(a, r, th) * sth * sth /
-         (rho2(a, r, th) / math::sqrt(1.0f + Z(a, r, th)));
+         (rho2(a, r, th) * math::sqrt(1.0f + Z(a, r, th)));
 }
 
 HD_INLINE Scalar
 ag_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return Sigma(a, r, sth, cth) * sth * sth /
-         (rho2(a, r, sth, cth) / math::sqrt(1.0f + Z(a, r, sth, cth)));
+         (rho2(a, r, sth, cth) * math::sqrt(1.0f + Z(a, r, sth, cth)));
 }
 
 HD_INLINE Scalar

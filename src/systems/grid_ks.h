@@ -175,36 +175,41 @@ ag_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 
 HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar th) {
-  Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
-  return 0.5f * math::abs(math::sin(th)) *
-         math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
-  // return r * r * math::sin(th);
+  // Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
+  // return 0.5f * math::abs(math::sin(th)) *
+  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  return rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
-  return 0.5f * math::abs(sth) *
-         math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  // Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
+  // return 0.5f * math::abs(sth) *
+  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  return rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 // This returns the composite value of sqrt(gamma) * beta1
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar th) {
-  Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
-  return r * math::abs(math::sin(th)) *
-         math::sqrt((a2c2th + 2.0f * r * r) *
-                    (a2c2th + 2.0f * r * (2.0f + r))) /
-         (r * (2.0f + r) + square(a * math::cos(th)));
+  // Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
+  // return r * math::abs(math::sin(th)) *
+  //        math::sqrt((a2c2th + 2.0f * r * r) *
+  //                   (a2c2th + 2.0f * r * (2.0f + r))) /
+  //        (r * (2.0f + r) + square(a * math::cos(th)));
+  Scalar z = Z(a, r, th);
+  return rho2(a, r, th) * math::sin(th) * z / math::sqrt(1.0f + z);
 }
 
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
-  return r * math::abs(sth) *
-         math::sqrt((a2c2th + 2.0f * r * r) *
-                    (a2c2th + 2.0f * r * (2.0f + r))) /
-         (r * (2.0f + r) + square(a * cth));
+  // Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
+  // return r * math::abs(sth) *
+  //        math::sqrt((a2c2th + 2.0f * r * r) *
+  //                   (a2c2th + 2.0f * r * (2.0f + r))) /
+  //        (r * (2.0f + r) + square(a * cth));
+  Scalar z = Z(a, r, sth, cth);
+  return rho2(a, r, sth, cth) * sth * z / math::sqrt(1.0f + z);
 }
 
 }  // namespace Metric_KS

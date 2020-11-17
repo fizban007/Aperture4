@@ -31,91 +31,6 @@ namespace {
 
 cusparseHandle_t sp_handle;
 
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// H_r(const ArrayType& Br, const ArrayType& Bph, const typename Conf::idx_t&
-// idx,
-//     const index_t<Conf::dim>& pos, const Grid<Conf::dim>& grid,
-//     typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], true));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], false));
-
-//   return ag_11(a, r, th) * Br[idx] +
-//          ag_13(a, r, th) * 0.5f * (Bph[idx] + Bph[idx.dec_x(1)]);
-// }
-
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// H_th(const ArrayType& Bth, const ArrayType& Dph,
-//      const typename Conf::idx_t& idx, const index_t<Conf::dim>& pos,
-//      const Grid<Conf::dim>& grid, typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], false));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], true));
-
-//   return ag_22(a, r, th) * Bth[idx] +
-//          sq_gamma_beta(a, r, th) * 0.5f * (Dph[idx] + Dph[idx.inc_x(1)]);
-// }
-
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// H_ph(const ArrayType& Bph, const ArrayType& Br, const ArrayType& Dth,
-//      const typename Conf::idx_t& idx, const index_t<Conf::dim>& pos,
-//      const Grid<Conf::dim>& grid, typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], false));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], false));
-
-//   return ag_33(a, r, th) * Bph[idx] +
-//          ag_13(a, r, th) * 0.5f * (Br[idx] + Br[idx.inc_x(1)]) -
-//          sq_gamma_beta(a, r, th) * (Dth[idx] + Dth[idx.inc_x(1)]);
-// }
-
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// E_r(const ArrayType& Dr, const ArrayType& Dph, const typename Conf::idx_t&
-// idx,
-//     const index_t<Conf::dim>& pos, const Grid<Conf::dim>& grid,
-//     typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], false));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], true));
-
-//   return ag_11(a, r, th) * Dr[idx] +
-//          ag_13(a, r, th) * 0.5f * (Dph[idx] + Dph[idx.inc_x(1)]);
-// }
-
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// E_th(const ArrayType& Dth, const ArrayType& Bph,
-//      const typename Conf::idx_t& idx, const index_t<Conf::dim>& pos,
-//      const Grid<Conf::dim>& grid, typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], true));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], false));
-
-//   return ag_22(a, r, th) * Dth[idx] -
-//          sq_gamma_beta(a, r, th) * 0.5f * (Bph[idx] + Bph[idx.dec_x(1)]);
-// }
-
-// template <typename Conf, typename ArrayType>
-// HD_INLINE typename Conf::value_t
-// E_ph(const ArrayType& Dph, const ArrayType& Dr, const ArrayType& Bth,
-//      const typename Conf::idx_t& idx, const index_t<Conf::dim>& pos,
-//      const Grid<Conf::dim>& grid, typename Conf::value_t a) {
-//   using namespace Aperture::Metric_KS;
-//   auto r = grid_ks_t<Conf>::radius(grid.pos<0>(pos[0], true));
-//   auto th = grid_ks_t<Conf>::theta(grid.pos<1>(pos[1], true));
-//   auto sth = math::sin(th);
-//   auto cth = math::cos(th);
-
-//   return ag_33(a, r, sth, cth) * Dph[idx] +
-//          ag_13(a, r, sth, cth) * 0.5f * (Dr[idx] + Dr[idx.dec_x(1)]) -
-//          sq_gamma_beta(a, r, sth, cth) * 0.5f * (Bth[idx] +
-//          Bth[idx.dec_x(1)]);
-// }
-
 template <typename Conf>
 void
 axis_boundary_e(vector_field<Conf>& D, const grid_ks_t<Conf>& grid) {
@@ -210,7 +125,7 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
       [] __device__(auto D, auto D0, auto B, auto B0) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
-        int boundary_length = 4;
+        int boundary_length = 2;
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           auto pos_ref = index_t<2>(grid.guard[0] + boundary_length, n1);
           auto idx_ref = Conf::idx(pos_ref, ext);
@@ -219,24 +134,23 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
             auto idx = Conf::idx(pos, ext);
 
             B[1][idx] = B[1][idx_ref];
-            // B[1][idx] = 0.0f;
             B[2][idx] = B[2][idx_ref];
             D[0][idx] = D[0][idx_ref];
 
             B[0][idx] = B[0][idx_ref];
+            // B[0][idx] = 0.0f;
             D[1][idx] = D[1][idx_ref];
+            // D[1][idx] = 0.0f;
             D[2][idx] = D[2][idx_ref];
-          }
-          // for (int n0 = 0; n0 <= grid.guard[0] + boundary_length; n0++) {
-          //   auto pos = index_t<2>(n0, n1);
-          //   auto idx = Conf::idx(pos, ext);
+            // D[2][idx] = 0.0f;
+            // B[1][idx] = B0[1][idx];
+            // B[2][idx] = B0[2][idx];
+            // D[0][idx] = D0[0][idx];
 
-          //   B[0][idx] = B0[0][idx];
-          //   // B[0][idx] = 0.0f;
-          //   D[1][idx] = D0[1][idx];
-          //   D[2][idx] = D0[2][idx];
-          //   // D[2][idx] = 0.0f;
-          // }
+            // B[0][idx] = B0[0][idx];
+            // D[1][idx] = D0[1][idx];
+            // D[2][idx] = D0[2][idx];
+          }
         }
       },
       D.get_ptrs(), D0.get_ptrs(), B.get_ptrs(), B0.get_ptrs());
@@ -355,6 +269,7 @@ field_solver_gr_ks_cu<Conf>::solve_tridiagonal() {
                           m_tri_d.dev_ptr(), m_tri_du.dev_ptr(),
                           m_tmp_rhs.dev_ptr(), ext[0], sp_buffer.dev_ptr());
 #endif
+  CudaSafeCall(cudaDeviceSynchronize());
   if (status != CUSPARSE_STATUS_SUCCESS) {
     Logger::print_err("cusparse failure during field update! Error code {}",
                       status);
@@ -445,8 +360,8 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
 
-            du[pos[0] - grid.guard[0]] = du_coef;
-            dl[pos[0] - grid.guard[0]] = dl_coef;
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
         }
       },
@@ -488,6 +403,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
 
           B[1][fidx] = rhs[idx];
           prev_field[fidx] = 0.5f * rhs[idx] + 0.5f * prev_field[fidx];
+          // prev_field[fidx] = rhs[idx];
         }
       },
       B.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr());
@@ -567,8 +483,8 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
-            du[pos[0] - grid.guard[0]] = du_coef;
-            dl[pos[0] - grid.guard[0]] = dl_coef;
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
         }
       },
@@ -718,8 +634,8 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
-            du[pos[0] - grid.guard[0]] = du_coef;
-            dl[pos[0] - grid.guard[0]] = dl_coef;
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
         }
       },
@@ -761,6 +677,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
 
           D[1][fidx] = rhs[idx];
           prev_field[fidx] = 0.5f * rhs[idx] + 0.5f * prev_field[fidx];
+          // prev_field[fidx] = 1.0f * rhs[idx];
         }
       },
       D.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr());
@@ -850,8 +767,8 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
-            du[pos[0] - grid.guard[0]] = du_coef;
-            dl[pos[0] - grid.guard[0]] = dl_coef;
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
         }
       },
@@ -941,26 +858,26 @@ void
 field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("In GR KS solver! a is {}", m_a);
 
+  if (this->m_update_b) {
+    update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+    update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+    update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+
+    axis_boundary_b(*(this->B), m_ks_grid);
+    // Communicate the new B values to guard cells
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+  }
+
   if (this->m_update_e) {
-    update_Dth(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
-               dt);
     update_Dph(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
+               dt);
+    update_Dth(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
                dt);
     update_Dr(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J), dt);
 
     axis_boundary_e(*(this->E), m_ks_grid);
     // Communicate the new E values to guard cells
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
-  }
-
-  if (this->m_update_b) {
-    update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-
-    axis_boundary_b(*(this->B), m_ks_grid);
-    // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {

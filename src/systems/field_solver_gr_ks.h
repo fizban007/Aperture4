@@ -33,6 +33,8 @@ template <typename Conf>
 class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
  private:
   float m_a = 0.99;  // BH spin parameter a
+  float m_damping_coef = 0.001;
+  int m_damping_length = 20;
   const grid_ks_t<Conf>& m_ks_grid;
 
   typename Conf::multi_array_t m_tmp_rhs, m_tmp_prev_field;

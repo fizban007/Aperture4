@@ -32,12 +32,11 @@ namespace {
 cusparseHandle_t sp_handle;
 
 template <typename Conf>
-void
-axis_boundary_e(vector_field<Conf>& D, const grid_ks_t<Conf>& grid) {
+void axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto D) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
@@ -73,12 +72,11 @@ axis_boundary_e(vector_field<Conf>& D, const grid_ks_t<Conf>& grid) {
 }
 
 template <typename Conf>
-void
-axis_boundary_b(vector_field<Conf>& B, const grid_ks_t<Conf>& grid) {
+void axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto B) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           for (int n1_0 = grid.guard[1]; n1_0 >= 0; n1_0--) {
@@ -117,36 +115,40 @@ axis_boundary_b(vector_field<Conf>& B, const grid_ks_t<Conf>& grid) {
 }
 
 template <typename Conf>
-void
-horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
-                 const vector_field<Conf>& D0, const vector_field<Conf>& B0,
-                 const grid_ks_t<Conf>& grid) {
+void horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
+                      const vector_field<Conf> &D0,
+                      const vector_field<Conf> &B0,
+                      const grid_ks_t<Conf> &grid,
+                      int damping_length,
+                      float damping_coef) {
+  using value_t = typename Conf::value_t;
   kernel_launch(
-      [] __device__(auto D, auto D0, auto B, auto B0) {
-        auto& grid = dev_grid<Conf::dim>();
+      [damping_length, damping_coef] __device__(auto D, auto D0, auto B, auto B0) {
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
-        int boundary_length = 2;
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          auto pos_ref = index_t<2>(grid.guard[0] + boundary_length, n1);
+          auto pos_ref = index_t<2>(damping_length, n1);
           auto idx_ref = Conf::idx(pos_ref, ext);
-          for (int n0 = 0; n0 < grid.guard[0] + boundary_length; n0++) {
+          for (int n0 = 0; n0 < damping_length; n0++) {
             auto pos = index_t<2>(n0, n1);
             auto idx = Conf::idx(pos, ext);
+            value_t lambda =
+                1.0f - damping_coef * cube((value_t)(damping_length - 1 - n0) / (damping_length - 1));
 
-            // B[0][idx] = 0.0f;
-            // B[1][idx] = 0.0f;
-            // B[2][idx] = 0.0f;
-            // D[0][idx] = 0.0f;
-            // D[1][idx] = 0.0f;
-            // D[2][idx] = 0.0f;
+            B[0][idx] *= lambda;
+            B[1][idx] *= lambda;
+            B[2][idx] *= lambda;
+            D[0][idx] *= lambda;
+            D[1][idx] *= lambda;
+            D[2][idx] *= lambda;
 
-            B[1][idx] = B[1][idx_ref];
-            B[2][idx] = B[2][idx_ref];
-            D[0][idx] = D[0][idx_ref];
+            // B[1][idx] = B[1][idx_ref];
+            // B[2][idx] = B[2][idx_ref];
+            // D[0][idx] = D[0][idx_ref];
 
-            B[0][idx] = B[0][idx_ref];
-            D[1][idx] = D[1][idx_ref];
-            D[2][idx] = D[2][idx_ref];
+            // B[0][idx] = B[0][idx_ref];
+            // D[1][idx] = D[1][idx_ref];
+            // D[2][idx] = D[2][idx_ref];
 
             // B[1][idx] = B0[1][idx];
             // B[2][idx] = B0[2][idx];
@@ -164,14 +166,13 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
 }
 
 template <typename Conf>
-void
-compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
-             const grid_ks_t<Conf>& grid) {
+void compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
+                  const grid_ks_t<Conf> &grid) {
   flux.init();
   auto ext = grid.extent();
   kernel_launch(
       [ext] __device__(auto flux, auto b, auto a) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(n0, true));
 
@@ -197,23 +198,22 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
   CudaCheckError();
 }
 
-}  // namespace
+} // namespace
 
-template <typename Conf>
-field_solver_gr_ks_cu<Conf>::~field_solver_gr_ks_cu() {
+template <typename Conf> field_solver_gr_ks_cu<Conf>::~field_solver_gr_ks_cu() {
   cusparseDestroy(sp_handle);
 
   // sp_buffer.resize(0);
 }
 
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::init() {
+template <typename Conf> void field_solver_gr_ks_cu<Conf>::init() {
   field_solver<Conf>::init();
 
   this->m_env.params().get_value("bh_spin", m_a);
   Logger::print_info("bh_spin in field solver is {}", m_a);
   this->m_env.params().get_value("implicit_beta", this->m_beta);
+  this->m_env.params().get_value("damping_length", m_damping_length);
+  this->m_env.params().get_value("damping_coef", m_damping_coef);
 
   cusparseCreate(&sp_handle);
   auto extl = this->m_grid.extent_less();
@@ -252,17 +252,14 @@ field_solver_gr_ks_cu<Conf>::init() {
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::register_data_components() {
+void field_solver_gr_ks_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
   flux = this->m_env.template register_data<scalar_field<Conf>>(
       "flux", this->m_grid, field_type::vert_centered);
 }
 
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::solve_tridiagonal() {
+template <typename Conf> void field_solver_gr_ks_cu<Conf>::solve_tridiagonal() {
   // Solve the assembled tri-diagonal system using cusparse
   cusparseStatus_t status;
   auto ext = this->m_grid.extent_less();
@@ -283,12 +280,11 @@ field_solver_gr_ks_cu<Conf>::solve_tridiagonal() {
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
-                                        const vector_field<Conf>& B0,
-                                        const vector_field<Conf>& D,
-                                        const vector_field<Conf>& D0,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             value_t dt) {
   m_tmp_rhs.assign_dev(0.0f);
   m_tmp_prev_field.copy_from(B[1]);
 
@@ -299,7 +295,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
                       auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -311,6 +307,10 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
             value_t r_sm =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            value_t r_spp = grid_ks_t<Conf>::radius(
+                grid.template pos<0>(pos[0] + 1, false));
+            value_t r_smm = grid_ks_t<Conf>::radius(
+                grid.template pos<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
@@ -324,17 +324,27 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             value_t cth = math::cos(th);
             value_t prefactor = dt / (sqrt_gamma(a, r, sth, cth) * dr);
 
-            auto Eph1 = ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
-                        ag_13(a, r_sp, sth, cth) * 0.5f *
-                            (D[0][idx.inc_x()] + D[0][idx]) +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0 - beta) *
-                            (B[1][idx.inc_x()] + B[1][idx]);
+            auto Eph1 =
+                ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
+                0.5f * (ag_13(a, r_spp, sth, cth) * D[0][idx.inc_x()] +
+                        ag_13(a, r, sth, cth) * D[0][idx]) +
+                // ag_13(a, r_sp, sth, cth) * 0.5f *
+                //     (D[0][idx.inc_x()] + D[0][idx]) +
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r_spp, sth, cth) * B[1][idx.inc_x()] +
+                     sq_gamma_beta(a, r, sth, cth) * B[1][idx]);
 
-            auto Eph0 = ag_33(a, r_sm, sth, cth) * D[2][idx] +
-                        ag_13(a, r_sm, sth, cth) * 0.5f *
-                            (D[0][idx] + D[0][idx.dec_x()]) +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0 - beta) *
-                            (B[1][idx] + B[1][idx.dec_x()]);
+            auto Eph0 =
+                ag_33(a, r_sm, sth, cth) * D[2][idx] +
+                0.5f * (ag_13(a, r, sth, cth) * D[0][idx] +
+                        ag_13(a, r_smm, sth, cth) * D[0][idx.dec_x()]) +
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r, sth, cth) * B[1][idx] +
+                     sq_gamma_beta(a, r_smm, sth, cth) * B[1][idx.dec_x()]);
+            // ag_13(a, r_sm, sth, cth) * 0.5f *
+            //     (D[0][idx] + D[0][idx.dec_x()]) +
+            // sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0 - beta) *
+            //     (B[1][idx] + B[1][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
@@ -354,10 +364,12 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             //   printf("rhs is %f, D0 is %f, B1 is %f\n", rhs[idx], D[0][idx],
             //   B[1][idx]);
 
+            // value_t d_coef = prefactor * beta * sq_gamma_beta(a, r, sth, cth);
+            value_t d_coef = 0.0f;
             value_t du_coef =
-                prefactor * 0.5f * beta * sq_gamma_beta(a, r_sp, sth, cth);
+                prefactor * 0.5f * beta * sq_gamma_beta(a, r_spp, sth, cth);
             value_t dl_coef =
-                -prefactor * 0.5f * beta * sq_gamma_beta(a, r_sm, sth, cth);
+                -prefactor * 0.5f * beta * sq_gamma_beta(a, r_smm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * B[1][idx.dec_x()];
@@ -367,7 +379,8 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
               // rhs[idx_rhs] += du_coef * B[1][idx];
             }
 
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            // d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
 
             du[pos[0] - grid.guard[0]] = -du_coef;
             dl[pos[0] - grid.guard[0]] = -dl_coef;
@@ -402,7 +415,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
   // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
       [] __device__(auto B, auto rhs, auto prev_field, auto beta) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(extl), Conf::end(extl))) {
@@ -415,18 +428,18 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
           // prev_field[fidx] = rhs[idx];
         }
       },
-      B.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(), this->m_beta);
+      B.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(),
+      this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
-                                        const vector_field<Conf>& B0,
-                                        const vector_field<Conf>& D,
-                                        const vector_field<Conf>& D0,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             value_t dt) {
   m_tmp_rhs.assign_dev(0.0f);
 
   // First assemble the right hand side and the diagonals of the tri-diagonal
@@ -435,7 +448,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
       [dt] __device__(auto B, auto B0, auto D, auto D0, auto rhs, auto d,
                       auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -447,6 +460,10 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
             value_t r_sm =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            value_t r_spp = grid_ks_t<Conf>::radius(
+                grid.template pos<0>(pos[0] + 1, false));
+            value_t r_smm = grid_ks_t<Conf>::radius(
+                grid.template pos<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
@@ -454,37 +471,54 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
             value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
             value_t th_sm = grid.template pos<1>(pos[1], true);
             value_t dth = th_sp - th_sm;
-            if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
+            if (th_sm < TINY)
+              th_sm = 0.01f * grid.delta[1];
 
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
             value_t prefactor = dt / (sqrt_gamma(a, r, sth, cth) * dr * dth);
 
-            auto Er1 = ag_11(a, r, th_sp) * D[0][idx.inc_y()] +
-                       ag_13(a, r, th_sp) * 0.5f *
-                           (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
+            auto Er1 =
+                ag_11(a, r, th_sp) * D[0][idx.inc_y()] +
+                // ag_13(a, r, th_sp) * 0.5f *
+                //     (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
+                0.5f * (ag_13(a, r_sm, th_sp) * D[2][idx.inc_y()] +
+                        ag_13(a, r_sp, th_sp) * D[2][idx.inc_y().inc_x()]);
 
-            auto Er0 = ag_11(a, r, th_sm) * D[0][idx] +
-                       ag_13(a, r, th_sm) * 0.5f *
-                           (D[2][idx] + D[2][idx.inc_x()]);
+            auto Er0 =
+                ag_11(a, r, th_sm) * D[0][idx] +
+                // ag_13(a, r, th_sm) * 0.5f * (D[2][idx] + D[2][idx.inc_x()]);
+                0.5f * (ag_13(a, r_sm, th_sm) * D[2][idx] +
+                        ag_13(a, r_sp, th_sm) * D[2][idx.inc_x()]);
 
-            auto Eth1 = ag_22(a, r_sp, sth, cth) * D[1][idx.inc_x()] -
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
-                            (B[2][idx.inc_x()] + B[2][idx]);
+            auto Eth1 =
+                ag_22(a, r_sp, sth, cth) * D[1][idx.inc_x()] -
+                // sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (B[2][idx.inc_x()] + B[2][idx]);
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r_spp, sth, cth) * B[2][idx.inc_x()] +
+                     sq_gamma_beta(a, r, sth, cth) * B[2][idx]);
 
-            auto Eth0 = ag_22(a, r_sm, sth, cth) * D[1][idx] -
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
-                            (B[2][idx] + B[2][idx.dec_x()]);
+            auto Eth0 =
+                ag_22(a, r_sm, sth, cth) * D[1][idx] -
+                // sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (B[2][idx] + B[2][idx.dec_x()]);
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r, sth, cth) * B[2][idx] +
+                     sq_gamma_beta(a, r_smm, sth, cth) * B[2][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
             rhs[idx_rhs] = B[2][idx] -
                            prefactor * (dr * (Er0 - Er1) + dth * (Eth1 - Eth0));
 
-            value_t du_coef =
-                prefactor * dth * 0.5f * beta * sq_gamma_beta(a, r_sp, sth, cth);
-            value_t dl_coef =
-                -prefactor * dth * 0.5f * beta * sq_gamma_beta(a, r_sm, sth, cth);
+            // value_t d_coef =
+            //     prefactor * dth * beta * sq_gamma_beta(a, r, sth, cth);
+            value_t d_coef = 0.0f;
+            value_t du_coef = prefactor * dth * 0.5f * beta *
+                              sq_gamma_beta(a, r_spp, sth, cth);
+            value_t dl_coef = -prefactor * dth * 0.5f * beta *
+                              sq_gamma_beta(a, r_smm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * B[2][idx.dec_x()];
@@ -494,7 +528,8 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
               // rhs[idx_rhs] += du_coef * B[2][idx];
             }
 
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            // d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
             du[pos[0] - grid.guard[0]] = -du_coef;
             dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
@@ -509,35 +544,39 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
   solve_tridiagonal();
 
   // B[2].copy_from(m_tmp_rhs);
-  auto& grid = B.grid();
+  auto &grid = B.grid();
   select_dev(B[2], grid.guards(), grid.extent_less()) =
       select_dev_const(m_tmp_rhs);
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf>& B,
-                                       const vector_field<Conf>& B0,
-                                       const vector_field<Conf>& D,
-                                       const vector_field<Conf>& D0,
-                                       value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
+                                            const vector_field<Conf> &B0,
+                                            const vector_field<Conf> &D,
+                                            const vector_field<Conf> &D0,
+                                            value_t dt) {
   kernel_launch(
       [dt] __device__(auto B, auto B0, auto D, auto D0, auto tmp_field,
                       auto a) {
         using namespace Metric_KS;
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            value_t r_sp =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+            value_t r_sm = grid_ks_t<Conf>::radius(
+                grid.template pos<0>(pos[0] - 1, false));
 
             value_t th = grid.template pos<1>(pos[1], false);
             value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
             value_t th_sm = grid.template pos<1>(pos[1], true);
             value_t dth = th_sp - th_sm;
-            if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
+            if (th_sm < TINY)
+              th_sm = 0.01f * grid.delta[1];
 
             value_t prefactor = dt / (sqrt_gamma(a, r, th) * dth);
 
@@ -545,18 +584,30 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf>& B,
             value_t cth = math::cos(th_sp);
             value_t Eph1 =
                 ag_33(a, r, sth, cth) * D[2][idx.inc_y()] +
-                ag_13(a, r, sth, cth) * 0.5f *
-                    (D[0][idx.inc_y()] + D[0][idx.inc_y().dec_x()]) +
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx.inc_y()] + tmp_field[idx.inc_y().dec_x()]);
+                // ag_13(a, r, sth, cth) * 0.5f *
+                //     (D[0][idx.inc_y()] + D[0][idx.inc_y().dec_x()]) +
+                // sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                //     (tmp_field[idx.inc_y()] +
+                //     tmp_field[idx.inc_y().dec_x()]);
+                0.5f * (ag_13(a, r_sp, sth, cth) * D[0][idx.inc_y()] +
+                        ag_13(a, r_sm, sth, cth) * D[0][idx.inc_y().dec_x()]) +
+                0.5f *
+                    (sq_gamma_beta(a, r_sp, sth, cth) * tmp_field[idx.inc_y()] +
+                     sq_gamma_beta(a, r_sm, sth, cth) *
+                         tmp_field[idx.inc_y().dec_x()]);
 
             sth = math::sin(th_sm);
             cth = math::cos(th_sm);
             value_t Eph0 =
                 ag_33(a, r, sth, cth) * D[2][idx] +
-                ag_13(a, r, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx] + tmp_field[idx.dec_x()]);
+                // ag_13(a, r, sth, cth) * 0.5f * (D[0][idx] +
+                // D[0][idx.dec_x()]) + sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                //     (tmp_field[idx] + tmp_field[idx.dec_x()]);
+                0.5f * (ag_13(a, r_sp, sth, cth) * D[0][idx] +
+                        ag_13(a, r_sm, sth, cth) * D[0][idx.dec_x()]) +
+                0.5f *
+                    (sq_gamma_beta(a, r_sp, sth, cth) * tmp_field[idx] +
+                     sq_gamma_beta(a, r_sm, sth, cth) * tmp_field[idx.dec_x()]);
             // if (pos[0] == 6 && pos[1] == 200) {
             //   printf(
             //       "Eph1 is %f, Eph0 is %f, dEphi is %f, tmpf is %f, "
@@ -579,13 +630,12 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf>& B,
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
-                                        const vector_field<Conf>& D0,
-                                        const vector_field<Conf>& B,
-                                        const vector_field<Conf>& B0,
-                                        const vector_field<Conf>& J,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             const vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &J,
+                                             value_t dt) {
   m_tmp_rhs.assign_dev(0.0f);
   m_tmp_prev_field.copy_from(D[1]);
 
@@ -596,7 +646,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
                       auto d, auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -608,6 +658,10 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
             value_t r_sm = grid_ks_t<Conf>::radius(
                 grid.template pos<0>(pos[0] - 1, false));
+            value_t r_spp =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+            value_t r_smm =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, true));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
@@ -618,27 +672,42 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             value_t prefactor = dt / (Metric_KS::sqrt_gamma(a, r, th) * dr);
 
             // if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
-            auto Hph1 = ag_33(a, r_sp, sth, cth) * B[2][idx] +
-                        ag_13(a, r_sp, sth, cth) * 0.5f *
-                            (B[0][idx.inc_x()] + B[0][idx]) -
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
-                            (D[1][idx.inc_x()] + D[1][idx]);
+            auto Hph1 =
+                ag_33(a, r_sp, sth, cth) * B[2][idx] +
+                // ag_13(a, r_sp, sth, cth) * 0.5f *
+                //     (B[0][idx.inc_x()] + B[0][idx]) -
+                // sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (D[1][idx.inc_x()] + D[1][idx]);
+                0.5f * (ag_13(a, r_spp, sth, cth) * B[0][idx.inc_x()] +
+                        ag_13(a, r, sth, cth) * B[0][idx]) -
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r_spp, sth, cth) * D[1][idx.inc_x()] +
+                     sq_gamma_beta(a, r, sth, cth) * D[1][idx]);
 
-            auto Hph0 = ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
-                        ag_13(a, r_sm, sth, cth) * 0.5f *
-                            (B[0][idx] + B[0][idx.dec_x()]) -
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
-                            (D[1][idx] + D[1][idx.dec_x()]);
+            auto Hph0 =
+                ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
+                // ag_13(a, r_sm, sth, cth) * 0.5f *
+                //     (B[0][idx] + B[0][idx.dec_x()]) -
+                // sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (D[1][idx] + D[1][idx.dec_x()]);
+                0.5f * (ag_13(a, r, sth, cth) * B[0][idx] +
+                        ag_13(a, r_smm, sth, cth) * B[0][idx.dec_x()]) -
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r, sth, cth) * D[1][idx] +
+                     sq_gamma_beta(a, r_smm, sth, cth) * D[1][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
             rhs[idx_rhs] =
                 D[1][idx] - dt * J[1][idx] + prefactor * (Hph0 - Hph1);
-            // }
-            value_t du_coef =
-                prefactor * 0.5f * beta * Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
-            value_t dl_coef =
-                -prefactor * 0.5f * beta * Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
+
+            // value_t d_coef =
+            //     prefactor * beta * Metric_KS::sq_gamma_beta(a, r, sth, cth);
+            value_t d_coef = 0.0f;
+            value_t du_coef = prefactor * 0.5f * beta *
+                              Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
+            value_t dl_coef = -prefactor * 0.5f * beta *
+                              Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * D[1][idx.dec_x()];
@@ -648,7 +717,8 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
               // rhs[idx_rhs] += du_coef * D[1][idx];
             }
 
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            // d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
             du[pos[0] - grid.guard[0]] = -du_coef;
             dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
@@ -656,7 +726,8 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
       },
       D.get_const_ptrs(), D0.get_const_ptrs(), B.get_const_ptrs(),
       B0.get_const_ptrs(), J.get_const_ptrs(), m_tmp_rhs.dev_ndptr(),
-      m_tri_d.dev_ptr(), m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a, this->m_beta);
+      m_tri_d.dev_ptr(), m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a,
+      this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -682,7 +753,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
   // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
       [] __device__(auto D, auto rhs, auto prev_field, auto beta) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(extl), Conf::end(extl))) {
@@ -695,19 +766,19 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
           // prev_field[fidx] = 1.0f * rhs[idx];
         }
       },
-      D.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(), this->m_beta);
+      D.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(),
+      this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
-                                        const vector_field<Conf>& D0,
-                                        const vector_field<Conf>& B,
-                                        const vector_field<Conf>& B0,
-                                        const vector_field<Conf>& J,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             const vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &J,
+                                             value_t dt) {
   m_tmp_rhs.assign_dev(0.0f);
 
   // First assemble the right hand side and the diagonals of the tri-diagonal
@@ -717,7 +788,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                       auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -729,6 +800,10 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
             value_t r_sm = grid_ks_t<Conf>::radius(
                 grid.template pos<0>(pos[0] - 1, false));
+            value_t r_spp =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+            value_t r_smm =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, true));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
@@ -736,7 +811,8 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
             value_t th_sp = grid.template pos<1>(pos[1], false);
             value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
             value_t dth = th_sp - th_sm;
-            if (th < TINY) th = 0.01f * grid.delta[1];
+            if (th < TINY)
+              th = 0.01f * grid.delta[1];
 
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
@@ -744,21 +820,34 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                 dt / (Metric_KS::sqrt_gamma(a, r, th) * dr * dth);
 
             // if (pos[1] > 0 && pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
-            auto Hr0 = ag_11(a, r, th_sm) * B[0][idx.dec_y()] +
-                       ag_13(a, r, th_sm) * 0.5f *
-                           (B[2][idx.dec_y()] + B[2][idx.dec_y().dec_x()]);
+            auto Hr0 =
+                ag_11(a, r, th_sm) * B[0][idx.dec_y()] +
+                // ag_13(a, r, th_sm) * 0.5f *
+                //     (B[2][idx.dec_y()] + B[2][idx.dec_y().dec_x()]);
+                0.5f * (ag_13(a, r_sp, th_sm) * B[2][idx.dec_y()] +
+                        ag_13(a, r_sm, th_sm) * B[2][idx.dec_y().dec_x()]);
 
             auto Hr1 =
                 ag_11(a, r, th_sp) * B[0][idx] +
-                ag_13(a, r, th_sp) * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
+                // ag_13(a, r, th_sp) * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
+                0.5f * (ag_13(a, r_sp, th_sp) * B[2][idx] +
+                        ag_13(a, r_sm, th_sp) * B[2][idx.dec_x()]);
 
-            auto Hth0 = ag_22(a, r_sm, sth, cth) * B[1][idx.dec_x()] +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
-                            (D[2][idx] + D[2][idx.dec_x()]);
+            auto Hth0 =
+                ag_22(a, r_sm, sth, cth) * B[1][idx.dec_x()] +
+                // sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (D[2][idx] + D[2][idx.dec_x()]);
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r, sth, cth) * D[2][idx] +
+                     sq_gamma_beta(a, r_smm, sth, cth) * D[2][idx.dec_x()]);
 
-            auto Hth1 = ag_22(a, r_sp, sth, cth) * B[1][idx] +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
-                            (D[2][idx.inc_x()] + D[2][idx]);
+            auto Hth1 =
+                ag_22(a, r_sp, sth, cth) * B[1][idx] +
+                // sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+                //     (1.0f - beta) * (D[2][idx.inc_x()] + D[2][idx]);
+                0.5f * (1.0f - beta) *
+                    (sq_gamma_beta(a, r_spp, sth, cth) * D[2][idx.inc_x()] +
+                     sq_gamma_beta(a, r, sth, cth) * D[2][idx]);
 
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
@@ -771,10 +860,14 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                   Hr0, Hr1, Hth0, Hth1,
                   prefactor * (dr * (Hr0 - Hr1) + dth * (Hth1 - Hth0)));
             }
+
+            // value_t d_coef = prefactor * dth * beta *
+            //                  Metric_KS::sq_gamma_beta(a, r, sth, cth);
+            value_t d_coef = 0.0f;
             value_t du_coef = prefactor * dth * 0.5f * beta *
-                              Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
+                              Metric_KS::sq_gamma_beta(a, r_spp, sth, cth);
             value_t dl_coef = -prefactor * dth * 0.5f * beta *
-                              Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
+                              Metric_KS::sq_gamma_beta(a, r_smm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * D[2][idx.dec_x()];
@@ -784,7 +877,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
               // rhs[idx_rhs] += du_coef * D[2][idx];
             }
 
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
             du[pos[0] - grid.guard[0]] = -du_coef;
             dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
@@ -799,36 +892,40 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
   solve_tridiagonal();
 
   // D[2].copy_from(m_tmp_rhs);
-  auto& grid = D.grid();
+  auto &grid = D.grid();
   select_dev(D[2], grid.guards(), grid.extent_less()) =
       select_dev_const(m_tmp_rhs);
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf>& D,
-                                       const vector_field<Conf>& D0,
-                                       const vector_field<Conf>& B,
-                                       const vector_field<Conf>& B0,
-                                       const vector_field<Conf>& J,
-                                       value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
+                                            const vector_field<Conf> &D0,
+                                            const vector_field<Conf> &B,
+                                            const vector_field<Conf> &B0,
+                                            const vector_field<Conf> &J,
+                                            value_t dt) {
   kernel_launch(
       [dt] __device__(auto D, auto B, auto J, auto tmp_field, auto a) {
         using namespace Metric_KS;
 
-        auto& grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+            value_t r_sp =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+            value_t r_sm =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
 
             value_t th = grid.template pos<1>(pos[1], true);
             value_t th_sp = grid.template pos<1>(pos[1], false);
             value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
             value_t dth = th_sp - th_sm;
-            if (th < TINY) th = 1.0e-5;
+            if (th < TINY)
+              th = 1.0e-5;
 
             value_t prefactor = dt / (Metric_KS::sqrt_gamma(a, r, th) * dth);
 
@@ -836,18 +933,30 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf>& D,
             value_t cth = math::cos(th_sp);
             auto Hph1 =
                 ag_33(a, r, sth, cth) * B[2][idx] +
-                ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.inc_x()]) -
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx] + tmp_field[idx.inc_x()]);
+                // ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] +
+                // B[0][idx.inc_x()]) - sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                //     (tmp_field[idx] + tmp_field[idx.inc_x()]);
+                0.5f * (ag_13(a, r_sm, sth, cth) * B[0][idx] +
+                        ag_13(a, r_sp, sth, cth) * B[0][idx.inc_x()]) -
+                0.5f *
+                    (sq_gamma_beta(a, r_sm, sth, cth) * tmp_field[idx] +
+                     sq_gamma_beta(a, r_sp, sth, cth) * tmp_field[idx.inc_x()]);
 
             sth = math::sin(th_sm);
             cth = math::cos(th_sm);
             auto Hph0 =
                 ag_33(a, r, sth, cth) * B[2][idx.dec_y()] +
-                ag_13(a, r, sth, cth) * 0.5f *
-                    (B[0][idx.dec_y()] + B[0][idx.dec_y().inc_x()]) -
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx.dec_y()] + tmp_field[idx.dec_y().inc_x()]);
+                // ag_13(a, r, sth, cth) * 0.5f *
+                //     (B[0][idx.dec_y()] + B[0][idx.dec_y().inc_x()]) -
+                // sq_gamma_beta(a, r, sth, cth) * 0.5f *
+                //     (tmp_field[idx.dec_y()] +
+                //     tmp_field[idx.dec_y().inc_x()]);
+                0.5f * (ag_13(a, r_sm, sth, cth) * B[0][idx.dec_y()] +
+                        ag_13(a, r_sp, sth, cth) * B[0][idx.dec_y().inc_x()]) -
+                0.5f *
+                    (sq_gamma_beta(a, r_sm, sth, cth) * tmp_field[idx.dec_y()] +
+                     sq_gamma_beta(a, r_sp, sth, cth) *
+                         tmp_field[idx.dec_y().inc_x()]);
 
             D[0][idx] = D[0][idx] - dt * J[0][idx] + prefactor * (Hph1 - Hph0);
 
@@ -872,8 +981,7 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf>& D,
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
+void field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("In GR KS solver! a is {}", m_a);
 
   if (this->m_update_b) {
@@ -883,7 +991,8 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
     axis_boundary_b(*(this->B), m_ks_grid);
     // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_update_e) {
@@ -895,12 +1004,13 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
     axis_boundary_e(*(this->E), m_ks_grid);
     // Communicate the new E values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->E));
   }
 
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
     horizon_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
-                     m_ks_grid);
+                     m_ks_grid, m_damping_length, m_damping_coef);
   }
 
   this->Etotal->copy_from(*(this->E));
@@ -918,4 +1028,4 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
 template class field_solver_gr_ks_cu<Config<2>>;
 
-}  // namespace Aperture
+} // namespace Aperture

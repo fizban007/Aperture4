@@ -133,16 +133,21 @@ horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B,
             auto pos = index_t<2>(n0, n1);
             auto idx = Conf::idx(pos, ext);
 
+            // B[0][idx] = 0.0f;
+            // B[1][idx] = 0.0f;
+            // B[2][idx] = 0.0f;
+            // D[0][idx] = 0.0f;
+            // D[1][idx] = 0.0f;
+            // D[2][idx] = 0.0f;
+
             B[1][idx] = B[1][idx_ref];
             B[2][idx] = B[2][idx_ref];
             D[0][idx] = D[0][idx_ref];
 
             B[0][idx] = B[0][idx_ref];
-            // B[0][idx] = 0.0f;
             D[1][idx] = D[1][idx_ref];
-            // D[1][idx] = 0.0f;
             D[2][idx] = D[2][idx_ref];
-            // D[2][idx] = 0.0f;
+
             // B[1][idx] = B0[1][idx];
             // B[2][idx] = B0[2][idx];
             // D[0][idx] = D0[0][idx];
@@ -208,6 +213,7 @@ field_solver_gr_ks_cu<Conf>::init() {
 
   this->m_env.params().get_value("bh_spin", m_a);
   Logger::print_info("bh_spin in field solver is {}", m_a);
+  this->m_env.params().get_value("implicit_beta", this->m_beta);
 
   cusparseCreate(&sp_handle);
   auto extl = this->m_grid.extent_less();
@@ -290,7 +296,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
   // equation
   kernel_launch(
       [dt] __device__(auto B, auto B0, auto D, auto D0, auto rhs, auto d,
-                      auto dl, auto du, auto a) {
+                      auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
         auto& grid = dev_grid<Conf::dim>();
@@ -306,6 +312,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             value_t r_sm =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
             value_t dr = r_sp - r_sm;
+            // value_t dr = grid.delta[0];
 
             value_t th = grid.template pos<1>(pos[1], true);
             // if (math::abs(th) < TINY) th = sgn(th) * 1.0e-4;
@@ -320,13 +327,13 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             auto Eph1 = ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
                         ag_13(a, r_sp, sth, cth) * 0.5f *
                             (D[0][idx.inc_x()] + D[0][idx]) +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0 - beta) *
                             (B[1][idx.inc_x()] + B[1][idx]);
 
             auto Eph0 = ag_33(a, r_sm, sth, cth) * D[2][idx] +
                         ag_13(a, r_sm, sth, cth) * 0.5f *
                             (D[0][idx] + D[0][idx.dec_x()]) +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0 - beta) *
                             (B[1][idx] + B[1][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
@@ -348,14 +355,16 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
             //   B[1][idx]);
 
             value_t du_coef =
-                prefactor * 0.25f * sq_gamma_beta(a, r_sp, sth, cth);
+                prefactor * 0.5f * beta * sq_gamma_beta(a, r_sp, sth, cth);
             value_t dl_coef =
-                -prefactor * 0.25f * sq_gamma_beta(a, r_sm, sth, cth);
+                -prefactor * 0.5f * beta * sq_gamma_beta(a, r_sm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * B[1][idx.dec_x()];
+              // rhs[idx_rhs] += dl_coef * B[1][idx];
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               rhs[idx_rhs] += du_coef * B[1][idx.inc_x()];
+              // rhs[idx_rhs] += du_coef * B[1][idx];
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
@@ -367,7 +376,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
       },
       B.get_const_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
       D0.get_const_ptrs(), m_tmp_rhs.dev_ndptr(), m_tri_d.dev_ptr(),
-      m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a);
+      m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a, this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -392,7 +401,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
   // B[1].copy_from(m_tmp_rhs);
   // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
-      [] __device__(auto B, auto rhs, auto prev_field) {
+      [] __device__(auto B, auto rhs, auto prev_field, auto beta) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
@@ -402,11 +411,11 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf>& B,
               index(pos[0] + grid.guard[0], pos[1] + grid.guard[1]), ext);
 
           B[1][fidx] = rhs[idx];
-          prev_field[fidx] = 0.5f * rhs[idx] + 0.5f * prev_field[fidx];
+          prev_field[fidx] = beta * rhs[idx] + (1.0f - beta) * prev_field[fidx];
           // prev_field[fidx] = rhs[idx];
         }
       },
-      B.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr());
+      B.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(), this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -424,7 +433,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
   // equation
   kernel_launch(
       [dt] __device__(auto B, auto B0, auto D, auto D0, auto rhs, auto d,
-                      auto dl, auto du, auto a) {
+                      auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
@@ -439,6 +448,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
             value_t r_sm =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
             value_t dr = r_sp - r_sm;
+            // value_t dr = grid.delta[0];
 
             value_t th = grid.template pos<1>(pos[1], false);
             value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
@@ -448,7 +458,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
 
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
-            value_t prefactor = dt / (sqrt_gamma(a, r, th) * dr * dth);
+            value_t prefactor = dt / (sqrt_gamma(a, r, sth, cth) * dr * dth);
 
             auto Er1 = ag_11(a, r, th_sp) * D[0][idx.inc_y()] +
                        ag_13(a, r, th_sp) * 0.5f *
@@ -458,12 +468,12 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                        ag_13(a, r, th_sm) * 0.5f *
                            (D[2][idx] + D[2][idx.inc_x()]);
 
-            auto Eth1 = ag_22(a, r, sth, cth) * D[1][idx.inc_x()] -
-                        sq_gamma_beta(a, r, sth, cth) * 0.25f *
+            auto Eth1 = ag_22(a, r_sp, sth, cth) * D[1][idx.inc_x()] -
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
                             (B[2][idx.inc_x()] + B[2][idx]);
 
-            auto Eth0 = ag_22(a, r, sth, cth) * D[1][idx] -
-                        sq_gamma_beta(a, r, sth, cth) * 0.25f *
+            auto Eth0 = ag_22(a, r_sm, sth, cth) * D[1][idx] -
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
                             (B[2][idx] + B[2][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
@@ -472,14 +482,16 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
                            prefactor * (dr * (Er0 - Er1) + dth * (Eth1 - Eth0));
 
             value_t du_coef =
-                prefactor * dth * 0.25f * sq_gamma_beta(a, r_sp, th);
+                prefactor * dth * 0.5f * beta * sq_gamma_beta(a, r_sp, sth, cth);
             value_t dl_coef =
-                -prefactor * dth * 0.25f * sq_gamma_beta(a, r_sm, th);
+                -prefactor * dth * 0.5f * beta * sq_gamma_beta(a, r_sm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * B[2][idx.dec_x()];
+              // rhs[idx_rhs] += dl_coef * B[2][idx];
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               rhs[idx_rhs] += du_coef * B[2][idx.inc_x()];
+              // rhs[idx_rhs] += du_coef * B[2][idx];
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
@@ -490,7 +502,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf>& B,
       },
       B.get_const_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
       D0.get_const_ptrs(), m_tmp_rhs.dev_ndptr(), m_tri_d.dev_ptr(),
-      m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a);
+      m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a, this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -581,7 +593,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
   // equation
   kernel_launch(
       [dt] __device__(auto D, auto D0, auto B, auto B0, auto J, auto rhs,
-                      auto d, auto dl, auto du, auto a) {
+                      auto d, auto dl, auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
         auto& grid = dev_grid<Conf::dim>();
@@ -597,6 +609,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             value_t r_sm = grid_ks_t<Conf>::radius(
                 grid.template pos<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
+            // value_t dr = grid.delta[0];
 
             value_t th = grid.template pos<1>(pos[1], false);
 
@@ -608,13 +621,13 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
             auto Hph1 = ag_33(a, r_sp, sth, cth) * B[2][idx] +
                         ag_13(a, r_sp, sth, cth) * 0.5f *
                             (B[0][idx.inc_x()] + B[0][idx]) -
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
                             (D[1][idx.inc_x()] + D[1][idx]);
 
             auto Hph0 = ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
                         ag_13(a, r_sm, sth, cth) * 0.5f *
                             (B[0][idx] + B[0][idx.dec_x()]) -
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
                             (D[1][idx] + D[1][idx.dec_x()]);
 
             auto idx_rhs = Conf::idx(
@@ -623,14 +636,16 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
                 D[1][idx] - dt * J[1][idx] + prefactor * (Hph0 - Hph1);
             // }
             value_t du_coef =
-                prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sp, th);
+                prefactor * 0.5f * beta * Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
             value_t dl_coef =
-                -prefactor * 0.25f * Metric_KS::sq_gamma_beta(a, r_sm, th);
+                -prefactor * 0.5f * beta * Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * D[1][idx.dec_x()];
+              // rhs[idx_rhs] += dl_coef * D[1][idx];
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               rhs[idx_rhs] += du_coef * D[1][idx.inc_x()];
+              // rhs[idx_rhs] += du_coef * D[1][idx];
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
@@ -641,7 +656,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
       },
       D.get_const_ptrs(), D0.get_const_ptrs(), B.get_const_ptrs(),
       B0.get_const_ptrs(), J.get_const_ptrs(), m_tmp_rhs.dev_ndptr(),
-      m_tri_d.dev_ptr(), m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a);
+      m_tri_d.dev_ptr(), m_tri_dl.dev_ptr(), m_tri_du.dev_ptr(), m_a, this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -666,7 +681,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
   // D[1].copy_from(m_tmp_rhs);
   // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
-      [] __device__(auto D, auto rhs, auto prev_field) {
+      [] __device__(auto D, auto rhs, auto prev_field, auto beta) {
         auto& grid = dev_grid<Conf::dim>();
         auto ext = grid.extent();
         auto extl = grid.extent_less();
@@ -676,11 +691,11 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf>& D,
               index(pos[0] + grid.guard[0], pos[1] + grid.guard[1]), ext);
 
           D[1][fidx] = rhs[idx];
-          prev_field[fidx] = 0.5f * rhs[idx] + 0.5f * prev_field[fidx];
+          prev_field[fidx] = beta * rhs[idx] + (1.0f - beta) * prev_field[fidx];
           // prev_field[fidx] = 1.0f * rhs[idx];
         }
       },
-      D.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr());
+      D.get_ptrs(), m_tmp_rhs.dev_ndptr(), m_tmp_prev_field.dev_ndptr(), this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -699,7 +714,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
   // equation
   kernel_launch(
       [dt] __device__(auto D, auto B, auto J, auto rhs, auto d, auto dl,
-                      auto du, auto a) {
+                      auto du, auto a, auto beta) {
         using namespace Metric_KS;
 
         auto& grid = dev_grid<Conf::dim>();
@@ -715,6 +730,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
             value_t r_sm = grid_ks_t<Conf>::radius(
                 grid.template pos<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
+            // value_t dr = grid.delta[0];
 
             value_t th = grid.template pos<1>(pos[1], true);
             value_t th_sp = grid.template pos<1>(pos[1], false);
@@ -737,11 +753,11 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                 ag_13(a, r, th_sp) * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
 
             auto Hth0 = ag_22(a, r_sm, sth, cth) * B[1][idx.dec_x()] +
-                        sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sm, sth, cth) * 0.5f * (1.0f - beta) *
                             (D[2][idx] + D[2][idx.dec_x()]);
 
             auto Hth1 = ag_22(a, r_sp, sth, cth) * B[1][idx] +
-                        sq_gamma_beta(a, r_sp, sth, cth) * 0.25f *
+                        sq_gamma_beta(a, r_sp, sth, cth) * 0.5f * (1.0f - beta) *
                             (D[2][idx.inc_x()] + D[2][idx]);
 
             auto idx_rhs = Conf::idx(
@@ -755,15 +771,17 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
                   Hr0, Hr1, Hth0, Hth1,
                   prefactor * (dr * (Hr0 - Hr1) + dth * (Hth1 - Hth0)));
             }
-            value_t du_coef = prefactor * dth * 0.25f *
+            value_t du_coef = prefactor * dth * 0.5f * beta *
                               Metric_KS::sq_gamma_beta(a, r_sp, sth, cth);
-            value_t dl_coef = -prefactor * dth * 0.25f *
+            value_t dl_coef = -prefactor * dth * 0.5f * beta *
                               Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
             if (pos[0] == grid.guard[0]) {
               rhs[idx_rhs] += dl_coef * D[2][idx.dec_x()];
+              // rhs[idx_rhs] += dl_coef * D[2][idx];
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               rhs[idx_rhs] += du_coef * D[2][idx.inc_x()];
+              // rhs[idx_rhs] += du_coef * D[2][idx];
             }
 
             d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
@@ -774,7 +792,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf>& D,
       },
       D.get_const_ptrs(), B.get_const_ptrs(), J.get_const_ptrs(),
       m_tmp_rhs.dev_ndptr(), m_tri_d.dev_ptr(), m_tri_dl.dev_ptr(),
-      m_tri_du.dev_ptr(), m_a);
+      m_tri_du.dev_ptr(), m_a, this->m_beta);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 

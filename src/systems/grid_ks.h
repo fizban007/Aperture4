@@ -47,10 +47,10 @@ Z(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / rho2(a, r, sth, cth);
 }
 
-HD_INLINE Scalar
-Delta(Scalar a, Scalar r) {
-  return r * r + a * a - 2.0f * r;
-}
+// HD_INLINE Scalar
+// Delta(Scalar a, Scalar r) {
+//   return r * r + a * a - 2.0f * r;
+// }
 
 HD_INLINE Scalar
 Sigma(Scalar a, Scalar r, Scalar th) {
@@ -77,14 +77,18 @@ alpha(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 
 HD_INLINE Scalar
 beta1(Scalar a, Scalar r, Scalar th) {
-  Scalar z = Z(a, r, th);
-  return z / (1.0f + z);
+  // Scalar z = Z(a, r, th);
+  // return z / (1.0f + z);
+  // return 2.0f / (r * (2.0f + r) + square(a * math::cos(th)));
+  return 2.0f * r / (r * (2.0f + r) + square(a * math::cos(th)));
 }
 
 HD_INLINE Scalar
 beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  Scalar z = Z(a, r, sth, cth);
-  return z / (1.0f + z);
+  // Scalar z = Z(a, r, sth, cth);
+  // return z / (1.0f + z);
+  // return 2.0f / (r * (2.0f + r) + square(a * cth));
+  return 2.0f * r / (r * (2.0f + r) + square(a * cth));
 }
 
 // HD_INLINE Scalar
@@ -132,11 +136,13 @@ beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar th) {
   return math::sqrt(1.0f + Z(a, r, th));
+  // return r * r * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return math::sqrt(1.0f + Z(a, r, sth, cth));
+  // return r * r * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -166,11 +172,13 @@ HD_INLINE Scalar
 ag_13(Scalar a, Scalar r, Scalar th) {
   Scalar sth = math::sin(th);
   return -a * sth * sth * math::sqrt(1.0f + Z(a, r, th));
+  // return -a * r * sth * sth * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 ag_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return -a * sth * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
+  // return -a * r * sth * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -179,6 +187,7 @@ sqrt_gamma(Scalar a, Scalar r, Scalar th) {
   // return 0.5f * math::abs(math::sin(th)) *
   //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
   return rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
+  // return r * rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
@@ -187,6 +196,7 @@ sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   // return 0.5f * math::abs(sth) *
   //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
   return rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
+  // return r * rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 // This returns the composite value of sqrt(gamma) * beta1
@@ -198,7 +208,7 @@ sq_gamma_beta(Scalar a, Scalar r, Scalar th) {
   //                   (a2c2th + 2.0f * r * (2.0f + r))) /
   //        (r * (2.0f + r) + square(a * math::cos(th)));
   Scalar z = Z(a, r, th);
-  return rho2(a, r, th) * math::sin(th) * z / math::sqrt(1.0f + z);
+  return 2.0f * r * math::sin(th) / math::sqrt(1.0f + z);
 }
 
 HD_INLINE Scalar
@@ -209,7 +219,7 @@ sq_gamma_beta(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   //                   (a2c2th + 2.0f * r * (2.0f + r))) /
   //        (r * (2.0f + r) + square(a * cth));
   Scalar z = Z(a, r, sth, cth);
-  return rho2(a, r, sth, cth) * sth * z / math::sqrt(1.0f + z);
+  return 2.0f * r * sth / math::sqrt(1.0f + z);
 }
 
 }  // namespace Metric_KS

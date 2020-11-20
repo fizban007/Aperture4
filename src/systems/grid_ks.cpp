@@ -27,6 +27,19 @@ grid_ks_t<Conf>::grid_ks_t(sim_environment& env, const domain_comm<Conf>* comm) 
   m_gbetadth_e.resize(this->extent());
   m_gbetadth_h.resize(this->extent());
 
+  for (int i = 0; i < 3; i++) {
+    ptrs.Ab[i] = m_Ab[i].dev_ndptr_const();
+    ptrs.Ad[i] = m_Ad[i].dev_ndptr_const();
+  }
+  ptrs.ag11dr_e = m_ag11dr_e.dev_ndptr_const();
+  ptrs.ag11dr_h = m_ag11dr_h.dev_ndptr_const();
+  ptrs.ag13dr_e = m_ag13dr_e.dev_ndptr_const();
+  ptrs.ag13dr_h = m_ag13dr_h.dev_ndptr_const();
+  ptrs.ag22dth_e = m_ag22dth_e.dev_ndptr_const();
+  ptrs.ag22dth_h = m_ag22dth_h.dev_ndptr_const();
+  ptrs.gbetadth_e = m_gbetadth_e.dev_ndptr_const();
+  ptrs.gbetadth_h = m_gbetadth_h.dev_ndptr_const();
+
   timer::stamp();
   compute_coef();
   timer::show_duration_since_stamp("Computing KS coefficients", "ms");
@@ -106,7 +119,6 @@ grid_ks_t<Conf>::compute_coef() {
     m_gbetadth_e[idx] = gauss_quad([this, r_s] (auto x) {
       return sq_gamma_beta(a, r_s, x);
     }, th_s, theta(this->template pos<1>(pos[1] + 1, true)));
-
 
   }
 

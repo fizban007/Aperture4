@@ -241,7 +241,21 @@ class grid_ks_t : public grid_t<Conf> {
   static std::string name() { return "grid"; }
   typedef typename Conf::value_t value_t;
 
+  struct grid_ptrs {
+    typename Conf::ndptr_const_t ag11dr_h;
+    typename Conf::ndptr_const_t ag11dr_e;
+    typename Conf::ndptr_const_t ag13dr_h;
+    typename Conf::ndptr_const_t ag13dr_e;
+    typename Conf::ndptr_const_t ag22dth_h;
+    typename Conf::ndptr_const_t ag22dth_e;
+    typename Conf::ndptr_const_t gbetadth_h;
+    typename Conf::ndptr_const_t gbetadth_e;
+    vec_t<typename Conf::ndptr_const_t, 3> Ad;
+    vec_t<typename Conf::ndptr_const_t, 3> Ab;
+  };
+
   value_t a = 0.99;
+  grid_ptrs ptrs;
 
   grid_ks_t(sim_environment& env, const domain_comm<Conf>* comm);
   grid_ks_t(const grid_ks_t<Conf>& grid) = default;
@@ -267,37 +281,10 @@ class grid_ks_t : public grid_t<Conf> {
     return result;
   }
 
-  struct grid_ptrs {
-    typename Conf::ndptr_const_t ag11dr_h;
-    typename Conf::ndptr_const_t ag11dr_e;
-    typename Conf::ndptr_const_t ag13dr_h;
-    typename Conf::ndptr_const_t ag13dr_e;
-    typename Conf::ndptr_const_t ag22dth_h;
-    typename Conf::ndptr_const_t ag22dth_e;
-    typename Conf::ndptr_const_t gbetadth_h;
-    typename Conf::ndptr_const_t gbetadth_e;
-    vec_t<typename Conf::ndptr_const_t, 3> Ad;
-    vec_t<typename Conf::ndptr_const_t, 3> Ab;
-  };
-
   void compute_coef();
+
   grid_ptrs get_grid_ptrs() const {
-    grid_ptrs result;
-
-    for (int i = 0; i < 3; i++) {
-      result.Ab[i] = m_Ab[i].dev_ndptr_const();
-      result.Ad[i] = m_Ad[i].dev_ndptr_const();
-    }
-    result.ag11dr_e = m_ag11dr_e.dev_ndptr_const();
-    result.ag11dr_h = m_ag11dr_h.dev_ndptr_const();
-    result.ag13dr_e = m_ag13dr_e.dev_ndptr_const();
-    result.ag13dr_h = m_ag13dr_h.dev_ndptr_const();
-    result.ag22dth_e = m_ag22dth_e.dev_ndptr_const();
-    result.ag22dth_h = m_ag22dth_h.dev_ndptr_const();
-    result.gbetadth_e = m_gbetadth_e.dev_ndptr_const();
-    result.gbetadth_h = m_gbetadth_h.dev_ndptr_const();
-
-    return result;
+    return ptrs;
   }
 
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ad;

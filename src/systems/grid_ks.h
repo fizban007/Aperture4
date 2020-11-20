@@ -20,7 +20,9 @@
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
+#include "core/multi_array.hpp"
 #include "grid.h"
+#include <array>
 
 namespace Aperture {
 
@@ -185,7 +187,8 @@ HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar th) {
   // Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
   // return 0.5f * math::abs(math::sin(th)) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f +
+  //        r)));
   return rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
   // return r * rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
 }
@@ -194,9 +197,11 @@ HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   // Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
   // return 0.5f * math::abs(sth) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f + r)));
+  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f +
+  //        r)));
   return rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
-  // return r * rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
+  // return r * rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth,
+  // cth));
 }
 
 // This returns the composite value of sqrt(gamma) * beta1
@@ -261,6 +266,50 @@ class grid_ks_t : public grid_t<Conf> {
     result[1] = r * math::cos(th);
     return result;
   }
+
+  struct grid_ptrs {
+    typename Conf::ndptr_const_t ag11dr_h;
+    typename Conf::ndptr_const_t ag11dr_e;
+    typename Conf::ndptr_const_t ag13dr_h;
+    typename Conf::ndptr_const_t ag13dr_e;
+    typename Conf::ndptr_const_t ag22dth_h;
+    typename Conf::ndptr_const_t ag22dth_e;
+    typename Conf::ndptr_const_t gbetadth_h;
+    typename Conf::ndptr_const_t gbetadth_e;
+    vec_t<typename Conf::ndptr_const_t, 3> Ad;
+    vec_t<typename Conf::ndptr_const_t, 3> Ab;
+  };
+
+  void compute_coef();
+  grid_ptrs get_grid_ptrs() const {
+    grid_ptrs result;
+
+    for (int i = 0; i < 3; i++) {
+      result.Ab[i] = m_Ab[i].dev_ndptr_const();
+      result.Ad[i] = m_Ad[i].dev_ndptr_const();
+    }
+    result.ag11dr_e = m_ag11dr_e.dev_ndptr_const();
+    result.ag11dr_h = m_ag11dr_h.dev_ndptr_const();
+    result.ag13dr_e = m_ag13dr_e.dev_ndptr_const();
+    result.ag13dr_h = m_ag13dr_h.dev_ndptr_const();
+    result.ag22dth_e = m_ag22dth_e.dev_ndptr_const();
+    result.ag22dth_h = m_ag22dth_h.dev_ndptr_const();
+    result.gbetadth_e = m_gbetadth_e.dev_ndptr_const();
+    result.gbetadth_h = m_gbetadth_h.dev_ndptr_const();
+
+    return result;
+  }
+
+  std::array<multi_array<value_t, Conf::dim>, 3> m_Ad;
+  std::array<multi_array<value_t, Conf::dim>, 3> m_Ab;
+  multi_array<value_t, Conf::dim> m_ag11dr_h;
+  multi_array<value_t, Conf::dim> m_ag11dr_e;
+  multi_array<value_t, Conf::dim> m_ag13dr_h;
+  multi_array<value_t, Conf::dim> m_ag13dr_e;
+  multi_array<value_t, Conf::dim> m_ag22dth_h;
+  multi_array<value_t, Conf::dim> m_ag22dth_e;
+  multi_array<value_t, Conf::dim> m_gbetadth_h;
+  multi_array<value_t, Conf::dim> m_gbetadth_e;
 };
 
 }  // namespace Aperture

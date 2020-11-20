@@ -29,6 +29,13 @@ __constant__ Grid<2> dev_grid_2d;
 __constant__ Grid<3> dev_grid_3d;
 __constant__ float dev_charges[max_ptc_types];
 __constant__ float dev_masses[max_ptc_types];
+__constant__ double dev_gauss_xs[5] = {0.1488743389816312, 0.4333953941292472,
+                                       0.6794095682990244, 0.8650633666889845,
+                                       0.9739065285171717};
+
+__constant__ double dev_gauss_ws[5] = {0.2955242247147529, 0.2692667193099963,
+                                       0.2190863625159821, 0.1494513491505806,
+                                       0.0666713443086881};
 
 __constant__ uint64_t dev_rank = 0;
 __device__ uint32_t dev_ptc_id = 0;

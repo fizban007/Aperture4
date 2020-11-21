@@ -8,8 +8,8 @@
 namespace Aperture {
 
 template <typename Conf>
-grid_ks_t<Conf>::grid_ks_t(sim_environment& env, const domain_comm<Conf>* comm)  :
-    grid_t<Conf>(env, comm) {
+grid_ks_t<Conf>::grid_ks_t(sim_environment& env, const domain_comm<Conf>* comm)
+    : grid_t<Conf>(env, comm) {
   env.params().get_value("bh_spin", a);
 
   Logger::print_info("In grid, a is {}", a);
@@ -60,66 +60,121 @@ grid_ks_t<Conf>::compute_coef() {
     double th = theta(this->template pos<1>(pos[1], false));
     double th_s = theta(this->template pos<1>(pos[1], true));
 
-    m_Ab[0][idx] = gauss_quad([this, r_s] (auto x) {
-      return sqrt_gamma(a, r_s, x);
-    }, th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    if (math::abs(th_s) < TINY) th_s = 0.01 * this->delta[1];
+    if (math::abs(M_PI - th_s) < TINY) th_s = M_PI - 0.01 * this->delta[1];
 
-    m_Ab[1][idx] = gauss_quad([this, th_s] (auto x) {
-      return sqrt_gamma(a, x, th_s);
-    }, r_s, radius(this->template pos<0>(pos[0] + 1, true)));
+    m_Ab[0][idx] =
+        gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
+                   theta(this->template pos<1>(pos[1] + 1, true)));
+    if (m_Ab[0][idx] != m_Ab[0][idx]) {
+      Logger::print_err("m_Ab0 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_Ab[2][idx] = gauss_quad([this, r_s, pos] (auto x) {
-      return gauss_quad([this, x] (auto y) {
-        return sqrt_gamma(a, y, x);
-      }, r_s, radius(this->template pos<0>(pos[0] + 1, true)));
-    }, th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    m_Ab[1][idx] =
+        gauss_quad([this, th_s](auto x) { return sqrt_gamma(a, x, th_s); }, r_s,
+                   radius(this->template pos<0>(pos[0] + 1, true)));
+    if (m_Ab[1][idx] != m_Ab[1][idx]) {
+      Logger::print_err("m_Ab1 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_Ad[0][idx] = gauss_quad([this, r] (auto x) {
-      return sqrt_gamma(a, r, x);
-    }, theta(this->template pos<1>(pos[1] - 1, false)), th);
+    m_Ab[2][idx] = gauss_quad(
+        [this, r_s, pos](auto x) {
+          return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
+                            r_s,
+                            radius(this->template pos<0>(pos[0] + 1, true)));
+        },
+        th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    if (m_Ab[2][idx] != m_Ab[2][idx]) {
+      Logger::print_err("m_Ab2 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_Ad[1][idx] = gauss_quad([this, th] (auto x) {
-      return sqrt_gamma(a, x, th);
-    }, radius(this->template pos<0>(pos[0] - 1, false)), r);
+    if (pos[1] == this->guard[1] && th_s < 0.5 * this->delta[1]) {
+      m_Ad[0][idx] =
+          2.0 * gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
+                           0.0f, th);
+      // Logger::print_debug("m_Ad0 at ({}, {}) is {}", pos[0], pos[1], m_Ad[0][idx]);
+    } else {
+      m_Ad[0][idx] =
+          gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
+                     theta(this->template pos<1>(pos[1] - 1, false)), th);
+    }
+    if (m_Ad[0][idx] != m_Ad[0][idx]) {
+      Logger::print_err("m_Ad0 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_Ad[2][idx] = gauss_quad([this, r, pos] (auto x) {
-      return gauss_quad([this, x] (auto y) {
-        return sqrt_gamma(a, y, x);
-      }, radius(this->template pos<0>(pos[0] - 1, false)), r);
-    }, theta(this->template pos<1>(pos[1] - 1, false)), th);
+    m_Ad[1][idx] =
+        gauss_quad([this, th](auto x) { return sqrt_gamma(a, x, th); },
+                   radius(this->template pos<0>(pos[0] - 1, false)), r);
+    if (m_Ad[1][idx] != m_Ad[1][idx]) {
+      Logger::print_err("m_Ad1 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag11dr_h[idx] = gauss_quad([this, th] (auto x) {
-      return ag_11(a, x, th);
-    }, radius(this->template pos<0>(pos[0] - 1, false)), r);
+    m_Ad[2][idx] = gauss_quad(
+        [this, r, pos](auto x) {
+          return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
+                            radius(this->template pos<0>(pos[0] - 1, false)),
+                            r);
+        },
+        theta(this->template pos<1>(pos[1] - 1, false)), th);
+    if (m_Ad[2][idx] != m_Ad[2][idx]) {
+      Logger::print_err("m_Ad2 at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag11dr_e[idx] = gauss_quad([this, th_s] (auto x) {
-      return ag_11(a, x, th_s);
-    }, r_s, radius(this->template pos<0>(pos[0] + 1, true)));
+    m_ag11dr_h[idx] =
+        gauss_quad([this, th](auto x) { return ag_11(a, x, th); },
+                   radius(this->template pos<0>(pos[0] - 1, false)), r);
+    if (m_ag11dr_h[idx] != m_ag11dr_h[idx]) {
+      Logger::print_err("m_ag11dr_h at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag13dr_h[idx] = gauss_quad([this, th] (auto x) {
-      return ag_13(a, x, th);
-    }, radius(this->template pos<0>(pos[0] - 1, false)), r);
+    m_ag11dr_e[idx] =
+        gauss_quad([this, th_s](auto x) { return ag_11(a, x, th_s); }, r_s,
+                   radius(this->template pos<0>(pos[0] + 1, true)));
+    if (m_ag11dr_e[idx] != m_ag11dr_e[idx]) {
+      Logger::print_err("m_ag11dr_e at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag13dr_e[idx] = gauss_quad([this, th_s] (auto x) {
-      return ag_13(a, x, th_s);
-    }, r_s, radius(this->template pos<0>(pos[0] + 1, true)));
+    m_ag13dr_h[idx] =
+        gauss_quad([this, th](auto x) { return ag_13(a, x, th); },
+                   radius(this->template pos<0>(pos[0] - 1, false)), r);
+    if (m_ag13dr_h[idx] != m_ag13dr_h[idx]) {
+      Logger::print_err("m_ag13dr_h at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag22dth_h[idx] = gauss_quad([this, r] (auto x) {
-      return ag_22(a, r, x);
-    }, theta(this->template pos<1>(pos[1] - 1, false)), th);
+    m_ag13dr_e[idx] =
+        gauss_quad([this, th_s](auto x) { return ag_13(a, x, th_s); }, r_s,
+                   radius(this->template pos<0>(pos[0] + 1, true)));
+    if (m_ag13dr_e[idx] != m_ag13dr_e[idx]) {
+      Logger::print_err("m_ag13dr_e at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_ag22dth_e[idx] = gauss_quad([this, r_s] (auto x) {
-      return ag_22(a, r_s, x);
-    }, th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    m_ag22dth_h[idx] =
+        gauss_quad([this, r](auto x) { return ag_22(a, r, x); },
+                   theta(this->template pos<1>(pos[1] - 1, false)), th);
+    if (m_ag22dth_h[idx] != m_ag22dth_h[idx]) {
+      Logger::print_err("m_ag22dth_h at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_gbetadth_h[idx] = gauss_quad([this, r] (auto x) {
-      return sq_gamma_beta(a, r, x);
-    }, theta(this->template pos<1>(pos[1] - 1, false)), th);
+    m_ag22dth_e[idx] =
+        gauss_quad([this, r_s](auto x) { return ag_22(a, r_s, x); }, th_s,
+                   theta(this->template pos<1>(pos[1] + 1, true)));
+    if (m_ag22dth_e[idx] != m_ag22dth_e[idx]) {
+      Logger::print_err("m_ag22dth_e at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
-    m_gbetadth_e[idx] = gauss_quad([this, r_s] (auto x) {
-      return sq_gamma_beta(a, r_s, x);
-    }, th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    m_gbetadth_h[idx] =
+        gauss_quad([this, r](auto x) { return sq_gamma_beta(a, r, x); },
+                   theta(this->template pos<1>(pos[1] - 1, false)), th);
+    if (m_gbetadth_h[idx] != m_gbetadth_h[idx]) {
+      Logger::print_err("m_gbetadth_h at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
 
+    m_gbetadth_e[idx] =
+        gauss_quad([this, r_s](auto x) { return sq_gamma_beta(a, r_s, x); },
+                   th_s, theta(this->template pos<1>(pos[1] + 1, true)));
+    if (m_gbetadth_e[idx] != m_gbetadth_e[idx]) {
+      Logger::print_err("m_gbetadth_e at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
   }
 
   for (int i = 0; i < 3; i++) {
@@ -138,4 +193,4 @@ grid_ks_t<Conf>::compute_coef() {
 
 template class grid_ks_t<Config<2>>;
 
-}
+}  // namespace Aperture

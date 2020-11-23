@@ -171,7 +171,8 @@ horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
           }
         }
       },
-      D.get_ptrs(), D0.get_ptrs(), B.get_ptrs(), B0.get_ptrs(), grid.get_grid_ptrs());
+      D.get_ptrs(), D0.get_ptrs(), B.get_ptrs(), B0.get_ptrs(),
+      grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -183,34 +184,80 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
   using value_t = typename Conf::value_t;
   using namespace Metric_KS;
 
-  kernel_launch([boundary_cell] __device__ (auto D, auto B, auto grid_ptrs, auto a) {
-      auto &grid = dev_grid<Conf::dim>();
-      auto ext = grid.extent();
-      for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-        int n0 = boundary_cell;
-        auto pos = index_t<2>(n0, n1);
-        auto idx = Conf::idx(pos, ext);
-        // Dr and Br are continuous
-        B[0][idx.dec_x()] = B[0][idx];
-        D[0][idx.dec_x()] = D[0][idx];
+  kernel_launch(
+      [boundary_cell] __device__(auto D, auto B, auto grid_ptrs, auto a) {
+        auto &grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+          int n0 = boundary_cell;
+          auto pos = index_t<2>(n0, n1);
+          auto idx = Conf::idx(pos, ext);
+          // Dr and Br are continuous
+          B[0][idx.dec_x()] = B[0][idx];
+          D[0][idx.dec_x()] = D[0][idx];
 
-        value_t r =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-        value_t r_p =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
-        value_t th =
-            grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+          value_t r =
+              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+          value_t r_p =
+              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+          value_t th_s =
+              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+          value_t th =
+              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
 
-        // First solve for Bth and Dph
-        value_t coef_a = grid_ptrs.ag22dth_h[idx.dec_x()];
-        value_t coef_b = grid_ptrs.gbetadth_h[idx.dec_x()] - 0.5f * grid_ptrs.gbetadth_h[idx];
-        value_t coef_c = 0.5f * sq_gamma_beta(a, r, th);
-        value_t coef_d = ag_33(a, r, th);
-        value_t rhs_F = grid_ptrs.ag22dth_h[idx] * B[1][idx] + 0.5f * grid_ptrs.gbetadth_h[idx] * D[2][idx.inc_x()];
-        // value_t rhs_G = grid
-      }
-    },
-    D.get_ptrs(), B.get_ptrs(), grid.get_grid_ptrs(), grid.a);
+          auto sth = math::sin(th_s);
+          auto cth = math::cos(th_s);
+
+          // First solve for Bth and Dph
+          value_t coef_a = grid_ptrs.ag22dth_h[idx.dec_x()];
+          value_t coef_b = grid_ptrs.gbetadth_h[idx.dec_x()] -
+                           0.5f * grid_ptrs.gbetadth_h[idx];
+          value_t coef_c = 0.5f * sq_gamma_beta(a, r, sth, cth);
+          value_t coef_d = ag_33(a, r, sth, cth);
+
+          value_t rhs_F = grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+                          0.5f * grid_ptrs.gbetadth_h[idx] * D[2][idx.inc_x()];
+          value_t rhs_G =
+              ag_33(a, r_p, sth, cth) * D[2][idx.inc_x()] +
+              ag_13(a, r_p, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.inc_x()]) +
+              sq_gamma_beta(a, r_p, sth, cth) * 0.5f *
+                  (B[1][idx] + B[1][idx.inc_x()]) -
+              ag_13(a, r, sth, cth) * D[0][idx] -
+              0.5f * sq_gamma_beta(a, r, sth, cth) * B[1][idx];
+
+          value_t det = coef_b * coef_c - coef_a * coef_d;
+          B[1][idx.dec_x()] = (coef_b * rhs_G - coef_d * rhs_F) / det;
+          D[2][idx] = (coef_c * rhs_F - coef_a * rhs_G) / det;
+
+          // Then solve for Bph and Dth
+          r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          value_t r_m =
+              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
+          sth = math::sin(th);
+          cth = math::cos(th);
+
+          coef_a = ag_33(a, r_m, sth, cth);
+          coef_b = -sq_gamma_beta(a, r_m, sth, cth) +
+                   0.5f * sq_gamma_beta(a, r, sth, cth);
+          coef_c = -0.5 * grid_ptrs.gbetadth_e[idx];
+          coef_d = grid_ptrs.ag22dth_e[idx];
+
+          rhs_F =
+              ag_33(a, r, sth, cth) * B[2][idx] +
+              ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.inc_x()]) -
+              sq_gamma_beta(a, r, sth, cth) * 0.5 * D[1][idx.inc_x()] -
+              ag_13(a, r_m, sth, cth) * B[0][idx];
+          rhs_G = grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
+                  grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5 *
+                      (B[2][idx] + B[2][idx.inc_x()]) +
+                  grid_ptrs.gbetadth_e[idx] * 0.5 * B[2][idx];
+
+          det = coef_b * coef_c - coef_a * coef_d;
+          B[2][idx.dec_x()] = (coef_b * rhs_G - coef_d * rhs_F) / det;
+          D[1][idx] = (coef_c * rhs_F - coef_a * rhs_G) / det;
+        }
+      },
+      D.get_ptrs(), B.get_ptrs(), grid.get_grid_ptrs(), grid.a);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -1081,7 +1128,7 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
             //      sq_gamma_beta(a, r_sp, sth, cth) *
             //          tmp_field[idx.dec_y().inc_x()]);
 
-            D[0][idx] += - dt * J[0][idx] + prefactor * (Hph1 - Hph0);
+            D[0][idx] += -dt * J[0][idx] + prefactor * (Hph1 - Hph0);
 
             if (D[0][idx] != D[0][idx]) {
               printf(

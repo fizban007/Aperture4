@@ -203,6 +203,36 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
   CudaCheckError();
 }
 
+template <typename Conf>
+void
+compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
+             const vector_field<Conf> &D, const vector_field<Conf> &B,
+             const grid_ks_t<Conf> &grid) {
+  kernel_launch(
+      [] __device__(auto div_e, auto e, auto div_b, auto b, auto grid_ptrs) {
+        auto &grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          if (grid.is_in_bound(pos)) {
+            div_b[idx] = (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
+                          b[0][idx] * grid_ptrs.Ab[0][idx] +
+                          b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
+                          b[1][idx] * grid_ptrs.Ab[1][idx]) /
+                         grid_ptrs.Ab[2][idx];
+
+            div_e[idx] = (e[0][idx] * grid_ptrs.Ad[0][idx] -
+                          e[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                          e[1][idx] * grid_ptrs.Ad[1][idx] -
+                          e[1][idx.dec_x()] * grid_ptrs.Ad[1][idx.dec_x()]) /
+                         grid_ptrs.Ad[2][idx];
+          }
+        }
+      },
+      divD[0].dev_ndptr(), D.get_const_ptrs(), divB[0].dev_ndptr(),
+      B.get_const_ptrs(), grid.get_grid_ptrs());
+}
+
 }  // namespace
 
 template <typename Conf>
@@ -1052,6 +1082,8 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
     horizon_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
                      m_ks_grid, m_damping_length, m_damping_coef);
   }
+
+  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), m_ks_grid);
 
   this->Etotal->copy_from(*(this->E));
   // this->Etotal->add_by(*(this->E0));

@@ -109,13 +109,23 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ad1 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
-    m_Ad[2][idx] = gauss_quad(
-        [this, r, pos](auto x) {
-          return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
-                            radius(this->template pos<0>(pos[0] - 1, false)),
-                            r);
-        },
-        theta(this->template pos<1>(pos[1] - 1, false)), th);
+    if (pos[1] == this->guard[1] && th_s < 0.5 * this->delta[1]) {
+      m_Ad[2][idx] = 2.0 * gauss_quad(
+          [this, r, pos](auto x) {
+            return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
+                              radius(this->template pos<0>(pos[0] - 1, false)),
+                              r);
+          },
+          0.0f, th);
+    } else {
+      m_Ad[2][idx] = gauss_quad(
+          [this, r, pos](auto x) {
+            return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
+                              radius(this->template pos<0>(pos[0] - 1, false)),
+                              r);
+          },
+          theta(this->template pos<1>(pos[1] - 1, false)), th);
+    }
     if (m_Ad[2][idx] != m_Ad[2][idx]) {
       Logger::print_err("m_Ad2 at ({}, {}) is NaN!", pos[0], pos[1]);
     }

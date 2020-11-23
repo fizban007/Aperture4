@@ -11,6 +11,7 @@ target_sources(tests PUBLIC
   "test_ptc_updater.cpp"
   "test_exporter.cpp"
   "test_config.cpp"
+  "test_gaussian_quadrature.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC

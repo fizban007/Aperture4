@@ -494,10 +494,10 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
         auto Eph0 =
             ag_33(a, r_sm, sth, cth) * D[2][idx] +
             ag_13(a, r_sm, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
-            sq_gamma_beta(a, r_sm, sth, cth) * 0.25f *
+            0.25f * sq_gamma_beta(a, r_sm, sth, cth) *
                 (B1_0[idx] + B1_0[idx.dec_x()] + B1_1[idx] + B1_1[idx.dec_x()]);
 
-        B[1][idx] += -prefactor * (Eph0 - Eph1);
+        B[1][idx] = B1_0[idx] - prefactor * (Eph0 - Eph1);
 
         // if (pos[0] == 6 && pos[1] == 200) {
         // printf(
@@ -520,8 +520,9 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
                 B[1].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   kernel_launch(Bth_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(), B[1].dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
+                D.get_const_ptrs(), D0.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(), B[1].dev_ndptr_const(),
+                m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -553,12 +554,12 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
         value_t r_sm =
             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-        value_t dr = r_sp - r_sm;
+        // value_t dr = r_sp - r_sm;
 
         value_t th = grid.template pos<1>(pos[1], false);
         value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
         value_t th_sm = grid.template pos<1>(pos[1], true);
-        value_t dth = th_sp - th_sm;
+        // value_t dth = th_sp - th_sm;
         if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
 
         value_t sth = math::sin(th);
@@ -583,7 +584,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
             grid_ptrs.gbetadth_e[idx] * 0.25f *
                 (B2_0[idx] + B2_0[idx.dec_x()] + B2_1[idx] + B2_1[idx.dec_x()]);
 
-        B[2][idx] += -prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
+        B[2][idx] = B2_0[idx] - prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
       }
     }
   };
@@ -592,8 +593,8 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
                 B[2].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   kernel_launch(Bph_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(), B[2].dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_a,
+                D.get_const_ptrs(), D0.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(), B[2].dev_ndptr_const(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -720,7 +721,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
           Hph0 = Hph1;
         }
 
-        D[1][idx] += prefactor * (Hph0 - Hph1) - dt * J[1][idx];
+        D[1][idx] = D1_0[idx] + prefactor * (Hph0 - Hph1) - dt * J[1][idx];
       }
     }
   };
@@ -731,7 +732,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
   CudaSafeCall(cudaDeviceSynchronize());
   kernel_launch(Dth_kernel, D.get_ptrs(), D0.get_const_ptrs(),
                 B.get_const_ptrs(), B0.get_const_ptrs(), J.get_const_ptrs(),
-                D[1].dev_ndptr_const(), m_tmp_prev_field.dev_ndptr_const(), m_a,
+                m_tmp_prev_field.dev_ndptr_const(), D[1].dev_ndptr_const(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
@@ -800,7 +801,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
           Hth0 = Hth1;
         }
 
-        D[2][idx] += prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) - dt * J[2][idx];
+        D[2][idx] = D2_0[idx] + prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) - dt * J[2][idx];
 
         if (pos[0] == 10 && pos[1] == 250) {
           printf("Hr0 is %f, Hr1 is %f, Hth0 is %f, Hth1 is %f, dDphi is %f\n",
@@ -815,8 +816,8 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
                 D[2].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   kernel_launch(Dph_kernel, D.get_ptrs(), B.get_const_ptrs(),
-                J.get_const_ptrs(), D[2].dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_a,
+                J.get_const_ptrs(), m_tmp_prev_field.dev_ndptr_const(),
+                D[2].dev_ndptr_const(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();

@@ -50,9 +50,9 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
             D[2][idx] = 0.0f;
             // e[1][idx] = 0.0;
-            D[1][idx.dec_y()] = D[1][idx];
-            D[0][idx.dec_y()] = D[0][idx];
-            // e[0][idx] = 0.0f;
+            // D[1][idx.dec_y()] = D[1][idx];
+            // D[0][idx.dec_y()] = D[0][idx];
+            // D[0][idx] = 0.0f;
           }
           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
           if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
@@ -61,9 +61,9 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
             D[2][idx] = 0.0f;
             // e[1][idx] = 0.0;
-            D[1][idx] = D[1][idx.dec_y()];
-            D[0][idx] = D[0][idx.dec_y()];
-            // e[0][idx] = 0.0f;
+            // D[1][idx] = D[1][idx.dec_y()];
+            // D[0][idx] = D[0][idx.dec_y()];
+            // D[0][idx] = 0.0f;
           }
         }
       },
@@ -90,8 +90,8 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
               auto idx = idx_t(index_t<2>(n0, n1_0), ext);
               B[1][idx] = 0.0f;
               B[2][idx] = 0.0f;
-              // B[2][idx.dec_y()] = B[2][idx];
-              B[0][idx.dec_y()] = B[0][idx];
+              B[2][idx.dec_y()] = B[2][idx];
+              // B[0][idx.dec_y()] = B[0][idx];
             }
           }
           for (int n1_pi = grid.dims[1] - grid.guard[1];
@@ -106,7 +106,7 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
               // B[2][idx] = B[2][idx.dec_y()];
               B[2][idx] = 0.0f;
               B[2][idx.dec_y()] = 0.0f;
-              B[0][idx] = B[0][idx.dec_y()];
+              // B[0][idx] = B[0][idx.dec_y()];
             }
           }
         }
@@ -204,6 +204,7 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
           value_t th =
               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+          if (th_s < TINY) th_s = 0.01f * grid.delta[1];
 
           auto sth = math::sin(th_s);
           auto cth = math::cos(th_s);
@@ -229,6 +230,31 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
           B[1][idx.dec_x()] = (coef_b * rhs_G - coef_d * rhs_F) / det;
           D[2][idx] = (coef_c * rhs_F - coef_a * rhs_G) / det;
 
+          // value_t Hth1 = grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+          //       grid_ptrs.gbetadth_h[idx] * 0.5f *
+          //           (D[2][idx.inc_x()] + D[2][idx]);
+          // value_t Hth0 = grid_ptrs.ag22dth_h[idx.dec_x()] * B[1][idx.dec_x()] +
+          //       grid_ptrs.gbetadth_h[idx.dec_x()] * D[2][idx];
+
+          // value_t Eph1 = ag_33(a, r_p, sth, cth) * D[2][idx.inc_x()] +
+          //     ag_13(a, r_p, sth, cth) * 0.5f *
+          //     (D[0][idx.inc_x()] + D[0][idx]) +
+          //     0.5f * sq_gamma_beta(a, r_p, sth, cth) *
+          //     (B[1][idx.inc_x()] + B[1][idx]);
+          // value_t Eph0 =
+          //     ag_33(a, r, sth, cth) * D[2][idx] +
+          //     ag_13(a, r, sth, cth) * D[0][idx] +
+          //     sq_gamma_beta(a, r, sth, cth) * 0.5f *
+          //     (B[1][idx] + B[1][idx.dec_x()]);
+
+          // if (pos[1] == 250) {
+          //   printf("Hth1 is %f, Hth0 is %f, Eph1 is %f, Eph0 is %f\n", Hth1, Hth0, Eph1, Eph0);
+          // }
+          // if (Eph0 != Eph0 || Eph1 != Eph1) {
+          //   printf("NaN in Eph at pos %d \n", pos[1]);
+          //   asm("trap;");
+          // }
+
           // Then solve for Bph and Dth
           r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
           value_t r_m =
@@ -245,16 +271,47 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
           rhs_F =
               ag_33(a, r, sth, cth) * B[2][idx] +
               ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.inc_x()]) -
-              sq_gamma_beta(a, r, sth, cth) * 0.5 * D[1][idx.inc_x()] -
+              sq_gamma_beta(a, r, sth, cth) * 0.5f * D[1][idx.inc_x()] -
               ag_13(a, r_m, sth, cth) * B[0][idx];
           rhs_G = grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
-                  grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5 *
+                  grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5f *
                       (B[2][idx] + B[2][idx.inc_x()]) +
-                  grid_ptrs.gbetadth_e[idx] * 0.5 * B[2][idx];
+                  grid_ptrs.gbetadth_e[idx] * 0.5f * B[2][idx];
 
           det = coef_b * coef_c - coef_a * coef_d;
           B[2][idx.dec_x()] = (coef_b * rhs_G - coef_d * rhs_F) / det;
           D[1][idx] = (coef_c * rhs_F - coef_a * rhs_G) / det;
+
+          // value_t Eth1 =
+          //     grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
+          //     grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5f *
+          //     (B[2][idx.inc_x()] + B[2][idx]);
+          // value_t Eth0 =
+          //     grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+          //     grid_ptrs.gbetadth_e[idx] * 0.5f *
+          //     (B[2][idx] + B[2][idx.dec_x()]);
+
+          // value_t Hph0 = ag_33(a, r_m, sth, cth) * B[2][idx.dec_x()] +
+          //     ag_13(a, r_m, sth, cth) * B[0][idx] -
+          //     sq_gamma_beta(a, r_m, sth, cth) * D[1][idx];
+
+          // value_t Hph1 = ag_33(a, r, sth, cth) * B[2][idx] +
+          //     ag_13(a, r, sth, cth) * 0.5f *
+          //     (B[0][idx.inc_x()] + B[0][idx]) -
+          //     sq_gamma_beta(a, r, sth, cth) * 0.5f *
+          //     (D[1][idx.inc_x()] + D[1][idx]);
+
+          // if (pos[1] == 250) {
+          //   printf("Eth1 is %f, Eth0 is %f, Hph1 is %f, Hph0 is %f\n", Eth1, Eth0, Hph1, Hph0);
+          // }
+          // for (int j = 0; j < boundary_cell; j++) {
+          //   pos = get_pos(j, n1);
+          //   idx = Conf::idx(pos, ext);
+
+          //   if (j < boundary_cell - 1) {
+
+          //   }
+          // }
         }
       },
       D.get_ptrs(), B.get_ptrs(), grid.get_grid_ptrs(), grid.a);
@@ -318,8 +375,14 @@ compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
             div_e[idx] = (e[0][idx] * grid_ptrs.Ad[0][idx] -
                           e[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
                           e[1][idx] * grid_ptrs.Ad[1][idx] -
-                          e[1][idx.dec_x()] * grid_ptrs.Ad[1][idx.dec_x()]) /
+                          e[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
                          grid_ptrs.Ad[2][idx];
+
+            if (pos[0] == 3 && pos[1] == 200) {
+              printf("divD is %f, eA0_p is %f, eA0_m is %f, eA1_p is %f, eA1_m is %f\n", div_e[idx] * grid_ptrs.Ad[2][idx],
+                     e[0][idx] * grid_ptrs.Ad[0][idx], e[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()],
+                     e[1][idx] * grid_ptrs.Ad[1][idx], e[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]);
+            }
           }
         }
       },
@@ -854,6 +917,11 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
             //     (sq_gamma_beta(a, r, sth, cth) * D[1][idx] +
             //      sq_gamma_beta(a, r_smm, sth, cth) * D[1][idx.dec_x()]);
 
+            // TODO: Fix boundary node problenm!
+            if (pos[0] == grid.guard[0]) {
+              Hph0 = Hph1;
+            }
+
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
             rhs[idx_rhs] =
@@ -867,18 +935,20 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
             value_t dl_coef = -prefactor * 0.5f * beta *
                               Metric_KS::sq_gamma_beta(a, r_sm, sth, cth);
 
+            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            // d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
+
             if (pos[0] == grid.guard[0]) {
-              rhs[idx_rhs] += dl_coef * D[1][idx.dec_x()];
+              // rhs[idx_rhs] += dl_coef * D[1][idx.dec_x()];
               // rhs[idx_rhs] += dl_coef * D[1][idx];
+              du[pos[0] - grid.guard[0]] = 0.0f;
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               // rhs[idx_rhs] += du_coef * D[1][idx.inc_x()];
               rhs[idx_rhs] += du_coef * D[1][idx];
             }
 
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
-            // d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
-            du[pos[0] - grid.guard[0]] = -du_coef;
-            dl[pos[0] - grid.guard[0]] = -dl_coef;
           }
         }
       },
@@ -1013,6 +1083,11 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
             //     (sq_gamma_beta(a, r_spp, sth, cth) * D[2][idx.inc_x()] +
             //      sq_gamma_beta(a, r, sth, cth) * D[2][idx]);
 
+            // TODO: Fix boundary node problenm!
+            if (pos[0] == grid.guard[0]) {
+              Hth0 = Hth1;
+            }
+
             auto idx_rhs = Conf::idx(
                 index(pos[0] - grid.guard[0], pos[1] - grid.guard[1]), extl);
             rhs[idx_rhs] =
@@ -1037,18 +1112,21 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
                               // Metric_KS::sq_gamma_beta(a, r_smm, sth, cth);
                               grid_ptrs.gbetadth_h[idx.dec_x()];
 
+            // d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
+            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
+            du[pos[0] - grid.guard[0]] = -du_coef;
+            dl[pos[0] - grid.guard[0]] = -dl_coef;
+
             if (pos[0] == grid.guard[0]) {
-              rhs[idx_rhs] += dl_coef * D[2][idx.dec_x()];
-              // rhs[idx_rhs] += dl_coef * D[2][idx];
+              // rhs[idx_rhs] += dl_coef * D[2][idx.dec_x()];
+              rhs[idx_rhs] += dl_coef * D[2][idx];
+              // du[pos[0] - grid.guard[0]] = 0.0f;
             } else if (pos[0] == grid.dims[0] - grid.guard[0] - 1) {
               // rhs[idx_rhs] += du_coef * D[2][idx.inc_x()];
               rhs[idx_rhs] += du_coef * D[2][idx];
             }
 
-            // d[pos[0] - grid.guard[0]] = 1.0f - d_coef;
-            d[pos[0] - grid.guard[0]] = 1.0f - (du_coef + dl_coef);
-            du[pos[0] - grid.guard[0]] = -du_coef;
-            dl[pos[0] - grid.guard[0]] = -dl_coef;
+
           }
         }
       },
@@ -1095,7 +1173,11 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
             value_t th_sp = grid.template pos<1>(pos[1], false);
             value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
             value_t dth = th_sp - th_sm;
-            if (th < TINY) th = 1.0e-5;
+            bool is_axis = false;
+            if (th < TINY) {
+              th = 1.0e-5;
+              is_axis = true;
+            }
 
             // value_t prefactor = dt / (Metric_KS::sqrt_gamma(a, r, th) * dth);
             value_t prefactor = dt / grid_ptrs.Ad[0][idx];
@@ -1127,6 +1209,9 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
             //     (sq_gamma_beta(a, r_sm, sth, cth) * tmp_field[idx.dec_y()] +
             //      sq_gamma_beta(a, r_sp, sth, cth) *
             //          tmp_field[idx.dec_y().inc_x()]);
+            if (is_axis) {
+              Hph0 = -Hph1;
+            }
 
             D[0][idx] += -dt * J[0][idx] + prefactor * (Hph1 - Hph0);
 
@@ -1180,7 +1265,7 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
     // horizon_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
     //                  m_ks_grid, m_damping_length, m_damping_coef);
-    inner_boundary(*(this->E), *(this->B), m_ks_grid, m_damping_length);
+    // inner_boundary(*(this->E), *(this->B), m_ks_grid, m_damping_length);
   }
 
   compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), m_ks_grid);

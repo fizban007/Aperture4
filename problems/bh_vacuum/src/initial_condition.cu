@@ -50,13 +50,6 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
           B[2][idx] = 0.0f;
 
           auto r2 = r_s * r_s;
-          // B[0][idx] =
-          //     0.5f * Bp *
-          //     (a * a + r2 - 2.0f * r_s +
-          //      (8.0f * r_s * square(a * a + r2)) /
-          //          square(a * a + 2.0f * r2 + a * a * math::cos(2.0f * th)))
-          //          *
-          //     math::sin(2.0f * th) / Metric_KS::sqrt_gamma(a, r_s, th);
           B[0][idx] = Bp * r_s * r_s * math::sin(2.0f * th) /
                       Metric_KS::sqrt_gamma(a, r_s, th);
 
@@ -65,34 +58,17 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
           auto sth = math::sin(th_s);
           auto cth = math::cos(th_s);
           r2 = r * r;
-          // B[1][idx] = -0.5f * Bp *
-          //             (2.0f * r * (a * a + r2) *
-          //                  (r2 + a * a * math::cos(2.0f * th_s)) * sth2 -
-          //              2.0f * a * a * sth2 * sth2 *
-          //                  (r2 - a * a * r + a * a * (r - 1.0f) * cth2)) /
-          //             (square(r2 + a * a * cth2) *
-          //              Metric_KS::sqrt_gamma(a, r, sth, cth));
           B[1][idx] = -2.0 * Bp * r * square(math::sin(th_s)) /
                       Metric_KS::sqrt_gamma(a, r, th_s);
           // if (pos[1] == 2 && pos[0] == 10)
           //   printf("Bth is %f, gamma is %f, th_s is %f\n", B[1][idx],
           //   Metric_KS::sqrt_gamma(a, r, th_s), th_s);
 
-          r2 = r_s * r_s;
-          // D[2][idx] = -(Metric_KS::sq_gamma_beta(a, r_s, sth, cth) /
-          //               Metric_KS::ag_33(a, r_s, sth, cth)) *
-          //             (-0.5f * Bp) *
-          //             (2.0f * r_s * (a * a + r2) *
-          //                  (r2 + a * a * math::cos(2.0f * th_s)) * sth2 -
-          //              2.0f * a * a * sth2 * sth2 *
-          //                  (r2 - a * a * r_s + a * a * (r_s - 1.0f) * cth2))
-          //                  /
-          //             (square(r2 + a * a * cth2) *
-          //              Metric_KS::sqrt_gamma(a, r_s, sth, cth));
-          D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
-                        Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
-                      2.0 * Bp * r_s * square(math::sin(th)) /
-                      Metric_KS::sqrt_gamma(a, r_s, th);
+          // r2 = r_s * r_s;
+          // D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
+          //               Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
+          //             2.0 * Bp * r_s * square(math::sin(th)) /
+          //             Metric_KS::sqrt_gamma(a, r_s, th);
         }
       },
       B0.get_ptrs(), D0.get_ptrs(), grid.a);

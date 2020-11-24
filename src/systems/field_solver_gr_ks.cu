@@ -30,8 +30,7 @@ namespace Aperture {
 namespace {
 
 template <typename Conf>
-void
-axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
+void axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto D) {
@@ -71,8 +70,7 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
 }
 
 template <typename Conf>
-void
-axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
+void axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto B) {
@@ -115,11 +113,10 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
 }
 
 template <typename Conf>
-void
-horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
-                 const vector_field<Conf> &D0, const vector_field<Conf> &B0,
-                 const grid_ks_t<Conf> &grid, int damping_length,
-                 float damping_coef) {
+void horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
+                      const vector_field<Conf> &D0,
+                      const vector_field<Conf> &B0, const grid_ks_t<Conf> &grid,
+                      int damping_length, float damping_coef) {
   using value_t = typename Conf::value_t;
   kernel_launch(
       [damping_length, damping_coef] __device__(auto D, auto D0, auto B,
@@ -136,17 +133,17 @@ horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
                 1.0f - damping_coef * cube((value_t)(damping_length - 1 - n0) /
                                            (damping_length - 1));
 
-            // B[0][idx] *= lambda;
-            // B[1][idx] *= lambda;
-            // B[2][idx] *= lambda;
-            // D[0][idx] *= lambda;
-            // D[1][idx] *= lambda;
-            // D[2][idx] *= lambda;
+            B[0][idx] *= lambda;
+            B[1][idx] *= lambda;
+            B[2][idx] *= lambda;
+            D[0][idx] *= lambda;
+            D[1][idx] *= lambda;
+            D[2][idx] *= lambda;
 
             // B[1][idx] = B[1][idx_ref];
             // B[2][idx] = B[2][idx_ref];
-            D[0][idx] = D[0][idx_ref];
-            B[0][idx] = B[0][idx_ref];
+            // D[0][idx] = D[0][idx_ref];
+            // B[0][idx] = B[0][idx_ref];
 
             // D[1][idx] = D[1][idx_ref];
             // D[2][idx] = D[2][idx_ref];
@@ -159,13 +156,13 @@ horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
             // D[1][idx] = D0[1][idx];
             // D[2][idx] = D0[2][idx];
 
-            B[1][idx] = 0.0f;
-            B[2][idx] = 0.0f;
+            // B[1][idx] = 0.0f;
+            // B[2][idx] = 0.0f;
             // D[0][idx] = 0.0f;
 
             // B[0][idx] = 0.0f;
-            D[1][idx] = 0.0f;
-            D[2][idx] = 0.0f;
+            // D[1][idx] = 0.0f;
+            // D[2][idx] = 0.0f;
           }
         }
       },
@@ -176,9 +173,8 @@ horizon_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
 }
 
 template <typename Conf>
-void
-inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
-               const grid_ks_t<Conf> &grid, int boundary_cell) {
+void inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
+                    const grid_ks_t<Conf> &grid, int boundary_cell) {
   using value_t = typename Conf::value_t;
   using namespace Metric_KS;
 
@@ -202,7 +198,8 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
           value_t th =
               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
-          if (th_s < TINY) th_s = 0.01f * grid.delta[1];
+          if (th_s < TINY)
+            th_s = 0.01f * grid.delta[1];
 
           auto sth = math::sin(th_s);
           auto cth = math::cos(th_s);
@@ -321,9 +318,8 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
 }
 
 template <typename Conf>
-void
-compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
-             const grid_ks_t<Conf> &grid) {
+void compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
+                  const grid_ks_t<Conf> &grid) {
   flux.init();
   auto ext = grid.extent();
   kernel_launch(
@@ -356,10 +352,9 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
 }
 
 template <typename Conf>
-void
-compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
-             const vector_field<Conf> &D, const vector_field<Conf> &B,
-             const grid_ks_t<Conf> &grid) {
+void compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
+                  const vector_field<Conf> &D, const vector_field<Conf> &B,
+                  const grid_ks_t<Conf> &grid) {
   kernel_launch(
       [] __device__(auto div_e, auto e, auto div_b, auto b, auto grid_ptrs) {
         auto &grid = dev_grid<Conf::dim>();
@@ -379,15 +374,14 @@ compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
                           e[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
                          grid_ptrs.Ad[2][idx];
 
-            if (pos[0] == 3 && pos[1] == 200) {
+            if (pos[0] == 9 && pos[1] == 254) {
               printf(
-                  "divD is %f, eA0_p is %f, eA0_m is %f, eA1_p is %f, eA1_m is "
+                  "divB is %f, bA0_p is %f, bA0_m is %f, bA1_p is %f, bA1_m is "
                   "%f\n",
-                  div_e[idx] * grid_ptrs.Ad[2][idx],
-                  e[0][idx] * grid_ptrs.Ad[0][idx],
-                  e[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()],
-                  e[1][idx] * grid_ptrs.Ad[1][idx],
-                  e[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]);
+                  div_b[idx], b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()],
+                  b[0][idx] * grid_ptrs.Ab[0][idx],
+                  b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()],
+                  b[1][idx] * grid_ptrs.Ab[1][idx]);
             }
           }
         }
@@ -396,16 +390,13 @@ compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
       B.get_const_ptrs(), grid.get_grid_ptrs());
 }
 
-}  // namespace
+} // namespace
 
-template <typename Conf>
-field_solver_gr_ks_cu<Conf>::~field_solver_gr_ks_cu() {
+template <typename Conf> field_solver_gr_ks_cu<Conf>::~field_solver_gr_ks_cu() {
   // sp_buffer.resize(0);
 }
 
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::init() {
+template <typename Conf> void field_solver_gr_ks_cu<Conf>::init() {
   field_solver<Conf>::init();
 
   this->m_env.params().get_value("bh_spin", m_a);
@@ -418,11 +409,12 @@ field_solver_gr_ks_cu<Conf>::init() {
   m_tmp_th_field.resize(this->m_grid.extent());
   m_tmp_prev_field.set_memtype(MemType::device_only);
   m_tmp_prev_field.resize(this->m_grid.extent());
+  m_tmp_predictor.set_memtype(MemType::device_only);
+  m_tmp_predictor.resize(this->m_grid.extent());
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::register_data_components() {
+void field_solver_gr_ks_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
   flux = this->m_env.template register_data<scalar_field<Conf>>(
@@ -452,22 +444,20 @@ field_solver_gr_ks_cu<Conf>::register_data_components() {
 // }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             value_t dt) {
   m_tmp_prev_field.copy_from(B[1]);
 
   // Predictor-corrector approach to update Bth
-  auto Bth_kernel = [dt] __device__(auto B, auto B0, auto D, auto D0,
-                                    auto B1_0, auto B1_1, auto a, auto grid_ptrs) {
+  auto Bth_kernel = [dt] __device__(auto D, auto B1_0, auto B1_1, auto result,
+                                    auto a, auto grid_ptrs) {
     using namespace Metric_KS;
 
     auto &grid = dev_grid<Conf::dim>();
     auto ext = grid.extent();
-    auto extl = grid.extent_less();
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
       auto pos = get_pos(idx, ext);
       if (grid.is_in_bound(pos)) {
@@ -479,7 +469,8 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
 
         value_t th = grid.template pos<1>(pos[1], true);
-        if (math::abs(th) < TINY) th = 0.01f * grid.delta[1];
+        if (math::abs(th) < TINY)
+          th = 0.01f * grid.delta[1];
 
         value_t sth = math::sin(th);
         value_t cth = math::cos(th);
@@ -497,7 +488,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
             0.25f * sq_gamma_beta(a, r_sm, sth, cth) *
                 (B1_0[idx] + B1_0[idx.dec_x()] + B1_1[idx] + B1_1[idx.dec_x()]);
 
-        B[1][idx] = B1_0[idx] - prefactor * (Eph0 - Eph1);
+        result[idx] = B1_0[idx] - prefactor * (Eph0 - Eph1);
 
         // if (pos[0] == 6 && pos[1] == 200) {
         // printf(
@@ -515,36 +506,38 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
       }
     }
   };
-  kernel_launch(Bth_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(), B[1].dev_ndptr_const(),
-                B[1].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
+  kernel_launch(Bth_kernel, D.get_const_ptrs(), B[1].dev_ndptr_const(),
+                B[1].dev_ndptr_const(), m_tmp_predictor.dev_ndptr(), m_a,
+                m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bth_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), B[1].dev_ndptr_const(),
-                m_a, m_ks_grid.get_grid_ptrs());
+
+  select_dev(m_tmp_th_field) = m_tmp_predictor * 0.5f + m_tmp_prev_field * 0.5f;
+
+  kernel_launch(Bth_kernel, D.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr_const(), B[1].dev_ndptr(), m_a,
+                m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
-  select_dev(m_tmp_th_field) = B[1] * 0.5f + m_tmp_prev_field * 0.5f;
+  // m_tmp_th_field.copy_from(m_tmp_prev_field);
+  // m_tmp_th_field.copy_from(B[1]);
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             value_t dt) {
   m_tmp_prev_field.copy_from(B[2]);
 
   // Use a predictor-corrector step to update Bph too
-  auto Bph_kernel = [dt] __device__(auto B, auto B0, auto D, auto D0, auto B2_0,
-                                    auto B2_1, auto a, auto grid_ptrs) {
+  auto Bph_kernel = [dt] __device__(auto D, auto B2_0, auto B2_1, auto result,
+                                    auto a, auto grid_ptrs) {
     using namespace Metric_KS;
     auto &grid = dev_grid<Conf::dim>();
     auto ext = grid.extent();
-    auto extl = grid.extent_less();
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
       auto pos = get_pos(idx, ext);
       if (grid.is_in_bound(pos)) {
@@ -560,7 +553,8 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
         value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
         value_t th_sm = grid.template pos<1>(pos[1], true);
         // value_t dth = th_sp - th_sm;
-        if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
+        if (th_sm < TINY)
+          th_sm = 0.01f * grid.delta[1];
 
         value_t sth = math::sin(th);
         value_t cth = math::cos(th);
@@ -584,29 +578,28 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
             grid_ptrs.gbetadth_e[idx] * 0.25f *
                 (B2_0[idx] + B2_0[idx.dec_x()] + B2_1[idx] + B2_1[idx.dec_x()]);
 
-        B[2][idx] = B2_0[idx] - prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
+        result[idx] = B2_0[idx] - prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
       }
     }
   };
-  kernel_launch(Bph_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(), B[2].dev_ndptr_const(),
-                B[2].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
+  kernel_launch(Bph_kernel, D.get_const_ptrs(), B[2].dev_ndptr_const(),
+                B[2].dev_ndptr_const(), m_tmp_predictor.dev_ndptr(), m_a,
+                m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bph_kernel, B.get_ptrs(), B0.get_const_ptrs(),
-                D.get_const_ptrs(), D0.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), B[2].dev_ndptr_const(), m_a,
+  kernel_launch(Bph_kernel, D.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr_const(), B[2].dev_ndptr(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
-                                       const vector_field<Conf> &B0,
-                                       const vector_field<Conf> &D,
-                                       const vector_field<Conf> &D0,
-                                       value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
+                                            const vector_field<Conf> &B0,
+                                            const vector_field<Conf> &D,
+                                            const vector_field<Conf> &D0,
+                                            value_t dt) {
   kernel_launch(
       [dt] __device__(auto B, auto B0, auto D, auto D0, auto tmp_field, auto a,
                       auto grid_ptrs) {
@@ -626,7 +619,8 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
             value_t th = grid.template pos<1>(pos[1], false);
             value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
             value_t th_sm = grid.template pos<1>(pos[1], true);
-            if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
+            if (th_sm < TINY)
+              th_sm = 0.01f * grid.delta[1];
 
             value_t prefactor = dt / grid_ptrs.Ab[0][idx];
 
@@ -670,24 +664,21 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        const vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &J,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             const vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &J,
+                                             value_t dt) {
   m_tmp_prev_field.copy_from(D[1]);
 
   // Predictor-corrector approach to update Dth
-  auto Dth_kernel = [dt] __device__(auto D, auto D0, auto B, auto B0, auto J,
-                                    auto D1_0, auto D1_1, auto a,
-                                    auto grid_ptrs) {
+  auto Dth_kernel = [dt] __device__(auto B, auto J, auto D1_0, auto D1_1,
+                                    auto result, auto a, auto grid_ptrs) {
     using namespace Metric_KS;
 
     auto &grid = dev_grid<Conf::dim>();
     auto ext = grid.extent();
-    auto extl = grid.extent_less();
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
       auto pos = get_pos(idx, ext);
       if (grid.is_in_bound(pos)) {
@@ -721,44 +712,45 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
           Hph0 = Hph1;
         }
 
-        D[1][idx] = D1_0[idx] + prefactor * (Hph0 - Hph1) - dt * J[1][idx];
+        result[idx] = D1_0[idx] + prefactor * (Hph0 - Hph1) - dt * J[1][idx];
       }
     }
   };
-  kernel_launch(Dth_kernel, D.get_ptrs(), D0.get_const_ptrs(),
-                B.get_const_ptrs(), B0.get_const_ptrs(), J.get_const_ptrs(),
-                D[1].dev_ndptr_const(), D[1].dev_ndptr_const(), m_a,
-                m_ks_grid.get_grid_ptrs());
+  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+                D[1].dev_ndptr_const(), D[1].dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr(), m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dth_kernel, D.get_ptrs(), D0.get_const_ptrs(),
-                B.get_const_ptrs(), B0.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), D[1].dev_ndptr_const(), m_a,
+
+  select_dev(m_tmp_th_field) = m_tmp_predictor * 0.5f + m_tmp_prev_field * 0.5f;
+
+  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr_const(), D[1].dev_ndptr(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
-  select_dev(m_tmp_th_field) = D[1] * 0.5f + m_tmp_prev_field * 0.5f;
+  // m_tmp_th_field.copy_from(m_tmp_prev_field);
+  // m_tmp_th_field.copy_from(D[1]);
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        const vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &J,
-                                        value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
+                                             const vector_field<Conf> &D0,
+                                             const vector_field<Conf> &B,
+                                             const vector_field<Conf> &B0,
+                                             const vector_field<Conf> &J,
+                                             value_t dt) {
   m_tmp_prev_field.copy_from(D[2]);
 
   // First assemble the right hand side and the diagonals of the tri-diagonal
   // equation
-  auto Dph_kernel = [dt] __device__(auto D, auto B, auto J, auto D2_0,
-                                    auto D2_1, auto a, auto grid_ptrs) {
+  auto Dph_kernel = [dt] __device__(auto B, auto J, auto D2_0, auto D2_1,
+                                    auto result, auto a, auto grid_ptrs) {
     using namespace Metric_KS;
 
     auto &grid = dev_grid<Conf::dim>();
     auto ext = grid.extent();
-    auto extl = grid.extent_less();
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
       auto pos = get_pos(idx, ext);
       if (grid.is_in_bound(pos)) {
@@ -772,7 +764,8 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
         value_t th = grid.template pos<1>(pos[1], true);
         value_t th_sp = grid.template pos<1>(pos[1], false);
         value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
-        if (th < TINY) th = 0.01f * grid.delta[1];
+        if (th < TINY)
+          th = 0.01f * grid.delta[1];
 
         value_t sth = math::sin(th);
         value_t cth = math::cos(th);
@@ -801,7 +794,8 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
           Hth0 = Hth1;
         }
 
-        D[2][idx] = D2_0[idx] + prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) - dt * J[2][idx];
+        result[idx] = D2_0[idx] + prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) -
+                      dt * J[2][idx];
 
         if (pos[0] == 10 && pos[1] == 250) {
           printf("Hr0 is %f, Hr1 is %f, Hth0 is %f, Hth1 is %f, dDphi is %f\n",
@@ -811,26 +805,25 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
       }
     }
   };
-  kernel_launch(Dph_kernel, D.get_ptrs(), B.get_const_ptrs(),
-                J.get_const_ptrs(), D[2].dev_ndptr_const(),
-                D[2].dev_ndptr_const(), m_a, m_ks_grid.get_grid_ptrs());
+  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+                D[2].dev_ndptr_const(), D[2].dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr(), m_a, m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dph_kernel, D.get_ptrs(), B.get_const_ptrs(),
-                J.get_const_ptrs(), m_tmp_prev_field.dev_ndptr_const(),
-                D[2].dev_ndptr_const(), m_a,
+  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+                m_tmp_prev_field.dev_ndptr_const(),
+                m_tmp_predictor.dev_ndptr_const(), D[2].dev_ndptr(), m_a,
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
-                                       const vector_field<Conf> &D0,
-                                       const vector_field<Conf> &B,
-                                       const vector_field<Conf> &B0,
-                                       const vector_field<Conf> &J,
-                                       value_t dt) {
+void field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
+                                            const vector_field<Conf> &D0,
+                                            const vector_field<Conf> &B,
+                                            const vector_field<Conf> &B0,
+                                            const vector_field<Conf> &J,
+                                            value_t dt) {
   kernel_launch(
       [dt] __device__(auto D, auto B, auto J, auto tmp_field, auto a,
                       auto grid_ptrs) {
@@ -899,8 +892,7 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
 }
 
 template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
+void field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("In GR KS solver! a is {}", m_a);
 
   if (this->m_update_b) {
@@ -910,7 +902,8 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
     axis_boundary_b(*(this->B), m_ks_grid);
     // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_update_e) {
@@ -922,7 +915,8 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
     axis_boundary_e(*(this->E), m_ks_grid);
     // Communicate the new E values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->E));
   }
 
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
@@ -948,4 +942,4 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
 
 template class field_solver_gr_ks_cu<Config<2>>;
 
-}  // namespace Aperture
+} // namespace Aperture

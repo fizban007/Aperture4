@@ -37,7 +37,7 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   int m_damping_length = 20;
   const grid_ks_t<Conf>& m_ks_grid;
 
-  typename Conf::multi_array_t m_tmp_rhs, m_tmp_prev_field;
+  typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field;
   buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
 
   scalar_field<Conf>* flux;
@@ -56,7 +56,7 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   void update(double dt, uint32_t step) override;
   void register_data_components() override;
 
-  void solve_tridiagonal();
+  // void solve_tridiagonal();
   void update_Br(vector_field<Conf>& B, const vector_field<Conf>& B0,
                  const vector_field<Conf>& D, const vector_field<Conf>& D0,
                  value_t dt);

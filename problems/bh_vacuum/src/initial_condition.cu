@@ -64,11 +64,11 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
           //   printf("Bth is %f, gamma is %f, th_s is %f\n", B[1][idx],
           //   Metric_KS::sqrt_gamma(a, r, th_s), th_s);
 
-          // r2 = r_s * r_s;
-          // D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
-          //               Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
-          //             2.0 * Bp * r_s * square(math::sin(th)) /
-          //             Metric_KS::sqrt_gamma(a, r_s, th);
+          r2 = r_s * r_s;
+          D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
+                        Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
+                      2.0 * Bp * r_s * square(math::sin(th)) /
+                      Metric_KS::sqrt_gamma(a, r_s, th);
         }
       },
       B0.get_ptrs(), D0.get_ptrs(), grid.a);

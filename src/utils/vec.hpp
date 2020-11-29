@@ -80,6 +80,13 @@ class vec_t {
     }
     return *this;
   }
+  HD_INLINE self_type& operator=(const T (&v)[Rank]) {
+#pragma unroll
+    for (int i = 0; i < Rank; i++) {
+      memory[i] = v[i];
+    }
+    return *this;
+  }
 
   template <typename U, typename = is_convertible_to<U, T>>
   HD_INLINE bool operator<(const vec_t<U, Rank>& other) const {

@@ -566,6 +566,10 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_prev_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
+  if (this->m_comm != nullptr) {
+    this->m_comm->send_guard_cells(m_new_B);
+    this->m_comm->send_guard_cells(m_new_D);
+  }
 
   // Second pass, use predictor values and new values in E and B
   kernel_launch(update_B_kernel, this->B->get_ptrs(), m_prev_D.get_const_ptrs(),
@@ -576,6 +580,10 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_new_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
+  if (this->m_comm != nullptr) {
+    this->m_comm->send_guard_cells(*(this->B));
+    this->m_comm->send_guard_cells(*(this->E));
+  }
 
   // Third pass, use E and B and store predictor values in m_new_B and m_new_D
   kernel_launch(update_B_kernel, m_new_B.get_ptrs(), m_prev_D.get_const_ptrs(),
@@ -586,6 +594,10 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 this->B->get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
+  if (this->m_comm != nullptr) {
+    this->m_comm->send_guard_cells(m_new_B);
+    this->m_comm->send_guard_cells(m_new_D);
+  }
 
   // Final pass, use m_new_B and m_new_D to generate next timestep
   kernel_launch(update_B_kernel, this->B->get_ptrs(), m_prev_D.get_const_ptrs(),
@@ -596,6 +608,10 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_new_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
+  if (this->m_comm != nullptr) {
+    this->m_comm->send_guard_cells(*(this->B));
+    this->m_comm->send_guard_cells(*(this->E));
+  }
 
   CudaCheckError();
 }

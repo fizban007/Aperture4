@@ -40,6 +40,8 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
   buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
 
+  vector_field<Conf> m_prev_D, m_prev_B, m_new_D, m_new_B;
+
   scalar_field<Conf>* flux;
 
  public:
@@ -75,6 +77,10 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   void update_Dph(vector_field<Conf>& D, const vector_field<Conf>& D0,
                   const vector_field<Conf>& B, const vector_field<Conf>& B0,
                   const vector_field<Conf>& J, value_t dt);
+
+  void update_old(double dt, uint32_t step);
+
+  void iterate_predictor(double dt);
 
   // void horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B);
 };

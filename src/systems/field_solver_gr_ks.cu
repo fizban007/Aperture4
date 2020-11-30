@@ -245,12 +245,12 @@ field_solver_gr_ks_cu<Conf>::init() {
   this->m_env.params().get_value("damping_length", m_damping_length);
   this->m_env.params().get_value("damping_coef", m_damping_coef);
 
-  m_tmp_th_field.set_memtype(MemType::device_only);
-  m_tmp_th_field.resize(this->m_grid.extent());
-  m_tmp_prev_field.set_memtype(MemType::device_only);
-  m_tmp_prev_field.resize(this->m_grid.extent());
-  m_tmp_predictor.set_memtype(MemType::device_only);
-  m_tmp_predictor.resize(this->m_grid.extent());
+  // m_tmp_th_field.set_memtype(MemType::device_only);
+  // m_tmp_th_field.resize(this->m_grid.extent());
+  // m_tmp_prev_field.set_memtype(MemType::device_only);
+  // m_tmp_prev_field.resize(this->m_grid.extent());
+  // m_tmp_predictor.set_memtype(MemType::device_only);
+  // m_tmp_predictor.resize(this->m_grid.extent());
 
   m_prev_D.resize(this->m_grid);
   m_prev_B.resize(this->m_grid);
@@ -267,582 +267,582 @@ field_solver_gr_ks_cu<Conf>::register_data_components() {
       "flux", this->m_grid, field_type::vert_centered);
 }
 
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        value_t dt) {
-  m_tmp_prev_field.copy_from(B[1]);
-
-  auto a = m_a;
-  auto beta = this->m_beta;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  // Predictor-corrector approach to update Bth
-  auto Bth_kernel = [dt, a, beta, is_boundary] __device__(
-                        auto D, auto B1_0, auto B1_1, auto result,
-                        auto grid_ptrs) {
-    using namespace Metric_KS;
-
-    auto &grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
-    for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-      auto pos = get_pos(idx, ext);
-      if (grid.is_in_bound(pos)) {
-        value_t r =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-        value_t r_sp =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
-        value_t r_sm =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-
-        value_t th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
-        value_t sth = math::sin(th);
-        value_t cth = math::cos(th);
-        value_t prefactor = dt / grid_ptrs.Ab[1][idx];
-
-        auto Eph1 =
-            ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
-            ag_13(a, r_sp, sth, cth) * 0.5f * (D[0][idx.inc_x()] + D[0][idx]) +
-            0.5f * sq_gamma_beta(a, r_sp, sth, cth) *
-                (((1.0f - beta) * B1_0[idx.inc_x()] +
-                  beta * B1_1[idx.inc_x()]) +
-                 ((1.0f - beta) * B1_0[idx] + beta * B1_1[idx]));
-
-        auto Eph0 =
-            ag_33(a, r_sm, sth, cth) * D[2][idx] +
-            ag_13(a, r_sm, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
-            0.5f * sq_gamma_beta(a, r_sm, sth, cth) *
-                (((1.0f - beta) * B1_0[idx] + beta * B1_1[idx]) +
-                 ((1.0f - beta) * B1_0[idx.dec_x()] +
-                  beta * B1_1[idx.dec_x()]));
-
-        result[idx] = B1_0[idx] - prefactor * (Eph0 - Eph1);
-
-        // Boundary conditions
-
-        if (pos[1] == grid.guard[1] && is_boundary[2]) {
-          result[idx] = 0.0f;
-        }
-
-        if (pos[0] == grid.guard[0] && is_boundary[0]) {
-          result[idx.dec_x()] = result[idx];
-        }
-
-        if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-          result[idx.inc_x()] = result[idx];
-        }
-
-        if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
-          result[idx.inc_y()] = 0.0f;
-        }
-      }
-    }
-  };
-  kernel_launch(Bth_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bth_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), B[1].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bth_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), B[1].dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-
-  select_dev(m_tmp_th_field) =
-      m_tmp_prev_field * (1.0f - beta) + m_tmp_predictor * beta;
-
-  kernel_launch(Bth_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), B[1].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        value_t dt) {
-  m_tmp_prev_field.copy_from(B[2]);
-
-  auto a = m_a;
-  auto beta = this->m_beta;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  // Use a predictor-corrector step to update Bph too
-  auto Bph_kernel = [dt, a, beta, is_boundary] __device__(
-                        auto D, auto B2_0, auto B2_1, auto result,
-                        auto grid_ptrs) {
-    using namespace Metric_KS;
-    auto &grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
-    for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-      auto pos = get_pos(idx, ext);
-      if (grid.is_in_bound(pos)) {
-        value_t r =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-
-        value_t prefactor = dt / grid_ptrs.Ab[2][idx];
-
-        auto Er1 = grid_ptrs.ag11dr_e[idx.inc_y()] * D[0][idx.inc_y()] +
-                   grid_ptrs.ag13dr_e[idx.inc_y()] * 0.5f *
-                       (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
-
-        auto Er0 =
-            grid_ptrs.ag11dr_e[idx] * D[0][idx] +
-            grid_ptrs.ag13dr_e[idx] * 0.5f * (D[2][idx] + D[2][idx.inc_x()]);
-
-        auto Eth1 = grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
-                    grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5f *
-                        ((1.0f - beta) * (B2_0[idx.inc_x()] + B2_0[idx]) +
-                         beta * (B2_1[idx.inc_x()] + B2_1[idx]));
-
-        auto Eth0 = grid_ptrs.ag22dth_e[idx] * D[1][idx] -
-                    grid_ptrs.gbetadth_e[idx] * 0.5f *
-                        ((1.0f - beta) * (B2_0[idx] + B2_0[idx.dec_x()]) +
-                         beta * (B2_1[idx] + B2_1[idx.dec_x()]));
-
-        result[idx] = B2_0[idx] - prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
-
-        // boundary conditions
-
-        if (pos[0] == grid.guard[0] && is_boundary[0]) {
-          result[idx.dec_x()] = result[idx];
-        }
-
-        if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-          result[idx.inc_x()] = result[idx];
-        }
-      }
-    }
-  };
-  kernel_launch(Bph_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bph_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), B[2].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bph_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), B[2].dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Bph_kernel, D.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), B[2].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  // select_dev(B[2]) = B[2] * 0.5f + m_tmp_predictor * 0.5f;
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
-                                       const vector_field<Conf> &B0,
-                                       const vector_field<Conf> &D,
-                                       const vector_field<Conf> &D0,
-                                       value_t dt) {
-  auto a = m_a;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  kernel_launch(
-      [dt, a, is_boundary] __device__(auto B, auto B0, auto D, auto D0,
-                                      auto tmp_field, auto grid_ptrs) {
-        using namespace Metric_KS;
-        auto &grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = get_pos(idx, ext);
-          if (grid.is_in_bound(pos)) {
-            value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-
-            value_t th_sp =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] + 1, true));
-            value_t th_sm =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
-
-            value_t prefactor = dt / grid_ptrs.Ab[0][idx];
-
-            value_t sth = math::sin(th_sp);
-            value_t cth = math::cos(th_sp);
-            value_t Eph1 =
-                ag_33(a, r, sth, cth) * D[2][idx.inc_y()] +
-                ag_13(a, r, sth, cth) * 0.5f *
-                    (D[0][idx.inc_y()] + D[0][idx.inc_y().dec_x()]) +
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx.inc_y()] + tmp_field[idx.inc_y().dec_x()]);
-
-            sth = math::sin(th_sm);
-            cth = math::cos(th_sm);
-            value_t Eph0 =
-                ag_33(a, r, sth, cth) * D[2][idx] +
-                ag_13(a, r, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx] + tmp_field[idx.dec_x()]);
-
-            B[0][idx] += -prefactor * (Eph1 - Eph0);
-
-            // boundary conditions
-
-            if (pos[0] == grid.guard[0] && is_boundary[0]) {
-              B[0][idx.dec_x()] = B[0][idx];
-            }
-
-            if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-              B[0][idx.inc_x()] = B[0][idx];
-            }
-          }
-        }
-      },
-      B.get_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
-      D0.get_const_ptrs(), m_tmp_th_field.dev_ndptr_const(),
-      m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        const vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &J,
-                                        value_t dt) {
-  m_tmp_prev_field.copy_from(D[1]);
-
-  auto a = m_a;
-  auto beta = this->m_beta;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  // Predictor-corrector approach to update Dth
-  auto Dth_kernel = [dt, a, beta, is_boundary] __device__(
-                        auto B, auto J, auto D1_0, auto D1_1, auto result,
-                        auto grid_ptrs) {
-    using namespace Metric_KS;
-
-    auto &grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
-    for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-      auto pos = get_pos(idx, ext);
-      if (grid.is_in_bound(pos)) {
-        value_t r_sp =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-        value_t r_sm =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
-
-        value_t th = grid.template pos<1>(pos[1], false);
-
-        value_t sth = math::sin(th);
-        value_t cth = math::cos(th);
-        value_t prefactor = dt / grid_ptrs.Ad[1][idx];
-
-        auto Hph1 =
-            ag_33(a, r_sp, sth, cth) * B[2][idx] +
-            ag_13(a, r_sp, sth, cth) * 0.5f * (B[0][idx.inc_x()] + B[0][idx]) -
-            sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
-                (((1.0f - beta) * D1_0[idx.inc_x()] +
-                  beta * D1_1[idx.inc_x()]) +
-                 ((1.0f - beta) * D1_0[idx] + beta * D1_1[idx]));
-
-        auto Hph0 =
-            ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
-            ag_13(a, r_sm, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.dec_x()]) -
-            sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
-                (((1.0f - beta) * D1_0[idx] + beta * D1_1[idx]) +
-                 ((1.0f - beta) * D1_0[idx.dec_x()] +
-                  beta * D1_1[idx.dec_x()]));
-
-        result[idx] = D1_0[idx] + prefactor * (Hph0 - Hph1) - dt * J[1][idx];
-
-        // boundary conditions
-
-        if (pos[0] == grid.guard[0] && is_boundary[0]) {
-          result[idx.dec_x()] = result[idx];
-        }
-
-        if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-          result[idx.inc_x()] = result[idx];
-        }
-      }
-    }
-  };
-  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                D[1].dev_ndptr_const(), D[1].dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), D[1].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), D[1].dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-
-  select_dev(m_tmp_th_field) =
-      m_tmp_predictor * beta + m_tmp_prev_field * (1.0f - beta);
-
-  kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), D[1].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
-                                        const vector_field<Conf> &D0,
-                                        const vector_field<Conf> &B,
-                                        const vector_field<Conf> &B0,
-                                        const vector_field<Conf> &J,
-                                        value_t dt) {
-  m_tmp_prev_field.copy_from(D[2]);
-
-  auto a = m_a;
-  auto beta = this->m_beta;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  // First assemble the right hand side and the diagonals of the tri-diagonal
-  // equation
-  auto Dph_kernel = [dt, a, beta, is_boundary] __device__(
-                        auto B, auto J, auto D2_0, auto D2_1, auto result,
-                        auto grid_ptrs) {
-    using namespace Metric_KS;
-
-    auto &grid = dev_grid<Conf::dim>();
-    auto ext = grid.extent();
-    for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-      auto pos = get_pos(idx, ext);
-      if (grid.is_in_bound(pos)) {
-        value_t prefactor = dt / grid_ptrs.Ad[2][idx];
-
-        auto Hr0 = grid_ptrs.ag11dr_h[idx.dec_y()] * B[0][idx.dec_y()] +
-                   grid_ptrs.ag13dr_h[idx.dec_y()] * 0.5f *
-                       (B[2][idx.dec_y()] + B[2][idx.dec_y().dec_x()]);
-
-        auto Hr1 =
-            grid_ptrs.ag11dr_h[idx] * B[0][idx] +
-            grid_ptrs.ag13dr_h[idx] * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
-
-        auto Hth0 = grid_ptrs.ag22dth_h[idx.dec_x()] * B[1][idx.dec_x()] +
-                    grid_ptrs.gbetadth_h[idx.dec_x()] * 0.5f *
-                        ((1.0f - beta) * (D2_0[idx] + D2_0[idx.dec_x()]) +
-                         beta * (D2_1[idx] + D2_1[idx.dec_x()]));
-
-        auto Hth1 = grid_ptrs.ag22dth_h[idx] * B[1][idx] +
-                    grid_ptrs.gbetadth_h[idx] * 0.5f *
-                        ((1.0f - beta) * (D2_0[idx.inc_x()] + D2_0[idx]) +
-                         beta * (D2_1[idx.inc_x()] + D2_1[idx]));
-
-        result[idx] = D2_0[idx] + prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) -
-                      dt * J[2][idx];
-
-        // boundary conditions
-
-        if (pos[1] == grid.guard[1] && is_boundary[2]) {
-          result[idx] = 0.0f;
-        }
-
-        if (pos[0] == grid.guard[0] && is_boundary[0]) {
-          result[idx.dec_x()] = result[idx];
-        }
-
-        if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-          result[idx.inc_x()] = result[idx];
-        }
-
-        if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
-          result[idx.inc_y()] = 0.0f;
-        }
-      }
-    }
-  };
-  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), D[2].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(), D[2].dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
-                m_tmp_prev_field.dev_ndptr_const(),
-                m_tmp_predictor.dev_ndptr_const(), D[2].dev_ndptr(),
-                m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
-                                       const vector_field<Conf> &D0,
-                                       const vector_field<Conf> &B,
-                                       const vector_field<Conf> &B0,
-                                       const vector_field<Conf> &J,
-                                       value_t dt) {
-  auto a = m_a;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
-  if (this->m_comm != nullptr)
-    is_boundary = this->m_comm->domain_info().is_boundary;
-
-  kernel_launch(
-      [dt, a, is_boundary] __device__(auto D, auto B, auto J, auto tmp_field,
-                                      auto grid_ptrs) {
-        using namespace Metric_KS;
-
-        auto &grid = dev_grid<Conf::dim>();
-        auto ext = grid.extent();
-        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = get_pos(idx, ext);
-          if (grid.is_in_bound(pos)) {
-            value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-
-            // value_t th =
-            //     grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
-            value_t th_sp =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
-            value_t th_sm =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] - 1, false));
-
-            value_t prefactor = dt / grid_ptrs.Ad[0][idx];
-
-            value_t sth = math::sin(th_sp);
-            value_t cth = math::cos(th_sp);
-            auto Hph1 =
-                ag_33(a, r, sth, cth) * B[2][idx] +
-                ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.inc_x()]) -
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx] + tmp_field[idx.inc_x()]);
-
-            sth = math::sin(th_sm);
-            cth = math::cos(th_sm);
-            auto Hph0 =
-                ag_33(a, r, sth, cth) * B[2][idx.dec_y()] +
-                ag_13(a, r, sth, cth) * 0.5f *
-                    (B[0][idx.dec_y()] + B[0][idx.dec_y().inc_x()]) -
-                sq_gamma_beta(a, r, sth, cth) * 0.5f *
-                    (tmp_field[idx.dec_y()] + tmp_field[idx.dec_y().inc_x()]);
-
-            if (pos[1] == grid.guard[1] && is_boundary[2]) {
-              Hph0 = -Hph1;
-            }
-
-            D[0][idx] += prefactor * (Hph1 - Hph0) - dt * J[0][idx];
-
-            // Special boundary conditions
-
-            if (pos[0] == grid.guard[0] && is_boundary[0]) {
-              D[0][idx.dec_x()] = D[0][idx];
-            }
-
-            if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
-              D[0][idx.inc_x()] = D[0][idx];
-            }
-
-            // Do an extra cell at the theta = PI axis
-            if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
-              D[0][idx.inc_y()] +=
-                  dt * (-2.0f * Hph1) / grid_ptrs.Ad[0][idx.inc_y()] -
-                  dt * J[0][idx.inc_y()];
-
-              if (pos[0] == grid.guard[0] && is_boundary[0]) {
-                D[0][idx.inc_y().dec_x()] = D[0][idx.inc_y()];
-              }
-              if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
-                  is_boundary[1]) {
-                D[0][idx.inc_y().inc_x()] = D[0][idx.inc_y()];
-              }
-            }
-          }
-        }
-      },
-      D.get_ptrs(), B.get_const_ptrs(), J.get_const_ptrs(),
-      m_tmp_th_field.dev_ndptr_const(), m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
-
-template <typename Conf>
-void
-field_solver_gr_ks_cu<Conf>::update_old(double dt, uint32_t step) {
-  if (this->m_update_e) {
-    update_Dph(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
-               dt);
-    update_Dth(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
-               dt);
-    update_Dr(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J), dt);
-
-    axis_boundary_e(*(this->E), m_ks_grid);
-    // Communicate the new E values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
-  }
-
-  if (this->m_update_b) {
-    update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-    update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
-
-    axis_boundary_b(*(this->B), m_ks_grid);
-    // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-  }
-
-  // apply damping boundary condition at outer boundary
-  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
-    damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
-                     m_damping_length, m_damping_coef);
-  }
-
-  compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), m_ks_grid);
-
-  this->Etotal->copy_from(*(this->E));
-
-  this->Btotal->copy_from(*(this->B));
-
-  if (step % this->m_data_interval == 0) {
-    compute_flux(*flux, *(this->Btotal), m_ks_grid);
-  }
-
-  CudaSafeCall(cudaDeviceSynchronize());
-}
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
+//                                         const vector_field<Conf> &B0,
+//                                         const vector_field<Conf> &D,
+//                                         const vector_field<Conf> &D0,
+//                                         value_t dt) {
+//   m_tmp_prev_field.copy_from(B[1]);
+
+//   auto a = m_a;
+//   auto beta = this->m_beta;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   // Predictor-corrector approach to update Bth
+//   auto Bth_kernel = [dt, a, beta, is_boundary] __device__(
+//                         auto D, auto B1_0, auto B1_1, auto result,
+//                         auto grid_ptrs) {
+//     using namespace Metric_KS;
+
+//     auto &grid = dev_grid<Conf::dim>();
+//     auto ext = grid.extent();
+//     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//       auto pos = get_pos(idx, ext);
+//       if (grid.is_in_bound(pos)) {
+//         value_t r =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+//         value_t r_sp =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+//         value_t r_sm =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+
+//         value_t th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+//         value_t sth = math::sin(th);
+//         value_t cth = math::cos(th);
+//         value_t prefactor = dt / grid_ptrs.Ab[1][idx];
+
+//         auto Eph1 =
+//             ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
+//             ag_13(a, r_sp, sth, cth) * 0.5f * (D[0][idx.inc_x()] + D[0][idx]) +
+//             0.5f * sq_gamma_beta(a, r_sp, sth, cth) *
+//                 (((1.0f - beta) * B1_0[idx.inc_x()] +
+//                   beta * B1_1[idx.inc_x()]) +
+//                  ((1.0f - beta) * B1_0[idx] + beta * B1_1[idx]));
+
+//         auto Eph0 =
+//             ag_33(a, r_sm, sth, cth) * D[2][idx] +
+//             ag_13(a, r_sm, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
+//             0.5f * sq_gamma_beta(a, r_sm, sth, cth) *
+//                 (((1.0f - beta) * B1_0[idx] + beta * B1_1[idx]) +
+//                  ((1.0f - beta) * B1_0[idx.dec_x()] +
+//                   beta * B1_1[idx.dec_x()]));
+
+//         result[idx] = B1_0[idx] - prefactor * (Eph0 - Eph1);
+
+//         // Boundary conditions
+
+//         if (pos[1] == grid.guard[1] && is_boundary[2]) {
+//           result[idx] = 0.0f;
+//         }
+
+//         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//           result[idx.dec_x()] = result[idx];
+//         }
+
+//         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//           result[idx.inc_x()] = result[idx];
+//         }
+
+//         if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+//           result[idx.inc_y()] = 0.0f;
+//         }
+//       }
+//     }
+//   };
+//   kernel_launch(Bth_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Bth_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), B[1].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Bth_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(), B[1].dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+
+//   select_dev(m_tmp_th_field) =
+//       m_tmp_prev_field * (1.0f - beta) + m_tmp_predictor * beta;
+
+//   kernel_launch(Bth_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), B[1].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
+//                                         const vector_field<Conf> &B0,
+//                                         const vector_field<Conf> &D,
+//                                         const vector_field<Conf> &D0,
+//                                         value_t dt) {
+//   m_tmp_prev_field.copy_from(B[2]);
+
+//   auto a = m_a;
+//   auto beta = this->m_beta;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   // Use a predictor-corrector step to update Bph too
+//   auto Bph_kernel = [dt, a, beta, is_boundary] __device__(
+//                         auto D, auto B2_0, auto B2_1, auto result,
+//                         auto grid_ptrs) {
+//     using namespace Metric_KS;
+//     auto &grid = dev_grid<Conf::dim>();
+//     auto ext = grid.extent();
+//     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//       auto pos = get_pos(idx, ext);
+//       if (grid.is_in_bound(pos)) {
+//         value_t r =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+
+//         value_t prefactor = dt / grid_ptrs.Ab[2][idx];
+
+//         auto Er1 = grid_ptrs.ag11dr_e[idx.inc_y()] * D[0][idx.inc_y()] +
+//                    grid_ptrs.ag13dr_e[idx.inc_y()] * 0.5f *
+//                        (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
+
+//         auto Er0 =
+//             grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+//             grid_ptrs.ag13dr_e[idx] * 0.5f * (D[2][idx] + D[2][idx.inc_x()]);
+
+//         auto Eth1 = grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
+//                     grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5f *
+//                         ((1.0f - beta) * (B2_0[idx.inc_x()] + B2_0[idx]) +
+//                          beta * (B2_1[idx.inc_x()] + B2_1[idx]));
+
+//         auto Eth0 = grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+//                     grid_ptrs.gbetadth_e[idx] * 0.5f *
+//                         ((1.0f - beta) * (B2_0[idx] + B2_0[idx.dec_x()]) +
+//                          beta * (B2_1[idx] + B2_1[idx.dec_x()]));
+
+//         result[idx] = B2_0[idx] - prefactor * ((Er0 - Er1) + (Eth1 - Eth0));
+
+//         // boundary conditions
+
+//         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//           result[idx.dec_x()] = result[idx];
+//         }
+
+//         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//           result[idx.inc_x()] = result[idx];
+//         }
+//       }
+//     }
+//   };
+//   kernel_launch(Bph_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Bph_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), B[2].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Bph_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(), B[2].dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Bph_kernel, D.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), B[2].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   // select_dev(B[2]) = B[2] * 0.5f + m_tmp_predictor * 0.5f;
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
+//                                        const vector_field<Conf> &B0,
+//                                        const vector_field<Conf> &D,
+//                                        const vector_field<Conf> &D0,
+//                                        value_t dt) {
+//   auto a = m_a;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   kernel_launch(
+//       [dt, a, is_boundary] __device__(auto B, auto B0, auto D, auto D0,
+//                                       auto tmp_field, auto grid_ptrs) {
+//         using namespace Metric_KS;
+//         auto &grid = dev_grid<Conf::dim>();
+//         auto ext = grid.extent();
+//         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//           auto pos = get_pos(idx, ext);
+//           if (grid.is_in_bound(pos)) {
+//             value_t r =
+//                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+
+//             value_t th_sp =
+//                 grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] + 1, true));
+//             value_t th_sm =
+//                 grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+
+//             value_t prefactor = dt / grid_ptrs.Ab[0][idx];
+
+//             value_t sth = math::sin(th_sp);
+//             value_t cth = math::cos(th_sp);
+//             value_t Eph1 =
+//                 ag_33(a, r, sth, cth) * D[2][idx.inc_y()] +
+//                 ag_13(a, r, sth, cth) * 0.5f *
+//                     (D[0][idx.inc_y()] + D[0][idx.inc_y().dec_x()]) +
+//                 sq_gamma_beta(a, r, sth, cth) * 0.5f *
+//                     (tmp_field[idx.inc_y()] + tmp_field[idx.inc_y().dec_x()]);
+
+//             sth = math::sin(th_sm);
+//             cth = math::cos(th_sm);
+//             value_t Eph0 =
+//                 ag_33(a, r, sth, cth) * D[2][idx] +
+//                 ag_13(a, r, sth, cth) * 0.5f * (D[0][idx] + D[0][idx.dec_x()]) +
+//                 sq_gamma_beta(a, r, sth, cth) * 0.5f *
+//                     (tmp_field[idx] + tmp_field[idx.dec_x()]);
+
+//             B[0][idx] += -prefactor * (Eph1 - Eph0);
+
+//             // boundary conditions
+
+//             if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//               B[0][idx.dec_x()] = B[0][idx];
+//             }
+
+//             if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//               B[0][idx.inc_x()] = B[0][idx];
+//             }
+//           }
+//         }
+//       },
+//       B.get_ptrs(), B0.get_const_ptrs(), D.get_const_ptrs(),
+//       D0.get_const_ptrs(), m_tmp_th_field.dev_ndptr_const(),
+//       m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
+//                                         const vector_field<Conf> &D0,
+//                                         const vector_field<Conf> &B,
+//                                         const vector_field<Conf> &B0,
+//                                         const vector_field<Conf> &J,
+//                                         value_t dt) {
+//   m_tmp_prev_field.copy_from(D[1]);
+
+//   auto a = m_a;
+//   auto beta = this->m_beta;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   // Predictor-corrector approach to update Dth
+//   auto Dth_kernel = [dt, a, beta, is_boundary] __device__(
+//                         auto B, auto J, auto D1_0, auto D1_1, auto result,
+//                         auto grid_ptrs) {
+//     using namespace Metric_KS;
+
+//     auto &grid = dev_grid<Conf::dim>();
+//     auto ext = grid.extent();
+//     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//       auto pos = get_pos(idx, ext);
+//       if (grid.is_in_bound(pos)) {
+//         value_t r_sp =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+//         value_t r_sm =
+//             grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
+
+//         value_t th = grid.template pos<1>(pos[1], false);
+
+//         value_t sth = math::sin(th);
+//         value_t cth = math::cos(th);
+//         value_t prefactor = dt / grid_ptrs.Ad[1][idx];
+
+//         auto Hph1 =
+//             ag_33(a, r_sp, sth, cth) * B[2][idx] +
+//             ag_13(a, r_sp, sth, cth) * 0.5f * (B[0][idx.inc_x()] + B[0][idx]) -
+//             sq_gamma_beta(a, r_sp, sth, cth) * 0.5f *
+//                 (((1.0f - beta) * D1_0[idx.inc_x()] +
+//                   beta * D1_1[idx.inc_x()]) +
+//                  ((1.0f - beta) * D1_0[idx] + beta * D1_1[idx]));
+
+//         auto Hph0 =
+//             ag_33(a, r_sm, sth, cth) * B[2][idx.dec_x()] +
+//             ag_13(a, r_sm, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.dec_x()]) -
+//             sq_gamma_beta(a, r_sm, sth, cth) * 0.5f *
+//                 (((1.0f - beta) * D1_0[idx] + beta * D1_1[idx]) +
+//                  ((1.0f - beta) * D1_0[idx.dec_x()] +
+//                   beta * D1_1[idx.dec_x()]));
+
+//         result[idx] = D1_0[idx] + prefactor * (Hph0 - Hph1) - dt * J[1][idx];
+
+//         // boundary conditions
+
+//         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//           result[idx.dec_x()] = result[idx];
+//         }
+
+//         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//           result[idx.inc_x()] = result[idx];
+//         }
+//       }
+//     }
+//   };
+//   kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 D[1].dev_ndptr_const(), D[1].dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), D[1].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(), D[1].dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+
+//   select_dev(m_tmp_th_field) =
+//       m_tmp_predictor * beta + m_tmp_prev_field * (1.0f - beta);
+
+//   kernel_launch(Dth_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), D[1].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
+//                                         const vector_field<Conf> &D0,
+//                                         const vector_field<Conf> &B,
+//                                         const vector_field<Conf> &B0,
+//                                         const vector_field<Conf> &J,
+//                                         value_t dt) {
+//   m_tmp_prev_field.copy_from(D[2]);
+
+//   auto a = m_a;
+//   auto beta = this->m_beta;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   // First assemble the right hand side and the diagonals of the tri-diagonal
+//   // equation
+//   auto Dph_kernel = [dt, a, beta, is_boundary] __device__(
+//                         auto B, auto J, auto D2_0, auto D2_1, auto result,
+//                         auto grid_ptrs) {
+//     using namespace Metric_KS;
+
+//     auto &grid = dev_grid<Conf::dim>();
+//     auto ext = grid.extent();
+//     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//       auto pos = get_pos(idx, ext);
+//       if (grid.is_in_bound(pos)) {
+//         value_t prefactor = dt / grid_ptrs.Ad[2][idx];
+
+//         auto Hr0 = grid_ptrs.ag11dr_h[idx.dec_y()] * B[0][idx.dec_y()] +
+//                    grid_ptrs.ag13dr_h[idx.dec_y()] * 0.5f *
+//                        (B[2][idx.dec_y()] + B[2][idx.dec_y().dec_x()]);
+
+//         auto Hr1 =
+//             grid_ptrs.ag11dr_h[idx] * B[0][idx] +
+//             grid_ptrs.ag13dr_h[idx] * 0.5f * (B[2][idx] + B[2][idx.dec_x()]);
+
+//         auto Hth0 = grid_ptrs.ag22dth_h[idx.dec_x()] * B[1][idx.dec_x()] +
+//                     grid_ptrs.gbetadth_h[idx.dec_x()] * 0.5f *
+//                         ((1.0f - beta) * (D2_0[idx] + D2_0[idx.dec_x()]) +
+//                          beta * (D2_1[idx] + D2_1[idx.dec_x()]));
+
+//         auto Hth1 = grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+//                     grid_ptrs.gbetadth_h[idx] * 0.5f *
+//                         ((1.0f - beta) * (D2_0[idx.inc_x()] + D2_0[idx]) +
+//                          beta * (D2_1[idx.inc_x()] + D2_1[idx]));
+
+//         result[idx] = D2_0[idx] + prefactor * ((Hr0 - Hr1) + (Hth1 - Hth0)) -
+//                       dt * J[2][idx];
+
+//         // boundary conditions
+
+//         if (pos[1] == grid.guard[1] && is_boundary[2]) {
+//           result[idx] = 0.0f;
+//         }
+
+//         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//           result[idx.dec_x()] = result[idx];
+//         }
+
+//         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//           result[idx.inc_x()] = result[idx];
+//         }
+
+//         if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+//           result[idx.inc_y()] = 0.0f;
+//         }
+//       }
+//     }
+//   };
+//   kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_prev_field.dev_ndptr_const(), m_tmp_predictor.dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), D[2].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(), D[2].dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   kernel_launch(Dph_kernel, B.get_const_ptrs(), J.get_const_ptrs(),
+//                 m_tmp_prev_field.dev_ndptr_const(),
+//                 m_tmp_predictor.dev_ndptr_const(), D[2].dev_ndptr(),
+//                 m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
+//                                        const vector_field<Conf> &D0,
+//                                        const vector_field<Conf> &B,
+//                                        const vector_field<Conf> &B0,
+//                                        const vector_field<Conf> &J,
+//                                        value_t dt) {
+//   auto a = m_a;
+//   vec_t<bool, Conf::dim * 2> is_boundary = true;
+//   if (this->m_comm != nullptr)
+//     is_boundary = this->m_comm->domain_info().is_boundary;
+
+//   kernel_launch(
+//       [dt, a, is_boundary] __device__(auto D, auto B, auto J, auto tmp_field,
+//                                       auto grid_ptrs) {
+//         using namespace Metric_KS;
+
+//         auto &grid = dev_grid<Conf::dim>();
+//         auto ext = grid.extent();
+//         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+//           auto pos = get_pos(idx, ext);
+//           if (grid.is_in_bound(pos)) {
+//             value_t r =
+//                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+
+//             // value_t th =
+//             //     grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+//             value_t th_sp =
+//                 grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+//             value_t th_sm =
+//                 grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] - 1, false));
+
+//             value_t prefactor = dt / grid_ptrs.Ad[0][idx];
+
+//             value_t sth = math::sin(th_sp);
+//             value_t cth = math::cos(th_sp);
+//             auto Hph1 =
+//                 ag_33(a, r, sth, cth) * B[2][idx] +
+//                 ag_13(a, r, sth, cth) * 0.5f * (B[0][idx] + B[0][idx.inc_x()]) -
+//                 sq_gamma_beta(a, r, sth, cth) * 0.5f *
+//                     (tmp_field[idx] + tmp_field[idx.inc_x()]);
+
+//             sth = math::sin(th_sm);
+//             cth = math::cos(th_sm);
+//             auto Hph0 =
+//                 ag_33(a, r, sth, cth) * B[2][idx.dec_y()] +
+//                 ag_13(a, r, sth, cth) * 0.5f *
+//                     (B[0][idx.dec_y()] + B[0][idx.dec_y().inc_x()]) -
+//                 sq_gamma_beta(a, r, sth, cth) * 0.5f *
+//                     (tmp_field[idx.dec_y()] + tmp_field[idx.dec_y().inc_x()]);
+
+//             if (pos[1] == grid.guard[1] && is_boundary[2]) {
+//               Hph0 = -Hph1;
+//             }
+
+//             D[0][idx] += prefactor * (Hph1 - Hph0) - dt * J[0][idx];
+
+//             // Special boundary conditions
+
+//             if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//               D[0][idx.dec_x()] = D[0][idx];
+//             }
+
+//             if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+//               D[0][idx.inc_x()] = D[0][idx];
+//             }
+
+//             // Do an extra cell at the theta = PI axis
+//             if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+//               D[0][idx.inc_y()] +=
+//                   dt * (-2.0f * Hph1) / grid_ptrs.Ad[0][idx.inc_y()] -
+//                   dt * J[0][idx.inc_y()];
+
+//               if (pos[0] == grid.guard[0] && is_boundary[0]) {
+//                 D[0][idx.inc_y().dec_x()] = D[0][idx.inc_y()];
+//               }
+//               if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
+//                   is_boundary[1]) {
+//                 D[0][idx.inc_y().inc_x()] = D[0][idx.inc_y()];
+//               }
+//             }
+//           }
+//         }
+//       },
+//       D.get_ptrs(), B.get_const_ptrs(), J.get_const_ptrs(),
+//       m_tmp_th_field.dev_ndptr_const(), m_ks_grid.get_grid_ptrs());
+//   CudaSafeCall(cudaDeviceSynchronize());
+//   CudaCheckError();
+// }
+
+// template <typename Conf>
+// void
+// field_solver_gr_ks_cu<Conf>::update_old(double dt, uint32_t step) {
+//   if (this->m_update_e) {
+//     update_Dph(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
+//                dt);
+//     update_Dth(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J),
+//                dt);
+//     update_Dr(*(this->E), *(this->E0), *(this->B), *(this->B0), *(this->J), dt);
+
+//     axis_boundary_e(*(this->E), m_ks_grid);
+//     // Communicate the new E values to guard cells
+//     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+//   }
+
+//   if (this->m_update_b) {
+//     update_Bph(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+//     update_Bth(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+//     update_Br(*(this->B), *(this->B0), *(this->E), *(this->E0), dt);
+
+//     axis_boundary_b(*(this->B), m_ks_grid);
+//     // Communicate the new B values to guard cells
+//     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+//   }
+
+//   // apply damping boundary condition at outer boundary
+//   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
+//     damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
+//                      m_damping_length, m_damping_coef);
+//   }
+
+//   compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), m_ks_grid);
+
+//   this->Etotal->copy_from(*(this->E));
+
+//   this->Btotal->copy_from(*(this->B));
+
+//   if (step % this->m_data_interval == 0) {
+//     compute_flux(*flux, *(this->Btotal), m_ks_grid);
+//   }
+
+//   CudaSafeCall(cudaDeviceSynchronize());
+// }
 
 template <typename Conf>
 void
@@ -1012,7 +1012,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 (alpha * prevB[2][idx] + beta * nextB[2][idx]) +
             ag_13(a, r_p, sth, cth) * 0.5f *
                 (alpha * prevB[0][idx] + beta * nextB[0][idx] +
-                 alpha * prevB[0][idx.inc_x()] + beta * nextB[0][idx.inc_x()]) +
+                 alpha * prevB[0][idx.inc_x()] + beta * nextB[0][idx.inc_x()]) -
             0.5f * sq_gamma_beta(a, r_p, sth, cth) *
                 ((alpha * prevD[1][idx] + beta * nextD[1][idx]) +
                  (alpha * prevD[1][idx.inc_x()] +
@@ -1048,9 +1048,28 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                  (alpha * prevD[1][idx.inc_x().dec_y()] +
                   beta * nextD[1][idx.inc_x().dec_y()]));
 
+        if (pos[1] == grid.guard[1] && is_boundary[2]) {
+          Hph10 = -Hph11;
+        }
+
         D[0][idx] = prevD[0][idx] +
                     dt * (Hph11 - Hph10) / grid_ptrs.Ad[0][idx] -
                     dt * J[0][idx];
+
+        // Do an extra cell at the theta = PI axis
+        if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+          D[0][idx.inc_y()] = prevD[0][idx.inc_y()] +
+              dt * (-2.0f * Hph11) / grid_ptrs.Ad[0][idx.inc_y()] -
+              dt * J[0][idx.inc_y()];
+
+          if (pos[0] == grid.guard[0] && is_boundary[0]) {
+            D[0][idx.inc_y().dec_x()] = D[0][idx.inc_y()];
+          }
+          if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
+              is_boundary[1]) {
+            D[0][idx.inc_y().inc_x()] = D[0][idx.inc_y()];
+          }
+        }
 
         // Updating Dph
         auto Hr0 =
@@ -1088,10 +1107,18 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
         // Boundary conditions
         if (pos[1] == grid.guard[1] && is_boundary[2]) {
           D[2][idx] = 0.0f;
+          if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+            D[2][idx.inc_x()] = 0.0f;
+          }
+          D[1][idx.dec_y()] = D[1][idx];
         }
 
         if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
           D[2][idx.inc_y()] = 0.0f;
+          if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+            D[2][idx.inc_x().inc_y()] = 0.0f;
+          }
+          D[1][idx.inc_y()] = D[1][idx];
         }
 
         if (pos[0] == grid.guard[0] && is_boundary[0]) {
@@ -1111,6 +1138,8 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
 
   m_prev_B.copy_from(*(this->B));
   m_prev_D.copy_from(*(this->E));
+  // m_new_B.copy_from(*(this->B));
+  // m_new_D.copy_from(*(this->E));
 
   // First pass, predictor values in m_new_B and m_new_D
   kernel_launch(update_B_kernel, m_new_B.get_ptrs(), m_prev_D.get_const_ptrs(),
@@ -1159,6 +1188,24 @@ template <typename Conf>
 void
 field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   iterate_predictor(dt);
+
+  // apply damping boundary condition at outer boundary
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
+    damping_boundary(*(this->E), *(this->B), *(this->E0), *(this->B0),
+                     m_damping_length, m_damping_coef);
+  }
+
+  this->Etotal->copy_from(*(this->E));
+
+  this->Btotal->copy_from(*(this->B));
+
+  if (step % this->m_data_interval == 0) {
+    compute_divs(*(this->divE), *(this->divB), *(this->E), *(this->B), m_ks_grid);
+
+    compute_flux(*flux, *(this->Btotal), m_ks_grid);
+  }
+
+  CudaSafeCall(cudaDeviceSynchronize());
 }
 
 template class field_solver_gr_ks_cu<Config<2>>;

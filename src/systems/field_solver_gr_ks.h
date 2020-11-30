@@ -37,8 +37,8 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   int m_damping_length = 20;
   const grid_ks_t<Conf>& m_ks_grid;
 
-  typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
-  buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
+  // typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
+  // buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
 
   vector_field<Conf> m_prev_D, m_prev_B, m_new_D, m_new_B;
 

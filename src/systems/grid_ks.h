@@ -87,47 +87,47 @@ beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / (r * (2.0f + r) + square(a * cth));
 }
 
-// HD_INLINE Scalar
-// g_11(Scalar a, Scalar r, Scalar th) {
-//   return 1.0f + Z(a, r, th);
-// }
+HD_INLINE Scalar
+g_11(Scalar a, Scalar r, Scalar th) {
+  return 1.0f + Z(a, r, th);
+}
 
-// HD_INLINE Scalar
-// g_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-//   return 1.0f + Z(a, r, sth, cth);
-// }
+HD_INLINE Scalar
+g_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 1.0f + Z(a, r, sth, cth);
+}
 
-// HD_INLINE Scalar
-// g_22(Scalar a, Scalar r, Scalar th) {
-//   return rho2(a, r, th);
-// }
+HD_INLINE Scalar
+g_22(Scalar a, Scalar r, Scalar th) {
+  return rho2(a, r, th);
+}
 
-// HD_INLINE Scalar
-// g_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-//   return rho2(a, r, sth, cth);
-// }
+HD_INLINE Scalar
+g_22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return rho2(a, r, sth, cth);
+}
 
-// HD_INLINE Scalar
-// g_33(Scalar a, Scalar r, Scalar th) {
-//   Scalar sth = math::sin(th);
-//   return Sigma(a, r, th) * sth * sth / rho2(a, r, th);
-// }
+HD_INLINE Scalar
+g_33(Scalar a, Scalar r, Scalar th) {
+  Scalar sth = math::sin(th);
+  return Sigma(a, r, th) * sth * sth / rho2(a, r, th);
+}
 
-// HD_INLINE Scalar
-// g_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-//   return Sigma(a, r, sth, cth) * sth * sth / rho2(a, r, sth, cth);
-// }
+HD_INLINE Scalar
+g_33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return Sigma(a, r, sth, cth) * sth * sth / rho2(a, r, sth, cth);
+}
 
-// HD_INLINE Scalar
-// g_13(Scalar a, Scalar r, Scalar th) {
-//   Scalar sth = math::sin(th);
-//   return -a * sth * sth * (1.0f + Z(a, r, th));
-// }
+HD_INLINE Scalar
+g_13(Scalar a, Scalar r, Scalar th) {
+  Scalar sth = math::sin(th);
+  return -a * sth * sth * (1.0f + Z(a, r, th));
+}
 
-// HD_INLINE Scalar
-// g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-//   return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
-// }
+HD_INLINE Scalar
+g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
+}
 
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar th) {
@@ -216,6 +216,17 @@ gu22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 HD_INLINE Scalar
 gu33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 1.0f / rho2(a, r, sth, cth) / square(sth);
+}
+
+// Dot product between two upper-index vectors
+HD_INLINE Scalar
+dot_product(const vec_t<Scalar, 3>& v1, const vec_t<Scalar, 3>& v2, Scalar a,
+            Scalar r, Scalar sth, Scalar cth) {
+  return g_11(a, r, sth, cth) * v1[0] * v2[0] +
+         g_13(a, r, sth, cth) * v1[0] * v2[2] +
+         g_13(a, r, sth, cth) * v1[2] * v2[0] +
+         g_22(a, r, sth, cth) * v1[1] * v2[1] +
+         g_33(a, r, sth, cth) * v1[2] * v2[2];
 }
 
 // function to compute u^0 from lower index components

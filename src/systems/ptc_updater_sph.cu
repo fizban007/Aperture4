@@ -25,6 +25,8 @@
 
 namespace Aperture {
 
+namespace {
+
 template <typename Conf>
 void
 process_j_rho(vector_field<Conf>& j,
@@ -132,6 +134,8 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
       ptc.get_dev_ptrs(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
+}
+
 }
 
 template <typename Conf>

@@ -79,17 +79,11 @@ alpha(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 
 HD_INLINE Scalar
 beta1(Scalar a, Scalar r, Scalar th) {
-  // Scalar z = Z(a, r, th);
-  // return z / (1.0f + z);
-  // return 2.0f / (r * (2.0f + r) + square(a * math::cos(th)));
   return 2.0f * r / (r * (2.0f + r) + square(a * math::cos(th)));
 }
 
 HD_INLINE Scalar
 beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  // Scalar z = Z(a, r, sth, cth);
-  // return z / (1.0f + z);
-  // return 2.0f / (r * (2.0f + r) + square(a * cth));
   return 2.0f * r / (r * (2.0f + r) + square(a * cth));
 }
 
@@ -138,13 +132,11 @@ beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar th) {
   return math::sqrt(1.0f + Z(a, r, th));
-  // return r * r * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 ag_11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return math::sqrt(1.0f + Z(a, r, sth, cth));
-  // return r * r * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
@@ -174,57 +166,68 @@ HD_INLINE Scalar
 ag_13(Scalar a, Scalar r, Scalar th) {
   Scalar sth = math::sin(th);
   return -a * sth * sth * math::sqrt(1.0f + Z(a, r, th));
-  // return -a * r * sth * sth * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 ag_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return -a * sth * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
-  // return -a * r * sth * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
 HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar th) {
-  // Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
-  // return 0.5f * math::abs(math::sin(th)) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f +
-  //        r)));
   return rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
-  // return r * rho2(a, r, th) * math::sin(th) * math::sqrt(1.0f + Z(a, r, th));
 }
 
 HD_INLINE Scalar
 sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  // Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
-  // return 0.5f * math::abs(sth) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) * (a2c2th + 2.0f * r * (2.0f +
-  //        r)));
   return rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
-  // return r * rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth,
-  // cth));
 }
 
 // This returns the composite value of sqrt(gamma) * beta1
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar th) {
-  // Scalar a2c2th = a * a * (1.0f + math::cos(2.0f * th));
-  // return r * math::abs(math::sin(th)) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) *
-  //                   (a2c2th + 2.0f * r * (2.0f + r))) /
-  //        (r * (2.0f + r) + square(a * math::cos(th)));
   Scalar z = Z(a, r, th);
   return 2.0f * r * math::sin(th) / math::sqrt(1.0f + z);
 }
 
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  // Scalar a2c2th = a * a * (1.0f + cth * cth - sth * sth);
-  // return r * math::abs(sth) *
-  //        math::sqrt((a2c2th + 2.0f * r * r) *
-  //                   (a2c2th + 2.0f * r * (2.0f + r))) /
-  //        (r * (2.0f + r) + square(a * cth));
   Scalar z = Z(a, r, sth, cth);
   return 2.0f * r * sth / math::sqrt(1.0f + z);
+}
+
+// These are the upper index gamma matrix elements
+HD_INLINE Scalar
+gu11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  Scalar rho = rho2(a, r, sth, cth);
+  return (a * a + r * r) / rho - 2.0f * r / (rho + 2.0f * r);
+}
+
+HD_INLINE Scalar
+gu13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return a / rho2(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
+gu22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 1.0f / rho2(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
+gu33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return 1.0f / rho2(a, r, sth, cth) / square(sth);
+}
+
+// function to compute u^0 from lower index components
+HD_INLINE Scalar
+u0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
+   bool is_photon = false) {
+  Scalar ep = (is_photon ? 0.0f : 1.0f);
+  Scalar rho = rho2(a, r, sth, cth);
+  return math::sqrt(gu11(a, r, sth, cth) * u[0] * u[0] + u[1] * u[1] / rho +
+                    u[2] * u[2] / rho / square(sth) +
+                    2.0f * u[0] * u[2] * a / rho + ep) /
+         alpha(a, r, sth, cth);
 }
 
 }  // namespace Metric_KS
@@ -283,9 +286,7 @@ class grid_ks_t : public grid_t<Conf> {
 
   void compute_coef();
 
-  grid_ptrs get_grid_ptrs() const {
-    return ptrs;
-  }
+  grid_ptrs get_grid_ptrs() const { return ptrs; }
 
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ad;
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ab;

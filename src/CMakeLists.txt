@@ -35,6 +35,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/field_solver_gr_ks.cu"
     "systems/ptc_updater.cu"
     "systems/ptc_updater_sph.cu"
+    "systems/ptc_updater_gr_ks.cu"
     "systems/ptc_injector.cu"
     "systems/ph_freepath_dev.cu"
     "systems/domain_comm_async.cpp"

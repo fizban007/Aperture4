@@ -80,9 +80,9 @@ class Data:
 
   def __load_fld_quantity(self, key):
     path = os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5")
-    if key == "flux":
-        self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
-    elif key == "B":
+    # if key == "flux":
+    #     self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
+    if key == "B":
       self.__dict__[key] = np.sqrt(self.B1 * self.B1 + self.B2 * self.B2 + self.B3 * self.B3)
     elif key == "J":
       self.__dict__[key] = np.sqrt(self.J1 * self.J1 + self.J2 * self.J2 + self.J3 * self.J3)

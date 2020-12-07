@@ -220,13 +220,33 @@ gu33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 
 // Dot product between two upper-index vectors
 HD_INLINE Scalar
-dot_product(const vec_t<Scalar, 3>& v1, const vec_t<Scalar, 3>& v2, Scalar a,
-            Scalar r, Scalar sth, Scalar cth) {
+dot_product_u(const vec_t<Scalar, 3>& v1, const vec_t<Scalar, 3>& v2, Scalar a,
+              Scalar r, Scalar sth, Scalar cth) {
   return g_11(a, r, sth, cth) * v1[0] * v2[0] +
-         g_13(a, r, sth, cth) * v1[0] * v2[2] +
-         g_13(a, r, sth, cth) * v1[2] * v2[0] +
+         g_13(a, r, sth, cth) * (v1[0] * v2[2] + v1[2] * v2[0]) +
          g_22(a, r, sth, cth) * v1[1] * v2[1] +
          g_33(a, r, sth, cth) * v1[2] * v2[2];
+}
+
+// Dot product between two lower-index vectors
+HD_INLINE Scalar
+dot_product_l(const vec_t<Scalar, 3>& v1, const vec_t<Scalar, 3>& v2, Scalar a,
+              Scalar r, Scalar sth, Scalar cth) {
+  Scalar rho = rho2(a, r, sth, cth);
+  return gu11(a, r, sth, cth) * v1[0] * v2[0] + (v1[1] * v2[1] +
+         v1[2] * v2[2] / square(sth) +
+         (v1[0] * v2[2] + v1[2] * v2[0]) * a) / rho;
+}
+
+// function to compute u^0 from lower index components
+HD_INLINE Scalar
+u0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
+   bool is_photon = false) {
+  Scalar sth = math::sin(th);
+  Scalar cth = math::cos(th);
+  Scalar ep = (is_photon ? 0.0f : 1.0f);
+  return math::sqrt(dot_product_l(u, u, a, r, sth, cth) + ep) /
+         alpha(a, r, sth, cth);
 }
 
 // function to compute u^0 from lower index components
@@ -234,10 +254,7 @@ HD_INLINE Scalar
 u0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
    bool is_photon = false) {
   Scalar ep = (is_photon ? 0.0f : 1.0f);
-  Scalar rho = rho2(a, r, sth, cth);
-  return math::sqrt(gu11(a, r, sth, cth) * u[0] * u[0] + u[1] * u[1] / rho +
-                    u[2] * u[2] / rho / square(sth) +
-                    2.0f * u[0] * u[2] * a / rho + ep) /
+  return math::sqrt(dot_product_l(u, u, a, r, sth, cth) + ep) /
          alpha(a, r, sth, cth);
 }
 

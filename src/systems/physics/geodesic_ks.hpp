@@ -29,16 +29,17 @@ namespace Aperture {
 // This is declared as a template function so that we can write it in a header
 // file rather than an individual cpp/cuda file
 template <typename FloatT>
-HOST_DEVICE
-vec_t<FloatT, 3>
-geodesic_ks_rhs(FloatT a, FloatT r, FloatT th, const vec_t<FloatT, 3>& u,
-                bool is_photon = false) {
+HOST_DEVICE vec_t<FloatT, 3>
+geodesic_ks_u_rhs(FloatT a, const vec_t<FloatT, 3>& x,
+                  const vec_t<FloatT, 3>& u, bool is_photon = false) {
   vec_t<FloatT, 3> result;
   result[2] = 0.0f;  // u_phi is conserved and does not need update
 
+  FloatT r = x[0];
+  FloatT th = x[1];
   // regularize theta from the axis
-  if (th < 1.0e-5f) th = 1.0e-5f;
-  if (th > M_PI - 1.0e-5f) th = M_PI - 1.0e-5f;
+  // if (th < 1.0e-5f) th = 1.0e-5f;
+  // if (th > M_PI - 1.0e-5f) th = M_PI - 1.0e-5f;
 
   FloatT sth = math::sin(th);
   FloatT cth = math::cos(th);
@@ -53,15 +54,15 @@ geodesic_ks_rhs(FloatT a, FloatT r, FloatT th, const vec_t<FloatT, 3>& u,
 
   // second term u_r \partial_i \beta^r
   factor = square(2.0f * r + rho2);
-  result[0] += 2.0f * (square(a * cth) - r * r) / factor;
-  result[1] += 4.0f * a * a * r * sth * cth / factor;
+  result[0] += u[0] * 2.0f * (square(a * cth) - r * r) / factor;
+  result[1] += u[0] * 4.0f * a * a * r * sth * cth / factor;
 
   // third term -u_ju_k \partial_i \gamma^jk
   FloatT rho2p2r = rho2 + 2.0f * r;
   FloatT a2r2 = a * a + r * r;
   result[0] -=
       (u[0] * u[0] *
-           ((r + r * a2r2 / rho2) / rho2 +
+           ((r - r * a2r2 / rho2) / rho2 +
             (2.0f * r * (1.0f + r) / rho2p2r - 1.0f) / rho2p2r) -
        r / square(rho2) *
            (u[1] * u[1] + 2.0f * a * u[0] * u[2] + u[2] * u[2] / square(sth))) /
@@ -73,6 +74,31 @@ geodesic_ks_rhs(FloatT a, FloatT r, FloatT th, const vec_t<FloatT, 3>& u,
                 (rho2 - square(a * sth)) * cth / (square(rho2) * cube(sth)) *
                     u[2] * u[2]) /
                u0;
+
+  return result;
+}
+
+template <typename FloatT>
+HOST_DEVICE vec_t<FloatT, 3>
+geodesic_ks_x_rhs(FloatT a, const vec_t<FloatT, 3>& x,
+                  const vec_t<FloatT, 3>& u, bool is_photon = false) {
+  vec_t<FloatT, 3> result;
+
+  FloatT r = x[0];
+  FloatT th = x[1];
+  // regularize theta from the axis
+  // if (th < 1.0e-5f) th = 1.0e-5f;
+  // if (th > M_PI - 1.0e-5f) th = M_PI - 1.0e-5f;
+
+  FloatT sth = math::sin(th);
+  FloatT cth = math::cos(th);
+  FloatT u0 = Metric_KS::u0(a, r, sth, cth, u, is_photon);
+  FloatT rho2 = Metric_KS::rho2(a, r, sth, cth);
+
+  result[0] = (Metric_KS::gu11(a, r, sth, cth) * u[0] + a * u[2] / rho2) / u0 -
+              Metric_KS::beta1(a, r, sth, cth);
+  result[1] = u[1] / rho2 / u0;
+  result[2] = (u[2] / square(sth) + a * u[0]) / rho2 / u0;
 
   return result;
 }

@@ -19,15 +19,16 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/grid_ks.h"
+#include "systems/physics/wald_solution.hpp"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
 
 template <typename Conf>
-void initial_nonrotating_vacuum_wald(sim_environment &env,
-                                     vector_field<Conf> &B0,
-                                     vector_field<Conf> &D0,
-                                     const grid_ks_t<Conf> &grid) {
+void
+initial_nonrotating_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
+                                vector_field<Conf> &D0,
+                                const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
   env.params().get_value("Bp", Bp);
 
@@ -66,7 +67,7 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
 
           r2 = r_s * r_s;
           D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
-                        Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
+                       Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
                       2.0 * Bp * r_s * square(math::sin(th)) /
                       Metric_KS::sqrt_gamma(a, r_s, th);
         }
@@ -74,42 +75,41 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
       B0.get_ptrs(), D0.get_ptrs(), grid.a);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
+}
 
-  // kernel_launch(
-  //     [Bp] __device__(auto B, auto D, auto a) {
-  //       auto& grid = dev_grid<Conf::dim>();
-  //       auto ext = grid.extent();
+template <typename Conf>
+void
+initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
+                    vector_field<Conf> &D0, const grid_ks_t<Conf> &grid) {
+  Scalar Bp = 1.0;
+  env.params().get_value("Bp", Bp);
 
-  //       for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
-  //       {
-  //         auto pos = get_pos(idx, ext);
-  //         if (pos[0] > 0) {
-  //           auto r =
-  //               grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-  //           auto r_s =
-  //               grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-  //           auto th =
-  //               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
-  //           auto th_s =
-  //               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
-  //           if (math::abs(th_s) < TINY)
-  //             th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
+  kernel_launch(
+      [Bp] __device__(auto B, auto D, auto a) {
+        auto &grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
 
-  //           auto sth2 = square(math::sin(th_s));
-  //           auto cth2 = square(math::cos(th_s));
-  //           auto sth = math::sin(th_s);
-  //           auto cth = math::cos(th_s);
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          auto r_s =
+              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+          auto th_s =
+              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
 
-  //           auto r2 = r_s * r_s;
-  //           D[2][idx] = -(Metric_KS::sq_gamma_beta(a, r_s, sth, cth) /
-  //                         Metric_KS::ag_33(a, r_s, sth, cth)) *
-  //                       0.5 * (B[1][idx] + B[1][idx.dec_x()]);
-  //         }
-  //       }
-  //     },
-  //     B0.get_ptrs(), D0.get_ptrs(), 0.0f);
-  // CudaSafeCall(cudaDeviceSynchronize());
-  // CudaCheckError();
+          B[0][idx] = gr_wald_solution_B<Conf>(a, r_s, th, Bp, 0);
+          B[1][idx] = gr_wald_solution_B<Conf>(a, r, th_s, Bp, 1);
+          B[2][idx] = gr_wald_solution_B<Conf>(a, r, th, Bp, 2);
+
+          D[0][idx] = gr_wald_solution_D<Conf>(a, r, th_s, Bp, 0);
+          D[1][idx] = gr_wald_solution_D<Conf>(a, r_s, th, Bp, 1);
+          D[2][idx] = gr_wald_solution_D<Conf>(a, r_s, th_s, Bp, 2);
+        }
+      },
+      B0.get_ptrs(), D0.get_ptrs(), grid.a);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
 }
 
 template void initial_nonrotating_vacuum_wald(sim_environment &env,
@@ -117,4 +117,9 @@ template void initial_nonrotating_vacuum_wald(sim_environment &env,
                                               vector_field<Config<2>> &D0,
                                               const grid_ks_t<Config<2>> &grid);
 
-} // namespace Aperture
+template void initial_vacuum_wald(sim_environment &env,
+                                  vector_field<Config<2>> &B0,
+                                  vector_field<Config<2>> &D0,
+                                  const grid_ks_t<Config<2>> &grid);
+
+}  // namespace Aperture

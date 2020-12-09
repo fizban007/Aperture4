@@ -25,45 +25,59 @@
 namespace Aperture {
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_ks_dA0dr(value_t a, value_t r, value_t sth, value_t cth) {
+HOST_DEVICE value_t gr_ks_dA0dr(value_t a, value_t r, value_t sth,
+                                value_t cth) {
   value_t rho2 = r * r + a * a * cth * cth;
-  return a * (1.0f + cth * cth) * (-2.0f * r * r / rho2 + 1.0f) / rho2;
+  return a * (1.0f + cth * cth) * (square(a * cth) - r * r) / square(rho2);
 }
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_ks_dA0dth(value_t a, value_t r, value_t sth, value_t cth) {
+HOST_DEVICE value_t gr_ks_dA0dth(value_t a, value_t r, value_t sth,
+                                 value_t cth) {
   value_t rho2 = r * r + a * a * cth * cth;
-  return 2.0f * a * r * sth * cth *
-         (2.0f * a * a * (1.0f + cth * cth) / rho2 - 1.0f) / rho2;
+  return 2.0f * a * r * sth * cth * (a * a - r * r) / square(rho2);
 }
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_ks_dAphdr(value_t a, value_t r, value_t sth, value_t cth) {
+HOST_DEVICE value_t gr_ks_dAphdr(value_t a, value_t r, value_t sth,
+                                 value_t cth) {
   value_t rho2 = r * r + a * a * cth * cth;
-  return r + a * a * (1.0f + cth * cth) * (2.0f * r * r / rho2 - 1.0f) / rho2;
+  return (r +
+          a * a * (1.0f + cth * cth) * (2.0f * r * r / rho2 - 1.0f) / rho2) *
+         sth * sth;
 }
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_ks_dAphdth(value_t a, value_t r, value_t sth, value_t cth) {
+HOST_DEVICE value_t gr_ks_dAphdth(value_t a, value_t r, value_t sth,
+                                  value_t cth) {
   value_t rho2 = r * r + a * a * cth * cth;
-  return 2.0f * a * a * r * cth * sth *
-         (-a * a * (1.0f + cth * cth) / rho2 + 1.0f) / rho2;
+  // return (2.0f * a * a * r * cth * sth *
+  //         (-a * a * (1.0f + cth * cth) / rho2 + 1.0f) / rho2) *
+  //            sth * sth +
+  //        sth * cth *
+  //            (a * a + r * r - 2.0f * a * a * r * (1.0f + cth * cth) / rho2);
+  return (a * a + r * r - 2.0f * r) * sth * cth +
+         2.0f * r * (r * r * r * r - a * a * a * a) * sth * cth / square(rho2);
 }
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_wald_solution_B(value_t a, value_t r, value_t th, value_t Bp,
-                   int component) {
+HOST_DEVICE value_t gr_ks_dArdth(value_t a, value_t r, value_t sth,
+                                 value_t cth) {
+  value_t rho2 = r * r + a * a * cth * cth;
+  return -a * sth * cth +
+         2.0f * a * r * (a * a - r * r) * sth * cth / square(rho2);
+}
+
+template <typename Conf, typename value_t = typename Conf::value_t>
+HOST_DEVICE value_t gr_wald_solution_B(value_t a, value_t r, value_t th,
+                                       value_t Bp, int component) {
   value_t sth = math::sin(th);
   value_t cth = math::cos(th);
   value_t rho2 = Metric_KS::rho2(a, r, sth, cth);
 
   if (component == 2) {
-    return 0.0;
+    return -Bp * gr_ks_dArdth<Conf>(a, r, sth, cth) /
+           Metric_KS::sqrt_gamma(a, r, sth, cth);
   } else if (component == 1) {
     // Avoid axis singularity
     if (math::abs(th) < TINY || math::abs(th - M_PI) < TINY) {
@@ -80,9 +94,8 @@ gr_wald_solution_B(value_t a, value_t r, value_t th, value_t Bp,
 }
 
 template <typename Conf, typename value_t = typename Conf::value_t>
-HOST_DEVICE value_t
-gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
-                   int component) {
+HOST_DEVICE value_t gr_wald_solution_D(value_t a, value_t r, value_t th,
+                                       value_t Bp, int component) {
   value_t sth = math::sin(th);
   value_t cth = math::cos(th);
   value_t rho2 = Metric_KS::rho2(a, r, sth, cth);
@@ -93,7 +106,7 @@ gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
       return 0.0;
     } else {
       return Bp *
-             (-Metric_KS::gu33(a, r, sth, cth) *
+             (Metric_KS::gu33(a, r, sth, cth) *
                   Metric_KS::beta1(a, r, sth, cth) *
                   gr_ks_dAphdr<Conf>(a, r, sth, cth) +
               Metric_KS::gu13(a, r, sth, cth) *
@@ -102,12 +115,14 @@ gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
     }
   } else if (component == 1) {
     return Bp * Metric_KS::gu22(a, r, sth, cth) *
-           gr_ks_dA0dth<Conf>(a, r, sth, cth) /
+           (gr_ks_dA0dth<Conf>(a, r, sth, cth) -
+            Metric_KS::beta1(a, r, sth, cth) *
+                gr_ks_dArdth<Conf>(a, r, sth, cth)) /
            Metric_KS::alpha(a, r, sth, cth);
   } else if (component == 0) {
     return Bp *
            (Metric_KS::gu11(a, r, sth, cth) *
-                gr_ks_dA0dr<Conf>(a, r, sth, cth) -
+                gr_ks_dA0dr<Conf>(a, r, sth, cth) +
             Metric_KS::gu13(a, r, sth, cth) * Metric_KS::beta1(a, r, sth, cth) *
                 gr_ks_dAphdr<Conf>(a, r, sth, cth)) /
            Metric_KS::alpha(a, r, sth, cth);
@@ -115,6 +130,6 @@ gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
   return 0.0;
 }
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // __WALD_SOLUTION_H_
+#endif // __WALD_SOLUTION_H_

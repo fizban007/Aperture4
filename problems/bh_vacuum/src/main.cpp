@@ -30,12 +30,15 @@ void initial_nonrotating_vacuum_wald(sim_environment &env,
                                      vector_field<Conf> &B0,
                                      vector_field<Conf> &D0,
                                      const grid_ks_t<Conf> &grid);
-}
+
+template <typename Conf>
+void initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
+                         vector_field<Conf> &D0, const grid_ks_t<Conf> &grid);
+} // namespace Aperture
 
 using namespace Aperture;
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   sim_environment env(&argc, &argv);
 
@@ -58,7 +61,7 @@ main(int argc, char *argv[]) {
   env.get_data("Bdelta", &B);
   env.get_data("Edelta", &D);
 
-  initial_nonrotating_vacuum_wald(env, *B0, *D0, grid);
+  initial_vacuum_wald(env, *B0, *D0, grid);
   B->copy_from(*B0);
   D->copy_from(*D0);
 

@@ -83,6 +83,8 @@ initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
                     vector_field<Conf> &D0, const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
   env.params().get_value("Bp", Bp);
+  Scalar a = 0.0;
+  env.params().get_value("bh_spin", a);
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {

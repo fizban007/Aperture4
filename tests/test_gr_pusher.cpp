@@ -22,6 +22,8 @@
 #include "systems/physics/wald_solution.hpp"
 #include "utils/logger.h"
 #include <iostream>
+#include <fstream>
+#include <string>
 
 using namespace Aperture;
 
@@ -135,7 +137,7 @@ advance_ptc(Scalar a, Scalar dt, Scalar Bp, vec_t<Scalar, 3> &x,
 }
 
 void
-photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt) {
+photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt, const std::string& name = "") {
   Logger::print_info("Photon orbit, r = {}, Phi = {}, Q = {}", r, Phi, Q);
 
   vec_t<Scalar, 3> x, u;
@@ -166,15 +168,26 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt) {
   // advance_photon_symmetric(a, x, utmp, dt*0.5);
   // prepare_halfstep(a, x, u, dt);
 
-  int N = 100000;
-  int out_step = 1000;
+  int N = 200000;
+  int out_step = 10;
   Scalar max_costh = 0.0;
-  for (int n = 0; n < N; n++) {
-    advance_photon_symmetric(a, x, u, dt, n % out_step == 0);
+  std::ofstream outfile(std::string("photon_orbit_") + name + ".json", std::ofstream::out | std::ofstream::trunc);
+  outfile << "{\"photon_orbit_" << name << "\": [";
+  for (int n = 0; n <= N; n++) {
+    advance_photon_symmetric(a, x, u, dt);
 
     Scalar cth = math::abs(math::cos(x[1]));
     if (cth > max_costh) max_costh = cth;
-    // if (n % out_step == 0) {
+    if (n % out_step == 0 && name != "") {
+      sth = math::sin(x[1]);
+      cth = math::cos(x[1]);
+      Scalar sph = math::sin(x[2]);
+      Scalar cph = math::cos(x[2]);
+      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", " << x[0] * cth;
+      if (n != N) {
+        outfile << "," << std::endl;
+      }
+    }
     if (n == N - 1) {
       Scalar u_0_now = u[0] * Metric_KS::beta1(a, x[0], x[1]) -
                        square(Metric_KS::alpha(a, x[0], x[1])) *
@@ -190,12 +203,14 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt) {
       //                    Metric_KS::u0(a, x[0], x[1], u, true));
     }
   }
+  outfile << "]}";
+  outfile.close();
   Logger::print_info("");
 }
 
 void
 ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
-          Scalar dt) {
+          Scalar dt, const std::string& name = "") {
   Logger::print_info("Ptc orbit, r = {}, th = {}, Bz = {}, uth = {}, uph = {}",
                      r, th, Bz, uth, uph);
 
@@ -240,13 +255,26 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
                        Metric_KS::u0(a, x[0], x[1], u, false);
   Logger::print_info("u_0_alt is {}, E_alt is {}", u_0_alt,
                      -u_0_alt - eom * Bz * wald_ks_A0(a, r, sth, cth));
-  int N = int(1000.0 / dt);
-  int out_step = int(100.0 / dt);
+  int N = int(1000.0 / dt) + 1;
+  int out_step = int(floor(0.2 / dt)) + 1;
+  Logger::print_info("outstep is {}", out_step);
   Scalar max_costh = 0.0;
-  for (int n = 0; n < N; n++) {
-    advance_ptc(a, dt, Bz, x, u, n % out_step == 0);
+  std::ofstream outfile(std::string("ptc_orbit_") + name + ".json", std::ofstream::out | std::ofstream::trunc);
+  outfile << "{\"ptc_orbit_" << name << "\": [";
+  for (int n = 0; n <= N; n++) {
+    advance_ptc(a, dt, Bz, x, u);
 
-    // if (n % out_step == 0) {
+    if (n % out_step == 0) {
+      sth = math::sin(x[1]);
+      cth = math::cos(x[1]);
+      Scalar sph = math::sin(x[2]);
+      Scalar cph = math::cos(x[2]);
+      // Logger::print_info("outstep {}", n);
+      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", " << x[0] * cth;
+      if (n != N) {
+        outfile << "," << std::endl;
+      }
+    }
     if (n == N - 1) {
       Scalar u_0_now = u[0] * Metric_KS::beta1(a, x[0], x[1]) -
                        square(Metric_KS::alpha(a, x[0], x[1])) *
@@ -265,6 +293,8 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
       //                    Metric_KS::u0(a, x[0], x[1], u, true));
     }
   }
+  outfile << "]}";
+  outfile.close();
   Logger::print_info("");
 }
 
@@ -272,31 +302,32 @@ int
 main(int argc, char *argv[]) {
   // Initialize parameters
   Scalar a = 1.0;
-  Scalar dt = 1e-3;
+  Scalar dt = 1e-2;
 
   ////// Photon unstable spherical orbits
 
   // Case A
-  photon_orbit(a, 1.8, 1.36, 12.8304, dt);
+  photon_orbit(a, 1.8, 1.36, 12.8304, dt, "caseA");
   // Case B
-  photon_orbit(a, 2.0, 1.0, 16.0, dt);
+  photon_orbit(a, 2.0, 1.0, 16.0, dt, "caseB");
   // Case C
-  photon_orbit(a, 1.0 + math::sqrt(2.0), 0.0, 22.3137, dt);
+  photon_orbit(a, 1.0 + math::sqrt(2.0), 0.0, 22.3137, dt, "caseC");
   // Case D
-  photon_orbit(a, 1.0 + math::sqrt(3.0), -1.0, 25.8564, dt);
+  photon_orbit(a, 1.0 + math::sqrt(3.0), -1.0, 25.8564, dt, "caseD");
   // Case E
-  photon_orbit(a, 3.0, -2.0, 27.0, dt);
+  photon_orbit(a, 3.0, -2.0, 27.0, dt, "caseE");
   // Case F
-  photon_orbit(a, 1.0 + 2.0 * math::sqrt(2.0), -6.0, 9.6274, dt);
+  photon_orbit(a, 1.0 + 2.0 * math::sqrt(2.0), -6.0, 9.6274, dt, "caseF");
 
   dt = 0.001;
   ////// Massive particles in a magnetic field
-  ptc_orbit(0.0, 4.0, M_PI * 0.5, 0.2, 0.0, 2.9, dt);
-  ptc_orbit(0.0, 9.5, 1.6, 0.2, 0.0, -1.024, dt);
-  ptc_orbit(0.0, 8.5, 1.06, -2.0, 0.0, 122.983, dt);
-  ptc_orbit(0.7, 4.2, M_PI * 0.5 - 0.1, 2.0, 0.0, -1.93, dt);
-  ptc_orbit(0.9, 4.0, M_PI * 0.5 - 0.2, 2.0, 0.0, 1.565, dt);
-  ptc_orbit(0.9, 3.0, M_PI * 0.5, 1.0, 0.497, 0.365, dt);
+  ptc_orbit(0.0, 4.0, M_PI * 0.5, 0.2, 0.0, 2.9, dt, "RSA1");
+  ptc_orbit(0.0, 9.5, 1.6, 0.2, 0.0, -1.024, dt, "RSA3");
+  ptc_orbit(0.0, 8.5, 1.06, -2.0, 0.0, 122.983, dt, "RSA5");
+  ptc_orbit(0.7, 4.2, M_PI * 0.5 - 0.1, 2.0, 0.0, -1.93, dt, "RKA2");
+  ptc_orbit(0.9, 4.0, M_PI * 0.5 - 0.2, 2.0, 0.0, 1.565, dt, "RKA3");
+  ptc_orbit(0.9, 3.0, M_PI * 0.5, 1.0, 0.497, 0.365, dt, "RKA8");
+  ptc_orbit(0.9, 3.0, M_PI * 0.5, 1000.0, 0.497, 0.365, dt, "RKA8largeB");
 
   return 0;
 }

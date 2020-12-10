@@ -19,6 +19,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/grid_ks.h"
+#include "systems/physics/metric_kerr_schild.hpp"
 #include "systems/physics/wald_solution.hpp"
 #include "utils/kernel_helper.hpp"
 
@@ -100,13 +101,13 @@ initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
           auto th_s =
               grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
 
-          B[0][idx] = gr_wald_solution_B<Conf>(a, r_s, th, Bp, 0);
-          B[1][idx] = gr_wald_solution_B<Conf>(a, r, th_s, Bp, 1);
-          B[2][idx] = gr_wald_solution_B<Conf>(a, r, th, Bp, 2);
+          B[0][idx] = gr_wald_solution_B(a, r_s, th, Bp, 0);
+          B[1][idx] = gr_wald_solution_B(a, r, th_s, Bp, 1);
+          B[2][idx] = gr_wald_solution_B(a, r, th, Bp, 2);
 
-          D[0][idx] = gr_wald_solution_D<Conf>(a, r, th_s, Bp, 0);
-          D[1][idx] = gr_wald_solution_D<Conf>(a, r_s, th, Bp, 1);
-          D[2][idx] = gr_wald_solution_D<Conf>(a, r_s, th_s, Bp, 2);
+          D[0][idx] = gr_wald_solution_D(a, r, th_s, Bp, 0);
+          D[1][idx] = gr_wald_solution_D(a, r_s, th, Bp, 1);
+          D[2][idx] = gr_wald_solution_D(a, r_s, th_s, Bp, 2);
         }
       },
       B0.get_ptrs(), D0.get_ptrs(), grid.a);

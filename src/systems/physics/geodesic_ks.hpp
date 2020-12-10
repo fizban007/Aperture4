@@ -21,6 +21,7 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "systems/grid_ks.h"
+#include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/util_functions.h"
 #include "utils/vec.hpp"
 
@@ -28,27 +29,27 @@ namespace Aperture {
 
 // This is declared as a template function so that we can write it in a header
 // file rather than an individual cpp/cuda file
-template <typename FloatT>
-HOST_DEVICE vec_t<FloatT, 3>
-geodesic_ks_u_rhs(FloatT a, const vec_t<FloatT, 3>& x,
-                  const vec_t<FloatT, 3>& u, bool is_photon = false) {
-  vec_t<FloatT, 3> result;
+template <typename value_t = Scalar>
+HOST_DEVICE vec_t<value_t, 3>
+geodesic_ks_u_rhs(value_t a, const vec_t<value_t, 3>& x,
+                  const vec_t<value_t, 3>& u, bool is_photon = false) {
+  vec_t<value_t, 3> result;
   result[2] = 0.0f;  // u_phi is conserved and does not need update
 
-  FloatT r = x[0];
-  FloatT th = x[1];
+  value_t r = x[0];
+  value_t th = x[1];
   // regularize theta from the axis
   // if (th < 1.0e-5f) th = 1.0e-5f;
   // if (th > M_PI - 1.0e-5f) th = M_PI - 1.0e-5f;
 
-  FloatT sth = math::sin(th);
-  FloatT cth = math::cos(th);
-  FloatT alpha = Metric_KS::alpha(a, r, sth, cth);
-  FloatT u0 = Metric_KS::u0(a, r, sth, cth, u, is_photon);
-  FloatT rho2 = Metric_KS::rho2(a, r, sth, cth);
+  value_t sth = math::sin(th);
+  value_t cth = math::cos(th);
+  value_t alpha = Metric_KS::alpha(a, r, sth, cth);
+  value_t u0 = Metric_KS::u0(a, r, sth, cth, u, is_photon);
+  value_t rho2 = Metric_KS::rho2(a, r, sth, cth);
 
   // first term -\alpha u^0 \partial_i \alpha
-  FloatT factor = math::sqrt(cube(1.0f + 2.0f * r / rho2)) * square(rho2);
+  value_t factor = math::sqrt(cube(1.0f + 2.0f * r / rho2)) * square(rho2);
   result[0] = -alpha * u0 * (r * r - square(a * cth)) / factor;
   result[1] = alpha * u0 * 2.0f * a * a * r * sth * cth / factor;
 
@@ -58,8 +59,8 @@ geodesic_ks_u_rhs(FloatT a, const vec_t<FloatT, 3>& x,
   result[1] += u[0] * 4.0f * a * a * r * sth * cth / factor;
 
   // third term -u_ju_k \partial_i \gamma^jk
-  FloatT rho2p2r = rho2 + 2.0f * r;
-  FloatT a2r2 = a * a + r * r;
+  value_t rho2p2r = rho2 + 2.0f * r;
+  value_t a2r2 = a * a + r * r;
   result[0] -=
       (u[0] * u[0] *
            ((r - r * a2r2 / rho2) / rho2 +
@@ -78,22 +79,22 @@ geodesic_ks_u_rhs(FloatT a, const vec_t<FloatT, 3>& x,
   return result;
 }
 
-template <typename FloatT>
-HOST_DEVICE vec_t<FloatT, 3>
-geodesic_ks_x_rhs(FloatT a, const vec_t<FloatT, 3>& x,
-                  const vec_t<FloatT, 3>& u, bool is_photon = false) {
-  vec_t<FloatT, 3> result;
+template <typename value_t = Scalar>
+HOST_DEVICE vec_t<value_t, 3>
+geodesic_ks_x_rhs(value_t a, const vec_t<value_t, 3>& x,
+                  const vec_t<value_t, 3>& u, bool is_photon = false) {
+  vec_t<value_t, 3> result;
 
-  FloatT r = x[0];
-  FloatT th = x[1];
+  value_t r = x[0];
+  value_t th = x[1];
   // regularize theta from the axis
   // if (th < 1.0e-5f) th = 1.0e-5f;
   // if (th > M_PI - 1.0e-5f) th = M_PI - 1.0e-5f;
 
-  FloatT sth = math::sin(th);
-  FloatT cth = math::cos(th);
-  FloatT u0 = Metric_KS::u0(a, r, sth, cth, u, is_photon);
-  FloatT rho2 = Metric_KS::rho2(a, r, sth, cth);
+  value_t sth = math::sin(th);
+  value_t cth = math::cos(th);
+  value_t u0 = Metric_KS::u0(a, r, sth, cth, u, is_photon);
+  value_t rho2 = Metric_KS::rho2(a, r, sth, cth);
 
   result[0] = (Metric_KS::gu11(a, r, sth, cth) * u[0] + a * u[2] / rho2) / u0 -
               Metric_KS::beta1(a, r, sth, cth);

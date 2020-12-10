@@ -16,7 +16,7 @@
  */
 
 #include "catch.hpp"
-#include "systems/grid_ks.h"
+#include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/gauss_quadrature.h"
 
 using namespace Aperture;

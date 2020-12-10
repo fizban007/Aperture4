@@ -21,6 +21,7 @@
 #include "field_solver_gr_ks.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
 
@@ -373,20 +374,24 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
 
         // Boundary conditions
         if (pos[1] == grid.guard[1] && is_boundary[2]) {
+          // theta = 0 axis
           B[1][idx] = 0.0f;
         }
 
         if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+          // theta = pi axis
           B[1][idx.inc_y()] = 0.0f;
         }
 
         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+          // Inner boundary
           B[0][idx.dec_x()] = B[0][idx];
           B[1][idx.dec_x()] = B[1][idx];
           B[2][idx.dec_x()] = B[2][idx];
         }
 
         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+          // Outer boundary
           B[0][idx.inc_x()] = B[0][idx];
           B[1][idx.inc_x()] = B[1][idx];
           B[2][idx.inc_x()] = B[2][idx];
@@ -522,6 +527,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
 
         // Boundary conditions
         if (pos[1] == grid.guard[1] && is_boundary[2]) {
+          // theta = 0 axis
           D[2][idx] = 0.0f;
           if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
             D[2][idx.inc_x()] = 0.0f;
@@ -530,6 +536,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
         }
 
         if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
+          // theta = pi axis
           D[2][idx.inc_y()] = 0.0f;
           if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
             D[2][idx.inc_x().inc_y()] = 0.0f;
@@ -538,12 +545,14 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
         }
 
         if (pos[0] == grid.guard[0] && is_boundary[0]) {
+          // inner boundary
           D[0][idx.dec_x()] = D[0][idx];
           D[1][idx.dec_x()] = D[1][idx];
           D[2][idx.dec_x()] = D[2][idx];
         }
 
         if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1]) {
+          // outer boundary
           D[0][idx.inc_x()] = D[0][idx];
           D[1][idx.inc_x()] = D[1][idx];
           D[2][idx.inc_x()] = D[2][idx];

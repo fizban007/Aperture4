@@ -51,5 +51,5 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(perf_deposit3d Aperture)
 endif()
 
-add_executable(photon_orbit "test_gr_pusher.cpp")
-target_link_libraries(photon_orbit Aperture)
+add_executable(gr_pusher "test_gr_pusher.cpp")
+target_link_libraries(gr_pusher Aperture)

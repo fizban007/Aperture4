@@ -1,6 +1,7 @@
 #include "grid_ks.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/gauss_quadrature.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
@@ -45,7 +46,9 @@ grid_ks_t<Conf>::grid_ks_t(sim_environment &env, const domain_comm<Conf> *comm)
   timer::show_duration_since_stamp("Computing KS coefficients", "ms");
 }
 
-template <typename Conf> void grid_ks_t<Conf>::compute_coef() {
+template <typename Conf>
+void
+grid_ks_t<Conf>::compute_coef() {
   auto ext = this->extent();
 
   for (auto idx : m_Ab[0].indices()) {
@@ -58,10 +61,8 @@ template <typename Conf> void grid_ks_t<Conf>::compute_coef() {
     double th = theta(this->template pos<1>(pos[1], false));
     double th_s = theta(this->template pos<1>(pos[1], true));
 
-    if (math::abs(th_s) < TINY)
-      th_s = 0.01 * this->delta[1];
-    if (math::abs(M_PI - th_s) < TINY)
-      th_s = M_PI - 0.01 * this->delta[1];
+    if (math::abs(th_s) < TINY) th_s = 0.01 * this->delta[1];
+    if (math::abs(M_PI - th_s) < TINY) th_s = M_PI - 0.01 * this->delta[1];
 
     m_Ab[0][idx] =
         gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
@@ -96,7 +97,8 @@ template <typename Conf> void grid_ks_t<Conf>::compute_coef() {
                math::abs(th_s - M_PI) < 0.1 * this->delta[1]) {
       m_Ad[0][idx] =
           2.0 * gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
-                           theta(this->template pos<1>(pos[1] - 1, false)), M_PI);
+                           theta(this->template pos<1>(pos[1] - 1, false)),
+                           M_PI);
     } else {
       m_Ad[0][idx] =
           gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
@@ -208,4 +210,4 @@ template <typename Conf> void grid_ks_t<Conf>::compute_coef() {
 
 template class grid_ks_t<Config<2>>;
 
-} // namespace Aperture
+}  // namespace Aperture

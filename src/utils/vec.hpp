@@ -252,6 +252,20 @@ vec(Args... args) {
   return vec_t<T, sizeof...(Args)>(T(args)...);
 }
 
+template <typename T, int Rank>
+HD_INLINE vec_t<T, Rank>
+operator*(const T& q, const vec_t<T, Rank>& v) {
+  return v * q;
+}
+
+template <typename T>
+HD_INLINE vec_t<T, 3>
+cross(const vec_t<T, 3>& u, const vec_t<T, 3>& v) {
+  return vec_t<T, 3>(u[1] * v[2] - u[2] * v[1],
+                     u[2] * v[0] - u[0] * v[2],
+                     u[0] * v[1] - u[1] * v[0]);
+}
+
 template <int Rank>
 class extent_t : public vec_t<uint32_t, Rank> {
  private:

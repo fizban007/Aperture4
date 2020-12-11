@@ -21,8 +21,8 @@
 #include "systems/physics/metric_kerr_schild.hpp"
 #include "systems/physics/wald_solution.hpp"
 #include "utils/logger.h"
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <string>
 
 using namespace Aperture;
@@ -107,26 +107,87 @@ lorentz_ks_u_rhs(Scalar a, const vec_t<Scalar, 3> &x, const vec_t<Scalar, 3> &u,
 }
 
 void
+gr_ks_boris(Scalar a, const vec_t<Scalar, 3> &x, vec_t<Scalar, 3> &u,
+            const vec_t<Scalar, 3> &B, const vec_t<Scalar, 3> &D, Scalar dt,
+            Scalar e_over_m) {
+  Scalar sth = math::sin(x[1]);
+  Scalar cth = math::cos(x[1]);
+
+  Scalar g_13 = Metric_KS::g_13(a, x[0], sth, cth);
+  Scalar g_11 = Metric_KS::g_11(a, x[0], sth, cth);
+  Scalar g_22 = Metric_KS::g_22(a, x[0], sth, cth);
+  Scalar g_33 = Metric_KS::g_33(a, x[0], sth, cth);
+  Scalar gu11 = Metric_KS::gu11(a, x[0], sth, cth);
+  Scalar gu22 = Metric_KS::gu22(a, x[0], sth, cth);
+  Scalar gu33 = Metric_KS::gu33(a, x[0], sth, cth);
+  Scalar gu13 = Metric_KS::gu13(a, x[0], sth, cth);
+  Scalar sqrtg = Metric_KS::sqrt_gamma(a, x[0], sth, cth);
+
+  vec_t<Scalar, 3> D_l = 0.0f;
+  D_l[0] = g_11 * D[0] + g_13 * D[2];
+  D_l[1] = g_22 * D[1];
+  D_l[2] = g_33 * D[2] + g_13 * D[0];
+  D_l *= 0.5f * dt * e_over_m * Metric_KS::alpha(a, x[0], sth, cth);
+
+  vec_t<Scalar, 3> u_minus = u + D_l;
+
+  vec_t<Scalar, 3> t =
+      B * 0.5f * dt * e_over_m / Metric_KS::u0(a, x[0], sth, cth, u_minus);
+  Scalar t2 = g_11 * t[0] * t[0] + g_22 * t[1] * t[1] + g_33 * t[2] * t[2] +
+              2.0f * g_13 * t[0] * t[2];
+  Scalar s = 2.0f / (1.0f + t2);
+
+  vec_t<Scalar, 3> u_prime = u_minus;
+  u_prime[0] += sqrtg * (gu22 * u_minus[1] * t[2] -
+                         (gu33 * u_minus[2] + gu13 * u_minus[0]) * t[1]);
+  u_prime[1] += sqrtg * ((gu33 * u_minus[2] + gu13 * u_minus[0]) * t[0] -
+                         (gu11 * u_minus[0] + gu13 * u_minus[2]) * t[2]);
+  u_prime[2] += sqrtg * ((gu11 * u_minus[0] + gu13 * u_minus[2]) * t[1] -
+                         gu22 * u_minus[1] * t[0]);
+
+  u = u_minus + D_l;
+  u[0] += sqrtg *
+          (gu22 * u_prime[1] * t[2] -
+           (gu33 * u_prime[2] + gu13 * u_prime[0]) * t[1]) *
+          s;
+  u[1] += sqrtg *
+          ((gu33 * u_prime[2] + gu13 * u_prime[0]) * t[0] -
+           (gu11 * u_prime[0] + gu13 * u_prime[2]) * t[2]) *
+          s;
+  u[2] += sqrtg *
+          ((gu11 * u_prime[0] + gu13 * u_prime[2]) * t[1] -
+           gu22 * u_prime[1] * t[0]) *
+          s;
+}
+
+void
 advance_ptc(Scalar a, Scalar dt, Scalar Bp, vec_t<Scalar, 3> &x,
             vec_t<Scalar, 3> &u, bool show_output = false) {
+  vec_t<Scalar, 3> D, B;
+  B[0] = gr_wald_solution_B(a, x[0], x[1], Bp, 0);
+  B[1] = gr_wald_solution_B(a, x[0], x[1], Bp, 1);
+  B[2] = gr_wald_solution_B(a, x[0], x[1], Bp, 2);
+  D[0] = gr_wald_solution_D(a, x[0], x[1], Bp, 0);
+  D[1] = gr_wald_solution_D(a, x[0], x[1], Bp, 1);
+  D[2] = gr_wald_solution_D(a, x[0], x[1], Bp, 2);
+  // u0 += lorentz_ks_u_rhs(a, x0, u0, B, D, eom) * dt * 0.5;
+  gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
   vec_t<Scalar, 3> x0 = x, x1 = x;
   vec_t<Scalar, 3> u0 = u, u1 = u;
-  vec_t<Scalar, 3> D, B;
 
   for (int i = 0; i < N_iterate; i++) {
     auto x_tmp = (x0 + x) * 0.5;
     auto u_tmp = (u0 + u) * 0.5;
-    auto x_DB = x_tmp;
-    B[0] = gr_wald_solution_B(a, x_DB[0], x_DB[1], Bp, 0);
-    B[1] = gr_wald_solution_B(a, x_DB[0], x_DB[1], Bp, 1);
-    B[2] = gr_wald_solution_B(a, x_DB[0], x_DB[1], Bp, 2);
-    D[0] = gr_wald_solution_D(a, x_DB[0], x_DB[1], Bp, 0);
-    D[1] = gr_wald_solution_D(a, x_DB[0], x_DB[1], Bp, 1);
-    D[2] = gr_wald_solution_D(a, x_DB[0], x_DB[1], Bp, 2);
-
+    // B[0] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 0);
+    // B[1] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 1);
+    // B[2] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 2);
+    // D[0] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 0);
+    // D[1] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 1);
+    // D[2] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 2);
     x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, false) * dt;
-    u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, false) * dt +
-         lorentz_ks_u_rhs(a, x_DB, u_tmp, B, D, eom) * dt;
+    u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, false) * dt;
+    // u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, false) * dt +
+    //      lorentz_ks_u_rhs(a, x_tmp, u_tmp, B, D, eom) * dt;
     x = x1;
     u = u1;
     if (show_output) {
@@ -134,10 +195,21 @@ advance_ptc(Scalar a, Scalar dt, Scalar Bp, vec_t<Scalar, 3> &x,
                          x[1], x[2], u[0], u[1], u[2]);
     }
   }
+  // auto x_DB = x;
+  B[0] = gr_wald_solution_B(a, x[0], x[1], Bp, 0);
+  B[1] = gr_wald_solution_B(a, x[0], x[1], Bp, 1);
+  B[2] = gr_wald_solution_B(a, x[0], x[1], Bp, 2);
+  D[0] = gr_wald_solution_D(a, x[0], x[1], Bp, 0);
+  D[1] = gr_wald_solution_D(a, x[0], x[1], Bp, 1);
+  D[2] = gr_wald_solution_D(a, x[0], x[1], Bp, 2);
+
+  // u += lorentz_ks_u_rhs(a, x, u, B, D, eom) * dt * 0.5;
+  gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
 }
 
 void
-photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt, const std::string& name = "") {
+photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt,
+             const std::string &name = "") {
   Logger::print_info("Photon orbit, r = {}, Phi = {}, Q = {}", r, Phi, Q);
 
   vec_t<Scalar, 3> x, u;
@@ -171,7 +243,8 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt, const std::str
   int N = 200000;
   int out_step = 10;
   Scalar max_costh = 0.0;
-  std::ofstream outfile(std::string("photon_orbit_") + name + ".json", std::ofstream::out | std::ofstream::trunc);
+  std::ofstream outfile(std::string("gr_orbits/photon_orbit_") + name + ".json",
+                        std::ofstream::out | std::ofstream::trunc);
   outfile << "{\"photon_orbit_" << name << "\": [";
   for (int n = 0; n <= N; n++) {
     advance_photon_symmetric(a, x, u, dt);
@@ -183,7 +256,8 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt, const std::str
       cth = math::cos(x[1]);
       Scalar sph = math::sin(x[2]);
       Scalar cph = math::cos(x[2]);
-      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", " << x[0] * cth;
+      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", "
+              << x[0] * cth;
       if (n != N) {
         outfile << "," << std::endl;
       }
@@ -210,7 +284,7 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt, const std::str
 
 void
 ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
-          Scalar dt, const std::string& name = "") {
+          Scalar dt, const std::string &name = "") {
   Logger::print_info("Ptc orbit, r = {}, th = {}, Bz = {}, uth = {}, uph = {}",
                      r, th, Bz, uth, uph);
 
@@ -255,13 +329,18 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
                        Metric_KS::u0(a, x[0], x[1], u, false);
   Logger::print_info("u_0_alt is {}, E_alt is {}", u_0_alt,
                      -u_0_alt - eom * Bz * wald_ks_A0(a, r, sth, cth));
-  int N = int(1000.0 / dt) + 1;
-  int out_step = int(floor(0.2 / dt)) + 1;
+  int N = int(floor(1000.0 / dt + 0.5));
+  int out_step = int(floor(0.2 / dt + 0.5));
+  // int N = 1000;
+  // int out_step = 100;
   Logger::print_info("outstep is {}", out_step);
   Scalar max_costh = 0.0;
-  std::ofstream outfile(std::string("ptc_orbit_") + name + ".json", std::ofstream::out | std::ofstream::trunc);
+  std::ofstream outfile(std::string("gr_orbits/ptc_orbit_") + name + ".json",
+                        std::ofstream::out | std::ofstream::trunc);
   outfile << "{\"ptc_orbit_" << name << "\": [";
   for (int n = 0; n <= N; n++) {
+    // advance_ptc(a, dt, Bz, x, u, n % 1000 == 0);
+    // advance_ptc(a, dt, Bz, x, u, n % out_step == 0);
     advance_ptc(a, dt, Bz, x, u);
 
     if (n % out_step == 0) {
@@ -270,12 +349,13 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
       Scalar sph = math::sin(x[2]);
       Scalar cph = math::cos(x[2]);
       // Logger::print_info("outstep {}", n);
-      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", " << x[0] * cth;
+      outfile << x[0] * sth * cph << ", " << x[0] * sth * sph << ", "
+              << x[0] * cth;
       if (n != N) {
         outfile << "," << std::endl;
       }
     }
-    if (n == N - 1) {
+    if (n == N) {
       Scalar u_0_now = u[0] * Metric_KS::beta1(a, x[0], x[1]) -
                        square(Metric_KS::alpha(a, x[0], x[1])) *
                            Metric_KS::u0(a, x[0], x[1], u, false);
@@ -319,7 +399,7 @@ main(int argc, char *argv[]) {
   // Case F
   photon_orbit(a, 1.0 + 2.0 * math::sqrt(2.0), -6.0, 9.6274, dt, "caseF");
 
-  dt = 0.001;
+  dt = 0.01;
   ////// Massive particles in a magnetic field
   ptc_orbit(0.0, 4.0, M_PI * 0.5, 0.2, 0.0, 2.9, dt, "RSA1");
   ptc_orbit(0.0, 9.5, 1.6, 0.2, 0.0, -1.024, dt, "RSA3");
@@ -327,7 +407,9 @@ main(int argc, char *argv[]) {
   ptc_orbit(0.7, 4.2, M_PI * 0.5 - 0.1, 2.0, 0.0, -1.93, dt, "RKA2");
   ptc_orbit(0.9, 4.0, M_PI * 0.5 - 0.2, 2.0, 0.0, 1.565, dt, "RKA3");
   ptc_orbit(0.9, 3.0, M_PI * 0.5, 1.0, 0.497, 0.365, dt, "RKA8");
-  ptc_orbit(0.9, 3.0, M_PI * 0.5, 1000.0, 0.497, 0.365, dt, "RKA8largeB");
+  ptc_orbit(0.9, 3.0, M_PI * 0.5, 100.0, 0.497, 0.365, dt, "RKA8largeB");
+  ptc_orbit(0.0, 9.5, 1.6, 100.0, 0.0, -1.024, dt, "RSA3largeB");
+  ptc_orbit(0.7, 4.2, M_PI * 0.5 - 0.1, 20.0, 0.0, -1.93, dt, "RKA2largeB");
 
   return 0;
 }

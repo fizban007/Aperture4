@@ -87,7 +87,7 @@ ptc_updater_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   // Also move photons if the data component exists
   if (this->ph != nullptr) {
     Logger::print_info("Moving {} photons", this->ph->number());
-    // move_photons(dt, step);
+    update_photons(dt, step);
 
     if (this->m_comm != nullptr) {
       this->m_comm->send_particles(*(this->ph), this->m_grid);
@@ -102,6 +102,37 @@ ptc_updater_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
     this->sort_particles();
   }
 }
+
+template <typename Conf>
+void
+ptc_updater_gr_ks_cu<Conf>::update_photons(double dt, uint32_t step) {
+  value_t a = m_a;
+  auto ph_num = this->ph->number();
+
+  if (ph_num > 0) {
+    auto photon_kernel = [a, ph_num, dt, step] __device__(auto ph, auto rho_ph,
+                                                          auto data_interval) {
+      auto& grid = dev_grid<Conf::dim>();
+      auto ext = grid.extent();
+
+      for (size_t n : grid_stride_range(0, ph_num)) {
+        uint32_t cell = ph.cell[n];
+        if (cell == empty_cell) continue;
+      }
+    };
+
+    kernel_launch(photon_kernel, this->ph->get_dev_ptrs(),
+                  this->rho_ph->dev_ndptr(), this->m_data_interval);
+  }
+}
+
+template <typename Conf>
+void
+ptc_updater_gr_ks_cu<Conf>::update_ptc(double dt, uint32_t step) {}
+
+template <typename Conf>
+void
+ptc_updater_gr_ks_cu<Conf>::fill_multiplicity(int mult, value_t weight) {}
 
 template class ptc_updater_gr_ks_cu<Config<2>>;
 

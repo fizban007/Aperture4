@@ -27,7 +27,7 @@
 
 using namespace Aperture;
 
-int N_iterate = 3;
+int N_iterate = 4;
 Scalar eom = 1.0;
 
 void
@@ -171,23 +171,16 @@ advance_ptc(Scalar a, Scalar dt, Scalar Bp, vec_t<Scalar, 3> &x,
   D[1] = gr_wald_solution_D(a, x[0], x[1], Bp, 1);
   D[2] = gr_wald_solution_D(a, x[0], x[1], Bp, 2);
   // u0 += lorentz_ks_u_rhs(a, x0, u0, B, D, eom) * dt * 0.5;
-  gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
+  // gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
+  gr_ks_boris(a, x, u, B, D, dt, eom);
   vec_t<Scalar, 3> x0 = x, x1 = x;
   vec_t<Scalar, 3> u0 = u, u1 = u;
 
   for (int i = 0; i < N_iterate; i++) {
     auto x_tmp = (x0 + x) * 0.5;
     auto u_tmp = (u0 + u) * 0.5;
-    // B[0] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 0);
-    // B[1] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 1);
-    // B[2] = gr_wald_solution_B(a, x_tmp[0], x_tmp[1], Bp, 2);
-    // D[0] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 0);
-    // D[1] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 1);
-    // D[2] = gr_wald_solution_D(a, x_tmp[0], x_tmp[1], Bp, 2);
     x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, false) * dt;
     u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, false) * dt;
-    // u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, false) * dt +
-    //      lorentz_ks_u_rhs(a, x_tmp, u_tmp, B, D, eom) * dt;
     x = x1;
     u = u1;
     if (show_output) {
@@ -195,22 +188,20 @@ advance_ptc(Scalar a, Scalar dt, Scalar Bp, vec_t<Scalar, 3> &x,
                          x[1], x[2], u[0], u[1], u[2]);
     }
   }
-  // auto x_DB = x;
-  B[0] = gr_wald_solution_B(a, x[0], x[1], Bp, 0);
-  B[1] = gr_wald_solution_B(a, x[0], x[1], Bp, 1);
-  B[2] = gr_wald_solution_B(a, x[0], x[1], Bp, 2);
-  D[0] = gr_wald_solution_D(a, x[0], x[1], Bp, 0);
-  D[1] = gr_wald_solution_D(a, x[0], x[1], Bp, 1);
-  D[2] = gr_wald_solution_D(a, x[0], x[1], Bp, 2);
+  // B[0] = gr_wald_solution_B(a, x[0], x[1], Bp, 0);
+  // B[1] = gr_wald_solution_B(a, x[0], x[1], Bp, 1);
+  // B[2] = gr_wald_solution_B(a, x[0], x[1], Bp, 2);
+  // D[0] = gr_wald_solution_D(a, x[0], x[1], Bp, 0);
+  // D[1] = gr_wald_solution_D(a, x[0], x[1], Bp, 1);
+  // D[2] = gr_wald_solution_D(a, x[0], x[1], Bp, 2);
 
-  // u += lorentz_ks_u_rhs(a, x, u, B, D, eom) * dt * 0.5;
-  gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
+  // gr_ks_boris(a, x, u, B, D, 0.5 * dt, eom);
 }
 
 void
 photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt,
              const std::string &name = "") {
-  Logger::print_info("Photon orbit, r = {}, Phi = {}, Q = {}", r, Phi, Q);
+  Logger::print_info("Photon orbit {}, r = {}, Phi = {}, Q = {}", name, r, Phi, Q);
 
   vec_t<Scalar, 3> x, u;
   x[0] = r;
@@ -285,8 +276,8 @@ photon_orbit(Scalar a, Scalar r, Scalar Phi, Scalar Q, Scalar dt,
 void
 ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
           Scalar dt, const std::string &name = "") {
-  Logger::print_info("Ptc orbit, r = {}, th = {}, Bz = {}, uth = {}, uph = {}",
-                     r, th, Bz, uth, uph);
+  Logger::print_info("Ptc orbit {}, r = {}, th = {}, Bz = {}, uth = {}, uph = {}",
+                     name, r, th, Bz, uth, uph);
 
   vec_t<Scalar, 3> x, u;
   x[0] = r;
@@ -399,7 +390,7 @@ main(int argc, char *argv[]) {
   // Case F
   photon_orbit(a, 1.0 + 2.0 * math::sqrt(2.0), -6.0, 9.6274, dt, "caseF");
 
-  dt = 0.01;
+  dt = 0.001;
   ////// Massive particles in a magnetic field
   ptc_orbit(0.0, 4.0, M_PI * 0.5, 0.2, 0.0, 2.9, dt, "RSA1");
   ptc_orbit(0.0, 9.5, 1.6, 0.2, 0.0, -1.024, dt, "RSA3");

@@ -172,9 +172,9 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
       using value_t = typename Conf::value_t;
       auto& grid = dev_grid<Conf::dim>();
       // Obtain a local pointer to the shared array
-      extern __shared__ char shared_array[];
-      value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
-                                             (2 * spline_t::radius + 1)];
+      // extern __shared__ char shared_array[];
+      // value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
+      //                                        (2 * spline_t::radius + 1)];
       for (auto n : grid_stride_range(0, num)) {
         uint32_t cell = ptc.cell[n];
         if (cell == empty_cell) continue;
@@ -183,54 +183,64 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         auto pos = idx.get_pos();
 
         // Move particles
-        auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-        value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                gamma = ptc.E[n];
+        // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
+        vec_t<value_t, 3> x(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+        // value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+        //         gamma = ptc.E[n];
+        vec_t<value_t, 3> v(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
+        value_t gamma = ptc.E[n];
 
-        value_t r1 = grid.template pos<0>(pos[0], x1);
+        value_t r1 = grid.template pos<0>(pos[0], x[0]);
         // value_t exp_r1 = std::exp(r1);
         value_t radius = grid_sph_t<Conf>::radius(r1);
-        value_t r2 = grid.template pos<1>(pos[1], x2);
+        value_t r2 = grid.template pos<1>(pos[1], x[1]);
         value_t theta = grid_sph_t<Conf>::theta(r2);
 
         // printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3,
         // gamma);
 
-        v1 /= gamma;
-        v2 /= gamma;
-        v3 /= gamma;
+        v /= gamma;
+        // v1 /= gamma;
+        // v2 /= gamma;
+        // v3 /= gamma;
         // value_t v3_gr = v3 - beta_phi(exp_r1, r2);
         //
         // step 1: Compute particle movement and update position
-        value_t x = radius * math::sin(theta) * math::cos(x3);
-        value_t y = radius * math::sin(theta) * math::sin(x3);
-        value_t z = radius * math::cos(theta);
+        value_t cart_x = radius * math::sin(theta) * math::cos(x[2]);
+        value_t cart_y = radius * math::sin(theta) * math::sin(x[2]);
+        value_t cart_z = radius * math::cos(theta);
 
         // logsph2cart(v1, v2, v3_gr, r1, r2, old_x3);
-        sph2cart(v1, v2, v3, radius, theta, x3);
-        x += v1 * dt;
-        y += v2 * dt;
-        z += v3 * dt;
+        sph2cart(v[0], v[1], v[2], radius, theta, x[2]);
+        // x += v1 * dt;
+        // y += v2 * dt;
+        // z += v3 * dt;
+        cart_x += v[0] * dt;
+        cart_y += v[1] * dt;
+        cart_z += v[2] * dt;
         // z += alpha_gr(exp_r1) * v3_gr * dt;
-        value_t r1p = math::sqrt(x * x + y * y + z * z);
-        value_t r2p = math::acos(z / r1p);
-        value_t r3p = math::atan2(y, x);
+        value_t r1p =
+            math::sqrt(cart_x * cart_x + cart_y * cart_y + cart_z * cart_z);
+        value_t r2p = math::acos(cart_z / r1p);
+        value_t r3p = math::atan2(cart_y, cart_x);
 
-        cart2sph(v1, v2, v3, r1p, r2p, r3p);
+        cart2sph(v[0], v[1], v[2], r1p, r2p, r3p);
         r1p = grid_sph_t<Conf>::from_radius(r1p);
         r2p = grid_sph_t<Conf>::from_theta(r2p);
 
-        ptc.p1[n] = v1 * gamma;
-        ptc.p2[n] = v2 * gamma;
+        ptc.p1[n] = v[0] * gamma;
+        ptc.p2[n] = v[1] * gamma;
         // ptc.p3[n] = (v3_gr + beta_phi(exp_r1p, r2p)) * gamma;
-        ptc.p3[n] = v3 * gamma;
+        ptc.p3[n] = v[2] * gamma;
 
-        auto new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
-        auto new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
-        int dc1 = math::floor(new_x1);
-        int dc2 = math::floor(new_x2);
+        vec_t<value_t, 3> new_x;
+        new_x[0] = x[0] + (r1p - r1) * grid.inv_delta[0];
+        new_x[1] = x[1] + (r2p - r2) * grid.inv_delta[1];
+        vec_t<int, 2> dc = 0;
+        dc[0] = math::floor(new_x[0]);
+        dc[1] = math::floor(new_x[1]);
 #ifndef NDEBUG
-        if (dc1 > 1 || dc1 < -1 || dc2 > 1 || dc2 < -1)
+        if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)
           printf("----------------- Error: moved more than 1 cell!");
 #endif
         // reflect around the axis
@@ -238,23 +248,23 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             pos[1] >= grid.dims[1] - grid.guard[1] - 1) {
           theta = grid_sph_t<Conf>::theta(r2p);
           if (theta < 0.0f) {
-            dc2 += 1;
-            new_x2 = 1.0f - new_x2;
+            dc[1] += 1;
+            new_x[1] = 1.0f - new_x[1];
             ptc.p2[n] *= -1.0f;
             ptc.p3[n] *= -1.0f;
           }
           if (theta >= M_PI) {
-            dc2 -= 1;
-            new_x2 = 1.0f - new_x2;
+            dc[1] -= 1;
+            new_x[1] = 1.0f - new_x[1];
             ptc.p2[n] *= -1.0f;
             ptc.p3[n] *= -1.0f;
           }
         }
-        pos[0] += dc1;
-        pos[1] += dc2;
+        pos[0] += dc[0];
+        pos[1] += dc[1];
 
-        ptc.x1[n] = new_x1 - (Pos_t)dc1;
-        ptc.x2[n] = new_x2 - (Pos_t)dc2;
+        ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
+        ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
         ptc.x3[n] = r3p;
 
         ptc.cell[n] = idx_t(pos, ext).linear;
@@ -262,55 +272,59 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         // step 2: Deposit current
         auto flag = ptc.flag[n];
         auto sp = get_ptc_type(flag);
-        auto interp = spline_t{};
+        // auto interp = spline_t{};
         if (check_flag(flag, PtcFlag::ignore_current)) continue;
         auto weight = dev_charges[sp] * ptc.weight[n];
 
-        int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-        int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-        int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-        int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+        deposit_2d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
+                             step % rho_interval == 0);
+        //         int j_0 = (dc2 == -1 ? -spline_t::radius : 1 -
+        //         spline_t::radius); int j_1 = (dc2 == 1 ? spline_t::radius + 1
+        //         : spline_t::radius); int i_0 = (dc1 == -1 ? -spline_t::radius
+        //         : 1 - spline_t::radius); int i_1 = (dc1 == 1 ?
+        //         spline_t::radius + 1 : spline_t::radius);
 
-        // Reset djy since it could be nonzero from previous particle
-#pragma unroll
-        for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-          djy[j] = 0.0;
-        }
+        //         // Reset djy since it could be nonzero from previous particle
+        // #pragma unroll
+        //         for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+        //           djy[j] = 0.0;
+        //         }
 
-        // value_t djy[2 * spline_t::radius + 1] = {};
-        for (int j = j_0; j <= j_1; j++) {
-          value_t sy0 = interp(-x2 + j);
-          value_t sy1 = interp(-new_x2 + j);
+        //         // value_t djy[2 * spline_t::radius + 1] = {};
+        //         for (int j = j_0; j <= j_1; j++) {
+        //           value_t sy0 = interp(-x2 + j);
+        //           value_t sy1 = interp(-new_x2 + j);
 
-          value_t djx = 0.0f;
-          for (int i = i_0; i <= i_1; i++) {
-            value_t sx0 = interp(-x1 + i);
-            value_t sx1 = interp(-new_x1 + i);
+        //           value_t djx = 0.0f;
+        //           for (int i = i_0; i <= i_1; i++) {
+        //             value_t sx0 = interp(-x1 + i);
+        //             value_t sx1 = interp(-new_x1 + i);
 
-            // j1 is movement in x1
-            auto offset = idx.inc_x(i).inc_y(j);
-            djx += movement2d(sy0, sy1, sx0, sx1);
-            if (math::abs(djx) > TINY) atomicAdd(&J[0][offset], -weight * djx);
+        //             // j1 is movement in x1
+        //             auto offset = idx.inc_x(i).inc_y(j);
+        //             djx += movement2d(sy0, sy1, sx0, sx1);
+        //             if (math::abs(djx) > TINY) atomicAdd(&J[0][offset],
+        //             -weight * djx);
 
-            // j2 is movement in x2
-            djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
-            if (math::abs(djy[i - i_0]) > TINY)
-              atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
+        //             // j2 is movement in x2
+        //             djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
+        //             if (math::abs(djy[i - i_0]) > TINY)
+        //               atomicAdd(&J[1][offset], -weight * djy[i - i_0]);
 
-            // j3 is simply v3 times rho at center
-            value_t dz = center2d(sx0, sx1, sy0, sy1);
-            if (math::abs(dz) > TINY)
-              atomicAdd(&J[2][offset], weight * v3 * dz);
+        //             // j3 is simply v3 times rho at center
+        //             value_t dz = center2d(sx0, sx1, sy0, sy1);
+        //             if (math::abs(dz) > TINY)
+        //               atomicAdd(&J[2][offset], weight * v3 * dz);
 
-            // rho is deposited at the final position
-            // if ((step + 1) % data_interval == 0) {
-            if (step % rho_interval == 0) {
-              if (math::abs(sx1 * sy1) > TINY) {
-                atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
-              }
-            }
-          }
-        }
+        //             // rho is deposited at the final position
+        //             // if ((step + 1) % data_interval == 0) {
+        //             if (step % rho_interval == 0) {
+        //               if (math::abs(sx1 * sy1) > TINY) {
+        //                 atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+        //               }
+        //             }
+        //           }
+        //         }
       }
     };
     // exec_policy p;

@@ -30,6 +30,8 @@
 
 namespace Aperture {
 
+namespace {
+
 template <typename Conf>
 void
 filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
@@ -70,6 +72,8 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
   CudaCheckError();
   f.dev_copy_from(result);
 }
+
+}  // namespace
 
 template <typename Conf>
 void
@@ -161,59 +165,75 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             auto pos = idx.get_pos();
 
             // step 1: Move particles
-            auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                    gamma = ptc.E[n];
+            // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
+            vec_t<value_t, 3> x(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+            // value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            //         gamma = ptc.E[n];
+            vec_t<value_t, 3> v(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
+            value_t gamma = ptc.E[n];
 
-            v1 /= gamma;
-            v2 /= gamma;
-            v3 /= gamma;
+            v /= gamma;
 
-            auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
-            int dc1 = std::floor(new_x1);
-            pos[0] += dc1;
-            ptc.x1[n] = new_x1 - (Pos_t)dc1;
-            ptc.x2[n] = x2 + v2 * dt;
-            ptc.x3[n] = x3 + v3 * dt;
+            auto new_x = x;
+            int dc = 0;
+            // auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
+            new_x[0] = x[0] + (v[0] * dt) * grid.inv_delta[0];
+            dc = std::floor(new_x[0]);
+            pos[0] += dc;
+            ptc.x1[n] = new_x[0] - (Pos_t)dc;
+            ptc.x2[n] = x[1] + v[1] * dt;
+            ptc.x3[n] = x[2] + v[2] * dt;
 
             ptc.cell[n] = J[0].get_idx(pos, ext).linear;
 
             // step 2: Deposit current
             auto flag = ptc.flag[n];
-            auto sp = get_ptc_type(flag);
-            auto interp = spline_t{};
+            int sp = get_ptc_type(flag);
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
             auto weight = dev_charges[sp] * ptc.weight[n];
 
-            int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            value_t djx = 0.0f;
-            for (int i = i_0; i <= i_1; i++) {
-              value_t sx0 = interp(-x1 + i);
-              value_t sx1 = interp(-new_x1 + i);
+            deposit_1d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
+                                 step % rho_interval == 0);
+            // int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            // int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            // value_t djx = 0.0f;
+            // for (int i = i_0; i <= i_1; i++) {
+            //   value_t sx0 = interp(-x1 + i);
+            //   value_t sx1 = interp(-new_x1 + i);
 
-              // j1 is movement in x1
-              int offset = i + pos[0] - dc1;
-              djx += sx1 - sx0;
-              atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
-              // Logger::print_debug("J0 is {}", (*J)[0][offset]);
+            //   // j1 is movement in x1
+            //   int offset = i + pos[0] - dc1;
+            //   djx += sx1 - sx0;
+            //   atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
+            //   // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
-              // j2 is simply v2 times rho at center
-              value_t val1 = 0.5f * (sx0 + sx1);
-              atomicAdd(&J[1][offset], weight * v2 * val1);
+            //   // j2 is simply v2 times rho at center
+            //   value_t val1 = 0.5f * (sx0 + sx1);
+            //   atomicAdd(&J[1][offset], weight * v2 * val1);
 
-              // j3 is simply v3 times rho at center
-              atomicAdd(&J[2][offset], weight * v3 * val1);
+            //   // j3 is simply v3 times rho at center
+            //   atomicAdd(&J[2][offset], weight * v3 * val1);
 
-              // rho is deposited at the final position
-              if (step % rho_interval == 0) {
-                atomicAdd(&Rho[sp][offset], weight * sx1);
-              }
-            }
+            //   // rho is deposited at the final position
+            //   if (step % rho_interval == 0) {
+            //     atomicAdd(&Rho[sp][offset], weight * sx1);
+            //   }
+            // }
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
         this->m_rho_interval);
+
+    // Modify J with prefactor
+    kernel_launch([dt] __device__(auto J) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          J[0][idx] *= grid.delta[0] / dt;
+        }
+      }, this->J->get_ptrs());
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
   }
 }
 
@@ -232,9 +252,9 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
           auto& grid = dev_grid<Conf::dim>();
           auto ext = grid.extent();
           // Obtain a local pointer to the shared array
-          extern __shared__ char shared_array[];
-          value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
-                                                 (2 * spline_t::radius + 1)];
+          // extern __shared__ char shared_array[];
+          // value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
+          //                                        (2 * spline_t::radius + 1)];
 
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
@@ -244,85 +264,101 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             auto pos = idx.get_pos();
 
             // step 1: Move particles
-            auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                    gamma = ptc.E[n];
+            // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
+            vec_t<value_t, 3> x(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+            // value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            //         gamma = ptc.E[n];
+            vec_t<value_t, 3> v(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
+            value_t gamma = ptc.E[n];
 
-            v1 /= gamma;
-            v2 /= gamma;
-            v3 /= gamma;
+            v /= gamma;
 
-            auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
-            int dc1 = std::floor(new_x1);
-            pos[0] += dc1;
-            ptc.x1[n] = new_x1 - (Pos_t)dc1;
+            auto new_x = x;
+            vec_t<int, 2> dc = 0;
 
-            auto new_x2 = x2 + (v2 * dt) * grid.inv_delta[1];
-            int dc2 = std::floor(new_x2);
-            pos[1] += dc2;
-            ptc.x2[n] = new_x2 - (Pos_t)dc2;
+            new_x[0] = x[0] + (v[0] * dt) * grid.inv_delta[0];
+            dc[0] = std::floor(new_x[0]);
+            pos[0] += dc[0];
+            ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
 
-            ptc.x3[n] = x3 + v3 * dt;
+            new_x[1] = x[1] + (v[1] * dt) * grid.inv_delta[1];
+            dc[1] = std::floor(new_x[1]);
+            pos[1] += dc[1];
+            ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
+
+            ptc.x3[n] = x[2] + v[2] * dt;
 
             ptc.cell[n] = Conf::idx(pos, ext).linear;
 
             // step 2: Deposit current
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
-            auto interp = spline_t{};
+            // auto interp = spline_t{};
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
             auto weight = dev_charges[sp] * ptc.weight[n];
 
-            int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            deposit_2d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
+                                 step % rho_interval == 0);
+//             int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+//             int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
+//             int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+//             int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-        // Reset djy since it could be nonzero from previous particle
-#pragma unroll
-            for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
-              djy[j] = 0.0;
-            }
+//         // Reset djy since it could be nonzero from previous particle
+// #pragma unroll
+//             for (int j = 0; j < 2 * spline_t::radius + 1; j++) {
+//               djy[j] = 0.0;
+//             }
 
-            // value_t djy[2 * spline_t::radius + 1] = {};
-            for (int j = j_0; j <= j_1; j++) {
-              value_t sy0 = interp(-x2 + j);
-              value_t sy1 = interp(-new_x2 + j);
+//             // value_t djy[2 * spline_t::radius + 1] = {};
+//             for (int j = j_0; j <= j_1; j++) {
+//               value_t sy0 = interp(-x2 + j);
+//               value_t sy1 = interp(-new_x2 + j);
 
-              value_t djx = 0.0f;
-              for (int i = i_0; i <= i_1; i++) {
-                value_t sx0 = interp(-x1 + i);
-                value_t sx1 = interp(-new_x1 + i);
+//               value_t djx = 0.0f;
+//               for (int i = i_0; i <= i_1; i++) {
+//                 value_t sx0 = interp(-x1 + i);
+//                 value_t sx1 = interp(-new_x1 + i);
 
-                // j1 is movement in x1
-                auto offset = idx.inc_x(i).inc_y(j);
-                djx += movement2d(sy0, sy1, sx0, sx1);
-                if (math::abs(djx) > TINY)
-                  atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
-                // Logger::print_debug("J0 is {}", (*J)[0][offset]);
+//                 // j1 is movement in x1
+//                 auto offset = idx.inc_x(i).inc_y(j);
+//                 djx += movement2d(sy0, sy1, sx0, sx1);
+//                 if (math::abs(djx) > TINY)
+//                   atomicAdd(&J[0][offset], -weight * djx * grid.delta[0] / dt);
+//                 // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
-                // j2 is movement in x2
-                djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
-                if (math::abs(djy[i - i_0]) > TINY)
-                  atomicAdd(&J[1][offset],
-                            -weight * djy[i - i_0] * grid.delta[1] / dt);
+//                 // j2 is movement in x2
+//                 djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
+//                 if (math::abs(djy[i - i_0]) > TINY)
+//                   atomicAdd(&J[1][offset],
+//                             -weight * djy[i - i_0] * grid.delta[1] / dt);
 
-                // j3 is simply v3 times rho at center
-                atomicAdd(&J[2][offset],
-                          weight * v3 * center2d(sx0, sx1, sy0, sy1));
+//                 // j3 is simply v3 times rho at center
+//                 atomicAdd(&J[2][offset],
+//                           weight * v3 * center2d(sx0, sx1, sy0, sy1));
 
-                // rho is deposited at the final position
-                if (step % rho_interval == 0) {
-                  if (math::abs(sx1 * sy1) > TINY) {
-                    atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
-                  }
-                }
-              }
-            }
+//                 // rho is deposited at the final position
+//                 if (step % rho_interval == 0) {
+//                   if (math::abs(sx1 * sy1) > TINY) {
+//                     atomicAdd(&Rho[sp][offset], weight * sx1 * sy1);
+//                   }
+//                 }
+//               }
+//             }
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
         this->m_rho_interval);
+
+    // Modify J with prefactor
+    kernel_launch([dt] __device__(auto J) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          J[0][idx] *= grid.delta[0] / dt;
+          J[1][idx] *= grid.delta[1] / dt;
+        }
+      }, this->J->get_ptrs());
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }
@@ -348,93 +384,116 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             auto pos = idx.get_pos();
 
             // step 1: Move particles
-            auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
-            value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
-                    gamma = ptc.E[n];
+            // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
+            vec_t<value_t, 3> x(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+            // value_t v1 = ptc.p1[n], v2 = ptc.p2[n], v3 = ptc.p3[n],
+            //         gamma = ptc.E[n];
+            vec_t<value_t, 3> v(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
+            value_t gamma = ptc.E[n];
 
-            v1 /= gamma;
-            v2 /= gamma;
-            v3 /= gamma;
+            v /= gamma;
+            // v1 /= gamma;
+            // v2 /= gamma;
+            // v3 /= gamma;
 
-            auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
-            int dc1 = std::floor(new_x1);
-            pos[0] += dc1;
-            ptc.x1[n] = new_x1 - (Pos_t)dc1;
+            auto new_x = x;
+            new_x[0] = x[0] + v[0] * dt * grid.inv_delta[0];
+            new_x[1] = x[1] + v[1] * dt * grid.inv_delta[1];
+            new_x[2] = x[2] + v[2] * dt * grid.inv_delta[2];
 
-            auto new_x2 = x2 + (v2 * dt) * grid.inv_delta[1];
-            int dc2 = std::floor(new_x2);
-            pos[1] += dc2;
-            ptc.x2[n] = new_x2 - (Pos_t)dc2;
+            vec_t<int, 3> dc;
+            // auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
+            dc[0] = std::floor(new_x[0]);
+            pos[0] += dc[0];
+            ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
 
-            auto new_x3 = x3 + (v3 * dt) * grid.inv_delta[2];
-            int dc3 = std::floor(new_x3);
-            pos[2] += dc3;
-            ptc.x3[n] = new_x3 - (Pos_t)dc3;
+            // auto new_x2 = x2 + (v2 * dt) * grid.inv_delta[1];
+            dc[1] = std::floor(new_x[1]);
+            pos[1] += dc[1];
+            ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
+
+            // auto new_x3 = x3 + (v3 * dt) * grid.inv_delta[2];
+            dc[2] = std::floor(new_x[2]);
+            pos[2] += dc[2];
+            ptc.x3[n] = new_x[2] - (Pos_t)dc[2];
 
             ptc.cell[n] = J[0].get_idx(pos, ext).linear;
 
             // step 2: Deposit current
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
-            auto interp = spline_t{};
+            // auto interp = spline_t{};
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
             auto weight = dev_charges[sp] * ptc.weight[n];
 
-            int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-            int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
-            int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            deposit_3d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
+                                 step % rho_interval == 0);
+            // int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            // int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            // int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            // int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
+            // int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
+            // int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-            value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] =
-                {};
-            for (int k = k_0; k <= k_1; k++) {
-              value_t sz0 = interp(-x3 + k);
-              value_t sz1 = interp(-new_x3 + k);
+            // value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] =
+            //     {};
+            // for (int k = k_0; k <= k_1; k++) {
+            //   value_t sz0 = interp(-x3 + k);
+            //   value_t sz1 = interp(-new_x3 + k);
 
-              value_t djy[2 * spline_t::radius + 1] = {};
-              for (int j = j_0; j <= j_1; j++) {
-                value_t sy0 = interp(-x2 + j);
-                value_t sy1 = interp(-new_x2 + j);
+            //   value_t djy[2 * spline_t::radius + 1] = {};
+            //   for (int j = j_0; j <= j_1; j++) {
+            //     value_t sy0 = interp(-x2 + j);
+            //     value_t sy1 = interp(-new_x2 + j);
 
-                value_t djx = 0.0f;
-                for (int i = i_0; i <= i_1; i++) {
-                  value_t sx0 = interp(-x1 + i);
-                  value_t sx1 = interp(-new_x1 + i);
+            //     value_t djx = 0.0f;
+            //     for (int i = i_0; i <= i_1; i++) {
+            //       value_t sx0 = interp(-x1 + i);
+            //       value_t sx1 = interp(-new_x1 + i);
 
-                  // j1 is movement in x1
-                  auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
-                  djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
-                  if (math::abs(djx) > TINY)
-                    atomicAdd(&J[0][offset],
-                              -weight * djx * grid.delta[0] / dt);
-                  // Logger::print_debug("J0 is {}", (*J)[0][offset]);
+            //       // j1 is movement in x1
+            //       auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
+            //       djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
+            //       if (math::abs(djx) > TINY)
+            //         atomicAdd(&J[0][offset],
+            //                   -weight * djx * grid.delta[0] / dt);
+            //       // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
-                  // j2 is movement in x2
-                  djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
-                  if (math::abs(djy[i - i_0]) > TINY)
-                    atomicAdd(&J[1][offset],
-                              -weight * djy[i - i_0] * grid.delta[1] / dt);
+            //       // j2 is movement in x2
+            //       djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
+            //       if (math::abs(djy[i - i_0]) > TINY)
+            //         atomicAdd(&J[1][offset],
+            //                   -weight * djy[i - i_0] * grid.delta[1] / dt);
 
-                  // j3 is movement in x3
-                  djz[j - j_0][i - i_0] +=
-                      movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
-                  if (math::abs(djz[j - j_0][i - i_0]) > TINY)
-                    atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0] *
-                                                 grid.delta[2] / dt);
+            //       // j3 is movement in x3
+            //       djz[j - j_0][i - i_0] +=
+            //           movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
+            //       if (math::abs(djz[j - j_0][i - i_0]) > TINY)
+            //         atomicAdd(&J[2][offset], -weight * djz[j - j_0][i - i_0] *
+            //                                      grid.delta[2] / dt);
 
-                  // rho is deposited at the final position
-                  if (step % rho_interval == 0) {
-                    atomicAdd(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
-                  }
-                }
-              }
-            }
+            //       // rho is deposited at the final position
+            //       if (step % rho_interval == 0) {
+            //         atomicAdd(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
+            //       }
+            //     }
+            //   }
+            // }
           }
         },
         this->ptc->dev_ptrs(), this->J->get_ptrs(), m_rho_ptrs.dev_ptr(),
         this->m_rho_interval);
+
+    // Modify J with prefactor
+    kernel_launch([dt] __device__(auto J) {
+        auto& grid = dev_grid<Conf::dim>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          J[0][idx] *= grid.delta[0] / dt;
+          J[1][idx] *= grid.delta[1] / dt;
+          J[2][idx] *= grid.delta[2] / dt;
+        }
+      }, this->J->get_ptrs());
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }

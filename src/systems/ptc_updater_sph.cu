@@ -136,7 +136,7 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
   CudaCheckError();
 }
 
-}
+}  // namespace
 
 template <typename Conf>
 void
@@ -502,17 +502,19 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
               ptc.x1[offset] = ptc.x1[offset + 1] = rng();
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
               ptc.x3[offset] = ptc.x3[offset + 1] = rng();
-              Scalar theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], ptc.x2[offset]));
+              Scalar theta = grid_sph_t<Conf>::theta(
+                  grid.template pos<1>(pos[1], ptc.x2[offset]));
               ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
               ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
               ptc.E[offset] = ptc.E[offset + 1] = 1.0;
               ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-              ptc.weight[offset] = ptc.weight[offset + 1] = math::sin(theta) * weight;
+              ptc.weight[offset] = ptc.weight[offset + 1] =
+                  math::sin(theta) * weight;
               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                    PtcType::electron);
-              ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                       PtcType::positron);
+              ptc.flag[offset + 1] = set_ptc_type_flag(
+                  flag_or(PtcFlag::primary), PtcType::positron);
             }
           }
         }

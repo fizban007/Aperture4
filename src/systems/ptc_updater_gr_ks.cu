@@ -49,63 +49,30 @@ ptc_updater_gr_ks_cu<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
-  Logger::print_info("Pushing {} particles", this->ptc->number());
-  timer::stamp("pusher");
-  // First update particle momentum
-  // push_default(dt);
-  timer::show_duration_since_stamp("push", "ms", "pusher");
+ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
+  value_t a = m_a;
+  auto ptc_num = this->ptc->number();
 
-  timer::stamp("depositer");
-  // Then move particles and deposit current
-  // move_and_deposit(dt, step);
-  timer::show_duration_since_stamp("deposit", "ms", "depositer");
+  if (ptc_num > 0) {
+    auto ptc_kernel = [a, ptc_num, dt, step] __device__(
+                          auto ptc, auto B, auto D, auto J, auto Rho,
+                          auto rho_interval) {
+      auto &grid = dev_grid<Conf::dim>();
+      auto ext = grid.extent();
 
-  // Communicate deposited current and charge densities
-  if (this->m_comm != nullptr) {
-    this->m_comm->send_add_guard_cells(*(this->J));
-    this->m_comm->send_guard_cells(*(this->J));
-    // if ((step + 1) % m_data_interval == 0) {
-    if (step % this->m_rho_interval == 0) {
-      for (uint32_t i = 0; i < this->Rho.size(); i++) {
-        this->m_comm->send_add_guard_cells(*(this->Rho[i]));
-        this->m_comm->send_guard_cells(*(this->Rho[i]));
-      }
-    }
-  }
 
-  timer::stamp("filter");
-  // Filter current
-  // filter_current(m_filter_times, step);
-  timer::show_duration_since_stamp("filter", "ms", "filter");
+    };
 
-  // Send particles
-  if (this->m_comm != nullptr) {
-    this->m_comm->send_particles(*(this->ptc), this->m_grid);
-  }
-
-  // Also move photons if the data component exists
-  if (this->ph != nullptr) {
-    Logger::print_info("Moving {} photons", this->ph->number());
-    update_photons(dt, step);
-
-    if (this->m_comm != nullptr) {
-      this->m_comm->send_particles(*(this->ph), this->m_grid);
-    }
-  }
-
-  // Clear guard cells
-  this->clear_guard_cells();
-
-  // sort at the given interval. Turn off sorting if m_sort_interval is 0
-  if (this->m_sort_interval > 0 && (step % this->m_sort_interval) == 0) {
-    this->sort_particles();
+    kernel_launch(ptc_kernel, this->ptc->get_dev_ptrs(),
+                  this->B->get_const_ptrs(), this->E->get_const_ptrs(),
+                  this->J->get_ptrs(), this->m_rho_ptrs.dev_ptr(),
+                  this->m_rho_interval);
   }
 }
 
 template <typename Conf>
 void
-ptc_updater_gr_ks_cu<Conf>::update_photons(double dt, uint32_t step) {
+ptc_updater_gr_ks_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   value_t a = m_a;
   auto ph_num = this->ph->number();
 
@@ -125,10 +92,6 @@ ptc_updater_gr_ks_cu<Conf>::update_photons(double dt, uint32_t step) {
                   this->rho_ph->dev_ndptr(), this->m_data_interval);
   }
 }
-
-template <typename Conf>
-void
-ptc_updater_gr_ks_cu<Conf>::update_ptc(double dt, uint32_t step) {}
 
 template <typename Conf>
 void

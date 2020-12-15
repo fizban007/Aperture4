@@ -127,7 +127,7 @@ ptc_updater<Conf>::push_default(double dt) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::update(double dt, uint32_t step) {
+ptc_updater<Conf>::update_particles(double dt, uint32_t step) {
   Logger::print_info("Pushing {} particles", ptc->number());
   timer::stamp("pusher");
   // First update particle momentum
@@ -138,6 +138,12 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   // Then move particles and deposit current
   move_and_deposit(dt, step);
   timer::show_duration_since_stamp("deposit", "ms", "depositer");
+}
+
+template <typename Conf>
+void
+ptc_updater<Conf>::update(double dt, uint32_t step) {
+  update_particles(dt, step);
 
   // Communicate deposited current and charge densities
   if (m_comm != nullptr) {

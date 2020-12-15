@@ -34,13 +34,12 @@ class ptc_updater_gr_ks_cu : public ptc_updater_cu<Conf> {
                        const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
-  void update(double dt, uint32_t step) override;
   void register_data_components() override;
 
-  void update_ptc(double dt, uint32_t step);
-  void update_photons(double dt, uint32_t step);
+  virtual void update_particles(double dt, uint32_t step) override;
+  // void update_photons(double dt, uint32_t step);
   // virtual void move_deposit_2d(value_t dt, uint32_t step) override;
-  // virtual void move_photons_2d(value_t dt, uint32_t step) override;
+  virtual void move_photons_2d(value_t dt, uint32_t step) override;
   // virtual void filter_field(vector_field<Conf>& f, int comp) override;
   // virtual void filter_field(scalar_field<Conf>& f) override;
   virtual void fill_multiplicity(int mult, value_t weight = 1.0) override;

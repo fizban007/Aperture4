@@ -62,10 +62,10 @@ class particles_base : public BufferType {
   void sort_by_cell_host(size_t max_cell);
   void sort_by_cell_dev(size_t max_cell);
 
-  void append(const vec_t<Pos_t, 3>& x, const vec_t<Scalar, 3>& p,
+  void append(const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
               uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  void append_dev(const vec_t<Pos_t, 3>& x, const vec_t<Scalar, 3>& p,
+  void append_dev(const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
                   uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
   void copy_to_host();

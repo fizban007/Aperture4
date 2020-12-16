@@ -180,7 +180,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             new_x[0] = x[0] + (v[0] * dt) * grid.inv_delta[0];
             dc = std::floor(new_x[0]);
             pos[0] += dc;
-            ptc.x1[n] = new_x[0] - (Pos_t)dc;
+            ptc.x1[n] = new_x[0] - (Scalar)dc;
             ptc.x2[n] = x[1] + v[1] * dt;
             ptc.x3[n] = x[2] + v[2] * dt;
 
@@ -279,12 +279,12 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             new_x[0] = x[0] + (v[0] * dt) * grid.inv_delta[0];
             dc[0] = std::floor(new_x[0]);
             pos[0] += dc[0];
-            ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
+            ptc.x1[n] = new_x[0] - (Scalar)dc[0];
 
             new_x[1] = x[1] + (v[1] * dt) * grid.inv_delta[1];
             dc[1] = std::floor(new_x[1]);
             pos[1] += dc[1];
-            ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
+            ptc.x2[n] = new_x[1] - (Scalar)dc[1];
 
             ptc.x3[n] = x[2] + v[2] * dt;
 
@@ -405,17 +405,17 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             // auto new_x1 = x1 + (v1 * dt) * grid.inv_delta[0];
             dc[0] = std::floor(new_x[0]);
             pos[0] += dc[0];
-            ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
+            ptc.x1[n] = new_x[0] - (Scalar)dc[0];
 
             // auto new_x2 = x2 + (v2 * dt) * grid.inv_delta[1];
             dc[1] = std::floor(new_x[1]);
             pos[1] += dc[1];
-            ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
+            ptc.x2[n] = new_x[1] - (Scalar)dc[1];
 
             // auto new_x3 = x3 + (v3 * dt) * grid.inv_delta[2];
             dc[2] = std::floor(new_x[2]);
             pos[2] += dc[2];
-            ptc.x3[n] = new_x[2] - (Pos_t)dc[2];
+            ptc.x3[n] = new_x[2] - (Scalar)dc[2];
 
             ptc.cell[n] = J[0].get_idx(pos, ext).linear;
 

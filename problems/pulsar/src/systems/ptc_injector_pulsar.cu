@@ -60,7 +60,7 @@ void inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
           for (int i = 0; i < num_per_cell[cell]; i++) {
             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
             // value_t u = rng();
-            auto x = vec_t<Pos_t, 3>(rng(), rng(), 0.0f);
+            auto x = vec_t<value_t, 3>(rng(), rng(), 0.0f);
             ptc.x1[offset] = ptc.x1[offset + 1] = x[0];
             ptc.x2[offset] = ptc.x2[offset + 1] = x[1];
             ptc.x3[offset] = ptc.x3[offset + 1] = x[2];

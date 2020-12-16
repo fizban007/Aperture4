@@ -80,7 +80,7 @@ TEST_CASE("Using grid", "[grid]") {
     z = g2.find_zone(index(11, 11));
     REQUIRE(z == 8);
 
-    auto pos_g = g2.pos_global(index(3, 5), vec<Scalar>(0.4, 0.7));
+    auto pos_g = g2.pos_global(index(3, 5), vec<Scalar>(0.4, 0.7, 0.0));
     REQUIRE(pos_g[0] == Approx(1.4f * g2.delta[0]));
     REQUIRE(pos_g[1] == Approx(3.7f * g2.delta[1]));
   }

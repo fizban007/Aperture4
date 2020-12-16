@@ -20,9 +20,9 @@
 
 #include "cuda_control.h"
 #include "typedefs_and_constants.h"
-#include "utils/vec.hpp"
 #include "utils/index.hpp"
 #include "utils/stagger.h"
+#include "utils/vec.hpp"
 #include <type_traits>
 
 namespace Aperture {
@@ -54,12 +54,13 @@ struct Grid {
   ///  guard cells in both ends. This function is only defined for N >=
   ///  0 and N < Dim.
   template <int N>
-      HD_INLINE std::enable_if_t <
-      N<Dim, uint32_t> reduced_dim() const {
+      HD_INLINE std::enable_if_t < N<Dim, uint32_t> reduced_dim() const {
     return (dims[N] - 2 * skirt[N]);
   }
 
-  HD_INLINE uint32_t reduced_dim(int i) const { return (dims[i] - 2 * skirt[i]); }
+  HD_INLINE uint32_t reduced_dim(int i) const {
+    return (dims[i] - 2 * skirt[i]);
+  }
 
   ///  Coordinate of a point inside cell n in dimension N.
   ///
@@ -107,8 +108,8 @@ struct Grid {
   }
 
   template <int N>
-  HD_INLINE std::enable_if_t<N >= Dim, Scalar> pos(
-      int n, Scalar pos_in_cell) const {
+  HD_INLINE std::enable_if_t<N >= Dim, Scalar> pos(int n,
+                                                   Scalar pos_in_cell) const {
     return pos_in_cell;
   }
 
@@ -124,20 +125,19 @@ struct Grid {
   }
 
   template <int N>
-  HD_INLINE Scalar pos(const index_t<Dim>& idx,
-                       Scalar pos_in_cell) const {
+  HD_INLINE Scalar pos(const index_t<Dim>& idx, Scalar pos_in_cell) const {
     return pos<N>(idx[N], pos_in_cell);
   }
 
   template <int N>
-  HD_INLINE Scalar pos(const index_t<Dim>& idx,
-                       stagger_t st) const {
+  HD_INLINE Scalar pos(const index_t<Dim>& idx, stagger_t st) const {
     return pos<N>(idx[N], st[N]);
   }
 
-  HD_INLINE vec_t<Scalar, Dim> pos_global(const index_t<Dim>& idx,
-                                          const vec_t<Scalar, Dim>& rel_pos) {
-    vec_t<Scalar, Dim> result;
+  template <typename value_t = Scalar>
+  HD_INLINE vec_t<value_t, 3> pos_global(
+      const index_t<Dim>& idx, const vec_t<value_t, 3>& rel_pos) const {
+    vec_t<value_t, 3> result = rel_pos;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
       result[i] = pos(i, idx[i], rel_pos[i]);
@@ -164,8 +164,7 @@ struct Grid {
   HD_INLINE bool is_in_bound(const index_t<Dim>& idx) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      if (idx[i] < skirt[i] || idx[i] >= dims[i] - skirt[i])
-        return false;
+      if (idx[i] < skirt[i] || idx[i] >= dims[i] - skirt[i]) return false;
     }
     return true;
   }
@@ -178,8 +177,7 @@ struct Grid {
   HD_INLINE bool is_in_grid(const index_t<Dim>& idx) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      if (idx[i] >= dims[i])
-        return false;
+      if (idx[i] >= dims[i]) return false;
     }
     return true;
   }
@@ -192,8 +190,7 @@ struct Grid {
   HD_INLINE extent_t<Dim> extent() const {
     extent_t<Dim> result;
 #pragma unroll
-    for (int i = 0; i < Dim; i++)
-      result[i] = dims[i];
+    for (int i = 0; i < Dim; i++) result[i] = dims[i];
     result.get_strides();
     return result;
   }
@@ -201,8 +198,7 @@ struct Grid {
   HD_INLINE extent_t<Dim> extent_less() const {
     extent_t<Dim> result;
 #pragma unroll
-    for (int i = 0; i < Dim; i++)
-      result[i] = reduced_dim(i);
+    for (int i = 0; i < Dim; i++) result[i] = reduced_dim(i);
     result.get_strides();
     return result;
   }
@@ -224,7 +220,6 @@ struct Grid {
     }
     return result;
   }
-
 };
 
 }  // namespace Aperture

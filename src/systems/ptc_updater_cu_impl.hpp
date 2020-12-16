@@ -41,7 +41,7 @@ ptc_updater_cu<Conf>::push(double delta_t, P& pusher) {
 
       value_t qdt_over_2m = dt * 0.5f * dev_charges[sp] / dev_masses[sp];
 
-      auto x = vec_t<Pos_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+      auto x = vec_t<value_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
       //  Grab E & M fields at the particle position
       EB_t<value_t> EB;
       EB.E1 = interp(E[0], x, idx, stagger_t(0b110));

@@ -49,6 +49,8 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(perf_deposit Aperture)
   add_executable(perf_deposit3d "perf_deposit3d.cpp")
   target_link_libraries(perf_deposit3d Aperture)
+  add_executable(perf_gr_update "perf_gr_update.cpp")
+  target_link_libraries(perf_gr_update Aperture)
 endif()
 
 add_executable(gr_pusher "test_gr_pusher.cpp")

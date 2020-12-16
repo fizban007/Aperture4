@@ -70,9 +70,9 @@ struct ptc_array_type;
 // MPI purposes.
 
 DEF_PARTICLE_STRUCT(ptc,
-                    (Aperture::Pos_t, x1, 0.0)
-                    (Aperture::Pos_t, x2, 0.0)
-                    (Aperture::Pos_t, x3, 0.0)
+                    (Aperture::Scalar, x1, 0.0)
+                    (Aperture::Scalar, x2, 0.0)
+                    (Aperture::Scalar, x3, 0.0)
                     (Aperture::Scalar, p1, 0.0)
                     (Aperture::Scalar, p2, 0.0)
                     (Aperture::Scalar, p3, 0.0)
@@ -89,9 +89,9 @@ DEF_PARTICLE_STRUCT(ptc,
 // header.
 
 DEF_PARTICLE_STRUCT(ph,
-                    (Aperture::Pos_t, x1, 0.0)
-                    (Aperture::Pos_t, x2, 0.0)
-                    (Aperture::Pos_t, x3, 0.0)
+                    (Aperture::Scalar, x1, 0.0)
+                    (Aperture::Scalar, x2, 0.0)
+                    (Aperture::Scalar, x3, 0.0)
                     (Aperture::Scalar, p1, 0.0)
                     (Aperture::Scalar, p2, 0.0)
                     (Aperture::Scalar, p3, 0.0)

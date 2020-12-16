@@ -37,9 +37,8 @@ process_j_rho(vector_field<Conf>& j,
   kernel_launch(
       [dt, num_species, ext] __device__(auto j, auto rho, auto gp) {
         auto& grid = dev_grid<Conf::dim>();
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
           // if (grid.is_in_bound(pos)) {
           auto w = grid.delta[0] * grid.delta[1] / dt;
           j[0][idx] *= w / gp.Ae[0][idx];
@@ -263,8 +262,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         pos[0] += dc[0];
         pos[1] += dc[1];
 
-        ptc.x1[n] = new_x[0] - (Pos_t)dc[0];
-        ptc.x2[n] = new_x[1] - (Pos_t)dc[1];
+        ptc.x1[n] = new_x[0] - (Scalar)dc[0];
+        ptc.x2[n] = new_x[1] - (Scalar)dc[1];
         ptc.x3[n] = r3p;
 
         ptc.cell[n] = idx_t(pos, ext).linear;
@@ -345,6 +344,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
     if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
       ptc_outflow(*(this->ptc), grid, m_damping_length);
     }
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
   }
 }
 
@@ -408,8 +409,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             ph.p2[n] = v2 * E;
             ph.p3[n] = v3 * E;
 
-            Pos_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
-            Pos_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
+            Scalar new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
+            Scalar new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
 
             int dc1 = math::floor(new_x1);
             int dc2 = math::floor(new_x2);
@@ -435,8 +436,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             ph.cell[n] = typename Conf::idx_t(pos, ext).linear;
             // printf("new_x1 is %f, new_x2 is %f, dc2 = %d\n", new_x1, new_x2,
             // dc2);
-            ph.x1[n] = new_x1 - (Pos_t)dc1;
-            ph.x2[n] = new_x2 - (Pos_t)dc2;
+            ph.x1[n] = new_x1 - (Scalar)dc1;
+            ph.x2[n] = new_x2 - (Scalar)dc2;
             ph.x3[n] = r3p;
             ph.path_left[n] -= dt;
 

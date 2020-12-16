@@ -76,7 +76,7 @@ struct rt_magnetar_impl_t {
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
-    auto x = vec_t<Pos_t, 3>(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
+    auto x = vec_t<value_t, 3>(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
     // value_t gamma = sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
     value_t gamma = ptc.E[tid];
     // value_t pi = math::sqrt(gamma * gamma - 1.0f);
@@ -137,7 +137,7 @@ struct rt_magnetar_impl_t {
     uint32_t cell = ph.cell[tid];
     auto idx = Conf::idx(cell, grid.extent());
     auto pos = idx.get_pos();
-    auto x = vec_t<Pos_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
+    auto x = vec_t<value_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto p1 = ph.p1[tid];
     auto p2 = ph.p2[tid];
     auto p3 = ph.p3[tid];

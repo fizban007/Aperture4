@@ -36,7 +36,7 @@ process_j_rho(vector_field<Conf>& j,
   auto ext = grid.extent();
   kernel_launch(
       [dt, num_species, ext] __device__(auto j, auto rho, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
           // if (grid.is_in_bound(pos)) {
@@ -67,7 +67,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
        vec_t<bool, 4> is_boundary) {
   kernel_launch(
       [] __device__(auto result, auto f, auto A, auto is_boundary) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           // auto idx = idx_t(n, ext);
@@ -115,7 +115,7 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
   auto ptc_num = ptc.number();
   kernel_launch(
       [ptc_num, damping_length] __device__(auto ptc, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
           if (c == empty_cell) continue;
@@ -169,7 +169,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
       using spline_t = typename ptc_updater<Conf>::spline_t;
       using idx_t = typename Conf::idx_t;
       using value_t = typename Conf::value_t;
-      auto& grid = dev_grid<Conf::dim>();
+      auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
       // Obtain a local pointer to the shared array
       // extern __shared__ char shared_array[];
       // value_t* djy = (value_t*)&shared_array[threadIdx.x * sizeof(value_t) *
@@ -262,8 +262,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         pos[0] += dc[0];
         pos[1] += dc[1];
 
-        ptc.x1[n] = new_x[0] - (Scalar)dc[0];
-        ptc.x2[n] = new_x[1] - (Scalar)dc[1];
+        ptc.x1[n] = new_x[0] - (value_t)dc[0];
+        ptc.x2[n] = new_x[1] - (value_t)dc[1];
         ptc.x3[n] = r3p;
 
         ptc.cell[n] = idx_t(pos, ext).linear;
@@ -273,7 +273,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         auto sp = get_ptc_type(flag);
         // auto interp = spline_t{};
         if (check_flag(flag, PtcFlag::ignore_current)) continue;
-        auto weight = dev_charges[sp] * ptc.weight[n];
+        value_t weight = dev_charges[sp] * ptc.weight[n];
 
         deposit_2d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
                              step % rho_interval == 0);
@@ -359,7 +359,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
     kernel_launch(
         [ph_num, dt, step] __device__(auto ph, auto rho_ph, auto data_interval,
                                       auto r_cutoff) {
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           using value_t = typename Conf::value_t;
 
@@ -370,9 +370,9 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             auto idx = typename Conf::idx_t(cell, ext);
             auto pos = idx.get_pos();
 
-            auto x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
-            auto v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
-            auto E = ph.E[n];
+            value_t x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
+            value_t v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
+            value_t E = ph.E[n];
             v1 = v1 / E;
             v2 = v2 / E;
             v3 = v3 / E;
@@ -409,8 +409,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             ph.p2[n] = v2 * E;
             ph.p3[n] = v3 * E;
 
-            Scalar new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
-            Scalar new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
+            value_t new_x1 = x1 + (r1p - r1) * grid.inv_delta[0];
+            value_t new_x2 = x2 + (r2p - r2) * grid.inv_delta[1];
 
             int dc1 = math::floor(new_x1);
             int dc2 = math::floor(new_x2);
@@ -436,8 +436,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             ph.cell[n] = typename Conf::idx_t(pos, ext).linear;
             // printf("new_x1 is %f, new_x2 is %f, dc2 = %d\n", new_x1, new_x2,
             // dc2);
-            ph.x1[n] = new_x1 - (Scalar)dc1;
-            ph.x2[n] = new_x2 - (Scalar)dc2;
+            ph.x1[n] = new_x1 - (value_t)dc1;
+            ph.x2[n] = new_x2 - (value_t)dc2;
             ph.x3[n] = r3p;
             ph.path_left[n] -= dt;
 
@@ -504,7 +504,7 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
 
   kernel_launch(
       [num, mult, weight] __device__(auto ptc, auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -517,7 +517,7 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
               ptc.x1[offset] = ptc.x1[offset + 1] = rng();
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
               ptc.x3[offset] = ptc.x3[offset + 1] = rng();
-              Scalar theta = grid_sph_t<Conf>::theta(
+              value_t theta = grid_sph_t<Conf>::theta(
                   grid.template pos<1>(pos[1], ptc.x2[offset]));
               ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
@@ -541,6 +541,7 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
   this->sort_particles();
 }
 
-template class ptc_updater_sph_cu<Config<2>>;
+template class ptc_updater_sph_cu<Config<2, double>>;
+template class ptc_updater_sph_cu<Config<2, float>>;
 
 }  // namespace Aperture

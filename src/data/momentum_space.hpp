@@ -28,15 +28,15 @@ class momentum_space : public data_t {
  public:
   multi_array<float, Conf::dim + 1> e_p1, e_p2, e_p3;
   multi_array<float, Conf::dim + 1> p_p1, p_p2, p_p3;
-  const Grid<Conf::dim>& m_grid;
+  const typename Conf::grid_t& m_grid;
   extent_t<Conf::dim> m_grid_ext;
   int m_downsample = 16;
   int m_num_bins[3] = {256, 256, 256};
   float m_lower[3] = {0.0f, 0.0f, 0.0f};
   float m_upper[3] = {0.0f, 0.0f, 0.0f};
 
-  momentum_space(const Grid<Conf::dim>& grid, int downsample, int num_bins[3],
-                 float lower[3], float upper[3],
+  momentum_space(const typename Conf::grid_t& grid, int downsample,
+                 int num_bins[3], float lower[3], float upper[3],
                  MemType memtype = default_mem_type)
       : m_grid(grid) {
     m_downsample = downsample;

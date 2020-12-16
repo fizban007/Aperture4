@@ -46,7 +46,7 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
       [p0, ptc_num, weight, f] __device__(auto ptc, auto ptc_density, auto B,
                                       auto num_per_cell, auto cum_num,
                                       auto states) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);

@@ -28,7 +28,7 @@
 
 namespace Aperture {
 
-template <int Dim>
+template <int Dim, typename value_t>
 struct Grid;
 
 template <typename Conf>
@@ -42,16 +42,16 @@ class domain_comm : public system_t {
   bool is_root() const { return m_rank == 0; }
   int rank() const { return m_rank; }
   int size() const { return m_size; }
-  void resize_buffers(const Grid<Conf::dim>& grid) const;
+  void resize_buffers(const typename Conf::grid_t& grid) const;
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_guard_cells(typename Conf::multi_array_t& array,
-                                const Grid<Conf::dim>& grid) const;
+                                const typename Conf::grid_t& grid) const;
   void send_add_guard_cells(vector_field<Conf>& field) const;
   void send_add_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_add_guard_cells(typename Conf::multi_array_t& array,
-                                    const Grid<Conf::dim>& grid) const;
+                                    const typename Conf::grid_t& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
   void get_total_num_offset(uint64_t& num, uint64_t& total,
@@ -86,10 +86,10 @@ class domain_comm : public system_t {
 
   void setup_domain();
   void send_array_guard_cells_single_dir(
-      typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid, int dim,
       int dir) const;
   void send_add_array_guard_cells_single_dir(
-      typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid, int dim,
       int dir) const;
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;

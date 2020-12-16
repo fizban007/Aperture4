@@ -56,7 +56,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("time is {}, Omega is {}", time, omega);
 
   kernel_launch([ext, time, omega] __device__ (auto e, auto b, auto e0, auto b0) {
-      auto& grid = dev_grid<Conf::dim>();
+      auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
         value_t theta = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));
         value_t theta_s = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, true));

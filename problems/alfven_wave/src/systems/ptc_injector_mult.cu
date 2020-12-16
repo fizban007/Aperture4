@@ -48,7 +48,7 @@ compute_inject_num(multi_array<int, Conf::dim>& num_per_cell,
   kernel_launch(
       [target_mult, num_species] __device__(auto j, auto rho,
                                             auto num_per_cell, auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -93,7 +93,7 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
   kernel_launch(
       [ptc_num] __device__(auto ptc, auto num_per_cell, auto cum_num,
                            auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);

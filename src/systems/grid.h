@@ -29,11 +29,11 @@ class domain_comm;
 
 // The system that is responsible for setting up the computational grid
 template <typename Conf>
-class grid_t : public system_t, public Grid<Conf::dim> {
+class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
  public:
   static std::string name() { return "grid"; }
 
-  typedef Grid<Conf::dim> base_type;
+  typedef Grid<Conf::dim, typename Conf::value_t> base_type;
 
   grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info =
                                    domain_info_t<Conf::dim>{});
@@ -44,10 +44,10 @@ class grid_t : public system_t, public Grid<Conf::dim> {
   grid_t<Conf>& operator=(const grid_t<Conf>& grid) = default;
 
   // Coordinate for output position
-  inline virtual vec_t<float, Conf::dim> cart_coord(const index_t<Conf::dim>& pos) const {
+  inline virtual vec_t<float, Conf::dim> cart_coord(
+      const index_t<Conf::dim>& pos) const {
     vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++)
-      result[i] = this->pos(i, pos[i], false);
+    for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
     return result;
   }
 
@@ -64,18 +64,13 @@ class grid_t : public system_t, public Grid<Conf::dim> {
     return typename Conf::idx_t(lin, this->extent());
   }
 
-  inline typename Conf::idx_t begin() const {
-    return idx_at(0);
-  }
+  inline typename Conf::idx_t begin() const { return idx_at(0); }
 
   inline typename Conf::idx_t end() const {
     return idx_at(this->extent().size());
   }
 
-  inline size_t size() const {
-    return this->extent().size();
-  }
-
+  inline size_t size() const { return this->extent().size(); }
 };
 
 }  // namespace Aperture

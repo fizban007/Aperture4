@@ -38,7 +38,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
        vec_t<bool, 4> is_boundary) {
   kernel_launch(
       [] __device__(auto result, auto f, auto is_boundary) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           // auto idx = idx_t(n, ext);
@@ -130,7 +130,7 @@ ptc_updater_cu<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::push_default(double dt) {
+ptc_updater_cu<Conf>::push_default(value_t dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
@@ -156,7 +156,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                         auto rho_interval) {
           using spline_t = typename base_class::spline_t;
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
             if (cell == empty_cell) continue;
@@ -190,7 +190,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             auto flag = ptc.flag[n];
             int sp = get_ptc_type(flag);
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
-            auto weight = dev_charges[sp] * ptc.weight[n];
+            value_t weight = dev_charges[sp] * ptc.weight[n];
 
             deposit_1d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
                                  step % rho_interval == 0);
@@ -226,7 +226,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
     // Modify J with prefactor
     kernel_launch([dt] __device__(auto J) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           J[0][idx] *= grid.delta[0] / dt;
@@ -249,7 +249,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         [num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                    auto rho_interval) {
           using spline_t = typename Conf::spline_t;
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           // Obtain a local pointer to the shared array
           // extern __shared__ char shared_array[];
@@ -295,7 +295,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             auto sp = get_ptc_type(flag);
             // auto interp = spline_t{};
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
-            auto weight = dev_charges[sp] * ptc.weight[n];
+            value_t weight = dev_charges[sp] * ptc.weight[n];
 
             deposit_2d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
                                  step % rho_interval == 0);
@@ -352,7 +352,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
     // Modify J with prefactor
     kernel_launch([dt] __device__(auto J) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           J[0][idx] *= grid.delta[0] / dt;
@@ -375,7 +375,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
         [ext, num, dt, step] __device__(auto ptc, auto J, auto Rho,
                                         auto rho_interval) {
           using spline_t = typename base_class::spline_t;
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
             if (cell == empty_cell) continue;
@@ -424,7 +424,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             auto sp = get_ptc_type(flag);
             // auto interp = spline_t{};
             if (check_flag(flag, PtcFlag::ignore_current)) continue;
-            auto weight = dev_charges[sp] * ptc.weight[n];
+            value_t weight = dev_charges[sp] * ptc.weight[n];
 
             deposit_3d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
                                  step % rho_interval == 0);
@@ -486,7 +486,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
     // Modify J with prefactor
     kernel_launch([dt] __device__(auto J) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           J[0][idx] *= grid.delta[0] / dt;
@@ -530,7 +530,7 @@ ptc_updater_cu<Conf>::clear_guard_cells() {
   auto num = this->ptc->number();
 
   auto clear_guard_cell_knl = [ext] __device__(auto ptc, auto num) {
-    auto& grid = dev_grid<Conf::dim>();
+    auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
     for (auto n : grid_stride_range(0, num)) {
       uint32_t cell = ptc.cell[n];
       if (cell == empty_cell) continue;
@@ -569,7 +569,7 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
 
   kernel_launch(
       [num, mult, weight] __device__(auto ptc, auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);

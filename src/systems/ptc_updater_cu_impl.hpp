@@ -21,7 +21,7 @@
 template <typename Conf>
 template <typename P>
 void
-ptc_updater_cu<Conf>::push(double delta_t, P& pusher) {
+ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
   value_t dt = delta_t;
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();

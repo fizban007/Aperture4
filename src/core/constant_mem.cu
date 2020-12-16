@@ -24,9 +24,12 @@ namespace Aperture {
 
 __constant__ uint32_t morton2dLUT_dev[256];
 __constant__ uint32_t morton3dLUT_dev[256];
-__constant__ Grid<1> dev_grid_1d;
-__constant__ Grid<2> dev_grid_2d;
-__constant__ Grid<3> dev_grid_3d;
+__constant__ Grid<1, float> dev_grid_1d_float;
+__constant__ Grid<1, double> dev_grid_1d_double;
+__constant__ Grid<2, float> dev_grid_2d_float;
+__constant__ Grid<2, double> dev_grid_2d_double;
+__constant__ Grid<3, float> dev_grid_3d_float;
+__constant__ Grid<3, double> dev_grid_3d_double;
 __constant__ float dev_charges[max_ptc_types];
 __constant__ float dev_masses[max_ptc_types];
 __constant__ double dev_gauss_xs[5] = {0.1488743389816312, 0.4333953941292472,
@@ -60,21 +63,51 @@ init_dev_rank(int rank) {
 
 template <>
 void
-init_dev_grid(const Grid<1>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_1d, &grid, sizeof(Grid<1>)));
+init_dev_grid(const Grid<1, float>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_1d_float, &grid, sizeof(Grid<1, float>)));
 }
 
 template <>
 void
-init_dev_grid(const Grid<2>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d, &grid, sizeof(Grid<2>)));
+init_dev_grid(const Grid<1, double>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_1d_double, &grid, sizeof(Grid<1, double>)));
 }
 
 template <>
 void
-init_dev_grid(const Grid<3>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d, &grid, sizeof(Grid<3>)));
+init_dev_grid(const Grid<2, float>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d_float, &grid, sizeof(Grid<2, float>)));
 }
+
+template <>
+void
+init_dev_grid(const Grid<2, double>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d_double, &grid, sizeof(Grid<2, double>)));
+}
+
+template <>
+void
+init_dev_grid(const Grid<3, float>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d_float, &grid, sizeof(Grid<3, float>)));
+}
+
+template <>
+void
+init_dev_grid(const Grid<3, double>& grid) {
+  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d_double, &grid, sizeof(Grid<3, double>)));
+}
+
+// template <>
+// void
+// init_dev_grid(const Grid<2>& grid) {
+//   CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d, &grid, sizeof(Grid<2>)));
+// }
+
+// template <>
+// void
+// init_dev_grid(const Grid<3>& grid) {
+//   CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d, &grid, sizeof(Grid<3>)));
+// }
 
 void
 init_dev_charge_mass(const float charge[max_ptc_types],

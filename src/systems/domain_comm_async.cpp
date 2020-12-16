@@ -44,7 +44,7 @@ domain_comm_async<Conf>::~domain_comm_async() {
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_array_guard_cells_single_dir_async(
-    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
+    typename Conf::multi_array_t &array, const typename Conf::grid_t &grid, int dim,
     int dir) const {
   if (dim < 0 || dim >= Conf::dim) return;
 
@@ -116,7 +116,7 @@ domain_comm_async<Conf>::send_array_guard_cells_single_dir_async(
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_add_array_guard_cells_single_dir_async(
-      typename Conf::multi_array_t& array, const Grid<Conf::dim>& grid, int dim,
+      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid, int dim,
       int dir) const {
   if (dim < 0 || dim >= Conf::dim) return;
 
@@ -201,7 +201,7 @@ domain_comm_async<Conf>::send_add_array_guard_cells_single_dir_async(
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_add_guard_cells(typename Conf::multi_array_t &array,
-                                              const Grid<Conf::dim> &grid) const {
+                                              const typename Conf::grid_t &grid) const {
   // Logger::print_debug("Send adding guard cells async!");
   send_add_array_guard_cells_single_dir_async(array, grid, 0, -1);
   send_add_array_guard_cells_single_dir_async(array, grid, 0, 1);
@@ -214,7 +214,7 @@ domain_comm_async<Conf>::send_add_guard_cells(typename Conf::multi_array_t &arra
 template <typename Conf>
 void
 domain_comm_async<Conf>::send_guard_cells(typename Conf::multi_array_t &array,
-                                          const Grid<Conf::dim> &grid) const {
+                                          const typename Conf::grid_t &grid) const {
   // Logger::print_debug("Sending guard cells async!");
   send_array_guard_cells_single_dir_async(array, grid, 0, -1);
   send_array_guard_cells_single_dir_async(array, grid, 0, 1);

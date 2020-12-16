@@ -34,7 +34,7 @@ set_initial_field(vector_field<Config<2>>& field) {
 
 TEST_CASE("Memtype is correct for fields", "[fields]") {
   typedef Config<2> Conf;
-  Grid<2> grid;
+  Grid<2, float> grid;
   grid.dims[0] = 32;
   grid.dims[1] = 32;
 
@@ -69,11 +69,11 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
 }
 
 TEST_CASE("Initializing fields", "[fields]") {
-  Config<2> conf;
-  Grid<2> g2;
+  using Conf = Config<2, float>;
+  Conf::grid_t g2;
   g2.dims[0] = 32;
   g2.dims[1] = 32;
-  vector_field<Config<2>> vf(g2);
+  vector_field<Conf> vf(g2);
 
   vf[0].assign_host(3.0f);
   for (auto idx : vf[0].indices()) {
@@ -82,7 +82,8 @@ TEST_CASE("Initializing fields", "[fields]") {
 }
 
 TEST_CASE("setting initial value from a function", "[fields]") {
-  Grid<2> g2;
+  using Conf = Config<2, float>;
+  Conf::grid_t g2;
 
   for (int i = 0; i < 2; i++) {
     g2.dims[i] = 256;
@@ -94,9 +95,8 @@ TEST_CASE("setting initial value from a function", "[fields]") {
     g2.inv_delta[i] = 1.0 / g2.delta[i];
   }
 
-  Config<2> conf;
-  vector_field<Config<2>> vf(g2);
-  vector_field<Config<2>> vf2(g2);
+  vector_field<Conf> vf(g2);
+  vector_field<Conf> vf2(g2);
 
   // Normal initialization
   set_initial_field(vf);
@@ -112,7 +112,8 @@ TEST_CASE("setting initial value from a function", "[fields]") {
 }
 
 TEST_CASE("Resampling field 1D", "[fields]") {
-  Grid<1> grid;
+  using Conf = Config<1, float>;
+  Conf::grid_t grid;
   for (int i = 0; i < 1; i++) {
     grid.dims[i] = 256;
     grid.guard[i] = 2;
@@ -122,9 +123,9 @@ TEST_CASE("Resampling field 1D", "[fields]") {
     grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
     grid.inv_delta[i] = 1.0 / grid.delta[i];
   }
-  scalar_field<Config<1>> f(grid, field_type::vert_centered,
+  scalar_field<Conf> f(grid, field_type::vert_centered,
                             MemType::host_only);
-  scalar_field<Config<1>> f2(grid, field_type::cell_centered,
+  scalar_field<Conf> f2(grid, field_type::cell_centered,
                              MemType::host_only);
   f.set_values(0, [](Scalar x1, Scalar x2, Scalar x3) {
                     return x1 + 2.0 * x2 + 3.0 * x3;
@@ -132,7 +133,7 @@ TEST_CASE("Resampling field 1D", "[fields]") {
   f2.set_values(0, [](Scalar x1, Scalar x2, Scalar x3) {
                      return x1 + 2.0 * x2 + 3.0 * x3;
                    });
-  scalar_field<Config<1>> f3(grid, field_type::cell_centered,
+  scalar_field<Conf> f3(grid, field_type::cell_centered,
                              MemType::host_only);
   resample(f[0], f3[0], grid.guards(), grid.guards(), f.stagger(), f3.stagger());
   for (int i = grid.guard[0]; i < grid.dims[0] - grid.guard[0]; i++) {
@@ -142,7 +143,8 @@ TEST_CASE("Resampling field 1D", "[fields]") {
 }
 
 TEST_CASE("Resampling field 2D", "[fields]") {
-  Grid<2> grid;
+  using Conf = Config<2>;
+  Conf::grid_t grid;
   for (int i = 0; i < 2; i++) {
     grid.dims[i] = 36;
     grid.guard[i] = 2;
@@ -152,9 +154,9 @@ TEST_CASE("Resampling field 2D", "[fields]") {
     grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
     grid.inv_delta[i] = 1.0 / grid.delta[i];
   }
-  vector_field<Config<2>> f(grid, field_type::cell_centered,
+  vector_field<Conf> f(grid, field_type::cell_centered,
                             MemType::host_only);
-  vector_field<Config<2>> f2(grid, field_type::vert_centered,
+  vector_field<Conf> f2(grid, field_type::vert_centered,
                              MemType::host_only);
   f.set_values(1, [](Scalar x1, Scalar x2, Scalar x3) {
                     return x1 + 2.0 * x2 + 3.0 * x3;
@@ -162,7 +164,7 @@ TEST_CASE("Resampling field 2D", "[fields]") {
   f2.set_values(1, [](Scalar x1, Scalar x2, Scalar x3) {
                      return x1 + 2.0 * x2 + 3.0 * x3;
                    });
-  vector_field<Config<2>> f3(grid, field_type::vert_centered,
+  vector_field<Conf> f3(grid, field_type::vert_centered,
                              MemType::host_only);
   resample(f[1], f3[1], grid.guards(), grid.guards(),
            f.stagger(), f3.stagger());

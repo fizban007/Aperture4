@@ -38,11 +38,13 @@ struct pusher_impl_pulsar {
 
   HOST_DEVICE pusher_impl_pulsar(const pusher_impl_pulsar<Pusher>& other) = default;
 
-  template <typename Scalar>
-  __device__ void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
-                             Scalar qdt_over_2m, Scalar dt) {
-    Scalar &p1 = ptc.p1[n], &p2 = ptc.p2[n], &p3 = ptc.p3[n];
-    Scalar &gamma = ptc.E[n];
+  template <typename value_t>
+  __device__ void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<value_t>& EB,
+                             value_t qdt_over_2m, value_t dt) {
+    auto &p1 = ptc.p1[n];
+    auto &p2 = ptc.p2[n];
+    auto &p3 = ptc.p3[n];
+    auto &gamma = ptc.E[n];
     // printf("before push, p1 is %f, p2 is %f, p3 is %f, gamma is %f\n", p1, p2, p3, gamma);
     pusher(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
            qdt_over_2m, dt);
@@ -51,7 +53,7 @@ struct pusher_impl_pulsar {
     //                qdt_over_2m * 2.0f / dt, (Scalar)cooling_coef, (Scalar)B0);
     // printf("after push, p1 is %f, p2 is %f, p3 is %f, gamma is %f\n", p1, p2, p3, gamma);
     sync_kill_gyration(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
-                       qdt_over_2m * 2.0f / dt, (Scalar)cooling_coef, (Scalar)B0);
+                       qdt_over_2m * 2.0f / dt, (value_t)cooling_coef, (value_t)B0);
     // printf("gamma is %f\n", gamma);
   }
 };
@@ -79,7 +81,7 @@ ptc_updater_pulsar<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_pulsar<Conf>::push_default(double dt) {
+ptc_updater_pulsar<Conf>::push_default(value_t dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
@@ -93,6 +95,7 @@ ptc_updater_pulsar<Conf>::push_default(double dt) {
 
 #include "systems/ptc_updater_cu_impl.hpp"
 
-template class ptc_updater_pulsar<Config<2>>;
+template class ptc_updater_pulsar<Config<2, double>>;
+template class ptc_updater_pulsar<Config<2, float>>;
 
 }

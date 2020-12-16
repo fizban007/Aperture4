@@ -18,12 +18,13 @@
 #ifndef __CONSANT_MEM_H_
 #define __CONSANT_MEM_H_
 
-#include <cstdint>
 #include "core/enum_types.h"
+#include "core/typedefs_and_constants.h"
+#include <cstdint>
 
 namespace Aperture {
 
-template <int Dim>
+template <int Dim, typename value_t>
 struct Grid;
 
 struct sim_params;
@@ -32,9 +33,15 @@ struct sim_params;
 
 extern __constant__ uint32_t morton2dLUT_dev[256];
 extern __constant__ uint32_t morton3dLUT_dev[256];
-extern __constant__ Grid<1> dev_grid_1d;
-extern __constant__ Grid<2> dev_grid_2d;
-extern __constant__ Grid<3> dev_grid_3d;
+extern __constant__ Grid<1, float> dev_grid_1d_float;
+extern __constant__ Grid<1, double> dev_grid_1d_double;
+extern __constant__ Grid<2, float> dev_grid_2d_float;
+extern __constant__ Grid<2, double> dev_grid_2d_double;
+extern __constant__ Grid<3, float> dev_grid_3d_float;
+extern __constant__ Grid<3, double> dev_grid_3d_double;
+// extern __constant__ Grid<1> dev_grid_1d;
+// extern __constant__ Grid<2> dev_grid_2d;
+// extern __constant__ Grid<3> dev_grid_3d;
 extern __constant__ float dev_charges[max_ptc_types];
 extern __constant__ float dev_masses[max_ptc_types];
 
@@ -42,15 +49,40 @@ extern __constant__ uint64_t dev_rank;
 extern __device__ uint32_t dev_ptc_id;
 extern __device__ uint32_t dev_ph_id;
 
-template <int Rank>
-__device__ __forceinline__ const Grid<Rank>& dev_grid();
+template <int Rank, typename value_t>
+__device__ __forceinline__ const Grid<Rank, value_t>& dev_grid();
 
-template<>
-__device__ __forceinline__ const Grid<1>& dev_grid<1>() { return dev_grid_1d; }
-template<>
-__device__ __forceinline__ const Grid<2>& dev_grid<2>() { return dev_grid_2d; }
-template<>
-__device__ __forceinline__ const Grid<3>& dev_grid<3>() { return dev_grid_3d; }
+template <>
+__device__ __forceinline__ const Grid<1, float>&
+dev_grid<1, float>() {
+  return dev_grid_1d_float;
+}
+template <>
+__device__ __forceinline__ const Grid<2, float>&
+dev_grid<2, float>() {
+  return dev_grid_2d_float;
+}
+template <>
+__device__ __forceinline__ const Grid<3, float>&
+dev_grid<3, float>() {
+  return dev_grid_3d_float;
+}
+
+template <>
+__device__ __forceinline__ const Grid<1, double>&
+dev_grid<1, double>() {
+  return dev_grid_1d_double;
+}
+template <>
+__device__ __forceinline__ const Grid<2, double>&
+dev_grid<2, double>() {
+  return dev_grid_2d_double;
+}
+template <>
+__device__ __forceinline__ const Grid<3, double>&
+dev_grid<3, double>() {
+  return dev_grid_3d_double;
+}
 
 #endif
 

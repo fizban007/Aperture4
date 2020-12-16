@@ -74,7 +74,7 @@ ptc_updater_pulsar<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_pulsar<Conf>::push_default(double dt) {
+ptc_updater_pulsar<Conf>::push_default(value_t dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
@@ -88,6 +88,7 @@ ptc_updater_pulsar<Conf>::push_default(double dt) {
 
 #include "systems/ptc_updater_cu_impl.hpp"
 
-template class ptc_updater_pulsar<Config<2>>;
+template class ptc_updater_pulsar<Config<2, double>>;
+template class ptc_updater_pulsar<Config<2, float>>;
 
 }

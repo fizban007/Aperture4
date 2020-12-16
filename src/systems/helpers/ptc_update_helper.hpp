@@ -55,9 +55,9 @@ template <typename Pusher>
 struct pusher_impl_t {
   Pusher pusher;
 
-  template <typename Scalar>
-  HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<Scalar>& EB,
-                            Scalar qdt_over_2m, Scalar dt) {
+  template <typename value_t>
+  HD_INLINE void operator()(ptc_ptrs& ptc, uint32_t n, EB_t<value_t>& EB,
+                            value_t qdt_over_2m, value_t dt) {
     pusher(ptc.p1[n], ptc.p2[n], ptc.p3[n], ptc.E[n], EB.E1, EB.E2, EB.E3,
            EB.B1, EB.B2, EB.B3, qdt_over_2m, dt);
   }

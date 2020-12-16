@@ -43,7 +43,7 @@ compute_e_update_explicit_cu(vector_field<Conf>& result,
                              typename Conf::value_t dt) {
   kernel_launch(
       [dt] __device__(auto result, auto b, auto stagger, auto j) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
@@ -74,7 +74,7 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
                              typename Conf::value_t dt) {
   kernel_launch(
       [dt] __device__(auto result, auto e, auto stagger) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
@@ -101,7 +101,7 @@ compute_double_curl(vector_field<Conf>& result, const vector_field<Conf>& b,
                     typename Conf::value_t coef) {
   kernel_launch(
       [coef] __device__(auto result, auto b, auto stagger) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -129,7 +129,7 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                      typename Conf::value_t beta, typename Conf::value_t dt) {
   kernel_launch(
       [alpha, beta, dt] __device__(auto result, auto e, auto j, auto stagger) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -164,7 +164,7 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
   kernel_launch(
       [] __device__(auto divE, auto divB, auto e, auto b, auto st_e, auto st_b,
                     auto is_boundary) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
@@ -194,7 +194,7 @@ template <typename Conf>
 void
 clean_field(vector_field<Conf>& f) {
   kernel_launch([] __device__(auto f) {
-      auto& grid = dev_grid<Conf::dim>();
+      auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
       auto ext = grid.extent();
       for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
         for (int i = 0; i < 3; i++) {

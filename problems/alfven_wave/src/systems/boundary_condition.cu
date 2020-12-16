@@ -70,7 +70,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
   // First measure surface density
   kernel_launch(
       [ptc_num, rpert1, rpert2] __device__(auto ptc, auto surface_n) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         // Scalar th1 = math::acos(math::sqrt(1.0f - 1.0f / rpert1));
         // Scalar th2 = math::acos(math::sqrt(1.0f - 1.0f / rpert2));
@@ -100,7 +100,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
   kernel_launch(
       [ptc_num, weight] __device__(auto ptc, auto surface_n, auto num_inj,
                                    auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int inj_n0 = grid.guard[0];
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -176,7 +176,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   // Apply twist on the stellar surface
   kernel_launch(
       [ext, time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           value_t theta =
               grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));

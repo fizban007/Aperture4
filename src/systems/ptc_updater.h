@@ -79,10 +79,10 @@ class ptc_updater : public system_t {
   void filter_current(int n_times, uint32_t step);
 
   template <typename P>
-  void push(double dt, P& pusher);
+  void push(value_t dt, P& pusher);
 
   virtual void update_particles(double dt, uint32_t step);
-  virtual void push_default(double dt);
+  virtual void push_default(value_t dt);
   virtual void move_deposit_1d(value_t dt, uint32_t step);
   virtual void move_deposit_2d(value_t dt, uint32_t step);
   virtual void move_deposit_3d(value_t dt, uint32_t step);
@@ -117,11 +117,11 @@ class ptc_updater_cu : public ptc_updater<Conf> {
   void register_data_components() override;
 
   template <typename P>
-  void push(double dt, P& pusher);
+  void push(value_t dt, P& pusher);
   // void move_and_deposit(double dt, uint32_t step);
 
   // Need to override this because we can't make push virtual
-  void push_default(double dt) override;
+  void push_default(value_t dt) override;
   void move_deposit_1d(value_t dt, uint32_t step) override;
   void move_deposit_2d(value_t dt, uint32_t step) override;
   void move_deposit_3d(value_t dt, uint32_t step) override;

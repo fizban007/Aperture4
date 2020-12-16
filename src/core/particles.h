@@ -26,9 +26,6 @@
 
 namespace Aperture {
 
-template <int N>
-struct Grid;
-
 template <typename BufferType>
 class particles_base : public BufferType {
  public:

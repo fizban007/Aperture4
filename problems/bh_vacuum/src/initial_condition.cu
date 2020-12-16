@@ -35,7 +35,7 @@ initial_nonrotating_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -89,7 +89,7 @@ initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {

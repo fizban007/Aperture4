@@ -57,7 +57,7 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
   kernel_launch(
       [mult, num, q_e, p0, delta_p, Bp] __device__(auto ptc, auto states, auto w) {
         // int mult = 1;
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         Scalar gamma0 = sqrt(1.0f + p0 * p0);
         Scalar beta0 = p0 / gamma0;

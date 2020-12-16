@@ -72,7 +72,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
   auto num = this->ptc->number();
   if (num > 0) {
     kernel_launch([num] __device__(auto ptc, auto gammas, auto avg_p, auto nums) {
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           for (auto n : grid_stride_range(0, num)) {
             uint32_t cell = ptc.cell[n];
@@ -97,7 +97,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
 
     int num_species = this->m_num_species;
     kernel_launch([num_species] __device__(auto gammas, auto avg_p, auto nums) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           for (int i = 0; i < num_species; i++) {

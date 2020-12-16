@@ -57,7 +57,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("time is {}, Omega is {}", time, omega);
 
   kernel_launch([ext, time, omega] __device__ (auto e, auto b, auto e0, auto b0) {
-      auto& grid = dev_grid<Conf::dim>();
+      auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
       auto ext = grid.extent();
 
       // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {

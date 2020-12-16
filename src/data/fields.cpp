@@ -25,14 +25,14 @@
 namespace Aperture {
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid, MemType memtype)
+field_t<N, Conf>::field_t(const Grid_t& grid, MemType memtype)
     : m_memtype(memtype) {
   set_memtype(memtype);
   resize(grid);
 }
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
+field_t<N, Conf>::field_t(const Grid_t& grid,
                           const vec_t<stagger_t, N> st, MemType memtype)
     : m_stagger(st), m_memtype(memtype) {
   set_memtype(memtype);
@@ -40,7 +40,7 @@ field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid,
 }
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid<Conf::dim>& grid, field_type type,
+field_t<N, Conf>::field_t(const Grid_t& grid, field_type type,
                           MemType memtype)
     : m_memtype(memtype) {
   set_memtype(memtype);
@@ -71,7 +71,7 @@ field_t<N, Conf>::init() {
 
 template <int N, typename Conf>
 void
-field_t<N, Conf>::resize(const Grid<Conf::dim>& grid) {
+field_t<N, Conf>::resize(const Grid_t& grid) {
   m_grid = &grid;
   for (int i = 0; i < N; i++) {
     m_data[i].resize(m_grid->extent());

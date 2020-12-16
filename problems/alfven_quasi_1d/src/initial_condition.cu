@@ -131,7 +131,7 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
   // num_per_cell.assign_dev(2 * mult);
   kernel_launch([q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
       // q_e *= 10.0;
-      auto &grid = dev_grid<Conf::dim>();
+      auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
       auto ext = grid.extent();
 
       for (auto n : grid_stride_range(0, ext.size())) {
@@ -217,7 +217,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   // kernel_launch(
   //     [num, mult, q_e, weight, wave] __device__(auto ptc, auto states, auto num_per_cell,
   //                                               auto cum_num_per_cell) {
-  //       auto &grid = dev_grid<Conf::dim>();
+  //       auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
   //       auto ext = grid.extent();
   //       int id = threadIdx.x + blockIdx.x * blockDim.x;
   //       cuda_rng_t rng(&states[id]);
@@ -263,7 +263,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   kernel_launch(
       [mult, mult_wave, num, q_e, wave, Bp, weight_enhance_factor]
       __device__(auto ptc, auto states, auto w, auto num_per_cell, auto cum_num_per_cell) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);

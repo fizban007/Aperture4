@@ -77,7 +77,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
   // First measure surface density
   kernel_launch(
       [ptc_num] __device__(auto ptc, auto surface_ne, auto surface_np) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
@@ -105,7 +105,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
   kernel_launch(
       [ptc_num, weight] __device__(auto ptc, auto surface_ne, auto surface_np,
                                    auto num_inj, auto states) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int inj_n0 = grid.skirt[0];
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -225,7 +225,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   // Apply twist on the stellar surface
   // kernel_launch(
   //     [time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
-  //       auto& grid = dev_grid<Conf::dim>();
+  //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
   //       auto ext = grid.extent();
   //       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
   //         value_t y = grid.template pos<1>(n1, false);
@@ -260,7 +260,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   kernel_launch(
       [] __device__(auto e, auto b, auto prev_e, auto prev_b, auto damping_length,
                     auto damping_coef) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto ext_damping = extent(damping_length, grid.dims[1]);
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {

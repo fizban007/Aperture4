@@ -41,7 +41,7 @@ compute_target_buffers(const uint32_t* cells, size_t num,
                        buffer<int>& buffer_num, size_t* index) {
   kernel_launch(
       [num] __device__(auto cells, auto buffer_num, auto index) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int zone_offset = 0;
         if (Conf::dim == 2)
@@ -74,7 +74,7 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
                          buffer<PtcPtrs>& ptc_buffers) {
   kernel_launch(
       [num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int bitshift_width = (sizeof(size_t) * 8 - 5);
         int zone_offset = 0;
@@ -259,23 +259,41 @@ particles_base<BufferType>::copy_to_comm_buffers(
 template class particles_base<ptc_buffer>;
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1>>& grid);
+    const grid_t<Config<1, float>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2>>& grid);
+    const grid_t<Config<1, double>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3>>& grid);
+    const grid_t<Config<2, float>>& grid);
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<2, double>>& grid);
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3, float>>& grid);
+template void particles_base<ptc_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3, double>>& grid);
 
 template class particles_base<ph_buffer>;
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1>>& grid);
+    const grid_t<Config<1, float>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2>>& grid);
+    const grid_t<Config<1, double>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3>>& grid);
+    const grid_t<Config<2, float>>& grid);
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<2, double>>& grid);
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3, float>>& grid);
+template void particles_base<ph_buffer>::copy_to_comm_buffers(
+    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    const grid_t<Config<3, double>>& grid);
 
 }  // namespace Aperture

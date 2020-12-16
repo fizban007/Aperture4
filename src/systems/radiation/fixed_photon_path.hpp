@@ -50,7 +50,7 @@ struct fixed_photon_path {
     ptc.E[tid] = gamma - Eph;
 
     // auto c = ptc.cell[tid];
-    // auto& grid = dev_grid<Conf::dim>();
+    // auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
     // auto idx = typename Conf::idx_t(c, grid.extent());
     // auto pos = idx.get_pos();
     // value_t theta = grid.pos<1>(pos[0], ptc.x2[tid]);

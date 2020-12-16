@@ -90,7 +90,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
   kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ptc_num] __device__(auto ptc, auto ph_count, auto ph_pos,
                            auto ph_produced, auto states, auto rad) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -156,7 +156,7 @@ radiative_transfer_cu<Conf, RadImpl>::emit_photons(double dt) {
                                    auto rad, auto tracked_frac) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto n : grid_stride_range(0, ptc_num)) {
@@ -202,7 +202,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
   kernel_launch({m_blocks_per_grid, m_threads_per_block},
       [ph_num] __device__(auto ph, auto pair_count, auto pair_pos,
                            auto pair_produced, auto states, auto rad) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -265,7 +265,7 @@ radiative_transfer_cu<Conf, RadImpl>::produce_pairs(double dt) {
                                    auto states, auto rad, auto tracked_frac) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto n : grid_stride_range(0, ph_num)) {

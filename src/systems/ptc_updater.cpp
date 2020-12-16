@@ -23,8 +23,8 @@
 #include "systems/physics/pushers.hpp"
 #include "utils/double_buffer.h"
 #include "utils/range.hpp"
-#include "utils/util_functions.h"
 #include "utils/timer.h"
+#include "utils/util_functions.h"
 #include <random>
 
 namespace Aperture {
@@ -51,8 +51,8 @@ ptc_updater<Conf>::init_charge_mass() {
 
 template <typename Conf>
 ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-                               const domain_comm<Conf>* comm) :
-    system_t(env), m_grid(grid), m_comm(comm) {
+                               const domain_comm<Conf>* comm)
+    : system_t(env), m_grid(grid), m_comm(comm) {
   m_env.params().get_value("fld_output_interval", m_data_interval);
   // By default, rho_interval is the same as field output interval
   m_rho_interval = m_data_interval;
@@ -78,7 +78,8 @@ template <typename Conf>
 void
 ptc_updater<Conf>::init() {
   // Allocate the tmp array for current filtering
-  jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(), MemType::host_only);
+  jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(),
+                                                        MemType::host_only);
 
   m_env.get_data_optional("photons", &ph);
   m_env.get_data_optional("Rho_ph", &rho_ph);
@@ -111,7 +112,7 @@ ptc_updater<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::push_default(double dt) {
+ptc_updater<Conf>::push_default(value_t dt) {
   // dispatch according to enum
   if (m_pusher == Pusher::boris) {
     auto pusher = pusher_impl_t<boris_pusher>{};
@@ -185,7 +186,6 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
   }
-
 }
 
 template <typename Conf>
@@ -226,8 +226,8 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
       // step 1: Move particles
       auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
-      Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
-             gamma = ptc->E[n];
+      value_t v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
+              gamma = ptc->E[n];
 
       v1 /= gamma;
       v2 /= gamma;
@@ -251,10 +251,10 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
       int i_0 = (dc1 == -1 ? -spline_t::radius : 1 - spline_t::radius);
       int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
-      Scalar djx = 0.0f;
+      value_t djx = 0.0f;
       for (int i = i_0; i <= i_1; i++) {
-        Scalar sx0 = interp(-x1 + i);
-        Scalar sx1 = interp(-new_x1 + i);
+        value_t sx0 = interp(-x1 + i);
+        value_t sx1 = interp(-new_x1 + i);
 
         // j1 is movement in x1
         int offset = i + pos[0] - dc1;
@@ -263,7 +263,7 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
         // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
         // j2 is simply v2 times rho at center
-        Scalar val1 = 0.5f * (sx0 + sx1);
+        value_t val1 = 0.5f * (sx0 + sx1);
         (*J)[1][offset] += weight * v2 * val1;
 
         // j3 is simply v3 times rho at center
@@ -295,8 +295,8 @@ ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
         // step 1: Move particles
         auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
-        Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
-            gamma = ptc->E[n];
+        value_t v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
+                gamma = ptc->E[n];
 
         v1 /= gamma;
         v2 /= gamma;
@@ -326,15 +326,15 @@ ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         int i_1 = (dc1 == 1 ? spline_t::radius + 1 : spline_t::radius);
         int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
         int j_1 = (dc2 == 1 ? spline_t::radius + 1 : spline_t::radius);
-        Scalar djy[2 * spline_t::radius + 1] = {};
+        value_t djy[2 * spline_t::radius + 1] = {};
         for (int j = j_0; j <= j_1; j++) {
-          Scalar sy0 = interp(-x2 + j);
-          Scalar sy1 = interp(-new_x2 + j);
+          value_t sy0 = interp(-x2 + j);
+          value_t sy1 = interp(-new_x2 + j);
 
-          Scalar djx = 0.0f;
+          value_t djx = 0.0f;
           for (int i = i_0; i <= i_1; i++) {
-            Scalar sx0 = interp(-x1 + i);
-            Scalar sx1 = interp(-new_x1 + i);
+            value_t sx0 = interp(-x1 + i);
+            value_t sx1 = interp(-new_x1 + i);
 
             // j1 is movement in x1
             auto offset = idx.inc_x(i).inc_y(j);
@@ -377,8 +377,8 @@ ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
         // step 1: Move particles
         auto x1 = ptc->x1[n], x2 = ptc->x2[n], x3 = ptc->x3[n];
-        Scalar v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
-            gamma = ptc->E[n];
+        value_t v1 = ptc->p1[n], v2 = ptc->p2[n], v3 = ptc->p3[n],
+                gamma = ptc->E[n];
 
         v1 /= gamma;
         v2 /= gamma;
@@ -415,20 +415,20 @@ ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
         int k_0 = (dc3 == -1 ? -spline_t::radius : 1 - spline_t::radius);
         int k_1 = (dc3 == 1 ? spline_t::radius + 1 : spline_t::radius);
 
-        Scalar djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
+        value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};
         for (int k = k_0; k <= k_1; k++) {
-          Scalar sz0 = interp(-x3 + k);
-          Scalar sz1 = interp(-new_x3 + k);
+          value_t sz0 = interp(-x3 + k);
+          value_t sz1 = interp(-new_x3 + k);
 
-          Scalar djy[2 * spline_t::radius + 1] = {};
+          value_t djy[2 * spline_t::radius + 1] = {};
           for (int j = j_0; j <= j_1; j++) {
-            Scalar sy0 = interp(-x2 + j);
-            Scalar sy1 = interp(-new_x2 + j);
+            value_t sy0 = interp(-x2 + j);
+            value_t sy1 = interp(-new_x2 + j);
 
-            Scalar djx = 0.0f;
+            value_t djx = 0.0f;
             for (int i = i_0; i <= i_1; i++) {
-              Scalar sx0 = interp(-x1 + i);
-              Scalar sx1 = interp(-new_x1 + i);
+              value_t sx0 = interp(-x1 + i);
+              value_t sx1 = interp(-new_x1 + i);
 
               // j1 is movement in x1
               auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
@@ -496,8 +496,7 @@ template <typename Conf>
 void
 ptc_updater<Conf>::sort_particles() {
   ptc->sort_by_cell_host(m_grid.extent().size());
-  if (ph != nullptr)
-    ph->sort_by_cell_host(m_grid.extent().size());
+  if (ph != nullptr) ph->sort_by_cell_host(m_grid.extent().size());
 }
 
 template <typename Conf>
@@ -541,15 +540,13 @@ ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
     this->filter_field(*J, 1);
     this->filter_field(*J, 2);
 
-    if (m_comm != nullptr)
-      m_comm->send_guard_cells(*J);
+    if (m_comm != nullptr) m_comm->send_guard_cells(*J);
 
     // if ((step + 1) % m_data_interval == 0) {
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         this->filter_field(*Rho[sp]);
-        if (m_comm != nullptr)
-          m_comm->send_guard_cells(*Rho[sp]);
+        if (m_comm != nullptr) m_comm->send_guard_cells(*Rho[sp]);
       }
     }
   }
@@ -565,8 +562,9 @@ ptc_updater<Conf>::filter_field(scalar_field<Conf>& f) {}
 
 #include "ptc_updater_impl.hpp"
 
-template class ptc_updater<Config<1>>;
-template class ptc_updater<Config<2>>;
-template class ptc_updater<Config<3>>;
+// template class ptc_updater<Config<1>>;
+// template class ptc_updater<Config<2>>;
+// template class ptc_updater<Config<3>>;
+INSTANTIATE_WITH_CONFIG(ptc_updater);
 
 }  // namespace Aperture

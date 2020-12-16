@@ -134,7 +134,7 @@ struct alfven_wave_solution {
 //   auto num = ptc.number();
 //   kernel_launch(
 //       [num, mult, weight] __device__(auto ptc, auto states) {
-//         auto &grid = dev_grid<Conf::dim>();
+//         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
 //         auto ext = grid.extent();
 //         int id = threadIdx.x + blockIdx.x * blockDim.x;
 //         cuda_rng_t rng(&states[id]);
@@ -199,7 +199,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   kernel_launch(
       [mult, num, q_e, wave, Bp] __device__(auto ptc, auto states, auto w) {
         // int mult = 1;
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);

@@ -19,6 +19,7 @@
 #define __CONFIG_H_
 
 #include "core/enum_types.h"
+#include "core/grid.hpp"
 #include "core/multi_array.hpp"
 #include "core/ndptr.hpp"
 #include "core/particles.h"
@@ -63,6 +64,7 @@ class Config {
       ndptr_const<FloatT, Dim, Idx_t<Dim>>;  //!< The const ndptr type
   using buffer_t = buffer<FloatT>;           //!< The buffer type
   using spline_t = bspline<InterpOrder>;     //!< The interpolation b-spline type
+  using grid_t = Grid<Dim, FloatT>;          //!< The grid type
 
   /// Construct and return a multi_array.
   /**
@@ -126,9 +128,12 @@ class Config {
 
 // Define a macro to help instantiate classes with config
 #define INSTANTIATE_WITH_CONFIG(class_name) \
-  template class class_name<Config<1>>;     \
-  template class class_name<Config<2>>;     \
-  template class class_name<Config<3>>
+  template class class_name<Config<1, float>>;     \
+  template class class_name<Config<2, float>>;     \
+  template class class_name<Config<3, float>>;     \
+  template class class_name<Config<1, double>>;     \
+  template class class_name<Config<2, double>>;     \
+  template class class_name<Config<3, double>>
 
 }  // namespace Aperture
 

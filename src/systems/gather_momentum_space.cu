@@ -41,7 +41,7 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
       [num, num_bins, lower, upper] __device__(auto ptc, auto e_p1, auto e_p2,
                                                auto e_p3, auto p_p1, auto p_p2,
                                                auto p_p3, int downsample) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto ext_out = grid.extent_less() / downsample;
         using idx_t = default_idx_t<Conf::dim + 1>;

@@ -60,7 +60,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
   auto ext = grid.extent();
   kernel_launch(
       [coef, ext] __device__(auto result, auto b, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
           auto pos = idx.get_pos();
@@ -120,7 +120,7 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
   auto ext = grid.extent();
   kernel_launch(
       [alpha, beta, dt, ext] __device__(auto result, auto e, auto j, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
@@ -166,7 +166,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
   auto ext = grid.extent();
   kernel_launch(
       [dt, ext] __device__(auto result, auto b, auto j, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
@@ -220,7 +220,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
   auto ext = grid.extent();
   kernel_launch(
       [dt, ext] __device__(auto result, auto e, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
@@ -253,7 +253,7 @@ axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [ext] __device__(auto e) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
@@ -290,7 +290,7 @@ axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [ext] __device__(auto b) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
@@ -329,7 +329,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
   typedef typename Conf::value_t value_t;
   kernel_launch(
       [ext, damping_length, damping_coef] __device__(auto e, auto b) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
           for (int i = 0; i < damping_length - 1; i++) {
@@ -361,7 +361,7 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
   kernel_launch(
       [ext] __device__(auto divE, auto divB, auto e, auto b, auto gp,
                        auto is_boundary) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
@@ -407,7 +407,7 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
   auto ext = grid.extent();
   kernel_launch(
       [ext] __device__(auto flux, auto b, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
                n1++) {

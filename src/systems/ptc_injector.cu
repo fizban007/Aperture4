@@ -81,7 +81,7 @@ namespace Aperture {
 //   kernel_launch(
 //       [target_sigma] __device__(auto sigma, auto b, auto num_per_cell,
 //                                 auto dv_ptr, auto states) {
-//         auto &grid = dev_grid<Conf::dim>();
+//         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
 //         auto ext = grid.extent();
 //         auto interp = lerp<Conf::dim>{};
 //         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -141,7 +141,7 @@ compute_n_ptc(typename Conf::multi_array_t &n_ptc, particle_data_t &ptc,
 
   kernel_launch(
       [ptc_num, region_ext] __device__(auto ptc, auto n_ptc, auto begin) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
@@ -173,7 +173,7 @@ inject_pairs(const multi_array<int, Conf::dim> &num_per_cell,
   kernel_launch(
       [ptc_num, weight, f] __device__(auto ptc, auto ptc_density, auto num_per_cell, auto cum_num,
                                       auto states) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
@@ -292,8 +292,9 @@ ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
   }
 }
 
-template class ptc_injector_cu<Config<1>>;
-template class ptc_injector_cu<Config<2>>;
-template class ptc_injector_cu<Config<3>>;
+// template class ptc_injector_cu<Config<1>>;
+// template class ptc_injector_cu<Config<2>>;
+// template class ptc_injector_cu<Config<3>>;
+INSTANTIATE_WITH_CONFIG(ptc_injector_cu);
 
 }  // namespace Aperture

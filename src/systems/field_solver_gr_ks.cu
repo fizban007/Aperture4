@@ -35,7 +35,7 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto D) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
@@ -67,7 +67,7 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
   typedef typename Conf::idx_t idx_t;
   kernel_launch(
       [] __device__(auto B) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           // for (int n1_0 = grid.guard[1]; n1_0 >= 0; n1_0--) {
@@ -107,7 +107,7 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
 
   kernel_launch(
       [boundary_cell] __device__(auto D, auto B, auto grid_ptrs, auto a) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           auto pos = index_t<2>(boundary_cell, n1);
@@ -135,7 +135,7 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
   auto ext = grid.extent();
   kernel_launch(
       [ext] __device__(auto flux, auto b, auto a, auto grid_ptrs) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(n0, true));
 
@@ -160,7 +160,7 @@ compute_divs(scalar_field<Conf> &divD, scalar_field<Conf> &divB,
              const grid_ks_t<Conf> &grid) {
   kernel_launch(
       [] __device__(auto div_e, auto e, auto div_b, auto b, auto grid_ptrs) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
@@ -205,7 +205,7 @@ damping_boundary(vector_field<Conf> &E, vector_field<Conf> &B,
   kernel_launch(
       [damping_length, damping_coef] __device__(auto e, auto b, auto e0,
                                                 auto b0) {
-        auto &grid = dev_grid<Conf::dim>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n1 :
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
@@ -276,7 +276,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                              auto nextB, auto grid_ptrs) {
     using namespace Metric_KS;
 
-    auto &grid = dev_grid<Conf::dim>();
+    auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
     auto ext = grid.extent();
     auto alpha = 1.0f - beta;
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -405,7 +405,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                              auto nextB, auto J, auto grid_ptrs) {
     using namespace Metric_KS;
 
-    auto &grid = dev_grid<Conf::dim>();
+    auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
     auto ext = grid.extent();
     auto alpha = 1.0f - beta;
     for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -649,6 +649,7 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
-template class field_solver_gr_ks_cu<Config<2>>;
+template class field_solver_gr_ks_cu<Config<2, float>>;
+template class field_solver_gr_ks_cu<Config<2, double>>;
 
 }  // namespace Aperture

@@ -130,7 +130,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
 }
 
 template <typename Conf>
-void domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
+void domain_comm<Conf>::resize_buffers(const typename Conf::grid_t &grid) const {
   if (m_buffers_ready)
     return;
   for (int i = 0; i < Conf::dim; i++) {
@@ -169,7 +169,7 @@ void domain_comm<Conf>::resize_buffers(const Grid<Conf::dim> &grid) const {
 
 template <typename Conf>
 void domain_comm<Conf>::send_array_guard_cells_single_dir(
-    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
+    typename Conf::multi_array_t &array, const typename Conf::grid_t &grid, int dim,
     int dir) const {
   if (dim < 0 || dim >= Conf::dim)
     return;
@@ -243,7 +243,7 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
 
 template <typename Conf>
 void domain_comm<Conf>::send_add_array_guard_cells_single_dir(
-    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid, int dim,
+    typename Conf::multi_array_t &array, const typename Conf::grid_t &grid, int dim,
     int dir) const {
   if (dim < 0 || dim >= Conf::dim)
     return;
@@ -328,7 +328,7 @@ void domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {
 
 template <typename Conf>
 void domain_comm<Conf>::send_guard_cells(typename Conf::multi_array_t &array,
-                                         const Grid<Conf::dim> &grid) const {
+                                         const typename Conf::grid_t &grid) const {
   send_array_guard_cells_single_dir(array, grid, 0, -1);
   send_array_guard_cells_single_dir(array, grid, 0, 1);
   send_array_guard_cells_single_dir(array, grid, 1, -1);
@@ -355,7 +355,7 @@ void domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {
 
 template <typename Conf>
 void domain_comm<Conf>::send_add_guard_cells(
-    typename Conf::multi_array_t &array, const Grid<Conf::dim> &grid) const {
+    typename Conf::multi_array_t &array, const typename Conf::grid_t &grid) const {
   send_add_array_guard_cells_single_dir(array, grid, 0, -1);
   send_add_array_guard_cells_single_dir(array, grid, 0, 1);
   send_add_array_guard_cells_single_dir(array, grid, 1, -1);
@@ -629,14 +629,21 @@ buffer<ph_ptrs> &domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
 }
 
 // Explicitly instantiate some of the configurations that may occur
-template class domain_comm<Config<1>>;
-template void domain_comm<Config<1>>::gather_to_root(buffer<float> &buf) const;
-template void domain_comm<Config<1>>::gather_to_root(buffer<double> &buf) const;
-template class domain_comm<Config<2>>;
-template void domain_comm<Config<2>>::gather_to_root(buffer<float> &buf) const;
-template void domain_comm<Config<2>>::gather_to_root(buffer<double> &buf) const;
-template class domain_comm<Config<3>>;
-template void domain_comm<Config<3>>::gather_to_root(buffer<float> &buf) const;
-template void domain_comm<Config<3>>::gather_to_root(buffer<double> &buf) const;
+// template class domain_comm<Config<1>>;
+INSTANTIATE_WITH_CONFIG(domain_comm);
+template void domain_comm<Config<1, float>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<1, float>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<1, double>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<1, double>>::gather_to_root(buffer<double> &buf) const;
+// template class domain_comm<Config<2>>;
+template void domain_comm<Config<2, float>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<2, float>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<2, double>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<2, double>>::gather_to_root(buffer<double> &buf) const;
+// template class domain_comm<Config<3>>;
+template void domain_comm<Config<3, float>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<3, float>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<3, double>>::gather_to_root(buffer<float> &buf) const;
+template void domain_comm<Config<3, double>>::gather_to_root(buffer<double> &buf) const;
 
 } // namespace Aperture

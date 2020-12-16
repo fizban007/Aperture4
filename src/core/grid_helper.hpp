@@ -26,12 +26,12 @@
 namespace Aperture {
 
 template <typename Conf>
-HD_INLINE typename Conf::idx_t grid_get_idx(Grid<Conf::dim>& grid, uint32_t cell) {
+HD_INLINE typename Conf::idx_t grid_get_idx(typename Conf::grid_t& grid, uint32_t cell) {
   return Conf::idx(cell, grid.extent());
 }
 
 template <typename Conf>
-HD_INLINE index_t<Conf::dim> grid_get_pos(Grid<Conf::dim>& grid, uint32_t cell) {
+HD_INLINE index_t<Conf::dim> grid_get_pos(typename Conf::grid_t& grid, uint32_t cell) {
   auto idx = Conf::idx(cell, grid.extent());
   return idx.get_pos();
 }

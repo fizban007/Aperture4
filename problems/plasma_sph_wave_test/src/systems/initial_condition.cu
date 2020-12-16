@@ -42,7 +42,7 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
 
     kernel_launch(
         [num] __device__(auto ptc, auto states, auto mult, auto weight) {
-          auto& grid = dev_grid<Conf::dim>();
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           int id = threadIdx.x + blockIdx.x * blockDim.x;
           cuda_rng_t rng(&states[id]);

@@ -52,18 +52,13 @@ enum field_type : char {
 ////////////////////////////////////////////////////////////////////////////////
 template <int N, typename Conf>
 class field_t : public data_t {
- private:
-  std::array<typename Conf::multi_array_t, N> m_data;
-  vec_t<stagger_t, N> m_stagger;
-  const Grid<Conf::dim>* m_grid = nullptr;
-  MemType m_memtype;
-
  public:
+  using Grid_t = typename Conf::grid_t;
   field_t(MemType memtype = default_mem_type) : m_memtype(memtype) {}
-  field_t(const Grid<Conf::dim>& grid, MemType memtype = default_mem_type);
-  field_t(const Grid<Conf::dim>& grid, const vec_t<stagger_t, N> st,
+  field_t(const Grid_t& grid, MemType memtype = default_mem_type);
+  field_t(const Grid_t& grid, const vec_t<stagger_t, N> st,
           MemType memtype = default_mem_type);
-  field_t(const Grid<Conf::dim>& grid, field_type type,
+  field_t(const Grid_t& grid, field_type type,
           MemType memtype = default_mem_type);
 
   field_t(const field_t<N, Conf>& other) = delete;
@@ -74,7 +69,7 @@ class field_t : public data_t {
 
   void init() override;
 
-  void resize(const Grid<Conf::dim>& grid);
+  void resize(const Grid_t& grid);
   void assign_dev(const typename Conf::value_t& value);
   void assign_host(const typename Conf::value_t& value);
   void assign(const typename Conf::value_t& value);
@@ -167,7 +162,13 @@ class field_t : public data_t {
   }
   typename Conf::ndptr_t dev_ndptr(int n = 0) { return m_data[n].dev_ndptr(); }
 
-  const Grid<Conf::dim>& grid() const { return *m_grid; }
+  const Grid_t& grid() const { return *m_grid; }
+
+ private:
+  std::array<typename Conf::multi_array_t, N> m_data;
+  vec_t<stagger_t, N> m_stagger;
+  const typename Conf::grid_t* m_grid = nullptr;
+  MemType m_memtype;
 };
 
 template <typename Conf>

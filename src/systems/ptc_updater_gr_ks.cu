@@ -109,7 +109,7 @@ process_j_rho(vector_field<Conf>& j,
               typename Conf::value_t dt) {
   kernel_launch(
       [dt, num_species] __device__(auto j, auto rho, auto grid_ptrs) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
@@ -133,7 +133,7 @@ process_j_rho(vector_field<Conf>& j,
   // TODO: Is this necessary?
   // auto a = grid.a;
   // kernel_launch([a, dt, num_species] __device__(auto j, auto rho, auto grid_ptrs) {
-  //       auto& grid = dev_grid<Conf::dim>();
+  //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
   //       auto ext = grid.extent();
   //       for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
   //         auto pos = get_pos(idx, ext);
@@ -160,7 +160,7 @@ ptc_outflow(particle_data_t& ptc, const grid_ks_t<Conf>& grid,
   auto ptc_num = ptc.number();
   kernel_launch(
       [ptc_num, damping_length] __device__(auto ptc, auto gp) {
-        auto& grid = dev_grid<Conf::dim>();
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
           if (c == empty_cell) continue;
@@ -215,7 +215,7 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
     auto ptc_kernel = [a, ptc_num, dt, step] __device__(
                           auto ptc, auto B, auto D, auto J, auto Rho,
                           auto rho_interval) {
-      auto &grid = dev_grid<Conf::dim>();
+      auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
       auto ext = grid.extent();
 
       for (auto n : grid_stride_range(0, ptc_num)) {
@@ -306,7 +306,7 @@ ptc_updater_gr_ks_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   if (ph_num > 0) {
     auto photon_kernel = [a, ph_num, dt, step] __device__(auto ph, auto rho_ph,
                                                           auto data_interval) {
-      auto &grid = dev_grid<Conf::dim>();
+      auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
       auto ext = grid.extent();
 
       for (size_t n : grid_stride_range(0, ph_num)) {

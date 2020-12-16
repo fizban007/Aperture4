@@ -37,7 +37,7 @@ class ptc_updater_pulsar : public ptc_updater_sph_cu<Conf> {
   ~ptc_updater_pulsar();
 
   void init() override;
-  void push_default(double dt) override;
+  void push_default(value_t dt) override;
 
  protected:
   pusher_impl_pulsar<boris_pusher>* m_impl_boris = nullptr;

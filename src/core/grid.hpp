@@ -27,18 +27,18 @@
 
 namespace Aperture {
 
-template <int Dim>
+template <int Dim, typename value_t>
 struct Grid {
   uint32_t dims[Dim];  //!< Dimensions of the grid of each direction
   int guard[Dim];      //!< Number of guard cells at either end of each
                        //!< direction
   int skirt[Dim];
 
-  Scalar delta[Dim];  //!< Grid spacing on each direction (spacing in
-                      //!< coordinate space)
-  Scalar inv_delta[Dim];
-  Scalar lower[Dim];  //!< Lower limit of the grid on each direction
-  Scalar sizes[Dim];  //!< Size of the grid in coordinate space
+  value_t delta[Dim];  //!< Grid spacing on each direction (spacing in
+                       //!< coordinate space)
+  value_t inv_delta[Dim];
+  value_t lower[Dim];  //!< Lower limit of the grid on each direction
+  value_t sizes[Dim];  //!< Size of the grid in coordinate space
 
   // int tileSize[Dim];
   int offset[Dim];
@@ -73,7 +73,7 @@ struct Grid {
   ///  defined for N >= 0 and N < Dim.
   template <int N>
       HD_INLINE std::enable_if_t <
-      N<Dim, Scalar> pos(int n, bool stagger) const {
+      N<Dim, value_t> pos(int n, bool stagger) const {
     return pos<N>(n, (int)stagger);
   }
 
@@ -88,8 +88,8 @@ struct Grid {
   ///  defined for N >= 0 and N < DIM.
   template <int N>
       HD_INLINE std::enable_if_t <
-      N<Dim, Scalar> pos(int n, int stagger) const {
-    return pos<N>(n, (Scalar)(0.5 - 0.5 * stagger));
+      N<Dim, value_t> pos(int n, int stagger) const {
+    return pos<N>(n, (value_t)(0.5 - 0.5 * stagger));
   }
 
   ///  Coordinate of a point inside cell n in dimension i.
@@ -103,46 +103,56 @@ struct Grid {
   ///  pos_in_cell
   template <int N>
       HD_INLINE std::enable_if_t <
-      N<Dim, Scalar> pos(int n, Scalar pos_in_cell) const {
+      N<Dim, value_t> pos(int n, value_t pos_in_cell) const {
     return (lower[N] + delta[N] * (n - skirt[N] + pos_in_cell));
   }
 
   template <int N>
-  HD_INLINE std::enable_if_t<N >= Dim, Scalar> pos(int n,
-                                                   Scalar pos_in_cell) const {
+  HD_INLINE std::enable_if_t<N >= Dim, value_t> pos(int n,
+                                                    value_t pos_in_cell) const {
     return pos_in_cell;
   }
 
-  HD_INLINE Scalar pos(int i, int n, Scalar pos_in_cell) const {
+  HD_INLINE value_t pos(int i, int n, value_t pos_in_cell) const {
     if (i < Dim)
       return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
     else
       return pos_in_cell;
   }
 
-  HD_INLINE Scalar pos(int i, int n, bool stagger) const {
-    return pos(i, n, (Scalar)(stagger ? 0.0 : 0.5));
+  HD_INLINE value_t pos(int i, int n, bool stagger) const {
+    return pos(i, n, (value_t)(stagger ? 0.0 : 0.5));
   }
 
   template <int N>
-  HD_INLINE Scalar pos(const index_t<Dim>& idx, Scalar pos_in_cell) const {
+  HD_INLINE value_t pos(const index_t<Dim>& idx, value_t pos_in_cell) const {
     return pos<N>(idx[N], pos_in_cell);
   }
 
   template <int N>
-  HD_INLINE Scalar pos(const index_t<Dim>& idx, stagger_t st) const {
+  HD_INLINE value_t pos(const index_t<Dim>& idx, stagger_t st) const {
     return pos<N>(idx[N], st[N]);
   }
 
-  template <typename value_t = Scalar>
-  HD_INLINE vec_t<value_t, 3> pos_global(
-      const index_t<Dim>& idx, const vec_t<value_t, 3>& rel_pos) const {
-    vec_t<value_t, 3> result = rel_pos;
+  // template <typename value_t = Scalar>
+  HD_INLINE vec_t<value_t, 3> pos_global(const index_t<Dim>& idx,
+                                         const vec_t<value_t, 3>& rel_x) const {
+    vec_t<value_t, 3> result = rel_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      result[i] = pos(i, idx[i], rel_pos[i]);
+      result[i] = pos(i, idx[i], rel_x[i]);
     }
     return result;
+  }
+
+  HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
+                             index_t<Dim>& idx,
+                             vec_t<value_t, 3>& rel_x) const {
+    rel_x = global_x;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+
+    }
   }
 
   ///  Find the zone the cell belongs to (for communication purposes)

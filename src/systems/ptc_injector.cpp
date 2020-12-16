@@ -81,8 +81,9 @@ template <typename Conf>
 void
 ptc_injector<Conf>::register_data_components() {}
 
-template class ptc_injector<Config<1>>;
-template class ptc_injector<Config<2>>;
-template class ptc_injector<Config<3>>;
+// template class ptc_injector<Config<1>>;
+// template class ptc_injector<Config<2>>;
+// template class ptc_injector<Config<3>>;
+INSTANTIATE_WITH_CONFIG(ptc_injector);
 
 }  // namespace Aperture

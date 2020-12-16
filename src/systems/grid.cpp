@@ -73,7 +73,7 @@ grid_t<Conf>::grid_t(sim_environment& env,
 
   // Copy the grid parameters to gpu
 #ifdef CUDA_ENABLED
-  init_dev_grid<Conf::dim>(*this);
+  init_dev_grid<Conf::dim, typename Conf::value_t>(*this);
 #endif
 }
 

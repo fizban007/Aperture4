@@ -21,7 +21,7 @@
 template <typename Conf>
 template <typename P>
 void
-ptc_updater<Conf>::push(double dt, P& pusher) {
+ptc_updater<Conf>::push(value_t dt, P& pusher) {
   auto num = ptc->number();
   auto ext = m_grid.extent();
   if (num > 0) {
@@ -35,7 +35,7 @@ ptc_updater<Conf>::push(double dt, P& pusher) {
       auto flag = ptc->flag[n];
       int sp = get_ptc_type(flag);
 
-      Scalar qdt_over_2m = dt * 0.5f * m_q_over_m[sp];
+      value_t qdt_over_2m = dt * 0.5f * m_q_over_m[sp];
 
       auto x = vec_t<value_t, 3>(ptc->x1[n], ptc->x2[n], ptc->x3[n]);
       //  Grab E & M fields at the particle position
@@ -52,8 +52,7 @@ ptc_updater<Conf>::push(double dt, P& pusher) {
 
       //  Push particles
       if (!check_flag(flag, PtcFlag::ignore_EM)) {
-        pusher(ptc->get_host_ptrs(), n, EB, qdt_over_2m,
-               (Scalar)dt);
+        pusher(ptc->get_host_ptrs(), n, EB, qdt_over_2m, dt);
       }
 
       // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
@@ -72,5 +71,4 @@ ptc_updater<Conf>::push(double dt, P& pusher) {
   }
 }
 
-
-#endif // __PTC_UPDATER_IMPL_H_
+#endif  // __PTC_UPDATER_IMPL_H_

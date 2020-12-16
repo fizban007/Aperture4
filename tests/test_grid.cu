@@ -29,7 +29,7 @@ using namespace Aperture;
 
 TEST_CASE("Using grid", "[grid]") {
   SECTION("1D grid") {
-    Grid<1> g1;
+    Grid<1, float> g1;
 
     g1.dims[0] = 12;
     g1.guard[0] = 2;
@@ -51,7 +51,7 @@ TEST_CASE("Using grid", "[grid]") {
   }
 
   SECTION("2D grid") {
-    Grid<2> g2;
+    Grid<2, float> g2;
 
     for (int i = 0; i < 2; i++) {
       g2.dims[i] = 12;
@@ -87,7 +87,7 @@ TEST_CASE("Using grid", "[grid]") {
 }
 
 TEST_CASE("Kernels with grid", "[grid][kernel]") {
-  Grid<3> g3;
+  Grid<3, float> g3;
 
   for (int i = 0; i < 3; i++) {
     g3.dims[i] = 12;
@@ -101,7 +101,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 
   kernel_launch(
       exec_policy(1, 1),
-      [] __device__(Grid<3> g) {
+      [] __device__(Grid<3, float> g) {
         if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
       },
       g3);
@@ -111,7 +111,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   Logger::init(0, LogLevel::debug);
   sim_environment env;
-  typedef Config<3> Conf;
+  typedef Config<3, float> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
   env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -123,8 +123,8 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
-    printf("N is %ux%ux%u\n", dev_grid<3>().reduced_dim(0),
-           dev_grid<3>().reduced_dim(1), dev_grid<3>().reduced_dim(1));
+    printf("N is %ux%ux%u\n", dev_grid<3, float>().reduced_dim(0),
+           dev_grid<3, float>().reduced_dim(1), dev_grid<3, float>().reduced_dim(1));
   });
   CudaSafeCall(cudaDeviceSynchronize());
 }

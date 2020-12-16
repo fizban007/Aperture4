@@ -34,8 +34,8 @@ int main(int argc, char *argv[]) {
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
   env.params().add("max_ptc_num", 60000000l);
 
-  auto grid = env.register_system<grid_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, *grid);
+  auto grid = env.register_system<grid_ks_t<Conf>>(env);
+  auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(env, *grid);
 
   env.init();
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   double t = 0.0;
   for (int i = 0; i < N; i++) {
     timer::stamp();
-    pusher->push_default(0.1);
+    pusher->update_particles(0.001, 0);
     double dt = 0.001 * timer::get_duration_since_stamp("us");
     t += dt;
     if (i % 10 == 0)

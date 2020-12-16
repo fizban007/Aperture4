@@ -322,7 +322,9 @@ ptc_updater_gr_ks_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_gr_ks_cu<Conf>::fill_multiplicity(int mult, value_t weight) {}
+ptc_updater_gr_ks_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
+  ptc_updater_cu<Conf>::fill_multiplicity(mult, weight);
+}
 
 template class ptc_updater_gr_ks_cu<Config<2>>;
 

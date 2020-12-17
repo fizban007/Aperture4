@@ -346,6 +346,9 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
       if (n != N) {
         outfile << "," << std::endl;
       }
+      if (name == "RKA3") {
+        Logger::print_info("cylindrical radius is {}", x[0] * sth);
+      }
     }
     if (n == N) {
       Scalar u_0_now = u[0] * Metric_KS::beta1(a, x[0], x[1]) -

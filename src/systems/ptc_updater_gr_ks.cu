@@ -30,38 +30,39 @@ namespace Aperture {
 
 namespace {
 
+template <typename value_t>
 HOST_DEVICE void
-gr_ks_boris_update(Scalar a, const vec_t<Scalar, 3> &x, vec_t<Scalar, 3> &u,
-                   const vec_t<Scalar, 3> &B, const vec_t<Scalar, 3> &D,
-                   Scalar dt, Scalar e_over_m) {
-  Scalar sth = math::sin(x[1]);
-  Scalar cth = math::cos(x[1]);
+gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
+                   const vec_t<value_t, 3> &B, const vec_t<value_t, 3> &D,
+                   value_t dt, value_t e_over_m) {
+  value_t sth = math::sin(x[1]);
+  value_t cth = math::cos(x[1]);
 
-  Scalar g_13 = Metric_KS::g_13(a, x[0], sth, cth);
-  Scalar g_11 = Metric_KS::g_11(a, x[0], sth, cth);
-  Scalar g_22 = Metric_KS::g_22(a, x[0], sth, cth);
-  Scalar g_33 = Metric_KS::g_33(a, x[0], sth, cth);
-  Scalar gu11 = Metric_KS::gu11(a, x[0], sth, cth);
-  Scalar gu22 = Metric_KS::gu22(a, x[0], sth, cth);
-  Scalar gu33 = Metric_KS::gu33(a, x[0], sth, cth);
-  Scalar gu13 = Metric_KS::gu13(a, x[0], sth, cth);
-  Scalar sqrtg = Metric_KS::sqrt_gamma(a, x[0], sth, cth);
+  value_t g_13 = Metric_KS::g_13(a, x[0], sth, cth);
+  value_t g_11 = Metric_KS::g_11(a, x[0], sth, cth);
+  value_t g_22 = Metric_KS::g_22(a, x[0], sth, cth);
+  value_t g_33 = Metric_KS::g_33(a, x[0], sth, cth);
+  value_t gu11 = Metric_KS::gu11(a, x[0], sth, cth);
+  value_t gu22 = Metric_KS::gu22(a, x[0], sth, cth);
+  value_t gu33 = Metric_KS::gu33(a, x[0], sth, cth);
+  value_t gu13 = Metric_KS::gu13(a, x[0], sth, cth);
+  value_t sqrtg = Metric_KS::sqrt_gamma(a, x[0], sth, cth);
 
-  vec_t<Scalar, 3> D_l = 0.0f;
+  vec_t<value_t, 3> D_l = 0.0f;
   D_l[0] = g_11 * D[0] + g_13 * D[2];
   D_l[1] = g_22 * D[1];
   D_l[2] = g_33 * D[2] + g_13 * D[0];
   D_l *= 0.5f * dt * e_over_m * Metric_KS::alpha(a, x[0], sth, cth);
 
-  vec_t<Scalar, 3> u_minus = u + D_l;
+  vec_t<value_t, 3> u_minus = u + D_l;
 
-  vec_t<Scalar, 3> t =
+  vec_t<value_t, 3> t =
       B * 0.5f * dt * e_over_m / Metric_KS::u0(a, x[0], sth, cth, u_minus);
-  Scalar t2 = g_11 * t[0] * t[0] + g_22 * t[1] * t[1] + g_33 * t[2] * t[2] +
+  value_t t2 = g_11 * t[0] * t[0] + g_22 * t[1] * t[1] + g_33 * t[2] * t[2] +
               2.0f * g_13 * t[0] * t[2];
-  Scalar s = 2.0f / (1.0f + t2);
+  value_t s = 2.0f / (1.0f + t2);
 
-  vec_t<Scalar, 3> u_prime = u_minus;
+  vec_t<value_t, 3> u_prime = u_minus;
   u_prime[0] += sqrtg * (gu22 * u_minus[1] * t[2] -
                          (gu33 * u_minus[2] + gu13 * u_minus[0]) * t[1]);
   u_prime[1] += sqrtg * ((gu33 * u_minus[2] + gu13 * u_minus[0]) * t[0] -
@@ -84,12 +85,13 @@ gr_ks_boris_update(Scalar a, const vec_t<Scalar, 3> &x, vec_t<Scalar, 3> &u,
           s;
 }
 
+template <typename value_t>
 HOST_DEVICE void
-gr_ks_geodesic_advance(Scalar a, Scalar dt, vec_t<Scalar, 3> &x,
-                       vec_t<Scalar, 3> &u, bool is_photon = false,
+gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
                        int n_iter = 3) {
-  vec_t<Scalar, 3> x0 = x, x1 = x;
-  vec_t<Scalar, 3> u0 = u, u1 = u;
+  vec_t<value_t, 3> x0 = x, x1 = x;
+  vec_t<value_t, 3> u0 = u, u1 = u;
 
   for (int i = 0; i < n_iter; i++) {
     auto x_tmp = (x0 + x) * 0.5;
@@ -114,41 +116,20 @@ process_j_rho(vector_field<Conf>& j,
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
           // if (grid.is_in_bound(pos)) {
-          auto w = grid.delta[0] * grid.delta[1] / dt;
-          j[0][idx] *= w / grid_ptrs.Ad[0][idx];
-          j[1][idx] *= w / grid_ptrs.Ad[1][idx];
-          j[2][idx] *= grid.delta[0] * grid.delta[1] / grid_ptrs.Ad[2][idx];
+          j[0][idx] /= grid_ptrs.Ad[0][idx] * dt;
+          j[1][idx] /= grid_ptrs.Ad[1][idx] * dt;
+          j[2][idx] /= grid_ptrs.Ad[2][idx];
           for (int n = 0; n < num_species; n++) {
-            rho[n][idx] *= grid.delta[0] * grid.delta[1] / grid_ptrs.Ad[2][idx];
+            rho[n][idx] /= grid_ptrs.Ad[2][idx]; // A_phi is effectively dV
           }
           // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (math::abs(theta) < 0.1 * grid.delta[1]) {
-            // j[1][idx] = 0.0;
             j[2][idx] = 0.0;
           }
         }
       },
       j.get_ptrs(), rho_ptrs.dev_ptr(), grid.get_grid_ptrs());
-  // TODO: Is this necessary?
-  // auto a = grid.a;
-  // kernel_launch([a, dt, num_species] __device__(auto j, auto rho, auto grid_ptrs) {
-  //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-  //       auto ext = grid.extent();
-  //       for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-  //         auto pos = get_pos(idx, ext);
-  //         Scalar r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
-  //         Scalar th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
-  //         auto sth = math::sin(th);
-  //         auto cth = math::cos(th);
-
-  //         Scalar rho_total = 0.0f;
-  //         for (int n = 0; n < num_species; n++) {
-  //           rho_total += 0.5f * (rho[n][idx] + rho[n][idx.inc_x()]);
-  //         }
-  //         j[0][idx] -= Metric_KS::beta1(a, r, sth, cth) * rho_total;
-  //       }
-  //   }, j.get_ptrs(), rho_ptrs.dev_ptr(), grid.get_grid_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -250,11 +231,15 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
           Bp[0] = interp(B[0], x, idx, stagger_t(0b001));
           Bp[1] = interp(B[1], x, idx, stagger_t(0b010));
           Bp[2] = interp(B[2], x, idx, stagger_t(0b100));
+          // This step only updates u
           gr_ks_boris_update(a, x_global, u, Bp, Dp, dt, q_over_m);
         }
 
         vec_t<value_t, 3> new_x = x_global;
+        // Both new_x and u are updated
         gr_ks_geodesic_advance(a, dt, new_x, u, false);
+
+        // printf("---- cylindrical radius is %f\n", new_x[0] * math::sin(new_x[1]));
         new_x[0] = x[0] + (grid_ks_t<Conf>::from_radius(new_x[0]) -
                            grid_ks_t<Conf>::from_radius(x_global[0])) *
                               grid.inv_delta[0];
@@ -264,10 +249,12 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
         vec_t<int, 2> dc = 0;
         dc[0] = math::floor(new_x[0]);
         dc[1] = math::floor(new_x[1]);
+        if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)
+          printf("----------------- Error: moved more than 1 cell!");
         pos[0] += dc[0];
         pos[1] += dc[1];
-        ptc.x1[n] = new_x[0] - (Scalar)dc[0];
-        ptc.x2[n] = new_x[1] - (Scalar)dc[1];
+        ptc.x1[n] = new_x[0] - (value_t)dc[0];
+        ptc.x2[n] = new_x[1] - (value_t)dc[1];
         ptc.x3[n] = new_x[2];
         ptc.cell[n] = idx_t(pos, ext).linear;
 
@@ -278,7 +265,7 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
                                  math::cos(x_global[1]), u);
 
         if (!check_flag(flag, PtcFlag::ignore_current)) {
-          auto weight = dev_charges[sp] * ptc.weight[n];
+          auto weight = dev_charges[sp] * ptc.weight[n] * grid.delta[0] * grid.delta[1];
 
           deposit_2d<spline_t>(x, new_x, dc, (new_x - x_global) / dt, J, Rho,
                                idx, weight, sp, true);

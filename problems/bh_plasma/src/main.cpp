@@ -77,8 +77,8 @@ main(int argc, char *argv[]) {
   auto ext = grid.extent();
   typename Conf::idx_t idx(pos, ext);
 
-  for (int i = 0; i < 1000; i++) {
-    ptc->append_dev(x, {0.57367015, 0.0, 1.565}, idx.linear, 1.0,
+  for (int i = 0; i < 1; i++) {
+    ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
                     set_ptc_type_flag(0, PtcType::positron));
     // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
   }

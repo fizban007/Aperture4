@@ -1,5 +1,6 @@
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(bh_plasma
+    "injector.cu"
     "initial_condition.cu"
     "main.cpp"
     )

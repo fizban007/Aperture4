@@ -117,9 +117,9 @@ process_j_rho(vector_field<Conf>& j,
           auto w = grid.delta[0] * grid.delta[1] / dt;
           j[0][idx] *= w / grid_ptrs.Ad[0][idx];
           j[1][idx] *= w / grid_ptrs.Ad[1][idx];
-          j[2][idx] /= grid_ptrs.Ad[2][idx];
+          j[2][idx] *= grid.delta[0] * grid.delta[1] / grid_ptrs.Ad[2][idx];
           for (int n = 0; n < num_species; n++) {
-            rho[n][idx] /= grid_ptrs.Ad[2][idx];
+            rho[n][idx] *= grid.delta[0] * grid.delta[1] / grid_ptrs.Ad[2][idx];
           }
           // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
@@ -208,8 +208,12 @@ void
 ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
   value_t a = m_a;
   auto ptc_num = this->ptc->number();
+  Logger::print_info("Pushing {} particles in GR Kerr-Schild Coordinates!", ptc_num);
   using spline_t = typename ptc_updater<Conf>::spline_t;
   using idx_t = typename Conf::idx_t;
+
+  this->J->init();
+  for (auto& rho : this->Rho) rho->init();
 
   if (ptc_num > 0) {
     auto ptc_kernel = [a, ptc_num, dt, step] __device__(

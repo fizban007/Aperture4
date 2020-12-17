@@ -81,11 +81,11 @@ class field_t : public data_t {
       //                     m_data[n].extent()[1]);
       for (auto idx : m_data[n].indices()) {
         auto pos = idx.get_pos();
-        double x0 = m_grid->template pos<0>(pos, m_stagger[n]);
+        double x0 = m_grid->pos(0, pos[0], m_stagger[n][0]);
         double x1 =
-            (Conf::dim > 1 ? m_grid->template pos<1>(pos, m_stagger[n]) : 0.0);
+            (Conf::dim > 1 ? m_grid->pos(1, pos[1], m_stagger[n][1]) : 0.0);
         double x2 =
-            (Conf::dim > 2 ? m_grid->template pos<2>(pos, m_stagger[n]) : 0.0);
+            (Conf::dim > 2 ? m_grid->pos(2, pos[2], m_stagger[n][2]) : 0.0);
         m_data[n][idx] = f(x0, x1, x2);
       }
       if (m_memtype != MemType::host_only) m_data[n].copy_to_device();

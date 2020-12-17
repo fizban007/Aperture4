@@ -23,17 +23,14 @@
 
 using namespace Aperture;
 
-void
-set_initial_field(vector_field<Config<2>>& field) {
+template <typename Conf>
+void set_initial_field(vector_field<Conf> &field) {
   field.set_values(
-      0,
-      [](auto x1, auto x2, auto x3) {
-        return x1 * x1 + x2 + x3 * x3 * x3;
-      });
+      0, [](auto x1, auto x2, auto x3) { return x1 * x1 + x2 + x3 * x3 * x3; });
 }
 
 TEST_CASE("Memtype is correct for fields", "[fields]") {
-  typedef Config<2> Conf;
+  typedef Config<2, float> Conf;
   Grid<2, float> grid;
   grid.dims[0] = 32;
   grid.dims[1] = 32;
@@ -65,7 +62,6 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
     REQUIRE(f[1].dev_allocated() == true);
 #endif
   }
-
 }
 
 TEST_CASE("Initializing fields", "[fields]") {
@@ -108,7 +104,6 @@ TEST_CASE("setting initial value from a function", "[fields]") {
     double x3 = 0.0;
     REQUIRE(vf[0][idx] == Approx(x1 * x1 + x2 + x3 * x3 * x3));
   }
-
 }
 
 TEST_CASE("Resampling field 1D", "[fields]") {
@@ -123,19 +118,17 @@ TEST_CASE("Resampling field 1D", "[fields]") {
     grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
     grid.inv_delta[i] = 1.0 / grid.delta[i];
   }
-  scalar_field<Conf> f(grid, field_type::vert_centered,
-                            MemType::host_only);
-  scalar_field<Conf> f2(grid, field_type::cell_centered,
-                             MemType::host_only);
+  scalar_field<Conf> f(grid, field_type::vert_centered, MemType::host_only);
+  scalar_field<Conf> f2(grid, field_type::cell_centered, MemType::host_only);
   f.set_values(0, [](Scalar x1, Scalar x2, Scalar x3) {
-                    return x1 + 2.0 * x2 + 3.0 * x3;
-                  });
+    return x1 + 2.0 * x2 + 3.0 * x3;
+  });
   f2.set_values(0, [](Scalar x1, Scalar x2, Scalar x3) {
-                     return x1 + 2.0 * x2 + 3.0 * x3;
-                   });
-  scalar_field<Conf> f3(grid, field_type::cell_centered,
-                             MemType::host_only);
-  resample(f[0], f3[0], grid.guards(), grid.guards(), f.stagger(), f3.stagger());
+    return x1 + 2.0 * x2 + 3.0 * x3;
+  });
+  scalar_field<Conf> f3(grid, field_type::cell_centered, MemType::host_only);
+  resample(f[0], f3[0], grid.guards(), grid.guards(), f.stagger(),
+           f3.stagger());
   for (int i = grid.guard[0]; i < grid.dims[0] - grid.guard[0]; i++) {
     // Logger::print_debug("f3 {}, f2 {}", f3[0][i], f2[0][i]);
     REQUIRE(f3[0][i] == Approx(f2[0][i]));
@@ -143,7 +136,7 @@ TEST_CASE("Resampling field 1D", "[fields]") {
 }
 
 TEST_CASE("Resampling field 2D", "[fields]") {
-  using Conf = Config<2>;
+  using Conf = Config<2, float>;
   Conf::grid_t grid;
   for (int i = 0; i < 2; i++) {
     grid.dims[i] = 36;
@@ -154,20 +147,17 @@ TEST_CASE("Resampling field 2D", "[fields]") {
     grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
     grid.inv_delta[i] = 1.0 / grid.delta[i];
   }
-  vector_field<Conf> f(grid, field_type::cell_centered,
-                            MemType::host_only);
-  vector_field<Conf> f2(grid, field_type::vert_centered,
-                             MemType::host_only);
+  vector_field<Conf> f(grid, field_type::cell_centered, MemType::host_only);
+  vector_field<Conf> f2(grid, field_type::vert_centered, MemType::host_only);
   f.set_values(1, [](Scalar x1, Scalar x2, Scalar x3) {
-                    return x1 + 2.0 * x2 + 3.0 * x3;
-                  });
+    return x1 + 2.0 * x2 + 3.0 * x3;
+  });
   f2.set_values(1, [](Scalar x1, Scalar x2, Scalar x3) {
-                     return x1 + 2.0 * x2 + 3.0 * x3;
-                   });
-  vector_field<Conf> f3(grid, field_type::vert_centered,
-                             MemType::host_only);
-  resample(f[1], f3[1], grid.guards(), grid.guards(),
-           f.stagger(), f3.stagger());
+    return x1 + 2.0 * x2 + 3.0 * x3;
+  });
+  vector_field<Conf> f3(grid, field_type::vert_centered, MemType::host_only);
+  resample(f[1], f3[1], grid.guards(), grid.guards(), f.stagger(),
+           f3.stagger());
   for (auto idx : f3[1].indices()) {
     // auto pos = idx.get_pos();
     auto pos = idx.get_pos();

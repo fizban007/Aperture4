@@ -48,6 +48,7 @@ TEST_CASE("Using grid", "[grid]") {
 
     REQUIRE(g1.is_in_bound(8) == true);
     REQUIRE(g1.is_in_bound(10) == false);
+
   }
 
   SECTION("2D grid") {
@@ -80,9 +81,19 @@ TEST_CASE("Using grid", "[grid]") {
     z = g2.find_zone(index(11, 11));
     REQUIRE(z == 8);
 
-    auto pos_g = g2.pos_global(index(3, 5), vec<Scalar>(0.4, 0.7, 0.0));
+    auto pos_g = g2.pos_global(index(3, 5), vec<float>(0.4, 0.7, 0.0));
     REQUIRE(pos_g[0] == Approx(1.4f * g2.delta[0]));
     REQUIRE(pos_g[1] == Approx(3.7f * g2.delta[1]));
+
+    index_t<2> idx;
+    vec_t<float, 3> x;
+    g2.from_global(vec_t<float, 3>(0.8f, 0.4f, 3.0f),
+                   idx, x);
+    REQUIRE(idx[0] == 8);
+    REQUIRE(idx[1] == 5);
+    REQUIRE(x[0] == Approx(0.4f));
+    REQUIRE(x[1] == Approx(0.2f));
+    REQUIRE(x[2] == Approx(3.0f));
   }
 }
 

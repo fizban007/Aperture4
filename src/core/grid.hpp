@@ -103,25 +103,48 @@ struct Grid {
   ///  pos_in_cell
   template <int N>
       HD_INLINE std::enable_if_t <
-      N<Dim, value_t> pos(int n, value_t pos_in_cell) const {
+      N<Dim, value_t> pos(int n, float pos_in_cell) const {
+    return (lower[N] + delta[N] * (n - skirt[N] + pos_in_cell));
+  }
+
+  template <int N>
+      HD_INLINE std::enable_if_t <
+      N<Dim, value_t> pos(int n, double pos_in_cell) const {
     return (lower[N] + delta[N] * (n - skirt[N] + pos_in_cell));
   }
 
   template <int N>
   HD_INLINE std::enable_if_t<N >= Dim, value_t> pos(int n,
-                                                    value_t pos_in_cell) const {
+                                                    float pos_in_cell) const {
     return pos_in_cell;
   }
 
-  HD_INLINE value_t pos(int i, int n, value_t pos_in_cell) const {
+  template <int N>
+  HD_INLINE std::enable_if_t<N >= Dim, value_t> pos(int n,
+                                                    double pos_in_cell) const {
+    return pos_in_cell;
+  }
+
+  HD_INLINE value_t pos(int i, int32_t n, double pos_in_cell) const {
     if (i < Dim)
       return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
     else
       return pos_in_cell;
   }
 
-  HD_INLINE value_t pos(int i, int n, bool stagger) const {
-    return pos(i, n, (value_t)(stagger ? 0.0 : 0.5));
+  HD_INLINE value_t pos(int i, int32_t n, float pos_in_cell) const {
+    if (i < Dim)
+      return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
+    else
+      return pos_in_cell;
+  }
+
+  HD_INLINE value_t pos(int i, int32_t n, int stagger) const {
+    return pos(i, n, (value_t)(0.5 - 0.5 * stagger));
+  }
+
+  HD_INLINE value_t pos(int i, int32_t n, bool stagger) const {
+    return pos(i, n, (int)stagger);
   }
 
   template <int N>
@@ -145,13 +168,16 @@ struct Grid {
     return result;
   }
 
+  template <typename FloatT>
   HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
                              index_t<Dim>& idx,
-                             vec_t<value_t, 3>& rel_x) const {
+                             vec_t<FloatT, 3>& rel_x) const {
     rel_x = global_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-
+      idx[i] = int(global_x[i] / delta[i]);
+      rel_x[i] = (global_x[i] - idx[i] * delta[i]) * inv_delta[i];
+      idx[i] += guard[i];
     }
   }
 

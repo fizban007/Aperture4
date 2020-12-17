@@ -5,6 +5,7 @@ else()
 endif()
 
 add_subdirectory(bh_vacuum)
+add_subdirectory(bh_plasma)
 add_subdirectory(pulsar)
 #add_subdirectory(magnetar)
 # add_subdirectory(monopole)

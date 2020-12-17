@@ -308,12 +308,13 @@ ptc_orbit(Scalar a, Scalar r, Scalar th, Scalar Bz, Scalar uth, Scalar uph,
   Scalar u_0 = u_0_p;  // Choose the negative root
   Scalar E = -u_0 - eom * Bz * wald_ks_A0(a, r, sth, cth);
   Scalar L = uph + eom * Bz * wald_ks_Aphi(a, r, sth, cth);
-  Logger::print_info("u_0 is {}, E is {}, L is {}", u_0, E, L);
+  // Logger::print_info("u_0 is {}, E is {}, L is {}", u_0, E, L);
 
   u[0] = -2.0 * r * u_0 / (r * r + a * a - 2.0 * r) -
          a * uph / (r * r + a * a - 2.0 * r);
   u[1] = uth;
   u[2] = uph;
+  Logger::print_info("u_0 is {}, E is {}, L is {}, u_r is {}", u_0, E, L, u[0]);
 
   Scalar u_0_alt = u[0] * Metric_KS::beta1(a, x[0], x[1]) -
                    square(Metric_KS::alpha(a, x[0], x[1])) *

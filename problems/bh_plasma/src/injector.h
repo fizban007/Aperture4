@@ -40,9 +40,17 @@ class bh_injector : public system_t {
   void register_data_components() override;
 
  private:
+  value_t m_inj_thr, m_sigma_thr;
   const grid_ks_t<Conf>& m_grid;
+  multi_array<int, Conf::dim> m_num_per_cell;
+  multi_array<int, Conf::dim> m_cum_num_per_cell;
+
   particle_data_t* ptc;
-  vector_field<Conf>* B, D;
+  vector_field<Conf> *B, *D;
+  std::vector<const scalar_field<Conf>*> Rho;
+
+  using rho_ptrs_t = buffer<typename Conf::ndptr_const_t>;
+  rho_ptrs_t m_rho_ptrs;
 };
 
 }

@@ -36,7 +36,7 @@ class ptc_updater_gr_ks_cu : public ptc_updater_cu<Conf> {
   void init() override;
   void register_data_components() override;
 
-  virtual void update_particles(double dt, uint32_t step) override;
+  virtual void update_particles(value_t dt, uint32_t step) override;
   // void update_photons(double dt, uint32_t step);
   // virtual void move_deposit_2d(value_t dt, uint32_t step) override;
   virtual void move_photons_2d(value_t dt, uint32_t step) override;

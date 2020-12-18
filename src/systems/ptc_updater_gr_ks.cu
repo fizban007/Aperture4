@@ -186,7 +186,7 @@ ptc_updater_gr_ks_cu<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater_gr_ks_cu<Conf>::update_particles(double dt, uint32_t step) {
+ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
   value_t a = m_a;
   auto ptc_num = this->ptc->number();
   Logger::print_info("Pushing {} particles in GR Kerr-Schild Coordinates!", ptc_num);

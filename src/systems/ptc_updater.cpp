@@ -128,7 +128,7 @@ ptc_updater<Conf>::push_default(value_t dt) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::update_particles(double dt, uint32_t step) {
+ptc_updater<Conf>::update_particles(value_t dt, uint32_t step) {
   Logger::print_info("Pushing {} particles", ptc->number());
   timer::stamp("pusher");
   // First update particle momentum

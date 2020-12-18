@@ -26,6 +26,7 @@
 #include "systems/grid_ks.h"
 #include "systems/ptc_updater_gr_ks.h"
 #include "utils/util_functions.h"
+#include "injector.h"
 
 using namespace std;
 
@@ -40,7 +41,7 @@ using namespace Aperture;
 
 int
 main(int argc, char *argv[]) {
-  typedef Config<2, double> Conf;
+  typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
   sim_environment env(&argc, &argv);
@@ -52,11 +53,13 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm(env);
   grid_ks_t<Conf> grid(env, &comm);
 
-  // auto solver =
-  //     env.register_system<field_solver_gr_ks_cu<Conf>>(env, grid, &comm);
   // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
   auto pusher =
       env.register_system<ptc_updater_gr_ks_cu<Conf>>(env, grid, &comm);
+  auto injector =
+      env.register_system<bh_injector<Conf>>(env, grid);
+  auto solver =
+      env.register_system<field_solver_gr_ks_cu<Conf>>(env, grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(env, grid, &comm);
 
   env.init();
@@ -70,19 +73,19 @@ main(int argc, char *argv[]) {
 
   initial_vacuum_wald(env, *B, *D, grid);
 
-  vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
-  index_t<2> pos;
-  vec_t<value_t, 3> x;
-  grid.from_global(x_global, pos, x);
-  auto ext = grid.extent();
-  typename Conf::idx_t idx(pos, ext);
+  // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
+  // index_t<2> pos;
+  // vec_t<value_t, 3> x;
+  // grid.from_global(x_global, pos, x);
+  // auto ext = grid.extent();
+  // typename Conf::idx_t idx(pos, ext);
 
-  for (int i = 0; i < 1; i++) {
-    ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
-                    set_ptc_type_flag(0, PtcType::positron));
-    // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
-  }
-  CudaSafeCall(cudaDeviceSynchronize());
+  // for (int i = 0; i < 1; i++) {
+  //   ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
+  //                   set_ptc_type_flag(0, PtcType::positron));
+  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  // }
+  // CudaSafeCall(cudaDeviceSynchronize());
 
   env.run();
 

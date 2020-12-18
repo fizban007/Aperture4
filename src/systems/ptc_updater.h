@@ -81,7 +81,7 @@ class ptc_updater : public system_t {
   template <typename P>
   void push(value_t dt, P& pusher);
 
-  virtual void update_particles(double dt, uint32_t step);
+  virtual void update_particles(value_t dt, uint32_t step);
   virtual void push_default(value_t dt);
   virtual void move_deposit_1d(value_t dt, uint32_t step);
   virtual void move_deposit_2d(value_t dt, uint32_t step);

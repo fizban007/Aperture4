@@ -63,6 +63,7 @@ class field_solver : public system_t {
 
   // These are temporary fields used in the semi-implicit update
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
+  std::unique_ptr<vector_field<Conf>> m_tmp_e1, m_tmp_e2, m_enew;
 
   virtual void init_impl_tmp_fields();
 
@@ -83,6 +84,7 @@ class field_solver_cu : public field_solver<Conf> {
 
   virtual void update_explicit(double dt, double time) override;
   virtual void update_semi_implicit(double dt, double alpha, double theta, double time) override;
+  void update_semi_implicit_old(double dt, double alpha, double theta, double time);
 
  protected:
   virtual void init_impl_tmp_fields() override;

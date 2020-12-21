@@ -7,4 +7,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   set_target_properties(alfven_quasi_1d PROPERTIES OUTPUT_NAME "aperture")
   target_link_libraries(alfven_quasi_1d Aperture)
   add_dependencies(problems alfven_quasi_1d)
+
+  add_executable(alfven_quasi_1d_single_ptc
+    "single_ptc_test.cpp")
+  target_link_libraries(alfven_quasi_1d_single_ptc Aperture)
+  add_dependencies(problems alfven_quasi_1d_single_ptc)
 endif()

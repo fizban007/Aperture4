@@ -213,9 +213,11 @@ void
 field_solver_cu<Conf>::init_impl_tmp_fields() {
   this->m_tmp_b1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  this->m_tmp_b2 =
+  this->m_tmp_e1 =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
   this->m_bnew =
+      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
+  this->m_enew =
       std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
 }
 
@@ -260,8 +262,8 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
-                                            double beta, double time) {
+field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
+                                                double beta, double time) {
   this->m_tmp_b2->init();
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
@@ -323,6 +325,12 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B),
                     is_boundary);
   }
+}
+
+template <typename Conf>
+void
+field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
+                                            double beta, double time) {
 }
 
 INSTANTIATE_WITH_CONFIG(field_solver_cu);

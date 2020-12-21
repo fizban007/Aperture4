@@ -26,16 +26,13 @@
 
 namespace Aperture {
 
-template <typename Conf>
-void
-bh_injector<Conf>::register_data_components() {}
+template <typename Conf> void bh_injector<Conf>::register_data_components() {}
 
-template <typename Conf>
-void
-bh_injector<Conf>::init() {
+template <typename Conf> void bh_injector<Conf>::init() {
   m_env.get_data("E", &D);
   m_env.get_data("B", &B);
   m_env.get_data("particles", &ptc);
+  m_env.get_data("rand_states", &m_rand_states);
 
   auto ext = m_grid.extent();
   m_num_per_cell.resize(ext);
@@ -47,6 +44,7 @@ bh_injector<Conf>::init() {
   m_env.params().get_value("inj_threshold", m_inj_thr);
   m_sigma_thr = 20.0f;
   m_env.params().get_value("sigma_threshold", m_sigma_thr);
+  m_env.params().get_value("q_e", m_qe);
 
   int num_species = 2;
   this->m_env.params().get_value("num_species", num_species);
@@ -63,24 +61,35 @@ bh_injector<Conf>::init() {
 }
 
 template <typename Conf>
-void
-bh_injector<Conf>::update(double dt, uint32_t step) {
+void bh_injector<Conf>::update(double dt, uint32_t step) {
   value_t a = m_grid.a;
   value_t inj_thr = m_inj_thr;
   value_t sigma_thr = m_sigma_thr;
+  value_t qe = m_qe;
   int num_species = m_rho_ptrs.size();
+
+  m_num_per_cell.assign_dev(0);
 
   // Measure how many pairs to inject per cell
   kernel_launch(
       [a, inj_thr, sigma_thr, num_species] __device__(auto B, auto D, auto rho,
-                                                      auto num_per_cell) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+                                                      auto num_per_cell, auto states) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        cuda_rng_t rng(&states[id]);
+
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
 
           if (grid.is_in_bound(pos)) {
+            value_t r =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+
+            if (r <= Metric_KS::rH(a) || r > 6.0f)
+              continue;
+
             value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
             value_t D2 = interp(D[1], idx, stagger_t(0b101), stagger_t(0b111));
             value_t D3 = interp(D[2], idx, stagger_t(0b011), stagger_t(0b111));
@@ -88,8 +97,6 @@ bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
             value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
 
-            value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
             value_t th =
                 grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
             value_t sth = math::sin(th);
@@ -106,7 +113,8 @@ bh_injector<Conf>::update(double dt, uint32_t step) {
             }
             value_t sigma = B_sqr / n;
 
-            if (sigma > sigma_thr && DdotB / B_sqr > inj_thr) {
+            if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr && rng() < 0.1f) {
+            // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
               num_per_cell[idx] = 0;
@@ -115,7 +123,7 @@ bh_injector<Conf>::update(double dt, uint32_t step) {
         }
       },
       B->get_ptrs(), D->get_ptrs(), m_rho_ptrs.dev_ptr(),
-      m_num_per_cell.dev_ndptr());
+      m_num_per_cell.dev_ndptr(), m_rand_states->states());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -134,34 +142,67 @@ bh_injector<Conf>::update(double dt, uint32_t step) {
 
   auto ptc_num = ptc->number();
   kernel_launch(
-      [ptc_num] __device__(auto ptc, auto num_per_cell, auto cum_num) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+      [a, ptc_num, qe] __device__(auto B, auto D, auto ptc, auto num_per_cell,
+                                  auto cum_num, auto states) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
+        auto interp = lerp<Conf::dim>{};
+
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        cuda_rng_t rng(&states[id]);
+
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(cell, ext);
           auto pos = get_pos(idx, ext);
-          for (int i = 0; i < num_per_cell[cell]; i++) {
-            int offset = ptc_num + cum_num[cell] * 2 + i * 2;
-            ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
-            ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
-            ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
-            ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
-            ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
-            ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
-            ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
-            ptc.cell[offset] = ptc.cell[offset + 1] = cell;
-            Scalar th = grid.template pos<1>(pos[1], ptc.x2[offset]);
-            // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
-            //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
-            ptc.weight[offset] = ptc.weight[offset + 1] = sin(th);
-            // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
-            ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
-            ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
+          if (num_per_cell[cell] > 0) {
+            value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
+            value_t D2 = interp(D[1], idx, stagger_t(0b101), stagger_t(0b111));
+            value_t D3 = interp(D[2], idx, stagger_t(0b011), stagger_t(0b111));
+            value_t B1 = interp(B[0], idx, stagger_t(0b001), stagger_t(0b111));
+            value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
+            value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
+            value_t r =
+                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            value_t th =
+                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+            value_t sth = math::sin(th);
+            value_t cth = math::cos(th);
+
+            value_t DdotB = Metric_KS::dot_product_u({D1, D2, D3}, {B1, B2, B3},
+                                                     a, r, sth, cth);
+            value_t B_sqr = Metric_KS::dot_product_u({B1, B2, B3}, {B1, B2, B3},
+                                                     a, r, sth, cth);
+
+            for (int i = 0; i < num_per_cell[cell]; i++) {
+              int offset = ptc_num + cum_num[cell] * 2 + i * 2;
+              ptc.x1[offset] = ptc.x1[offset + 1] = rng();
+              ptc.x2[offset] = ptc.x2[offset + 1] = rng();
+              th = grid.template pos<1>(pos[1], ptc.x2[offset]);
+              // ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
+              // ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
+              ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
+              ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
+              ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
+              // ptc.p3[offset] = ptc.p3[offset + 1] = sin(th) * (rng() - 0.5f);
+              ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
+              ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
+              ptc.cell[offset] = ptc.cell[offset + 1] = cell;
+
+              // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
+              //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
+              ptc.weight[offset] = ptc.weight[offset + 1] =
+                  // 1.0f * math::abs(DdotB) * sin(th) / math::sqrt(B_sqr);
+                  sin(th);
+              // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
+              ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
+              ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
+            }
           }
         }
       },
-      ptc->get_dev_ptrs(), m_num_per_cell.dev_ndptr_const(),
-      m_cum_num_per_cell.dev_ndptr_const());
+      B->get_const_ptrs(), D->get_const_ptrs(), ptc->get_dev_ptrs(),
+      m_num_per_cell.dev_ndptr_const(), m_cum_num_per_cell.dev_ndptr_const(),
+      m_rand_states->states());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -171,4 +212,4 @@ bh_injector<Conf>::update(double dt, uint32_t step) {
 template class bh_injector<Config<2, float>>;
 template class bh_injector<Config<2, double>>;
 
-}  // namespace Aperture
+} // namespace Aperture

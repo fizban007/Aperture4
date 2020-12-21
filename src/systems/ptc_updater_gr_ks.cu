@@ -124,8 +124,9 @@ process_j_rho(vector_field<Conf>& j,
           }
           // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
-          if (math::abs(theta) < 0.1 * grid.delta[1]) {
-            j[2][idx] = 0.0;
+          if (theta < 0.1 * grid.delta[1] ||
+              theta - M_PI < 0.1 * grid.delta[1]) {
+            j[2][idx] = 0.0f;
           }
         }
       },
@@ -239,7 +240,8 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
         // Both new_x and u are updated
         gr_ks_geodesic_advance(a, dt, new_x, u, false);
 
-        // printf("---- cylindrical radius is %f\n", new_x[0] * math::sin(new_x[1]));
+        // printf("---- cylindrical radius is %f, z is %f\n", new_x[0] * math::sin(new_x[1]),
+        //        new_x[0] * math::cos(new_x[1]));
         new_x[0] = x[0] + (grid_ks_t<Conf>::from_radius(new_x[0]) -
                            grid_ks_t<Conf>::from_radius(x_global[0])) *
                               grid.inv_delta[0];
@@ -249,8 +251,8 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
         vec_t<int, 2> dc = 0;
         dc[0] = math::floor(new_x[0]);
         dc[1] = math::floor(new_x[1]);
-        if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)
-          printf("----------------- Error: moved more than 1 cell!");
+        // if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)
+        //   printf("----------------- Error: moved more than 1 cell!");
         pos[0] += dc[0];
         pos[1] += dc[1];
         ptc.x1[n] = new_x[0] - (value_t)dc[0];

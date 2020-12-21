@@ -259,6 +259,11 @@ u0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
          alpha(a, r, sth, cth);
 }
 
+HD_INLINE Scalar
+rH(Scalar a) {
+  return 1.0f - math::sqrt(1.0f - a*a);
+}
+
 }  // namespace Metric_KS
 
 }  // namespace Aperture

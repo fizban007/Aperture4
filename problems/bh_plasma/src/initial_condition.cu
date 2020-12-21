@@ -29,10 +29,8 @@ template <typename Conf>
 void
 initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
                     vector_field<Conf> &D0, const grid_ks_t<Conf> &grid) {
-  Scalar Bp = 1.0;
+  typename Conf::value_t Bp = 1.0;
   env.params().get_value("Bp", Bp);
-  Scalar a = 0.0;
-  env.params().get_value("bh_spin", a);
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {
@@ -63,8 +61,12 @@ initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
 }
 
 template void initial_vacuum_wald(sim_environment &env,
-                                  vector_field<Config<2>> &B0,
-                                  vector_field<Config<2>> &D0,
-                                  const grid_ks_t<Config<2>> &grid);
+                                  vector_field<Config<2, float>> &B0,
+                                  vector_field<Config<2, float>> &D0,
+                                  const grid_ks_t<Config<2, float>> &grid);
+template void initial_vacuum_wald(sim_environment &env,
+                                  vector_field<Config<2, double>> &B0,
+                                  vector_field<Config<2, double>> &D0,
+                                  const grid_ks_t<Config<2, double>> &grid);
 
 }  // namespace Aperture

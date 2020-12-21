@@ -44,6 +44,8 @@ grid_t<Conf>::grid_t(sim_environment& env,
   m_env.params().get_array("guard", this->guard);
   m_env.params().get_array("size", this->sizes);
   m_env.params().get_array("lower", this->lower);
+  typename Conf::value_t dt = 0.1f;
+  m_env.params().get_value("dt", dt);
 
   // Initialize the grid parameters
   for (int i = 0; i < Conf::dim; i++) {
@@ -58,6 +60,10 @@ grid_t<Conf>::grid_t(sim_environment& env,
       this->dims[i] = vec_N[i] + 2 * this->guard[i];
     }
     Logger::print_debug("Dim {} has size {}", i, this->dims[i]);
+    if (dt > this->delta[i]) {
+      Logger::print_err("dt is larger than the grid spacing in direction {}", i);
+      exit(1);
+    }
   }
 
   // Adjust the grid according to domain decomposition

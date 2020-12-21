@@ -46,9 +46,7 @@ grid_ks_t<Conf>::grid_ks_t(sim_environment &env, const domain_comm<Conf> *comm)
   timer::show_duration_since_stamp("Computing KS coefficients", "ms");
 }
 
-template <typename Conf>
-void
-grid_ks_t<Conf>::compute_coef() {
+template <typename Conf> void grid_ks_t<Conf>::compute_coef() {
   auto ext = this->extent();
 
   for (auto idx : m_Ab[0].indices()) {
@@ -61,8 +59,10 @@ grid_ks_t<Conf>::compute_coef() {
     double th = theta(this->template pos<1>(pos[1], false));
     double th_s = theta(this->template pos<1>(pos[1], true));
 
-    if (math::abs(th_s) < TINY) th_s = 0.01 * this->delta[1];
-    if (math::abs(M_PI - th_s) < TINY) th_s = M_PI - 0.01 * this->delta[1];
+    if (math::abs(th_s) < TINY)
+      th_s = 0.01 * this->delta[1];
+    if (math::abs(M_PI - th_s) < TINY)
+      th_s = M_PI - 0.01 * this->delta[1];
 
     m_Ab[0][idx] =
         gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
@@ -115,7 +115,7 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ad1 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
-    if (pos[1] == this->guard[1] && th_s < 0.5 * this->delta[1]) {
+    if (pos[1] == this->guard[1] && th_s < 0.1 * this->delta[1]) {
       m_Ad[2][idx] =
           2.0 * gauss_quad(
                     [this, r, pos](auto x) {
@@ -124,6 +124,16 @@ grid_ks_t<Conf>::compute_coef() {
                           radius(this->template pos<0>(pos[0] - 1, false)), r);
                     },
                     0.0f, th);
+    } else if (pos[1] == this->dims[1] - this->guard[1] &&
+               math::abs(th_s - M_PI) < 0.1 * this->delta[1]) {
+      m_Ad[2][idx] =
+          2.0 * gauss_quad(
+                    [this, r, pos](auto x) {
+                      return gauss_quad(
+                          [this, x](auto y) { return sqrt_gamma(a, y, x); },
+                          radius(this->template pos<0>(pos[0] - 1, false)), r);
+                    },
+                    th, M_PI);
     } else {
       m_Ad[2][idx] = gauss_quad(
           [this, r, pos](auto x) {
@@ -210,4 +220,4 @@ grid_ks_t<Conf>::compute_coef() {
 
 template class grid_ks_t<Config<2>>;
 
-}  // namespace Aperture
+} // namespace Aperture

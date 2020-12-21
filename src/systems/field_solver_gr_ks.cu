@@ -266,7 +266,8 @@ void
 field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
   auto a = m_a;
   auto beta = this->m_beta;
-  vec_t<bool, Conf::dim * 2> is_boundary = true;
+  vec_t<bool, Conf::dim * 2> is_boundary;
+  is_boundary = true;
   if (this->m_comm != nullptr)
     is_boundary = this->m_comm->domain_info().is_boundary;
 
@@ -637,7 +638,6 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
   }
 
   this->Etotal->copy_from(*(this->E));
-
   this->Btotal->copy_from(*(this->B));
 
   if (step % this->m_data_interval == 0) {

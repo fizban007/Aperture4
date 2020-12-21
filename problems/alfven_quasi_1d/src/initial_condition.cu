@@ -68,7 +68,7 @@ struct alfven_wave_solution {
   HD_INLINE Scalar wave_arg_clamped(Scalar t, Scalar x, Scalar y) const {
     return 2.0 * M_PI *
            clamp<Scalar>((xi(x - x0, y) - t + eta(x - x0, y) * costh / sinth) / lambda,
-                         0.0, 1.0);
+                         0.0, 2.0);
   }
 
   HD_INLINE Scalar width_arg(Scalar x, Scalar y) const {
@@ -86,12 +86,12 @@ struct alfven_wave_solution {
   }
 
   HD_INLINE Scalar wave_profile(Scalar x) const {
-    return math::sin(x) * square(math::sin(0.5 * x));
+    return math::sin(x) * square(math::sin(0.25 * x));
   }
 
   HD_INLINE Scalar d_wave_profile(Scalar x) const {
-    return 2.0 * M_PI * (math::cos(x) * square(math::sin(0.5 * x))
-                         + math::sin(x) * math::sin(0.5 * x) * math::cos(0.5 * x));
+    return 2.0 * M_PI * (math::cos(x) * square(math::sin(0.25 * x))
+                         + 0.5 * math::sin(x) * math::sin(0.25 * x) * math::cos(0.25 * x));
   }
 
   HD_INLINE Scalar Bz(Scalar t, Scalar x, Scalar y) const {
@@ -143,7 +143,7 @@ compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &nu
           Scalar y = grid.template pos<1>(pos, 0.0f);
           auto wave_arg = wave.wave_arg(0.0f, x, y);
 
-          if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI) {
+          if (wave_arg > 0.0f && wave_arg < 4.0f * M_PI) {
             auto rho = wave.Rho(0.0f, x, y);
             int num = floor(math::abs(rho) / q_e);
 

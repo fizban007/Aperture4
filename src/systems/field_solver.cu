@@ -16,13 +16,13 @@
  */
 
 #include "core/cuda_control.h"
+#include "core/math.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
-#include "core/math.hpp"
 #include "field_solver.h"
 #include "framework/config.h"
-#include "systems/helpers/finite_diff_helper.hpp"
 #include "systems/helpers/field_solver_helper_cu.hpp"
+#include "systems/helpers/finite_diff_helper.hpp"
 #include "utils/double_buffer.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
@@ -31,66 +31,70 @@ namespace Aperture {
 
 namespace {
 
-template <typename Conf>
-using fd = finite_diff<Conf::dim, 2>;
+template <typename Conf> using fd = finite_diff<Conf::dim, 2>;
 
 // constexpr float cherenkov_factor = 1.025f;
 constexpr float cherenkov_factor = 1.0f;
 
 template <typename Conf>
-void
-compute_e_update_explicit_cu(vector_field<Conf>& result,
-                             const vector_field<Conf>& e,
-                             const vector_field<Conf>& b,
-                             const vector_field<Conf>& j,
-                             typename Conf::value_t dt) {
+void compute_e_update_explicit_cu(vector_field<Conf> &result,
+                                  const vector_field<Conf> &e,
+                                  const vector_field<Conf> &b,
+                                  const vector_field<Conf> &j,
+                                  typename Conf::value_t dt) {
   kernel_launch(
       [dt] __device__(auto result, auto e, auto b, auto stagger, auto j) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            result[0][idx] = e[0][idx] +
-                dt *
-                (cherenkov_factor * fd<Conf>::curl0(b, idx, stagger, grid) - j[0][idx]);
+            result[0][idx] =
+                e[0][idx] + dt * (cherenkov_factor *
+                                      fd<Conf>::curl0(b, idx, stagger, grid) -
+                                  j[0][idx]);
 
-            result[1][idx] = e[1][idx] +
-                dt *
-                (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) - j[1][idx]);
+            result[1][idx] =
+                e[1][idx] + dt * (cherenkov_factor *
+                                      fd<Conf>::curl1(b, idx, stagger, grid) -
+                                  j[1][idx]);
 
-            result[2][idx] = e[2][idx] +
-                dt *
-                (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) - j[2][idx]);
+            result[2][idx] =
+                e[2][idx] + dt * (cherenkov_factor *
+                                      fd<Conf>::curl2(b, idx, stagger, grid) -
+                                  j[2][idx]);
           }
         }
       },
-      result.get_ptrs(), e.get_ptrs(), b.get_ptrs(), b.stagger_vec(), j.get_ptrs());
+      result.get_ptrs(), e.get_ptrs(), b.get_ptrs(), b.stagger_vec(),
+      j.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf>
-void
-compute_b_update_explicit_cu(vector_field<Conf>& result,
-                             const vector_field<Conf>& b,
-                             const vector_field<Conf>& e,
-                             typename Conf::value_t dt) {
+void compute_b_update_explicit_cu(vector_field<Conf> &result,
+                                  const vector_field<Conf> &b,
+                                  const vector_field<Conf> &e,
+                                  typename Conf::value_t dt) {
   kernel_launch(
       [dt] __device__(auto result, auto b, auto e, auto stagger) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
           if (grid.is_in_bound(pos)) {
-            result[0][idx] = b[0][idx]
-                -dt * cherenkov_factor * fd<Conf>::curl0(e, idx, stagger, grid);
+            result[0][idx] =
+                b[0][idx] -
+                dt * cherenkov_factor * fd<Conf>::curl0(e, idx, stagger, grid);
 
-            result[1][idx] = b[1][idx]
-                -dt * cherenkov_factor * fd<Conf>::curl1(e, idx, stagger, grid);
+            result[1][idx] =
+                b[1][idx] -
+                dt * cherenkov_factor * fd<Conf>::curl1(e, idx, stagger, grid);
 
-            result[2][idx] = b[2][idx]
-                -dt * cherenkov_factor * fd<Conf>::curl2(e, idx, stagger, grid);
+            result[2][idx] =
+                b[2][idx] -
+                dt * cherenkov_factor * fd<Conf>::curl2(e, idx, stagger, grid);
           }
         }
       },
@@ -100,12 +104,12 @@ compute_b_update_explicit_cu(vector_field<Conf>& result,
 }
 
 template <typename Conf>
-void
-compute_double_curl(vector_field<Conf>& result, const vector_field<Conf>& b,
-                    typename Conf::value_t coef) {
+void compute_double_curl(vector_field<Conf> &result,
+                         const vector_field<Conf> &b,
+                         typename Conf::value_t coef) {
   kernel_launch(
       [coef] __device__(auto result, auto b, auto stagger) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -114,10 +118,11 @@ compute_double_curl(vector_field<Conf>& result, const vector_field<Conf>& b,
             result[0][idx] = -coef * (fd<Conf>::laplacian(b[0], idx, grid));
             result[1][idx] = -coef * (fd<Conf>::laplacian(b[1], idx, grid));
             result[2][idx] = -coef * (fd<Conf>::laplacian(b[2], idx, grid));
-
           }
-          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] == grid.dims[1] / 2) {
-          //   printf("B3 result is %.9f, B3 input is %.9f\n", result[2][idx], b[2][idx]);
+          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] ==
+          // grid.dims[1] / 2) {
+          //   printf("B3 result is %.9f, B3 input is %.9f\n", result[2][idx],
+          //   b[2][idx]);
           // }
         }
       },
@@ -127,13 +132,15 @@ compute_double_curl(vector_field<Conf>& result, const vector_field<Conf>& b,
 }
 
 template <typename Conf>
-void
-compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
-                     const vector_field<Conf>& j, typename Conf::value_t alpha,
-                     typename Conf::value_t beta, typename Conf::value_t dt) {
+void compute_implicit_rhs(vector_field<Conf> &result,
+                          const vector_field<Conf> &e,
+                          const vector_field<Conf> &j,
+                          typename Conf::value_t alpha,
+                          typename Conf::value_t beta,
+                          typename Conf::value_t dt) {
   kernel_launch(
       [alpha, beta, dt] __device__(auto result, auto e, auto j, auto stagger) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -149,7 +156,8 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                 -dt * (fd<Conf>::curl2(e, idx, stagger, grid) -
                        dt * beta * fd<Conf>::curl2(j, idx, stagger, grid));
           }
-          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] == grid.dims[1] / 2) {
+          // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && pos[1] ==
+          // grid.dims[1] / 2) {
           //   printf("J2 is %.9f, E2 is %.9f\n", j[1][idx], e[1][idx]);
           // }
         }
@@ -160,15 +168,14 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
 }
 
 template <typename Conf>
-void
-compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
-                const vector_field<Conf>& e, const vector_field<Conf>& b,
-                const vec_t<bool, Conf::dim * 2> &is_boundary) {
+void compute_divs_cu(scalar_field<Conf> &divE, scalar_field<Conf> &divB,
+                     const vector_field<Conf> &e, const vector_field<Conf> &b,
+                     const vec_t<bool, Conf::dim * 2> &is_boundary) {
   // vec_t<bool, Conf::dim * 2> boundary(is_boundary);
   kernel_launch(
       [] __device__(auto divE, auto divB, auto e, auto b, auto st_e, auto st_b,
                     auto is_boundary) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = idx.get_pos();
@@ -194,64 +201,68 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
   CudaCheckError();
 }
 
-template <typename Conf>
-void
-clean_field(vector_field<Conf>& f) {
-  kernel_launch([] __device__(auto f) {
-      auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-      auto ext = grid.extent();
-      for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-        for (int i = 0; i < 3; i++) {
-          if (math::abs(f[i][idx]) < TINY) {
-            f[i][idx] = 0.0f;
+template <typename Conf> void clean_field(vector_field<Conf> &f) {
+  kernel_launch(
+      [] __device__(auto f) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          for (int i = 0; i < 3; i++) {
+            if (math::abs(f[i][idx]) < TINY) {
+              f[i][idx] = 0.0f;
+            }
           }
         }
-      }
-    }, f.get_ptrs());
+      },
+      f.get_ptrs());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
+} // namespace
+
+template <typename Conf> void field_solver_cu<Conf>::init_impl_tmp_fields() {
+  this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, MemType::device_only);
+  // this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
+  //     this->m_grid, field_type::edge_centered, MemType::device_only);
+  this->m_bnew = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, MemType::device_only);
+  // this->m_enew = std::make_unique<vector_field<Conf>>(
+  //     this->m_grid, field_type::edge_centered, MemType::device_only);
+  this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, MemType::device_only);
 }
 
 template <typename Conf>
-void
-field_solver_cu<Conf>::init_impl_tmp_fields() {
-  this->m_tmp_b1 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  this->m_tmp_e1 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  this->m_bnew =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-  this->m_enew =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::device_only);
-}
-
-template <typename Conf>
-void
-field_solver_cu<Conf>::register_data_components() {
+void field_solver_cu<Conf>::register_data_components() {
   this->register_data_impl(MemType::host_device);
 }
 
 template <typename Conf>
-void
-field_solver_cu<Conf>::update_explicit(double dt, double time) {
+void field_solver_cu<Conf>::update_explicit(double dt, double time) {
+  Logger::print_info("explicit solver!");
   // dt *= 1.025;
   if (time < TINY) {
-    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J), 0.5f * dt);
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
+                                 0.5f * dt);
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->E));
   }
 
   if (this->m_update_b) {
     compute_b_update_explicit_cu(*(this->B), *(this->B), *(this->E), dt);
     // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_update_e) {
-    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J), dt);
+    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
+                                 dt);
     // Communicate the new E values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(*(this->E));
   }
 
   if (this->m_comm != nullptr) {
@@ -269,9 +280,8 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
 }
 
 template <typename Conf>
-void
-field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
-                                                double beta, double time) {
+void field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
+                                                     double beta, double time) {
   this->m_tmp_b2->init();
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
@@ -299,7 +309,8 @@ field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
   for (int i = 0; i < 6; i++) {
     compute_double_curl(buffer.alt(), buffer.main(), -beta * beta * dt * dt);
 
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
+    if (this->m_comm != nullptr)
+      this->m_comm->send_guard_cells(buffer.alt());
     this->m_bnew->add_by(buffer.alt());
 
     buffer.swap();
@@ -315,10 +326,12 @@ field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this
-  compute_e_update_explicit_cu(*(this->E), *(this->E), buffer.main(), *(this->J), dt);
+  compute_e_update_explicit_cu(*(this->E), *(this->E), buffer.main(),
+                               *(this->J), dt);
 
   // Communicate E
-  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+  if (this->m_comm != nullptr)
+    this->m_comm->send_guard_cells(*(this->E));
 
   this->B->copy_from(*(this->m_bnew));
 
@@ -338,10 +351,10 @@ field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
 }
 
 template <typename Conf>
-void
-field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
-                                            double beta, double time) {
-  compute_e_update_explicit_cu(*(this->m_enew), *(this->E), *(this->B), *(this->J), dt);
+void field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
+                                                 double beta, double time) {
+  compute_e_update_explicit_cu(*(this->m_enew), *(this->E), *(this->B),
+                               *(this->J), dt);
   compute_b_update_explicit_cu(*(this->m_bnew), *(this->B), *(this->E), dt);
 
   if (this->m_comm != nullptr) {
@@ -352,12 +365,15 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   // Start iterating a few times
   const int n_iteration = 4;
   for (int i = 0; i < n_iteration; i++) {
-    add_alpha_beta_cu(*(this->m_tmp_e1), *(this->E), *(this->m_enew), alpha, beta);
-    add_alpha_beta_cu(*(this->m_tmp_b1), *(this->B), *(this->m_bnew), alpha, beta);
+    add_alpha_beta_cu(*(this->m_tmp_e1), *(this->E), *(this->m_enew), alpha,
+                      beta);
+    add_alpha_beta_cu(*(this->m_tmp_b1), *(this->B), *(this->m_bnew), alpha,
+                      beta);
 
     compute_e_update_explicit_cu(*(this->m_enew), *(this->E), *(this->m_tmp_b1),
                                  *(this->J), dt);
-    compute_b_update_explicit_cu(*(this->m_bnew), *(this->B), *(this->m_tmp_e1), dt);
+    compute_b_update_explicit_cu(*(this->m_bnew), *(this->B), *(this->m_tmp_e1),
+                                 dt);
 
     if (this->m_comm != nullptr) {
       this->m_comm->send_guard_cells(*(this->m_enew));
@@ -369,7 +385,8 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   this->B->copy_from(*(this->m_bnew));
 
   if (this->m_comm != nullptr) {
-    vec_t<bool, Conf::dim * 2> is_boundary(this->m_comm->domain_info().is_boundary);
+    vec_t<bool, Conf::dim * 2> is_boundary(
+        this->m_comm->domain_info().is_boundary);
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B),
                     is_boundary);
   } else {
@@ -385,4 +402,4 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
 
 INSTANTIATE_WITH_CONFIG(field_solver_cu);
 
-}  // namespace Aperture
+} // namespace Aperture

@@ -29,26 +29,33 @@ namespace {
 
 using namespace Aperture;
 
+template <typename value_t>
 struct alfven_wave_solution {
-  Scalar sinth = 0.1;
-  Scalar lambda_x = 1.0;
-  Scalar y0 = 1.0;
-  Scalar x0 = 0.0;
-  Scalar delta_y = 1.0;
-  Scalar B0 = 5000;
+  value_t sinth = 0.1;
+  value_t lambda_x = 1.0;
+  value_t y0 = 1.0;
+  value_t x0 = 0.0;
+  value_t delta_y = 1.0;
+  value_t B0 = 5000;
 
-  Scalar costh;
-  Scalar lambda;
-  Scalar delta_eta;
-  Scalar eta0;
-  Scalar length = 4.0f;
+  value_t costh;
+  value_t lambda;
+  value_t delta_eta;
+  value_t eta0;
+  value_t length = 4.0f;
+  value_t smooth_width = 0.1f;
 
-  HD_INLINE Scalar xi(Scalar x, Scalar y) const { return x * sinth + y * costh; }
+  HD_INLINE value_t xi(value_t x, value_t y) const {
+    return x * sinth + y * costh;
+  }
 
-  HD_INLINE Scalar eta(Scalar x, Scalar y) const { return x * costh - y * sinth; }
+  HD_INLINE value_t eta(value_t x, value_t y) const {
+    return x * costh - y * sinth;
+  }
 
-  HOST_DEVICE alfven_wave_solution(Scalar sinth_, Scalar lambda_x_, Scalar x0_, Scalar y0_,
-                                   Scalar delta_y_, Scalar B0_)
+  HOST_DEVICE alfven_wave_solution(value_t sinth_, value_t lambda_x_,
+                                   value_t x0_, value_t y0_, value_t delta_y_,
+                                   value_t B0_)
       : sinth(sinth_),
         lambda_x(lambda_x_),
         x0(x0_),
@@ -61,104 +68,142 @@ struct alfven_wave_solution {
     eta0 = eta(0.0, y0);
   }
 
-  HD_INLINE Scalar wave_arg(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t wave_arg(value_t t, value_t x, value_t y) const {
+    return 2.0 * M_PI * (xi(x - x0, y) - t + eta(x - x0, y) * costh / sinth) /
+           lambda;
+  }
+
+  HD_INLINE value_t wave_arg_clamped(value_t t, value_t x, value_t y) const {
     return 2.0 * M_PI *
-           (xi(x - x0, y) - t + eta(x - x0, y) * costh / sinth) / lambda;
+           clamp<value_t>(
+               (xi(x - x0, y) - t + eta(x - x0, y) * costh / sinth) / lambda,
+               0.0f, length);
   }
 
-  HD_INLINE Scalar wave_arg_clamped(Scalar t, Scalar x, Scalar y) const {
-    return 2.0 * M_PI *
-           clamp<Scalar>((xi(x - x0, y) - t + eta(x - x0, y) * costh / sinth) / lambda,
-                         0.0f, length);
+  // HD_INLINE value_t width_arg(value_t x, value_t y) const {
+  //   return (eta(x - x0, y) - eta0) / delta_eta;
+  // }
+
+  // HD_INLINE value_t width_arg_clamped(value_t x, value_t y) const {
+  //   return clamp<value_t>((eta(x - x0, y) - eta0) / delta_eta, 0.0, 1.0);
+  // }
+
+  // HD_INLINE value_t width_prof(value_t w) const { return
+  // square(math::sin(M_PI * w)); }
+
+  // HD_INLINE value_t d_width(value_t w) const {
+  //   return 2.0 * M_PI * math::sin(M_PI * w) * math::cos(M_PI * w) /
+  //   delta_eta;
+  // }
+
+  HD_INLINE value_t wave_profile(value_t x) const {
+    // Convert x into a number between 0 and 1
+    value_t arg = clamp<value_t>(x / length, 0.0f, 1.0f);
+    value_t prof = 0.0f;
+    if (arg < smooth_width) {
+      prof = square(math::sin(arg * M_PI / (smooth_width * 2.0f)));
+    } else if (arg > (1.0f - smooth_width)) {
+      prof = square(
+          math::sin((arg - 1.0f + smooth_width) * M_PI / (smooth_width * 2.0f) +
+                    0.5f * M_PI));
+    } else {
+      prof = 1.0f;
+    }
+    return math::sin(x) * prof;
+    // return math::sin(x) * square(math::sin(0.5 * x / length));
   }
 
-  HD_INLINE Scalar width_arg(Scalar x, Scalar y) const {
-    return (eta(x - x0, y) - eta0) / delta_eta;
+  HD_INLINE value_t d_wave_profile(value_t x) const {
+    // Convert x into a number between 0 and 1
+    value_t norm_x = clamp<value_t>(x / length, 0.0f, 1.0f);
+    if (norm_x < smooth_width) {
+      value_t arg = norm_x * M_PI / (smooth_width * 2.0f);
+      return 2.0 * M_PI *
+             (math::cos(x) * square(math::sin(arg)) +
+              math::sin(x) * math::sin(arg) * math::cos(arg) * M_PI /
+                  (length * smooth_width));
+    } else if (norm_x > (1.0f - smooth_width)) {
+      value_t arg = (arg - 1.0f + smooth_width) * M_PI / (smooth_width * 2.0f) +
+                    0.5f * M_PI;
+      return 2.0 * M_PI *
+             (math::cos(x) * square(math::sin(arg)) +
+              math::sin(x) * math::sin(arg) * math::cos(arg) * M_PI /
+                  (length * smooth_width));
+    } else {
+      return 2.0 * M_PI * math::cos(x);
+    }
+    // return math::sin(x) * prof;
+    // return 2.0 * M_PI *
+    //        (math::cos(x) * square(math::sin(0.5 * x / length)) +
+    //         math::sin(x) * math::sin(0.5 * x / length) *
+    //             math::cos(0.5 * x / length) / length);
   }
 
-  HD_INLINE Scalar width_arg_clamped(Scalar x, Scalar y) const {
-    return clamp<Scalar>((eta(x - x0, y) - eta0) / delta_eta, 0.0, 1.0);
-  }
-
-  HD_INLINE Scalar width_prof(Scalar w) const { return square(math::sin(M_PI * w)); }
-
-  HD_INLINE Scalar d_width(Scalar w) const {
-    return 2.0 * M_PI * math::sin(M_PI * w) * math::cos(M_PI * w) / delta_eta;
-  }
-
-  HD_INLINE Scalar wave_profile(Scalar x) const {
-    return math::sin(x) * square(math::sin(0.5 * x / length));
-  }
-
-  HD_INLINE Scalar d_wave_profile(Scalar x) const {
-    return 2.0 * M_PI * (math::cos(x) * square(math::sin(0.5 * x / length))
-                         + math::sin(x) * math::sin(0.5 * x / length) * math::cos(0.5 * x / length) / length);
-  }
-
-  HD_INLINE Scalar Bz(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t Bz(value_t t, value_t x, value_t y) const {
     return B0 * wave_profile(wave_arg_clamped(t, x, y));
   }
 
-  HD_INLINE Scalar Ex(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t Ex(value_t t, value_t x, value_t y) const {
     return costh * (-Bz(t, x, y));
   }
 
-  HD_INLINE Scalar Ey(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t Ey(value_t t, value_t x, value_t y) const {
     return sinth * (Bz(t, x, y));
   }
 
-  HD_INLINE Scalar Jx(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t Jx(value_t t, value_t x, value_t y) const {
     return -B0 * sinth *
-           (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda /
-                sinth);
+           (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
   }
 
-  HD_INLINE Scalar Jy(Scalar t, Scalar x, Scalar y) const {
+  HD_INLINE value_t Jy(value_t t, value_t x, value_t y) const {
     return -B0 * costh *
-           (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda /
-                sinth);
+           (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
   }
 
-  HD_INLINE Scalar Rho(Scalar t, Scalar x, Scalar y) const {
-    return -B0 * (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda /
-                sinth);
+  HD_INLINE value_t Rho(value_t t, value_t x, value_t y) const {
+    return -B0 *
+           (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
   }
 };
 
 template <typename Conf>
 void
-compute_ptc_per_cell(alfven_wave_solution& wave, multi_array<int, Conf::dim> &num_per_cell,
-                     Scalar q_e, int mult, int mult_wave) {
+compute_ptc_per_cell(alfven_wave_solution<typename Conf::value_t> &wave,
+                     multi_array<int, Conf::dim> &num_per_cell, Scalar q_e,
+                     int mult, int mult_wave) {
   // num_per_cell.assign_dev(2 * mult);
-  kernel_launch([q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
-      // q_e *= 10.0;
-      auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-      auto ext = grid.extent();
+  kernel_launch(
+      [q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
+        // q_e *= 10.0;
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
 
-      for (auto n : grid_stride_range(0, ext.size())) {
-        auto idx = Conf::idx(n, ext);
-        auto pos = idx.get_pos();
-        if (grid.is_in_bound(pos)) {
-          num_per_cell[idx] = 2 * mult;
-          Scalar x = grid.template pos<0>(pos, 0.0f);
-          Scalar y = grid.template pos<1>(pos, 0.0f);
-          auto wave_arg = wave.wave_arg(0.0f, x, y);
+        for (auto n : grid_stride_range(0, ext.size())) {
+          auto idx = Conf::idx(n, ext);
+          auto pos = idx.get_pos();
+          if (grid.is_in_bound(pos)) {
+            num_per_cell[idx] = 2 * mult;
+            Scalar x = grid.template pos<0>(pos, 0.0f);
+            Scalar y = grid.template pos<1>(pos, 0.0f);
+            auto wave_arg = wave.wave_arg(0.0f, x, y);
 
-          if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI * wave.length) {
-            auto rho = wave.Rho(0.0f, x, y);
-            int num = floor(math::abs(rho) / q_e);
+            if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI * wave.length) {
+              auto rho = wave.Rho(0.0f, x, y);
+              int num = floor(math::abs(rho) / q_e);
 
-            // atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
-            num_per_cell[idx] += num * (mult_wave * 2 + 1);
+              // atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
+              num_per_cell[idx] += num * (mult_wave * 2 + 1);
+            }
           }
         }
-      }
-    }, num_per_cell.dev_ndptr());
+      },
+      num_per_cell.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
-}
+}  // namespace
 
 namespace Aperture {
 
@@ -177,7 +222,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   Scalar Bwave = Bwave_factor * Bp;
   int mult_wave = 1;
 
-  alfven_wave_solution wave(sinth, 1.0, 0.05, 4.0, 2.0, Bwave);
+  alfven_wave_solution<Scalar> wave(sinth, 1.0, 0.05, 4.0, 2.0, Bwave);
 
   B0.set_values(
       0, [Bp, sinth](Scalar x, Scalar y, Scalar z) { return Bp * sinth; });
@@ -211,59 +256,16 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
   CudaCheckError();
   num_per_cell.copy_to_host();
   cum_num_per_cell.copy_to_host();
-  int new_particles = (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
+  int new_particles =
+      (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
   Logger::print_info("Initializing {} particles", new_particles);
-
-  // Actually inject particles
-  // kernel_launch(
-  //     [num, mult, q_e, weight, wave] __device__(auto ptc, auto states, auto num_per_cell,
-  //                                               auto cum_num_per_cell) {
-  //       auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-  //       auto ext = grid.extent();
-  //       int id = threadIdx.x + blockIdx.x * blockDim.x;
-  //       cuda_rng_t rng(&states[id]);
-  //       for (auto cell : grid_stride_range(0, ext.size())) {
-  //         auto idx = Conf::idx(cell, ext);
-  //         auto pos = idx.get_pos();
-  //         for (int i = 0; i < num_per_cell[cell]; i++) {
-  //           int offset = num + cum_num_per_cell[cell] * 2 + i * 2;
-  //           auto x1 = rng();
-  //           auto x2 = rng();
-  //           ptc.x1[offset] = ptc.x1[offset + 1] = x1;
-  //           ptc.x2[offset] = ptc.x2[offset + 1] = x2;
-  //           ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
-  //           ptc.cell[offset] = ptc.cell[offset + 1] = cell;
-  //           ptc.weight[offset] = ptc.weight[offset + 1] = weight;
-  //           ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
-  //           ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
-
-  //           auto x = grid.template pos<0>(pos[0], x1);
-  //           auto y = grid.template pos<1>(pos[1], x2);
-  //           auto jx = wave.Jx(0.0f, x, y);
-  //           auto jy = wave.Jy(0.0f, x, y);
-  //           auto j = math::sqrt(jx * jx + jy * jy);
-  //           auto v = j / (q_e * mult);
-  //           auto gamma = 1.0f / math::sqrt(1.0f - v * v);
-  //           ptc.p1[offset] = -jx * gamma / (q_e * mult);
-  //           ptc.p2[offset] = -jy * gamma / (q_e * mult);
-  //           ptc.p3[offset] = 0.0f;
-  //           ptc.E[offset] = gamma;
-  //           ptc.p1[offset + 1] = 0.0f;
-  //           ptc.p2[offset + 1] = 0.0f;
-  //           ptc.p3[offset + 1] = 0.0f;
-  //           ptc.E[offset + 1] = 1.0f;
-  //         }
-  //       }
-  //     }, ptc.dev_ptrs(), states.states(), num_per_cell.dev_ndptr_const(),
-  //     cum_num_per_cell.dev_ndptr_const());
-  // CudaSafeCall(cudaDeviceSynchronize());
-  // ptc.set_num(num + new_pairs);
 
   // Initialize the particles
   num = ptc.number();
   kernel_launch(
-      [mult, mult_wave, num, q_e, wave, Bp, weight_enhance_factor]
-      __device__(auto ptc, auto states, auto w, auto num_per_cell, auto cum_num_per_cell) {
+      [mult, mult_wave, num, q_e, wave, Bp, weight_enhance_factor] __device__(
+          auto ptc, auto states, auto w, auto num_per_cell,
+          auto cum_num_per_cell) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -286,7 +288,8 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               if (i < mult * 2) {
                 // if (x < 0.4 * grid.sizes[0]) {
                 if (x < 1.0 * grid.sizes[0]) {
-                  // Scalar weight = w * (1.0f + 29.0f * (1.0f - x / grid.sizes[0]));
+                  // Scalar weight = w * (1.0f + 29.0f * (1.0f - x /
+                  // grid.sizes[0]));
                   Scalar weight = w;
 
                   // if (x > 0.4 * grid.sizes[0]) weight *= 0.02;
@@ -295,8 +298,9 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                   ptc.p3[offset] = 0.0f;
                   ptc.E[offset] = 1.0f;
                   ptc.weight[offset] = weight;
-                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                       ((i % 2 == 0) ? PtcType::electron : PtcType::positron));
+                  ptc.flag[offset] = set_ptc_type_flag(
+                      flag_or(PtcFlag::primary),
+                      ((i % 2 == 0) ? PtcType::electron : PtcType::positron));
                 }
               } else {
                 Scalar x = grid.template pos<0>(pos, 0.0f);
@@ -312,27 +316,32 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
                 } else {
                   v = 1.0f / (mult_wave + 1);
                 }
-                auto v_d = wave.Bz(0.0f, x, y) / math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
+                auto v_d = wave.Bz(0.0f, x, y) /
+                           math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
                 auto gamma = 1.0f / math::sqrt(1.0f - v * v - v_d * v_d);
                 ptc.p1[offset] = v * wave.sinth * gamma;
                 ptc.p2[offset] = v * wave.costh * gamma;
                 ptc.p3[offset] = v_d * gamma;
                 ptc.E[offset] = gamma;
-                ptc.weight[offset] = weight_enhance_factor * math::abs(rho) / num / q_e;
+                ptc.weight[offset] =
+                    weight_enhance_factor * math::abs(rho) / num / q_e;
                 if (i < mult * 2 + mult_wave * num) {
-                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::initial),
-                                                       ((rho < 0.0f) ? PtcType::positron : PtcType::electron));
+                  ptc.flag[offset] = set_ptc_type_flag(
+                      flag_or(PtcFlag::primary, PtcFlag::initial),
+                      ((rho < 0.0f) ? PtcType::positron : PtcType::electron));
                 } else {
-                  ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::initial),
-                                                       ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
+                  ptc.flag[offset] = set_ptc_type_flag(
+                      flag_or(PtcFlag::primary, PtcFlag::initial),
+                      ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
                 }
               }
 
-
               // Scalar weight = w * cube(
-              //     math::abs(0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]);
+              //     math::abs(0.5f * grid.sizes[0] - x) * 2.0f /
+              //     grid.sizes[0]);
               // Scalar weight = std::max(w * cube(
-              //     (0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]), 0.02f * w);
+              //     (0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]), 0.02f *
+              //     w);
               // Scalar weight = (pos[0] > grid.dims[0] * 0.4f ? 0.020 * w : w);
               // Scalar weight = w;
               // if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI) {
@@ -343,12 +352,15 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               //   // auto j = math::sqrt(jx * jx + jy * jy);
               //   // auto v = j / (2.0f * q_e * mult);
               //   // auto v = math::abs(rho) / (2.0f * q_e * mult * weight);
-              //   auto v = math::abs(rho) / (math::abs(rho) * 3.0f / (q_e * mult)) / (q_e * mult);
-              //   // auto v3 = math::abs(rho) * 3.0f / (2.0f * q_e * mult * weight);
-              //   auto v_d = wave.Bz(0.0f, x, y) / math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
+              //   auto v = math::abs(rho) / (math::abs(rho) * 3.0f / (q_e *
+              //   mult)) / (q_e * mult);
+              //   // auto v3 = math::abs(rho) * 3.0f / (2.0f * q_e * mult *
+              //   weight); auto v_d = wave.Bz(0.0f, x, y) /
+              //   math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
               //   // auto v_d = 0.0f;
               //   auto gamma = 1.0f / math::sqrt(1.0f - v * v - v_d * v_d);
-              //   // auto gamma3 = 1.0f / math::sqrt(1.0f - v3 * v3 - v_d * v_d);
+              //   // auto gamma3 = 1.0f / math::sqrt(1.0f - v3 * v3 - v_d *
+              //   v_d);
               //   // auto sgn_jy = sgn(jy);
 
               //   if (rho > 0.0f) {
@@ -360,8 +372,9 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               //     ptc.p3[offset + 1] = v_d * gamma;
               //     ptc.E[offset] = 1.0f / math::sqrt(1.0f - v_d * v_d);
               //     ptc.E[offset + 1] = gamma;
-              //     ptc.weight[offset] = weight + math::abs(rho) * 2.0f / (q_e * mult);
-              //     ptc.weight[offset + 1] = weight + math::abs(rho) * 3.0f / (q_e * mult);
+              //     ptc.weight[offset] = weight + math::abs(rho) * 2.0f / (q_e
+              //     * mult); ptc.weight[offset + 1] = weight + math::abs(rho)
+              //     * 3.0f / (q_e * mult);
               //     // ptc.weight[offset] = weight;
               //     // ptc.weight[offset + 1] = weight;
               //   } else {
@@ -373,15 +386,20 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               //     ptc.p3[offset + 1] = v_d / math::sqrt(1.0f - v_d * v_d);
               //     ptc.E[offset] = gamma;
               //     ptc.E[offset + 1] = 1.0f / math::sqrt(1.0f - v_d * v_d);
-              //     ptc.weight[offset] = weight + math::abs(rho) * 3.0f / (q_e * mult);
-              //     ptc.weight[offset + 1] = weight + math::abs(rho) * 2.0f / (q_e * mult);
+              //     ptc.weight[offset] = weight + math::abs(rho) * 3.0f / (q_e
+              //     * mult); ptc.weight[offset + 1] = weight + math::abs(rho)
+              //     * 2.0f / (q_e * mult);
               //     // ptc.weight[offset] = weight;
               //     // ptc.weight[offset + 1] = weight;
               //   }
-              //   // ptc.p1[offset] = -jx * gamma / (2.0f * q_e * mult * weight);
-              //   // ptc.p1[offset + 1] = jx * gamma / (2.0f * q_e * mult * weight);
-              //   // ptc.p2[offset] = -jy * gamma / (2.0f * q_e * mult * weight);
-              //   // ptc.p2[offset + 1] = jy * gamma / (2.0f * q_e * mult * weight);
+              //   // ptc.p1[offset] = -jx * gamma / (2.0f * q_e * mult *
+              //   weight);
+              //   // ptc.p1[offset + 1] = jx * gamma / (2.0f * q_e * mult *
+              //   weight);
+              //   // ptc.p2[offset] = -jy * gamma / (2.0f * q_e * mult *
+              //   weight);
+              //   // ptc.p2[offset + 1] = jy * gamma / (2.0f * q_e * mult *
+              //   weight);
               //   // ptc.p3[offset] = v_d * gamma;
               //   // ptc.p3[offset + 1] = v_d * gamma;
               //   // ptc.E[offset] = gamma;
@@ -406,7 +424,8 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
           }
         }
       },
-      ptc.dev_ptrs(), states.states(), weight, num_per_cell.dev_ndptr(), cum_num_per_cell.dev_ndptr());
+      ptc.dev_ptrs(), states.states(), weight, num_per_cell.dev_ndptr(),
+      cum_num_per_cell.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   ptc.set_num(num + new_particles);
 }
@@ -416,4 +435,4 @@ template void initial_condition_wave<Config<2>>(
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
     particle_data_t &ptc, curand_states_t &states, int mult, Scalar weight);
 
-} // namespace Aperture
+}  // namespace Aperture

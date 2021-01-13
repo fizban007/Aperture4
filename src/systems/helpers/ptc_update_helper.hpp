@@ -115,7 +115,7 @@ template <typename spline_t, typename value_t, typename JFieldType,
           typename RhoFieldType, typename idx_t>
 HOST_DEVICE void
 deposit_2d(const vec_t<value_t, 3>& x, const vec_t<value_t, 3>& new_x,
-           const vec_t<int, 2>& dc, const vec_t<value_t, 3>& v, JFieldType& J,
+           const vec_t<int, 2>& dc, value_t v3, JFieldType& J,
            RhoFieldType& Rho, idx_t idx, value_t weight, int sp,
            bool deposit_rho = false) {
   spline_t interp;
@@ -149,12 +149,14 @@ deposit_2d(const vec_t<value_t, 3>& x, const vec_t<value_t, 3>& new_x,
       }
 
       // j3 is simply v3 times rho at center
-      deposit_add(&J[2][offset], weight * v[2] * center2d(sx0, sx1, sy0, sy1));
+      deposit_add(&J[2][offset], weight * v3 * center2d(sx0, sx1, sy0, sy1));
+      // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
 
       // rho is deposited at the final position
       if (deposit_rho) {
         if (math::abs(sx1 * sy1) > TINY) {
           deposit_add(&Rho[sp][offset], weight * sx1 * sy1);
+          // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
         }
       }
     }

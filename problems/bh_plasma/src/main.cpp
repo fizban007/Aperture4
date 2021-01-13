@@ -89,6 +89,17 @@ main(int argc, char *argv[]) {
   // }
   // CudaSafeCall(cudaDeviceSynchronize());
 
+  // index_t<2> pos(200, 768);
+  // auto ext = grid.extent();
+  // typename Conf::idx_t idx(pos, ext);
+
+  // for (int i = 0; i < 1; i++) {
+  //   ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, idx.linear, 1000.0,
+  //                   set_ptc_type_flag(0, PtcType::positron));
+  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  // }
+  // CudaSafeCall(cudaDeviceSynchronize());
+
   env.run();
 
   return 0;

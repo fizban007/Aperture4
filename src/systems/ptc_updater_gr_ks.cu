@@ -125,7 +125,7 @@ process_j_rho(vector_field<Conf>& j,
           // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (theta < 0.1 * grid.delta[1] ||
-              theta - M_PI < 0.1 * grid.delta[1]) {
+              math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
             j[2][idx] = 0.0f;
           }
         }
@@ -233,45 +233,65 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
           Bp[1] = interp(B[1], x, idx, stagger_t(0b010));
           Bp[2] = interp(B[2], x, idx, stagger_t(0b100));
           // This step only updates u
-          gr_ks_boris_update(a, x_global, u, Bp, Dp, dt, q_over_m);
+          // gr_ks_boris_update(a, x_global, u, Bp, Dp, dt, q_over_m);
+          gr_ks_boris_update(a, x_global, u, Bp, Dp, 0.5f * dt, q_over_m);
         }
 
         vec_t<value_t, 3> new_x = x_global;
         // Both new_x and u are updated
         gr_ks_geodesic_advance(a, dt, new_x, u, false);
 
-        // printf("---- cylindrical radius is %f, z is %f\n", new_x[0] * math::sin(new_x[1]),
-        //        new_x[0] * math::cos(new_x[1]));
-        new_x[0] = x[0] + (grid_ks_t<Conf>::from_radius(new_x[0]) -
+        // printf("---- cylindrical radius is %f, phi is %f\n", new_x[0] * math::sin(new_x[1]),
+        //        new_x[2]);
+        vec_t<value_t, 3> new_rel_x = new_x;
+        new_rel_x[0] = x[0] + (grid_ks_t<Conf>::from_radius(new_x[0]) -
                            grid_ks_t<Conf>::from_radius(x_global[0])) *
                               grid.inv_delta[0];
-        new_x[1] = x[1] + (grid_ks_t<Conf>::from_theta(new_x[1]) -
+        new_rel_x[1] = x[1] + (grid_ks_t<Conf>::from_theta(new_x[1]) -
                            grid_ks_t<Conf>::from_theta(x_global[1])) *
                               grid.inv_delta[1];
         vec_t<int, 2> dc = 0;
-        dc[0] = math::floor(new_x[0]);
-        dc[1] = math::floor(new_x[1]);
+        dc[0] = math::floor(new_rel_x[0]);
+        dc[1] = math::floor(new_rel_x[1]);
         // if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)
         //   printf("----------------- Error: moved more than 1 cell!");
         pos[0] += dc[0];
         pos[1] += dc[1];
-        ptc.x1[n] = new_x[0] - (value_t)dc[0];
-        ptc.x2[n] = new_x[1] - (value_t)dc[1];
-        ptc.x3[n] = new_x[2];
+        ptc.x1[n] = new_rel_x[0] - (value_t)dc[0];
+        ptc.x2[n] = new_rel_x[1] - (value_t)dc[1];
+        ptc.x3[n] = new_rel_x[2];
         ptc.cell[n] = idx_t(pos, ext).linear;
-
-        ptc.p1[n] = u[0];
-        ptc.p2[n] = u[1];
-        ptc.p3[n] = u[2];
-        ptc.E[n] = Metric_KS::u0(a, x_global[0], math::sin(x_global[1]),
-                                 math::cos(x_global[1]), u);
 
         if (!check_flag(flag, PtcFlag::ignore_current)) {
           auto weight = dev_charges[sp] * ptc.weight[n] * grid.delta[0] * grid.delta[1];
 
-          deposit_2d<spline_t>(x, new_x, dc, (new_x - x_global) / dt, J, Rho,
+          deposit_2d<spline_t>(x, new_rel_x, dc, (new_rel_x[2] - x[2]) / dt, J, Rho,
                                idx, weight, sp, true);
+          // printf("---- J3 is %f\n", J[2][idx]);
         }
+
+        if (!check_flag(flag, PtcFlag::ignore_EM)) {
+          auto interp = interpolator<spline_t, Conf::dim>{};
+          vec_t<value_t, 3> Dp, Bp;
+          auto idx_new = idx_t(pos, ext);
+          x[0] = ptc.x1[n];
+          x[1] = ptc.x2[n];
+          Dp[0] = interp(D[0], x, idx_new, stagger_t(0b110));
+          Dp[1] = interp(D[1], x, idx_new, stagger_t(0b101));
+          Dp[2] = interp(D[2], x, idx_new, stagger_t(0b011));
+          Bp[0] = interp(B[0], x, idx_new, stagger_t(0b001));
+          Bp[1] = interp(B[1], x, idx_new, stagger_t(0b010));
+          Bp[2] = interp(B[2], x, idx_new, stagger_t(0b100));
+          // This step only updates u
+          // gr_ks_boris_update(a, x_global, u, Bp, Dp, dt, q_over_m);
+          gr_ks_boris_update(a, new_x, u, Bp, Dp, 0.5f * dt, q_over_m);
+        }
+
+        ptc.p1[n] = u[0];
+        ptc.p2[n] = u[1];
+        ptc.p3[n] = u[2];
+        // ptc.E[n] = Metric_KS::u0(a, x_global[0], math::sin(x_global[1]),
+        //                          math::cos(x_global[1]), u);
       }
     };
 

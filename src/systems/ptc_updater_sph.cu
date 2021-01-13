@@ -275,7 +275,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         if (check_flag(flag, PtcFlag::ignore_current)) continue;
         value_t weight = dev_charges[sp] * ptc.weight[n];
 
-        deposit_2d<spline_t>(x, new_x, dc, v, J, Rho, idx, weight, sp,
+        deposit_2d<spline_t>(x, new_x, dc, v[2], J, Rho, idx, weight, sp,
                              step % rho_interval == 0);
         //         int j_0 = (dc2 == -1 ? -spline_t::radius : 1 -
         //         spline_t::radius); int j_1 = (dc2 == 1 ? spline_t::radius + 1

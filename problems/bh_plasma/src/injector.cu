@@ -72,8 +72,8 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
 
   // Measure how many pairs to inject per cell
   kernel_launch(
-      [a, inj_thr, sigma_thr, num_species] __device__(auto B, auto D, auto rho,
-                                                      auto num_per_cell, auto states) {
+      [a, inj_thr, sigma_thr, num_species] __device__(
+          auto B, auto D, auto rho, auto num_per_cell, auto states) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
@@ -86,8 +86,12 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           if (grid.is_in_bound(pos)) {
             value_t r =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            value_t th =
+                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
 
-            if (r <= 1.1f * Metric_KS::rH(a) || r > 6.0f)
+            // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.0f ||
+            //     th < 0.5f * M_PI - 0.3f || th > 0.5f * M_PI + 0.3f)
+            if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
               continue;
 
             value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
@@ -97,8 +101,6 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
             value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
 
-            value_t th =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
 
@@ -113,8 +115,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             }
             value_t sigma = B_sqr / n;
 
-            if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr && rng() < 0.1f) {
-            // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
+            if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr &&
+                rng() < 0.02f) {
+              // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
               num_per_cell[idx] = 0;
@@ -192,7 +195,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
               //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
               ptc.weight[offset] = ptc.weight[offset + 1] =
                   // 1.0f * math::abs(DdotB) * sin(th) / math::sqrt(B_sqr);
-                  r * r * r * sin(th);
+                  sin(th);
               // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
               ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
               ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);

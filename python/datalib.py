@@ -7,6 +7,8 @@ from pathlib import Path
 import os
 import re
 
+extra_fld_keys = ["B", "J", "flux"]
+
 class Data:
   def __init__(self, path):
     self._conf = self.load_conf(os.path.join(path, "config.toml"))
@@ -37,7 +39,8 @@ class Data:
         os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
         "r",
       )
-      self._fld_keys = list(f_fld.keys()) + ["B", "J", "flux"]
+      self._fld_keys = list(f_fld.keys()) + extra_fld_keys
+      print(self._fld_keys)
       f_fld.close()
 
     # generate a list of output steps for particles
@@ -52,7 +55,7 @@ class Data:
         os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5"),
         "r",
       )
-      self._ptc_keys = list(f_ptc.keys()) + ["B", "J", "flux"]
+      self._ptc_keys = list(f_ptc.keys())
       f_ptc.close()
 
   def __dir__(self):
@@ -80,9 +83,9 @@ class Data:
 
   def __load_fld_quantity(self, key):
     path = os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5")
-    # if key == "flux":
-    #     self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
-    if key == "B":
+    if key == "flux":
+      self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
+    elif key == "B":
       self.__dict__[key] = np.sqrt(self.B1 * self.B1 + self.B2 * self.B2 + self.B3 * self.B3)
     elif key == "J":
       self.__dict__[key] = np.sqrt(self.J1 * self.J1 + self.J2 * self.J2 + self.J3 * self.J3)

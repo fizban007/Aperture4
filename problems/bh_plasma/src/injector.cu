@@ -87,7 +87,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t r =
                 grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
 
-            if (r <= Metric_KS::rH(a) || r > 6.0f)
+            if (r <= 1.1f * Metric_KS::rH(a) || r > 6.0f)
               continue;
 
             value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
@@ -177,9 +177,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
               int offset = ptc_num + cum_num[cell] * 2 + i * 2;
               ptc.x1[offset] = ptc.x1[offset + 1] = rng();
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
-              th = grid.template pos<1>(pos[1], ptc.x2[offset]);
               // ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
               // ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
+              th = grid.template pos<1>(pos[1], ptc.x2[offset]);
               ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
               ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
@@ -192,7 +192,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
               //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
               ptc.weight[offset] = ptc.weight[offset + 1] =
                   // 1.0f * math::abs(DdotB) * sin(th) / math::sqrt(B_sqr);
-                  sin(th);
+                  r * r * r * sin(th);
               // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
               ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
               ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);

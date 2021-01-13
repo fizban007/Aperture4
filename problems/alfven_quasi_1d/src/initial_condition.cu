@@ -98,7 +98,7 @@ struct alfven_wave_solution {
 
   HD_INLINE value_t wave_profile(value_t x) const {
     // Convert x into a number between 0 and 1
-    value_t arg = clamp<value_t>(x / length, 0.0f, 1.0f);
+    value_t arg = clamp<value_t>(x / (2.0 * M_PI) / length, 0.0f, 1.0f);
     value_t prof = 0.0f;
     if (arg < smooth_width) {
       prof = square(math::sin(arg * M_PI / (smooth_width * 2.0f)));
@@ -115,20 +115,20 @@ struct alfven_wave_solution {
 
   HD_INLINE value_t d_wave_profile(value_t x) const {
     // Convert x into a number between 0 and 1
-    value_t norm_x = clamp<value_t>(x / length, 0.0f, 1.0f);
+    value_t norm_x = clamp<value_t>(x / (2.0 * M_PI) / length, 0.0f, 1.0f);
     if (norm_x < smooth_width) {
       value_t arg = norm_x * M_PI / (smooth_width * 2.0f);
       return 2.0 * M_PI *
              (math::cos(x) * square(math::sin(arg)) +
-              math::sin(x) * math::sin(arg) * math::cos(arg) * M_PI /
-                  (length * smooth_width));
+              math::sin(x) * math::sin(arg) * math::cos(arg) /
+                  (length * smooth_width * 2.0));
     } else if (norm_x > (1.0f - smooth_width)) {
-      value_t arg = (arg - 1.0f + smooth_width) * M_PI / (smooth_width * 2.0f) +
+      value_t arg = (norm_x - 1.0f + smooth_width) * M_PI / (smooth_width * 2.0f) +
                     0.5f * M_PI;
       return 2.0 * M_PI *
              (math::cos(x) * square(math::sin(arg)) +
-              math::sin(x) * math::sin(arg) * math::cos(arg) * M_PI /
-                  (length * smooth_width));
+              math::sin(x) * math::sin(arg) * math::cos(arg) /
+                  (length * smooth_width * 2.0));
     } else {
       return 2.0 * M_PI * math::cos(x);
     }

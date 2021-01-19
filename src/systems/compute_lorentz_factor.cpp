@@ -48,7 +48,7 @@ compute_lorentz_factor<Conf>::register_data_components() {
 template <typename Conf>
 void
 compute_lorentz_factor<Conf>::init() {
-  m_env.get_data("particles", &ptc);
+  m_env.get_data("particles", ptc);
   m_env.params().get_value("fld_output_interval", m_data_interval);
 }
 

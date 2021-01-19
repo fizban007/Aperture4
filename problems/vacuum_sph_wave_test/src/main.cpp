@@ -35,10 +35,10 @@ main(int argc, char *argv[]) {
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_sph_t<Conf>>(env, comm);
+  auto grid = env.register_system<grid_sph_t<Conf>>(env, *comm);
   auto solver =
-      env.register_system<field_solver_sph_cu<Conf>>(env, *grid, comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);
+      env.register_system<field_solver_sph_cu<Conf>>(env, *grid, comm.get());
+  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm.get());
   auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
 
   env.init();

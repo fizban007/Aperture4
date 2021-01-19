@@ -50,7 +50,7 @@ void
 radiative_transfer_cu<Conf, RadImpl>::init() {
   radiative_transfer_common<Conf>::init();
 
-  this->m_env.get_data("rand_states", &m_rand_states);
+  this->m_env.get_data("rand_states", m_rand_states);
 }
 
 template <typename Conf, typename RadImpl>

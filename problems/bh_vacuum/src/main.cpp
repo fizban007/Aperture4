@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
   domain_comm<Conf> comm(env);
-  grid_ks_t<Conf> grid(env, &comm);
+  grid_ks_t<Conf> grid(env, comm);
 
   auto solver =
       env.register_system<field_solver_gr_ks_cu<Conf>>(env, grid, &comm);

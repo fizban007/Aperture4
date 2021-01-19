@@ -44,7 +44,7 @@ grid_t<Conf>::grid_t(sim_environment& env,
   m_env.params().get_array("guard", this->guard);
   m_env.params().get_array("size", this->sizes);
   m_env.params().get_array("lower", this->lower);
-  typename Conf::value_t dt = 0.1f;
+  typename Conf::value_t dt = 0.0f;
   m_env.params().get_value("dt", dt);
 
   // Initialize the grid parameters
@@ -61,7 +61,9 @@ grid_t<Conf>::grid_t(sim_environment& env,
     }
     Logger::print_debug("Dim {} has size {}", i, this->dims[i]);
     if (dt > this->delta[i]) {
-      Logger::print_err("dt is larger than the grid spacing in direction {}", i);
+      Logger::print_err(
+          "dt is larger than the grid spacing in direction {}, which is {}", i,
+          this->delta[i]);
       exit(1);
     }
   }
@@ -84,12 +86,13 @@ grid_t<Conf>::grid_t(sim_environment& env,
 }
 
 template <typename Conf>
-grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>* comm)
-    : grid_t(env, (comm == nullptr ? domain_info_t<Conf::dim>{}
-                                   : comm->domain_info())) {
-  if (comm != nullptr) {
-    comm->resize_buffers(*this);
-  }
+grid_t<Conf>::grid_t(sim_environment& env)
+    : grid_t(env, domain_info_t<Conf::dim>{}) {}
+
+template <typename Conf>
+grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>& comm)
+    : grid_t(env, comm.domain_info()) {
+  comm.resize_buffers(*this);
 }
 
 template <typename Conf>

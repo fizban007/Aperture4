@@ -26,6 +26,7 @@
 #include "systems/physics/pushers.hpp"
 #include "systems/grid.h"
 #include "utils/interpolation.hpp"
+#include "utils/nonown_ptr.hpp"
 #include <array>
 
 namespace Aperture {
@@ -41,11 +42,16 @@ class ptc_updater : public system_t {
   Pusher m_pusher = Pusher::higuera;
   typedef typename Conf::spline_t spline_t;
 
-  particle_data_t* ptc;
-  photon_data_t* ph;
-  vector_field<Conf> *E, *B, *J;
-  std::vector<scalar_field<Conf>*> Rho;
-  scalar_field<Conf>* rho_ph;
+  // particle_data_t* ptc;
+  // photon_data_t* ph;
+  // vector_field<Conf> *E, *B, *J;
+  // std::vector<scalar_field<Conf>*> Rho;
+  // scalar_field<Conf>* rho_ph;
+  nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<photon_data_t> ph;
+  nonown_ptr<vector_field<Conf>> E, B, J;
+  std::vector<nonown_ptr<scalar_field<Conf>>> Rho;
+  nonown_ptr<scalar_field<Conf>> rho_ph;
 
   std::unique_ptr<typename Conf::multi_array_t> jtmp;
 
@@ -138,7 +144,7 @@ class ptc_updater_cu : public ptc_updater<Conf> {
 
  protected:
   rho_ptrs_t m_rho_ptrs;
-  curand_states_t* m_rand_states;
+  nonown_ptr<curand_states_t> m_rand_states;
 };
 
 }  // namespace Aperture

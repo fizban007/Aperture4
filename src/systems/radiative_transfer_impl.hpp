@@ -40,7 +40,7 @@ radiative_transfer_common<Conf>::radiative_transfer_common(
 template <typename Conf>
 void
 radiative_transfer_common<Conf>::init() {
-  m_env.get_data("particles", &ptc);
+  m_env.get_data("particles", ptc);
 }
 
 template <typename Conf>

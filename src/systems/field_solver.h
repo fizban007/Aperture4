@@ -23,6 +23,7 @@
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
+#include "utils/nonown_ptr.hpp"
 #include <memory>
 
 namespace Aperture {
@@ -51,8 +52,10 @@ class field_solver : public system_t {
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm;
 
-  vector_field<Conf> *E, *B, *Etotal, *Btotal, *E0, *B0, *J;
-  scalar_field<Conf> *divE, *divB, *EdotB;
+  // vector_field<Conf> *E, *B, *Etotal, *Btotal, *E0, *B0, *J;
+  // scalar_field<Conf> *divE, *divB, *EdotB;
+  nonown_ptr<vector_field<Conf>> E, B, Etotal, Btotal, E0, B0, J;
+  nonown_ptr<scalar_field<Conf>> divE, divB, EdotB;
 
   bool m_use_implicit = true;
   double m_alpha = 0.45;

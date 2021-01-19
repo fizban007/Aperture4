@@ -43,7 +43,7 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   // auto grid = env.register_system<grid_sph_t<Conf>>(env);
   domain_comm<Conf> comm(env);
-  grid_sph_t<Conf> grid(env, &comm);
+  grid_sph_t<Conf> grid(env, comm);
   grid.init();
   auto injector = env.register_system<ptc_injector_pulsar<Conf>>(env, grid);
   auto pusher = env.register_system<ptc_updater_pulsar<Conf>>(env, grid, &comm);

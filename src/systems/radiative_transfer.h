@@ -23,6 +23,7 @@
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
+#include "utils/nonown_ptr.hpp"
 #include <memory>
 
 namespace Aperture {
@@ -33,12 +34,12 @@ class radiative_transfer_common : public system_t {
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm;
 
-  particle_data_t* ptc;
-  photon_data_t* ph;
+  nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<photon_data_t> ph;
 
-  scalar_field<Conf>* rho_ph;
-  scalar_field<Conf>* photon_produced;
-  scalar_field<Conf>* pair_produced;
+  nonown_ptr<scalar_field<Conf>> rho_ph;
+  nonown_ptr<scalar_field<Conf>> photon_produced;
+  nonown_ptr<scalar_field<Conf>> pair_produced;
 
   // parameters for this module
   uint32_t m_data_interval = 1;
@@ -103,13 +104,13 @@ class radiative_transfer_cu : public radiative_transfer_common<Conf> {
  protected:
   std::unique_ptr<RadImpl> m_rad;
 
-  curand_states_t* m_rand_states;
   buffer<int> m_num_per_block;
   buffer<int> m_cum_num_per_block;
   buffer<int> m_pos_in_block;
 
-  vector_field<Conf>* B;
-  std::vector<scalar_field<Conf>*> Rho;
+  nonown_ptr<curand_states_t> m_rand_states;
+  nonown_ptr<vector_field<Conf>> B;
+  std::vector<nonown_ptr<scalar_field<Conf>>> Rho;
 
   int m_threads_per_block = 512;
   int m_blocks_per_grid = 256;

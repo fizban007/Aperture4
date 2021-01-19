@@ -29,6 +29,7 @@
 #include "gsl/pointers"
 #include "system.h"
 #include "utils/logger.h"
+#include "utils/nonown_ptr.hpp"
 
 namespace cxxopts {
 class Options;
@@ -37,65 +38,6 @@ class ParseResult;
 
 namespace Aperture {
 
-// class callback_handler_t {
-//  public:
-//   template <typename Func>
-//   void register_callback(const std::string& name, const Func& func) {
-//     // callback_map[name].push_back(func);
-//     callback_map.insert({name, func});
-//   }
-
-//   template <typename... Args>
-//   void invoke_callback(const std::string& name, Args&... args) const {
-//     auto it = callback_map.find(name);
-//     if (it == callback_map.end()) {
-//       Logger::print_err("Failed to find callback '{}'", name);
-//       return;
-//     } else {
-//       auto& any_p = it->second;
-//       std::function<void(Args & ...)> f;
-//       try {
-//         f = boost::any_cast<std::function<void(Args & ...)>>(any_p);
-//       } catch (const boost::bad_any_cast& e) {
-//         Logger::print_err("Failed to cast callback '{}': {}", name,
-//         e.what()); return;
-//       }
-//       f(args...);
-//     }
-//   }
-
-//  private:
-//   // std::unordered_map<std::string, std::vector<std::any>> callback_map;
-//   std::unordered_map<std::string, boost::any> callback_map;
-// };
-
-// class data_store_t {
-//  public:
-//   template <typename Data>
-//   void save(const std::string& name, const Data& data) {
-//     store_map[name] = &data;
-//   }
-
-//   template <typename T>
-//   const T* get(const std::string& name) const {
-//     auto it = store_map.find(name);
-//     if (it != store_map.end()) {
-//       auto& any_p = it->second;
-//       if (any_p != nullptr) {
-//         return reinterpret_cast<const T*>(any_p);
-//       }
-//     }
-//     return nullptr;
-//   }
-
-//  private:
-//   std::unordered_map<std::string, const void*> store_map;
-// };
-
-////////////////////////////////////////////////////////////////////////////////
-///  Environment class that keeps a registry of parameters, data components, and
-///  systems.
-////////////////////////////////////////////////////////////////////////////////
 class sim_environment {
  private:
   // Registry for systems and data
@@ -145,13 +87,14 @@ class sim_environment {
   ///  \param args    The parameters to be sent to the system constructor
   ////////////////////////////////////////////////////////////////////////////////
   template <typename System, typename... Args>
-  auto register_system(Args&&... args) -> gsl::not_null<System*> {
+  // auto register_system(Args&&... args) -> gsl::not_null<System*> {
+  auto register_system(Args&&... args) -> nonown_ptr<System> {
     const std::string& name = System::name();
     // Check if the system has already been installed. If so, return it
     // directly
     auto it = m_system_map.find(name);
     if (it != m_system_map.end())
-      return dynamic_cast<System*>(it->second.get());
+      return nonown_ptr<System>(dynamic_cast<System*>(it->second.get()));
 
     // Otherwise, make the system, and return the pointer
     std::unique_ptr<system_t> ptr =
@@ -159,7 +102,7 @@ class sim_environment {
     ptr->register_data_components();
     m_system_map.insert({name, std::move(ptr)});
     m_system_order.push_back(name);
-    return dynamic_cast<System*>(m_system_map[name].get());
+    return nonown_ptr<System>(dynamic_cast<System*>(m_system_map[name].get()));
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -173,18 +116,19 @@ class sim_environment {
   ////////////////////////////////////////////////////////////////////////////////
   template <typename Data, typename... Args>
   auto register_data(const std::string& name, Args&&... args)
-      -> gsl::not_null<Data*> {
+      // -> gsl::not_null<Data*> {
+      -> nonown_ptr<Data> {
     // Check if the data component has already been installed
     auto it = m_data_map.find(name);
     if (it != m_data_map.end())
       // return std::dynamic_pointer_cast<Data>(it->second);
-      return dynamic_cast<Data*>(it->second.get());
+      return nonown_ptr<Data>(dynamic_cast<Data*>(it->second.get()));
 
     // Otherwise, make the data, and return the pointer
     auto ptr = std::make_unique<Data>(std::forward<Args>(args)...);
     m_data_map.insert({name, std::move(ptr)});
     m_data_order.push_back(name);
-    return dynamic_cast<Data*>(m_data_map[name].get());
+    return nonown_ptr<Data>(dynamic_cast<Data*>(m_data_map[name].get()));
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -194,10 +138,10 @@ class sim_environment {
   ///  \param name  Name of the system.
   ///  \return A raw pointer to the system
   ////////////////////////////////////////////////////////////////////////////////
-  system_t* get_system(const std::string& name) {
+  nonown_ptr<system_t> get_system(const std::string& name) {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
-      return it->second.get();
+      return nonown_ptr<system_t>(it->second.get());
     } else {
       Logger::print_err("Failed to get system '{}'", name);
       return nullptr;
@@ -211,10 +155,10 @@ class sim_environment {
   ///  \param name  Name of the system.
   ///  \return A const raw pointer to the system
   ////////////////////////////////////////////////////////////////////////////////
-  const system_t* get_system(const std::string& name) const {
+  const nonown_ptr<system_t> get_system(const std::string& name) const {
     auto it = m_system_map.find(name);
     if (it != m_system_map.end()) {
-      return it->second.get();
+      return nonown_ptr<system_t>(it->second.get());
     } else {
       Logger::print_err("Failed to get system '{}'", name);
       return nullptr;
@@ -228,10 +172,10 @@ class sim_environment {
   ///  \param name  Name of the data component.
   ///  \return A raw pointer to the data component
   ////////////////////////////////////////////////////////////////////////////////
-  data_t* get_data_optional(const std::string& name) {
+  nonown_ptr<data_t> get_data_optional(const std::string& name) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
-      return it->second.get();
+      return nonown_ptr<data_t>(it->second.get());
     } else {
       Logger::print_info("Failed to get optional data component '{}'", name);
       return nullptr;
@@ -245,21 +189,21 @@ class sim_environment {
   ///  \param name  Name of the data component.
   ///  \return A raw pointer to the data component
   ////////////////////////////////////////////////////////////////////////////////
-  data_t* get_data(const std::string& name) {
+  nonown_ptr<data_t> get_data(const std::string& name) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
-      return it->second.get();
+      return nonown_ptr<data_t>(it->second.get());
     } else {
       throw std::runtime_error("Data component not found: " + name);
     }
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain an optional const raw pointer to the named data component. If the
-  ///  data component is not found then a `nullptr` is returned.
+  ///  Obtain a raw pointer to the named data component. If the
+  ///  data component is not found then an exception is thrown.
   ///
   ///  \param name  Name of the data component.
-  ///  \param ptr   A const raw pointer to the data component, supplied to be
+  ///  \param ptr   A raw pointer to the data component, supplied to be
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
@@ -274,22 +218,59 @@ class sim_environment {
   }
 
   ////////////////////////////////////////////////////////////////////////////////
-  ///  Obtain a const raw pointer to the named data component. If the data
-  ///  component is not found then an exception is thrown.
+  ///  Obtain a non-owning pointer to the named data component. If the
+  ///  data component is not found then an exception is thrown.
   ///
   ///  \param name  Name of the data component.
-  ///  \param ptr   A const raw pointer to the data component, supplied to be
+  ///  \param ptr   A non-owning pointer to the data component, supplied to be
+  ///  the output
+  ////////////////////////////////////////////////////////////////////////////////
+  template <typename T>
+  void get_data(const std::string& name, nonown_ptr<T>& ptr) {
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) {
+      // ptr = std::dynamic_pointer_cast<T>(it->second);
+      ptr.reset(dynamic_cast<T*>(it->second.get()));
+    } else {
+      throw std::runtime_error("Data component not found: " + name);
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Obtain an optional raw pointer to the named data component. If the data
+  ///  component is not found then a nullptr is returned.
+  ///
+  ///  \param name  Name of the data component.
+  ///  \param ptr   A raw pointer to the data component, supplied to be
   ///  the output
   ////////////////////////////////////////////////////////////////////////////////
   template <typename T>
   void get_data_optional(const std::string& name, T** ptr) {
     auto it = m_data_map.find(name);
     if (it != m_data_map.end()) {
-      // ptr = std::dynamic_pointer_cast<T>(it->second);
       *ptr = dynamic_cast<T*>(it->second.get());
     } else {
-      Logger::print_info("Failed to get optional data component '{}'", name);
+      Logger::print_info("Failed to get optional data component '{}', ignoring", name);
       *ptr = nullptr;
+    }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////
+  ///  Obtain an optional raw pointer to the named data component. If the data
+  ///  component is not found then a nullptr is returned.
+  ///
+  ///  \param name  Name of the data component.
+  ///  \param ptr   A raw pointer to the data component, supplied to be
+  ///  the output
+  ////////////////////////////////////////////////////////////////////////////////
+  template <typename T>
+  void get_data_optional(const std::string& name, nonown_ptr<T>& ptr) {
+    auto it = m_data_map.find(name);
+    if (it != m_data_map.end()) {
+      ptr.reset(dynamic_cast<T*>(it->second.get()));
+    } else {
+      Logger::print_info("Failed to get optional data component '{}', ignoring", name);
+      ptr.reset(nullptr);
     }
   }
 

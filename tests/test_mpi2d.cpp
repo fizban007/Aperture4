@@ -40,7 +40,7 @@ main(int argc, char* argv[]) {
   env.params().add("ph_buffer_size", int64_t(100));
 
   auto comm = env.register_system<domain_comm_async<Conf>>(env);
-  auto grid = env.register_system<grid_t<Conf>>(env, comm);
+  auto grid = env.register_system<grid_t<Conf>>(env, *comm);
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);

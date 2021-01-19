@@ -42,7 +42,7 @@ gather_momentum_space<Conf>::register_data_components() {
 template <typename Conf>
 void
 gather_momentum_space<Conf>::init() {
-  m_env.get_data("particles", &ptc);
+  m_env.get_data("particles", ptc);
 }
 
 template <typename Conf>

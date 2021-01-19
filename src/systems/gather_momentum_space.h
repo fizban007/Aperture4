@@ -23,6 +23,7 @@
 #include "data/momentum_space.hpp"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "utils/nonown_ptr.hpp"
 #include <vector>
 
 namespace Aperture {
@@ -44,8 +45,8 @@ class gather_momentum_space : public system_t {
   const grid_t<Conf>& m_grid;
   int m_data_interval = 1;
 
-  momentum_space<Conf>* momentum;
-  particle_data_t* ptc;
+  nonown_ptr<momentum_space<Conf>> momentum;
+  nonown_ptr<particle_data_t> ptc;
 };
 
 template <typename Conf>

@@ -24,6 +24,7 @@
 #include "framework/system.h"
 #include "systems/field_solver.h"
 #include "systems/grid_ks.h"
+#include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
@@ -42,7 +43,7 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
 
   vector_field<Conf> m_prev_D, m_prev_B, m_new_D, m_new_B;
 
-  scalar_field<Conf>* flux;
+  nonown_ptr<scalar_field<Conf>> flux;
 
  public:
   static std::string name() { return "field_solver"; }

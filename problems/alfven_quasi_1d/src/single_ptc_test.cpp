@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm(env);
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
-  grid_t<Conf> grid(env, &comm);
+  grid_t<Conf> grid(env, comm);
   auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, grid, &comm);
   auto solver = env.register_system<field_solver_cu<Conf>>(env, grid, &comm);
   // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);

@@ -39,8 +39,12 @@ class Data:
         os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
         "r",
       )
-      self._fld_keys = list(f_fld.keys()) + extra_fld_keys
-      print(self._fld_keys)
+      self._original_fld_keys = list(f_fld.keys())
+      self._fld_keys = list(f_fld.keys())
+      for k in extra_fld_keys:
+        if k not in self._original_fld_keys:
+          self._fld_keys.append(k)
+      print("fld keys are:", self._fld_keys)
       f_fld.close()
 
     # generate a list of output steps for particles
@@ -83,11 +87,11 @@ class Data:
 
   def __load_fld_quantity(self, key):
     path = os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5")
-    if key == "flux":
+    if key == "flux" and key not in self._original_fld_keys:
       self.__dict__[key] = np.cumsum(self.B1,axis=0)*self.delta[1] - np.cumsum(self.B2,axis=1)*self.delta[0]
-    elif key == "B":
+    elif key == "B" and key not in self._original_fld_keys:
       self.__dict__[key] = np.sqrt(self.B1 * self.B1 + self.B2 * self.B2 + self.B3 * self.B3)
-    elif key == "J":
+    elif key == "J" and key not in self._original_fld_keys:
       self.__dict__[key] = np.sqrt(self.J1 * self.J1 + self.J2 * self.J2 + self.J3 * self.J3)
     else:
       data = h5py.File(path, "r")

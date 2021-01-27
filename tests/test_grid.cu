@@ -111,7 +111,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
   }
 
   kernel_launch(
-      exec_policy(1, 1),
+      kernel_exec_policy(1, 1),
       [] __device__(Grid<3, float> g) {
         if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
       },

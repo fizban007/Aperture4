@@ -76,7 +76,7 @@ ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
   };
 
   if (num > 0) {
-    // exec_policy p;
+    // kernel_exec_policy p;
     // configure_grid(p, pusher_kernel, this->ptc->dev_ptrs(),
     // this->E->get_ptrs(),
     //               this->B->get_ptrs(), pusher);

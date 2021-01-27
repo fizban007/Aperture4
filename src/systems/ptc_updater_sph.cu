@@ -326,7 +326,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         //         }
       }
     };
-    // exec_policy p;
+    // kernel_exec_policy p;
     // configure_grid(p, deposit_kernel, this->ptc->dev_ptrs(),
     //                this->J->get_ptrs(), this->m_rho_ptrs.dev_ptr(),
     //                this->m_data_interval);

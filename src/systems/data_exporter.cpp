@@ -106,6 +106,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
 
+    datafile.write(step, "step");
+    datafile.write(time, "time");
+
     if (!m_xmf.is_open() && is_root()) {
       m_xmf.open(m_output_dir + "data.xmf");
     }

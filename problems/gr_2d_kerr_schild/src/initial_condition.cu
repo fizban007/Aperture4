@@ -27,11 +27,10 @@ namespace Aperture {
 
 template <typename Conf>
 void
-initial_nonrotating_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
-                                vector_field<Conf> &D0,
+initial_nonrotating_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
                                 const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
-  env.params().get_value("Bp", Bp);
+  sim_env().params().get_value("Bp", Bp);
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {
@@ -80,12 +79,10 @@ initial_nonrotating_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
 
 template <typename Conf>
 void
-initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
-                    vector_field<Conf> &D0, const grid_ks_t<Conf> &grid) {
-  Scalar Bp = 1.0;
-  env.params().get_value("Bp", Bp);
-  Scalar a = 0.0;
-  env.params().get_value("bh_spin", a);
+initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
+                    const grid_ks_t<Conf> &grid) {
+  typename Conf::value_t Bp = 1.0;
+  sim_env().params().get_value("Bp", Bp);
 
   kernel_launch(
       [Bp] __device__(auto B, auto D, auto a) {
@@ -115,14 +112,18 @@ initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
   CudaCheckError();
 }
 
-template void initial_nonrotating_vacuum_wald(sim_environment &env,
-                                              vector_field<Config<2>> &B0,
-                                              vector_field<Config<2>> &D0,
-                                              const grid_ks_t<Config<2>> &grid);
+template void initial_nonrotating_vacuum_wald(
+    vector_field<Config<2, float>> &B0, vector_field<Config<2, float>> &D0,
+    const grid_ks_t<Config<2, float>> &grid);
+template void initial_nonrotating_vacuum_wald(
+    vector_field<Config<2, double>> &B0, vector_field<Config<2, double>> &D0,
+    const grid_ks_t<Config<2, double>> &grid);
 
-template void initial_vacuum_wald(sim_environment &env,
-                                  vector_field<Config<2>> &B0,
-                                  vector_field<Config<2>> &D0,
-                                  const grid_ks_t<Config<2>> &grid);
+template void initial_vacuum_wald(vector_field<Config<2, float>> &B0,
+                                  vector_field<Config<2, float>> &D0,
+                                  const grid_ks_t<Config<2, float>> &grid);
+template void initial_vacuum_wald(vector_field<Config<2, double>> &B0,
+                                  vector_field<Config<2, double>> &D0,
+                                  const grid_ks_t<Config<2, double>> &grid);
 
 }  // namespace Aperture

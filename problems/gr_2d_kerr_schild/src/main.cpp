@@ -20,21 +20,21 @@
 #include "cuda_runtime_api.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "injector.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
 #include "systems/ptc_updater_gr_ks.h"
 #include "utils/util_functions.h"
-#include "injector.h"
 
 using namespace std;
 
 namespace Aperture {
 
 template <typename Conf>
-void initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
-                         vector_field<Conf> &D0, const grid_ks_t<Conf> &grid);
+void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
+                         const grid_ks_t<Conf> &grid);
 }  // namespace Aperture
 
 using namespace Aperture;
@@ -44,50 +44,59 @@ main(int argc, char *argv[]) {
   typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
-  sim_environment env(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
-  env.params().add("Bp", 2.0);
-  env.params().add("bh_spin", 0.9);
 
   // domain_comm<Conf> comm(env);
-  grid_ks_t<Conf> grid(env);
+  grid_ks_t<Conf> grid;
 
   // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
-  // auto solver =
-  //     env.register_system<field_solver_gr_ks_cu<Conf>>(env, grid);
-  auto pusher =
-      env.register_system<ptc_updater_gr_ks_cu<Conf>>(env, grid);
-  // auto injector =
-  //     env.register_system<bh_injector<Conf>>(env, grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, grid);
+  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid);
+  auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
+  auto injector = env.register_system<bh_injector<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid);
 
   env.init();
 
   // Prepare initial condition here
   vector_field<Conf> *B, *D, *B0, *D0;
   particle_data_t *ptc;
-  env.get_data("B", &B);
-  env.get_data("E", &D);
+  env.get_data("B0", &B0);
+  env.get_data("E0", &D0);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &D);
   env.get_data("particles", &ptc);
 
-  initial_vacuum_wald(env, *B, *D, grid);
+  initial_vacuum_wald(*B0, *D0, grid);
+  B->copy_from(*B0);
+  D->copy_from(*D0);
 
-  vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
-  index_t<2> pos;
-  vec_t<value_t, 3> x;
-  grid.from_global(x_global, pos, x);
-  auto ext = grid.extent();
-  typename Conf::idx_t idx(pos, ext);
+  // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
+  // index_t<2> pos;
+  // vec_t<value_t, 3> x;
+  // grid.from_global(x_global, pos, x);
+  // auto ext = grid.extent();
+  // typename Conf::idx_t idx(pos, ext);
 
-  for (int i = 0; i < 1; i++) {
-    ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
-                    set_ptc_type_flag(0, PtcType::positron));
-    // ptc->append_dev(x, {0.0, 0.0, 0.0}, idx.linear, 1000.0,
-    //                 set_ptc_type_flag(0, PtcType::positron));
-    // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
-  }
-  CudaSafeCall(cudaDeviceSynchronize());
+  // for (int i = 0; i < 1; i++) {
+  //   ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
+  //                   set_ptc_type_flag(0, PtcType::positron));
+  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  // }
+  // CudaSafeCall(cudaDeviceSynchronize());
+
+  // index_t<2> pos(200, 768);
+  // auto ext = grid.extent();
+  // typename Conf::idx_t idx(pos, ext);
+
+  // for (int i = 0; i < 1; i++) {
+  //   ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, idx.linear,
+  //   1000.0,
+  //                   set_ptc_type_flag(0, PtcType::positron));
+  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  // }
+  // CudaSafeCall(cudaDeviceSynchronize());
 
   env.run();
 

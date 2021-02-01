@@ -209,16 +209,16 @@ namespace Aperture {
 
 template <typename Conf>
 void
-initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
+initial_condition_wave(vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
                        particle_data_t &ptc, curand_states_t &states, int mult,
                        Scalar weight) {
   Scalar weight_enhance_factor = 1.0f;
-  Scalar sinth = env.params().get_as<double>("muB", 0.1);
-  Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
-  Scalar q_e = env.params().get_as<double>("q_e", 1.0);
+  Scalar sinth = sim_env().params().get_as<double>("muB", 0.1);
+  Scalar Bp = sim_env().params().get_as<double>("Bp", 5000.0);
+  Scalar q_e = sim_env().params().get_as<double>("q_e", 1.0);
   q_e *= weight_enhance_factor;
-  Scalar Bwave_factor = env.params().get_as<double>("waveB", 0.1);
+  Scalar Bwave_factor = sim_env().params().get_as<double>("waveB", 0.1);
   Scalar Bwave = Bwave_factor * Bp;
   int mult_wave = 1;
 
@@ -431,7 +431,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
 }
 
 template void initial_condition_wave<Config<2>>(
-    sim_environment &env, vector_field<Config<2>> &B,
+    vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
     particle_data_t &ptc, curand_states_t &states, int mult, Scalar weight);
 

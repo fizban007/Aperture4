@@ -147,13 +147,12 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
 }
 
 template <typename Conf>
-boundary_condition<Conf>::boundary_condition(sim_environment& env,
-                                             const grid_t<Conf>& grid)
-    : system_t(env), m_grid(grid) {
+boundary_condition<Conf>::boundary_condition(const grid_t<Conf>& grid)
+    : m_grid(grid) {
   using multi_array_t = typename Conf::multi_array_t;
-  m_env.params().get_value("damping_length", m_damping_length);
-  m_env.params().get_value("pmllen", m_pmllen);
-  m_env.params().get_value("sigpml", m_sigpml);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("pmllen", m_pmllen);
+  sim_env().params().get_value("sigpml", m_sigpml);
 
   m_prev_E1 = std::make_unique<multi_array_t>(
       extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
@@ -192,20 +191,20 @@ boundary_condition<Conf>::boundary_condition(sim_environment& env,
 template <typename Conf>
 void
 boundary_condition<Conf>::init() {
-  m_env.get_data("Edelta", &E);
-  m_env.get_data("E0", &E0);
-  m_env.get_data("Bdelta", &B);
-  m_env.get_data("B0", &B0);
-  m_env.get_data("rand_states", &rand_states);
-  m_env.get_data("particles", &ptc);
+  sim_env().get_data("Edelta", &E);
+  sim_env().get_data("E0", &E0);
+  sim_env().get_data("Bdelta", &B);
+  sim_env().get_data("B0", &B0);
+  sim_env().get_data("rand_states", &rand_states);
+  sim_env().get_data("particles", &ptc);
 
-  m_env.params().get_value("tp_start", m_tp_start);
-  m_env.params().get_value("tp_end", m_tp_end);
-  m_env.params().get_value("nT", m_nT);
-  m_env.params().get_value("dw0", m_dw0);
-  m_env.params().get_value("q_e", m_qe);
-  m_env.params().get_value("damping_coef", m_damping_coef);
-  m_env.params().get_value("muB", m_muB);
+  sim_env().params().get_value("tp_start", m_tp_start);
+  sim_env().params().get_value("tp_end", m_tp_end);
+  sim_env().params().get_value("nT", m_nT);
+  sim_env().params().get_value("dw0", m_dw0);
+  sim_env().params().get_value("q_e", m_qe);
+  sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("muB", m_muB);
 
   m_surface_ne.set_memtype(MemType::host_device);
   m_surface_ne.resize(m_grid.dims[1]);
@@ -219,7 +218,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   typedef typename Conf::idx_t idx_t;
   typedef typename Conf::value_t value_t;
 
-  value_t time = m_env.get_time();
+  value_t time = sim_env().get_time();
 
   // Apply zero boundary condition on the left side
   kernel_launch(

@@ -32,8 +32,8 @@ class bh_injector : public system_t {
   using value_t = typename Conf::value_t;
   static std::string name() { return "bh_injector"; }
 
-  bh_injector(sim_environment& env, const grid_ks_t<Conf>& grid)
-      : system_t(env), m_grid(grid) {}
+  bh_injector(const grid_ks_t<Conf>& grid)
+      : m_grid(grid) {}
   virtual ~bh_injector() {}
 
   void init() override;

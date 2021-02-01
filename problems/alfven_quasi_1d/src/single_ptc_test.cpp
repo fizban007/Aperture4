@@ -31,19 +31,20 @@ using namespace Aperture;
 
 int main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  sim_environment env(&argc, &argv);
+  // sim_environment env(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  domain_comm<Conf> comm(env);
+  domain_comm<Conf> comm;
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
-  grid_t<Conf> grid(env, comm);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, grid, &comm);
-  auto solver = env.register_system<field_solver_cu<Conf>>(env, grid, &comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
-  // auto rad = env.register_system<ph_freepath_dev<Conf>>(env, *grid, comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, grid, &comm);
+  grid_t<Conf> grid(comm);
+  auto pusher = env.register_system<ptc_updater_cu<Conf>>(grid, &comm);
+  auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
+  // auto bc = env.register_system<boundary_condition<Conf>>(grid);
+  // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 

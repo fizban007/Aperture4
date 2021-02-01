@@ -29,10 +29,10 @@ namespace Aperture {
 template <typename Conf> void bh_injector<Conf>::register_data_components() {}
 
 template <typename Conf> void bh_injector<Conf>::init() {
-  m_env.get_data("E", &D);
-  m_env.get_data("B", &B);
-  m_env.get_data("particles", &ptc);
-  m_env.get_data("rand_states", &m_rand_states);
+  sim_env().get_data("E", &D);
+  sim_env().get_data("B", &B);
+  sim_env().get_data("particles", &ptc);
+  sim_env().get_data("rand_states", &m_rand_states);
 
   auto ext = m_grid.extent();
   m_num_per_cell.resize(ext);
@@ -41,16 +41,16 @@ template <typename Conf> void bh_injector<Conf>::init() {
   m_cum_num_per_cell.assign_dev(0);
 
   m_inj_thr = 1e-3;
-  m_env.params().get_value("inj_threshold", m_inj_thr);
+  sim_env().params().get_value("inj_threshold", m_inj_thr);
   m_sigma_thr = 20.0f;
-  m_env.params().get_value("sigma_threshold", m_sigma_thr);
-  m_env.params().get_value("q_e", m_qe);
+  sim_env().params().get_value("sigma_threshold", m_sigma_thr);
+  sim_env().params().get_value("q_e", m_qe);
 
   int num_species = 2;
-  this->m_env.params().get_value("num_species", num_species);
+  sim_env().params().get_value("num_species", num_species);
   Rho.resize(num_species);
   for (int i = 0; i < num_species; i++) {
-    this->m_env.get_data(std::string("Rho_") + ptc_type_name(i), &Rho[i]);
+    sim_env().get_data(std::string("Rho_") + ptc_type_name(i), &Rho[i]);
   }
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(num_species);

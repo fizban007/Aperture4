@@ -53,7 +53,7 @@ class boundary_condition : public system_t {
  public:
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(sim_environment& env, const grid_t<Conf>& grid);
+  boundary_condition(const grid_t<Conf>& grid);
 
   void init() override;
   void update(double dt, uint32_t step) override;

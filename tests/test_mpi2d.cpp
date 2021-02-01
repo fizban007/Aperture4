@@ -26,7 +26,8 @@ using namespace Aperture;
 
 int
 main(int argc, char* argv[]) {
-  sim_environment env(&argc, &argv);
+  // sim_environment env(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv);
   typedef Config<2> Conf;
 
   env.params().add("log_level", int64_t(LogLevel::debug));
@@ -39,8 +40,8 @@ main(int argc, char* argv[]) {
   env.params().add("ptc_buffer_size", int64_t(100));
   env.params().add("ph_buffer_size", int64_t(100));
 
-  auto comm = env.register_system<domain_comm_async<Conf>>(env);
-  auto grid = env.register_system<grid_t<Conf>>(env, *comm);
+  auto comm = env.register_system<domain_comm_async<Conf>>();
+  auto grid = env.register_system<grid_t<Conf>>(*comm);
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);

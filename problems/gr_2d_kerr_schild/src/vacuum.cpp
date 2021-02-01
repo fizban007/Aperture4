@@ -26,31 +26,31 @@ using namespace std;
 
 namespace Aperture {
 template <typename Conf>
-void initial_nonrotating_vacuum_wald(sim_environment &env,
-                                     vector_field<Conf> &B0,
+void initial_nonrotating_vacuum_wald(vector_field<Conf> &B0,
                                      vector_field<Conf> &D0,
                                      const grid_ks_t<Conf> &grid);
 
 template <typename Conf>
-void initial_vacuum_wald(sim_environment &env, vector_field<Conf> &B0,
-                         vector_field<Conf> &D0, const grid_ks_t<Conf> &grid);
-} // namespace Aperture
+void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
+                         const grid_ks_t<Conf> &grid);
+}  // namespace Aperture
 
 using namespace Aperture;
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  sim_environment env(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  domain_comm<Conf> comm(env);
-  grid_ks_t<Conf> grid(env, comm);
+  domain_comm<Conf> comm;
+  grid_ks_t<Conf> grid(comm);
 
   auto solver =
-      env.register_system<field_solver_gr_ks_cu<Conf>>(env, grid, &comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, grid, &comm);
+      env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
+  // auto bc = env.register_system<boundary_condition<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
   env.get_data("Bdelta", &B);
   env.get_data("Edelta", &D);
 
-  initial_vacuum_wald(env, *B0, *D0, grid);
+  initial_vacuum_wald(*B0, *D0, grid);
   B->copy_from(*B0);
   D->copy_from(*D0);
 

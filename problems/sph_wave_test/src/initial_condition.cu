@@ -26,15 +26,15 @@ namespace Aperture {
 
 template <typename Conf>
 void
-set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
-                      int mult, double weight, double Bp) {
+initial_condition_plasma(const grid_sph_t<Conf>& grid, int mult, double weight,
+                         double Bp) {
   particle_data_t* ptc;
-  vector_field<Conf> *B0, *B;
+  vector_field<Conf>*B0, *B;
   curand_states_t* states;
-  env.get_data("particles", &ptc);
-  env.get_data("B0", &B0);
-  env.get_data("B", &B);
-  env.get_data("rand_states", &states);
+  sim_env().get_data("particles", &ptc);
+  sim_env().get_data("B0", &B0);
+  sim_env().get_data("B", &B);
+  sim_env().get_data("rand_states", &states);
 
   if (ptc != nullptr && states != nullptr) {
     auto num = ptc->number();
@@ -62,11 +62,12 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
                 ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
                 ptc.E[offset] = ptc.E[offset + 1] = 1.0;
                 ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-                ptc.weight[offset] = ptc.weight[offset + 1] = sin(theta) * weight;
+                ptc.weight[offset] = ptc.weight[offset + 1] =
+                    sin(theta) * weight;
                 ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                      PtcType::electron);
-                ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                         PtcType::positron);
+                ptc.flag[offset + 1] = set_ptc_type_flag(
+                    flag_or(PtcFlag::primary), PtcType::positron);
               }
             }
           }
@@ -90,8 +91,27 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
   B->copy_from(*B0);
 }
 
-template void set_initial_condition<Config<2>>(
-    sim_environment& env, const grid_sph_t<Config<2>>& grid, int mult,
-    double weight, double Bp);
+template <typename Conf>
+void
+initial_condition_vacuum(const grid_sph_t<Conf>& grid, double Bp) {
+  vector_field<Conf> *B, *B0;
+  sim_env().get_data("B", &B);
+  sim_env().get_data("B0", &B0);
+  if (B == nullptr)
+    Logger::print_err("B is nullptr!!!");
+
+  B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
+    Scalar r = std::exp(x);
+    return Bp / (r * r);
+    // return Bp * 2.0 * cos(theta) / (r * r * r);
+  });
+  B->copy_from(*B0);
+}
+
+template void initial_condition_plasma<Config<2>>(
+    const grid_sph_t<Config<2>>& grid, int mult, double weight, double Bp);
+
+template void initial_condition_vacuum<Config<2>>(
+    const grid_sph_t<Config<2>>& grid, double Bp);
 
 }  // namespace Aperture

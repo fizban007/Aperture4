@@ -35,9 +35,9 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
 
   typedef Grid<Conf::dim, typename Conf::value_t> base_type;
 
-  grid_t(sim_environment& env);
-  grid_t(sim_environment& env, const domain_comm<Conf>& comm);
-  grid_t(sim_environment& env, const domain_info_t<Conf::dim>& domain_info);
+  grid_t();
+  grid_t(const domain_comm<Conf>& comm);
+  grid_t(const domain_info_t<Conf::dim>& domain_info);
   grid_t(const grid_t<Conf>& grid) = default;
   virtual ~grid_t();
 

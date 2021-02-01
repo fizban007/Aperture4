@@ -240,11 +240,11 @@ void
 field_solver_gr_ks_cu<Conf>::init() {
   field_solver<Conf>::init();
 
-  this->m_env.params().get_value("bh_spin", m_a);
+  sim_env().params().get_value("bh_spin", m_a);
   Logger::print_info("bh_spin in field solver is {}", m_a);
-  this->m_env.params().get_value("implicit_beta", this->m_beta);
-  this->m_env.params().get_value("damping_length", m_damping_length);
-  this->m_env.params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("implicit_beta", this->m_beta);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("damping_coef", m_damping_coef);
 
   m_prev_D.resize(this->m_grid);
   m_prev_B.resize(this->m_grid);
@@ -257,7 +257,7 @@ void
 field_solver_gr_ks_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
-  flux = this->m_env.template register_data<scalar_field<Conf>>(
+  flux = sim_env().template register_data<scalar_field<Conf>>(
       "flux", this->m_grid, field_type::vert_centered);
 }
 

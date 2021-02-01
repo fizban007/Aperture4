@@ -54,8 +54,8 @@ class grid_ks_t : public grid_t<Conf> {
   value_t a = 0.99;
   grid_ptrs ptrs;
 
-  grid_ks_t(sim_environment& env);
-  grid_ks_t(sim_environment& env, const domain_comm<Conf>& comm);
+  grid_ks_t();
+  grid_ks_t(const domain_comm<Conf>& comm);
   grid_ks_t(const grid_ks_t<Conf>& grid) = default;
   grid_ks_t(grid_ks_t<Conf>&& grid) = default;
   virtual ~grid_ks_t() {}

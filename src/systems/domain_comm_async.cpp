@@ -31,8 +31,8 @@
 namespace Aperture {
 
 template <typename Conf>
-domain_comm_async<Conf>::domain_comm_async(sim_environment &env)
-    : domain_comm<Conf>(env) {
+domain_comm_async<Conf>::domain_comm_async()
+    : domain_comm<Conf>() {
   CudaSafeCall(cudaStreamCreate(&m_copy_stream));
 }
 

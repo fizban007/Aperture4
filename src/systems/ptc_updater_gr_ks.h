@@ -30,7 +30,8 @@ class ptc_updater_gr_ks_cu : public ptc_updater_cu<Conf> {
   static std::string name() { return "ptc_updater"; }
 
   // using ptc_updater_cu<Conf>::ptc_updater_cu;
-  ptc_updater_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+  // ptc_updater_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+  ptc_updater_gr_ks_cu(const grid_ks_t<Conf>& grid,
                        const domain_comm<Conf>* comm = nullptr);
 
   void init() override;

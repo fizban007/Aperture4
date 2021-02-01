@@ -32,7 +32,7 @@
 
 namespace Aperture {
 
-class sim_environment;
+// class sim_environment;
 class particle_data_t;
 class curand_states_t;
 template <typename T, int Rank>
@@ -41,7 +41,8 @@ class multi_array_data;
 template <typename Conf>
 class data_exporter : public system_t {
  public:
-  data_exporter(sim_environment& env, const grid_t<Conf>& grid,
+  // data_exporter(sim_environment& env, const grid_t<Conf>& grid,
+  data_exporter(const grid_t<Conf>& grid,
                 const domain_comm<Conf>* comm = nullptr);
   virtual ~data_exporter();
 

@@ -24,9 +24,9 @@
 
 namespace Aperture {
 
-sim_environment::sim_environment() : sim_environment(nullptr, nullptr) {}
+sim_environment_impl::sim_environment_impl() : sim_environment_impl(nullptr, nullptr) {}
 
-sim_environment::sim_environment(int* argc, char*** argv) {
+sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
   // Parse options
   m_options = std::unique_ptr<cxxopts::Options>(
       new cxxopts::Options("aperture", "Aperture PIC code"));
@@ -57,7 +57,7 @@ sim_environment::sim_environment(int* argc, char*** argv) {
   m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
 }
 
-sim_environment::~sim_environment() {
+sim_environment_impl::~sim_environment_impl() {
   int is_finalized = 0;
   MPI_Finalized(&is_finalized);
 
@@ -65,7 +65,7 @@ sim_environment::~sim_environment() {
 }
 
 void
-sim_environment::parse_options(int argc, char** argv) {
+sim_environment_impl::parse_options(int argc, char** argv) {
   // Read command line arguments
   try {
     m_commandline_args.reset(
@@ -90,7 +90,7 @@ sim_environment::parse_options(int argc, char** argv) {
 }
 
 void
-sim_environment::init() {
+sim_environment_impl::init() {
   // Set log level independent of domain comm
   int log_level = (int)LogLevel::info;
   m_params.get_value("log_level", log_level);
@@ -118,7 +118,7 @@ sim_environment::init() {
 }
 
 void
-sim_environment::update() {
+sim_environment_impl::update() {
   Logger::print_info("=== Time step {}, Time is {:.5f} ===", step, time);
   for (auto& name : m_system_order) {
     timer::stamp();
@@ -134,7 +134,7 @@ sim_environment::update() {
 }
 
 void
-sim_environment::run() {
+sim_environment_impl::run() {
   if (is_dry_run) {
     Logger::print_info("This is a dry-run, exiting...");
     return;

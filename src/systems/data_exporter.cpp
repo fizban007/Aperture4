@@ -31,20 +31,20 @@ namespace fs = std::filesystem;
 namespace Aperture {
 
 template <typename Conf>
-data_exporter<Conf>::data_exporter(sim_environment& env,
-                                   const grid_t<Conf>& grid,
+// data_exporter<Conf>::data_exporter(sim_environment& env,
+data_exporter<Conf>::data_exporter(const grid_t<Conf>& grid,
                                    const domain_comm<Conf>* comm)
-    : system_t(env), m_grid(grid), m_comm(comm), m_output_grid(grid) {
-  m_env.params().get_value("ptc_output_interval", m_ptc_output_interval);
-  m_env.params().get_value("fld_output_interval", m_fld_output_interval);
-  m_env.params().get_value("snapshot_interval", m_snapshot_interval);
-  m_env.params().get_value("output_dir", m_output_dir);
-  m_env.params().get_value("downsample", m_downsample);
+    : m_grid(grid), m_comm(comm), m_output_grid(grid) {
+  sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
+  sim_env().params().get_value("fld_output_interval", m_fld_output_interval);
+  sim_env().params().get_value("snapshot_interval", m_snapshot_interval);
+  sim_env().params().get_value("output_dir", m_output_dir);
+  sim_env().params().get_value("downsample", m_downsample);
 
   // Resize the tmp data array
   size_t max_ptc_num = 100, max_ph_num = 100;
-  m_env.params().get_value("max_ptc_num", max_ptc_num);
-  m_env.params().get_value("max_ph_num", max_ph_num);
+  sim_env().params().get_value("max_ptc_num", max_ptc_num);
+  sim_env().params().get_value("max_ph_num", max_ph_num);
 
   tmp_ptc_data.set_memtype(MemType::host_device);
   tmp_ptc_data.resize(std::max(max_ptc_num, max_ph_num));
@@ -58,7 +58,7 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
   tmp_grid_data.resize(m_output_grid.extent_less());
 
   // Obtain the global extent of the grid
-  m_env.params().get_vec_t("N", m_global_ext);
+  sim_env().params().get_vec_t("N", m_global_ext);
   m_global_ext /= m_downsample;
   m_global_ext.get_strides();
 }
@@ -99,7 +99,7 @@ data_exporter<Conf>::register_data_components() {
 template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
-  double time = m_env.get_time();
+  double time = sim_env().get_time();
   if (step % m_fld_output_interval == 0) {
     // Output downsampled fields!
     std::string filename =
@@ -112,7 +112,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     write_xmf_step_header(m_xmf_buffer, time);
 
     // Loop over all data components and output according to their type
-    for (auto& it : m_env.data_map()) {
+    for (auto& it : sim_env().data_map()) {
       // Do not output the skipped components
       if (it.second->skip_output()) continue;
 
@@ -165,7 +165,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
   if (step % m_ptc_output_interval == 0) {
     // Output tracked particles!
 
-    for (auto& it : m_env.data_map()) {
+    for (auto& it : sim_env().data_map()) {
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
         Logger::print_info("Writing tracked particles");
@@ -190,7 +190,7 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
 
   // Walk over all data components and write them to the snapshot file according
   // to their `include_in_snapshot`
-  for (auto& it : m_env.data_map()) {
+  for (auto& it : sim_env().data_map()) {
     auto data = it.second.get();
     if (!data->include_in_snapshot()) {
       continue;
@@ -230,7 +230,7 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
 
   // Walk over all data components and read them from the snapshot file
   // according to their `include_in_snapshot`
-  for (auto& it : m_env.data_map()) {
+  for (auto& it : sim_env().data_map()) {
     auto data = it.second.get();
     if (!data->include_in_snapshot()) {
       continue;
@@ -261,7 +261,7 @@ void
 data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
   std::string conf_file =
-      m_env.params().template get_as<std::string>("config_file");
+      sim_env().params().template get_as<std::string>("config_file");
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {

@@ -30,7 +30,7 @@
 
 namespace Aperture {
 
-class sim_environment;
+// class sim_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  The Config class basically maintains all the compile time type

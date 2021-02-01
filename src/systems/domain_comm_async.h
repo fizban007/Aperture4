@@ -2,7 +2,7 @@
  * Copyright (c) 2020 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
- * Aperture is free software: you can redistribute it and/or modify
+ // * Aperture is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
@@ -30,7 +30,7 @@ class domain_comm_async : public domain_comm<Conf> {
  public:
   static std::string name() { return "domain_comm"; }
 
-  domain_comm_async(sim_environment& env);
+  domain_comm_async();
   virtual ~domain_comm_async();
 
   // virtual void send_guard_cells(vector_field<Conf>& field) const override;

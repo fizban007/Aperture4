@@ -32,8 +32,9 @@ class compute_lorentz_factor : public system_t {
  public:
   static std::string name() { return "compute_lorentz_factor"; }
 
-  compute_lorentz_factor(sim_environment& env, const grid_t<Conf>& grid)
-      : system_t(env), m_grid(grid) {}
+  // compute_lorentz_factor(sim_environment& env, const grid_t<Conf>& grid)
+  compute_lorentz_factor(const grid_t<Conf>& grid)
+      : m_grid(grid) {}
   virtual ~compute_lorentz_factor() {}
 
   virtual void register_data_components() override;
@@ -58,8 +59,8 @@ class compute_lorentz_factor_cu : public compute_lorentz_factor<Conf> {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "compute_lorentz_factor"; }
 
-  compute_lorentz_factor_cu(sim_environment& env, const grid_t<Conf>& grid)
-      : compute_lorentz_factor<Conf>(env, grid) {}
+  compute_lorentz_factor_cu(const grid_t<Conf>& grid)
+      : compute_lorentz_factor<Conf>(grid) {}
   virtual ~compute_lorentz_factor_cu() {}
 
   virtual void register_data_components() override;

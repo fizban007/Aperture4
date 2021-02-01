@@ -67,10 +67,10 @@ ptc_injector<Conf>::add_injector(const vec_t<value_t, Conf::dim> &lower,
 template <typename Conf>
 void
 ptc_injector<Conf>::init() {
-  m_env.get_data("particles", &ptc);
+  sim_env().get_data("particles", &ptc);
 
   m_ptc_density = make_multi_array<value_t>(m_grid.extent(), MemType::host_only);
-  // m_env.params().get_value("target_sigma", m_target_sigma);
+  // sim_env().params().get_value("target_sigma", m_target_sigma);
 }
 
 template <typename Conf>

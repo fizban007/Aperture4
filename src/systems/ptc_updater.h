@@ -73,7 +73,8 @@ class ptc_updater : public system_t {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
+  // ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
+  ptc_updater(const grid_t<Conf>& grid,
               const domain_comm<Conf>* comm = nullptr);
 
   void init() override;

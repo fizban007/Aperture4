@@ -429,8 +429,8 @@ void
 field_solver_sph_cu<Conf>::init() {
   field_solver_cu<Conf>::init();
 
-  this->m_env.params().get_value("damping_length", m_damping_length);
-  this->m_env.params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("damping_coef", m_damping_coef);
 }
 
 template <typename Conf>
@@ -438,7 +438,7 @@ void
 field_solver_sph_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
-  flux = this->m_env.template register_data<scalar_field<Conf>>(
+  flux = sim_env().template register_data<scalar_field<Conf>>(
       "flux", this->m_grid, field_type::vert_centered);
 }
 

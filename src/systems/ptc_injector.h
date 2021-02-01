@@ -42,8 +42,9 @@ class ptc_injector : public system_t {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_injector"; }
 
-  ptc_injector(sim_environment& env, const grid_t<Conf>& grid)
-      : system_t(env), m_grid(grid) {}
+  // ptc_injector(sim_environment& env, const grid_t<Conf>& grid)
+  ptc_injector(const grid_t<Conf>& grid)
+      : m_grid(grid) {}
   virtual ~ptc_injector() {}
 
   void add_injector(const vec_t<value_t, Conf::dim>& lower,

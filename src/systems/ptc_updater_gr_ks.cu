@@ -165,18 +165,17 @@ ptc_outflow(particle_data_t& ptc, const grid_ks_t<Conf>& grid,
 }  // namespace
 
 template <typename Conf>
-ptc_updater_gr_ks_cu<Conf>::ptc_updater_gr_ks_cu(sim_environment &env,
-                                                 const grid_ks_t<Conf> &grid,
+ptc_updater_gr_ks_cu<Conf>::ptc_updater_gr_ks_cu(const grid_ks_t<Conf> &grid,
                                                  const domain_comm<Conf> *comm)
-    : ptc_updater_cu<Conf>(env, grid, comm), m_ks_grid(grid) {}
+    : ptc_updater_cu<Conf>(grid, comm), m_ks_grid(grid) {}
 
 template <typename Conf>
 void
 ptc_updater_gr_ks_cu<Conf>::init() {
   ptc_updater_cu<Conf>::init();
 
-  this->m_env.params().get_value("bh_spin", m_a);
-  this->m_env.params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("bh_spin", m_a);
+  sim_env().params().get_value("damping_length", m_damping_length);
 }
 
 template <typename Conf>

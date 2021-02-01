@@ -35,8 +35,8 @@ ptc_updater<Conf>::init_charge_mass() {
   // Default values are 1.0
   float q_e = 1.0;
   float ion_mass = 1.0;
-  m_env.params().get_value("q_e", q_e);
-  m_env.params().get_value("ion_mass", ion_mass);
+  sim_env().params().get_value("q_e", q_e);
+  sim_env().params().get_value("ion_mass", ion_mass);
 
   for (int i = 0; i < (max_ptc_types); i++) {
     m_charges[i] = q_e;
@@ -50,20 +50,21 @@ ptc_updater<Conf>::init_charge_mass() {
 }
 
 template <typename Conf>
-ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
+// ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
+ptc_updater<Conf>::ptc_updater(const grid_t<Conf>& grid,
                                const domain_comm<Conf>* comm)
-    : system_t(env), m_grid(grid), m_comm(comm) {
-  m_env.params().get_value("fld_output_interval", m_data_interval);
+    : m_grid(grid), m_comm(comm) {
+  sim_env().params().get_value("fld_output_interval", m_data_interval);
   // By default, rho_interval is the same as field output interval
   m_rho_interval = m_data_interval;
   // Override if there is a specific rho_interval option specified
-  m_env.params().get_value("rho_interval", m_rho_interval);
+  sim_env().params().get_value("rho_interval", m_rho_interval);
 
-  m_env.params().get_value("sort_interval", m_sort_interval);
-  m_env.params().get_value("current_smoothing", m_filter_times);
+  sim_env().params().get_value("sort_interval", m_sort_interval);
+  sim_env().params().get_value("current_smoothing", m_filter_times);
   init_charge_mass();
 
-  auto pusher = m_env.params().template get_as<std::string>("pusher");
+  auto pusher = sim_env().params().template get_as<std::string>("pusher");
 
   if (pusher == "boris") {
     m_pusher = Pusher::boris;
@@ -81,30 +82,30 @@ ptc_updater<Conf>::init() {
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(),
                                                         MemType::host_only);
 
-  m_env.get_data_optional("photons", ph);
-  m_env.get_data_optional("Rho_ph", rho_ph);
+  sim_env().get_data_optional("photons", ph);
+  sim_env().get_data_optional("Rho_ph", rho_ph);
 }
 
 template <typename Conf>
 void
 ptc_updater<Conf>::register_data_components() {
   size_t max_ptc_num = 10000;
-  m_env.params().get_value("max_ptc_num", max_ptc_num);
+  sim_env().params().get_value("max_ptc_num", max_ptc_num);
 
-  ptc = m_env.register_data<particle_data_t>("particles", max_ptc_num,
+  ptc = sim_env().register_data<particle_data_t>("particles", max_ptc_num,
                                              MemType::host_only);
 
-  E = m_env.register_data<vector_field<Conf>>(
+  E = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, MemType::host_only);
-  B = m_env.register_data<vector_field<Conf>>(
+  B = sim_env().register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, MemType::host_only);
-  J = m_env.register_data<vector_field<Conf>>(
+  J = sim_env().register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, MemType::host_only);
 
-  m_env.params().get_value("num_species", m_num_species);
+  sim_env().params().get_value("num_species", m_num_species);
   Rho.resize(m_num_species);
   for (int i = 0; i < m_num_species; i++) {
-    Rho[i] = m_env.register_data<scalar_field<Conf>>(
+    Rho[i] = sim_env().register_data<scalar_field<Conf>>(
         std::string("Rho_") + ptc_type_name(i), m_grid,
         field_type::vert_centered, MemType::host_only);
   }

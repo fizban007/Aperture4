@@ -230,8 +230,8 @@ template <typename Conf>
 void
 ptc_injector_cu<Conf>::init() {
   // ptc_injector<Conf>::init();
-  this->m_env.get_data("particles", &(this->ptc));
-  this->m_env.get_data("rand_states", &m_rand_states);
+  sim_env().get_data("particles", &(this->ptc));
+  sim_env().get_data("rand_states", &m_rand_states);
 
   m_num_per_cell.set_memtype(MemType::host_device);
   m_cum_num_per_cell.set_memtype(MemType::host_device);
@@ -250,7 +250,7 @@ ptc_injector_cu<Conf>::register_data_components() {
   ptc_injector<Conf>::register_data_components();
 
   // m_posInBlock.resize()
-  // m_sigma = this->m_env.template register_data<scalar_field<Conf>>(
+  // m_sigma = sim_env().template register_data<scalar_field<Conf>>(
   //     "sigma", this->m_grid, field_type::cell_centered,
   //     MemType::host_device);
 }

@@ -34,7 +34,8 @@
 namespace Aperture {
 
 template <typename Conf>
-domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
+// domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
+domain_comm<Conf>::domain_comm() {
   setup_domain();
 }
 
@@ -49,10 +50,10 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
 
   // This is the first place where rank is defined. Tell logger about
   // this
-  Logger::init(m_rank, (LogLevel)m_env.params().template get_as<int64_t>(
+  Logger::init(m_rank, (LogLevel)sim_env().params().template get_as<int64_t>(
                            "log_level", (int64_t)LogLevel::info));
 
-  auto dims = m_env.params().template get_as<std::vector<int64_t>>("nodes");
+  auto dims = sim_env().params().template get_as<std::vector<int64_t>>("nodes");
   if (dims.size() < Conf::dim)
     dims.resize(Conf::dim, 1);
 
@@ -83,7 +84,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
   }
 
   auto periodic =
-      m_env.params().template get_as<std::vector<bool>>("periodic_boundary");
+      sim_env().params().template get_as<std::vector<bool>>("periodic_boundary");
   for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
     m_domain_info.is_periodic[i] = periodic[i];
 
@@ -149,9 +150,9 @@ void domain_comm<Conf>::resize_buffers(
   }
 
   size_t ptc_buffer_size =
-      m_env.params().template get_as<int64_t>("ptc_buffer_size", 100000l);
+      sim_env().params().template get_as<int64_t>("ptc_buffer_size", 100000l);
   size_t ph_buffer_size =
-      m_env.params().template get_as<int64_t>("ph_buffer_size", 100000l);
+      sim_env().params().template get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
     m_ptc_buffers.emplace_back(ptc_buffer_size);

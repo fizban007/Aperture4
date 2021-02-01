@@ -35,9 +35,10 @@ class field_solver : public system_t {
  public:
   static std::string name() { return "field_solver"; }
 
-  field_solver(sim_environment& env, const grid_t<Conf>& grid,
+  // field_solver(sim_environment& env, const grid_t<Conf>& grid,
+  field_solver(const grid_t<Conf>& grid,
                const domain_comm<Conf>* comm = nullptr)
-      : system_t(env), m_grid(grid), m_comm(comm) {}
+      : m_grid(grid), m_comm(comm) {}
 
   virtual ~field_solver() {}
 

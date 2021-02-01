@@ -49,9 +49,10 @@ class field_solver_gr_ks_cu : public field_solver_cu<Conf> {
   static std::string name() { return "field_solver"; }
   using value_t = typename Conf::value_t;
 
-  field_solver_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+  // field_solver_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+  field_solver_gr_ks_cu(const grid_ks_t<Conf>& grid,
                         const domain_comm<Conf>* comm = nullptr)
-      : field_solver_cu<Conf>(env, grid, comm), m_ks_grid(grid) {}
+      : field_solver_cu<Conf>(grid, comm), m_ks_grid(grid) {}
 
   virtual ~field_solver_gr_ks_cu();
 

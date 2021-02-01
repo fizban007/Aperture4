@@ -26,9 +26,8 @@
 namespace Aperture {
 
 template <typename Conf>
-grid_t<Conf>::grid_t(sim_environment& env,
-                     const domain_info_t<Conf::dim>& domain_info)
-    : system_t(env) {
+// grid_t<Conf>::grid_t(sim_environment& env,
+grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
   // Start with some sane defaults so that it doesn't blow up when no parameter
   // is provided
   uint32_t vec_N[Conf::dim];
@@ -40,12 +39,12 @@ grid_t<Conf>::grid_t(sim_environment& env,
   }
 
   // Obtain grid parameters from the params store
-  m_env.params().get_array("N", vec_N);
-  m_env.params().get_array("guard", this->guard);
-  m_env.params().get_array("size", this->sizes);
-  m_env.params().get_array("lower", this->lower);
+  sim_env().params().get_array("N", vec_N);
+  sim_env().params().get_array("guard", this->guard);
+  sim_env().params().get_array("size", this->sizes);
+  sim_env().params().get_array("lower", this->lower);
   typename Conf::value_t dt = 0.0f;
-  m_env.params().get_value("dt", dt);
+  sim_env().params().get_value("dt", dt);
 
   // Initialize the grid parameters
   for (int i = 0; i < Conf::dim; i++) {
@@ -86,12 +85,12 @@ grid_t<Conf>::grid_t(sim_environment& env,
 }
 
 template <typename Conf>
-grid_t<Conf>::grid_t(sim_environment& env)
-    : grid_t(env, domain_info_t<Conf::dim>{}) {}
+grid_t<Conf>::grid_t()
+    : grid_t(domain_info_t<Conf::dim>{}) {}
 
 template <typename Conf>
-grid_t<Conf>::grid_t(sim_environment& env, const domain_comm<Conf>& comm)
-    : grid_t(env, comm.domain_info()) {
+grid_t<Conf>::grid_t(const domain_comm<Conf>& comm)
+    : grid_t(comm.domain_info()) {
   comm.resize_buffers(*this);
 }
 

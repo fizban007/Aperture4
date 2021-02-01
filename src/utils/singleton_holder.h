@@ -33,10 +33,15 @@ class singleton_holder {
  public:
   template <typename... Args>
   static T& instance(Args&&... args) {
+    init(args...);
+    return *p_instance;
+  }
+
+  template <typename... Args>
+  static void init(Args&&... args) {
     if (!p_instance) {
       p_instance = new T(std::forward<Args>(args)...);
     }
-    return *p_instance;
   }
 
   singleton_holder() = delete;

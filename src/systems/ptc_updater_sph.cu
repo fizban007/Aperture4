@@ -142,10 +142,10 @@ void
 ptc_updater_sph_cu<Conf>::init() {
   ptc_updater_cu<Conf>::init();
 
-  this->m_env.params().get_value("compactness", m_compactness);
-  this->m_env.params().get_value("omega", m_omega);
-  this->m_env.params().get_value("damping_length", m_damping_length);
-  this->m_env.params().get_value("r_cutoff", m_r_cutoff);
+  sim_env().params().get_value("compactness", m_compactness);
+  sim_env().params().get_value("omega", m_omega);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("r_cutoff", m_r_cutoff);
 }
 
 template <typename Conf>

@@ -91,39 +91,39 @@ ptc_updater_cu<Conf>::init() {
   this->jtmp = std::make_unique<typename Conf::multi_array_t>(
       this->m_grid.extent(), MemType::host_device);
 
-  this->m_env.get_data_optional("photons", this->ph);
-  this->m_env.get_data_optional("Rho_ph", this->rho_ph);
+  sim_env().get_data_optional("photons", this->ph);
+  sim_env().get_data_optional("Rho_ph", this->rho_ph);
 }
 
 template <typename Conf>
 void
 ptc_updater_cu<Conf>::register_data_components() {
   size_t max_ptc_num = 1000000;
-  this->m_env.params().get_value("max_ptc_num", max_ptc_num);
+  sim_env().params().get_value("max_ptc_num", max_ptc_num);
   // Prefer device_only, but can take other possibilities if data is already
   // there
-  this->ptc = this->m_env.template register_data<particle_data_t>(
+  this->ptc = sim_env().template register_data<particle_data_t>(
       "particles", max_ptc_num, MemType::device_only);
   this->ptc->include_in_snapshot(true);
 
-  this->E = this->m_env.template register_data<vector_field<Conf>>(
+  this->E = sim_env().template register_data<vector_field<Conf>>(
       "E", this->m_grid, field_type::edge_centered, MemType::host_device);
-  this->B = this->m_env.template register_data<vector_field<Conf>>(
+  this->B = sim_env().template register_data<vector_field<Conf>>(
       "B", this->m_grid, field_type::face_centered, MemType::host_device);
-  this->J = this->m_env.template register_data<vector_field<Conf>>(
+  this->J = sim_env().template register_data<vector_field<Conf>>(
       "J", this->m_grid, field_type::edge_centered, MemType::host_device);
 
-  this->m_env.params().get_value("num_species", this->m_num_species);
+  sim_env().params().get_value("num_species", this->m_num_species);
   this->Rho.resize(this->m_num_species);
   for (int i = 0; i < this->m_num_species; i++) {
-    this->Rho[i] = this->m_env.template register_data<scalar_field<Conf>>(
+    this->Rho[i] = sim_env().template register_data<scalar_field<Conf>>(
         std::string("Rho_") + ptc_type_name(i), this->m_grid,
         field_type::vert_centered, MemType::host_device);
   }
 
   int rand_seed = 1234;
-  this->m_env.params().get_value("rand_seed", rand_seed);
-  m_rand_states = this->m_env.template register_data<curand_states_t>(
+  sim_env().params().get_value("rand_seed", rand_seed);
+  m_rand_states = sim_env().template register_data<curand_states_t>(
       "rand_states", size_t(512 * 1024), rand_seed);
   m_rand_states->include_in_snapshot(true);
 }

@@ -30,6 +30,7 @@
 #include "system.h"
 #include "utils/logger.h"
 #include "utils/nonown_ptr.hpp"
+#include "utils/singleton_holder.h"
 
 namespace cxxopts {
 class Options;
@@ -38,7 +39,7 @@ class ParseResult;
 
 namespace Aperture {
 
-class sim_environment {
+class sim_environment_impl {
  private:
   // Registry for systems and data
   std::unordered_map<std::string, std::unique_ptr<data_t>> m_data_map;
@@ -68,9 +69,14 @@ class sim_environment {
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
 
-  sim_environment();
-  sim_environment(int* argc, char*** argv);
-  ~sim_environment();
+  sim_environment_impl();
+  sim_environment_impl(int* argc, char*** argv);
+  ~sim_environment_impl();
+
+  sim_environment_impl(const sim_environment_impl& other) = delete;
+  sim_environment_impl(sim_environment_impl&& other) = delete;
+  sim_environment_impl& operator=(const sim_environment_impl& other) = delete;
+  sim_environment_impl& operator=(sim_environment_impl&& other) = delete;
 
   ////////////////////////////////////////////////////////////////////////////////
   ///  Register a system class with the environment. This will either construct
@@ -312,6 +318,12 @@ class sim_environment {
   void set_time(double s) { step = s; }
   const data_map_t& data_map() { return m_data_map; }
 };
+
+using sim_environment = singleton_holder<sim_environment_impl>;
+
+inline sim_environment_impl& sim_env() {
+  return sim_environment::instance();
+}
 
 }  // namespace Aperture
 

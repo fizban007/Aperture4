@@ -44,7 +44,7 @@ template <typename Conf>
 void
 grid_sph_t<Conf>::compute_coef() {
   double r_g = 0.0;
-  this->m_env.params().get_value("compactness", r_g);
+  sim_env().params().get_value("compactness", r_g);
 
   for (int j = 0; j < this->dims[1]; j++) {
     double x2 = this->pos(1, j, false);

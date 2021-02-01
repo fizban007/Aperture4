@@ -9,20 +9,20 @@
 namespace Aperture {
 
 template <typename Conf>
-grid_ks_t<Conf>::grid_ks_t(sim_environment &env) : grid_t<Conf>(env) {
+grid_ks_t<Conf>::grid_ks_t() {
   initialize();
 }
 
 template <typename Conf>
-grid_ks_t<Conf>::grid_ks_t(sim_environment &env, const domain_comm<Conf> &comm)
-    : grid_t<Conf>(env, comm) {
+grid_ks_t<Conf>::grid_ks_t(const domain_comm<Conf> &comm)
+    : grid_t<Conf>(comm) {
   initialize();
 }
 
 template <typename Conf>
 void
 grid_ks_t<Conf>::initialize() {
-  this->m_env.params().get_value("bh_spin", a);
+  sim_env().params().get_value("bh_spin", a);
 
   Logger::print_info("In grid, a is {}", a);
 

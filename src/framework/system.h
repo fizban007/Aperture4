@@ -24,8 +24,6 @@
 
 namespace Aperture {
 
-class sim_environment;
-
 ////////////////////////////////////////////////////////////////////////////////
 ///  This is the base class for a `system`. A `system` is a module that will be
 ///  called at every time step to manipulate any given number of data
@@ -36,7 +34,8 @@ class system_t {
  public:
   /// Constructor. The `system` has to know about the environment so that it can
   /// register data or get parameters
-  system_t(sim_environment& env) : m_env(env) {}
+  // system_t(sim_environment& env) : m_env(env) {}
+  system_t() {}
   virtual ~system_t() = default;
 
   /// Register data components.
@@ -63,7 +62,7 @@ class system_t {
  protected:
   /// Keeps a reference to the `sim_environment` so that any derived `system` can
   /// access it via this member
-  sim_environment& m_env;
+  // sim_environment& m_env;
 };
 
 }  // namespace Aperture

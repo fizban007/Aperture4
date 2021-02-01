@@ -42,8 +42,8 @@ namespace Aperture {
 class sim_environment_impl {
  private:
   // Registry for systems and data
-  std::unordered_map<std::string, std::unique_ptr<data_t>> m_data_map;
   std::unordered_map<std::string, std::unique_ptr<system_t>> m_system_map;
+  std::unordered_map<std::string, std::unique_ptr<data_t>> m_data_map;
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
 
@@ -78,6 +78,7 @@ class sim_environment_impl {
   sim_environment_impl& operator=(const sim_environment_impl& other) = delete;
   sim_environment_impl& operator=(sim_environment_impl&& other) = delete;
 
+  void reset(int* argc, char*** argv);
   ////////////////////////////////////////////////////////////////////////////////
   ///  Register a system class with the environment. This will either construct
   ///  a `unique_ptr` of the given `System` and insert it into the registry, or

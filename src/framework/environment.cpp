@@ -27,16 +27,6 @@ namespace Aperture {
 sim_environment_impl::sim_environment_impl() : sim_environment_impl(nullptr, nullptr) {}
 
 sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
-  // Parse options
-  m_options = std::unique_ptr<cxxopts::Options>(
-      new cxxopts::Options("aperture", "Aperture PIC code"));
-  m_options->add_options()("h,help", "Prints this help message.")(
-      "c,config", "Configuration file for the simulation.",
-      cxxopts::value<std::string>()->default_value("config.toml"))(
-      "d,dry-run",
-      "Only initialize, do not actualy run the simulation. Useful for looking "
-      "at initialization stage problems.");
-
   int is_initialized = 0;
   MPI_Initialized(&is_initialized);
 
@@ -48,13 +38,7 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
     }
   }
 
-  // Parse options and store the results
-  if (argc != nullptr && argv != nullptr) {
-    parse_options(*argc, *argv);
-  } else {
-    m_commandline_args = nullptr;
-  }
-  m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
+  reset(argc, argv);
 }
 
 sim_environment_impl::~sim_environment_impl() {
@@ -62,6 +46,34 @@ sim_environment_impl::~sim_environment_impl() {
   MPI_Finalized(&is_finalized);
 
   if (!is_finalized) MPI_Finalize();
+}
+
+void
+sim_environment_impl::reset(int *argc, char ***argv) {
+  // Parse options
+  m_options = std::unique_ptr<cxxopts::Options>(
+      new cxxopts::Options("aperture", "Aperture PIC code"));
+  m_options->add_options()("h,help", "Prints this help message.")(
+      "c,config", "Configuration file for the simulation.",
+      cxxopts::value<std::string>()->default_value("config.toml"))(
+      "d,dry-run",
+      "Only initialize, do not actualy run the simulation. Useful for looking "
+      "at initialization stage problems.");
+
+  // Parse options and store the results
+  if (argc != nullptr && argv != nullptr) {
+    parse_options(*argc, *argv);
+  } else {
+    m_commandline_args = nullptr;
+  }
+  m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
+
+  // Reset the systems and data
+  m_system_map.clear();
+  m_system_order.clear();
+  m_data_map.clear();
+  m_data_order.clear();
+  m_params.clear();
 }
 
 void

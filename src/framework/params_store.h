@@ -197,6 +197,8 @@ class params_store {
   void get_vec_t(const std::string& name, vec_t<T, Dim>& x) const {
     visit_param{*this}(name.c_str(), x);
   }
+
+  void clear();
 };
 
 }  // namespace Aperture

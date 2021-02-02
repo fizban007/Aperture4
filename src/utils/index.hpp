@@ -111,11 +111,12 @@ struct idx_col_major_t
   HD_INLINE idx_col_major_t(const self_type& idx) = default;
   HD_INLINE self_type& operator=(const self_type& idx) = default;
 
-  HD_INLINE index_t<Rank> get_pos() const {
+  // HD_INLINE index_t<Rank> get_pos() const {
+  inline index_t<Rank> get_pos() const {
     return pos(this->linear);
   }
 
-  HD_INLINE index_t<Rank> pos(uint64_t linear) const {
+  inline index_t<Rank> pos(uint64_t linear) const {
     auto result = index_t<Rank>{};
     auto n = linear;
     result[0] = n % this->ext[0];

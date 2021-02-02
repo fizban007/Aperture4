@@ -48,7 +48,8 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid, int mult, double weight,
           cuda_rng_t rng(&states[id]);
           for (auto n : grid_stride_range(0, ext.size())) {
             auto idx = idx_t(n, ext);
-            auto pos = idx.get_pos();
+            // auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
             if (grid.is_in_bound(pos)) {
               for (int i = 0; i < mult; i++) {
                 uint32_t offset = num + idx.linear * mult * 2 + i * 2;

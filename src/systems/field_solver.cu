@@ -47,7 +47,8 @@ void compute_e_update_explicit_cu(vector_field<Conf> &result,
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             result[0][idx] =
                 e[0][idx] + dt * (cherenkov_factor *
@@ -82,7 +83,8 @@ void compute_b_update_explicit_cu(vector_field<Conf> &result,
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             result[0][idx] =
                 b[0][idx] -
@@ -113,7 +115,7 @@ void compute_double_curl(vector_field<Conf> &result,
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             result[0][idx] = -coef * (fd<Conf>::laplacian(b[0], idx, grid));
             result[1][idx] = -coef * (fd<Conf>::laplacian(b[1], idx, grid));
@@ -144,7 +146,8 @@ void compute_implicit_rhs(vector_field<Conf> &result,
         auto ext = grid.extent();
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             result[0][idx] +=
                 -dt * (fd<Conf>::curl0(e, idx, stagger, grid) -
@@ -178,7 +181,8 @@ void compute_divs_cu(scalar_field<Conf> &divE, scalar_field<Conf> &divB,
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             divE[idx] = fd<Conf>::div(e, idx, st_e, grid);
             divB[idx] = fd<Conf>::div(b, idx, st_b, grid);

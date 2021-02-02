@@ -181,7 +181,8 @@ compute_ptc_per_cell(alfven_wave_solution<typename Conf::value_t> &wave,
 
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = Conf::idx(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             num_per_cell[idx] = 2 * mult;
             Scalar x = grid.template pos<0>(pos, 0.0f);
@@ -272,7 +273,8 @@ initial_condition_wave(vector_field<Conf> &B,
         cuda_rng_t rng(&states[id]);
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = Conf::idx(cell, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           // auto idx_row = idx_row_major_t<Conf::dim>(pos, ext);
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < num_per_cell[idx]; i++) {

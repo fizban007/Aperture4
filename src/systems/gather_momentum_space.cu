@@ -50,7 +50,8 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
           if (cell == empty_cell) continue;
 
           auto idx = Conf::idx(cell, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / downsample);
 

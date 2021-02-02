@@ -39,7 +39,8 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
     auto interp = lerp<Rank>{};
     for (auto n : grid_stride_range(0, ext.size())) {
       auto idx = p_dst.idx_at(n, ext);
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
       bool in_bound = true;
 #pragma unroll
       for (int i = 0; i < Rank; i++) {

@@ -71,7 +71,8 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           // auto idx = idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
             if (is_boundary[0] && pos[0] == grid.skirt[0]) dx_minus = 0;
@@ -116,12 +117,14 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
   kernel_launch(
       [ptc_num, damping_length] __device__(auto ptc, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
           if (c == empty_cell) continue;
 
           auto idx = typename Conf::idx_t(c, grid.extent());
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           auto flag = ptc.flag[n];
           if (check_flag(flag, PtcFlag::ignore_EM)) continue;
           if (pos[0] > grid.dims[0] - damping_length + 2) {
@@ -179,7 +182,8 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         if (cell == empty_cell) continue;
 
         auto idx = idx_t(cell, ext);
-        auto pos = idx.get_pos();
+        // auto pos = idx.get_pos();
+        auto pos = get_pos(idx, ext);
 
         // Move particles
         // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
@@ -368,7 +372,8 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             if (cell == empty_cell) continue;
 
             auto idx = typename Conf::idx_t(cell, ext);
-            auto pos = idx.get_pos();
+            // auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
 
             value_t x1 = ph.x1[n], x2 = ph.x2[n], x3 = ph.x3[n];
             value_t v1 = ph.p1[n], v2 = ph.p2[n], v3 = ph.p3[n];
@@ -509,7 +514,8 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < mult; i++) {
               uint32_t offset = num + idx.linear * mult * 2 + i * 2;

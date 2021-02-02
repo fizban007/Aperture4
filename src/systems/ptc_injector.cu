@@ -148,7 +148,8 @@ compute_n_ptc(typename Conf::multi_array_t &n_ptc, particle_data_t &ptc,
           if (c == empty_cell) continue;
 
           auto idx = typename Conf::idx_t(c, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (begin <= pos && pos < begin + region_ext) {
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
@@ -181,7 +182,8 @@ inject_pairs(const multi_array<int, Conf::dim> &num_per_cell,
           auto idx = typename Conf::idx_t(cell, ext);
           if (ptc_density[idx] > square(1.0f / grid.delta[0]))
             continue;
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           for (int i = 0; i < num_per_cell[cell]; i++) {
             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
             ptc.x1[offset] = ptc.x1[offset + 1] = rng();

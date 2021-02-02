@@ -42,7 +42,8 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
         auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           // auto idx = idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
             if (is_boundary[0] && pos[0] == grid.skirt[0]) dx_minus = 0;
@@ -162,7 +163,8 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
             if (cell == empty_cell) continue;
 
             auto idx = J[0].idx_at(cell, ext);
-            auto pos = idx.get_pos();
+            // auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
 
             // step 1: Move particles
             // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
@@ -261,7 +263,8 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             if (cell == empty_cell) continue;
 
             auto idx = typename Conf::idx_t(cell, ext);
-            auto pos = idx.get_pos();
+            // auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
 
             // step 1: Move particles
             // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
@@ -385,7 +388,8 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
             if (cell == empty_cell) continue;
 
             auto idx = typename Conf::idx_t(cell, ext);
-            auto pos = idx.get_pos();
+            // auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
 
             // step 1: Move particles
             // auto x1 = ptc.x1[n], x2 = ptc.x2[n], x3 = ptc.x3[n];
@@ -539,7 +543,8 @@ ptc_updater_cu<Conf>::clear_guard_cells() {
       uint32_t cell = ptc.cell[n];
       if (cell == empty_cell) continue;
       auto idx = typename Conf::idx_t(cell, ext);
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
 
       if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
     }
@@ -579,7 +584,8 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
         cuda_rng_t rng(&states[id]);
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             for (int i = 0; i < mult; i++) {
               uint32_t offset = num + idx.linear * mult * 2 + i * 2;

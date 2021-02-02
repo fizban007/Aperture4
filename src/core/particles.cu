@@ -52,7 +52,7 @@ compute_target_buffers(const uint32_t* cells, size_t num,
           uint32_t cell = cells[n];
           if (cell == empty_cell) continue;
           auto idx = Conf::idx(cell, ext);
-          auto grid_pos = idx.get_pos();
+          auto grid_pos = get_pos(idx, ext);
           size_t zone = grid.find_zone(grid_pos) + zone_offset;
           if (zone == 13) continue;
           size_t pos = atomicAdd(&buffer_num[zone], 1);

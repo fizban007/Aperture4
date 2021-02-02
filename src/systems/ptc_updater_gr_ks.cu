@@ -143,12 +143,14 @@ ptc_outflow(particle_data_t& ptc, const grid_ks_t<Conf>& grid,
   kernel_launch(
       [ptc_num, damping_length] __device__(auto ptc, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
         for (auto n : grid_stride_range(0, ptc_num)) {
           auto c = ptc.cell[n];
           if (c == empty_cell) continue;
 
           auto idx = typename Conf::idx_t(c, grid.extent());
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           auto flag = ptc.flag[n];
           if (check_flag(flag, PtcFlag::ignore_EM)) continue;
           if (pos[0] > grid.dims[0] - damping_length + 2) {
@@ -208,7 +210,8 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
         if (cell == empty_cell) continue;
 
         auto idx = idx_t(cell, ext);
-        auto pos = idx.get_pos();
+        // auto pos = idx.get_pos();
+        auto pos = get_pos(idx, ext);
 
         vec_t<value_t, 3> x(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
         vec_t<value_t, 3> u(ptc.p1[n], ptc.p2[n], ptc.p3[n]);

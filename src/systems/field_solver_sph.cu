@@ -63,7 +63,8 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_mx = idx.dec_x();
             auto idx_my = idx.dec_y();
@@ -124,7 +125,8 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_py = idx.inc_y();
             result[0][idx] += -dt *
@@ -170,7 +172,8 @@ compute_e_update_explicit(vector_field<Conf>& result,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_my = idx.dec_y();
             result[0][idx] +=
@@ -224,7 +227,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_py = idx.inc_y();
             result[0][idx] -= dt * circ0(e, gp.le, idx, idx_py) / gp.Ab[0][idx];
@@ -365,7 +369,8 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_mx = idx.dec_x();
             auto idx_my = idx.dec_y();

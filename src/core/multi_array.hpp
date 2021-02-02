@@ -94,7 +94,7 @@ class multi_array : public buffer<T> {
     other.m_ext = extent_t<Rank>{};
   }
 
-  virtual ~multi_array() {}
+  ~multi_array() {}
 
   using buffer<T>::assign;
 
@@ -199,7 +199,7 @@ class multi_array : public buffer<T> {
           m_dev_ptr(array.dev_ndptr_const()),
           m_ext(array.extent()) {}
     HOST_DEVICE cref_t(const cref_t& other) = default;
-    HOST_DEVICE virtual ~cref_t() {}
+    HOST_DEVICE ~cref_t() {}
 
     HD_INLINE value_t operator[](const idx_t& idx) const { return m_ptr[idx]; }
     value_t at(const index_t<Rank>& pos) const {
@@ -228,7 +228,7 @@ class multi_array : public buffer<T> {
           m_dev_ptr(array.dev_ndptr()),
           m_ext(array.extent()) {}
     HOST_DEVICE ref_t(const ref_t& other) = default;
-    HOST_DEVICE virtual ~ref_t() {}
+    HOST_DEVICE ~ref_t() {}
 
     HD_INLINE value_t& operator[](const idx_t& idx) { return m_ptr[idx]; }
     value_t& at(const index_t<Rank>& pos) { return m_ptr[Idx_t(pos, m_ext)]; }
@@ -262,6 +262,19 @@ auto
 make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
+
+template <typename T, int Rank, typename Idx_t>
+struct cuda_adapter<multi_array<T, Rank, Idx_t>> {
+  typedef ndptr<T, Rank, Idx_t> type;
+  typedef ndptr_const<T, Rank, Idx_t> const_type;
+
+  static inline const_type apply(const multi_array<T, Rank, Idx_t>& array) {
+    return array.dev_ndptr_const();
+  }
+  static inline type apply(multi_array<T, Rank, Idx_t>& array) {
+    return array.dev_ndptr();
+  }
+};
 
 }  // namespace Aperture
 

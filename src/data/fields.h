@@ -20,6 +20,7 @@
 
 #include "core/grid.hpp"
 #include "core/ndptr.hpp"
+#include "core/data_adapter.h"
 #include "framework/data.h"
 #include "utils/logger.h"
 #include "utils/stagger.h"
@@ -176,6 +177,19 @@ using vector_field = field_t<3, Conf>;
 
 template <typename Conf>
 using scalar_field = field_t<1, Conf>;
+
+template <int N, typename Conf>
+struct cuda_adapter<field_t<N, Conf>> {
+  typedef vec_t<typename Conf::ndptr_t, N> type;
+  typedef vec_t<typename Conf::ndptr_const_t, N> const_type;
+
+  static inline const_type apply(const field_t<N, Conf>& f) {
+    return f.get_const_ptrs();
+  }
+  static inline type apply(field_t<N, Conf>& f) {
+    return f.get_ptrs();
+  }
+};
 
 }  // namespace Aperture
 

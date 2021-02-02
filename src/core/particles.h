@@ -113,6 +113,20 @@ class particles_base : public BufferType {
 using particles_t = particles_base<ptc_buffer>;
 using photons_t = particles_base<ph_buffer>;
 
+template <typename BufferType>
+struct cuda_adapter<particles_base<BufferType>> {
+  typedef typename BufferType::ptrs_type type;
+  typedef typename BufferType::ptrs_type const_type;
+
+  static inline const_type apply(const particles_base<BufferType>& array) {
+    return array.get_dev_ptrs();
+  }
+  static inline type apply(particles_base<BufferType>& array) {
+    return array.get_dev_ptrs();
+  }
+};
+
+
 }  // namespace Aperture
 
 #endif

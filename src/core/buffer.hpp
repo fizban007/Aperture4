@@ -22,6 +22,7 @@
 #include "core/cuda_control.h"
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
+#include "core/data_adapter.h"
 #include "utils/logger.h"
 #include <cstdlib>
 #include <initializer_list>
@@ -369,6 +370,15 @@ class buffer {
 #endif
     }
   }
+};
+
+template<typename T>
+struct cuda_adapter<buffer<T>> {
+  typedef T* type;
+  typedef const T* const_type;
+
+  static inline const_type apply(const buffer<T>& b) { return b.dev_ptr(); }
+  static inline type apply(buffer<T>& b) { return b.dev_ptr(); }
 };
 
 }  // namespace Aperture

@@ -210,6 +210,12 @@ struct Grid {
     return is_in_bound(index(args...));
   }
 
+  template <typename Idx_t>
+  HD_INLINE index_t<Dim> idx_to_pos(const Idx_t& idx) const {
+    auto ext = extent();
+    return get_pos(idx, ext);
+  }
+
   HD_INLINE bool is_in_grid(const index_t<Dim>& idx) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
@@ -224,9 +230,9 @@ struct Grid {
   }
 
   HD_INLINE extent_t<Dim> extent() const {
-    extent_t<Dim> result;
-#pragma unroll
-    for (int i = 0; i < Dim; i++) result[i] = dims[i];
+    extent_t<Dim> result(dims);
+// #pragma unroll
+//     for (int i = 0; i < Dim; i++) result[i] = dims[i];
     result.get_strides();
     return result;
   }

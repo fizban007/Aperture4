@@ -29,6 +29,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"
     "data/curand_states.cu"
+    "data/rng_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
     "systems/field_solver_sph.cu"
@@ -45,6 +46,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
+    "data/rng_states.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

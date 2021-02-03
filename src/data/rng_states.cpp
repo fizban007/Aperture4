@@ -19,29 +19,11 @@
 
 #ifndef CUDA_ENABLED
 
-namespace {
-
-uint64_t split_mix_64 (uint64_t x) {
-  uint64_t z = (x += 0x9e3779b97f4a7c15);
-	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-	z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-	return z ^ (z >> 31);
-}
-
-}
-
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
   m_states.resize(1);
-
-  uint64_t seeds[4];
-  seeds[0] = split_mix_64(seed);
-  seeds[1] = split_mix_64(seeds[0]);
-  seeds[2] = split_mix_64(seeds[1]);
-  seeds[3] = split_mix_64(seeds[2]);
-
-  m_states[0] = rand_state(seeds);
+  m_states[0] = rand_state(seed);
 }
 
 void

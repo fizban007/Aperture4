@@ -15,17 +15,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "catch.hpp"
-#include "utils/singleton_holder.h"
-#include "systems/policies/exec_policy_host.hpp"
+#include "core/random.h"
+#include "utils/timer.h"
+#include <vector>
+#include <iostream>
 
 using namespace Aperture;
 
-struct Atest {
-  int n = 3;
-};
+TEST_CASE("Uniform random numbers", "[rng]") {
+  rand_state state;
+  rng_t rng(&state);
 
-TEST_CASE("Using Singleton", "[singleton]") {
-  REQUIRE(singleton_holder<Atest>::instance().n == 3);
+  int N = 1000000;
+  int M = 20;
+  std::vector<double> hist(M, 0.0);
+
+  timer::stamp();
+  for (int n = 0; n < N; n++) {
+    double u = rng.uniform<double>();
+    hist[clamp(int(u * M), 0, M - 1)] += 1.0 / N;
+  }
+  timer::show_duration_since_stamp("Generating 1M random numbers", "ms");
+  for (int m = 0; m < M; m++) {
+    std::cout << hist[m] << std::endl;
+  }
 }
-

@@ -21,32 +21,10 @@
 #include "core/buffer.hpp"
 #include "core/cuda_control.h"
 #include "core/data_adapter.h"
-#include "core/typedefs_and_constants.h"
+#include "core/random.h"
 #include "framework/data.h"
 
-#ifdef CUDA_ENABLED
-#include <curand_kernel.h>
-#endif
-
 namespace Aperture {
-
-#ifdef CUDA_ENABLED
-
-typedef curandState rand_state;
-
-#else
-
-struct rand_state {
-  uint64_t s[4] = {};
-
-  rand_state() {}
-  rand_state(uint64_t seed[4]) {
-    for (int i = 0; i < 4; i++)
-      s[i] = seed[i];
-  }
-};
-
-#endif
 
 class rng_states_t : public data_t {
  public:

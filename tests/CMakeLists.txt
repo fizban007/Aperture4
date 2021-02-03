@@ -26,6 +26,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 else()
   target_sources(tests PUBLIC
     # "test_ptc_updater.cpp"
+    "test_rng.cpp"
     )
 endif()
 

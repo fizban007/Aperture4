@@ -25,13 +25,13 @@ struct cuda_adapter;
 
 template <typename T>
 inline typename cuda_adapter<T>::type
-adapt_cuda(const T& t) {
+adapt_cuda(T& t) {
   return cuda_adapter<T>::apply(t);
 }
 
 template <typename T>
 inline typename cuda_adapter<T>::const_type
-adapt_cuda(T& t) {
+adapt_cuda(const T& t) {
   return cuda_adapter<T>::apply(t);
 }
 

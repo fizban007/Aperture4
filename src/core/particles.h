@@ -18,10 +18,10 @@
 #ifndef __PARTICLES_H_
 #define __PARTICLES_H_
 
-#include "particle_structs.h"
 #include "core/buffer.hpp"
-#include "utils/vec.hpp"
+#include "particle_structs.h"
 #include "systems/grid.h"
+#include "utils/vec.hpp"
 #include <vector>
 
 namespace Aperture {
@@ -113,6 +113,8 @@ class particles_base : public BufferType {
 using particles_t = particles_base<ptc_buffer>;
 using photons_t = particles_base<ph_buffer>;
 
+#ifdef CUDA_ENABLED
+
 template <typename BufferType>
 struct cuda_adapter<particles_base<BufferType>> {
   typedef typename BufferType::ptrs_type type;
@@ -126,8 +128,8 @@ struct cuda_adapter<particles_base<BufferType>> {
   }
 };
 
+#endif
 
 }  // namespace Aperture
 
 #endif
-

@@ -167,14 +167,14 @@ template void resample_dev(const multi_array<float, 2>&, multi_array<float, 2>&,
 template void resample_dev(const multi_array<float, 3>&, multi_array<float, 3>&,
                            const index_t<3>&, const index_t<3>&, stagger_t,
                            stagger_t, int, const cudaStream_t* stream);
-template void resample_dev(const multi_array<float, 1>&,
-                           multi_array<double, 1>&, const index_t<1>&,
+template void resample_dev(const multi_array<double, 1>&,
+                           multi_array<float, 1>&, const index_t<1>&,
                            const index_t<1>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
-template void resample_dev(const multi_array<float, 2>&,
-                           multi_array<double, 2>&, const index_t<2>&,
+template void resample_dev(const multi_array<double, 2>&,
+                           multi_array<float, 2>&, const index_t<2>&,
                            const index_t<2>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
-template void resample_dev(const multi_array<float, 3>&,
-                           multi_array<double, 3>&, const index_t<3>&,
+template void resample_dev(const multi_array<double, 3>&,
+                           multi_array<float, 3>&, const index_t<3>&,
                            const index_t<3>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 1>&,
                            multi_array<double, 1>&, const index_t<1>&,

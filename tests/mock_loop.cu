@@ -41,23 +41,6 @@ struct cuda_adapter<int*> {
   static inline type apply(const int* n) { return type(*n) + 8.0f; }
 };
 
-// template <typename Func, typename... Args>
-// void
-// loop(const Func& f, size_t begin, size_t end, Args&&... args) {
-// #ifdef __CUDACC__
-//   kernel_launch(
-//       [begin, end, f] __device__(
-//           typename cuda_a<std::remove_reference_t<Args>>::type... args) {
-//         for (auto idx : grid_stride_range(begin, end)) {
-//           f(args...);
-//         }
-//       },
-//       convert(args)...);
-// #else
-
-// #endif
-// }
-
 struct Wrapper {
   float a = 0.0;
 
@@ -80,10 +63,21 @@ main() {
   // idx_col_major_t<2>
   extent_t<2> ext(10, 10);
 
-  int n = 8;
-  auto w = Wrapper{3.0};
-  exec_policy_cuda<Config<3>>::instance().loop(
-      w, idx_col_major_t<2>(0, ext), idx_col_major_t<2>(ext.size(), ext), &n);
+  // int n = 8;
+  // auto w = Wrapper{3.0};
+  // exec_policy_cuda<Config<3>>::instance().loop(
+  //     w, idx_col_major_t<2>(0, ext), idx_col_major_t<2>(ext.size(), ext), &n);
+  // cudaDeviceSynchronize();
+
+  multi_array<float, 2> array(ext);
+  typedef Config<2> Conf;
+  exec_policy_cuda::instance().loop(
+      [ext] __device__ (auto idx, auto array) {
+        auto pos = get_pos(idx, ext);
+        printf("%d, %d\n", pos[0], pos[1]);
+      },
+      Conf::begin(ext), Conf::end(ext), array);
   cudaDeviceSynchronize();
+
   return 0;
 }

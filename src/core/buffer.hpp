@@ -372,6 +372,8 @@ class buffer {
   }
 };
 
+#ifdef CUDA_ENABLED
+
 template<typename T>
 struct cuda_adapter<buffer<T>> {
   typedef T* type;
@@ -380,6 +382,8 @@ struct cuda_adapter<buffer<T>> {
   static inline const_type apply(const buffer<T>& b) { return b.dev_ptr(); }
   static inline type apply(buffer<T>& b) { return b.dev_ptr(); }
 };
+
+#endif
 
 }  // namespace Aperture
 

@@ -178,6 +178,8 @@ using vector_field = field_t<3, Conf>;
 template <typename Conf>
 using scalar_field = field_t<1, Conf>;
 
+#ifdef CUDA_ENABLED
+
 template <int N, typename Conf>
 struct cuda_adapter<field_t<N, Conf>> {
   typedef vec_t<typename Conf::ndptr_t, N> type;
@@ -190,6 +192,8 @@ struct cuda_adapter<field_t<N, Conf>> {
     return f.get_ptrs();
   }
 };
+
+#endif
 
 }  // namespace Aperture
 

@@ -263,18 +263,22 @@ make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
 
+#ifdef CUDA_ENABLED
+
 template <typename T, int Rank, typename Idx_t>
 struct cuda_adapter<multi_array<T, Rank, Idx_t>> {
   typedef ndptr<T, Rank, Idx_t> type;
   typedef ndptr_const<T, Rank, Idx_t> const_type;
 
-  static inline const_type apply(const multi_array<T, Rank, Idx_t>& array) {
-    return array.dev_ndptr_const();
-  }
   static inline type apply(multi_array<T, Rank, Idx_t>& array) {
     return array.dev_ndptr();
   }
+  static inline const_type apply(const multi_array<T, Rank, Idx_t>& array) {
+    return array.dev_ndptr_const();
+  }
 };
+
+#endif
 
 }  // namespace Aperture
 

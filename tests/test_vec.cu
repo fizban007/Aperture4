@@ -43,6 +43,12 @@ TEST_CASE("constructing vec_t", "[vec]") {
   REQUIRE(u[0] == 0);
   REQUIRE(u[1] == 0);
   REQUIRE(u[2] == 0);
+
+  uint32_t arr[3] = {10, 10, 10};
+  extent_t<3> ext(arr);
+  REQUIRE(ext[0] == 10);
+  REQUIRE(ext[1] == 10);
+  REQUIRE(ext[2] == 10);
 }
 
 TEST_CASE("Aritmetic operators", "[vec]") {

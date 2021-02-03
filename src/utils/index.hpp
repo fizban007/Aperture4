@@ -372,7 +372,7 @@ struct idx_row_major_t
     this->linear = to_linear(pos);
   }
 
-  HD_INLINE index_t<Rank> get_pos() const {
+  inline index_t<Rank> get_pos() const {
     return pos(this->linear);
   }
 

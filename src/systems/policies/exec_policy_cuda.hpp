@@ -25,16 +25,22 @@
 
 namespace Aperture {
 
-template <typename Conf>
+// template <typename Conf>
 class exec_policy_cuda_impl {
  public:
   exec_policy_cuda_impl() = default;
 
-  exec_policy_cuda_impl(const exec_policy_cuda_impl<Conf>&) = delete;
-  exec_policy_cuda_impl(exec_policy_cuda_impl<Conf>&&) = delete;
-  exec_policy_cuda_impl<Conf>& operator=(const exec_policy_cuda_impl<Conf>&) =
+  // exec_policy_cuda_impl(const exec_policy_cuda_impl<Conf>&) = delete;
+  // exec_policy_cuda_impl(exec_policy_cuda_impl<Conf>&&) = delete;
+  // exec_policy_cuda_impl<Conf>& operator=(const exec_policy_cuda_impl<Conf>&) =
+  //     delete;
+  // exec_policy_cuda_impl<Conf>& operator=(exec_policy_cuda_impl<Conf>&&) =
+  //     delete;
+  exec_policy_cuda_impl(const exec_policy_cuda_impl&) = delete;
+  exec_policy_cuda_impl(exec_policy_cuda_impl&&) = delete;
+  exec_policy_cuda_impl& operator=(const exec_policy_cuda_impl&) =
       delete;
-  exec_policy_cuda_impl<Conf>& operator=(exec_policy_cuda_impl<Conf>&&) =
+  exec_policy_cuda_impl& operator=(exec_policy_cuda_impl&&) =
       delete;
 
   template <typename Func, typename Idx, typename... Args>
@@ -48,10 +54,14 @@ class exec_policy_cuda_impl {
         },
         adapt_cuda(args)...);
   }
+
+  static MemType data_mem_type() { return MemType::host_device; }
+  static MemType tmp_mem_type() { return MemType::device_only; }
 };
 
-template <typename Conf>
-using exec_policy_cuda = singleton_holder<exec_policy_cuda_impl<Conf>>;
+// template <typename Conf>
+// using exec_policy_cuda = singleton_holder<exec_policy_cuda_impl<Conf>>;
+using exec_policy_cuda = singleton_holder<exec_policy_cuda_impl>;
 
 }  // namespace Aperture
 

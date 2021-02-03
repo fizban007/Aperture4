@@ -72,7 +72,7 @@ rng_t::gaussian(float sigma) {
 template <>
 __device__ __forceinline__ double
 rng_t::gaussian(double sigma) {
-  return curand_normal(&m_local_state) * sigma;
+  return curand_normal_double(&m_local_state) * sigma;
 }
 
 #else
@@ -84,7 +84,7 @@ rotl(const uint64_t x, int k) {
   return (x << k) | (x >> (64 - k));
 }
 
-uint64_t
+constexpr inline uint64_t
 split_mix_64(uint64_t x) {
   uint64_t z = (x += 0x9e3779b97f4a7c15);
   z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
@@ -141,7 +141,7 @@ struct rng_t {
   template <typename Float>
   inline Float uniform() {
     uint64_t n = xoshiro256plus();
-    return n / 18446744073709551615.0;
+    return n / 18446744073709551616.0;
   }
 
   template <typename Float>

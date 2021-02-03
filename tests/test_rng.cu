@@ -15,45 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "catch.hpp"
 #include "core/random.h"
+#include "data/rng_states.h"
+#include "utils/kernel_helper.hpp"
+#include "utils/range.hpp"
 #include "utils/timer.h"
-#include <vector>
-#include <iostream>
-#include <random>
 
 using namespace Aperture;
 
 TEST_CASE("Uniform random numbers", "[rng]") {
-  rand_state state;
-  rng_t rng(&state);
+  rng_states_t states;
+  states.init();
 
   int N = 1000000;
   int M = 20;
-  std::vector<double> hist(M, 0.0);
+  buffer<float> hist(M);
 
   timer::stamp();
-  for (int n = 0; n < N; n++) {
-    double u = rng.uniform<double>();
-    hist[clamp(int(u * M), 0, M - 1)] += 1.0 / N;
-  }
+  kernel_launch([N, M] __device__ (auto states, auto hist) {
+      rng_t rng(states);
+      for (auto n : grid_stride_range(0, N)) {
+        auto u = rng.uniform<float>();
+        // if (n % 10000 == 0) printf("%d, %f\n", n, u);
+        atomicAdd(&hist[clamp(int(u * M), 0, M - 1)], 1.0f / N);
+      }
+    }, states.states().dev_ptr(), hist.dev_ptr());
+  hist.copy_to_host();
   timer::show_duration_since_stamp("Generating 1M random numbers", "ms");
   for (int m = 0; m < M; m++) {
     std::cout << hist[m] << std::endl;
     hist[m] = 0.0;
   }
 
-  std::mt19937_64 eng;
-  std::uniform_real_distribution<double> dist(0.0, 1.0);
-  timer::stamp();
-  for (int n = 0; n < N; n++) {
-    double u = dist(eng);
-    hist[clamp(int(u * M), 0, M - 1)] += 1.0 / N;
-  }
-  timer::show_duration_since_stamp("Generating 1M random numbers using std", "ms");
-  for (int m = 0; m < M; m++) {
-    std::cout << hist[m] << std::endl;
-    hist[m] = 0.0;
-  }
 }

@@ -22,6 +22,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_grid.cu"
     "test_math.cu"
     "test_cusparse.cu"
+    "test_rng.cu"
     )
 else()
   target_sources(tests PUBLIC

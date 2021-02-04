@@ -78,7 +78,7 @@ class sim_environment_impl {
   sim_environment_impl& operator=(const sim_environment_impl& other) = delete;
   sim_environment_impl& operator=(sim_environment_impl&& other) = delete;
 
-  void reset(int* argc, char*** argv);
+  void reset(int* argc = nullptr, char*** argv = nullptr);
   ////////////////////////////////////////////////////////////////////////////////
   ///  Register a system class with the environment. This will either construct
   ///  a `unique_ptr` of the given `System` and insert it into the registry, or

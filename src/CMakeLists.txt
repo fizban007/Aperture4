@@ -42,11 +42,13 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/domain_comm_async.cpp"
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
+    "systems/ptc_updater_base.cu"
     )
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
     "data/rng_states.cpp"
+    "systems/ptc_updater_base.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

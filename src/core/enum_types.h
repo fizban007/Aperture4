@@ -38,7 +38,7 @@ enum class PtcType : unsigned char { electron = 0, positron, ion };
 
 // This defines the maximum number of bits in the particle flag to represent the
 // particle type
-constexpr int max_ptc_type_bits = 3;
+constexpr int max_ptc_type_bits = 2;
 constexpr int max_ptc_types = 1 << max_ptc_type_bits;
 
 inline std::string ptc_type_name(int type) {

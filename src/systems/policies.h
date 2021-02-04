@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Alex Chen.
+ * Copyright (c) 2020 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,41 +15,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DATA_ADAPTER_H_
-#define __DATA_ADAPTER_H_
+#ifndef __POLICIES_H_
+#define __POLICIES_H_
 
 namespace Aperture {
 
-template <typename T>
-struct cuda_adapter;
+template <typename Conf>
+class exec_policy_cuda;
+
+template <typename Conf>
+class exec_policy_host;
+
+template <typename Conf>
+class coord_policy_cartesian;
 
 template <typename T>
-struct host_adapter;
+class PhysicsPolicy;
 
-template <typename T>
-inline typename cuda_adapter<T>::type
-adapt_cuda(T& t) {
-  return cuda_adapter<T>::apply(t);
 }
 
-template <typename T>
-inline typename cuda_adapter<T>::const_type
-adapt_cuda(const T& t) {
-  return cuda_adapter<T>::apply(t);
-}
-
-template <typename T>
-inline typename host_adapter<T>::type
-adapt_host(T& t) {
-  return host_adapter<T>::apply(t);
-}
-
-template <typename T>
-inline typename host_adapter<T>::const_type
-adapt_host(const T& t) {
-  return host_adapter<T>::apply(t);
-}
-
-}  // namespace Aperture
-
-#endif  // __DATA_ADAPTER_H_
+#endif // __POLICIES_H_

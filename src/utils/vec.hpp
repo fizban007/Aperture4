@@ -235,6 +235,8 @@ class vec_t {
 
   constexpr int rank() const { return Rank; }
 
+  const T* data() const { return memory; }
+
   HD_INLINE T product() const {
     T result = memory[0];
 #pragma unroll

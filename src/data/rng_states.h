@@ -40,10 +40,19 @@ class rng_states_t : public data_t {
   buffer<rand_state> m_states;
 };
 
+template<>
+struct host_adapter<rng_states_t> {
+  typedef rand_state* type;
+
+  static inline type apply(rng_states_t& s) {
+    return s.states().host_ptr();
+  }
+};
+
 #ifdef CUDA_ENABLED
 
 template <>
-class cuda_adapter<rng_states_t> {
+struct cuda_adapter<rng_states_t> {
   typedef rand_state* type;
 
   static inline type apply(rng_states_t& s) {

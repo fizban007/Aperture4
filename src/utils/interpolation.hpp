@@ -111,7 +111,7 @@ struct interpolator<Interp, 1> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) ->
+                              const Index_t& idx) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
 #pragma unroll
@@ -124,7 +124,7 @@ struct interpolator<Interp, 1> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) ->
+                              const Index_t& idx, stagger_t stagger) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
 #pragma unroll
@@ -142,7 +142,7 @@ struct interpolator<Interp, 2> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) ->
+                              const Index_t& idx) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
 #pragma unroll
@@ -163,7 +163,7 @@ struct interpolator<Interp, 2> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) ->
+                              const Index_t& idx, stagger_t stagger) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
 #pragma unroll
@@ -189,7 +189,7 @@ struct interpolator<Interp, 3> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) ->
+                              const Index_t& idx) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
 #pragma unroll
@@ -215,7 +215,7 @@ struct interpolator<Interp, 3> {
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) ->
+                              const Index_t& idx, stagger_t stagger) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;
 #pragma unroll

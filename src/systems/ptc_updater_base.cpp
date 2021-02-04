@@ -15,41 +15,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DATA_ADAPTER_H_
-#define __DATA_ADAPTER_H_
+#include "framework/config.h"
+#include "systems/policies/exec_policy_host.hpp"
+#include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
 
 template <typename T>
-struct cuda_adapter;
+class PhysicsPolicy {};
 
-template <typename T>
-struct host_adapter;
+template
+class ptc_updater<Config<1>, exec_policy_host, coord_policy_cartesian, PhysicsPolicy>;
+template
+class ptc_updater<Config<2>, exec_policy_host, coord_policy_cartesian, PhysicsPolicy>;
+template
+class ptc_updater<Config<3>, exec_policy_host, coord_policy_cartesian, PhysicsPolicy>;
 
-template <typename T>
-inline typename cuda_adapter<T>::type
-adapt_cuda(T& t) {
-  return cuda_adapter<T>::apply(t);
 }
-
-template <typename T>
-inline typename cuda_adapter<T>::const_type
-adapt_cuda(const T& t) {
-  return cuda_adapter<T>::apply(t);
-}
-
-template <typename T>
-inline typename host_adapter<T>::type
-adapt_host(T& t) {
-  return host_adapter<T>::apply(t);
-}
-
-template <typename T>
-inline typename host_adapter<T>::const_type
-adapt_host(const T& t) {
-  return host_adapter<T>::apply(t);
-}
-
-}  // namespace Aperture
-
-#endif  // __DATA_ADAPTER_H_

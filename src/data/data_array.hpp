@@ -28,7 +28,11 @@ namespace Aperture {
 template <typename T>
 class data_array {
  public:
+#ifdef CUDA_ENABLED
   typedef typename cuda_adapter<T>::type adapted_type;
+#else
+  typedef typename host_adapter<T>::type adapted_type;
+#endif
 
   void resize(int size) {
     m_data.resize(size);
@@ -36,34 +40,54 @@ class data_array {
     m_ptrs.resize(size);
   }
 
-  void set(int i, nonown_ptr<T>& p) {
+  void set(int i, const nonown_ptr<T>& p) {
     m_data[i] = p;
+#ifdef CUDA_ENABLED
     m_ptrs[i] = cuda_adapter<T>::apply(*p);
+#else
+    m_ptrs[i] = host_adapter<T>::apply(*p);
+#endif
   }
 
   void copy_to_device() {
     m_ptrs.copy_to_device();
   }
 
+  int size() const { return m_data.size(); }
+
+  nonown_ptr<T>& operator[](int i) { return m_data[i]; }
+  const nonown_ptr<T>& operator[](int i) const { return m_data[i]; }
+
   std::vector<nonown_ptr<T>>& data() { return m_data; }
   const std::vector<nonown_ptr<T>>& data() const { return m_data; }
 
-  adapted_type* ptrs() { return m_ptrs.dev_ptr(); }
-  const adapted_type* ptrs() const { return m_ptrs.dev_ptr(); }
+  adapted_type* dev_ptrs() { return m_ptrs.dev_ptr(); }
+  const adapted_type* dev_ptrs() const { return m_ptrs.dev_ptr(); }
+  adapted_type* host_ptrs() { return m_ptrs.host_ptr(); }
+  const adapted_type* host_ptrs() const { return m_ptrs.host_ptr(); }
 
  private:
   std::vector<nonown_ptr<T>> m_data;
   buffer<adapted_type> m_ptrs;
 };
 
+template <typename T>
+struct host_adapter<data_array<T>> {
+  typedef typename host_adapter<T>::type* type;
+
+  static inline type apply(data_array<T>& array) {
+    return array.host_ptrs();
+  }
+};
+
 #ifdef CUDA_ENABLED
 
 template <typename T>
-class cuda_adapter<data_array<T>> {
+struct cuda_adapter<data_array<T>> {
   typedef typename cuda_adapter<T>::type* type;
 
   static inline type apply(data_array<T>& array) {
-    return array.ptrs();
+    return array.dev_ptrs();
   }
 };
 

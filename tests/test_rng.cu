@@ -41,8 +41,9 @@ TEST_CASE("Uniform random numbers", "[rng]") {
         atomicAdd(&hist[clamp(int(u * M), 0, M - 1)], 1.0f / N);
       }
     }, states.states().dev_ptr(), hist.dev_ptr());
-  hist.copy_to_host();
+  cudaDeviceSynchronize();
   timer::show_duration_since_stamp("Generating 1M random numbers", "ms");
+  hist.copy_to_host();
   for (int m = 0; m < M; m++) {
     std::cout << hist[m] << std::endl;
     hist[m] = 0.0;

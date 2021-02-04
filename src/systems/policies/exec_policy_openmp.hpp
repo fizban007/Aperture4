@@ -44,6 +44,7 @@ class exec_policy_openmp {
   static void loop(const Func& f, Idx begin, Idx end, Args&&... args) {
 #pragma omp parallel for
     for (auto idx : range(begin, end)) {
+    // for (auto idx = begin; idx < end; idx++) {
       f(idx, args...);
     }
   }

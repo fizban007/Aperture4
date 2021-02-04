@@ -170,8 +170,7 @@ struct Grid {
 
   template <typename FloatT>
   HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
-                             index_t<Dim>& idx,
-                             vec_t<FloatT, 3>& rel_x) const {
+                             index_t<Dim>& idx, vec_t<FloatT, 3>& rel_x) const {
     rel_x = global_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
@@ -231,8 +230,8 @@ struct Grid {
 
   HD_INLINE extent_t<Dim> extent() const {
     extent_t<Dim> result(dims);
-// #pragma unroll
-//     for (int i = 0; i < Dim; i++) result[i] = dims[i];
+    // #pragma unroll
+    //     for (int i = 0; i < Dim; i++) result[i] = dims[i];
     result.get_strides();
     return result;
   }

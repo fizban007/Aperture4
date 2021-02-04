@@ -18,6 +18,7 @@
 #ifndef __PTC_UPDATER_BASE_IMPL_H_
 #define __PTC_UPDATER_BASE_IMPL_H_
 
+#include "data/rng_states.h"
 #include "framework/environment.h"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/ptc_updater_base.h"
@@ -317,9 +318,57 @@ template <typename Conf, template <class> class ExecPolicy,
 void
 ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::fill_multiplicity(
     int mult, value_t weight) {
-  CoordPolicy<Conf>::template fill_multiplicity<ExecPolicy<Conf>>(
-      *ptc, *rng_states, mult, weight);
+  // CoordPolicy<Conf>::template fill_multiplicity<ExecPolicy<Conf>>(
+  //     *ptc, *rng_states, mult, weight);
+  auto num = ptc->number();
+
+  ExecPolicy<Conf>::launch(
+      [num, mult, weight] LAMBDA(auto ptc, auto states) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        rng_t rng(states);
+        ExecPolicy<Conf>::loop(
+            [&grid, num, ext, mult, weight] LAMBDA(auto idx, auto& ptc,
+            // [&grid, num, ext, mult, weight] LAMBDA(auto n, auto& ptc,
+                                                   auto& rng) {
+              // auto idx = Conf::idx(n, ext);
+              auto pos = get_pos(idx, ext);
+              if (grid.is_in_bound(pos)) {
+                for (int i = 0; i < mult; i++) {
+                  uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+
+                  ptc.x1[offset] = ptc.x1[offset + 1] =
+                      rng.template uniform<value_t>();
+                  ptc.x2[offset] = ptc.x2[offset + 1] =
+                      rng.template uniform<value_t>();
+                  ptc.x3[offset] = ptc.x3[offset + 1] =
+                      rng.template uniform<value_t>();
+                  value_t x1 = CoordPolicy<Conf>::x1(grid.template pos<0>(pos[0], ptc.x1[offset]));
+                  value_t x2 = CoordPolicy<Conf>::x2(grid.template pos<1>(pos[1], ptc.x2[offset]));
+                  value_t x3 = CoordPolicy<Conf>::x3(grid.template pos<2>(pos[2], ptc.x3[offset]));
+
+                  ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
+                  ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
+                  ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
+                  ptc.E[offset] = ptc.E[offset + 1] = 1.0;
+                  ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
+                  ptc.weight[offset] = ptc.weight[offset + 1] =
+                      weight * CoordPolicy<Conf>::weight_func(x1, x2, x3);
+                  ptc.flag[offset] = set_ptc_type_flag(
+                      flag_or(PtcFlag::primary), PtcType::electron);
+                  ptc.flag[offset + 1] = set_ptc_type_flag(
+                      flag_or(PtcFlag::primary), PtcType::positron);
+                }
+              }
+            },
+            // 0u, ext.size(), ptc, rng);
+            Conf::begin(ext), Conf::end(ext), ptc, rng);
+      },
+      *ptc, *rng_states);
+  ExecPolicy<Conf>::sync();
   ptc->set_num(ptc->number() + 2 * mult * m_grid.extent().size());
+
+  ptc->sort_by_cell(m_grid.extent().size());
 }
 
 }  // namespace Aperture

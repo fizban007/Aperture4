@@ -26,9 +26,9 @@
 using namespace Aperture;
 
 namespace Aperture {
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian,
+template class ptc_updater<Config<2>, exec_policy_host, coord_policy_cartesian,
                            PhysicsPolicy>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian,
+template class ptc_updater<Config<3>, exec_policy_host, coord_policy_cartesian,
                            PhysicsPolicy>;
 }
 
@@ -37,7 +37,7 @@ main(int argc, char* argv[]) {
   typedef Config<3> Conf3D;
 
   auto& env = sim_env();
-  env.params().add("N", std::vector<int64_t>({128, 128, 128}));
+  env.params().add("N", std::vector<int64_t>({64, 64, 64}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({2.0, 3.14, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
@@ -47,7 +47,7 @@ main(int argc, char* argv[]) {
 
   auto grid3d = env.register_system<grid_t<Conf3D>>();
   auto pusher3d =
-      env.register_system<ptc_updater<Conf3D, exec_policy_cuda,
+      env.register_system<ptc_updater<Conf3D, exec_policy_host,
                                       coord_policy_cartesian, PhysicsPolicy>>(
           *grid3d);
 
@@ -55,11 +55,11 @@ main(int argc, char* argv[]) {
 
   particle_data_t* ptc;
   env.get_data("particles", &ptc);
-  pusher3d->fill_multiplicity(10);
+  pusher3d->fill_multiplicity(5);
   pusher3d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 
-  int N = 100;
+  int N = 50;
   double t = 0.0;
   for (int i = 0; i < N; i++) {
     timer::stamp();
@@ -75,7 +75,7 @@ main(int argc, char* argv[]) {
   env.reset();
 
   typedef Config<2> Conf2D;
-  env.params().add("N", std::vector<int64_t>({512, 512}));
+  env.params().add("N", std::vector<int64_t>({256, 256}));
   env.params().add("guard", std::vector<int64_t>({2, 2}));
   env.params().add("size", std::vector<double>({2.0, 3.14}));
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
@@ -85,14 +85,14 @@ main(int argc, char* argv[]) {
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
   auto pusher2d =
-      env.register_system<ptc_updater<Conf2D, exec_policy_cuda,
+      env.register_system<ptc_updater<Conf2D, exec_policy_host,
                                       coord_policy_cartesian, PhysicsPolicy>>(
           *grid2d);
 
   env.init();
 
   env.get_data("particles", &ptc);
-  pusher2d->fill_multiplicity(100);
+  pusher2d->fill_multiplicity(10);
   pusher2d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 

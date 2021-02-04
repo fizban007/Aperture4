@@ -52,8 +52,8 @@ class exec_policy_host {
     return *m_grid;
   }
 
-  static MemType data_mem_type() { return MemType::host_device; }
-  static MemType tmp_mem_type() { return MemType::device_only; }
+  static MemType data_mem_type() { return MemType::host_only; }
+  static MemType tmp_mem_type() { return MemType::host_only; }
 
  private:
   static const Grid<Conf::dim, typename Conf::value_t>* m_grid;

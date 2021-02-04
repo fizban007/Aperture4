@@ -20,6 +20,7 @@
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
+#include "core/particles.h"
 #include "data/rng_states.h"
 #include "framework/environment.h"
 #include "systems/helpers/ptc_update_helper.hpp"
@@ -79,6 +80,7 @@ class coord_policy_cartesian {
           ExecPolicy::loop(
               [&grid, num, ext, mult, weight] LAMBDA(auto idx, auto& ptc,
                                                      auto& rng) {
+                // auto idx = Conf::idx(n, ext);
                 auto pos = get_pos(idx, ext);
                 if (grid.is_in_bound(pos)) {
                   for (int i = 0; i < mult; i++) {
@@ -103,6 +105,7 @@ class coord_policy_cartesian {
                   }
                 }
               },
+              // 0u, ext.size(), ptc, rng);
               Conf::begin(ext), Conf::end(ext), ptc, rng);
         },
         ptc, states);

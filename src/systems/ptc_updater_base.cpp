@@ -17,6 +17,7 @@
 
 #include "framework/config.h"
 #include "systems/policies/exec_policy_host.hpp"
+#include "systems/policies/exec_policy_openmp.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
@@ -31,5 +32,12 @@ template
 class ptc_updater<Config<2>, exec_policy_host, coord_policy_cartesian, PhysicsPolicy>;
 template
 class ptc_updater<Config<3>, exec_policy_host, coord_policy_cartesian, PhysicsPolicy>;
+
+template
+class ptc_updater<Config<1>, exec_policy_openmp, coord_policy_cartesian, PhysicsPolicy>;
+template
+class ptc_updater<Config<2>, exec_policy_openmp, coord_policy_cartesian, PhysicsPolicy>;
+template
+class ptc_updater<Config<3>, exec_policy_openmp, coord_policy_cartesian, PhysicsPolicy>;
 
 }

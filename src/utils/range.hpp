@@ -51,6 +51,17 @@ struct range_iter_base : std::iterator<std::input_iterator_tag, T> {
   }
 
   HD_INLINE
+  int operator-(const range_iter_base& it) {
+    return current - it.current;
+  }
+
+  HD_INLINE
+  range_iter_base operator+=(int n) {
+    current += n;
+    return *this;
+  }
+
+  HD_INLINE
   bool operator==(range_iter_base const& other) const {
     return current == other.current;
   }

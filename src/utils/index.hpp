@@ -57,6 +57,10 @@ struct idx_base_t {
     return result;
   }
 
+  HD_INLINE int operator-(const Derived& x) const {
+    return linear - x.linear;
+  }
+
   HD_INLINE Derived operator+(uint32_t x) const {
     Derived result((Derived&)*this);
     result.linear += x;
@@ -95,6 +99,8 @@ struct idx_col_major_t
 
   typedef idx_base_t<idx_col_major_t<Rank>, Rank> base_type;
   typedef idx_col_major_t<Rank> self_type;
+
+  using base_type::operator-;
 
   HOST_DEVICE idx_col_major_t(uint64_t n,
                               const extent_t<Rank>& extent) :

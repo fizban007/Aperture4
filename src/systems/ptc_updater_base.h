@@ -18,6 +18,7 @@
 #ifndef __PTC_UPDATER_BASE_H_
 #define __PTC_UPDATER_BASE_H_
 
+#include "core/multi_array.hpp"
 #include "data/data_array.hpp"
 #include "data/fields.h"
 #include "data/particle_data.h"
@@ -51,6 +52,7 @@ class ptc_updater : public system_t {
   void clear_guard_cells();
   void sort_particles();
   void fill_multiplicity(int mult, value_t weight = 1.0);
+  void filter_current(int num_times, uint32_t step);
 
  private:
   // Grid and communicator which are essential for particle update
@@ -65,7 +67,8 @@ class ptc_updater : public system_t {
   nonown_ptr<scalar_field<Conf>> rho_ph;
   nonown_ptr<rng_states_t> rng_states;
 
-  // buffer<ndptr<value_t, Conf::dim>> rho_ptrs;
+  // This is a temporary array for filtering the current
+  typename Conf::multi_array_t m_tmpj;
 
   // Parameters for this module
   uint32_t m_num_species = 2;
@@ -77,7 +80,6 @@ class ptc_updater : public system_t {
   // By default the maximum number of species is 8
   vec_t<float, max_ptc_types> m_charges;
   vec_t<float, max_ptc_types> m_masses;
-  vec_t<float, max_ptc_types> m_q_over_m;
 
   void init_charge_mass();
 };

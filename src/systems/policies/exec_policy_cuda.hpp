@@ -41,7 +41,7 @@ class exec_policy_cuda {
   }
 
   template <typename Func, typename Idx, typename... Args>
-  static __device__ void loop(const Func& f, Idx begin, Idx end, Args&&... args) {
+  static __device__ void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
     for (auto idx : grid_stride_range(begin, end)) {
       f(idx, args...);
     }

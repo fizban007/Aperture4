@@ -18,53 +18,23 @@
 #ifndef __EXEC_POLICY_OPENMP_H_
 #define __EXEC_POLICY_OPENMP_H_
 
-#include "core/multi_array.hpp"
-#include "data/fields.h"
-#include "data/particle_data.h"
-#include "framework/environment.h"
-#include "utils/nonown_ptr.hpp"
-#include "utils/singleton_holder.h"
+#include "exec_policy_host.hpp"
 #include <omp.h>
 
 namespace Aperture {
 
 template <typename Conf>
-class exec_policy_openmp {
+class exec_policy_openmp : public exec_policy_host<Conf> {
  public:
-  static void set_grid(const grid_t<Conf>& grid) {
-    m_grid = &grid;
-  }
-
-  template <typename Func, typename... Args>
-  static void launch(const Func& f, Args&&... args) {
-    f(adapt_host(args)...);
-  }
-
   template <typename Func, typename Idx, typename... Args>
-  static void loop(const Func& f, Idx begin, Idx end, Args&&... args) {
+  static void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
 #pragma omp parallel for
     for (auto idx : range(begin, end)) {
     // for (auto idx = begin; idx < end; idx++) {
       f(idx, args...);
     }
   }
-
-  static void sync() {}
-
-  static const Grid<Conf::dim, typename Conf::value_t>& grid() {
-    return *m_grid;
-  }
-
-  static MemType data_mem_type() { return MemType::host_only; }
-  static MemType tmp_mem_type() { return MemType::host_only; }
-
- private:
-  static const Grid<Conf::dim, typename Conf::value_t>* m_grid;
 };
-
-template <typename Conf>
-const Grid<Conf::dim, typename Conf::value_t>*
-exec_policy_openmp<Conf>::m_grid = nullptr;
 
 // template <typename Conf>
 // using exec_policy_host = singleton_holder<exec_policy_host_impl<Conf>>;

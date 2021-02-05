@@ -66,18 +66,21 @@ main() {
   // int n = 8;
   // auto w = Wrapper{3.0};
   // exec_policy_cuda<Config<3>>::instance().loop(
-  //     w, idx_col_major_t<2>(0, ext), idx_col_major_t<2>(ext.size(), ext), &n);
+  //     w, idx_col_major_t<2>(0, ext), idx_col_major_t<2>(ext.size(), ext),
+  //     &n);
   // cudaDeviceSynchronize();
 
   multi_array<float, 2> array(ext);
   typedef Config<2> Conf;
   exec_policy_cuda<Conf>::launch(
       [ext] __device__(auto array) {
-        exec_policy_cuda<Conf>::loop([ext] __device__(auto idx) {
-          auto pos = get_pos(idx, ext);
-          printf("%d, %d\n", pos[0], pos[1]);
-        }, Conf::begin(ext), Conf::end(ext));
-      }, array);
+        exec_policy_cuda<Conf>::loop(Conf::begin(ext), Conf::end(ext),
+                                     [ext] __device__(auto idx) {
+                                       auto pos = get_pos(idx, ext);
+                                       printf("%d, %d\n", pos[0], pos[1]);
+                                     });
+      },
+      array);
   cudaDeviceSynchronize();
 
   return 0;

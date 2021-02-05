@@ -76,50 +76,6 @@ class coord_policy_cartesian {
     }
   }
 
-  // template <typename ExecPolicy>
-  // static void fill_multiplicity(particles_t& ptc, rng_states_t& states,
-  //                               int mult, value_t weight) {
-  //   auto num = ptc.number();
-
-  //   // ExecPolicy::launch(
-  //   //     [num, mult, weight] LAMBDA(auto ptc, auto states) {
-  //   //       auto& grid = ExecPolicy::grid();
-  //   //       auto ext = grid.extent();
-  //   //       rng_t rng(states);
-  //   //       ExecPolicy::loop(
-  //   //           [&grid, num, ext, mult, weight] LAMBDA(auto idx, auto& ptc,
-  //   //                                                  auto& rng) {
-  //   //             // auto idx = Conf::idx(n, ext);
-  //   //             auto pos = get_pos(idx, ext);
-  //   //             if (grid.is_in_bound(pos)) {
-  //   //               for (int i = 0; i < mult; i++) {
-  //   //                 uint32_t offset = num + idx.linear * mult * 2 + i * 2;
-
-  //   //                 ptc.x1[offset] = ptc.x1[offset + 1] =
-  //   //                     rng.template uniform<value_t>();
-  //   //                 ptc.x2[offset] = ptc.x2[offset + 1] =
-  //   //                     rng.template uniform<value_t>();
-  //   //                 ptc.x3[offset] = ptc.x3[offset + 1] =
-  //   //                     rng.template uniform<value_t>();
-  //   //                 ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
-  //   //                 ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
-  //   //                 ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
-  //   //                 ptc.E[offset] = ptc.E[offset + 1] = 1.0;
-  //   //                 ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-  //   //                 ptc.weight[offset] = ptc.weight[offset + 1] = weight;
-  //   //                 ptc.flag[offset] = set_ptc_type_flag(
-  //   //                     flag_or(PtcFlag::primary), PtcType::electron);
-  //   //                 ptc.flag[offset + 1] = set_ptc_type_flag(
-  //   //                     flag_or(PtcFlag::primary), PtcType::positron);
-  //   //               }
-  //   //             }
-  //   //           },
-  //   //           // 0u, ext.size(), ptc, rng);
-  //   //           Conf::begin(ext), Conf::end(ext), ptc, rng);
-  //   //     },
-  //   //     ptc, states);
-  //   // ExecPolicy::sync();
-  // }
 };
 
 }  // namespace Aperture

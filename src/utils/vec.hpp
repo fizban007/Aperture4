@@ -223,6 +223,16 @@ class vec_t {
     }
   }
 
+  template <int A, int B, typename = std::enable_if_t<B - A <= Rank>>
+  HD_INLINE vec_t<T, B - A> subset() const {
+    vec_t<T, B - A> result;
+#pragma unroll
+    for (int i = A; i < B; i++) {
+      result[i - A] = memory[i];
+    }
+    return result;
+  }
+
   template <typename U>
   HD_INLINE T dot(const vec_t<U, Rank>& other) const {
     T result = 0;
@@ -263,8 +273,7 @@ operator*(const T& q, const vec_t<T, Rank>& v) {
 template <typename T>
 HD_INLINE vec_t<T, 3>
 cross(const vec_t<T, 3>& u, const vec_t<T, 3>& v) {
-  return vec_t<T, 3>(u[1] * v[2] - u[2] * v[1],
-                     u[2] * v[0] - u[0] * v[2],
+  return vec_t<T, 3>(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
                      u[0] * v[1] - u[1] * v[0]);
 }
 

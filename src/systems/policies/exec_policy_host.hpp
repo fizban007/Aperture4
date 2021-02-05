@@ -40,7 +40,7 @@ class exec_policy_host {
   }
 
   template <typename Func, typename Idx, typename... Args>
-  static void loop(const Func& f, Idx begin, Idx end, Args&&... args) {
+  static void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
     for (auto idx : range(begin, end)) {
       f(idx, args...);
     }
@@ -55,7 +55,7 @@ class exec_policy_host {
   static MemType data_mem_type() { return MemType::host_only; }
   static MemType tmp_mem_type() { return MemType::host_only; }
 
- private:
+ protected:
   static const Grid<Conf::dim, typename Conf::value_t>* m_grid;
 };
 

@@ -16,8 +16,9 @@
  */
 
 #include "framework/config.h"
-#include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
@@ -25,11 +26,18 @@ namespace Aperture {
 template <typename T>
 class PhysicsPolicy {};
 
-template
-class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_cartesian, PhysicsPolicy>;
-template
-class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian, PhysicsPolicy>;
-template
-class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian, PhysicsPolicy>;
+template class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_cartesian,
+                           PhysicsPolicy>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian,
+                           PhysicsPolicy>;
+template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian,
+                           PhysicsPolicy>;
 
-}
+template class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_spherical,
+                           PhysicsPolicy>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_spherical,
+                           PhysicsPolicy>;
+template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_spherical,
+                           PhysicsPolicy>;
+
+}  // namespace Aperture

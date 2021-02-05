@@ -18,9 +18,9 @@
 #include "catch.hpp"
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
+#include "core/detail/multi_array_helpers.h"
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
-#include "core/detail/multi_array_helpers.h"
 #include "core/ndptr.hpp"
 #include "core/ndsubset.hpp"
 #include "core/ndsubset_dev.hpp"
@@ -307,7 +307,8 @@ TEST_CASE("Performance of expression template",
              grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
           p[idx] = p[idx] * 7.0f + 9.0f / p[idx];
         }
-      }, v1.dev_ndptr());
+      },
+      v1.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   timer::show_duration_since_stamp("Evaluation using Kernel Launch", "us");
 
@@ -345,7 +346,6 @@ TEST_CASE("Performance of expression template",
   for (auto idx : v3.indices()) {
     REQUIRE(v3[idx] == v1[idx]);
   }
-
 }
 
 #endif

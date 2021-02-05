@@ -17,6 +17,7 @@
 
 #include "core/data_adapter.h"
 #include "core/multi_array.hpp"
+#include "core/multi_array_exp.hpp"
 #include "data/fields.h"
 #include "framework/config.h"
 #include "systems/policies/exec_policy_cuda.hpp"
@@ -82,6 +83,16 @@ main() {
       },
       array);
   cudaDeviceSynchronize();
+
+  multi_array<float, 2> array2(ext);
+  array.assign_dev(2.0f);
+  array2.assign_dev(3.0f);
+
+  exec_policy_cuda<Conf>::launch([ext] __device__(auto array) {
+      if (threadIdx.x + blockIdx.x * blockDim.x == 0)
+        printf("Product is %f\n", array[Conf::idx(0, ext)]);
+    }, array * array2);
+  exec_policy_cuda<Conf>::sync();
 
   return 0;
 }

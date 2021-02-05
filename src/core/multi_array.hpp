@@ -201,7 +201,14 @@ class multi_array : public buffer<T> {
     HOST_DEVICE cref_t(const cref_t& other) = default;
     HOST_DEVICE ~cref_t() {}
 
-    HD_INLINE value_t operator[](const idx_t& idx) const { return m_ptr[idx]; }
+    HD_INLINE value_t operator[](const idx_t& idx) const {
+#ifdef __CUDACC__
+      return m_dev_ptr[idx];
+#else
+      return m_ptr[idx];
+#endif
+    }
+
     value_t at(const index_t<Rank>& pos) const {
       return m_ptr[Idx_t(pos, m_ext)];
     }
@@ -230,7 +237,13 @@ class multi_array : public buffer<T> {
     HOST_DEVICE ref_t(const ref_t& other) = default;
     HOST_DEVICE ~ref_t() {}
 
-    HD_INLINE value_t& operator[](const idx_t& idx) { return m_ptr[idx]; }
+    HD_INLINE value_t& operator[](const idx_t& idx) {
+#ifdef __CUDACC__
+      return m_dev_ptr[idx];
+#else
+      return m_ptr[idx];
+#endif
+    }
     value_t& at(const index_t<Rank>& pos) { return m_ptr[Idx_t(pos, m_ext)]; }
     HD_INLINE value_t& at_dev(const index_t<Rank>& pos) {
       return m_dev_ptr[Idx_t(pos, m_ext)];

@@ -15,16 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COORD_POLICY_CARTESIAN_H_
-#define __COORD_POLICY_CARTESIAN_H_
+#ifndef __COORD_POLICY_SPHERICAL_H_
+#define __COORD_POLICY_SPHERICAL_H_
 
 #include "core/cuda_control.h"
-#include "core/grid.hpp"
 #include "core/math.hpp"
+#include "core/multi_array_exp.hpp"
 #include "core/particles.h"
 #include "data/data_array.hpp"
 #include "data/fields.h"
 #include "framework/environment.h"
+#include "systems/grid_sph.h"
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"
@@ -32,20 +33,21 @@
 namespace Aperture {
 
 template <typename Conf>
-class coord_policy_cartesian {
+class coord_policy_spherical {
  public:
   typedef typename Conf::value_t value_t;
 
-  coord_policy_cartesian(const grid_t<Conf>& grid) : m_grid(grid) {}
-  ~coord_policy_cartesian() = default;
+  coord_policy_spherical(const grid_t<Conf>& grid)
+      : m_grid(dynamic_cast<const grid_sph_t<Conf>&>(grid)) {}
+  ~coord_policy_spherical() = default;
 
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
                                        value_t x3 = 0.0f) {
-    return 1.0f;
+    return math::sin(x2);
   }
 
-  HD_INLINE static value_t x1(value_t x) { return x; }
+  HD_INLINE static value_t x1(value_t x) { return math::exp(x); }
   HD_INLINE static value_t x2(value_t x) { return x; }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
@@ -89,18 +91,30 @@ class coord_policy_cartesian {
   void process_J_Rho(vector_field<Conf>& J,
                      data_array<scalar_field<Conf>>& Rho) const {}
 
-  template <typename ExecPolicy, int N>
-  void filter_field(field_t<N, Conf>& field, typename Conf::multi_array_t& tmp,
+  template <typename ExecPolicy>
+  void filter_field(vector_field<Conf>& field,
+                    typename Conf::multi_array_t& tmp,
                     const vec_t<bool, Conf::dim * 2>& is_boundary) const {
-    for (int i = 0; i < N; i++) {
-      filter_field_component<ExecPolicy>(field.at(i), tmp, is_boundary);
-    }
+    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ae[0],
+                                       is_boundary);
+    filter_field_component<ExecPolicy>(field.at(1), tmp, m_grid.m_Ae[1],
+                                       is_boundary);
+    filter_field_component<ExecPolicy>(field.at(2), tmp, m_grid.m_Ae[2],
+                                       is_boundary);
+  }
+
+  template <typename ExecPolicy>
+  void filter_field(scalar_field<Conf>& field,
+                    typename Conf::multi_array_t& tmp,
+                    const vec_t<bool, Conf::dim * 2>& is_boundary) const {
+    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_dV,
+                                       is_boundary);
   }
 
  private:
-  const grid_t<Conf>& m_grid;
+  const grid_sph_t<Conf>& m_grid;
 };
 
 }  // namespace Aperture
 
-#endif  // __COORD_POLICY_CARTESIAN_H_
+#endif  // __COORD_POLICY_SPHERICAL_H_

@@ -19,6 +19,7 @@
 #define __MULTI_ARRAY_EXP_H_
 
 #include "core/cuda_control.h"
+#include "core/data_adapter.h"
 #include "utils/type_traits.hpp"
 #include "utils/indexable.hpp"
 #include <functional>
@@ -195,7 +196,33 @@ INSTANTIATE_MULTIARRAY_BINARY_OPS(/);
 
 INSTANTIATE_MULTIARRAY_UNARY_OPS(std::negate, -);
 
+template <typename Op, typename Left, typename Right>
+struct host_adapter<binary_exp_t<Op, Left, Right>> {
+  typedef binary_exp_t<Op, Left, Right> type;
+  typedef binary_exp_t<Op, Left, Right> const_type;
+
+  static inline type apply(binary_exp_t<Op, Left, Right>& array) {
+    return array;
+  }
+  static inline type apply(const binary_exp_t<Op, Left, Right>& array) {
+    return array;
+  }
+};
+
 #ifdef CUDA_ENABLED
+
+template <typename Op, typename Left, typename Right>
+struct cuda_adapter<binary_exp_t<Op, Left, Right>> {
+  typedef binary_exp_t<Op, Left, Right> type;
+  typedef binary_exp_t<Op, Left, Right> const_type;
+
+  static inline type apply(binary_exp_t<Op, Left, Right>& array) {
+    return array;
+  }
+  static inline type apply(const binary_exp_t<Op, Left, Right>& array) {
+    return array;
+  }
+};
 
 #endif
 

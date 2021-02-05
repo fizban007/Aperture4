@@ -48,7 +48,14 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater(
   m_tmpj.resize(m_grid.extent());
 
   ExecPolicy<Conf>::set_grid(m_grid);
+
+  m_coord_policy = std::make_unique<CoordPolicy<Conf>>(grid);
 }
+
+template <typename Conf, template <class> class ExecPolicy,
+          template <class> class CoordPolicy,
+          template <class> class PhysicsPolicy>
+ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::~ptc_updater() = default;
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
@@ -107,7 +114,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
 
   sim_env().params().get_value("num_species", m_num_species);
   if (m_num_species > max_ptc_types) {
-    Logger::print_err("Too many species of particles requested! Exiting");
+    Logger::print_err("Too many species of particles requested! Aborting");
     throw std::runtime_error("too many species");
   }
 
@@ -181,10 +188,11 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   int rho_interval = m_rho_interval;
   auto charges = m_charges;
   auto masses = m_masses;
+  auto coord_policy = *m_coord_policy;
 
   // Main particle update loop
   ExecPolicy<Conf>::launch(
-      [num, dt, rho_interval, step, charges, masses] LAMBDA(
+      [num, dt, rho_interval, step, charges, masses, coord_policy] LAMBDA(
           auto ptc, auto E, auto B, auto J, auto Rho) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
@@ -192,9 +200,9 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
         bool deposit_rho = (step % rho_interval == 0);
         ExecPolicy<Conf>::loop(
             0ul, num,
-            [&ext, &charges, &masses, dt, deposit_rho, interp] LAMBDA(
-                auto n, auto& ptc, auto& E, auto& B, auto& J, auto& Rho,
-                auto& grid) {
+            [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
+             interp] LAMBDA(auto n, auto& ptc, auto& E, auto& B, auto& J,
+                            auto& Rho, auto& grid) {
               ptc_context<Conf::dim, value_t> context;
               context.cell = ptc.cell[n];
               if (context.cell == empty_cell) return;
@@ -217,9 +225,10 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
               context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
 
-              CoordPolicy<Conf>::update_ptc(
-                  grid, context, pos, charges[context.sp] / masses[context.sp],
-                  dt);
+              // CoordPolicy<Conf>::update_ptc(
+              coord_policy.update_ptc(grid, context, pos,
+                                      charges[context.sp] / masses[context.sp],
+                                      dt);
 
               ptc.p1[n] = context.p[0];
               ptc.p2[n] = context.p[1];
@@ -240,6 +249,8 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   ExecPolicy<Conf>::sync();
 
   // ExecPolicy<Conf>::launch(CoordPolicy<Conf>::process_J_Rho, *J, *Rho);
+
+  filter_current(m_filter_times, step);
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -388,15 +399,19 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
   if (m_comm != nullptr) is_boundary = m_comm->domain_info().is_boundary;
 
   for (int i = 0; i < num_times; i++) {
-    filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, is_boundary);
-    filter_field<ExecPolicy<Conf>>(J->at(1), m_tmpj, is_boundary);
-    filter_field<ExecPolicy<Conf>>(J->at(2), m_tmpj, is_boundary);
+    // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, is_boundary);
+    // filter_field<ExecPolicy<Conf>>(J->at(1), m_tmpj, is_boundary);
+    // filter_field<ExecPolicy<Conf>>(J->at(2), m_tmpj, is_boundary);
+    m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
+                                                           is_boundary);
 
     if (m_comm != nullptr) m_comm->send_guard_cells(*J);
 
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
-        filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
+        // filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
+        m_coord_policy->template filter_field<ExecPolicy<Conf>>(*Rho[sp], m_tmpj,
+                                                               is_boundary);
         if (m_comm != nullptr) m_comm->send_guard_cells(*Rho[sp]);
       }
     }

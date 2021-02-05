@@ -42,6 +42,7 @@ class ptc_updater : public system_t {
 
   ptc_updater(const grid_t<Conf>& grid);
   ptc_updater(const grid_t<Conf>& grid, const domain_comm<Conf>& comm);
+  ~ptc_updater();
 
   void init() override;
   void update(double dt, uint32_t step) override;
@@ -55,6 +56,9 @@ class ptc_updater : public system_t {
   void filter_current(int num_times, uint32_t step);
 
  private:
+  // Policy objects
+  std::unique_ptr<CoordPolicy<Conf>> m_coord_policy;
+
   // Grid and communicator which are essential for particle update
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm = nullptr;
@@ -75,7 +79,7 @@ class ptc_updater : public system_t {
   uint32_t m_data_interval = 1;
   uint32_t m_rho_interval = 1;
   uint32_t m_sort_interval = 20;
-  uint32_t m_filter_times = 1;
+  uint32_t m_filter_times = 0;
 
   // By default the maximum number of species is 8
   vec_t<float, max_ptc_types> m_charges;

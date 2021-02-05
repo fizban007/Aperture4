@@ -72,6 +72,12 @@ cart2sph(FloatT &v1, FloatT &v2, FloatT &v3, FloatT x1, FloatT x2, FloatT x3) {
 
 template <typename FloatT>
 HD_INLINE void
+cart2sph(vec_t<FloatT, 3>& v, const vec_t<FloatT, 3>& x) {
+  return cart2sph(v[0], v[1], v[2], x[0], x[1], x[2]);
+}
+
+template <typename FloatT>
+HD_INLINE void
 sph2cart(FloatT &v1, FloatT &v2, FloatT &v3, FloatT x1, FloatT x2, FloatT x3) {
   FloatT v1n = v1, v2n = v2, v3n = v3;
   FloatT c2 = math::cos(x2), s2 = math::sin(x2), c3 = math::cos(x3),
@@ -79,6 +85,12 @@ sph2cart(FloatT &v1, FloatT &v2, FloatT &v3, FloatT x1, FloatT x2, FloatT x3) {
   v1 = v1n * s2 * c3 + v2n * c2 * c3 - v3n * s3;
   v2 = v1n * s2 * s3 + v2n * c2 * s3 + v3n * c3;
   v3 = v1n * c2 - v2n * s2;
+}
+
+template <typename FloatT>
+HD_INLINE void
+sph2cart(vec_t<FloatT, 3>& v, const vec_t<FloatT, 3>& x) {
+  return sph2cart(v[0], v[1], v[2], x[0], x[1], x[2]);
 }
 
 template <typename FloatT>

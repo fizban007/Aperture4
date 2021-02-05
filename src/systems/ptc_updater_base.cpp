@@ -42,8 +42,6 @@ template
 class ptc_updater<Config<3>, exec_policy_openmp, coord_policy_cartesian, PhysicsPolicy>;
 
 template
-class ptc_updater<Config<1>, exec_policy_openmp, coord_policy_spherical, PhysicsPolicy>;
-template
 class ptc_updater<Config<2>, exec_policy_openmp, coord_policy_spherical, PhysicsPolicy>;
 template
 class ptc_updater<Config<3>, exec_policy_openmp, coord_policy_spherical, PhysicsPolicy>;

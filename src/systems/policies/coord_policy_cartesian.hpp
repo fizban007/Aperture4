@@ -67,9 +67,11 @@ class coord_policy_cartesian {
     move_ptc(grid, context, pos, dt);
   }
 
+  // Abstracted moving routine that is shared by both ptc and ph
+  template <typename PtcContext>
   HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          ptc_context<Conf::dim, value_t>& context,
-                          index_t<Conf::dim>& pos, value_t dt) const {
+                          PtcContext& context, index_t<Conf::dim>& pos,
+                          value_t dt) const {
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {
       context.new_x[i] = context.x[i] + (context.p[i] * dt / context.gamma) *
@@ -82,6 +84,13 @@ class coord_policy_cartesian {
     for (int i = Conf::dim; i < 3; i++) {
       context.new_x[i] = context.x[i] + context.p[i] * dt / context.gamma;
     }
+  }
+
+  // Inline functions to be called in the photon update loop
+  HD_INLINE void update_ph(const Grid<Conf::dim, value_t>& grid,
+                           ph_context<Conf::dim, value_t>& context,
+                           index_t<Conf::dim>& pos, value_t dt) const {
+    move_ptc(grid, context, pos, dt);
   }
 
   // Extra processing routines

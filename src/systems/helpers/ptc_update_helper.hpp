@@ -48,6 +48,18 @@ struct ptc_context {
   vec_t<value_t, 3> B;
 };
 
+template <int Dim, typename value_t>
+struct ph_context {
+  uint32_t cell;
+  vec_t<value_t, 3> x;
+  vec_t<value_t, 3> new_x;
+  index_t<Dim> dc;
+  vec_t<value_t, 3> p;
+  value_t gamma;
+
+  uint32_t flag;
+};
+
 template <typename value_t>
 HD_INLINE value_t
 center2d(value_t sx0, value_t sx1, value_t sy0, value_t sy1) {

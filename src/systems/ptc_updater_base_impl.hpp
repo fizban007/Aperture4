@@ -55,7 +55,8 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater(
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::~ptc_updater() = default;
+ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::~ptc_updater() =
+    default;
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
@@ -262,13 +263,55 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_photons(
   auto num = ph->number();
   if (num == 0) return;
   int rho_interval = m_rho_interval;
+  auto coord_policy = *m_coord_policy;
 
   // Photon movement loop
   ExecPolicy<Conf>::launch(
-      [num, dt, rho_interval, step] LAMBDA(auto ph, auto Rho_ph) {
+      [num, dt, rho_interval, step, coord_policy] LAMBDA(auto ph, auto Rho_ph) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        bool deposit_rho = (step % rho_interval == 0);
+        ExecPolicy<Conf>::loop(
+            0ul, num,
+            [&ext, &coord_policy, dt, deposit_rho] LAMBDA(
+                auto n, auto& ph, auto& Rho_ph, auto& grid) {
+              ph_context<Conf::dim, value_t> context;
+              context.cell = ph.cell[n];
+              if (context.cell == empty_cell) return;
 
+              auto idx = Conf::idx(context.cell, ext);
+              auto pos = get_pos(idx, ext);
+
+              context.x = vec_t<value_t, 3>(ph.x1[n], ph.x2[n], ph.x3[n]);
+              context.p = vec_t<value_t, 3>(ph.p1[n], ph.p2[n], ph.p3[n]);
+              context.gamma = ph.E[n];
+
+              context.flag = ph.flag[n];
+
+              coord_policy.update_ph(grid, context, pos, dt);
+
+              ph.p1[n] = context.p[0];
+              ph.p2[n] = context.p[1];
+              ph.p3[n] = context.p[2];
+              // Photon enery should not change
+              // ph.E[n] = context.gamma;
+
+              auto idx_new = Conf::idx(pos, ext);
+              if (deposit_rho) {
+                // Simple deposit, do not care about weight function
+                deposit_add(&Rho_ph[idx_new], ph.weight[n]);
+              }
+
+              ph.x1[n] = context.new_x[0];
+              ph.x2[n] = context.new_x[1];
+              ph.x3[n] = context.new_x[2];
+              ph.cell[n] = idx_new.linear;
+              ph.path_left[n] -= dt;
+            },
+            ph, Rho_ph, grid);
       },
       *ph, *rho_ph);
+  ExecPolicy<Conf>::sync();
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -403,15 +446,15 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
     // filter_field<ExecPolicy<Conf>>(J->at(1), m_tmpj, is_boundary);
     // filter_field<ExecPolicy<Conf>>(J->at(2), m_tmpj, is_boundary);
     m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
-                                                           is_boundary);
+                                                            is_boundary);
 
     if (m_comm != nullptr) m_comm->send_guard_cells(*J);
 
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         // filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
-        m_coord_policy->template filter_field<ExecPolicy<Conf>>(*Rho[sp], m_tmpj,
-                                                               is_boundary);
+        m_coord_policy->template filter_field<ExecPolicy<Conf>>(
+            *Rho[sp], m_tmpj, is_boundary);
         if (m_comm != nullptr) m_comm->send_guard_cells(*Rho[sp]);
       }
     }

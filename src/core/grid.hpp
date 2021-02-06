@@ -261,6 +261,15 @@ struct Grid {
     }
     return result;
   }
+
+  HD_INLINE value_t cell_size() const {
+    value_t result = 1.0;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      result *= delta[i];
+    }
+    return result;
+  }
 };
 
 }  // namespace Aperture

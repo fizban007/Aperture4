@@ -134,17 +134,21 @@ class coord_policy_spherical {
         [dt, num_species] LAMBDA(auto j, auto rho, auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
+          auto w = grid.cell_size() / dt;
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, dt, num_species] LAMBDA(auto idx, auto& j, auto& rho,
-                                       auto& grid_ptrs) {
+              [&grid, &ext, dt, num_species, w] LAMBDA(
+                  auto idx, auto& j, auto& rho, const auto& grid_ptrs) {
                 auto pos = get_pos(idx, ext);
                 // if (grid.is_in_bound(pos)) {
-                auto w = grid.delta[0] * grid.delta[1] / dt;
                 j[0][idx] *= w / grid_ptrs.Ae[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ae[1][idx];
-                // TODO: This is specific to 2D, how about 3D????
-                j[2][idx] /= grid_ptrs.dV[idx];
+
+                if (Conf::dim == 2)
+                  j[2][idx] /= grid_ptrs.dV[idx];
+                else if (Conf::dim == 3)
+                  j[2][idx] *= w / grid_ptrs.Ae[2][idx];
+
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] /= grid_ptrs.dV[idx];
                 }

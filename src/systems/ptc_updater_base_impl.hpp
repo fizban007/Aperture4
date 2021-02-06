@@ -249,7 +249,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
       *ptc, *E, *B, *J, Rho);
   ExecPolicy<Conf>::sync();
 
-  // ExecPolicy<Conf>::launch(CoordPolicy<Conf>::process_J_Rho, *J, *Rho);
+  coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt);
 
   filter_current(m_filter_times, step);
 }

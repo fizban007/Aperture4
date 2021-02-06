@@ -127,8 +127,39 @@ class coord_policy_spherical {
 
   // Extra processing routines
   template <typename ExecPolicy>
-  void process_J_Rho(vector_field<Conf>& J,
-                     data_array<scalar_field<Conf>>& Rho) const {}
+  void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
+                     value_t dt) const {
+    auto num_species = Rho.size();
+    ExecPolicy::launch(
+        [dt, num_species] LAMBDA(auto j, auto rho, auto grid_ptrs) {
+          auto& grid = ExecPolicy::grid();
+          auto ext = grid.extent();
+          ExecPolicy::loop(
+              Conf::begin(ext), Conf::end(ext),
+              [&grid, &ext, dt, num_species] LAMBDA(auto idx, auto& j, auto& rho,
+                                       auto& grid_ptrs) {
+                auto pos = get_pos(idx, ext);
+                // if (grid.is_in_bound(pos)) {
+                auto w = grid.delta[0] * grid.delta[1] / dt;
+                j[0][idx] *= w / grid_ptrs.Ae[0][idx];
+                j[1][idx] *= w / grid_ptrs.Ae[1][idx];
+                // TODO: This is specific to 2D, how about 3D????
+                j[2][idx] /= grid_ptrs.dV[idx];
+                for (int n = 0; n < num_species; n++) {
+                  rho[n][idx] /= grid_ptrs.dV[idx];
+                }
+                // }
+                typename Conf::value_t theta =
+                    grid.template pos<1>(pos[1], true);
+                if (math::abs(theta) < 0.1 * grid.delta[1]) {
+                  // j[1][idx] = 0.0;
+                  j[2][idx] = 0.0;
+                }
+              },
+              j, rho, grid_ptrs);
+        },
+        J, Rho, m_grid.get_grid_ptrs());
+  }
 
   template <typename ExecPolicy>
   void filter_field(vector_field<Conf>& field,

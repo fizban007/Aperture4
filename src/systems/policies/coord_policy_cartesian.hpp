@@ -96,7 +96,8 @@ class coord_policy_cartesian {
   // Extra processing routines
   template <typename ExecPolicy>
   void process_J_Rho(vector_field<Conf>& J,
-                     data_array<scalar_field<Conf>>& Rho) const {}
+                     data_array<scalar_field<Conf>>& Rho,
+                     value_t dt) const {}
 
   template <typename ExecPolicy, int N>
   void filter_field(field_t<N, Conf>& field, typename Conf::multi_array_t& tmp,

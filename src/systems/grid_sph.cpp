@@ -40,6 +40,7 @@ V3(double r, double rs) {
 template <typename Conf>
 grid_sph_t<Conf>::~grid_sph_t() {}
 
+// TODO: This whole thing only works for 2D right now
 template <typename Conf>
 void
 grid_sph_t<Conf>::compute_coef() {
@@ -86,7 +87,9 @@ grid_sph_t<Conf>::compute_coef() {
       //                  (std::exp(2.0 * x1s) -
       //                   std::exp(2.0 * (x1s - this->delta[0])));
 
-      this->m_Ae[2][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * this->delta[1];
+      // this->m_Ae[2][idx] = (A2(r, r_g) - A2(r_minus, r_g)) * this->delta[1];
+      this->m_Ae[2][idx] = (V3(r, r_g) - V3(r_minus, r_g)) *
+                           (std::cos(x2 - this->delta[1]) - std::cos(x2));
 
       this->m_Ab[0][idx] =
           rs * rs * (std::cos(x2s) - std::cos(x2s + this->delta[1]));
@@ -95,7 +98,9 @@ grid_sph_t<Conf>::compute_coef() {
         this->m_Ab[1][idx] = (A2(rs_plus, r_g) - A2(rs, r_g)) * std::sin(x2s);
       else
         this->m_Ab[1][idx] = TINY;
-      this->m_Ab[2][idx] = (A2(rs_plus, r_g) - A2(rs, r_g)) * this->delta[1];
+      // this->m_Ab[2][idx] = (A2(rs_plus, r_g) - A2(rs, r_g)) * this->delta[1];
+      this->m_Ab[2][idx] = (V3(rs_plus, r_g) - V3(rs, r_g)) *
+                           (std::cos(x2s) - std::cos(x2s + this->delta[1]));
 
       this->m_dV[idx] = (V3(r, r_g) - V3(r_minus, r_g)) *
                         (std::cos(x2 - this->delta[1]) - std::cos(x2)) /

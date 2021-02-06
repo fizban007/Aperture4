@@ -21,10 +21,30 @@
 namespace Aperture {
 
 template <typename T>
-struct cuda_adapter;
+struct cuda_adapter {
+  typedef T type;
+  typedef T const_type;
+
+  // static type apply(T& t) {
+  //   return t;
+  // }
+  static const_type apply(const T& t) {
+    return t;
+  }
+};
 
 template <typename T>
-struct host_adapter;
+struct host_adapter {
+  typedef T type;
+  typedef T const_type;
+
+  // static type apply(T& t) {
+  //   return t;
+  // }
+  static const_type apply(const T& t) {
+    return t;
+  }
+};
 
 template <typename T>
 inline typename cuda_adapter<T>::type

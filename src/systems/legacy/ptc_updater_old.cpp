@@ -19,7 +19,7 @@
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
-#include "helpers/ptc_update_helper.hpp"
+#include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"
 #include "utils/double_buffer.h"
 #include "utils/range.hpp"

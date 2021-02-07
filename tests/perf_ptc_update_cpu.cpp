@@ -26,11 +26,11 @@
 using namespace Aperture;
 
 namespace Aperture {
-template class ptc_updater<Config<2>, exec_policy_openmp, coord_policy_cartesian,
-                           PhysicsPolicy>;
-template class ptc_updater<Config<3>, exec_policy_openmp, coord_policy_cartesian,
-                           PhysicsPolicy>;
-}
+template class ptc_updater_new<Config<2>, exec_policy_openmp,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<3>, exec_policy_openmp,
+                               coord_policy_cartesian>;
+}  // namespace Aperture
 
 int
 main(int argc, char* argv[]) {
@@ -46,10 +46,9 @@ main(int argc, char* argv[]) {
   Logger::print_info("3D Case:");
 
   auto grid3d = env.register_system<grid_t<Conf3D>>();
-  auto pusher3d =
-      env.register_system<ptc_updater<Conf3D, exec_policy_openmp,
-                                      coord_policy_cartesian, PhysicsPolicy>>(
-          *grid3d);
+  auto pusher3d = env.register_system<
+      ptc_updater_new<Conf3D, exec_policy_openmp, coord_policy_cartesian>>(
+      *grid3d);
 
   env.init();
 
@@ -63,7 +62,7 @@ main(int argc, char* argv[]) {
   double t = 0.0;
   for (int i = 0; i < N; i++) {
     timer::stamp();
-    pusher3d->update_particles(0.1, 2);
+    pusher3d->update_particles(0.001, 2);
     double dt = 0.001 * timer::get_duration_since_stamp("us");
     t += dt;
     if (i % 10 == 0) Logger::print_info("Particle update cycle took {}ms", dt);
@@ -84,10 +83,9 @@ main(int argc, char* argv[]) {
   Logger::print_info("3D Case:");
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
-  auto pusher2d =
-      env.register_system<ptc_updater<Conf2D, exec_policy_openmp,
-                                      coord_policy_cartesian, PhysicsPolicy>>(
-          *grid2d);
+  auto pusher2d = env.register_system<
+      ptc_updater_new<Conf2D, exec_policy_openmp, coord_policy_cartesian>>(
+      *grid2d);
 
   env.init();
 

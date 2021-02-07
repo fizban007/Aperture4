@@ -23,19 +23,16 @@
 
 namespace Aperture {
 
-template <typename T>
-class PhysicsPolicy {};
+template class ptc_updater_new<Config<1>, exec_policy_cuda,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<2>, exec_policy_cuda,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<3>, exec_policy_cuda,
+                               coord_policy_cartesian>;
 
-template class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_cartesian,
-                           PhysicsPolicy>;
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian,
-                           PhysicsPolicy>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian,
-                           PhysicsPolicy>;
-
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_spherical,
-                           PhysicsPolicy>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_spherical,
-                           PhysicsPolicy>;
+template class ptc_updater_new<Config<2>, exec_policy_cuda,
+                               coord_policy_spherical>;
+template class ptc_updater_new<Config<3>, exec_policy_cuda,
+                               coord_policy_spherical>;
 
 }  // namespace Aperture

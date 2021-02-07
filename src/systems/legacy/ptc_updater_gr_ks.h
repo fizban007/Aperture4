@@ -15,40 +15,43 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PTC_UPDATER_SPH_H_
-#define _PTC_UPDATER_SPH_H_
+#ifndef _PTC_UPDATER_GR_KS_H_
+#define _PTC_UPDATER_GR_KS_H_
 
+#include "systems/grid_ks.h"
 #include "ptc_updater_old.h"
-#include "grid_sph.h"
 
 namespace Aperture {
 
 template <typename Conf>
-class ptc_updater_old_sph_cu : public ptc_updater_old_cu<Conf> {
+class ptc_updater_gr_ks_cu : public ptc_updater_old_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  using ptc_updater_old_cu<Conf>::ptc_updater_old_cu;
+  // using ptc_updater_cu<Conf>::ptc_updater_cu;
+  // ptc_updater_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
+  ptc_updater_gr_ks_cu(const grid_ks_t<Conf>& grid,
+                       const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
   void register_data_components() override;
 
-  virtual void move_deposit_2d(value_t dt, uint32_t step) override;
+  virtual void update_particles(value_t dt, uint32_t step) override;
+  // void update_photons(double dt, uint32_t step);
+  // virtual void move_deposit_2d(value_t dt, uint32_t step) override;
   virtual void move_photons_2d(value_t dt, uint32_t step) override;
-  virtual void filter_field(vector_field<Conf>& f, int comp) override;
-  virtual void filter_field(scalar_field<Conf>& f) override;
+  // virtual void filter_field(vector_field<Conf>& f, int comp) override;
+  // virtual void filter_field(scalar_field<Conf>& f) override;
   virtual void fill_multiplicity(int mult, value_t weight = 1.0) override;
 
  protected:
-  value_t m_compactness = 0.0;
-  value_t m_omega = 0.0;
-  int m_damping_length = 32;
-  float m_r_cutoff = 10.0;
+  const grid_ks_t<Conf>& m_ks_grid;
 
+  value_t m_a = 0.0;
+  int m_damping_length = 32;
 };
 
+}  // namespace Aperture
 
-}
-
-#endif  // _PTC_UPDATER_SPH_H_
+#endif  // _PTC_UPDATER_GR_KS_H_

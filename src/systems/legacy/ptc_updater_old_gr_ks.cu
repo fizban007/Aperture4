@@ -18,7 +18,7 @@
 #include "core/math.hpp"
 #include "data/curand_states.h"
 #include "framework/config.h"
-#include "helpers/ptc_update_helper.hpp"
+#include "systems/helpers/ptc_update_helper.hpp"
 #include "ptc_updater_gr_ks.h"
 #include "systems/physics/geodesic_ks.hpp"
 #include "systems/physics/metric_kerr_schild.hpp"

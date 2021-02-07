@@ -25,24 +25,24 @@
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
+#include "systems/policies.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
 class rng_states_t;
 
-template <typename Conf,
-          template <class> class ExecPolicy,
+template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
-          template <class> class PhysicsPolicy>
-class ptc_updater : public system_t {
+          template <class> class PhysicsPolicy = ptc_physics_policy_empty>
+class ptc_updater_new : public system_t {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  ptc_updater(const grid_t<Conf>& grid);
-  ptc_updater(const grid_t<Conf>& grid, const domain_comm<Conf>& comm);
-  ~ptc_updater();
+  ptc_updater_new(const grid_t<Conf>& grid);
+  ptc_updater_new(const grid_t<Conf>& grid, const domain_comm<Conf>& comm);
+  ~ptc_updater_new();
 
   void init() override;
   void update(double dt, uint32_t step) override;

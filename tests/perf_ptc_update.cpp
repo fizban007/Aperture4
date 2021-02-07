@@ -26,11 +26,11 @@
 using namespace Aperture;
 
 namespace Aperture {
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian,
-                           PhysicsPolicy>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian,
-                           PhysicsPolicy>;
-}
+template class ptc_updater_new<Config<2>, exec_policy_cuda,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<3>, exec_policy_cuda,
+                               coord_policy_cartesian>;
+}  // namespace Aperture
 
 int
 main(int argc, char* argv[]) {
@@ -46,10 +46,9 @@ main(int argc, char* argv[]) {
   Logger::print_info("3D Case:");
 
   auto grid3d = env.register_system<grid_t<Conf3D>>();
-  auto pusher3d =
-      env.register_system<ptc_updater<Conf3D, exec_policy_cuda,
-                                      coord_policy_cartesian, PhysicsPolicy>>(
-          *grid3d);
+  auto pusher3d = env.register_system<ptc_updater_new<
+      Conf3D, exec_policy_cuda, coord_policy_cartesian>>(
+      *grid3d);
 
   env.init();
 
@@ -81,13 +80,12 @@ main(int argc, char* argv[]) {
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
   env.params().add("max_ptc_num", 60000000l);
 
-  Logger::print_info("3D Case:");
+  Logger::print_info("2D Case:");
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
-  auto pusher2d =
-      env.register_system<ptc_updater<Conf2D, exec_policy_cuda,
-                                      coord_policy_cartesian, PhysicsPolicy>>(
-          *grid2d);
+  auto pusher2d = env.register_system<ptc_updater_new<
+      Conf2D, exec_policy_cuda, coord_policy_cartesian>>(
+      *grid2d);
 
   env.init();
 

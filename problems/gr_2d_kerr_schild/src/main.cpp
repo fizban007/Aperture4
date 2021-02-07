@@ -25,7 +25,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
-#include "systems/ptc_updater_gr_ks.h"
+#include "systems/legacy/ptc_updater_gr_ks.h"
 #include "utils/util_functions.h"
 
 using namespace std;

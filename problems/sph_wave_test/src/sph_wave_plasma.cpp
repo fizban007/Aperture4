@@ -18,7 +18,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/field_solver_sph.h"
-#include "systems/ptc_updater_sph.h"
+#include "systems/legacy/ptc_updater_sph.h"
 #include "systems/data_exporter.h"
 #include "systems/boundary_condition.h"
 #include "initial_condition.h"

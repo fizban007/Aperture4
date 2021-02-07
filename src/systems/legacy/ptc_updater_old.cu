@@ -20,7 +20,7 @@
 #include "core/math.hpp"
 #include "data/curand_states.h"
 #include "framework/config.h"
-#include "helpers/ptc_update_helper.hpp"
+#include "systems/helpers/ptc_update_helper.hpp"
 #include "ptc_updater_old.h"
 #include "utils/double_buffer.h"
 #include "utils/interpolation.hpp"

@@ -18,7 +18,7 @@
 #include "catch.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/ptc_updater_old.h"
+#include "systems/legacy/ptc_updater_old.h"
 #include <fstream>
 #include <iomanip>
 

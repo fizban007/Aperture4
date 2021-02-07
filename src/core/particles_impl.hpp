@@ -66,6 +66,12 @@ particles_base<BufferType>::resize(size_t size) {
 
 template <typename BufferType>
 void
+particles_base<BufferType>::copy_from(const self_type& other) {
+  copy_from(other, other.number(), 0, 0);
+}
+
+template <typename BufferType>
+void
 particles_base<BufferType>::copy_from(const self_type& other, size_t num,
                                       size_t src_pos, size_t dst_pos) {
   if (dst_pos + num > m_size) num = m_size - dst_pos;
@@ -205,38 +211,49 @@ particles_base<BufferType>::sort_by_cell_host(size_t num_cells) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_host() {
+particles_base<BufferType>::copy_to_host(bool all) {
+  auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device) {
-    visit_struct::for_each(*static_cast<base_type*>(this),
-                           [](const char* name, auto& x) { x.copy_to_host(); });
+    visit_struct::for_each(
+        *static_cast<base_type*>(this),
+        [num](const char* name, auto& x) { x.copy_to_host(0, num); });
+        // [num](const char* name, auto& x) { x.copy_to_host(); });
   }
 }
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_host(cudaStream_t stream) {
+particles_base<BufferType>::copy_to_host(cudaStream_t stream, bool all) {
+  auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device)
-    visit_struct::for_each(
-        *static_cast<base_type*>(this),
-        [stream](const char* name, auto& x) { x.copy_to_host(stream); });
+    visit_struct::for_each(*static_cast<base_type*>(this),
+                           [num, stream](const char* name, auto& x) {
+                             x.copy_to_host(0, num, stream);
+                             // x.copy_to_host(stream);
+                           });
 }
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_device() {
+particles_base<BufferType>::copy_to_device(bool all) {
+  auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device)
     visit_struct::for_each(
         *static_cast<base_type*>(this),
-        [](const char* name, auto& x) { x.copy_to_device(); });
+        [num](const char* name, auto& x) { x.copy_to_device(0, num); });
+        // [num](const char* name, auto& x) { x.copy_to_device(); });
 }
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_device(cudaStream_t stream) {
+particles_base<BufferType>::copy_to_device(cudaStream_t stream, bool all) {
+  auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device)
-    visit_struct::for_each(
-        *static_cast<base_type*>(this),
-        [stream](const char* name, auto& x) { x.copy_to_device(stream); });
+    visit_struct::for_each(*static_cast<base_type*>(this),
+                           [num, stream](const char* name, auto& x) {
+                             x.copy_to_device(0, num, stream);
+                             // x.copy_to_device(stream);
+                           });
 }
 
 }  // namespace Aperture

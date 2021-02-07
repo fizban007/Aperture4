@@ -48,6 +48,7 @@ class particles_base : public BufferType {
 
   void resize(size_t size);
 
+  void copy_from(const self_type& other);
   void copy_from(const self_type& other, size_t num, size_t src_pos,
                  size_t dst_pos);
 
@@ -65,10 +66,10 @@ class particles_base : public BufferType {
   void append_dev(const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
                   uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  void copy_to_host();
-  void copy_to_device();
-  void copy_to_host(cudaStream_t stream);
-  void copy_to_device(cudaStream_t stream);
+  void copy_to_host(bool all = true);
+  void copy_to_device(bool all = true);
+  void copy_to_host(cudaStream_t stream, bool all = true);
+  void copy_to_device(cudaStream_t stream, bool all = true);
 
   template <typename Conf>
   void copy_to_comm_buffers(std::vector<self_type>& buffers,

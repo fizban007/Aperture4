@@ -20,9 +20,9 @@
 
 #include "buffer_impl.hpp"
 #include "core/cuda_control.h"
+#include "core/data_adapter.h"
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
-#include "core/data_adapter.h"
 #include "utils/logger.h"
 #include <cstdlib>
 #include <initializer_list>
@@ -324,12 +324,29 @@ class buffer {
   T* dev_ptr() { return m_data_d; }
 
   /// Copy from device to host. This will block host code execution.
-  void copy_to_host() {
+  void copy_to_host(size_t start, size_t amount) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpy(m_data_h, m_data_d, m_size * sizeof(T),
-                              cudaMemcpyDeviceToHost));
+      CudaSafeCall(cudaMemcpy(m_data_h + start, m_data_d + start,
+                              amount * sizeof(T), cudaMemcpyDeviceToHost));
+#endif
+    }
+  }
+
+  /// Copy from device to host. This will block host code execution.
+  void copy_to_host() { copy_to_host(0, m_size); }
+
+  /// Copy from device to host, on a given stream. This will not block host code
+  /// execution. To ensure data copy is complete, synchronize the stream
+  /// manually.
+  void copy_to_host(size_t start, size_t amount, cudaStream_t stream) {
+    // Only copy if there buffer is allocated on both dev and host
+    if (m_type == MemType::host_device) {
+#ifdef CUDA_ENABLED
+      CudaSafeCall(cudaMemcpyAsync(m_data_h + start, m_data_d + start,
+                                   amount * sizeof(T), cudaMemcpyDeviceToHost,
+                                   stream));
 #endif
     }
   }
@@ -337,23 +354,32 @@ class buffer {
   /// Copy from device to host, on a given stream. This will not block host code
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
-  void copy_to_host(cudaStream_t stream) {
+  void copy_to_host(cudaStream_t stream) { copy_to_host(0, m_size, stream); }
+
+  /// Copy from host to device. This will block host code execution.
+  void copy_to_device(size_t start, size_t amount) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpyAsync(m_data_h, m_data_d, m_size * sizeof(T),
-                                   cudaMemcpyDeviceToHost, stream));
+      CudaSafeCall(cudaMemcpy(m_data_d + start, m_data_h + start,
+                              amount * sizeof(T), cudaMemcpyHostToDevice));
 #endif
     }
   }
 
   /// Copy from host to device. This will block host code execution.
-  void copy_to_device() {
+  void copy_to_device() { copy_to_device(0, m_size); }
+
+  /// Copy from host to device, on a given stream. This will not block host code
+  /// execution. To ensure data copy is complete, synchronize the stream
+  /// manually.
+  void copy_to_device(size_t start, size_t amount, cudaStream_t stream) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
 #ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpy(m_data_d, m_data_h, m_size * sizeof(T),
-                              cudaMemcpyHostToDevice));
+      CudaSafeCall(cudaMemcpyAsync(m_data_d + start, m_data_h + start,
+                                   amount * sizeof(T), cudaMemcpyHostToDevice,
+                                   stream));
 #endif
     }
   }
@@ -362,17 +388,11 @@ class buffer {
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
   void copy_to_device(cudaStream_t stream) {
-    // Only copy if there buffer is allocated on both dev and host
-    if (m_type == MemType::host_device) {
-#ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpyAsync(m_data_d, m_data_h, m_size * sizeof(T),
-                                   cudaMemcpyHostToDevice, stream));
-#endif
-    }
+    copy_to_device(0, m_size, stream);
   }
 };
 
-template<typename T>
+template <typename T>
 struct host_adapter<buffer<T>> {
   typedef T* type;
   typedef const T* const_type;
@@ -383,7 +403,7 @@ struct host_adapter<buffer<T>> {
 
 #ifdef CUDA_ENABLED
 
-template<typename T>
+template <typename T>
 struct cuda_adapter<buffer<T>> {
   typedef T* type;
   typedef const T* const_type;

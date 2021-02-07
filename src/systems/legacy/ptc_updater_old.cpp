@@ -130,16 +130,16 @@ ptc_updater_old<Conf>::push_default(value_t dt) {
 template <typename Conf>
 void
 ptc_updater_old<Conf>::update_particles(value_t dt, uint32_t step) {
-  Logger::print_info("Pushing {} particles", ptc->number());
-  timer::stamp("pusher");
+  // Logger::print_info("Pushing {} particles", ptc->number());
+  // timer::stamp("pusher");
   // First update particle momentum
   push_default(dt);
-  timer::show_duration_since_stamp("push", "ms", "pusher");
+  // timer::show_duration_since_stamp("push", "ms", "pusher");
 
-  timer::stamp("depositer");
+  // timer::stamp("depositer");
   // Then move particles and deposit current
   move_and_deposit(dt, step);
-  timer::show_duration_since_stamp("deposit", "ms", "depositer");
+  // timer::show_duration_since_stamp("deposit", "ms", "depositer");
 }
 
 template <typename Conf>

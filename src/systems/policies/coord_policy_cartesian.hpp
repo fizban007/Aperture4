@@ -93,9 +93,27 @@ class coord_policy_cartesian {
 
   // Extra processing routines
   template <typename ExecPolicy>
-  void process_J_Rho(vector_field<Conf>& J,
-                     data_array<scalar_field<Conf>>& Rho,
-                     value_t dt) const {}
+  void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
+                     value_t dt, bool process_rho) const {
+    ExecPolicy::launch(
+        [dt] LAMBDA(auto j) {
+          auto& grid = ExecPolicy::grid();
+          auto ext = grid.extent();
+          // grid.cell_size() is simply the product of all deltas
+          ExecPolicy::loop(
+              Conf::begin(ext), Conf::end(ext),
+              [&grid, &ext] LAMBDA(auto idx, auto& j) {
+                auto pos = get_pos(idx, ext);
+#pragma unroll
+                for (int i = 0; i < Conf::dim; i++) {
+                  j[i][idx] *= grid.delta[i];
+                }
+              },
+              j);
+        },
+        J);
+    ExecPolicy::sync();
+  }
 
   template <typename ExecPolicy, int N>
   void filter_field(field_t<N, Conf>& field, typename Conf::multi_array_t& tmp,

@@ -32,6 +32,12 @@ class exec_policy_openmp;
 template <typename Conf>
 class coord_policy_cartesian;
 
+template <typename Conf>
+class coord_policy_spherical;
+
+template <typename Conf>
+class coord_policy_gr_ks_sph;
+
 template <typename T>
 class ptc_physics_policy_empty {};
 

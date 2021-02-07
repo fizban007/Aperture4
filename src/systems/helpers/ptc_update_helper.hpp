@@ -127,7 +127,7 @@ struct deposit_t<1, spline_t> {
       auto offset = idx.inc_x(i);
       djx += sx1 - sx0;
       // atomicAdd(&J[0][offset], -weight * djx);
-      deposit_add(&J[0][offset], -context.weight * djx);
+      deposit_add(&J[0][offset], -context.weight * djx / dt);
 
       // j2 is simply v2 times rho at center
       value_t val1 = 0.5f * (sx0 + sx1);
@@ -173,13 +173,13 @@ struct deposit_t<2, spline_t> {
         auto offset = idx.inc_x(i).inc_y(j);
         djx += movement2d(sy0, sy1, sx0, sx1);
         if (math::abs(djx) > TINY) {
-          deposit_add(&J[0][offset], -context.weight * djx);
+          deposit_add(&J[0][offset], -context.weight * djx / dt);
         }
 
         // j2 is movement in x2
         djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
         if (math::abs(djy[i - i_0]) > TINY) {
-          deposit_add(&J[1][offset], -context.weight * djy[i - i_0]);
+          deposit_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
         }
 
         // j3 is simply v3 times rho at center
@@ -232,20 +232,20 @@ struct deposit_t<3, spline_t> {
           auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
           djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
           if (math::abs(djx) > TINY) {
-            deposit_add(&J[0][offset], -context.weight * djx);
+            deposit_add(&J[0][offset], -context.weight * djx / dt);
           }
           // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
           // j2 is movement in x2
           djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
           if (math::abs(djy[i - i_0]) > TINY) {
-            deposit_add(&J[1][offset], -context.weight * djy[i - i_0]);
+            deposit_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
           }
 
           // j3 is movement in x3
           djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
           if (math::abs(djz[j - j_0][i - i_0]) > TINY) {
-            deposit_add(&J[2][offset], -context.weight * djz[j - j_0][i - i_0]);
+            deposit_add(&J[2][offset], -context.weight * djz[j - j_0][i - i_0] / dt);
           }
 
           // rho is deposited at the final position

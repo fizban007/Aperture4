@@ -18,7 +18,7 @@
 #include "catch.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/legacy/ptc_updater_old.h"
+#include "systems/legacy/ptc_updater_sph.h"
 #include "systems/ptc_updater_base.h"
 #include "utils/timer.h"
 #include <fstream>
@@ -27,7 +27,7 @@
 
 using namespace Aperture;
 
-TEST_CASE("Comparing two pushers", "[ptc_updater]") {
+TEST_CASE("Comparing two spherical pushers", "[ptc_updater]") {
   typedef Config<2> Conf;
 
   auto& env = sim_env();
@@ -41,9 +41,9 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   auto ptc = env.register_data<particle_data_t>("particles", max_ptc_num,
                                                 MemType::host_device);
-  grid_t<Conf> grid;
+  auto grid = env.register_system<grid_sph_t<Conf>>();
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_spherical>>(*grid);
   // auto pusher = env.register_system<ptc_updater_cu<Conf>>(grid);
 
   env.init();
@@ -57,7 +57,7 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
                   vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                  grid.get_idx(20, 34).linear, 0);
+                  grid->get_idx(20, 34).linear, 0);
 
   double dt = 0.001;
 
@@ -80,7 +80,7 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
     pusher->update_particles(dt, i);
   }
 
-  vector_field<Conf> j_ref(grid);
+  vector_field<Conf> j_ref(*grid);
   j_ref.copy_from(*J);
   j_ref.copy_to_host();
 
@@ -93,7 +93,8 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   ptc = env.register_data<particle_data_t>("particles", max_ptc_num,
                                            MemType::host_device);
-  auto pusher_old = env.register_system<ptc_updater_old_cu<Conf>>(grid);
+  grid = env.register_system<grid_sph_t<Conf>>();
+  auto pusher_old = env.register_system<ptc_updater_old_sph_cu<Conf>>(*grid);
 
   env.init();
 
@@ -105,22 +106,22 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
                   vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                  grid.get_idx(20, 34).linear, 0);
+                  grid->get_idx(20, 34).linear, 0);
 
   for (int i = 0; i < N; i++) {
     ptc->copy_to_host(false);
-    REQUIRE(x1[i] == Approx(ptc->x1[0]));
-    REQUIRE(x2[i] == Approx(ptc->x2[0]));
-    REQUIRE(p1[i] == Approx(ptc->p1[0]));
-    REQUIRE(p2[i] == Approx(ptc->p2[0]));
-    REQUIRE(cells[i] == ptc->cell[0]);
+    CHECK(x1[i] == Approx(ptc->x1[0]));
+    CHECK(x2[i] == Approx(ptc->x2[0]));
+    CHECK(p1[i] == Approx(ptc->p1[0]));
+    CHECK(p2[i] == Approx(ptc->p2[0]));
+    CHECK(cells[i] == ptc->cell[0]);
 
     pusher_old->update_particles(dt, i);
   }
 
   J->copy_to_host();
   for (auto idx : j_ref[0].indices()) {
-    REQUIRE(j_ref[0][idx] == (*J)[0][idx]);
-    REQUIRE(j_ref[1][idx] == (*J)[1][idx]);
+    CHECK(j_ref[0][idx] == (*J)[0][idx]);
+    CHECK(j_ref[1][idx] == (*J)[1][idx]);
   }
 }

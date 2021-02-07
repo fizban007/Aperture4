@@ -18,8 +18,8 @@
 #include "core/math.hpp"
 #include "data/curand_states.h"
 #include "framework/config.h"
-#include "systems/helpers/ptc_update_helper.hpp"
 #include "ptc_updater_sph.h"
+#include "systems/helpers/ptc_update_helper.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/util_functions.h"
 
@@ -33,26 +33,27 @@ process_j_rho(vector_field<Conf>& j,
               typename ptc_updater_old_cu<Conf>::rho_ptrs_t& rho_ptrs,
               int num_species, const grid_sph_t<Conf>& grid,
               typename Conf::value_t dt) {
-  auto ext = grid.extent();
   kernel_launch(
-      [dt, num_species, ext] __device__(auto j, auto rho, auto gp) {
+      [dt, num_species] __device__(auto j, auto rho, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
-          // if (grid.is_in_bound(pos)) {
-          auto w = grid.delta[0] * grid.delta[1] / dt;
+          // if (grid.is_in_ext(pos)) {
+          // auto w = grid.delta[0] * grid.delta[1] / dt;
+          auto w = grid.delta[0] * grid.delta[1];
           j[0][idx] *= w / gp.Ae[0][idx];
           j[1][idx] *= w / gp.Ae[1][idx];
           j[2][idx] /= gp.dV[idx];
           for (int n = 0; n < num_species; n++) {
             rho[n][idx] /= gp.dV[idx];
           }
-          // }
           typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
           if (math::abs(theta) < 0.1 * grid.delta[1]) {
             // j[1][idx] = 0.0;
             j[2][idx] = 0.0;
           }
+          // }
         }
       },
       j.get_ptrs(), rho_ptrs.dev_ptr(), grid.get_grid_ptrs());
@@ -202,7 +203,7 @@ ptc_updater_old_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         // printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3,
         // gamma);
 
-        v /= gamma;
+        // v /= gamma;
         // v1 /= gamma;
         // v2 /= gamma;
         // v3 /= gamma;
@@ -218,9 +219,9 @@ ptc_updater_old_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         // x += v1 * dt;
         // y += v2 * dt;
         // z += v3 * dt;
-        cart_x += v[0] * dt;
-        cart_y += v[1] * dt;
-        cart_z += v[2] * dt;
+        cart_x += v[0] * dt / gamma;
+        cart_y += v[1] * dt / gamma;
+        cart_z += v[2] * dt / gamma;
         // z += alpha_gr(exp_r1) * v3_gr * dt;
         value_t r1p =
             math::sqrt(cart_x * cart_x + cart_y * cart_y + cart_z * cart_z);
@@ -231,10 +232,10 @@ ptc_updater_old_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         r1p = grid_sph_t<Conf>::from_radius(r1p);
         r2p = grid_sph_t<Conf>::from_theta(r2p);
 
-        ptc.p1[n] = v[0] * gamma;
-        ptc.p2[n] = v[1] * gamma;
+        ptc.p1[n] = v[0];
+        ptc.p2[n] = v[1];
         // ptc.p3[n] = (v3_gr + beta_phi(exp_r1p, r2p)) * gamma;
-        ptc.p3[n] = v[2] * gamma;
+        ptc.p3[n] = v[2];
 
         vec_t<value_t, 3> new_x;
         new_x[0] = x[0] + (r1p - r1) * grid.inv_delta[0];

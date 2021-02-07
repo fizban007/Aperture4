@@ -128,17 +128,18 @@ class coord_policy_spherical {
   // Extra processing routines
   template <typename ExecPolicy>
   void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
-                     value_t dt) const {
+                     value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     ExecPolicy::launch(
-        [dt, num_species] LAMBDA(auto j, auto rho, auto grid_ptrs) {
+        [dt, num_species, process_rho] LAMBDA(auto j, auto rho, auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
           // grid.cell_size() is simply the product of all deltas
-          auto w = grid.cell_size() / dt;
+          // auto w = grid.cell_size() / dt;
+          auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, num_species, w] LAMBDA(
+              [&grid, &ext, num_species, w, process_rho] LAMBDA(
                   auto idx, auto& j, auto& rho, const auto& grid_ptrs) {
                 auto pos = get_pos(idx, ext);
 
@@ -147,18 +148,18 @@ class coord_policy_spherical {
 
                 // Would be nice to turn this into constexpr, but this will do
                 // as well
-                if (Conf::dim == 2)
-                  j[2][idx] /= grid_ptrs.dV[idx];
-                else if (Conf::dim == 3)
-                  j[2][idx] *= w / grid_ptrs.Ae[2][idx];
+                // if (Conf::dim == 2)
+                //   j[2][idx] /= grid_ptrs.dV[idx];
+                // else if (Conf::dim == 3)
+                j[2][idx] *= w / grid_ptrs.Ae[2][idx];
 
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] /= grid_ptrs.dV[idx];
                 }
-                // }
                 typename Conf::value_t theta =
                     grid.template pos<1>(pos[1], true);
-                if (math::abs(theta) < 0.1 * grid.delta[1]) {
+                if (math::abs(theta) < 0.1 * grid.delta[1] ||
+                    math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
                   // j[1][idx] = 0.0;
                   j[2][idx] = 0.0;
                 }

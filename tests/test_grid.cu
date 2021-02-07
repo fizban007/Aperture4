@@ -153,13 +153,15 @@ TEST_CASE("Logsph grid", "[grid][sph]") {
   typedef Config<2> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
-  env.params().add("N", std::vector<int64_t>({32, 32, 32}));
-  env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
-  env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
-  env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+  env.params().add("N", std::vector<int64_t>({32, 32}));
+  env.params().add("guard", std::vector<int64_t>({2, 2}));
+  env.params().add("size", std::vector<double>({1.0, 1.0}));
+  env.params().add("lower", std::vector<double>({0.0, 0.0}));
 
   int arr[3];
 
   env.params().get_array("guard", arr);
-  auto grid = env.register_system<grid_sph_t<Conf>>();
+  // auto grid = env.register_system<grid_sph_t<Conf>>();
+  grid_sph_t<Conf> grid;
+  grid.init();
 }

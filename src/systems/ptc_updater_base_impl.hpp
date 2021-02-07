@@ -191,20 +191,21 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   auto charges = m_charges;
   auto masses = m_masses;
   auto coord_policy = *m_coord_policy;
+  bool deposit_rho = (step % rho_interval == 0);
 
   // Main particle update loop
   ExecPolicy<Conf>::launch(
-      [num, dt, rho_interval, step, charges, masses, coord_policy] LAMBDA(
+      [num, dt, rho_interval, deposit_rho, charges, masses, coord_policy] LAMBDA(
           auto ptc, auto E, auto B, auto J, auto Rho) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
-        bool deposit_rho = (step % rho_interval == 0);
         ExecPolicy<Conf>::loop(
             0ul, num,
             [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
              interp] LAMBDA(auto n, auto& ptc, auto& E, auto& B, auto& J,
                             auto& Rho, auto& grid) {
+
               ptc_context<Conf::dim, value_t> context;
               context.cell = ptc.cell[n];
               if (context.cell == empty_cell) return;
@@ -226,6 +227,10 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
               context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
               context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
+
+              // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt: %f\n",
+              //        context.x[0], context.x[1], context.p[0], context.p[1],
+              //        charges[context.sp] / masses[context.sp], dt);
 
               coord_policy.update_ptc(grid, context, pos,
                                       charges[context.sp] / masses[context.sp],
@@ -249,7 +254,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
       *ptc, *E, *B, *J, Rho);
   ExecPolicy<Conf>::sync();
 
-  coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt);
+  coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt, deposit_rho);
 
   filter_current(m_filter_times, step);
 }

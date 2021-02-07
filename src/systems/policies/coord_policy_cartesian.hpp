@@ -50,8 +50,9 @@ class coord_policy_cartesian {
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   // Inline functions to be called in the particle update loop
+  template <typename PtcContext>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
-                            ptc_context<Conf::dim, value_t>& context,
+                            PtcContext& context,
                             index_t<Conf::dim>& pos, value_t q_over_m,
                             value_t dt) const {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {

@@ -61,7 +61,7 @@ class coord_policy_spherical {
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], q_over_m * 0.5f, dt);
+             context.B[1], context.B[2], dt * q_over_m * 0.5f, dt);
     }
 
     move_ptc(grid, context, pos, dt);
@@ -134,16 +134,19 @@ class coord_policy_spherical {
         [dt, num_species] LAMBDA(auto j, auto rho, auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
+          // grid.cell_size() is simply the product of all deltas
           auto w = grid.cell_size() / dt;
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, dt, num_species, w] LAMBDA(
+              [&grid, &ext, num_species, w] LAMBDA(
                   auto idx, auto& j, auto& rho, const auto& grid_ptrs) {
                 auto pos = get_pos(idx, ext);
-                // if (grid.is_in_bound(pos)) {
+
                 j[0][idx] *= w / grid_ptrs.Ae[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ae[1][idx];
 
+                // Would be nice to turn this into constexpr, but this will do
+                // as well
                 if (Conf::dim == 2)
                   j[2][idx] /= grid_ptrs.dV[idx];
                 else if (Conf::dim == 3)
@@ -163,6 +166,7 @@ class coord_policy_spherical {
               j, rho, grid_ptrs);
         },
         J, Rho, m_grid.get_grid_ptrs());
+    ExecPolicy::sync();
   }
 
   template <typename ExecPolicy>

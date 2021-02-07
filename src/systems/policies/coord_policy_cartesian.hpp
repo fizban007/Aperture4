@@ -54,14 +54,12 @@ class coord_policy_cartesian {
                             ptc_context<Conf::dim, value_t>& context,
                             index_t<Conf::dim>& pos, value_t q_over_m,
                             value_t dt) const {
-    q_over_m *= 0.5f;
-
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], q_over_m, dt);
+             context.B[1], context.B[2], dt * q_over_m * 0.5f, dt);
     }
 
     move_ptc(grid, context, pos, dt);

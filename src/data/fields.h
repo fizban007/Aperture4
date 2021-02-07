@@ -126,6 +126,18 @@ class field_t : public data_t {
   }
   void add_by(const field_t<N, Conf>& other, typename Conf::value_t scale = 1.0);
 
+  void copy_to_host() {
+    for (int i = 0; i < N; i++) {
+      m_data[i].copy_to_host();
+    }
+  }
+
+  void copy_to_device() {
+    for (int i = 0; i < N; i++) {
+      m_data[i].copy_to_device();
+    }
+  }
+
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>
   vec_t<typename Conf::ndptr_const_t, M> get_const_ptrs() const {

@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   env.params().add("max_ptc_num", 60000000l);
 
   auto grid = env.register_system<grid_t<Conf>>();
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(*grid);
+  auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(*grid);
 
   env.init();
 

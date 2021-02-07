@@ -198,7 +198,7 @@ template <typename Conf>
 ptc_updater_magnetar<Conf>::ptc_updater_magnetar(sim_environment& env,
                                                  const grid_sph_t<Conf>& grid,
                                                  const domain_comm<Conf>* comm)
-    : ptc_updater_sph_cu<Conf>(env, grid, comm) {}
+    : ptc_updater_old_sph_cu<Conf>(env, grid, comm) {}
 
 template <typename Conf>
 ptc_updater_magnetar<Conf>::~ptc_updater_magnetar() {
@@ -210,7 +210,7 @@ ptc_updater_magnetar<Conf>::~ptc_updater_magnetar() {
 template <typename Conf>
 void
 ptc_updater_magnetar<Conf>::init() {
-  ptc_updater_sph_cu<Conf>::init();
+  ptc_updater_old_sph_cu<Conf>::init();
 
   // m_impl_boris =
   // std::make_unique<pusher_impl_magnetar<boris_pusher>>(this->m_env);
@@ -233,7 +233,7 @@ ptc_updater_magnetar<Conf>::init() {
 template <typename Conf>
 void
 ptc_updater_magnetar<Conf>::register_data_components() {
-  ptc_updater_sph_cu<Conf>::register_data_components();
+  ptc_updater_old_sph_cu<Conf>::register_data_components();
 
   int ph_flux_n_th = 256, ph_flux_n_E = 100;
   this->m_env.params().get_value("ph_flux_n_th", ph_flux_n_th);

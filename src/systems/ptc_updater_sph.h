@@ -18,18 +18,18 @@
 #ifndef _PTC_UPDATER_SPH_H_
 #define _PTC_UPDATER_SPH_H_
 
-#include "ptc_updater.h"
+#include "ptc_updater_old.h"
 #include "grid_sph.h"
 
 namespace Aperture {
 
 template <typename Conf>
-class ptc_updater_sph_cu : public ptc_updater_cu<Conf> {
+class ptc_updater_old_sph_cu : public ptc_updater_old_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  using ptc_updater_cu<Conf>::ptc_updater_cu;
+  using ptc_updater_old_cu<Conf>::ptc_updater_old_cu;
 
   void init() override;
   void register_data_components() override;

@@ -39,7 +39,7 @@ main(int argc, char *argv[]) {
   // auto grid = env.register_system<grid_sph_t<Conf>>(env);
   auto grid = grid_sph_t<Conf>();
   auto pusher =
-      env.register_system<ptc_updater_sph_cu<Conf>>(grid);
+      env.register_system<ptc_updater_old_sph_cu<Conf>>(grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(grid);
   // auto injector =

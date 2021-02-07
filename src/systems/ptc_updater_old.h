@@ -34,12 +34,12 @@ namespace Aperture {
 class curand_states_t;
 
 template <typename Conf>
-class ptc_updater : public system_t {
+class ptc_updater_old : public system_t {
  protected:
   const grid_t<Conf>& m_grid;
   const domain_comm<Conf>* m_comm = nullptr;
 
-  Pusher m_pusher = Pusher::higuera;
+  Pusher m_pusher = Pusher::boris;
   typedef typename Conf::spline_t spline_t;
 
   // particle_data_t* ptc;
@@ -74,7 +74,7 @@ class ptc_updater : public system_t {
   static std::string name() { return "ptc_updater"; }
 
   // ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-  ptc_updater(const grid_t<Conf>& grid,
+  ptc_updater_old(const grid_t<Conf>& grid,
               const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
@@ -108,11 +108,11 @@ class ptc_updater : public system_t {
 };
 
 template <typename Conf>
-class ptc_updater_cu : public ptc_updater<Conf> {
+class ptc_updater_old_cu : public ptc_updater_old<Conf> {
  public:
   using value_t = typename Conf::value_t;
   using rho_ptrs_t = buffer<ndptr<value_t, Conf::dim>>;
-  using base_class = ptc_updater<Conf>;
+  using base_class = ptc_updater_old<Conf>;
 
   static std::string name() { return "ptc_updater"; }
 

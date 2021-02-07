@@ -25,7 +25,7 @@
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/ph_freepath_dev.h"
-#include "systems/ptc_updater.h"
+#include "systems/ptc_updater_old.h"
 #include <iostream>
 
 using namespace std;
@@ -60,7 +60,7 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(grid, &comm);
+  auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
@@ -81,7 +81,7 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
   env.get_data("rand_states", &states);
 
-  // set_initial_condition(*B0, *ptc, *states, 10, 1.0);
+  // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
   initial_condition_wave(*Bdelta, *Edelta, *B0, *ptc, *states, 10, 1.0);
 
   env.run();

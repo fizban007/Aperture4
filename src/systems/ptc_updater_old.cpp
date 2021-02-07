@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ptc_updater.h"
+#include "ptc_updater_old.h"
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
 #include "framework/config.h"
@@ -31,7 +31,7 @@ namespace Aperture {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::init_charge_mass() {
+ptc_updater_old<Conf>::init_charge_mass() {
   // Default values are 1.0
   float q_e = 1.0;
   float ion_mass = 1.0;
@@ -51,7 +51,7 @@ ptc_updater<Conf>::init_charge_mass() {
 
 template <typename Conf>
 // ptc_updater<Conf>::ptc_updater(sim_environment& env, const grid_t<Conf>& grid,
-ptc_updater<Conf>::ptc_updater(const grid_t<Conf>& grid,
+ptc_updater_old<Conf>::ptc_updater_old(const grid_t<Conf>& grid,
                                const domain_comm<Conf>* comm)
     : m_grid(grid), m_comm(comm) {
   sim_env().params().get_value("fld_output_interval", m_data_interval);
@@ -77,7 +77,7 @@ ptc_updater<Conf>::ptc_updater(const grid_t<Conf>& grid,
 
 template <typename Conf>
 void
-ptc_updater<Conf>::init() {
+ptc_updater_old<Conf>::init() {
   // Allocate the tmp array for current filtering
   jtmp = std::make_unique<typename Conf::multi_array_t>(m_grid.extent(),
                                                         MemType::host_only);
@@ -88,7 +88,7 @@ ptc_updater<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::register_data_components() {
+ptc_updater_old<Conf>::register_data_components() {
   size_t max_ptc_num = 10000;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
 
@@ -113,7 +113,7 @@ ptc_updater<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::push_default(value_t dt) {
+ptc_updater_old<Conf>::push_default(value_t dt) {
   // dispatch according to enum
   if (m_pusher == Pusher::boris) {
     auto pusher = pusher_impl_t<boris_pusher>{};
@@ -129,7 +129,7 @@ ptc_updater<Conf>::push_default(value_t dt) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::update_particles(value_t dt, uint32_t step) {
+ptc_updater_old<Conf>::update_particles(value_t dt, uint32_t step) {
   Logger::print_info("Pushing {} particles", ptc->number());
   timer::stamp("pusher");
   // First update particle momentum
@@ -144,7 +144,7 @@ ptc_updater<Conf>::update_particles(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::update(double dt, uint32_t step) {
+ptc_updater_old<Conf>::update(double dt, uint32_t step) {
   update_particles(dt, step);
 
   // Communicate deposited current and charge densities
@@ -191,7 +191,7 @@ ptc_updater<Conf>::update(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_and_deposit(double dt, uint32_t step) {
+ptc_updater_old<Conf>::move_and_deposit(double dt, uint32_t step) {
   if constexpr (Conf::dim == 1)
     move_deposit_1d(dt, step);
   else if constexpr (Conf::dim == 2)
@@ -202,7 +202,7 @@ ptc_updater<Conf>::move_and_deposit(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons(double dt, uint32_t step) {
+ptc_updater_old<Conf>::move_photons(double dt, uint32_t step) {
   if constexpr (Conf::dim == 1) {
     move_photons_1d(dt, step);
   } else if constexpr (Conf::dim == 2) {
@@ -214,7 +214,7 @@ ptc_updater<Conf>::move_photons(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
+ptc_updater_old<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
   auto num = ptc->number();
   if (num > 0) {
     auto ext = m_grid.extent();
@@ -282,7 +282,7 @@ ptc_updater<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
+ptc_updater_old<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   if constexpr (Conf::dim >= 2) {
     auto num = ptc->number();
     if (num > 0) {
@@ -364,7 +364,7 @@ ptc_updater<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
+ptc_updater_old<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
   if constexpr (Conf::dim == 3) {
     auto num = ptc->number();
     if (num > 0) {
@@ -459,19 +459,19 @@ ptc_updater<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_1d(value_t dt, uint32_t step) {}
+ptc_updater_old<Conf>::move_photons_1d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_2d(value_t dt, uint32_t step) {}
+ptc_updater_old<Conf>::move_photons_2d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::move_photons_3d(value_t dt, uint32_t step) {}
+ptc_updater_old<Conf>::move_photons_3d(value_t dt, uint32_t step) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::clear_guard_cells() {
+ptc_updater_old<Conf>::clear_guard_cells() {
   for (auto n : range(0, ptc->number())) {
     uint32_t cell = ptc->cell[n];
     if (cell == empty_cell) continue;
@@ -495,14 +495,14 @@ ptc_updater<Conf>::clear_guard_cells() {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::sort_particles() {
+ptc_updater_old<Conf>::sort_particles() {
   ptc->sort_by_cell_host(m_grid.extent().size());
   if (ph != nullptr) ph->sort_by_cell_host(m_grid.extent().size());
 }
 
 template <typename Conf>
 void
-ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
+ptc_updater_old<Conf>::fill_multiplicity(int mult, value_t weight) {
   auto num = ptc->number();
   std::default_random_engine engine;
   std::uniform_real_distribution<float> dist(0.0f, 1.0f);
@@ -534,7 +534,7 @@ ptc_updater<Conf>::fill_multiplicity(int mult, value_t weight) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
+ptc_updater_old<Conf>::filter_current(int n_times, uint32_t step) {
   Logger::print_info("Filtering current {} times", n_times);
   for (int n = 0; n < n_times; n++) {
     this->filter_field(*J, 0);
@@ -555,17 +555,17 @@ ptc_updater<Conf>::filter_current(int n_times, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
+ptc_updater_old<Conf>::filter_field(vector_field<Conf>& f, int comp) {}
 
 template <typename Conf>
 void
-ptc_updater<Conf>::filter_field(scalar_field<Conf>& f) {}
+ptc_updater_old<Conf>::filter_field(scalar_field<Conf>& f) {}
 
-#include "ptc_updater_impl.hpp"
+#include "ptc_updater_old_impl.hpp"
 
 // template class ptc_updater<Config<1>>;
 // template class ptc_updater<Config<2>>;
 // template class ptc_updater<Config<3>>;
-INSTANTIATE_WITH_CONFIG(ptc_updater);
+INSTANTIATE_WITH_CONFIG(ptc_updater_old);
 
 }  // namespace Aperture

@@ -21,7 +21,7 @@
 #include "data/curand_states.h"
 #include "framework/config.h"
 #include "helpers/ptc_update_helper.hpp"
-#include "ptc_updater.h"
+#include "ptc_updater_old.h"
 #include "utils/double_buffer.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
@@ -78,7 +78,7 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::init() {
+ptc_updater_old_cu<Conf>::init() {
   init_dev_charge_mass(this->m_charges.data(), this->m_masses.data());
 
   m_rho_ptrs.set_memtype(MemType::host_device);
@@ -98,7 +98,7 @@ ptc_updater_cu<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::register_data_components() {
+ptc_updater_old_cu<Conf>::register_data_components() {
   size_t max_ptc_num = 1000000;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
   // Prefer device_only, but can take other possibilities if data is already
@@ -131,7 +131,7 @@ ptc_updater_cu<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::push_default(value_t dt) {
+ptc_updater_old_cu<Conf>::push_default(value_t dt) {
   // dispatch according to enum. This will also instantiate all the versions of
   // push
   if (this->m_pusher == Pusher::boris) {
@@ -148,7 +148,7 @@ ptc_updater_cu<Conf>::push_default(value_t dt) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
   auto num = this->ptc->number();
   if (num > 0) {
     auto ext = this->m_grid.extent();
@@ -241,7 +241,7 @@ ptc_updater_cu<Conf>::move_deposit_1d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   this->J->init();
   for (auto rho : this->Rho) rho->init();
 
@@ -373,7 +373,7 @@ ptc_updater_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
   auto num = this->ptc->number();
   if (num > 0) {
     auto ext = this->m_grid.extent();
@@ -509,7 +509,7 @@ ptc_updater_cu<Conf>::move_deposit_3d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
   }
@@ -517,7 +517,7 @@ ptc_updater_cu<Conf>::move_photons_1d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
   }
@@ -525,7 +525,7 @@ ptc_updater_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {
+ptc_updater_old_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   if (ph_num > 0) {
   }
@@ -533,7 +533,7 @@ ptc_updater_cu<Conf>::move_photons_3d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::clear_guard_cells() {
+ptc_updater_old_cu<Conf>::clear_guard_cells() {
   auto ext = this->m_grid.extent();
   auto num = this->ptc->number();
 
@@ -562,7 +562,7 @@ ptc_updater_cu<Conf>::clear_guard_cells() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::sort_particles() {
+ptc_updater_old_cu<Conf>::sort_particles() {
   this->ptc->sort_by_cell_dev(this->m_grid.extent().size());
   if (this->ph != nullptr) {
     this->ph->sort_by_cell_dev(this->m_grid.extent().size());
@@ -571,7 +571,7 @@ ptc_updater_cu<Conf>::sort_particles() {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::fill_multiplicity(int mult,
+ptc_updater_old_cu<Conf>::fill_multiplicity(int mult,
                                         typename Conf::value_t weight) {
   auto num = this->ptc->number();
   using idx_t = typename Conf::idx_t;
@@ -614,7 +614,7 @@ ptc_updater_cu<Conf>::fill_multiplicity(int mult,
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
+ptc_updater_old_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f[comp],
                  this->m_comm->domain_info().is_boundary);
@@ -627,7 +627,7 @@ ptc_updater_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
 
 template <typename Conf>
 void
-ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {
+ptc_updater_old_cu<Conf>::filter_field(scalar_field<Conf>& f) {
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f[0], this->m_comm->domain_info().is_boundary);
   } else {
@@ -639,6 +639,6 @@ ptc_updater_cu<Conf>::filter_field(scalar_field<Conf>& f) {
 
 #include "ptc_updater_cu_impl.hpp"
 
-INSTANTIATE_WITH_CONFIG(ptc_updater_cu);
+INSTANTIATE_WITH_CONFIG(ptc_updater_old_cu);
 
 }  // namespace Aperture

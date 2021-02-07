@@ -21,7 +21,7 @@
 template <typename Conf>
 template <typename P>
 void
-ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
+ptc_updater_old_cu<Conf>::push(value_t delta_t, P& pusher) {
   value_t dt = delta_t;
   auto num = this->ptc->number();
   auto ext = this->m_grid.extent();
@@ -58,7 +58,9 @@ ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
         //        (value_t)dt);
         pusher(ptc, n, EB, qdt_over_2m, dt);
       }
-
+      // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt: %f\n",
+      //        ptc.x1[n], ptc.x2[n], ptc.p1[n], ptc.p2[n],
+      //        qdt_over_2m * 2.0f * dt, dt);
       // if (dev_params.rad_cooling_on && sp != (int)ParticleType::ion) {
       //   sync_kill_perp(p1, p2, p3, gamma, B1, B2, B3, E1, E2, E3,
       //                  q_over_m);
@@ -71,7 +73,6 @@ ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
             ptc.p1[n], ptc.p2[n], ptc.p3[n], gamma);
         asm("trap;");
       }
-
     }
   };
 
@@ -91,5 +92,4 @@ ptc_updater_cu<Conf>::push(value_t delta_t, P& pusher) {
   CudaCheckError();
 }
 
-
-#endif // __PTC_UPDATER_IMPL_H_
+#endif  // __PTC_UPDATER_IMPL_H_

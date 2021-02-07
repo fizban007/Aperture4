@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   // auto grid = env.register_system<grid_sph_t<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>();
   // auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(*grid);
+  auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(*grid);
 
   env.init();
 

@@ -30,7 +30,7 @@ namespace {
 template <typename Conf>
 void
 process_j_rho(vector_field<Conf>& j,
-              typename ptc_updater_cu<Conf>::rho_ptrs_t& rho_ptrs,
+              typename ptc_updater_old_cu<Conf>::rho_ptrs_t& rho_ptrs,
               int num_species, const grid_sph_t<Conf>& grid,
               typename Conf::value_t dt) {
   auto ext = grid.extent();
@@ -142,8 +142,8 @@ ptc_outflow(particle_data_t& ptc, const grid_sph_t<Conf>& grid,
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::init() {
-  ptc_updater_cu<Conf>::init();
+ptc_updater_old_sph_cu<Conf>::init() {
+  ptc_updater_old_cu<Conf>::init();
 
   sim_env().params().get_value("compactness", m_compactness);
   sim_env().params().get_value("omega", m_omega);
@@ -153,13 +153,13 @@ ptc_updater_sph_cu<Conf>::init() {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::register_data_components() {
-  ptc_updater_cu<Conf>::register_data_components();
+ptc_updater_old_sph_cu<Conf>::register_data_components() {
+  ptc_updater_old_cu<Conf>::register_data_components();
 }
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
+ptc_updater_old_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
   this->J->init();
   for (auto& rho : this->Rho) rho->init();
 
@@ -169,7 +169,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
     auto deposit_kernel = [ext, num, dt, step] __device__(
                               auto ptc, auto J, auto Rho, auto rho_interval) {
-      using spline_t = typename ptc_updater<Conf>::spline_t;
+      using spline_t = typename ptc_updater_old<Conf>::spline_t;
       using idx_t = typename Conf::idx_t;
       using value_t = typename Conf::value_t;
       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -355,7 +355,7 @@ ptc_updater_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
+ptc_updater_old_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
   auto ph_num = this->ph->number();
   // Logger::print_debug("Moving {} photons", ph_num);
   if (ph_num > 0) {
@@ -448,7 +448,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
 
             // deposit photon density if output
             if (step % data_interval == 0) {
-              using spline_t = typename ptc_updater<Conf>::spline_t;
+              using spline_t = typename ptc_updater_old<Conf>::spline_t;
               auto interp = spline_t{};
               auto weight = ph.weight[n];
               int j_0 = (dc2 == -1 ? -spline_t::radius : 1 - spline_t::radius);
@@ -474,7 +474,7 @@ ptc_updater_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
+ptc_updater_old_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f[comp], grid.get_grid_ptrs().Ae[comp],
@@ -489,7 +489,7 @@ ptc_updater_sph_cu<Conf>::filter_field(vector_field<Conf>& f, int comp) {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
+ptc_updater_old_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
   auto& grid = dynamic_cast<const grid_sph_t<Conf>&>(this->m_grid);
   if (this->m_comm != nullptr) {
     filter<Conf>(*(this->jtmp), f[0], grid.get_grid_ptrs().dV,
@@ -503,7 +503,7 @@ ptc_updater_sph_cu<Conf>::filter_field(scalar_field<Conf>& f) {
 
 template <typename Conf>
 void
-ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
+ptc_updater_old_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
   auto num = this->ptc->number();
   using idx_t = typename Conf::idx_t;
 
@@ -547,7 +547,7 @@ ptc_updater_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
   this->sort_particles();
 }
 
-template class ptc_updater_sph_cu<Config<2, double>>;
-template class ptc_updater_sph_cu<Config<2, float>>;
+template class ptc_updater_old_sph_cu<Config<2, double>>;
+template class ptc_updater_old_sph_cu<Config<2, float>>;
 
 }  // namespace Aperture

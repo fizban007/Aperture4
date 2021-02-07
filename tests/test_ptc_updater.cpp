@@ -18,7 +18,7 @@
 #include "catch.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/ptc_updater.h"
+#include "systems/ptc_updater_old.h"
 #include <fstream>
 #include <iomanip>
 
@@ -40,7 +40,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_t<Conf>>();
-  auto pusher = env.register_system<ptc_updater<Conf>>(*grid);
+  auto pusher = env.register_system<ptc_updater_old<Conf>>(*grid);
 
   env.init();
 

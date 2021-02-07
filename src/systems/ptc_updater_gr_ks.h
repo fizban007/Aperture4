@@ -19,12 +19,12 @@
 #define _PTC_UPDATER_GR_KS_H_
 
 #include "grid_ks.h"
-#include "ptc_updater.h"
+#include "ptc_updater_old.h"
 
 namespace Aperture {
 
 template <typename Conf>
-class ptc_updater_gr_ks_cu : public ptc_updater_cu<Conf> {
+class ptc_updater_gr_ks_cu : public ptc_updater_old_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }

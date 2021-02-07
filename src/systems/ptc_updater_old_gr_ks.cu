@@ -106,7 +106,7 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
 template <typename Conf>
 void
 process_j_rho(vector_field<Conf>& j,
-              typename ptc_updater_cu<Conf>::rho_ptrs_t& rho_ptrs,
+              typename ptc_updater_old_cu<Conf>::rho_ptrs_t& rho_ptrs,
               int num_species, const grid_ks_t<Conf>& grid,
               typename Conf::value_t dt) {
   kernel_launch(
@@ -169,12 +169,12 @@ ptc_outflow(particle_data_t& ptc, const grid_ks_t<Conf>& grid,
 template <typename Conf>
 ptc_updater_gr_ks_cu<Conf>::ptc_updater_gr_ks_cu(const grid_ks_t<Conf> &grid,
                                                  const domain_comm<Conf> *comm)
-    : ptc_updater_cu<Conf>(grid, comm), m_ks_grid(grid) {}
+    : ptc_updater_old_cu<Conf>(grid, comm), m_ks_grid(grid) {}
 
 template <typename Conf>
 void
 ptc_updater_gr_ks_cu<Conf>::init() {
-  ptc_updater_cu<Conf>::init();
+  ptc_updater_old_cu<Conf>::init();
 
   sim_env().params().get_value("bh_spin", m_a);
   sim_env().params().get_value("damping_length", m_damping_length);
@@ -183,7 +183,7 @@ ptc_updater_gr_ks_cu<Conf>::init() {
 template <typename Conf>
 void
 ptc_updater_gr_ks_cu<Conf>::register_data_components() {
-  ptc_updater_cu<Conf>::register_data_components();
+  ptc_updater_old_cu<Conf>::register_data_components();
 }
 
 template <typename Conf>
@@ -192,7 +192,7 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
   value_t a = m_a;
   auto ptc_num = this->ptc->number();
   Logger::print_info("Pushing {} particles in GR Kerr-Schild Coordinates!", ptc_num);
-  using spline_t = typename ptc_updater<Conf>::spline_t;
+  using spline_t = typename ptc_updater_old<Conf>::spline_t;
   using idx_t = typename Conf::idx_t;
 
   this->J->init();
@@ -338,7 +338,7 @@ ptc_updater_gr_ks_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
 template <typename Conf>
 void
 ptc_updater_gr_ks_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
-  ptc_updater_cu<Conf>::fill_multiplicity(mult, weight);
+  ptc_updater_old_cu<Conf>::fill_multiplicity(mult, weight);
 }
 
 template class ptc_updater_gr_ks_cu<Config<2>>;

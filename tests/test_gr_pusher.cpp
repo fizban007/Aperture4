@@ -123,7 +123,7 @@ gr_ks_boris(Scalar a, const vec_t<Scalar, 3> &x, vec_t<Scalar, 3> &u,
   Scalar gu13 = Metric_KS::gu13(a, x[0], sth, cth);
   Scalar sqrtg = Metric_KS::sqrt_gamma(a, x[0], sth, cth);
 
-  vec_t<Scalar, 3> D_l = 0.0f;
+  vec_t<Scalar, 3> D_l(0.0f);
   D_l[0] = g_11 * D[0] + g_13 * D[2];
   D_l[1] = g_22 * D[1];
   D_l[2] = g_33 * D[2] + g_13 * D[0];

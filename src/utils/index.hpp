@@ -57,6 +57,12 @@ struct idx_base_t {
     return result;
   }
 
+  HD_INLINE Derived operator-(int x) const {
+    Derived result((Derived&)*this);
+    result.linear -= x;
+    return result;
+  }
+
   HD_INLINE int operator-(const Derived& x) const {
     return linear - x.linear;
   }

@@ -496,8 +496,8 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
   extent_t<Conf::dim + 1> ext(data.m_num_bins[0], data.m_grid_ext);
   // ext.get_strides();
   // ext_total.get_strides();
-  index_t<Conf::dim + 1> idx_src = 0;
-  index_t<Conf::dim + 1> idx_dst = 0;
+  index_t<Conf::dim + 1> idx_src(0);
+  index_t<Conf::dim + 1> idx_dst(0);
   // FIXME: This again assumes a uniform grid, which is no good in the long term
   if (m_comm != nullptr && m_comm->size() > 1) {
     for (int i = 1; i < Conf::dim + 1; i++) {

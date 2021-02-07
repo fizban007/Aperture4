@@ -56,6 +56,7 @@ set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
 set(CPPTOML_INCLUDE_DIR deps/cpptoml/include)
 set(CXXOPT_INCLUDE_DIR deps/cxxopts/include)
 set(GSL_INCLUDE_DIR deps/gsl/include)
+set(VECTORCLASS_INCLUDE_DIR deps/vectorclass)
 
 include_directories(
   ${MPI_INCLUDE_PATH}
@@ -65,6 +66,7 @@ include_directories(
   ${CPPTOML_INCLUDE_DIR}
   ${CXXOPT_INCLUDE_DIR}
   ${GSL_INCLUDE_DIR}
+  ${VECTORCLASS_INCLUDE_DIR}
   src)
 
 # Check for cuda support
@@ -104,6 +106,10 @@ endif()
 if(use_double)
   add_definitions(-DUSE_DOUBLE)
 endif()
+
+# if(use_simd)
+#   add_definitions(-DUSE_SIMD)
+# endif()
 
 add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)

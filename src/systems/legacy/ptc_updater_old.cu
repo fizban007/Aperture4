@@ -277,7 +277,7 @@ ptc_updater_old_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
             v /= gamma;
 
             auto new_x = x;
-            vec_t<int, 2> dc = 0;
+            vec_t<int, 2> dc(0);
 
             new_x[0] = x[0] + (v[0] * dt) * grid.inv_delta[0];
             new_x[1] = x[1] + (v[1] * dt) * grid.inv_delta[1];
@@ -639,6 +639,8 @@ ptc_updater_old_cu<Conf>::filter_field(scalar_field<Conf>& f) {
 
 #include "ptc_updater_cu_impl.hpp"
 
-INSTANTIATE_WITH_CONFIG(ptc_updater_old_cu);
+// INSTANTIATE_WITH_CONFIG(ptc_updater_old_cu);
+template class ptc_updater_old_cu<Config<2, float>>;
+template class ptc_updater_old_cu<Config<2, double>>;
 
 }  // namespace Aperture

@@ -336,6 +336,8 @@ template <int Rank>
 // using index_t = vec_t<int32_t, Rank>;
 class index_t : public vec_t<int32_t, Rank> {
  public:
+  HD_INLINE index_t() : vec_t<int32_t, Rank>(0) {}
+
   HD_INLINE index_t(const vec_t<int32_t, Rank>& v) : vec_t<int32_t, Rank>(v) {}
 
   HD_INLINE index_t(const int32_t& v, const vec_t<int32_t, Rank - 1>& vec)
@@ -345,7 +347,7 @@ class index_t : public vec_t<int32_t, Rank> {
       : vec_t<int32_t, Rank>(vec, v) {}
 
   template <typename... Args, typename = all_convertible_to<int32_t, Args...>>
-  HD_INLINE index_t(Args... args) : vec_t<int32_t, Rank>(args...) {}
+  HD_INLINE explicit index_t(Args... args) : vec_t<int32_t, Rank>(args...) {}
 
   HD_INLINE index_t<Rank> inc_x(int n) {
     index_t<Rank> result = *this;

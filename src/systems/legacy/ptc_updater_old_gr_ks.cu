@@ -48,7 +48,7 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
   value_t gu13 = Metric_KS::gu13(a, x[0], sth, cth);
   value_t sqrtg = Metric_KS::sqrt_gamma(a, x[0], sth, cth);
 
-  vec_t<value_t, 3> D_l = 0.0f;
+  vec_t<value_t, 3> D_l(0.0f);
   D_l[0] = g_11 * D[0] + g_13 * D[2];
   D_l[1] = g_22 * D[1];
   D_l[2] = g_33 * D[2] + g_13 * D[0];
@@ -252,7 +252,7 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
         new_rel_x[1] = x[1] + (grid_ks_t<Conf>::from_theta(new_x[1]) -
                            grid_ks_t<Conf>::from_theta(x_global[1])) *
                               grid.inv_delta[1];
-        vec_t<int, 2> dc = 0;
+        vec_t<int, 2> dc(0);
         dc[0] = math::floor(new_rel_x[0]);
         dc[1] = math::floor(new_rel_x[1]);
         // if (dc[0] > 1 || dc[0] < -1 || dc[1] > 1 || dc[1] < -1)

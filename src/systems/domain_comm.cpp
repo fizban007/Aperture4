@@ -98,7 +98,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
     MPI_Cart_shift(m_cart, n, 1, &rank, &right);
     m_domain_info.neighbor_left[n] = left;
     m_domain_info.neighbor_right[n] = right;
-    Logger::print_info_all(
+    Logger::print_detail_all(
         "Rank {} has neighbors in {} direction: left {}, right {}", m_rank, n,
         left, right);
     if (left < 0)

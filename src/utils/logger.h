@@ -96,6 +96,14 @@ class Logger {
   }
 
   template <typename... Args>
+  static void print_detail_all(const char* str, Args&&... args) {
+    if (m_level >= LogLevel::detail) {
+      fmt::print(str, std::forward<Args>(args)...);
+      fmt::print("\n");
+    }
+  }
+
+  template <typename... Args>
   static void print_debug(const std::string& str, Args&&... args) {
     if (m_rank == 0 && m_level >= LogLevel::debug) {
       fmt::print("Debug: " + str, std::forward<Args>(args)...);

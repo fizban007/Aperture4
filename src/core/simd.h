@@ -42,9 +42,9 @@ constexpr int vec_width = 16;
 #elif defined(USE_DOUBLE) && (defined(__AVX512F__) || defined(__AVX512__))
 #define USE_SIMD
 #pragma message "using AVX512 with double"
-typedef Vec8uq Vec_ui_t;
-typedef Vec8q Vec_i_t;
-typedef Vec8qb Vec_ib_t;
+typedef Vec8ui Vec_ui_t;
+typedef Vec8i Vec_i_t;
+typedef Vec8ib Vec_ib_t;
 typedef Vec8d Vec_f_t;
 const Vec_f_t vec_inc = Vec8d(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0);
 constexpr int vec_width = 8;
@@ -62,9 +62,9 @@ constexpr int vec_width = 8;
 #define USE_SIMD
 #pragma message "using AVX2 with double"
 typedef Vec8ui Vec_idx_t;
-typedef Vec4uq Vec_ui_t;
-typedef Vec4q Vec_i_t;
-typedef Vec4qb Vec_ib_t;
+typedef Vec4ui Vec_ui_t;
+typedef Vec4i Vec_i_t;
+typedef Vec4ib Vec_ib_t;
 typedef Vec4d Vec_f_t;
 const Vec_f_t vec_inc = Vec4d(0.0, 1.0, 2.0, 3.0);
 constexpr int vec_width = 4;

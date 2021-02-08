@@ -129,8 +129,12 @@ is_power_of_two(T num) {
   return !not_power_of_two(num);
 }
 
-HD_INLINE Scalar to_float(int32_t n) {
-  return (Scalar)n;
+HD_INLINE float to_float(int32_t n) {
+  return (float)n;
+}
+
+HD_INLINE double to_double(int32_t n) {
+  return (double)n;
 }
 
 HD_INLINE int32_t roundi(Scalar n) {

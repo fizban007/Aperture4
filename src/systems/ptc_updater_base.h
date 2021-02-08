@@ -84,8 +84,8 @@ class ptc_updater_new : public system_t {
   uint32_t m_filter_times = 0;
 
   // By default the maximum number of species is 8
-  vec_t<float, max_ptc_types> m_charges;
-  vec_t<float, max_ptc_types> m_masses;
+  vec_t<value_t, max_ptc_types> m_charges;
+  vec_t<value_t, max_ptc_types> m_masses;
 
   void init_charge_mass();
 };

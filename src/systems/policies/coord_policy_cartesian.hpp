@@ -75,9 +75,21 @@ class coord_policy_cartesian {
     for (int i = 0; i < Conf::dim; i++) {
       context.new_x[i] = context.x[i] + (context.p[i] * dt / context.gamma) *
                                             grid.inv_delta[i];
+#ifdef USE_SIMD
+#ifdef USE_DOUBLE
+      context.dc[i] = round_to_int(floor(context.new_x[i]));
+#else
       context.dc[i] = roundi(floor(context.new_x[i]));
+#endif
+#else
+      context.dc[i] = floor(context.new_x[i]);
+#endif
       // pos[i] += context.dc[i];
+#ifdef USE_DOUBLE
+      context.new_x[i] -= to_double(context.dc[i]);
+#else
       context.new_x[i] -= to_float(context.dc[i]);
+#endif
     }
 #pragma unroll
     for (int i = Conf::dim; i < 3; i++) {

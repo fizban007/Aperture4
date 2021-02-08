@@ -57,7 +57,7 @@ set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
 set(CPPTOML_INCLUDE_DIR deps/cpptoml/include)
 set(CXXOPT_INCLUDE_DIR deps/cxxopts/include)
 set(GSL_INCLUDE_DIR deps/gsl/include)
-set(VECTORCLASS_INCLUDE_DIR deps/vectorclass)
+set(VECTORCLASS_INCLUDE_DIR deps/vectorclass1)
 
 include_directories(
   ${BOOST_INCLUDE_DIR}

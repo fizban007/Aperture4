@@ -3156,6 +3156,7 @@ static inline Vec4d lookup(Vec4q const & index, double const * table) {
 }
 
 #if INSTRSET >= 8 && defined(VECTORI256_H) // AVX2
+template <int n>
 static inline Vec4d lookup(Vec4i const & index, double const * table) {
   return _mm256_i32gather_pd(table, index, 1);
 }

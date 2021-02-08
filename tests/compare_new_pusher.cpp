@@ -32,7 +32,7 @@ using namespace Aperture;
 TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   typedef Config<2> Conf;
 
-  omp_set_num_threads(1);
+  // omp_set_num_threads(1);
 
   auto& env = sim_env();
   env.reset();
@@ -69,6 +69,9 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   //               grid.get_idx(20, 34 + i / 10).linear, 0);
   // }
   pusher->fill_multiplicity(10);
+
+  particle_data_t ptc_backup(max_ptc_num);
+  ptc_backup.copy_from(*ptc);
 
   double dt = 0.01;
 
@@ -128,7 +131,8 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   //               vec_t<Scalar, 3>(0.0, 100.0, 0.0),
   //               grid.get_idx(20, 34 + i / 10).linear, 0);
   // }
-  pusher_old->fill_multiplicity(10);
+  // pusher_old->fill_multiplicity(10);
+  ptc->copy_from(ptc_backup);
 
   for (int i = 0; i < N; i++) {
     pusher_old->update_particles(dt, i);

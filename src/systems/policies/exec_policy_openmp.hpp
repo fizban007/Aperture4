@@ -28,10 +28,14 @@ class exec_policy_openmp : public exec_policy_host<Conf> {
  public:
   template <typename Func, typename Idx, typename... Args>
   static void loop(Idx begin, type_identity_t<Idx> end, const Func& f, Args&&... args) {
-// #pragma omp parallel for
-    // for (auto idx = begin; idx < end; idx++) {
-    for (auto idx : range(begin, end)) {
-      f(idx, args...);
+#pragma omp parallel for
+    for (auto idx = begin; idx < end; idx++) {
+    // for (auto idx : range(begin, end)) {
+      // f.operator()(idx, args...);
+      auto lam = [f, idx] LAMBDA (Args&&... args) {
+	f(idx, args...);
+      };
+      lam(args...);
     }
   }
 };

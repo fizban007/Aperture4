@@ -49,15 +49,17 @@ class ptc_updater_new : public system_t {
   void register_data_components() override;
 
   void update_particles(value_t dt, uint32_t step);
+  void update_particles(value_t dt, uint32_t step, size_t begin, size_t end);
   void update_photons(value_t dt, uint32_t step);
   void clear_guard_cells();
   void sort_particles();
   void fill_multiplicity(int mult, value_t weight = 1.0);
   void filter_current(int num_times, uint32_t step);
 
- private:
+ protected:
   // Policy objects
   std::unique_ptr<CoordPolicy<Conf>> m_coord_policy;
+  std::unique_ptr<PhysicsPolicy<Conf>> m_phys_policy;
 
   // Grid and communicator which are essential for particle update
   const grid_t<Conf>& m_grid;

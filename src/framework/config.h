@@ -50,6 +50,7 @@ template <int Dim, typename FloatT = Scalar,
 class Config {
  public:
   static constexpr int dim = Dim;  //!< Access the dimension of the simulation
+  static constexpr int interp_order = InterpOrder;
   static constexpr bool is_zorder =
       std::is_same<Idx_t<Dim>,
                    idx_zorder_t<Dim>>::value;  //!< Whether this is zorder

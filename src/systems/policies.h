@@ -30,6 +30,9 @@ template <typename Conf>
 class exec_policy_openmp;
 
 template <typename Conf>
+class exec_policy_openmp_simd;
+
+template <typename Conf>
 class coord_policy_cartesian;
 
 template <typename Conf>

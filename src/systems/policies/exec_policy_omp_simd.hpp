@@ -35,9 +35,11 @@ class exec_policy_openmp_simd : public exec_policy_host<Conf> {
       f(idx, args...);
     }
 
-    int iterated = ((end - begin) / simd::vec_width) * simd::vec_width;
-    // Use normal loop to process leftovers
-    exec_policy_host<Conf>::loop(begin + iterated, end, f, args...);
+    // int iterated = ((end - begin) / simd::vec_width) * simd::vec_width;
+    // if (iterated != end - begin) {
+    //   // Use normal loop to process leftovers
+    //   exec_policy_host<Conf>::loop(begin + iterated, end, f, args...);
+    // }
   }
 };
 

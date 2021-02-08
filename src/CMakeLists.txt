@@ -49,6 +49,7 @@ else()
     "core/particles.cpp"
     "data/rng_states.cpp"
     "systems/ptc_updater_base.cpp"
+    "systems/ptc_updater_simd.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

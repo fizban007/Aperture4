@@ -19,31 +19,16 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/exec_policy_host.hpp"
-#include "systems/policies/exec_policy_omp_simd.hpp"
 #include "systems/policies/exec_policy_openmp.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
-
-template class ptc_updater_new<Config<1>, exec_policy_host,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<2>, exec_policy_host,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<3>, exec_policy_host,
-                               coord_policy_cartesian>;
 
 template class ptc_updater_new<Config<1>, exec_policy_openmp,
                                coord_policy_cartesian>;
 template class ptc_updater_new<Config<2>, exec_policy_openmp,
                                coord_policy_cartesian>;
 template class ptc_updater_new<Config<3>, exec_policy_openmp,
-                               coord_policy_cartesian>;
-
-template class ptc_updater_new<Config<1>, exec_policy_openmp_simd,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<2>, exec_policy_openmp_simd,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<3>, exec_policy_openmp_simd,
                                coord_policy_cartesian>;
 
 template class ptc_updater_new<Config<2>, exec_policy_openmp,

@@ -20,6 +20,7 @@
 #include "framework/environment.h"
 #include "systems/legacy/ptc_updater_old.h"
 #include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater_simd.h"
 #include "utils/timer.h"
 #include <fstream>
 #include <iomanip>
@@ -40,42 +41,46 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
 
   auto ptc = env.register_data<particle_data_t>("particles", max_ptc_num,
-                                                MemType::host_device);
+                                                MemType::host_only);
   grid_t<Conf> grid;
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater_new<Conf, exec_policy_openmp, coord_policy_cartesian>>(grid);
   // auto pusher = env.register_system<ptc_updater_cu<Conf>>(grid);
 
   env.init();
 
-  vector_field<Conf>* B, *J;
+  vector_field<Conf>*B, *J;
   env.get_data("B", &B);
   env.get_data("J", &J);
-  (*B)[2].assign_dev(100.0);
+  (*B)[2].assign(100.0);
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
-                  vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                  grid.get_idx(20, 34).linear, 0);
+  int n_ptc = 100;
+  for (int i = 0; i < n_ptc; i++) {
+    ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+                vec_t<Scalar, 3>(0.0, 100.0, 0.0),
+                grid.get_idx(20, 34 + i / 10).linear, 0);
+  }
 
-  double dt = 0.001;
+  double dt = 0.01;
 
   int N = 10;
-  std::vector<Scalar> x1(N);
-  std::vector<Scalar> x2(N);
-  std::vector<uint32_t> cells(N);
-  std::vector<Scalar> p1(N);
-  std::vector<Scalar> p2(N);
+  std::vector<Scalar> x1(N * n_ptc);
+  std::vector<Scalar> x2(N * n_ptc);
+  std::vector<uint32_t> cells(N * n_ptc);
+  std::vector<Scalar> p1(N * n_ptc);
+  std::vector<Scalar> p2(N * n_ptc);
 
   for (int i = 0; i < N; i++) {
-    ptc->copy_to_host(false);
-
-    x1[i] = ptc->x1[0];
-    x2[i] = ptc->x2[0];
-    p1[i] = ptc->p1[0];
-    p2[i] = ptc->p2[0];
-    cells[i] = ptc->cell[0];
+    for (int j = 0; j < n_ptc; j++) {
+      x1[i * n_ptc + j] = ptc->x1[j];
+      x2[i * n_ptc + j] = ptc->x2[j];
+      p1[i * n_ptc + j] = ptc->p1[j];
+      p2[i * n_ptc + j] = ptc->p2[j];
+      cells[i * n_ptc + j] = ptc->cell[j];
+    }
 
     pusher->update_particles(dt, i);
   }
@@ -92,28 +97,33 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
 
   ptc = env.register_data<particle_data_t>("particles", max_ptc_num,
-                                           MemType::host_device);
-  auto pusher_old = env.register_system<ptc_updater_old_cu<Conf>>(grid);
+                                           // MemType::host_device);
+                                           MemType::host_only);
+  auto pusher_old =
+      env.register_system<ptc_updater_simd<Conf, coord_policy_cartesian>>(grid);
 
   env.init();
 
   env.get_data("B", &B);
   env.get_data("J", &J);
-  (*B)[2].assign_dev(100.0);
+  (*B)[2].assign(100.0);
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
-                  vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                  grid.get_idx(20, 34).linear, 0);
+  for (int i = 0; i < n_ptc; i++) {
+    ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+                vec_t<Scalar, 3>(0.0, 100.0, 0.0),
+                grid.get_idx(20, 34 + i / 10).linear, 0);
+  }
 
   for (int i = 0; i < N; i++) {
-    ptc->copy_to_host(false);
-    REQUIRE(x1[i] == Approx(ptc->x1[0]));
-    REQUIRE(x2[i] == Approx(ptc->x2[0]));
-    REQUIRE(p1[i] == Approx(ptc->p1[0]));
-    REQUIRE(p2[i] == Approx(ptc->p2[0]));
-    REQUIRE(cells[i] == ptc->cell[0]);
+    for (int j = 0; j < n_ptc; j++) {
+      REQUIRE(x1[i * n_ptc + j] == Approx(ptc->x1[j]));
+      REQUIRE(x2[i * n_ptc + j] == Approx(ptc->x2[j]));
+      REQUIRE(p1[i * n_ptc + j] == Approx(ptc->p1[j]));
+      REQUIRE(p2[i * n_ptc + j] == Approx(ptc->p2[j]));
+      REQUIRE(cells[i * n_ptc + j] == ptc->cell[j]);
+    }
 
     pusher_old->update_particles(dt, i);
   }

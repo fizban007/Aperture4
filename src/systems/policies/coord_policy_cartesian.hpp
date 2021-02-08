@@ -50,34 +50,34 @@ class coord_policy_cartesian {
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   // Inline functions to be called in the particle update loop
-  template <typename PtcContext>
+  template <typename PtcContext, typename UIntT, typename FloatT>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context,
-                            index_t<Conf::dim>& pos, value_t q_over_m,
+                            vec_t<UIntT, Conf::dim>& pos, FloatT q_over_m,
                             value_t dt) const {
-    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * q_over_m * 0.5f, dt);
-    }
+             context.B[1], context.B[2], dt * q_over_m * 0.5f, FloatT(dt));
+    // }
 
     move_ptc(grid, context, pos, dt);
   }
 
   // Abstracted moving routine that is shared by both ptc and ph
-  template <typename PtcContext>
+  template <typename PtcContext, typename UIntT>
   HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          PtcContext& context, index_t<Conf::dim>& pos,
+                          PtcContext& context, const vec_t<UIntT, Conf::dim>& pos,
                           value_t dt) const {
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {
       context.new_x[i] = context.x[i] + (context.p[i] * dt / context.gamma) *
                                             grid.inv_delta[i];
-      context.dc[i] = std::floor(context.new_x[i]);
-      pos[i] += context.dc[i];
-      context.new_x[i] -= (value_t)context.dc[i];
+      context.dc[i] = roundi(floor(context.new_x[i]));
+      // pos[i] += context.dc[i];
+      context.new_x[i] -= to_float(context.dc[i]);
     }
 #pragma unroll
     for (int i = Conf::dim; i < 3; i++) {

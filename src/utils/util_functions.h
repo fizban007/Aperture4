@@ -22,6 +22,7 @@
 #include "core/typedefs_and_constants.h"
 #include "core/enum_types.h"
 #include <string>
+#include <cmath>
 
 namespace Aperture {
 
@@ -94,9 +95,14 @@ toggle_flag(uint32_t& flag, Flag... bits) {
 }
 
 // Get an integer representing particle type from a given flag
-HD_INLINE int
-get_ptc_type(uint32_t flag) {
-  return (int)(flag >> (32 - max_ptc_type_bits));
+// HD_INLINE uint32_t
+// get_ptc_type(uint32_t flag) {
+//   return (flag >> (32 - max_ptc_type_bits));
+// }
+template <typename Uint>
+HD_INLINE Uint
+get_ptc_type(Uint flag) {
+  return (flag >> (32 - max_ptc_type_bits));
 }
 
 // Generate a particle flag from a give particle type
@@ -121,6 +127,14 @@ template <typename T>
 HD_INLINE bool
 is_power_of_two(T num) {
   return !not_power_of_two(num);
+}
+
+HD_INLINE Scalar to_float(int32_t n) {
+  return (Scalar)n;
+}
+
+HD_INLINE int32_t roundi(Scalar n) {
+  return std::round(n);
 }
 
 }  // namespace Aperture

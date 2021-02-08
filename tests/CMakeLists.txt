@@ -13,6 +13,7 @@ target_sources(tests PUBLIC
   "test_config.cpp"
   "test_gaussian_quadrature.cpp"
   "test_singleton.cpp"
+  "compare_new_pusher.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC
@@ -23,7 +24,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_math.cu"
     "test_cusparse.cu"
     "test_rng.cu"
-    "compare_new_pusher.cpp"
     "compare_new_pusher_sph.cpp"
     )
 else()
@@ -70,3 +70,5 @@ endif()
 
 add_executable(gr_pusher "test_gr_pusher.cpp")
 target_link_libraries(gr_pusher Aperture)
+
+add_executable(test_omp "test_omp.cpp")

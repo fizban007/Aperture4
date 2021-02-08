@@ -71,7 +71,7 @@ class coord_policy_spherical {
   // Abstracted moving routine that is shared by both ptc and ph
   template <typename PtcContext>
   HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          PtcContext& context, index_t<Conf::dim>& pos,
+                          PtcContext& context, const index_t<Conf::dim>& pos,
                           value_t dt) const {
     // Global position in sph coord
     vec_t<value_t, 3> x_global_old(grid.template pos<0>(pos[0], context.x[0]),
@@ -110,7 +110,7 @@ class coord_policy_spherical {
           context.x[i] +
           (x_global_sph_new[i] - x_global_old[i]) * grid.inv_delta[i];
       context.dc[i] = std::floor(context.new_x[i]);
-      pos[i] += context.dc[i];
+      // pos[i] += context.dc[i];
       context.new_x[i] -= (value_t)context.dc[i];
     }
 #pragma unroll

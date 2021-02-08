@@ -39,7 +39,7 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
   }
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  Logger::init(rank, LogLevel::info);
+  Logger::init(rank, LogLevel::debug);
 
   reset(argc, argv);
 }
@@ -53,6 +53,15 @@ sim_environment_impl::~sim_environment_impl() {
 
 void
 sim_environment_impl::reset(int *argc, char ***argv) {
+  Logger::print_info("argc is {}", *argc);
+
+  // Reset the systems and data
+  m_system_map.clear();
+  m_system_order.clear();
+  m_data_map.clear();
+  m_data_order.clear();
+  m_params.clear();
+
   // Parse options
   m_options = std::unique_ptr<cxxopts::Options>(
       new cxxopts::Options("aperture", "Aperture PIC code"));
@@ -69,14 +78,9 @@ sim_environment_impl::reset(int *argc, char ***argv) {
   } else {
     m_commandline_args = nullptr;
   }
-  m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
-
-  // Reset the systems and data
-  m_system_map.clear();
-  m_system_order.clear();
-  m_data_map.clear();
-  m_data_order.clear();
-  m_params.clear();
+  std::string conf_filename = m_params.get_as<std::string>("config_file", "config.toml");
+  Logger::print_info("config file is {}", conf_filename);
+  m_params.parse(conf_filename);
 }
 
 void

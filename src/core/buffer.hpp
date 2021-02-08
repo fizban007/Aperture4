@@ -71,7 +71,7 @@ class buffer {
     }
 #endif
     m_size = size;
-    Logger::print_debug("Allocated {} bytes", size * sizeof(T));
+    Logger::print_detail("Allocated {} bytes", size * sizeof(T));
   }
 
   void free_mem() {

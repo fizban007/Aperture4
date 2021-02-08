@@ -257,7 +257,8 @@ class sim_environment_impl {
     if (it != m_data_map.end()) {
       *ptr = dynamic_cast<T*>(it->second.get());
     } else {
-      Logger::print_info("Failed to get optional data component '{}', ignoring", name);
+      Logger::print_info("Failed to get optional data component '{}', ignoring",
+                         name);
       *ptr = nullptr;
     }
   }
@@ -276,7 +277,8 @@ class sim_environment_impl {
     if (it != m_data_map.end()) {
       ptr.reset(dynamic_cast<T*>(it->second.get()));
     } else {
-      Logger::print_info("Failed to get optional data component '{}', ignoring", name);
+      Logger::print_info("Failed to get optional data component '{}', ignoring",
+                         name);
       ptr.reset(nullptr);
     }
   }
@@ -322,8 +324,9 @@ class sim_environment_impl {
 
 using sim_environment = singleton_holder<sim_environment_impl>;
 
-inline sim_environment_impl& sim_env() {
-  return sim_environment::instance();
+inline sim_environment_impl&
+sim_env(int* argc = nullptr, char*** argv = nullptr) {
+  return sim_environment::instance(argc, argv);
 }
 
 }  // namespace Aperture

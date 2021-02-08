@@ -1,0 +1,14 @@
+#!/bin/bash
+
+source stampede2
+
+mkdir -p ../build
+cd ../build
+cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -Duse_cuda=0 \
+  -Duse_double=1 \
+  -Dbuild_tests=1 \
+  ..
+make -j4
+#

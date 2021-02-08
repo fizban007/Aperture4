@@ -50,6 +50,7 @@ if (OPENMP_FOUND)
 endif()
 
 # Set include directories
+set(BOOST_INCLUDE_DIR deps/boost)
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
@@ -59,6 +60,7 @@ set(GSL_INCLUDE_DIR deps/gsl/include)
 set(VECTORCLASS_INCLUDE_DIR deps/vectorclass)
 
 include_directories(
+  ${BOOST_INCLUDE_DIR}
   ${MPI_INCLUDE_PATH}
   ${HDF5_INCLUDE_DIR}
   ${FMT_INCLUDE_DIR}

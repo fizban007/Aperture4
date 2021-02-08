@@ -2195,6 +2195,7 @@ static inline Vec8d lookup(Vec8q const & index, double const * table) {
     return _mm512_i64gather_pd(index1, (const double*)table, 8);
 }
 
+template <int n>
 static inline Vec8d lookup(Vec8i const & index, double const * table) {
   return _mm512_i32gather_pd(index, table, 1);
 }

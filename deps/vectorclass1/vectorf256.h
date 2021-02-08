@@ -3154,6 +3154,13 @@ static inline Vec4d lookup(Vec4q const & index, double const * table) {
     return Vec4d(table[index2[0]],table[index2[1]],table[index2[2]],table[index2[3]]);
 #endif
 }
+
+#if INSTRSET >= 8 && defined(VECTORI256_H) // AVX2
+static inline Vec4d lookup(Vec4i const & index, double const * table) {
+  return _mm256_i32gather_pd(table, index, 1);
+}
+#endif
+
 //#endif  // VECTORI256_H
 
 /*****************************************************************************

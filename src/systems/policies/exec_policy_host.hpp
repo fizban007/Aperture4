@@ -24,6 +24,7 @@
 #include "framework/environment.h"
 #include "utils/nonown_ptr.hpp"
 #include "utils/singleton_holder.h"
+#include "utils/type_traits.hpp"
 
 namespace Aperture {
 
@@ -40,7 +41,7 @@ class exec_policy_host {
   }
 
   template <typename Func, typename Idx, typename... Args>
-  static void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
+  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f, Args&&... args) {
     for (auto idx : range(begin, end)) {
       f(idx, args...);
     }

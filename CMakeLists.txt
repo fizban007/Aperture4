@@ -50,7 +50,7 @@ if (OPENMP_FOUND)
 endif()
 
 # Set include directories
-set(BOOST_INCLUDE_DIR deps/boost)
+set(BOOST_INCLUDE_DIR deps)
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)

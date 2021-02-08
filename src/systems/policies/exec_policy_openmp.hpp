@@ -27,10 +27,10 @@ template <typename Conf>
 class exec_policy_openmp : public exec_policy_host<Conf> {
  public:
   template <typename Func, typename Idx, typename... Args>
-  static void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
-#pragma omp parallel for
-    for (auto idx : range(begin, end)) {
+  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f, Args&&... args) {
+// #pragma omp parallel for
     // for (auto idx = begin; idx < end; idx++) {
+    for (auto idx : range(begin, end)) {
       f(idx, args...);
     }
   }

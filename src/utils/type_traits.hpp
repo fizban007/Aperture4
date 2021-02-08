@@ -27,6 +27,13 @@ struct less_than {
   enum { value = A < B };
 };
 
+template <class T>
+struct type_identity {
+    using type = T;
+};
+
+template <class T>
+using type_identity_t = typename type_identity<T>::type;
 
 // This implementation of conjunction is taken from
 // https://www.fluentcpp.com/2019/01/25/variadic-number-function-parameters-type/

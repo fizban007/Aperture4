@@ -106,6 +106,11 @@ struct range_proxy {
         return copy;
       }
 
+      HD_INLINE
+      int operator-(const iter& it) {
+        return current - it.current;
+      }
+
       // Loses commutativity. Iterator-based ranges are simply broken.
       // :-(
       HD_INLINE

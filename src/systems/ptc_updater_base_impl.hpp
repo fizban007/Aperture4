@@ -400,12 +400,14 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         auto ext = grid.extent();
         rng_t rng(states);
         ExecPolicy<Conf>::loop(
-            Conf::begin(ext), Conf::end(ext),
+	    0, ext.size(),
+            // Conf::begin(ext), Conf::end(ext),
             [&grid, num, ext, mult, weight] LAMBDA(
-                auto idx, auto& ptc,
+                // auto idx, auto& ptc,
+                auto n, auto& ptc,
                 // [&grid, num, ext, mult, weight] LAMBDA(auto n, auto& ptc,
                 auto& rng) {
-              // auto idx = Conf::idx(n, ext);
+              auto idx = Conf::idx(n, ext);
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 for (int i = 0; i < mult; i++) {

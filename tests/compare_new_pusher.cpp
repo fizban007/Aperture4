@@ -56,7 +56,9 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   vector_field<Conf>*B, *J;
   env.get_data("B", &B);
   env.get_data("J", &J);
-  (*B)[2].assign(100.0);
+  B->set_values(2, [](auto x, auto y, auto z) {
+    return 100.0 + x * 20.0 + y * 30.0;
+  });
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
@@ -114,7 +116,10 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   env.get_data("B", &B);
   env.get_data("J", &J);
-  (*B)[2].assign(100.0);
+  // (*B)[2].assign(100.0);
+  B->set_values(2, [](auto x, auto y, auto z) {
+    return 100.0 + x * 20.0 + y * 30.0;
+  });
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 

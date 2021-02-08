@@ -143,12 +143,12 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
         ExecPolicy::loop(
-            // Idx_t(0, ext), Idx_t(ext.size(), ext),
-            0, ext.size(),
-            // [&grid, &ext, &is_boundary] LAMBDA(auto idx, auto& result, auto& f,
-            [&grid, &ext, &is_boundary] LAMBDA(auto n, auto& result, auto& f,
+            Idx_t(0, ext), Idx_t(ext.size(), ext),
+            // 0, ext.size(),
+            [&grid, &ext, &is_boundary] LAMBDA(auto idx, auto& result, auto& f,
+            // [&grid, &ext, &is_boundary] LAMBDA(auto n, auto& result, auto& f,
                                                auto& factor) {
-	      auto idx = Idx_t(n, ext);
+              // auto idx = Idx_t(n, ext);
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;

@@ -48,11 +48,6 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
 
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
-  // This is the first place where rank is defined. Tell logger about
-  // this
-  Logger::init(m_rank, (LogLevel)sim_env().params().template get_as<int64_t>(
-                           "log_level", (int64_t)LogLevel::info));
-
   auto dims = sim_env().params().template get_as<std::vector<int64_t>>("nodes");
   if (dims.size() < Conf::dim)
     dims.resize(Conf::dim, 1);
@@ -232,6 +227,7 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
     //           0, m_world, &req_send);
     // MPI_Wait(&req_recv, &status);
     // timer::show_duration_since_stamp("MPI sendrecv", "ms");
+
 
     if (origin != MPI_PROC_NULL) {
       if (array.mem_type() == MemType::host_only) {
@@ -458,8 +454,8 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
             // }
             MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                           &num_recv);
-            Logger::print_info_all("Rank {} received {} particles from {}",
-                                   m_rank, num_recv, src);
+            // Logger::print_info_all("Rank {} received {} particles from {}",
+            //                        m_rank, num_recv, src);
           }
         });
     recv_buffer.set_num(recv_offset + num_recv);
@@ -479,8 +475,8 @@ template <typename Conf>
 template <typename PtcType>
 void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
                                             const grid_t<Conf> &grid) const {
-  Logger::print_info("Sending paticles");
-  timer::stamp("send_ptc");
+  Logger::print_detail("Sending paticles");
+  // timer::stamp("send_ptc");
   if (!m_buffers_ready)
     resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);
@@ -577,7 +573,7 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   //     "now",
   //     buffers[central].number(), ptc.number());
   buffers[central].set_num(0);
-  timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
+  // timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
 }
 
 template <typename Conf>

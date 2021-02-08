@@ -50,6 +50,16 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater_new(
   ExecPolicy<Conf>::set_grid(m_grid);
 
   m_coord_policy = std::make_unique<CoordPolicy<Conf>>(grid);
+  m_phys_policy = std::make_unique<PhysicsPolicy<Conf>>();
+}
+
+template <typename Conf, template <class> class ExecPolicy,
+          template <class> class CoordPolicy,
+          template <class> class PhysicsPolicy>
+ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater_new(
+    const grid_t<Conf>& grid, const domain_comm<Conf>& comm)
+    : ptc_updater_new(grid) {
+  m_comm = &comm;
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -160,6 +170,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     m_comm->send_particles(*ptc, m_grid);
   }
 
+  Logger::print_detail("Finished sending particles");
+
   // Also move photons if the data component exists
   if (ph != nullptr) {
     Logger::print_info("Moving {} photons", ph->number());
@@ -173,10 +185,13 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // Clear guard cells
   clear_guard_cells();
 
+  Logger::print_detail("Finished clearing guard cells");
+
   // sort at the given interval. Turn off sorting if m_sort_interval is 0
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
   }
+  Logger::print_detail("Finished sorting");
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -355,23 +370,25 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
       },
       *ptc);
 
-  ExecPolicy<Conf>::launch(
-      [num] LAMBDA(auto ph) {
-        auto& grid = ExecPolicy<Conf>::grid();
-        auto ext = grid.extent();
-        ExecPolicy<Conf>::loop(
-            0ul, num,
-            [ext] LAMBDA(auto n, auto& grid, auto& ph) {
-              auto cell = ph.cell[n];
-              if (cell == empty_cell) return;
+  if (ph != nullptr) {
+    ExecPolicy<Conf>::launch(
+        [num] LAMBDA(auto ph) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          ExecPolicy<Conf>::loop(
+              0ul, num,
+              [ext] LAMBDA(auto n, auto& grid, auto& ph) {
+                auto cell = ph.cell[n];
+                if (cell == empty_cell) return;
 
-              auto idx = Conf::idx(cell, ext);
-              auto pos = get_pos(idx, ext);
-              if (!grid.is_in_bound(pos)) ph.cell[n] = empty_cell;
-            },
-            grid, ph);
-      },
-      *ph);
+                auto idx = Conf::idx(cell, ext);
+                auto pos = get_pos(idx, ext);
+                if (!grid.is_in_bound(pos)) ph.cell[n] = empty_cell;
+              },
+              grid, ph);
+        },
+        *ph);
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -455,6 +472,8 @@ template <typename Conf, template <class> class ExecPolicy,
 void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
     int num_times, uint32_t step) {
+  if (num_times <= 0) return;
+
   // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, )
   vec_t<bool, Conf::dim * 2> is_boundary;
   is_boundary.set(true);

@@ -19,6 +19,7 @@
 #define __SINGLETON_HOLDER_H_
 
 #include <memory>
+#include <cstdlib>
 
 namespace Aperture {
 
@@ -41,7 +42,12 @@ class singleton_holder {
   static void init(Args&&... args) {
     if (!p_instance) {
       p_instance = new T(std::forward<Args>(args)...);
+      std::atexit(kill_instance);
     }
+  }
+
+  static void kill_instance() {
+    delete p_instance;
   }
 
   singleton_holder() = delete;

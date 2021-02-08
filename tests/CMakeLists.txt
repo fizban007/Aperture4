@@ -66,6 +66,9 @@ else()
   add_executable(perf_ptc_update_cpu "perf_ptc_update_cpu.cpp")
   target_link_libraries(perf_ptc_update_cpu Aperture)
 
+  add_executable(perf_ptc_update_mpi "perf_ptc_update_mpi.cpp")
+  target_link_libraries(perf_ptc_update_mpi Aperture)
+
 endif()
 
 add_executable(gr_pusher "test_gr_pusher.cpp")

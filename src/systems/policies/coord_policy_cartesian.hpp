@@ -55,13 +55,17 @@ class coord_policy_cartesian {
                             PtcContext& context,
                             vec_t<UIntT, Conf::dim>& pos, FloatT q_over_m,
                             value_t dt) const {
-    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+#ifndef USE_SIMD
+    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+#endif
       default_pusher pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * q_over_m * 0.5f, FloatT(dt));
-    // }
+#ifndef USE_SIMD
+    }
+#endif
 
     move_ptc(grid, context, pos, dt);
   }

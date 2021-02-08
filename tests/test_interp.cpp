@@ -26,11 +26,14 @@ TEST_CASE("1D linear interpolation", "[interp]") {
   auto v = make_multi_array<double>(extent(4), MemType::host_only);
   auto interp = interpolator<bspline<1>, 1>{};
 
-  v.assign(1.0);
+  v[0] = 3.0;
+  v[1] = 4.0;
+  v[2] = 5.0;
+  v[3] = 6.0;
   auto idx = v.get_idx(1);
   // auto pos = idx.get_pos();
-  REQUIRE(interp(v, vec_t<float, 3>(0.1, 0.1, 0.1),
-                 idx) == Approx(1.0));
+  REQUIRE(interp(v, vec_t<float, 3>(0.1, 0.2, 0.3),
+                 idx) == Approx(0.1 * 5.0 + 0.9 * 4.0));
 }
 
 TEST_CASE("2D cubic interpolation", "[interp]") {

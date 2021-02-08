@@ -109,27 +109,31 @@ template <typename Interp>
 struct interpolator<Interp, 1> {
   Interp interp;
 
-  template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) const ->
-      typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0f;
-#pragma unroll
-    for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius; i++) {
-      // int ii = i + pos[0] - Interp::radius;
-      result += f[idx.inc_x(i)] * interp_cell(interp, x[0], i);
-    }
-    return result;
-  }
+  //   template <typename Ptr, typename Index_t, typename FloatT>
+  //   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
+  //                               const Index_t& idx) const ->
+  //       typename Ptr::value_t {
+  //     typename Ptr::value_t result = 0.0f;
+  // #pragma unroll
+  //     for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
+  //     i++) {
+  //       // int ii = i + pos[0] - Interp::radius;
+  //       result += f[idx.inc_x(i)] * interp_cell(interp, x[0], i);
+  //     }
+  //     return result;
+  //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) const ->
+                              const Index_t& idx,
+                              stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
+    int i_lower = 1 - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
+    int i_upper =
+        Interp::support - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
 #pragma unroll
-    for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius; i++) {
-      // int ii = i + pos[0] - Interp::radius;
+    for (int i = i_lower; i <= i_upper; i++) {
       result += f[idx.inc_x(i)] * interp_cell(interp, x[0], i, stagger[0]);
     }
     return result;
@@ -140,95 +144,108 @@ template <typename Interp>
 struct interpolator<Interp, 2> {
   Interp interp;
 
-  template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) const ->
-      typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0f;
-#pragma unroll
-    for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
-         j++) {
-      auto idx_j = idx.inc_y(j);
-#pragma unroll
-      for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
-           i++) {
-        result += f[idx_j.inc_x(i)] *
-        // result += f[idx.inc_x(i).inc_y(j)] *
-                  interp_cell(interp, x[0], i) *
-                  interp_cell(interp, x[1], j);
-      }
-    }
-    return result;
-  }
+  //   template <typename Ptr, typename Index_t, typename FloatT>
+  //   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
+  //                               const Index_t& idx) const ->
+  //       typename Ptr::value_t {
+  //     typename Ptr::value_t result = 0.0f;
+  // #pragma unroll
+  //     for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
+  //          j++) {
+  //       auto idx_j = idx.inc_y(j);
+  // #pragma unroll
+  //       for (int i = 1 - Interp::radius; i <= Interp::support -
+  //       Interp::radius;
+  //            i++) {
+  //         result += f[idx_j.inc_x(i)] *
+  //         // result += f[idx.inc_x(i).inc_y(j)] *
+  //                   interp_cell(interp, x[0], i) *
+  //                   interp_cell(interp, x[1], j);
+  //       }
+  //     }
+  //     return result;
+  //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) const ->
+                              const Index_t& idx,
+                              stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
+    int j_lower = 1 - Interp::radius - (stagger[1] == 0 && x[1] < 0.5f);
+    int j_upper =
+        Interp::support - Interp::radius - (stagger[1] == 0 && x[1] < 0.5f);
+    int i_lower = 1 - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
+    int i_upper =
+        Interp::support - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
 #pragma unroll
-    for (int j = stagger[1] - Interp::radius; j <= Interp::support - Interp::radius;
-         j++) {
+    for (int j = j_lower; j <= j_upper; j++) {
       auto idx_j = idx.inc_y(j);
 #pragma unroll
-      for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius;
-           i++) {
-        result += f[idx_j.inc_x(i)] *
-                  interp_cell(interp, x[0], i, stagger[0]) *
+      for (int i = i_lower; i <= i_upper; i++) {
+        result += f[idx_j.inc_x(i)] * interp_cell(interp, x[0], i, stagger[0]) *
                   interp_cell(interp, x[1], j, stagger[1]);
       }
     }
     return result;
   }
-
 };
 
 template <typename Interp>
 struct interpolator<Interp, 3> {
   Interp interp;
 
-  template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx) const ->
-      typename Ptr::value_t {
-    typename Ptr::value_t result = 0.0f;
-#pragma unroll
-    for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
-         k++) {
-      auto idx_k = idx.inc_z(k);
-#pragma unroll
-      for (int j = 1 - Interp::radius; j <= Interp::support - Interp::radius;
-           j++) {
-        auto idx_j = idx_k.inc_y(j);
-#pragma unroll
-        for (int i = 1 - Interp::radius; i <= Interp::support - Interp::radius;
-             i++) {
-          result += f[idx_j.inc_x(i)] *
-                    interp_cell(interp, x[0], i) *
-                    interp_cell(interp, x[1], j) *
-                    interp_cell(interp, x[2], k);
-        }
-      }
-    }
-    return result;
-  }
+  //   template <typename Ptr, typename Index_t, typename FloatT>
+  //   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
+  //                               const Index_t& idx) const ->
+  //       typename Ptr::value_t {
+  //     typename Ptr::value_t result = 0.0f;
+  // #pragma unroll
+  //     for (int k = 1 - Interp::radius; k <= Interp::support - Interp::radius;
+  //          k++) {
+  //       auto idx_k = idx.inc_z(k);
+  // #pragma unroll
+  //       for (int j = 1 - Interp::radius; j <= Interp::support -
+  //       Interp::radius;
+  //            j++) {
+  //         auto idx_j = idx_k.inc_y(j);
+  // #pragma unroll
+  //         for (int i = 1 - Interp::radius; i <= Interp::support -
+  //         Interp::radius;
+  //              i++) {
+  //           result += f[idx_j.inc_x(i)] *
+  //                     interp_cell(interp, x[0], i) *
+  //                     interp_cell(interp, x[1], j) *
+  //                     interp_cell(interp, x[2], k);
+  //         }
+  //       }
+  //     }
+  //     return result;
+  //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
   HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx, stagger_t stagger) const ->
+                              const Index_t& idx,
+                              stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;
+    int k_lower = 1 - Interp::radius - (stagger[2] == 0 && x[2] < 0.5f);
+    int k_upper =
+        Interp::support - Interp::radius - (stagger[2] == 0 && x[2] < 0.5f);
+    int j_lower = 1 - Interp::radius - (stagger[1] == 0 && x[1] < 0.5f);
+    int j_upper =
+        Interp::support - Interp::radius - (stagger[1] == 0 && x[1] < 0.5f);
+    int i_lower = 1 - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
+    int i_upper =
+        Interp::support - Interp::radius - (stagger[0] == 0 && x[0] < 0.5f);
 #pragma unroll
-    for (int k = stagger[2] - Interp::radius; k <= Interp::support - Interp::radius;
-         k++) {
+    for (int k = k_lower; k <= k_upper; k++) {
       auto idx_k = idx.inc_z(k);
 #pragma unroll
-      for (int j = stagger[1] - Interp::radius; j <= Interp::support - Interp::radius;
-           j++) {
+      for (int j = j_lower; j <= j_upper; j++) {
         auto idx_j = idx_k.inc_y(j);
 #pragma unroll
-        for (int i = stagger[0] - Interp::radius; i <= Interp::support - Interp::radius;
-             i++) {
+        for (int i = i_lower; i <= i_upper; i++) {
           result += f[idx_j.inc_x(i)] *
                     interp_cell(interp, x[0], i, stagger[0]) *
                     interp_cell(interp, x[1], j, stagger[1]) *

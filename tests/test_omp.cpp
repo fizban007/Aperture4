@@ -25,8 +25,9 @@ main() {
   int N = 100;
   int step = 6;
 #pragma omp parallel for
-  for (n = 0; n < N - step; n += step) {
-    std::cout << n << std::endl;
+  for (n = 0; n < N - step; n+=step) {
+    std::cout << omp_get_thread_num() << ": " << n << std::endl;
+// #pragma omp barrier
   }
 
   std::cout << "iterated " << (N / step) * step << std::endl;

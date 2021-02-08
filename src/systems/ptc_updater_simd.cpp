@@ -89,16 +89,22 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
 
               context.E[0] = interp(E[0].p, context.x, context.cell, ext,
                                     stagger_t(0b110));
+              // context.E[0] = select(empty_mask, context.E[0], 0.0);
               context.E[1] = interp(E[1].p, context.x, context.cell, ext,
                                     stagger_t(0b101));
+              // context.E[1] = select(empty_mask, context.E[1], 0.0);
               context.E[2] = interp(E[2].p, context.x, context.cell, ext,
                                     stagger_t(0b011));
+              // context.E[2] = select(empty_mask, context.E[2], 0.0);
               context.B[0] = interp(B[0].p, context.x, context.cell, ext,
                                     stagger_t(0b001));
+              // context.B[0] = select(empty_mask, context.B[0], 0.0);
               context.B[1] = interp(B[1].p, context.x, context.cell, ext,
                                     stagger_t(0b010));
+              // context.B[1] = select(empty_mask, context.B[1], 0.0);
               context.B[2] = interp(B[2].p, context.x, context.cell, ext,
                                     stagger_t(0b100));
+              // context.B[2] = select(empty_mask, context.B[2], 0.0);
               // TODO: exlude particles that ignore EM
 
               // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:

@@ -48,8 +48,8 @@ main(int argc, char* argv[]) {
 
   auto grid3d = env.register_system<grid_t<Conf3D>>();
   auto pusher3d = env.register_system<
-      // ptc_updater_new<Conf3D, exec_policy_openmp, coord_policy_cartesian>>(
-      ptc_updater_simd<Conf3D, coord_policy_cartesian>>(
+      ptc_updater_new<Conf3D, exec_policy_openmp, coord_policy_cartesian>>(
+      // ptc_updater_simd<Conf3D, coord_policy_cartesian>>(
       *grid3d);
 
   env.init();
@@ -60,7 +60,7 @@ main(int argc, char* argv[]) {
   pusher3d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 
-  int N = 50;
+  int N = 10;
   double t = 0.0;
   for (int i = 0; i < N; i++) {
     timer::stamp();
@@ -86,8 +86,8 @@ main(int argc, char* argv[]) {
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
   auto pusher2d = env.register_system<
-      // ptc_updater_new<Conf2D, exec_policy_openmp, coord_policy_cartesian>>(
-      ptc_updater_simd<Conf2D, coord_policy_cartesian>>(
+      ptc_updater_new<Conf2D, exec_policy_openmp, coord_policy_cartesian>>(
+      // ptc_updater_simd<Conf2D, coord_policy_cartesian>>(
       *grid2d);
 
   env.init();

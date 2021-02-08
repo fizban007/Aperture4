@@ -60,6 +60,7 @@ set(VECTORCLASS_INCLUDE_DIR deps/vectorclass)
 
 include_directories(
   ${MPI_INCLUDE_PATH}
+  ${HDF5_INCLUDE_DIR}
   ${FMT_INCLUDE_DIR}
   ${CATCH_INCLUDE_DIR}
   ${VISIT_STRUCT_INCLUDE_DIR}

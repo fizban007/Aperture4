@@ -53,8 +53,6 @@ sim_environment_impl::~sim_environment_impl() {
 
 void
 sim_environment_impl::reset(int *argc, char ***argv) {
-  Logger::print_info("argc is {}", *argc);
-
   // Reset the systems and data
   m_system_map.clear();
   m_system_order.clear();

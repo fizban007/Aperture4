@@ -13,7 +13,6 @@ target_sources(tests PUBLIC
   "test_config.cpp"
   "test_gaussian_quadrature.cpp"
   "test_singleton.cpp"
-  "compare_new_pusher.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC
@@ -30,6 +29,7 @@ else()
   target_sources(tests PUBLIC
     # "test_ptc_updater.cpp"
     "test_rng.cpp"
+    "compare_new_pusher.cpp"
     )
 endif()
 

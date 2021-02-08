@@ -66,7 +66,8 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
 
               // auto idx = Conf::idx(context.cell, ext);
               // auto pos = get_pos(context.cell, ext);
-              vec_t<simd::Vec_i_t, Conf::dim> pos;
+              vec_t<simd::Vec_i_t, Conf::dim> pos =
+                  simd::get_pos(context.cell, ext);
 
               context.x[0].load(ptc.x1 + n);
               context.x[1].load(ptc.x2 + n);
@@ -98,6 +99,7 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
                                     stagger_t(0b010));
               context.B[2] = interp(B[2].p, context.x, context.cell, ext,
                                     stagger_t(0b100));
+              // TODO: exlude particles that ignore EM
 
               // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:
               // %f\n",

@@ -56,7 +56,7 @@ main(int argc, char* argv[]) {
 
   particle_data_t* ptc;
   env.get_data("particles", &ptc);
-  pusher3d->fill_multiplicity(5);
+  pusher3d->fill_multiplicity(10);
   pusher3d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 
@@ -82,7 +82,7 @@ main(int argc, char* argv[]) {
   env.params().add("lower", std::vector<double>({0.0, 0.0}));
   env.params().add("max_ptc_num", 60000000l);
 
-  Logger::print_info("3D Case:");
+  Logger::print_info("2D Case:");
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
   auto pusher2d = env.register_system<
@@ -93,7 +93,7 @@ main(int argc, char* argv[]) {
   env.init();
 
   env.get_data("particles", &ptc);
-  pusher2d->fill_multiplicity(10);
+  pusher2d->fill_multiplicity(50);
   pusher2d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 

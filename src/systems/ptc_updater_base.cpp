@@ -24,6 +24,13 @@
 
 namespace Aperture {
 
+template class ptc_updater_new<Config<1>, exec_policy_host,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<2>, exec_policy_host,
+                               coord_policy_cartesian>;
+template class ptc_updater_new<Config<3>, exec_policy_host,
+                               coord_policy_cartesian>;
+
 template class ptc_updater_new<Config<1>, exec_policy_openmp,
                                coord_policy_cartesian>;
 template class ptc_updater_new<Config<2>, exec_policy_openmp,

@@ -57,13 +57,13 @@ class coord_policy_spherical {
                             PtcContext& context,
                             index_t<Conf::dim>& pos, value_t q_over_m,
                             value_t dt) const {
-    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * q_over_m * 0.5f, dt);
-    }
+    // }
 
     move_ptc(grid, context, pos, dt);
   }

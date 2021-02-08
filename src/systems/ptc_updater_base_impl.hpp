@@ -208,7 +208,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               context.cell = ptc.cell[n];
               if (context.cell == empty_cell) return;
 
-              auto idx = Conf::idx(context.cell, ext);
+              typename Conf::idx_t idx = Conf::idx(context.cell, ext);
 
               context.x = vec_t<value_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
               context.p = vec_t<value_t, 3>(ptc.p1[n], ptc.p2[n], ptc.p3[n]);

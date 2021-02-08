@@ -273,8 +273,6 @@ struct deposit_t<3, spline_t> {
   }
 };
 
-#ifdef USE_SIMD
-
 namespace simd {
 
 template <int Dim, typename spline_t>
@@ -444,8 +442,6 @@ struct deposit_t<3, spline_t> {
 };
 
 }  // namespace simd
-
-#endif
 
 template <typename spline_t, typename value_t, typename JFieldType,
           typename RhoFieldType, typename idx_t>

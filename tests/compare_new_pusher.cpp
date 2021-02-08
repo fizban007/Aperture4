@@ -25,16 +25,19 @@
 #include <fstream>
 #include <iomanip>
 #include <vector>
+#include <omp.h>
 
 using namespace Aperture;
 
 TEST_CASE("Comparing two pushers", "[ptc_updater]") {
   typedef Config<2> Conf;
 
+  omp_set_num_threads(1);
+
   auto& env = sim_env();
   env.reset();
 
-  int64_t max_ptc_num = 10000;
+  int64_t max_ptc_num = 1000000;
   env.params().add("N", std::vector<int64_t>({128, 128}));
   env.params().add("guard", std::vector<int64_t>({2, 2}));
   env.params().add("size", std::vector<double>({2.0, 3.14}));
@@ -57,37 +60,42 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  int n_ptc = 100;
-  for (int i = 0; i < n_ptc; i++) {
-    ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
-                vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                grid.get_idx(20, 34 + i / 10).linear, 0);
-  }
+  // int n_ptc = 100;
+  // for (int i = 0; i < n_ptc; i++) {
+  //   ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+  //               vec_t<Scalar, 3>(0.0, 100.0, 0.0),
+  //               grid.get_idx(20, 34 + i / 10).linear, 0);
+  // }
+  pusher->fill_multiplicity(10);
 
   double dt = 0.01;
 
   int N = 10;
-  std::vector<Scalar> x1(N * n_ptc);
-  std::vector<Scalar> x2(N * n_ptc);
-  std::vector<uint32_t> cells(N * n_ptc);
-  std::vector<Scalar> p1(N * n_ptc);
-  std::vector<Scalar> p2(N * n_ptc);
+  // std::vector<Scalar> x1(N * n_ptc);
+  // std::vector<Scalar> x2(N * n_ptc);
+  // std::vector<uint32_t> cells(N * n_ptc);
+  // std::vector<Scalar> p1(N * n_ptc);
+  // std::vector<Scalar> p2(N * n_ptc);
+
+  std::vector<Scalar> x1(ptc->number());
+  std::vector<Scalar> x2(ptc->number());
+  std::vector<uint32_t> cell(ptc->number());
+  std::vector<Scalar> p1(ptc->number());
+  std::vector<Scalar> p2(ptc->number());
 
   for (int i = 0; i < N; i++) {
-    for (int j = 0; j < n_ptc; j++) {
-      x1[i * n_ptc + j] = ptc->x1[j];
-      x2[i * n_ptc + j] = ptc->x2[j];
-      p1[i * n_ptc + j] = ptc->p1[j];
-      p2[i * n_ptc + j] = ptc->p2[j];
-      cells[i * n_ptc + j] = ptc->cell[j];
-    }
-
     pusher->update_particles(dt, i);
+  }
+  for (int i = 0; i < ptc->number(); i++) {
+    x1[i] = ptc->x1[i];
+    x2[i] = ptc->x2[i];
+    p1[i] = ptc->p1[i];
+    p2[i] = ptc->p2[i];
+    cell[i] = ptc->cell[i];
   }
 
   vector_field<Conf> j_ref(grid);
   j_ref.copy_from(*J);
-  j_ref.copy_to_host();
 
   env.reset();
 
@@ -110,25 +118,26 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  for (int i = 0; i < n_ptc; i++) {
-    ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
-                vec_t<Scalar, 3>(0.0, 100.0, 0.0),
-                grid.get_idx(20, 34 + i / 10).linear, 0);
-  }
+  // for (int i = 0; i < n_ptc; i++) {
+  //   ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+  //               vec_t<Scalar, 3>(0.0, 100.0, 0.0),
+  //               grid.get_idx(20, 34 + i / 10).linear, 0);
+  // }
+  pusher_old->fill_multiplicity(10);
 
   for (int i = 0; i < N; i++) {
-    for (int j = 0; j < n_ptc; j++) {
-      REQUIRE(x1[i * n_ptc + j] == Approx(ptc->x1[j]));
-      REQUIRE(x2[i * n_ptc + j] == Approx(ptc->x2[j]));
-      REQUIRE(p1[i * n_ptc + j] == Approx(ptc->p1[j]));
-      REQUIRE(p2[i * n_ptc + j] == Approx(ptc->p2[j]));
-      REQUIRE(cells[i * n_ptc + j] == ptc->cell[j]);
-    }
-
     pusher_old->update_particles(dt, i);
   }
 
-  J->copy_to_host();
+  for (int i = 0; i < ptc->number(); i++) {
+    // Logger::print_info("i {}", i);
+    REQUIRE(x1[i] == ptc->x1[i]);
+    REQUIRE(x2[i] == ptc->x2[i]);
+    REQUIRE(p1[i] == ptc->p1[i]);
+    REQUIRE(p2[i] == ptc->p2[i]);
+    REQUIRE(cell[i] == ptc->cell[i]);
+  }
+
   for (auto idx : j_ref[0].indices()) {
     REQUIRE(j_ref[0][idx] == (*J)[0][idx]);
     REQUIRE(j_ref[1][idx] == (*J)[1][idx]);

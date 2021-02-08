@@ -32,10 +32,14 @@ class exec_policy_openmp : public exec_policy_host<Conf> {
     for (auto idx = begin; idx < end; idx++) {
     // for (auto idx : range(begin, end)) {
       // f.operator()(idx, args...);
+#ifdef __INTEL_COMPILER
       auto lam = [f, idx] LAMBDA (Args&&... args) {
 	f(idx, args...);
       };
       lam(args...);
+#else
+      f(idx, args...);
+#endif
     }
   }
 };

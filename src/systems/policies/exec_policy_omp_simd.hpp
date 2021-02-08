@@ -32,11 +32,14 @@ class exec_policy_openmp_simd : public exec_policy_host<Conf> {
 #pragma omp parallel for
     for (auto idx = begin; idx < end - simd::vec_width;
          idx += simd::vec_width) {
+#ifdef __INTEL_COMPILER
       auto lam = [f, idx] LAMBDA (Args&&... args) {
 	f(idx, args...);
       };
-      // f(idx, args...);
       lam(args...);
+#else
+      f(idx, args...);
+#endif
     }
 
     // int iterated = ((end - begin) / simd::vec_width) * simd::vec_width;

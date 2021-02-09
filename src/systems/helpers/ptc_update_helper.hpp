@@ -235,11 +235,13 @@ struct deposit_t<3, spline_t> {
       value_t sz1 = interp(-context.new_x[2] - context.dc[2] + k);
 
       value_t djy[2 * spline_t::radius + 1] = {};
+      auto idx_z = inc_z(idx, ext, k);
       for (int j = j_0; j <= j_1; j++) {
         value_t sy0 = interp(-context.x[1] + j);
         value_t sy1 = interp(-context.new_x[1] - context.dc[1] + j);
 
         value_t djx = 0.0f;
+        auto idx_y = inc_y(idx_z, ext, j);
         for (int i = i_0; i <= i_1; i++) {
           value_t sx0 = interp(-context.x[0] + i);
           value_t sx1 = interp(-context.new_x[0] - context.dc[0] + i);
@@ -247,9 +249,7 @@ struct deposit_t<3, spline_t> {
           // j1 is movement in x1
           // auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
           // auto offset = inc_z(inc_y(idx + i, ext, j), ext, k);
-          auto offset =
-              (int64_t)idx.linear +
-              (i + j * (int64_t)ext[0] + k * (int64_t)ext[0] * (int64_t)ext[1]);
+          auto offset = inc_x(idx_y, ext, i);
           djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
           if (math::abs(djx) > TINY) {
             deposit_add(&J[0][offset], -context.weight * djx / dt);

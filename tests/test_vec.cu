@@ -76,9 +76,6 @@ TEST_CASE("extent_t", "[vec]") {
 
   REQUIRE(ext[0] == 12);
   REQUIRE(ext[1] == 32);
-
-  int i = -1;
-  REQUIRE(i * ext[0] * ext[1] == -12 * 32);
 }
 
 TEST_CASE("construction using an array", "[vec]") {

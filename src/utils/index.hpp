@@ -54,13 +54,13 @@ struct idx_base_t {
     return (Derived&)*this;
   }
 
-  HD_INLINE Derived operator+(int x) const {
+  HD_INLINE Derived operator+(int64_t x) const {
     Derived result((Derived&)*this);
     result.linear += x;
     return result;
   }
 
-  HD_INLINE Derived operator-(int x) const {
+  HD_INLINE Derived operator-(int64_t x) const {
     Derived result((Derived&)*this);
     result.linear -= x;
     return result;
@@ -68,17 +68,17 @@ struct idx_base_t {
 
   HD_INLINE int operator-(const Derived& x) const { return linear - x.linear; }
 
-  HD_INLINE Derived operator+(uint32_t x) const {
-    Derived result((Derived&)*this);
-    result.linear += x;
-    return result;
-  }
+  // HD_INLINE Derived operator+(uint32_t x) const {
+  //   Derived result((Derived&)*this);
+  //   result.linear += x;
+  //   return result;
+  // }
 
-  HD_INLINE Derived operator+(uint64_t x) const {
-    Derived result((Derived&)*this);
-    result.linear += x;
-    return result;
-  }
+  // HD_INLINE Derived operator+(uint64_t x) const {
+  //   Derived result((Derived&)*this);
+  //   result.linear += x;
+  //   return result;
+  // }
 
   HD_INLINE Derived& operator+=(uint32_t x) {
     linear += x;
@@ -221,28 +221,28 @@ template <int Rank, int N>
 HD_INLINE idx_col_major_t<Rank>
 inc_y(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
       int n = 1) {
-  return idx + n * ext[0];
+  return idx + n * (int64_t)ext[0];
 }
 
 template <int Rank, int N>
 HD_INLINE idx_col_major_t<Rank>
 dec_y(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
       int n = 1) {
-  return idx - n * ext[0];
+  return idx - n * (int64_t)ext[0];
 }
 
 template <int Rank, int N>
 HD_INLINE idx_col_major_t<Rank>
 inc_z(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
       int n = 1) {
-  return idx + n * ext[0] * ext[1];
+  return idx + n * (int64_t)(ext[0] * ext[1]);
 }
 
 template <int Rank, int N>
 HD_INLINE idx_col_major_t<Rank>
 dec_z(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
       int n = 1) {
-  return idx - n * ext[0] * ext[1];
+  return idx - n * (int64_t)(ext[0] * ext[1]);
 }
 
 template <int Rank>

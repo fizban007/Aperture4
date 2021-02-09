@@ -39,14 +39,13 @@ class singleton_holder {
   }
 
   template <typename... Args>
-  static void init(Args&&... args) {
+  static inline void init(Args&&... args) {
     if (p_instance == nullptr) {
       p_instance = new T(std::forward<Args>(args)...);
-      std::atexit(kill_instance);
     }
   }
 
-  static void kill_instance() {
+  static inline void kill_instance() {
     delete p_instance;
     p_instance = nullptr;
   }

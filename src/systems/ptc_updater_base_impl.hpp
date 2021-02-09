@@ -213,7 +213,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
        coord_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
+        // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
+        auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(
             begin, end,
             [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
@@ -233,12 +234,18 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               context.sp = get_ptc_type(context.flag);
               context.weight = charges[context.sp] * ptc.weight[n];
 
-              context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
-              context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
-              context.E[2] = interp(E[2], context.x, idx, stagger_t(0b011));
-              context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
-              context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
-              context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
+              // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
+              // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
+              // context.E[2] = interp(E[2], context.x, idx, stagger_t(0b011));
+              // context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
+              // context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
+              // context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
+              context.E[0] = interp(context.x, E[0], idx, ext, stagger_t(0b110));
+              context.E[1] = interp(context.x, E[1], idx, ext, stagger_t(0b101));
+              context.E[2] = interp(context.x, E[2], idx, ext, stagger_t(0b011));
+              context.B[0] = interp(context.x, B[0], idx, ext, stagger_t(0b001));
+              context.B[1] = interp(context.x, B[1], idx, ext, stagger_t(0b010));
+              context.B[2] = interp(context.x, B[2], idx, ext, stagger_t(0b100));
 
               // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:
               // %f\n",

@@ -38,7 +38,7 @@ using default_idx_t = idx_col_major_t<Rank>;
 
 template <class Derived, int Rank>
 struct idx_base_t {
-  uint64_t linear;
+  int64_t linear;
 
   typedef idx_base_t<Derived, Rank> self_type;
   static constexpr int dim = Rank;
@@ -56,7 +56,7 @@ struct idx_base_t {
 
   HD_INLINE Derived operator+(int64_t x) const {
     Derived result((Derived&)*this);
-    result.linear += x;
+    result.linear = x;
     return result;
   }
 
@@ -108,7 +108,7 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
 
   using base_type::operator-;
 
-  HOST_DEVICE idx_col_major_t(uint64_t n, const extent_t<Rank>& extent)
+  HOST_DEVICE idx_col_major_t(int64_t n, const extent_t<Rank>& extent)
       : ext(extent) {
     this->linear = n;
   }
@@ -125,7 +125,7 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
   // HD_INLINE index_t<Rank> get_pos() const {
   inline index_t<Rank> get_pos() const { return pos(this->linear); }
 
-  inline index_t<Rank> pos(uint64_t linear) const {
+  inline index_t<Rank> pos(int64_t linear) const {
     auto result = index_t<Rank>{};
     auto n = linear;
     result[0] = n % this->ext[0];
@@ -138,7 +138,7 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
     return result;
   }
 
-  HD_INLINE uint64_t to_linear(const index_t<Rank>& pos) const {
+  HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
     //     uint64_t result = pos[0];
     //     int64_t stride = 1;
     // #pragma unroll
@@ -182,11 +182,11 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
 
   using base_type::operator+;
 
-  HD_INLINE uint64_t operator+(const index_t<Rank>& pos) {
+  HD_INLINE int64_t operator+(const index_t<Rank>& pos) {
     return this->linear + pos.dot(ext.strides());
   }
 
-  HD_INLINE uint64_t operator-(const index_t<Rank>& pos) {
+  HD_INLINE int64_t operator-(const index_t<Rank>& pos) {
     return this->linear - pos.dot(ext.strides());
   }
 
@@ -278,7 +278,7 @@ struct idx_row_major_t : public idx_base_t<idx_row_major_t<Rank>, Rank> {
   typedef idx_base_t<idx_row_major_t<Rank>, Rank> base_type;
   typedef idx_row_major_t<Rank> self_type;
 
-  HOST_DEVICE idx_row_major_t(uint64_t n, const extent_t<Rank>& extent)
+  HOST_DEVICE idx_row_major_t(int64_t n, const extent_t<Rank>& extent)
       : ext(extent) {
     this->linear = n;
   }
@@ -291,8 +291,8 @@ struct idx_row_major_t : public idx_base_t<idx_row_major_t<Rank>, Rank> {
 
   inline index_t<Rank> get_pos() const { return pos(this->linear); }
 
-  HD_INLINE uint64_t to_linear(const index_t<Rank>& pos) const {
-    uint64_t result = pos[Rank - 1];
+  HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
+    int64_t result = pos[Rank - 1];
     int64_t stride = this->ext[Rank - 1];
     if (Rank > 1) {
 #pragma unroll
@@ -304,7 +304,7 @@ struct idx_row_major_t : public idx_base_t<idx_row_major_t<Rank>, Rank> {
     return result;
   }
 
-  HD_INLINE index_t<Rank> pos(uint64_t linear) const {
+  HD_INLINE index_t<Rank> pos(int64_t linear) const {
     auto result = index_t<Rank>{};
     auto n = linear;
 #pragma unroll

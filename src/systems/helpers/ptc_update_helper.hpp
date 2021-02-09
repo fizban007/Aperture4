@@ -117,7 +117,8 @@ struct deposit_t<1, spline_t> {
   template <typename value_t, typename ContextType, typename JFieldType,
             typename RhoFieldType, typename idx_t>
   HOST_DEVICE void operator()(ContextType& context, JFieldType& J,
-                              RhoFieldType& Rho, idx_t idx, value_t dt,
+                              RhoFieldType& Rho, idx_t idx,
+                              const extent_t<1>& ext, value_t dt,
                               bool deposit_rho) {
     spline_t interp;
     int i_0 = (context.dc[0] == -1 ? -spline_t::radius : 1 - spline_t::radius);
@@ -128,7 +129,7 @@ struct deposit_t<1, spline_t> {
       value_t sx1 = interp(-context.new_x[0] - context.dc[0] + i);
 
       // j1 is movement in x1
-      auto offset = idx.inc_x(i);
+      auto offset = idx + i;
       djx += sx1 - sx0;
       // atomicAdd(&J[0][offset], -weight * djx);
       deposit_add(&J[0][offset], -context.weight * djx / dt);
@@ -160,7 +161,8 @@ struct deposit_t<2, spline_t> {
   template <typename value_t, typename ContextType, typename JFieldType,
             typename RhoFieldType, typename idx_t>
   HOST_DEVICE void operator()(ContextType& context, JFieldType& J,
-                              RhoFieldType& Rho, idx_t idx, value_t dt,
+                              RhoFieldType& Rho, idx_t idx,
+                              const extent_t<2>& ext, value_t dt,
                               bool deposit_rho) {
     spline_t interp;
 
@@ -180,7 +182,7 @@ struct deposit_t<2, spline_t> {
         value_t sx1 = interp(-context.new_x[0] - context.dc[0] + i);
 
         // j1 is movement in x1
-        auto offset = idx.inc_x(i).inc_y(j);
+        auto offset = inc_y(idx + i, ext, j);
         djx += movement2d(sy0, sy1, sx0, sx1);
         if (math::abs(djx) > TINY) {
           deposit_add(&J[0][offset], -context.weight * djx / dt);
@@ -215,7 +217,8 @@ struct deposit_t<3, spline_t> {
   template <typename value_t, typename ContextType, typename JFieldType,
             typename RhoFieldType, typename idx_t>
   HOST_DEVICE void operator()(ContextType& context, JFieldType& J,
-                              RhoFieldType& Rho, idx_t idx, value_t dt,
+                              RhoFieldType& Rho, idx_t idx,
+                              const extent_t<3>& ext, value_t dt,
                               bool deposit_rho) {
     spline_t interp;
 
@@ -242,7 +245,11 @@ struct deposit_t<3, spline_t> {
           value_t sx1 = interp(-context.new_x[0] - context.dc[0] + i);
 
           // j1 is movement in x1
-          auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
+          // auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
+          // auto offset = inc_z(inc_y(idx + i, ext, j), ext, k);
+          auto offset =
+              (int64_t)idx.linear +
+              (i + j * (int64_t)ext[0] + k * (int64_t)ext[0] * (int64_t)ext[1]);
           djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
           if (math::abs(djx) > TINY) {
             deposit_add(&J[0][offset], -context.weight * djx / dt);
@@ -292,7 +299,8 @@ struct deposit_t<1, spline_t> {
                               RhoFieldType& Rho, idx_t idx, value_t dt,
                               bool deposit_rho) {
     spline_t interp;
-    int i_0 = (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int i_0 =
+        (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int i_1 = (context.dc[0][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
     value_t djx = 0.0f;
     for (int i = i_0; i <= i_1; i++) {
@@ -306,14 +314,14 @@ struct deposit_t<1, spline_t> {
 
       // j2 is simply v2 times rho at center
       value_t val1 = 0.5f * (sx0 + sx1);
-      deposit_add(
-          &J[1][offset],
-          context.weight[n] * (context.new_x[1][n] - context.x[1][n]) / dt * val1);
+      deposit_add(&J[1][offset], context.weight[n] *
+                                     (context.new_x[1][n] - context.x[1][n]) /
+                                     dt * val1);
 
       // j3 is simply v3 times rho at center
-      deposit_add(
-          &J[2][offset],
-          context.weight[n] * (context.new_x[2][n] - context.x[2][n]) / dt * val1);
+      deposit_add(&J[2][offset], context.weight[n] *
+                                     (context.new_x[2][n] - context.x[2][n]) /
+                                     dt * val1);
 
       // rho is deposited at the final position
       if (deposit_rho) {
@@ -332,9 +340,11 @@ struct deposit_t<2, spline_t> {
                               bool deposit_rho) {
     spline_t interp;
 
-    int j_0 = (context.dc[1][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int j_0 =
+        (context.dc[1][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int j_1 = (context.dc[1][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
-    int i_0 = (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int i_0 =
+        (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int i_1 = (context.dc[0][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
 
     value_t djy[2 * spline_t::radius + 1] = {};
@@ -362,14 +372,15 @@ struct deposit_t<2, spline_t> {
 
         // j3 is simply v3 times rho at center
         deposit_add(&J[2][offset], context.weight[n] *
-                                       (context.new_x[2][n] - context.x[2][n]) / dt *
-                                       center2d(sx0, sx1, sy0, sy1));
+                                       (context.new_x[2][n] - context.x[2][n]) /
+                                       dt * center2d(sx0, sx1, sy0, sy1));
         // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
 
         // rho is deposited at the final position
         if (deposit_rho) {
           if (math::abs(sx1 * sy1) > TINY) {
-            deposit_add(&Rho[context.sp[n]][offset], context.weight[n] * sx1 * sy1);
+            deposit_add(&Rho[context.sp[n]][offset],
+                        context.weight[n] * sx1 * sy1);
             // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
           }
         }
@@ -387,11 +398,14 @@ struct deposit_t<3, spline_t> {
                               bool deposit_rho) {
     spline_t interp;
 
-    int k_0 = (context.dc[2][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int k_0 =
+        (context.dc[2][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int k_1 = (context.dc[2][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
-    int j_0 = (context.dc[1][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int j_0 =
+        (context.dc[1][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int j_1 = (context.dc[1][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
-    int i_0 = (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
+    int i_0 =
+        (context.dc[0][n] == -1 ? -spline_t::radius : 1 - spline_t::radius);
     int i_1 = (context.dc[0][n] == 1 ? spline_t::radius + 1 : spline_t::radius);
 
     value_t djz[2 * spline_t::radius + 1][2 * spline_t::radius + 1] = {};

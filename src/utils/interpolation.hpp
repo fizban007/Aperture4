@@ -269,7 +269,7 @@ struct interp_t<1, 1> {
   template <typename value_t, typename array_t, typename Idx_t>
   HD_INLINE value_t operator()(const vec_t<value_t, 3>& x, const array_t& f,
                                const Idx_t& idx, const vec_t<uint32_t, 1>& ext,
-                               stagger_t stagger) const {
+                               stagger_t stagger = stagger_t(0b111)) const {
     if (stagger[0] == 1) {
       return (1.0f - x[0]) * f[idx] + x[0] * f[inc_x(idx, ext)];
     } else if (stagger[0] == 0 && x[0] < 0.5f) {
@@ -285,7 +285,7 @@ struct interp_t<1, 2> {
   template <typename value_t, typename array_t, typename Idx_t>
   HD_INLINE value_t operator()(const vec_t<value_t, 3>& x, const array_t& f,
                                const Idx_t& idx, const vec_t<uint32_t, 2>& ext,
-                               stagger_t stagger) const {
+                               stagger_t stagger = stagger_t(0b111)) const {
     interp_t<1, 1> interp;
     if (stagger[1] == 1) {
       return (1.0f - x[1]) * interp(x, f, idx, ext.subset<0, 1>(), stagger) +
@@ -307,7 +307,7 @@ struct interp_t<1, 3> {
   template <typename value_t, typename array_t, typename Idx_t>
   HD_INLINE value_t operator()(const vec_t<value_t, 3>& x, const array_t& f,
                                const Idx_t& idx, const vec_t<uint32_t, 3>& ext,
-                               stagger_t stagger) const {
+                               stagger_t stagger = stagger_t(0b111)) const {
     interp_t<1, 2> interp;
     if (stagger[2] == 1) {
       return (1.0f - x[2]) * interp(x, f, idx, ext.subset<0, 2>(), stagger) +

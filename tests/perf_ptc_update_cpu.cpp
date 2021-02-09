@@ -38,7 +38,7 @@ main(int argc, char* argv[]) {
   typedef Config<3> Conf3D;
 
   auto& env = sim_env();
-  env.params().add("N", std::vector<int64_t>({64, 64, 64}));
+  env.params().add("N", std::vector<int64_t>({64, 64, 32}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({2.0, 3.14, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
@@ -56,8 +56,7 @@ main(int argc, char* argv[]) {
 
   particle_data_t* ptc;
   env.get_data("particles", &ptc);
-  pusher3d->fill_multiplicity(10);
-  pusher3d->sort_particles();
+  pusher3d->fill_multiplicity(30, 1.0, 0.3);
   Logger::print_info("There are {} particles in the array", ptc->number());
 
   int N = 10;

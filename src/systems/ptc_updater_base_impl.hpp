@@ -240,12 +240,18 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               // context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
               // context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
               // context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
-              context.E[0] = interp(context.x, E[0], idx, ext, stagger_t(0b110));
-              context.E[1] = interp(context.x, E[1], idx, ext, stagger_t(0b101));
-              context.E[2] = interp(context.x, E[2], idx, ext, stagger_t(0b011));
-              context.B[0] = interp(context.x, B[0], idx, ext, stagger_t(0b001));
-              context.B[1] = interp(context.x, B[1], idx, ext, stagger_t(0b010));
-              context.B[2] = interp(context.x, B[2], idx, ext, stagger_t(0b100));
+              context.E[0] =
+                  interp(context.x, E[0], idx, ext, stagger_t(0b110));
+              context.E[1] =
+                  interp(context.x, E[1], idx, ext, stagger_t(0b101));
+              context.E[2] =
+                  interp(context.x, E[2], idx, ext, stagger_t(0b011));
+              context.B[0] =
+                  interp(context.x, B[0], idx, ext, stagger_t(0b001));
+              context.B[1] =
+                  interp(context.x, B[1], idx, ext, stagger_t(0b010));
+              context.B[2] =
+                  interp(context.x, B[2], idx, ext, stagger_t(0b100));
 
               // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:
               // %f\n",
@@ -263,7 +269,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               ptc.E[n] = context.gamma;
 
               deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
-              deposit(context, J, Rho, idx, dt, deposit_rho);
+              deposit(context, J, Rho, idx, ext, dt, deposit_rho);
 
               ptc.x1[n] = context.new_x[0];
               ptc.x2[n] = context.new_x[1];
@@ -413,20 +419,21 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class PhysicsPolicy>
 void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::fill_multiplicity(int mult, value_t weight) {
+                PhysicsPolicy>::fill_multiplicity(int mult, value_t weight,
+                                                  value_t dp) {
   // CoordPolicy<Conf>::template fill_multiplicity<ExecPolicy<Conf>>(
   //     *ptc, *rng_states, mult, weight);
   auto num = ptc->number();
 
   ExecPolicy<Conf>::launch(
-      [num, mult, weight] LAMBDA(auto ptc, auto states) {
+      [num, mult, weight, dp] LAMBDA(auto ptc, auto states) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t rng(states);
         ExecPolicy<Conf>::loop(
             // 0, ext.size(),
             Conf::begin(ext), Conf::end(ext),
-            [&grid, num, ext, mult, weight] LAMBDA(
+            [&grid, num, ext, mult, weight, dp] LAMBDA(
                 auto idx, auto& ptc,
                 // auto n, auto& ptc,
                 // [&grid, num, ext, mult, weight] LAMBDA(auto n, auto& ptc,
@@ -450,9 +457,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                   value_t x3 = CoordPolicy<Conf>::x3(
                       grid.template pos<2>(pos[2], ptc.x3[offset]));
 
-                  ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
-                  ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
-                  ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
+                  ptc.p1[offset] = ptc.p1[offset + 1] =
+                      rng.template gaussian<value_t>(dp);
+                  ptc.p2[offset] = ptc.p2[offset + 1] =
+                      rng.template gaussian<value_t>(dp);
+                  ptc.p3[offset] = ptc.p3[offset + 1] =
+                      rng.template gaussian<value_t>(dp);
                   ptc.E[offset] = ptc.E[offset + 1] = 1.0;
                   ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
                   ptc.weight[offset] = ptc.weight[offset + 1] =

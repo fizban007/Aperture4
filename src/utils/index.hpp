@@ -260,14 +260,16 @@ get_pos(const idx_col_major_t<1>& idx, const extent_t<1>& ext) {
 template <>
 HD_INLINE index_t<2>
 get_pos(const idx_col_major_t<2>& idx, const extent_t<2>& ext) {
-  return index_t<2>(idx.linear % ext[0], idx.linear / ext[0]);
+  auto tmp = idx.linear / ext[0];
+  return index_t<2>(idx.linear - tmp * ext[0], tmp);
 }
 
 template <>
 HD_INLINE index_t<3>
 get_pos(const idx_col_major_t<3>& idx, const extent_t<3>& ext) {
-  return index_t<3>(idx.linear % ext[0], (idx.linear / ext[0]) % ext[1],
-                    idx.linear / (ext[0] * ext[1]));
+  auto tmp = idx.linear / ext[0];
+  auto tmp2 = tmp / ext[1];
+  return index_t<3>(idx.linear - tmp * ext[0], tmp - tmp2 * ext[1], tmp2);
 }
 
 template <int Rank>
@@ -477,6 +479,30 @@ idx_zorder_t<2>::dec<1>(int n) const {
   return dec_y(n);
 }
 
+template <int N>
+HD_INLINE idx_zorder_t<2>
+inc_x(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+dec_x(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+inc_y(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+dec_y(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_y(n);
+}
+
 template <>
 struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
   typedef idx_base_t<idx_zorder_t<3>, 3> base_type;
@@ -592,6 +618,42 @@ template <>
 HD_INLINE idx_zorder_t<3>
 idx_zorder_t<3>::dec<2>(int n) const {
   return dec_z(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_x(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_x(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_y(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_y(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_z(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_z(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_z(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_z(n);
 }
 
 template <int Rank>

@@ -35,6 +35,11 @@ class rng_states_t : public data_t {
   buffer<rand_state>& states() { return m_states; }
   const buffer<rand_state>& states() const { return m_states; }
 
+#ifdef CUDA_ENABLED
+  static constexpr int block_num = 512;
+  static constexpr int thread_num = 512;
+#endif
+
  private:
   uint64_t m_initial_seed;
   buffer<rand_state> m_states;

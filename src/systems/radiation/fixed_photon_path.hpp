@@ -18,10 +18,11 @@
 #ifndef __FIXED_PHOTON_PATH_H_
 #define __FIXED_PHOTON_PATH_H_
 
-#include "core/constant_mem.h"
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
+#include "core/random.h"
+#include "framework/environment.h"
 
 namespace Aperture {
 
@@ -30,8 +31,13 @@ struct fixed_photon_path {
   float E_s = 2.0f;
   float photon_path = 0.0f;
 
-  __device__ void emit_photon(ptc_ptrs& ptc, uint32_t tid, ph_ptrs& ph,
-                              uint32_t offset, cuda_rng_t& rng) {
+  void init() {
+    sim_env().params().get_value("photon_path", photon_path);
+    sim_env().params().get_value("E_secondary", E_s);
+  }
+
+  HOST_DEVICE void emit_photon(ptc_ptrs& ptc, size_t tid, ph_ptrs& ph,
+                               size_t offset, rng_t& rng) {
     using value_t = typename Conf::value_t;
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
@@ -40,7 +46,7 @@ struct fixed_photon_path {
     value_t gamma = ptc.E[tid];
     value_t pi = std::sqrt(gamma * gamma - 1.0f);
 
-    value_t u = rng();
+    value_t u = rng.uniform<value_t>();
     value_t Eph = 2.5f + u * (E_s - 1.0f) * 2.0f;
     value_t pf = std::sqrt(square(gamma - Eph) - 1.0f);
 
@@ -61,10 +67,9 @@ struct fixed_photon_path {
     // if (theta < 0.005f || theta > M_PI - 0.005f) return;
 
     value_t lph = photon_path;
-    u = rng();
+    u = rng.uniform<value_t>();
     // Add the new photo
     value_t path = lph * (0.9f + 0.2f * u);
-    // if (path > dev_params.r_cutoff) return;
     // printf("Eph is %f, path is %f\n", Eph, path);
     ph.x1[offset] = ptc.x1[tid];
     ph.x2[offset] = ptc.x2[tid];
@@ -78,8 +83,7 @@ struct fixed_photon_path {
     ph.cell[offset] = ptc.cell[tid];
   }
 
-  __device__ bool check_produce_pair(ph_ptrs& ph, uint32_t tid,
-                                     cuda_rng_t& rng) {
+  HD_INLINE bool check_produce_pair(ph_ptrs& ph, size_t tid, rng_t& rng) {
     return ph.path_left[tid] < 0.0f;
   }
 };

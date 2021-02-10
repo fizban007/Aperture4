@@ -32,7 +32,7 @@ template <typename Conf>
 class exec_policy_cuda {
  public:
   static void set_grid(const grid_t<Conf>& grid) {
-    init_dev_grid<Conf::dim, typename Conf::value_t>(grid);
+    // init_dev_grid<Conf::dim, typename Conf::value_t>(grid);
   }
 
   template <typename Func, typename... Args>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,29 +15,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __THRESHOLD_EMISSION_H_
-#define __THRESHOLD_EMISSION_H_
+#ifndef __DEFAULT_RADIATION_SCHEME_H_
+#define __DEFAULT_RADIATION_SCHEME_H_
 
-#include "core/cuda_control.h"
-#include "core/particle_structs.h"
-#include "core/random.h"
-#include "framework/environment.h"
+#include "fixed_photon_path.hpp"
+#include "photon_pair_creation.hpp"
+#include "threshold_emission.hpp"
 
 namespace Aperture {
 
-struct threshold_emission {
-  float gamma_thr = 30.0f;
-
+template <typename Conf>
+struct default_radiation_scheme : public fixed_photon_path<Conf>,
+                                  public photon_pair_creation<Conf>,
+                                  public threshold_emission {
   void init() {
-    sim_env().params().get_value("gamma_thr", gamma_thr);
-  }
-
-  HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, uint32_t tid,
-                                     rng_t& rng) const {
-    return ptc.E[tid] > gamma_thr;
+    fixed_photon_path<Conf>::init();
+    photon_pair_creation<Conf>::init();
+    threshold_emission::init();
   }
 };
 
-}  // namespace Aperture
+}
 
-#endif  // __THRESHOLD_EMISSION_H_
+
+#endif // __DEFAULT_RADIATION_SCHEME_H_

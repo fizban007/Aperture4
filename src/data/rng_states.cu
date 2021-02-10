@@ -18,13 +18,6 @@
 #include "data/rng_states.h"
 #include "utils/kernel_helper.hpp"
 
-namespace {
-
-const int block_num = 512;
-const int thread_num = 512;
-
-}
-
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {

@@ -43,6 +43,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
     "systems/ptc_updater_base.cu"
+    "systems/radiative_transfer_new.cu"
     )
 else()
   list(APPEND Aperture_src

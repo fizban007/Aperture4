@@ -28,7 +28,7 @@
 
 namespace Aperture {
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) && defined(__CUDACC__)
 
 typedef curandState rand_state;
 

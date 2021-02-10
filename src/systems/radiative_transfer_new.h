@@ -65,6 +65,7 @@ class radiative_transfer_base : public system_t {
   uint32_t m_sort_interval = 20;
   int m_ph_per_scatter = 1;
   float m_tracked_fraction = 0.01;
+  uint64_t m_track_rank = 0;
 };
 
 template <class Conf, template <class> class ExecPolicy,

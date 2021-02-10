@@ -144,11 +144,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
   int new_photons = m_cum_num_per_block[m_blocks_per_grid - 1] +
                     m_num_per_block[m_blocks_per_grid - 1];
 
-  uint64_t rank = 0;
-  if (this->m_comm != nullptr) {
-    rank = this->m_comm->rank();
-    rank <<= 32;
-  }
+  uint64_t rank = this->m_track_rank;
 
   // Then emit the number of photons computed
   auto ph_num = this->ph->number();
@@ -182,10 +178,10 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
           }
         }
       },
-      adapt_cuda(this->ptc), adapt_cuda(this->ph),
-      adapt_cuda(m_pos_in_block), adapt_cuda(m_num_per_block),
-      adapt_cuda(m_cum_num_per_block), adapt_cuda(this->ph->ptc_id()),
-      adapt_cuda(this->rng_states), *m_rad_policy, this->m_tracked_fraction);
+      adapt_cuda(this->ptc), adapt_cuda(this->ph), adapt_cuda(m_pos_in_block),
+      adapt_cuda(m_num_per_block), adapt_cuda(m_cum_num_per_block),
+      adapt_cuda(this->ph->ptc_id()), adapt_cuda(this->rng_states),
+      *m_rad_policy, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -197,7 +193,118 @@ template <class Conf, template <class> class CoordPolicy,
           template <class> class RadiationPolicy>
 void
 radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
-                   RadiationPolicy>::produce_pairs(double dt) {}
+                   RadiationPolicy>::produce_pairs(double dt) {
+  auto ph_num = this->ph->number();
+  if (ph_num == 0) return;
+
+  m_pos_in_block.assign_dev(0, ph_num, 0);
+  m_num_per_block.assign_dev(0);
+  m_cum_num_per_block.assign_dev(0);
+
+  // First count number of pairs produced
+  kernel_launch(
+      {m_blocks_per_grid, m_threads_per_block},
+      [ph_num] __device__(auto ph, auto pair_count, auto pair_pos,
+                          auto pair_produced, auto states, auto rad) {
+        auto& grid = exec_policy_cuda<Conf>::grid();
+        auto ext = grid.extent();
+        rng_t rng(&states);
+
+        __shared__ int pair_produced_this_block;
+        if (threadIdx.x == 0) pair_produced_this_block = 0;
+        __syncthreads();
+
+        for (auto n : grid_stride_range(0, ph_num)) {
+          uint32_t cell = ph.cell[n];
+          // Skip empty particles
+          if (cell == empty_cell) continue;
+          auto idx = typename Conf::idx_t(cell, ext);
+          auto pos = idx.get_pos();
+
+          if (!grid.is_in_bound(pos)) continue;
+
+          if (rad.check_produce_pair(ph, n, rng)) {
+            auto w = ph.weight[n];
+
+            pair_pos[n] = atomicAdd(&pair_produced_this_block, 1) + 1;
+            atomicAdd(&pair_produced[idx], w);
+          }
+        }
+        __syncthreads();
+
+        // Record the number of photons produced this block to global array
+        if (threadIdx.x == 0) {
+          pair_count[blockIdx.x] = pair_produced_this_block;
+        }
+      },
+      adapt_cuda(this->ph), adapt_cuda(m_num_per_block),
+      adapt_cuda(m_pos_in_block), adapt_cuda(this->pair_produced),
+      adapt_cuda(this->rng_states), *m_rad_policy);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+
+  thrust::device_ptr<int> ptrNumPerBlock(m_num_per_block.dev_ptr());
+  thrust::device_ptr<int> ptrCumNum(m_cum_num_per_block.dev_ptr());
+
+  // Scan the number of photons produced per block. The result gives
+  // the offset for each block
+  thrust::exclusive_scan(ptrNumPerBlock, ptrNumPerBlock + m_blocks_per_grid,
+                         ptrCumNum);
+  CudaCheckError();
+  // Logger::print_debug("Scan finished");
+  m_cum_num_per_block.copy_to_host();
+  m_num_per_block.copy_to_host();
+  int new_pairs = m_cum_num_per_block[m_blocks_per_grid - 1] +
+                  m_num_per_block[m_blocks_per_grid - 1];
+
+  uint64_t rank = this->m_track_rank;
+
+  // Then emit the number of photons computed
+  auto ptc_num = this->ptc->number();
+  kernel_launch(
+      {m_blocks_per_grid, m_threads_per_block},
+      [ptc_num, ph_num, rank] __device__(
+          auto ph, auto ptc, auto pair_pos, auto pair_count, auto pair_cum,
+          auto ptc_id, auto states, auto rad, auto tracked_frac) {
+        rng_t rng(&states);
+        auto& grid = exec_policy_cuda<Conf>::grid();
+        auto ext = grid.extent();
+
+        for (auto n : grid_stride_range(0, ph_num)) {
+          int pos_in_block = pair_pos[n] - 1;
+          uint32_t cell = ph.cell[n];
+          if (pos_in_block > -1 && cell != empty_cell) {
+            auto idx = typename Conf::idx_t(cell, ext);
+            auto pos = idx.get_pos();
+            if (!grid.is_in_bound(pos)) continue;
+            size_t start_pos = pair_cum[blockIdx.x];
+            size_t offset = ptc_num + (start_pos + pos_in_block) * 2;
+
+            // rad.emit_photon(ptc, n, ph, offset, rng);
+            rad.produce_pair(ph, n, ptc, offset, rng);
+
+            float u = rng.uniform<float>();
+            if (u < tracked_frac) {
+              set_flag(ptc.flag[offset], PtcFlag::tracked);
+              set_flag(ptc.flag[offset + 1], PtcFlag::tracked);
+              // ptc.id[offset] = dev_rank + atomicAdd(&dev_ptc_id, 1);
+              // ptc.id[offset + 1] = dev_rank + atomicAdd(&dev_ptc_id, 1);
+              ptc.id[offset] = rank + atomicAdd(ptc_id, 1);
+              ptc.id[offset + 1] = rank + atomicAdd(ptc_id, 1);
+            }
+          }
+        }
+      },
+      adapt_cuda(this->ph), adapt_cuda(this->ptc), adapt_cuda(m_pos_in_block),
+      adapt_cuda(m_num_per_block), adapt_cuda(m_cum_num_per_block),
+      adapt_cuda(this->ptc->ptc_id()), adapt_cuda(this->rng_states),
+      *m_rad_policy, this->m_tracked_fraction);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+
+  this->ptc->add_num(new_pairs * 2);
+  Logger::print_info("{} pairs are produced!", new_pairs);
+}
 
 }  // namespace Aperture
 

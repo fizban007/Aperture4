@@ -27,7 +27,12 @@ namespace Aperture {
 template <typename Conf>
 radiative_transfer_base<Conf>::radiative_transfer_base(
     const grid_t<Conf>& grid, const domain_comm<Conf>* comm)
-    : m_grid(grid), m_comm(comm) {}
+    : m_grid(grid), m_comm(comm) {
+  if (comm != nullptr) {
+    m_track_rank = comm->rank();
+    m_track_rank <<= 32;
+  }
+}
 
 template <typename Conf>
 radiative_transfer_base<Conf>::~radiative_transfer_base() = default;

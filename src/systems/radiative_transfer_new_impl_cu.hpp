@@ -208,7 +208,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
                           auto pair_produced, auto states, auto rad) {
         auto& grid = exec_policy_cuda<Conf>::grid();
         auto ext = grid.extent();
-        rng_t rng(&states);
+        rng_t rng(states);
 
         __shared__ int pair_produced_this_block;
         if (threadIdx.x == 0) pair_produced_this_block = 0;
@@ -219,7 +219,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
           // Skip empty particles
           if (cell == empty_cell) continue;
           auto idx = typename Conf::idx_t(cell, ext);
-          auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
 
           if (!grid.is_in_bound(pos)) continue;
 
@@ -266,7 +266,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
       [ptc_num, ph_num, rank] __device__(
           auto ph, auto ptc, auto pair_pos, auto pair_count, auto pair_cum,
           auto ptc_id, auto states, auto rad, auto tracked_frac) {
-        rng_t rng(&states);
+        rng_t rng(states);
         auto& grid = exec_policy_cuda<Conf>::grid();
         auto ext = grid.extent();
 
@@ -275,7 +275,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
           uint32_t cell = ph.cell[n];
           if (pos_in_block > -1 && cell != empty_cell) {
             auto idx = typename Conf::idx_t(cell, ext);
-            auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
             if (!grid.is_in_bound(pos)) continue;
             size_t start_pos = pair_cum[blockIdx.x];
             size_t offset = ptc_num + (start_pos + pos_in_block) * 2;

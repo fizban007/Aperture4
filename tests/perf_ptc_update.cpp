@@ -55,7 +55,6 @@ main(int argc, char* argv[]) {
   particle_data_t* ptc;
   env.get_data("particles", &ptc);
   pusher3d->fill_multiplicity(10);
-  pusher3d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 
   int N = 100;
@@ -91,7 +90,6 @@ main(int argc, char* argv[]) {
 
   env.get_data("particles", &ptc);
   pusher2d->fill_multiplicity(100);
-  pusher2d->sort_particles();
   Logger::print_info("There are {} particles in the array", ptc->number());
 
   t = 0.0;

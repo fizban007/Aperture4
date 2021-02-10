@@ -99,6 +99,7 @@ deposit_add(value_t* addr, value_t value) {
 #ifdef __CUDACC__
   atomicAdd(addr, value);
 #else
+#pragma omp atomic
   *addr += value;
 #endif
 }

@@ -125,9 +125,9 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
           ph_count[blockIdx.x] = photon_produced;
         }
       },
-      adapt_cuda(*(this->ptc)), adapt_cuda(m_num_per_block),
-      adapt_cuda(m_pos_in_block), adapt_cuda(*(this->photon_produced)),
-      adapt_cuda(*(this->rng_states)), *m_rad_policy);
+      adapt_cuda(this->ptc), adapt_cuda(m_num_per_block),
+      adapt_cuda(m_pos_in_block), adapt_cuda(this->photon_produced),
+      adapt_cuda(this->rng_states), *m_rad_policy);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -182,10 +182,10 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
           }
         }
       },
-      adapt_cuda(*(this->ptc)), adapt_cuda(*(this->ph)),
+      adapt_cuda(this->ptc), adapt_cuda(this->ph),
       adapt_cuda(m_pos_in_block), adapt_cuda(m_num_per_block),
       adapt_cuda(m_cum_num_per_block), adapt_cuda(this->ph->ptc_id()),
-      adapt_cuda(*(this->rng_states)), *m_rad_policy, this->m_tracked_fraction);
+      adapt_cuda(this->rng_states), *m_rad_policy, this->m_tracked_fraction);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 

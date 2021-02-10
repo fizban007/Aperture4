@@ -18,6 +18,8 @@
 #ifndef __DATA_ADAPTER_H_
 #define __DATA_ADAPTER_H_
 
+#include "utils/nonown_ptr.hpp"
+
 namespace Aperture {
 
 template <typename T>
@@ -28,9 +30,7 @@ struct cuda_adapter {
   // static type apply(T& t) {
   //   return t;
   // }
-  static const_type apply(const T& t) {
-    return t;
-  }
+  static const_type apply(const T& t) { return t; }
 };
 
 template <typename T>
@@ -41,15 +41,25 @@ struct host_adapter {
   // static type apply(T& t) {
   //   return t;
   // }
-  static const_type apply(const T& t) {
-    return t;
-  }
+  static const_type apply(const T& t) { return t; }
 };
+
+template <typename T>
+inline typename cuda_adapter<T>::type
+adapt_cuda(nonown_ptr<T>& t) {
+  return cuda_adapter<T>::apply(*t);
+}
 
 template <typename T>
 inline typename cuda_adapter<T>::type
 adapt_cuda(T& t) {
   return cuda_adapter<T>::apply(t);
+}
+
+template <typename T>
+inline typename cuda_adapter<T>::const_type
+adapt_cuda(const nonown_ptr<T>& t) {
+  return cuda_adapter<T>::apply(*t);
 }
 
 template <typename T>
@@ -60,8 +70,20 @@ adapt_cuda(const T& t) {
 
 template <typename T>
 inline typename host_adapter<T>::type
+adapt_host(nonown_ptr<T>& t) {
+  return host_adapter<T>::apply(*t);
+}
+
+template <typename T>
+inline typename host_adapter<T>::type
 adapt_host(T& t) {
   return host_adapter<T>::apply(t);
+}
+
+template <typename T>
+inline typename host_adapter<T>::const_type
+adapt_host(const nonown_ptr<T>& t) {
+  return host_adapter<T>::apply(*t);
 }
 
 template <typename T>

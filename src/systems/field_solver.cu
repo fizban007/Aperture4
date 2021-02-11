@@ -190,13 +190,13 @@ compute_divs_cu(scalar_field<Conf> &divE, scalar_field<Conf> &divB,
             divB[idx] = fd<Conf>::div(b, idx, st_b, grid);
 
             // Check boundary
-            // if (is_boundary[0] && pos[0] == grid.skirt[0])
+            // if (is_boundary[0] && pos[0] == grid.guard[0])
             //   divE[idx] = divB[idx] = 0.0f;
-            // if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+            // if (is_boundary[1] && pos[0] == grid.dims[0] - grid.guard[0] - 1)
             //   divE[idx] = divB[idx] = 0.0f;
-            // if (is_boundary[2] && pos[1] == grid.skirt[1])
+            // if (is_boundary[2] && pos[1] == grid.guard[1])
             //   divE[idx] = divB[idx] = 0.0f;
-            // if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+            // if (is_boundary[3] && pos[1] == grid.dims[1] - grid.guard[1] - 1)
             //   divE[idx] = divB[idx] = 0.0f;
           }
         }

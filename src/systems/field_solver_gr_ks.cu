@@ -209,7 +209,7 @@ damping_boundary(vector_field<Conf> &E, vector_field<Conf> &B,
         auto ext = grid.extent();
         for (auto n1 :
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
-          // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
+          // for (int i = 0; i < damping_length - grid.guard[0] - 1; i++) {
           for (int i = 0; i < damping_length - 1; i++) {
             int n0 = grid.dims[0] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);

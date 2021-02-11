@@ -20,7 +20,7 @@
 #include "data/multi_array_data.hpp"
 #include "framework/config.h"
 #include "systems/radiative_transfer_cu_impl.hpp"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "utils/util_functions.h"
 
 namespace Aperture {

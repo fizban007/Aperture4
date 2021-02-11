@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,19 +15,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _INITIAL_CONDITION_H_
-#define _INITIAL_CONDITION_H_
+#include "catch.hpp"
+#include "utils/util_functions.h"
+#include <cstdint>
 
-#include "framework/environment.h"
-#include "systems/grid_sph.hpp"
+using namespace Aperture;
 
-namespace Aperture {
+TEST_CASE("Powers of two", "[bitwise]") {
+  REQUIRE(not_power_of_two(8) == false);
+  REQUIRE(not_power_of_two(17) == true);
+  REQUIRE(not_power_of_two(UINT64_MAX) == true);
 
-template <typename Conf>
-void set_initial_condition(sim_environment& env,
-                           const grid_sph_t<Conf>& grid, int mult,
-                           double weight);
+  REQUIRE(is_power_of_two(64) == true);
+  REQUIRE(is_power_of_two(INT32_MAX) == false);
+  REQUIRE(is_power_of_two(65536) == true);
 
+  REQUIRE(next_power_of_two(54) == 64);
+  REQUIRE(next_power_of_two(32167) == 32768);
 }
-
-#endif  // _INITIAL_CONDITION_H_

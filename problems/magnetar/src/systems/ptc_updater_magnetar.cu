@@ -18,7 +18,7 @@
 #include "data/curand_states.h"
 #include "framework/config.h"
 #include "ptc_updater_magnetar.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/gravity.hpp"
 #include "systems/physics/sync_cooling.hpp"

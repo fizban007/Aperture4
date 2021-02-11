@@ -20,7 +20,7 @@
 #include "framework/environment.h"
 #include "ptc_injector_mult.h"
 #include "systems/grid_curv.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"

@@ -83,8 +83,8 @@ TEST_CASE("setting initial value from a function", "[fields]") {
 
   for (int i = 0; i < 2; i++) {
     g2.dims[i] = 256;
+    g2.N[i] = 252;
     g2.guard[i] = 2;
-    g2.skirt[i] = 2;
     g2.sizes[i] = 1.0;
     g2.lower[i] = 0.0;
     g2.delta[i] = g2.sizes[i] / g2.reduced_dim(i);
@@ -111,8 +111,8 @@ TEST_CASE("Resampling field 1D", "[fields]") {
   Conf::grid_t grid;
   for (int i = 0; i < 1; i++) {
     grid.dims[i] = 256;
+    grid.N[i] = 252;
     grid.guard[i] = 2;
-    grid.skirt[i] = 2;
     grid.sizes[i] = 1.0;
     grid.lower[i] = 0.0;
     grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
@@ -137,16 +137,20 @@ TEST_CASE("Resampling field 1D", "[fields]") {
 
 TEST_CASE("Resampling field 2D", "[fields]") {
   using Conf = Config<2, float>;
-  Conf::grid_t grid;
-  for (int i = 0; i < 2; i++) {
-    grid.dims[i] = 36;
-    grid.guard[i] = 2;
-    grid.skirt[i] = 2;
-    grid.sizes[i] = 1.0;
-    grid.lower[i] = 0.0;
-    grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
-    grid.inv_delta[i] = 1.0 / grid.delta[i];
-  }
+  Conf::grid_t grid = Conf::make_grid({32, 32}, {2, 2}, {1.0, 1.0}, {0.0, 0.0});
+  // for (int i = 0; i < 2; i++) {
+  //   grid.dims[i] = 36;
+  //   grid.N[i] = 32;
+  //   grid.guard[i] = 2;
+  //   grid.sizes[i] = 1.0;
+  //   grid.lower[i] = 0.0;
+  //   grid.delta[i] = grid.sizes[i] / grid.reduced_dim(i);
+  //   grid.inv_delta[i] = 1.0 / grid.delta[i];
+  // }
+  REQUIRE(grid.dims[0] == 36);
+  REQUIRE(grid.dims[1] == 36);
+  REQUIRE(grid.sizes[1] == Approx(1.0));
+
   vector_field<Conf> f(grid, field_type::cell_centered, MemType::host_only);
   vector_field<Conf> f2(grid, field_type::vert_centered, MemType::host_only);
   f.set_values(1, [](Scalar x1, Scalar x2, Scalar x3) {

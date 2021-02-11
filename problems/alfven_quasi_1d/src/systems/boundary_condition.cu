@@ -85,7 +85,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
 
           auto idx = typename Conf::idx_t(c, ext);
           auto pos = idx.get_pos();
-          if (pos[0] == grid.skirt[0]) {
+          if (pos[0] == grid.guard[0]) {
             auto flag = ptc.flag[n];
             auto sp = get_ptc_type(flag);
 
@@ -107,11 +107,11 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
                                    auto num_inj, auto states) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
-        int inj_n0 = grid.skirt[0];
+        int inj_n0 = grid.guard[0];
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         cuda_rng_t rng(&states[id]);
         for (auto n1 :
-             grid_stride_range(grid.skirt[1], grid.dims[1] - grid.skirt[1])) {
+             grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
           size_t offset = ptc_num + n1 * num_inj * 2;
           auto pos = index_t<Conf::dim>(inj_n0, n1);
           auto cell_x2 = grid.template pos<1>(n1, false);

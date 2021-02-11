@@ -2,6 +2,7 @@ add_custom_target(check)
 
 add_executable(tests "test.cpp")
 target_sources(tests PUBLIC
+  "test_util_functions.cpp"
   "test_buffer.cpp"
   "test_particles.cpp"
   "test_multi_array.cpp"

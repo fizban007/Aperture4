@@ -335,7 +335,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
       [ext, damping_length, damping_coef] __device__(auto e, auto b) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
+          // for (int i = 0; i < damping_length - grid.guard[0] - 1; i++) {
           for (int i = 0; i < damping_length - 1; i++) {
             int n0 = grid.dims[0] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
@@ -387,13 +387,13 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                  b[1][idx_py] * gp.Ab[1][idx_py] - b[1][idx] * gp.Ab[1][idx]) /
                 (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
 
-            if (is_boundary[0] && pos[0] == grid.skirt[0])
+            if (is_boundary[0] && pos[0] == grid.guard[0])
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.guard[0] - 1)
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[2] && pos[1] == grid.skirt[1])
+            if (is_boundary[2] && pos[1] == grid.guard[1])
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.guard[1] - 1)
               divE[idx] = divB[idx] = 0.0f;
           }
         }

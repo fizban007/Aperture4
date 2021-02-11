@@ -46,11 +46,11 @@ filter(typename Conf::multi_array_t& result, typename Conf::multi_array_t& f,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             int dx_plus = 1, dx_minus = 1, dy_plus = 1, dy_minus = 1;
-            if (is_boundary[0] && pos[0] == grid.skirt[0]) dx_minus = 0;
-            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+            if (is_boundary[0] && pos[0] == grid.guard[0]) dx_minus = 0;
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.guard[0] - 1)
               dx_plus = 0;
-            if (is_boundary[2] && pos[1] == grid.skirt[1]) dy_minus = 0;
-            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+            if (is_boundary[2] && pos[1] == grid.guard[1]) dy_minus = 0;
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.guard[1] - 1)
               dy_plus = 0;
             result[idx] = 0.25f * f[idx];
             auto idx_px = idx.inc_x(dx_plus);

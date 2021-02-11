@@ -30,18 +30,19 @@ namespace Aperture {
 template <int Dim, typename value_t>
 struct Grid {
   uint32_t dims[Dim];  //!< Dimensions of the grid of each direction
+  uint32_t N[Dim];     //!< Physical dim of the grid of each direction
   int guard[Dim];      //!< Number of guard cells at either end of each
                        //!< direction
-  int skirt[Dim];
 
   value_t delta[Dim];  //!< Grid spacing on each direction (spacing in
                        //!< coordinate space)
   value_t inv_delta[Dim];
+
   value_t lower[Dim];  //!< Lower limit of the grid on each direction
   value_t sizes[Dim];  //!< Size of the grid in coordinate space
 
-  // int tileSize[Dim];
-  int offset[Dim];
+  int offset[Dim];  //!< The offset of this grid in the global domain
+                    //!< decomposition
 
   HOST_DEVICE Grid() = default;
   HOST_DEVICE Grid(const Grid& grid) = default;
@@ -53,13 +54,15 @@ struct Grid {
   ///  Reduced dimension means the total size of the grid minus the
   ///  guard cells in both ends. This function is only defined for N >=
   ///  0 and N < Dim.
-  template <int N>
-      HD_INLINE std::enable_if_t < N<Dim, uint32_t> reduced_dim() const {
-    return (dims[N] - 2 * skirt[N]);
+  template <int n>
+      HD_INLINE std::enable_if_t<n < Dim, uint32_t> reduced_dim() const {
+    // return (dims[N] - 2 * guard[N]);
+    return N[n];
   }
 
   HD_INLINE uint32_t reduced_dim(int i) const {
-    return (dims[i] - 2 * skirt[i]);
+    // return (dims[i] - 2 * guard[i]);
+    return N[i];
   }
 
   ///  Coordinate of a point inside cell n in dimension N.
@@ -70,11 +73,11 @@ struct Grid {
   ///
   ///  This calculation is assuming boundary located at the interface
   ///  between guard cells and physical cells. The function is only
-  ///  defined for N >= 0 and N < Dim.
-  template <int N>
+  ///  defined for n >= 0 and n < Dim.
+  template <int n>
       HD_INLINE std::enable_if_t <
-      N<Dim, value_t> pos(int n, bool stagger) const {
-    return pos<N>(n, (int)stagger);
+      n<Dim, value_t> pos(int i, bool stagger) const {
+    return pos<n>(i, (int)stagger);
   }
 
   ///  Coordinate of a point inside cell n in dimension i.
@@ -86,10 +89,10 @@ struct Grid {
   ///  This calculation is assuming boundary located at the interface
   ///  between guard cells and physical cells. The function is only
   ///  defined for N >= 0 and N < DIM.
-  template <int N>
+  template <int n>
       HD_INLINE std::enable_if_t <
-      N<Dim, value_t> pos(int n, int stagger) const {
-    return pos<N>(n, (value_t)(0.5 - 0.5 * stagger));
+      n<Dim, value_t> pos(int i, int stagger) const {
+    return pos<n>(i, (value_t)(0.5 - 0.5 * stagger));
   }
 
   ///  Coordinate of a point inside cell n in dimension i.
@@ -101,60 +104,60 @@ struct Grid {
   ///  between guard cells and physical cells. The function is only
   ///  defined for N >= 0 and N < Dim. When N >= Dim, it simply returns
   ///  pos_in_cell
-  template <int N>
+  template <int n>
       HD_INLINE std::enable_if_t <
-      N<Dim, value_t> pos(int n, float pos_in_cell) const {
-    return (lower[N] + delta[N] * (n - skirt[N] + pos_in_cell));
+      n<Dim, value_t> pos(int i, float pos_in_cell) const {
+    return (lower[n] + delta[n] * (i - guard[n] + pos_in_cell));
   }
 
-  template <int N>
+  template <int n>
       HD_INLINE std::enable_if_t <
-      N<Dim, value_t> pos(int n, double pos_in_cell) const {
-    return (lower[N] + delta[N] * (n - skirt[N] + pos_in_cell));
+      n<Dim, value_t> pos(int i, double pos_in_cell) const {
+    return (lower[n] + delta[n] * (i - guard[n] + pos_in_cell));
   }
 
-  template <int N>
-  HD_INLINE std::enable_if_t<N >= Dim, value_t> pos(int n,
+  template <int n>
+  HD_INLINE std::enable_if_t<n >= Dim, value_t> pos(int i,
                                                     float pos_in_cell) const {
     return pos_in_cell;
   }
 
-  template <int N>
-  HD_INLINE std::enable_if_t<N >= Dim, value_t> pos(int n,
+  template <int n>
+  HD_INLINE std::enable_if_t<n >= Dim, value_t> pos(int i,
                                                     double pos_in_cell) const {
     return pos_in_cell;
   }
 
-  HD_INLINE value_t pos(int i, int32_t n, double pos_in_cell) const {
-    if (i < Dim)
-      return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
+  HD_INLINE value_t pos(int dir, int32_t i, double pos_in_cell) const {
+    if (dir < Dim)
+      return lower[dir] + delta[dir] * (i - guard[dir] + pos_in_cell);
     else
       return pos_in_cell;
   }
 
-  HD_INLINE value_t pos(int i, int32_t n, float pos_in_cell) const {
-    if (i < Dim)
-      return lower[i] + delta[i] * (n - skirt[i] + pos_in_cell);
+  HD_INLINE value_t pos(int dir, int32_t i, float pos_in_cell) const {
+    if (dir < Dim)
+      return lower[dir] + delta[dir] * (i - guard[dir] + pos_in_cell);
     else
       return pos_in_cell;
   }
 
-  HD_INLINE value_t pos(int i, int32_t n, int stagger) const {
-    return pos(i, n, (value_t)(0.5 - 0.5 * stagger));
+  HD_INLINE value_t pos(int dir, int32_t n, int stagger) const {
+    return pos(dir, n, (value_t)(0.5 - 0.5 * stagger));
   }
 
-  HD_INLINE value_t pos(int i, int32_t n, bool stagger) const {
-    return pos(i, n, (int)stagger);
+  HD_INLINE value_t pos(int dir, int32_t n, bool stagger) const {
+    return pos(dir, n, (int)stagger);
   }
 
-  template <int N>
+  template <int n>
   HD_INLINE value_t pos(const index_t<Dim>& idx, value_t pos_in_cell) const {
-    return pos<N>(idx[N], pos_in_cell);
+    return pos<n>(idx[n], pos_in_cell);
   }
 
-  template <int N>
+  template <int n>
   HD_INLINE value_t pos(const index_t<Dim>& idx, stagger_t st) const {
-    return pos<N>(idx[N], st[N]);
+    return pos<n>(idx[n], st[n]);
   }
 
   // template <typename value_t = Scalar>
@@ -186,7 +189,7 @@ struct Grid {
     auto ext = extent_t<Dim>{};
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      z[i] = (pos[i] >= skirt[i]) + (pos[i] >= (dims[i] - skirt[i]));
+      z[i] = (pos[i] >= guard[i]) + (pos[i] >= (dims[i] - guard[i]));
       ext[i] = 3;
     }
     ext.get_strides();
@@ -199,7 +202,7 @@ struct Grid {
   HD_INLINE bool is_in_bound(const index_t<Dim>& idx) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      if (idx[i] < skirt[i] || idx[i] >= dims[i] - skirt[i]) return false;
+      if (idx[i] < guard[i] || idx[i] >= N[i] + guard[i]) return false;
     }
     return true;
   }
@@ -237,28 +240,28 @@ struct Grid {
   }
 
   HD_INLINE extent_t<Dim> extent_less() const {
-    extent_t<Dim> result;
-#pragma unroll
-    for (int i = 0; i < Dim; i++) result[i] = reduced_dim(i);
+    extent_t<Dim> result(N);
+// #pragma unroll
+//     for (int i = 0; i < Dim; i++) result[i] = reduced_dim(i);
     result.get_strides();
     return result;
   }
 
   HD_INLINE index_t<Dim> guards() const {
-    index_t<Dim> result;
-#pragma unroll
-    for (int i = 0; i < Dim; i++) {
-      result[i] = guard[i];
-    }
+    index_t<Dim> result(guard);
+// #pragma unroll
+//     for (int i = 0; i < Dim; i++) {
+//       result[i] = guard[i];
+//     }
     return result;
   }
 
   HD_INLINE index_t<Dim> offsets() const {
-    index_t<Dim> result;
-#pragma unroll
-    for (int i = 0; i < Dim; i++) {
-      result[i] = offset[i];
-    }
+    index_t<Dim> result(offset);
+// #pragma unroll
+//     for (int i = 0; i < Dim; i++) {
+//       result[i] = offset[i];
+//     }
     return result;
   }
 
@@ -271,6 +274,25 @@ struct Grid {
     return result;
   }
 };
+
+template <int Dim, typename value_t>
+Grid<Dim, value_t> make_grid(const vec_t<uint32_t, Dim>& N,
+                             const vec_t<uint32_t, Dim>& guard,
+                             const vec_t<value_t, Dim>& sizes,
+                             const vec_t<value_t, Dim>& lower) {
+  Grid<Dim, value_t> grid;
+  for (int i = 0; i < Dim; i++) {
+    grid.N[i] = N[i];
+    grid.guard[i] = guard[i];
+    grid.dims[i] = N[i] + 2 * guard[i];
+    grid.sizes[i] = sizes[i];
+    grid.lower[i] = lower[i];
+    grid.delta[i] = sizes[i] / N[i];
+    grid.inv_delta[i] = 1.0 / grid.delta[i];
+    grid.offset[i] = 0;
+  }
+  return grid;
+}
 
 }  // namespace Aperture
 

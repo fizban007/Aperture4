@@ -19,7 +19,7 @@
 #define _PTC_UPDATER_SPH_H_
 
 #include "ptc_updater_old.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 
 namespace Aperture {
 

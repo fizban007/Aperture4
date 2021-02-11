@@ -86,6 +86,14 @@ class Config {
     return multi_array_t(ext, type);
   }
 
+  /// Construct and return a grid object
+  static Grid<Dim, FloatT> make_grid(const vec_t<uint32_t, Dim>& N,
+                                     const vec_t<uint32_t, Dim>& guard,
+                                     const vec_t<value_t, Dim>& sizes,
+                                     const vec_t<value_t, Dim>& lower) {
+    return Aperture::make_grid(N, guard, sizes, lower);
+  }
+
   /// Make an idx object from a linear position and an extent.
   /**
    * \param n    The linear index in memory

@@ -17,7 +17,7 @@
 
 #include "boundary_condition.h"
 #include "framework/config.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -57,14 +57,14 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         value_t theta_s = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, true));
 
         // For quantities that are not continuous across the surface
-        for (int n0 = 0; n0 < grid.skirt[0]; n0++) {
+        for (int n0 = 0; n0 < grid.guard[0]; n0++) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
           e[0][idx] = 0.0;
           b[1][idx] = 0.0;
           b[2][idx] = 0.0;
         }
         // For quantities that are continuous across the surface
-        for (int n0 = 0; n0 < grid.skirt[0] + 1; n0++) {
+        for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
           value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, false));
           value_t r_s = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, true));

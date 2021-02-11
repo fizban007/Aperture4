@@ -25,7 +25,7 @@
 #include "data/data_array.hpp"
 #include "data/fields.h"
 #include "framework/environment.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"

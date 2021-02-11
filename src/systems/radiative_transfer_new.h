@@ -77,6 +77,7 @@ class radiative_transfer : public radiative_transfer_base<Conf> {
                      const domain_comm<Conf>* comm = nullptr);
   ~radiative_transfer();
 
+  virtual void init() override;
   virtual void register_data_components() override;
 
   virtual void emit_photons(double dt) override;

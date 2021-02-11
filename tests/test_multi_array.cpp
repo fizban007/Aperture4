@@ -187,7 +187,7 @@ TEST_CASE("Initialize and Using multi_array", "[multi_array]") {
 
   SECTION("Index manipulation, col major") {
     auto ext = extent(10, 20, 30, 40);
-    multi_array<float, 4>::idx_t idx(index(0, 0, 0, 0), ext);
+    multi_array<float, 4, idx_col_major_t<4>>::idx_t idx(index(0, 0, 0, 0), ext);
 
     REQUIRE(idx.linear == 0);
     // REQUIRE(idx.strides[0] == 1);

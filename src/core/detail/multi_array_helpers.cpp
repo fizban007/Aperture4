@@ -69,74 +69,45 @@ copy(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   }
 }
 
-template void resample(const multi_array<float, 1>&, multi_array<float, 1>&,
-                       const index_t<1>&, const index_t<1>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<float, 2>&, multi_array<float, 2>&,
-                       const index_t<2>&, const index_t<2>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<float, 3>&, multi_array<float, 3>&,
-                       const index_t<3>&, const index_t<3>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 1>&, multi_array<float, 1>&,
-                       const index_t<1>&, const index_t<1>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 2>&, multi_array<float, 2>&,
-                       const index_t<2>&, const index_t<2>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 3>&, multi_array<float, 3>&,
-                       const index_t<3>&, const index_t<3>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 1>&, multi_array<double, 1>&,
-                       const index_t<1>&, const index_t<1>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 2>&, multi_array<double, 2>&,
-                       const index_t<2>&, const index_t<2>&, stagger_t,
-                       stagger_t, int);
-template void resample(const multi_array<double, 3>&, multi_array<double, 3>&,
-                       const index_t<3>&, const index_t<3>&, stagger_t,
-                       stagger_t, int);
+#define INSTANTIATE_RESAMPLE_DIM(type1, type2, dim)                     \
+  template void resample(const multi_array<type1, dim>&,                \
+                         multi_array<type2, dim>&, const index_t<dim>&, \
+                         const index_t<dim>&, stagger_t, stagger_t, int)
 
-template void add(multi_array<float, 1>& dst, const multi_array<float, 1>& src,
-                  const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                  const extent_t<1>& ext, float scale);
-template void add(multi_array<float, 2>& dst, const multi_array<float, 2>& src,
-                  const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                  const extent_t<2>& ext, float scale);
-template void add(multi_array<float, 3>& dst, const multi_array<float, 3>& src,
-                  const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                  const extent_t<3>& ext, float scale);
-template void add(multi_array<double, 1>& dst,
-                  const multi_array<double, 1>& src, const index_t<1>& dst_pos,
-                  const index_t<1>& src_pos, const extent_t<1>& ext,
-                  double scale);
-template void add(multi_array<double, 2>& dst,
-                  const multi_array<double, 2>& src, const index_t<2>& dst_pos,
-                  const index_t<2>& src_pos, const extent_t<2>& ext,
-                  double scale);
-template void add(multi_array<double, 3>& dst,
-                  const multi_array<double, 3>& src, const index_t<3>& dst_pos,
-                  const index_t<3>& src_pos, const extent_t<3>& ext,
-                  double scale);
+#define INSTANTIATE_RESAMPLE(type1, type2)   \
+  INSTANTIATE_RESAMPLE_DIM(type1, type2, 1); \
+  INSTANTIATE_RESAMPLE_DIM(type1, type2, 2); \
+  INSTANTIATE_RESAMPLE_DIM(type1, type2, 3)
 
-template void copy(multi_array<float, 1>& dst, const multi_array<float, 1>& src,
-                   const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                   const extent_t<1>& ext);
-template void copy(multi_array<float, 2>& dst, const multi_array<float, 2>& src,
-                   const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                   const extent_t<2>& ext);
-template void copy(multi_array<float, 3>& dst, const multi_array<float, 3>& src,
-                   const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                   const extent_t<3>& ext);
-template void copy(multi_array<double, 1>& dst,
-                   const multi_array<double, 1>& src, const index_t<1>& dst_pos,
-                   const index_t<1>& src_pos, const extent_t<1>& ext);
-template void copy(multi_array<double, 2>& dst,
-                   const multi_array<double, 2>& src, const index_t<2>& dst_pos,
-                   const index_t<2>& src_pos, const extent_t<2>& ext);
-template void copy(multi_array<double, 3>& dst,
-                   const multi_array<double, 3>& src, const index_t<3>& dst_pos,
-                   const index_t<3>& src_pos, const extent_t<3>& ext);
+INSTANTIATE_RESAMPLE(float, float);
+INSTANTIATE_RESAMPLE(float, double);
+INSTANTIATE_RESAMPLE(double, float);
+
+#define INSTANTIATE_ADD(type, dim)                                            \
+  template void add(multi_array<type, dim>& dst,                              \
+                    const multi_array<type, dim>& src,                        \
+                    const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
+                    const extent_t<dim>& ext, type scale)
+
+INSTANTIATE_ADD(float, 1);
+INSTANTIATE_ADD(float, 2);
+INSTANTIATE_ADD(float, 3);
+INSTANTIATE_ADD(double, 1);
+INSTANTIATE_ADD(double, 2);
+INSTANTIATE_ADD(double, 3);
+
+#define INSTANTIATE_COPY(type, dim)                                            \
+  template void copy(multi_array<type, dim>& dst,                              \
+                     const multi_array<type, dim>& src,                        \
+                     const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
+                     const extent_t<dim>& ext)
+
+INSTANTIATE_COPY(float, 1);
+INSTANTIATE_COPY(float, 2);
+INSTANTIATE_COPY(float, 3);
+INSTANTIATE_COPY(double, 1);
+INSTANTIATE_COPY(double, 2);
+INSTANTIATE_COPY(double, 3);
 
 #ifndef CUDA_ENABLED
 template <typename T, int Rank>
@@ -169,47 +140,59 @@ template void resample_dev(const multi_array<float, 3>&, multi_array<float, 3>&,
                            stagger_t, int, const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 1>&,
                            multi_array<float, 1>&, const index_t<1>&,
-                           const index_t<1>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<1>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 2>&,
                            multi_array<float, 2>&, const index_t<2>&,
-                           const index_t<2>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<2>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 3>&,
                            multi_array<float, 3>&, const index_t<3>&,
-                           const index_t<3>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<3>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 1>&,
                            multi_array<double, 1>&, const index_t<1>&,
-                           const index_t<1>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<1>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 2>&,
                            multi_array<double, 2>&, const index_t<2>&,
-                           const index_t<2>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<2>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 template void resample_dev(const multi_array<double, 3>&,
                            multi_array<double, 3>&, const index_t<3>&,
-                           const index_t<3>&, stagger_t, stagger_t, int, const cudaStream_t* stream);
+                           const index_t<3>&, stagger_t, stagger_t, int,
+                           const cudaStream_t* stream);
 
 template void add_dev(multi_array<float, 1>& dst,
                       const multi_array<float, 1>& src,
                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, float scale, const cudaStream_t* stream);
+                      const extent_t<1>& ext, float scale,
+                      const cudaStream_t* stream);
 template void add_dev(multi_array<float, 2>& dst,
                       const multi_array<float, 2>& src,
                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, float scale, const cudaStream_t* stream);
+                      const extent_t<2>& ext, float scale,
+                      const cudaStream_t* stream);
 template void add_dev(multi_array<float, 3>& dst,
                       const multi_array<float, 3>& src,
                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, float scale, const cudaStream_t* stream);
+                      const extent_t<3>& ext, float scale,
+                      const cudaStream_t* stream);
 template void add_dev(multi_array<double, 1>& dst,
                       const multi_array<double, 1>& src,
                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, double scale, const cudaStream_t* stream);
+                      const extent_t<1>& ext, double scale,
+                      const cudaStream_t* stream);
 template void add_dev(multi_array<double, 2>& dst,
                       const multi_array<double, 2>& src,
                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, double scale, const cudaStream_t* stream);
+                      const extent_t<2>& ext, double scale,
+                      const cudaStream_t* stream);
 template void add_dev(multi_array<double, 3>& dst,
                       const multi_array<double, 3>& src,
                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, double scale, const cudaStream_t* stream);
+                      const extent_t<3>& ext, double scale,
+                      const cudaStream_t* stream);
 
 template void copy_dev(multi_array<float, 1>& dst,
                        const multi_array<float, 1>& src,

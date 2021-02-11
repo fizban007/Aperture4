@@ -50,10 +50,11 @@ class coord_policy_cartesian {
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   // Inline functions to be called in the particle update loop
-  template <typename PtcContext, typename UIntT, typename FloatT>
+  template <typename PtcContext, typename UIntT>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context,
-                            vec_t<UIntT, Conf::dim>& pos, FloatT q_over_m,
+                            vec_t<UIntT, Conf::dim>& pos,
+                            // FloatT q_over_m,
                             value_t dt) const {
 #ifndef USE_SIMD
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
@@ -62,7 +63,7 @@ class coord_policy_cartesian {
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * q_over_m * 0.5f, FloatT(dt));
+             context.B[1], context.B[2], dt * context.q / context.m * 0.5f, decltype(context.q)(dt));
 #ifndef USE_SIMD
     }
 #endif

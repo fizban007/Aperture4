@@ -44,6 +44,8 @@ struct ptc_context {
   UIntType flag;
   FloatType weight;
   UIntType sp;
+  FloatType q;
+  FloatType m;
 
   vec_t<FloatType, 3> E;
   vec_t<FloatType, 3> B;

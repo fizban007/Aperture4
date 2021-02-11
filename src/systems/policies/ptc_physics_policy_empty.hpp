@@ -15,35 +15,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __POLICIES_H_
-#define __POLICIES_H_
+#ifndef __PTC_PHYSICS_POLICY_EMPTY_H_
+#define __PTC_PHYSICS_POLICY_EMPTY_H_
+
+#include "core/cuda_control.h"
+#include "core/grid.hpp"
+#include "utils/vec.hpp"
 
 namespace Aperture {
 
 template <typename Conf>
-class exec_policy_cuda;
+class ptc_physics_policy_empty {
+ public:
+  using value_t = typename Conf::value_t;
 
-template <typename Conf>
-class exec_policy_host;
+  void init(){};
 
-template <typename Conf>
-class exec_policy_openmp;
+  template <typename PtcContext, typename IntT>
+  HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
+                            PtcContext& context, const vec_t<IntT, Conf::dim>& pos,
+                            value_t dt) const {}
+};
 
-template <typename Conf>
-class exec_policy_openmp_simd;
+}  // namespace Aperture
 
-template <typename Conf>
-class coord_policy_cartesian;
-
-template <typename Conf>
-class coord_policy_spherical;
-
-template <typename Conf>
-class coord_policy_gr_ks_sph;
-
-template <typename Conf>
-class ptc_physics_policy_empty;
-
-}
-
-#endif // __POLICIES_H_
+#endif  // __PTC_PHYSICS_POLICY_EMPTY_H_

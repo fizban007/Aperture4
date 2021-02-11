@@ -99,6 +99,8 @@ void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::init() {
   sim_env().get_data_optional("photons", ph);
   sim_env().get_data_optional("Rho_ph", rho_ph);
+
+  m_phys_policy->init();
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -205,21 +207,22 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   auto charges = m_charges;
   auto masses = m_masses;
   auto coord_policy = *m_coord_policy;
+  auto phys_policy = *m_phys_policy;
   bool deposit_rho = (step % rho_interval == 0);
 
   // Main particle update loop
   ExecPolicy<Conf>::launch(
-      [begin, end, dt, rho_interval, deposit_rho, charges, masses,
-       coord_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho) {
+      [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
+       phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(
             begin, end,
-            [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
-             interp] LAMBDA(auto n, auto& ptc, auto& E, auto& B, auto& J,
-                            auto& Rho, auto& grid) {
+            [&ext, &charges, &masses, &coord_policy, dt,
+             deposit_rho, interp] LAMBDA(auto n, auto& ptc, auto& E, auto& B,
+                                         auto& J, auto& Rho, auto& grid, auto& phys_policy) {
               ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
               context.cell = ptc.cell[n];
               if (context.cell == empty_cell) return;
@@ -233,6 +236,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               context.flag = ptc.flag[n];
               context.sp = get_ptc_type(context.flag);
               context.weight = charges[context.sp] * ptc.weight[n];
+              context.q = charges[context.sp];
+              context.m = masses[context.sp];
 
               // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
               // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
@@ -260,8 +265,10 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
 
               auto pos = get_pos(idx, ext);
               coord_policy.update_ptc(grid, context, pos,
-                                      charges[context.sp] / masses[context.sp],
+                                      // charges[context.sp] / masses[context.sp],
                                       dt);
+
+              phys_policy(grid, context, pos, dt);
 
               ptc.p1[n] = context.p[0];
               ptc.p2[n] = context.p[1];
@@ -277,7 +284,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               // ptc.cell[n] = Conf::idx(pos, ext).linear;
               ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
             },
-            ptc, E, B, J, Rho, grid);
+            ptc, E, B, J, Rho, grid, phys_policy);
       },
       *ptc, *E, *B, *J, Rho);
   ExecPolicy<Conf>::sync();

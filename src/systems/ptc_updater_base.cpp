@@ -16,6 +16,7 @@
  */
 
 #include "framework/config.h"
+#include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/exec_policy_host.hpp"

@@ -79,13 +79,13 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
 
               context.flag.load(ptc.flag + n);
               context.sp = get_ptc_type(context.flag);
+              context.q =
+                  lookup<simd::vec_width>(context.sp, charges.data());
+              context.m =
+                  lookup<simd::vec_width>(context.sp, masses.data());
 
               context.weight.load(ptc.weight + n);
-              simd::Vec_f_t qs =
-                  lookup<simd::vec_width>(context.sp, charges.data());
-              simd::Vec_f_t ms =
-                  lookup<simd::vec_width>(context.sp, masses.data());
-              context.weight *= qs;
+              context.weight *= context.q;
 
               context.E[0] = interp(E[0].p, context.x, context.cell, ext,
                                     stagger_t(0b110));
@@ -112,7 +112,7 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
               //        context.x[0], context.x[1], context.p[0], context.p[1],
               //        charges[context.sp] / masses[context.sp], dt);
 
-              coord_policy.update_ptc(grid, context, pos, qs / ms, dt);
+              coord_policy.update_ptc(grid, context, pos, dt);
 
               context.p[0].store(&ptc.p1[n]);
               context.p[1].store(&ptc.p2[n]);

@@ -98,6 +98,7 @@ class radiative_transfer<Conf, exec_policy_cuda, CoordPolicy, RadiationPolicy>
                      const domain_comm<Conf>* comm = nullptr);
   ~radiative_transfer();
 
+  virtual void init() override;
   virtual void register_data_components() override;
 
   virtual void emit_photons(double dt) override;

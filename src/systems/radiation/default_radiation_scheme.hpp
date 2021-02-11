@@ -30,7 +30,6 @@ struct default_radiation_scheme : public fixed_photon_path<Conf>,
                                   public threshold_emission {
   void init() {
     fixed_photon_path<Conf>::init();
-    photon_pair_creation<Conf>::init();
     threshold_emission::init();
   }
 };

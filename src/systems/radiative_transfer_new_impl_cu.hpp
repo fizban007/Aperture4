@@ -56,6 +56,14 @@ template <class Conf, template <class> class CoordPolicy,
           template <class> class RadiationPolicy>
 void
 radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
+                   RadiationPolicy>::init() {
+  m_rad_policy->init();
+}
+
+template <class Conf, template <class> class CoordPolicy,
+          template <class> class RadiationPolicy>
+void
+radiative_transfer<Conf, exec_policy_cuda, CoordPolicy,
                    RadiationPolicy>::register_data_components() {
   size_t max_ph_num = 10000;
   sim_env().params().get_value("max_ph_num", max_ph_num);

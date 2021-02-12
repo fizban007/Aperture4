@@ -19,6 +19,7 @@ set(Aperture_src
   "systems/ptc_injector.cpp"
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
+  "systems/inverse_compton.cpp"
   # "systems/radiative_transfer.cpp"
   )
 

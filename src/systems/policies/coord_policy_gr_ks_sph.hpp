@@ -152,11 +152,13 @@ class coord_policy_gr_ks_sph {
   ~coord_policy_gr_ks_sph() = default;
 
   void init() {
-    nonown_ptr<vector_field<Conf>> E = sim_env().get_data("E");
+    nonown_ptr<vector_field<Conf>> E;
+    sim_env().get_data("E", E);
     m_E = E->at(0).cref();
     m_E = E->at(1).cref();
     m_E = E->at(2).cref();
-    nonown_ptr<vector_field<Conf>> B = sim_env().get_data("B");
+    nonown_ptr<vector_field<Conf>> B;
+    sim_env().get_data("B", B);
     m_B = B->at(0).cref();
     m_B = B->at(1).cref();
     m_B = B->at(2).cref();

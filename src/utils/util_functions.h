@@ -55,10 +55,11 @@ sgn(T val) {
 
 template <typename T, typename U>
 HD_INLINE T
-clamp(T val, U a, U b) {
+clamp(T val, U a, type_identity_t<U> b) {
   return std::max(T(a), std::min(T(b), val));
 }
 
+// Flag manipulation functions
 template <typename Flag>
 HD_INLINE bool
 check_flag(uint32_t flag, Flag bit) {

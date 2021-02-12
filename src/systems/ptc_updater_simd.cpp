@@ -112,7 +112,7 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
               //        context.x[0], context.x[1], context.p[0], context.p[1],
               //        charges[context.sp] / masses[context.sp], dt);
 
-              coord_policy.update_ptc(grid, context, pos, dt);
+              coord_policy.update_ptc(grid, ext, context, pos, dt);
 
               context.p[0].store(&ptc.p1[n]);
               context.p[1].store(&ptc.p2[n]);
@@ -128,6 +128,7 @@ ptc_updater_simd<Conf, CoordPolicy, PhysicsPolicy>::update_particles(
               context.new_x[0].store(&ptc.x1[n]);
               context.new_x[1].store(&ptc.x2[n]);
               context.new_x[2].store(&ptc.x3[n]);
+              // TODO: this assumes col major
               context.cell += context.dc.dot(ext.strides());
               context.cell.store(&ptc.cell[n]);
             },

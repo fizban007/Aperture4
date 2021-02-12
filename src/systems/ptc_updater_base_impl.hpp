@@ -100,6 +100,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::init() {
   sim_env().get_data_optional("photons", ph);
   sim_env().get_data_optional("Rho_ph", rho_ph);
 
+  m_coord_policy->init();
   m_phys_policy->init();
 }
 
@@ -264,8 +265,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               //        charges[context.sp] / masses[context.sp], dt);
 
               auto pos = get_pos(idx, ext);
-              coord_policy.update_ptc(grid, context, pos,
-                                      // charges[context.sp] / masses[context.sp],
+              coord_policy.update_ptc(grid, ext, context, pos,
                                       dt);
 
               phys_policy(grid, context, pos, dt);
@@ -281,8 +281,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               ptc.x1[n] = context.new_x[0];
               ptc.x2[n] = context.new_x[1];
               ptc.x3[n] = context.new_x[2];
-              // ptc.cell[n] = Conf::idx(pos, ext).linear;
-              ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
+              ptc.cell[n] = Conf::idx(pos, ext).linear;
+              // ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
             },
             ptc, E, B, J, Rho, grid, phys_policy);
       },

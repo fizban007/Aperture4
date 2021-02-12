@@ -51,20 +51,22 @@ class coord_policy_spherical {
   HD_INLINE static value_t x2(value_t x) { return grid_sph_t<Conf>::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
+  void init() {}
+
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
+                            const extent_t<Conf::dim>& ext,
                             PtcContext& context,
                             index_t<Conf::dim>& pos,
-                            // value_t q_over_m,
                             value_t dt) const {
-    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * context.q / context.m * 0.5f, dt);
-    // }
+    }
 
     move_ptc(grid, context, pos, dt);
   }
@@ -72,7 +74,7 @@ class coord_policy_spherical {
   // Abstracted moving routine that is shared by both ptc and ph
   template <typename PtcContext>
   HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          PtcContext& context, const index_t<Conf::dim>& pos,
+                          PtcContext& context, index_t<Conf::dim>& pos,
                           value_t dt) const {
     // Global position in sph coord
     vec_t<value_t, 3> x_global_old(grid.template pos<0>(pos[0], context.x[0]),
@@ -111,7 +113,7 @@ class coord_policy_spherical {
           context.x[i] +
           (x_global_sph_new[i] - x_global_old[i]) * grid.inv_delta[i];
       context.dc[i] = std::floor(context.new_x[i]);
-      // pos[i] += context.dc[i];
+      pos[i] += context.dc[i];
       context.new_x[i] -= (value_t)context.dc[i];
     }
 #pragma unroll

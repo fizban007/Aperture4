@@ -49,10 +49,12 @@ class coord_policy_cartesian {
   HD_INLINE static value_t x2(value_t x) { return x; }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
+  void init() {}
+
   // Inline functions to be called in the particle update loop
   template <typename PtcContext, typename UIntT>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
-                            PtcContext& context,
+                            const extent_t<Conf::dim>& ext, PtcContext& context,
                             vec_t<UIntT, Conf::dim>& pos,
                             // FloatT q_over_m,
                             value_t dt) const {
@@ -63,7 +65,8 @@ class coord_policy_cartesian {
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * context.q / context.m * 0.5f, decltype(context.q)(dt));
+             context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+             decltype(context.q)(dt));
 #ifndef USE_SIMD
     }
 #endif
@@ -74,7 +77,7 @@ class coord_policy_cartesian {
   // Abstracted moving routine that is shared by both ptc and ph
   template <typename PtcContext, typename UIntT>
   HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          PtcContext& context, const vec_t<UIntT, Conf::dim>& pos,
+                          PtcContext& context, vec_t<UIntT, Conf::dim>& pos,
                           value_t dt) const {
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {
@@ -89,7 +92,7 @@ class coord_policy_cartesian {
 #else
       context.dc[i] = floor(context.new_x[i]);
 #endif
-      // pos[i] += context.dc[i];
+      pos[i] += context.dc[i];
 #ifdef USE_DOUBLE
       context.new_x[i] -= to_double(context.dc[i]);
 #else

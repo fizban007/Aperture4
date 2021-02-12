@@ -194,6 +194,7 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
+    cref_t() = default;
     cref_t(const multi_array_t& array)
         : m_ptr(array.host_ndptr_const()),
           m_dev_ptr(array.dev_ndptr_const()),
@@ -230,6 +231,7 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
+    ref_t() = default;
     ref_t(multi_array_t& array)
         : m_ptr(array.host_ndptr()),
           m_dev_ptr(array.dev_ndptr()),

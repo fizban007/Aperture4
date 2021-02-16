@@ -25,7 +25,8 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
-#include "systems/legacy/ptc_updater_gr_ks.h"
+// #include "systems/legacy/ptc_updater_gr_ks.h"
+#include "systems/ptc_updater_base.h"
 #include "utils/util_functions.h"
 
 using namespace std;
@@ -53,7 +54,9 @@ main(int argc, char *argv[]) {
 
   // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
   auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid);
-  auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
+  // auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid);
 
@@ -72,6 +75,7 @@ main(int argc, char *argv[]) {
   B->copy_from(*B0);
   D->copy_from(*D0);
 
+  pusher->fill_multiplicity(2, 1.0, 0.1);
   // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
   // index_t<2> pos;
   // vec_t<value_t, 3> x;

@@ -20,6 +20,7 @@
 
 #include "hdf_wrapper.h"
 #include "utils/logger.h"
+#include <type_traits>
 
 namespace Aperture {
 
@@ -42,13 +43,17 @@ H5File::write(T value, const std::string& name) {
   H5Sclose(dataspace_id);
 }
 
-template <typename T, int Dim>
+template <typename T, int Dim, typename Idx_t>
 void
-H5File::write(const multi_array<T, Dim>& array, const std::string& name) {
+H5File::write(const multi_array<T, Dim, Idx_t>& array, const std::string& name) {
   hsize_t dims[Dim];
   for (int i = 0; i < Dim; i++) {
     // TODO: implement a check for row major too
-    dims[i] = array.extent()[Dim - 1 - i];
+    if constexpr (std::is_same_v<Idx_t, idx_col_major_t<Dim>>) {
+      dims[i] = array.extent()[Dim - 1 - i];
+    } else if (std::is_same_v<Idx_t, idx_row_major_t<Dim>>) {
+      dims[i] = array.extent()[i];
+    }
   }
   auto dataspace_id = H5Screate_simple(Dim, dims, NULL);
   auto dataset_id =
@@ -64,6 +69,12 @@ H5File::write(const multi_array<T, Dim>& array, const std::string& name) {
                          H5P_DEFAULT, array.host_ptr());
   H5Dclose(dataset_id);
   H5Sclose(dataspace_id);
+}
+
+template <typename T>
+void
+H5File::write(const buffer<T> &array, const std::string &name) {
+  write(array.host_ptr(), array.size(), name);
 }
 
 template <typename T>
@@ -198,6 +209,7 @@ H5File::read_multi_array(const std::string& name) {
   H5Sget_simple_extent_dims(dataspace, dims, NULL);
 
   for (int i = 0; i < dim; i++) {
+    // TODO: implement a check for row major too
     ext[i] = dims[dim - i - 1];
   }
   // ext.get_strides();

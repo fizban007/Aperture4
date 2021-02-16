@@ -15,10 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/random.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "injector.h"
 #include "systems/physics/metric_kerr_schild.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
@@ -50,14 +52,9 @@ template <typename Conf> void bh_injector<Conf>::init() {
   sim_env().params().get_value("num_species", num_species);
   Rho.resize(num_species);
   for (int i = 0; i < num_species; i++) {
-    sim_env().get_data(std::string("Rho_") + ptc_type_name(i), &Rho[i]);
+    sim_env().get_data(std::string("Rho_") + ptc_type_name(i), Rho[i]);
   }
-  m_rho_ptrs.set_memtype(MemType::host_device);
-  m_rho_ptrs.resize(num_species);
-  for (int i = 0; i < num_species; i++) {
-    m_rho_ptrs[i] = Rho[i]->dev_ndptr();
-  }
-  m_rho_ptrs.copy_to_device();
+  Rho.copy_to_device();
 }
 
 template <typename Conf>
@@ -71,14 +68,13 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   m_num_per_cell.assign_dev(0);
 
   // Measure how many pairs to inject per cell
-  kernel_launch(
+  exec_policy_cuda<Conf>::launch(
       [a, inj_thr, sigma_thr, num_species] __device__(
           auto B, auto D, auto rho, auto num_per_cell, auto states) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
-        int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
+        rng_t rng(states);
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
@@ -116,7 +112,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t sigma = B_sqr / n;
 
             if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr &&
-                rng() < 0.02f) {
+                rng.uniform<float>() < 0.02f) {
               // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
@@ -125,8 +121,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           }
         }
       },
-      B->get_ptrs(), D->get_ptrs(), m_rho_ptrs.dev_ptr(),
-      m_num_per_cell.dev_ndptr(), m_rand_states->states());
+      *B, *D, Rho, m_num_per_cell, m_rand_states);
+      // B->get_ptrs(), D->get_ptrs(), m_rho_ptrs.dev_ptr(),
+      // m_num_per_cell.dev_ndptr(), m_rand_states->states());
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -144,15 +141,15 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   Logger::print_info("{} new pairs are injected in the box!", new_pairs);
 
   auto ptc_num = ptc->number();
-  kernel_launch(
+  // kernel_launch(
+  exec_policy_cuda<Conf>::launch(
       [a, ptc_num, qe] __device__(auto B, auto D, auto ptc, auto num_per_cell,
                                   auto cum_num, auto states) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
 
-        int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
+        rng_t rng(states);
 
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(cell, ext);
@@ -178,8 +175,8 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
 
             for (int i = 0; i < num_per_cell[cell]; i++) {
               int offset = ptc_num + cum_num[cell] * 2 + i * 2;
-              ptc.x1[offset] = ptc.x1[offset + 1] = rng();
-              ptc.x2[offset] = ptc.x2[offset + 1] = rng();
+              ptc.x1[offset] = ptc.x1[offset + 1] = rng.uniform<float>();
+              ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
               // ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
               // ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
               th = grid.template pos<1>(pos[1], ptc.x2[offset]);
@@ -203,9 +200,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           }
         }
       },
-      B->get_const_ptrs(), D->get_const_ptrs(), ptc->get_dev_ptrs(),
-      m_num_per_cell.dev_ndptr_const(), m_cum_num_per_cell.dev_ndptr_const(),
-      m_rand_states->states());
+      *B, *D, *ptc, m_num_per_cell, m_cum_num_per_cell, m_rand_states);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 

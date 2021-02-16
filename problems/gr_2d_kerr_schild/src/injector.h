@@ -20,7 +20,9 @@
 
 #include "data/fields.h"
 #include "data/particle_data.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
+#include "data/rng_states.h"
+#include "data/data_array.hpp"
 #include "framework/system.h"
 #include "systems/grid_ks.h"
 
@@ -46,10 +48,12 @@ class bh_injector : public system_t {
   multi_array<int, Conf::dim> m_num_per_cell;
   multi_array<int, Conf::dim> m_cum_num_per_cell;
 
-  curand_states_t* m_rand_states;
+  // curand_states_t* m_rand_states;
+  rand_state* m_rand_states;
   particle_data_t* ptc;
   vector_field<Conf> *B, *D;
-  std::vector<const scalar_field<Conf>*> Rho;
+  // std::vector<const scalar_field<Conf>*> Rho;
+  data_array<scalar_field<Conf>> Rho;
 
   using rho_ptrs_t = buffer<typename Conf::ndptr_const_t>;
   rho_ptrs_t m_rho_ptrs;

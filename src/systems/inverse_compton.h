@@ -25,18 +25,32 @@
 
 namespace Aperture {
 
-class inverse_compton : public system_t {
+class inverse_compton_t : public system_t {
  public:
   using value_t = Scalar;
   static std::string name() { return "inverse_compton"; }
 
-  inverse_compton();
-  ~inverse_compton();
+  inverse_compton_t();
+  ~inverse_compton_t();
 
   template <typename Spectrum>
-  void compute_coefficients(const Spectrum& n_e, value_t emin, value_t emax, value_t n0);
+  void compute_coefficients(const Spectrum& n_e, value_t emin, value_t emax,
+                            value_t n0);
 
   ic_scatter_t get_ic_module();
+
+  const buffer<value_t>& ic_rate() const { return m_ic_rate; }
+  const buffer<value_t>& gg_rate() const { return m_gg_rate; }
+  const multi_array<value_t, 2, idx_col_major_t<2>>& dNde() const {
+    return m_dNde;
+  }
+  const multi_array<value_t, 2, idx_col_major_t<2>>& dNde_thomson() const {
+    return m_dNde_thomson;
+  }
+  value_t min_ep() const { return m_min_ep; }
+  value_t dgamma() const { return m_dgamma; }
+  value_t dep() const { return m_dep; }
+  value_t dlep() const { return m_dlep; }
 
  private:
   multi_array<value_t, 2, idx_col_major_t<2>> m_dNde;

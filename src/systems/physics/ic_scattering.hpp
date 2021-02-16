@@ -88,6 +88,18 @@ struct ic_scatter_t {
     return gg_rate[n_eph] * (1.0f - x) + gg_rate[n_eph + 1] * x;
   }
 
+  static HD_INLINE value_t gamma(int n, value_t dgamma) {
+    return math::exp(n * dgamma);
+  }
+
+  static HD_INLINE value_t ep(int n, value_t dep) {
+    return n * dep;
+  }
+
+  static HD_INLINE value_t e_log(int n, value_t dloge, value_t min_e) {
+    return min_e * math::exp(n * dloge);
+  }
+
   spec_array_t dNde;
   spec_array_t dNde_thomson;
   value_t* ic_rate;

@@ -77,3 +77,6 @@ add_executable(gr_pusher "test_gr_pusher.cpp")
 target_link_libraries(gr_pusher Aperture)
 
 add_executable(test_omp "test_omp.cpp")
+
+add_executable(test_inverse_compton "test_inverse_compton.cpp")
+target_link_libraries(test_inverse_compton Aperture)

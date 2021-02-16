@@ -27,6 +27,7 @@ namespace Aperture {
 namespace {
 
 constexpr double r_e_square = 7.91402e-26;
+constexpr double sigma_T = 8.0 * M_PI * r_e_square / 3.0;
 
 template <typename Scalar>
 HOST_DEVICE Scalar
@@ -76,7 +77,7 @@ sigma_rest(Scalar ep, Scalar e1p) {
 
 }  // namespace
 
-inverse_compton::inverse_compton() {
+inverse_compton_t::inverse_compton_t() {
   int n_gamma = 512;
   int n_ep = 512;
   constexpr value_t max_gamma = 1.0e12;
@@ -92,12 +93,14 @@ inverse_compton::inverse_compton() {
   auto spec_ext = extent(n_ep, n_gamma);
   m_dNde.resize(spec_ext);
   m_dNde_thomson.resize(spec_ext);
+  m_ic_rate.resize(n_gamma);
+  m_gg_rate.resize(n_gamma);
 }
 
-inverse_compton::~inverse_compton() = default;
+inverse_compton_t::~inverse_compton_t() = default;
 
 ic_scatter_t
-inverse_compton::get_ic_module() {
+inverse_compton_t::get_ic_module() {
   ic_scatter_t result;
   result.dNde = m_dNde.cref();
   result.dNde_thomson = m_dNde_thomson.cref();
@@ -118,7 +121,7 @@ inverse_compton::get_ic_module() {
 
 template <typename Spectrum>
 void
-inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
+inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
                                       value_t emax, value_t n0) {
   // These are the parameters of the cross-section integration
   constexpr int N_mu = 100;
@@ -133,32 +136,35 @@ inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
   double de = (log(emax) - log(emin)) / (N_e - 1.0);
 
   for (uint32_t n = 0; n < m_ic_rate.size(); n++) {
-    // double gamma = m_gammas[n];
-    double gamma = math::exp(m_dgamma * n);
+    // double gamma = math::exp(m_dgamma * n);
+    double gamma = ic_scatter_t::gamma(n, m_dgamma);
+    if (n == 0) gamma = 1.01;
     // Logger::print_info("gamma is {}", gamma);
     double result = 0.0;
     for (int i_mu = 0; i_mu < N_mu; i_mu++) {
       double mu = i_mu * dmu - 1.0;
       for (int i_e = 0; i_e < N_e; i_e++) {
-        double e = exp(log(emin) + i_e * de);
+        // double e = emin * exp(i_e * de);
+        double e = ic_scatter_t::e_log(i_e, de, emin);
         double x = x_ic(gamma, e, mu);
         double sigma = sigma_ic(x);
         result += 0.5f * n_e(e) * sigma * (1.0f - beta(gamma) * mu) * e;
       }
     }
-    m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
+    // m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
+    m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
     if (n % 10 == 0)
       Logger::print_info(
           "IC rate at gamma {} is {}, result is {}, factor is {}", gamma,
           m_ic_rate[n], result,
-          (dmu * de * r_e_square * n0) * 8.0 * M_PI / 3.0);
+          (dmu * de * n0) * sigma_T);
   }
   m_ic_rate.copy_to_device();
 
   Logger::print_info("Pre-calculating the gamma-gamma pair creation rate");
   for (uint32_t n = 0; n < m_gg_rate.size(); n++) {
-    // double eph = m_gammas[n];
-    double eph = math::exp(m_dgamma * n);
+    // double eph = math::exp(m_dgamma * n) + TINY;
+    double eph = ic_scatter_t::gamma(n, m_dgamma);
     if (eph < 2.0) {
       m_gg_rate[n] = 0.0;
     } else {
@@ -166,7 +172,8 @@ inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
       for (int i_mu = 0; i_mu < N_mu; i_mu++) {
         double mu = i_mu * dmu - 1.0;
         for (int i_e = 0; i_e < N_e; i_e++) {
-          double e = exp(log(emin) + i_e * de);
+          // double e = exp(log(emin) + i_e * de);
+          double e = ic_scatter_t::e_log(i_e, de, emin);
           double s = eph * e * (1.0 - mu) * 0.5;
           if (s <= 1.0) continue;
           double b = sqrt(1.0 - 1.0 / s);
@@ -187,13 +194,15 @@ inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
 
   Logger::print_info("Pre-calculating the lab-frame spectrum");
   for (uint32_t n = 0; n < n_gamma; n++) {
-    // double gamma = m_gammas[n];
-    double gamma = math::exp(m_dgamma * n);
+    // double gamma = math::exp(m_dgamma * n);
+    double gamma = ic_scatter_t::gamma(n, m_dgamma);
     for (uint32_t i = 0; i < n_ep; i++) {
-      double e1 = m_dep * i;
+      // double e1 = m_dep * i;
+      double e1 = ic_scatter_t::ep(i, m_dep);
       double result = 0.0;
       for (uint32_t i_e = 0; i_e < N_e; i_e++) {
-        double e = exp(log(emin) + i_e * de);
+        // double e = exp(log(emin) + i_e * de);
+        double e = ic_scatter_t::e_log(i_e, de, emin);
         double ne = n_e(e);
         // if (ne < 1.0e-8) continue;
         double ge = gamma * e * 4.0;
@@ -216,14 +225,15 @@ inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
   Logger::print_info("Finished copying m_dNde to device");
 
   for (uint32_t n = 0; n < n_gamma; n++) {
-    // double gamma = m_gammas[n];
-    double gamma = math::exp(m_dgamma * n);
+    // double gamma = math::exp(m_dgamma * n);
+    double gamma = ic_scatter_t::gamma(n, m_dgamma);
     for (uint32_t i = 0; i < n_ep; i++) {
-      // double e1 = m_log_ep[i];
-      double e1 = m_min_ep * math::exp(m_dlep * i);
+      // double e1 = m_min_ep * math::exp(m_dlep * i);
+      double e1 = ic_scatter_t::e_log(i, m_dlep, m_min_ep);
       double result = 0.0;
       for (uint32_t i_e = 0; i_e < N_e; i_e++) {
-        double e = exp(log(emin) + i_e * de);
+        // double e = exp(log(emin) + i_e * de);
+        double e = ic_scatter_t::e_log(i_e, de, emin);
         double ne = n_e(e);
         // if (ne < 1.0e-8) continue;
         double ge = gamma * e * 4.0;
@@ -245,15 +255,15 @@ inverse_compton::compute_coefficients(const Spectrum& n_e, value_t emin,
   Logger::print_info("Finished copying m_dNde_thomson to device");
 }
 
-template void inverse_compton::compute_coefficients<Spectra::power_law_hard>(
+template void inverse_compton_t::compute_coefficients<Spectra::power_law_hard>(
     const Spectra::power_law_hard& n_e, value_t emin, value_t emax, value_t n0);
-template void inverse_compton::compute_coefficients<Spectra::power_law_soft>(
+template void inverse_compton_t::compute_coefficients<Spectra::power_law_soft>(
     const Spectra::power_law_soft& n_e, value_t emin, value_t emax, value_t n0);
-template void inverse_compton::compute_coefficients<Spectra::black_body>(
+template void inverse_compton_t::compute_coefficients<Spectra::black_body>(
     const Spectra::black_body& n_e, value_t emin, value_t emax, value_t n0);
-template void inverse_compton::compute_coefficients<Spectra::mono_energetic>(
+template void inverse_compton_t::compute_coefficients<Spectra::mono_energetic>(
     const Spectra::mono_energetic& n_e, value_t emin, value_t emax, value_t n0);
-template void inverse_compton::compute_coefficients<Spectra::broken_power_law>(
+template void inverse_compton_t::compute_coefficients<Spectra::broken_power_law>(
     const Spectra::broken_power_law& n_e, value_t emin, value_t emax,
     value_t n0);
 

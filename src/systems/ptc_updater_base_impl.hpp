@@ -211,6 +211,11 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   auto phys_policy = *m_phys_policy;
   bool deposit_rho = (step % rho_interval == 0);
 
+  J->init();
+  for (int i = 0; i < Rho.size(); i++) {
+    Rho[i]->init();
+  }
+
   // Main particle update loop
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,

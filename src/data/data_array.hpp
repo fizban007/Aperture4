@@ -25,9 +25,8 @@
 
 namespace Aperture {
 
-template <typename T>
-class data_array {
- public:
+template <typename T> class data_array {
+public:
 #ifdef CUDA_ENABLED
   typedef typename cuda_adapter<T>::type adapted_type;
 #else
@@ -40,7 +39,7 @@ class data_array {
     m_ptrs.resize(size);
   }
 
-  void set(int i, const nonown_ptr<T>& p) {
+  void set(int i, const nonown_ptr<T> &p) {
     m_data[i] = p;
 #ifdef CUDA_ENABLED
     m_ptrs[i] = cuda_adapter<T>::apply(*p);
@@ -50,49 +49,50 @@ class data_array {
   }
 
   void copy_to_device() {
+    for (int i = 0; i < m_data.size(); i++) {
+#ifdef CUDA_ENABLED
+      m_ptrs[i] = cuda_adapter<T>::apply(*m_data[i]);
+#else
+      m_ptrs[i] = host_adapter<T>::apply(*m_data[i]);
+#endif
+    }
     m_ptrs.copy_to_device();
   }
 
   int size() const { return m_data.size(); }
 
-  nonown_ptr<T>& operator[](int i) { return m_data[i]; }
-  const nonown_ptr<T>& operator[](int i) const { return m_data[i]; }
+  nonown_ptr<T> &operator[](int i) { return m_data[i]; }
+  const nonown_ptr<T> &operator[](int i) const { return m_data[i]; }
 
-  std::vector<nonown_ptr<T>>& data() { return m_data; }
-  const std::vector<nonown_ptr<T>>& data() const { return m_data; }
+  std::vector<nonown_ptr<T>> &data() { return m_data; }
+  const std::vector<nonown_ptr<T>> &data() const { return m_data; }
 
-  adapted_type* dev_ptrs() { return m_ptrs.dev_ptr(); }
-  const adapted_type* dev_ptrs() const { return m_ptrs.dev_ptr(); }
-  adapted_type* host_ptrs() { return m_ptrs.host_ptr(); }
-  const adapted_type* host_ptrs() const { return m_ptrs.host_ptr(); }
+  adapted_type *dev_ptrs() { return m_ptrs.dev_ptr(); }
+  const adapted_type *dev_ptrs() const { return m_ptrs.dev_ptr(); }
+  adapted_type *host_ptrs() { return m_ptrs.host_ptr(); }
+  const adapted_type *host_ptrs() const { return m_ptrs.host_ptr(); }
 
- private:
+private:
   std::vector<nonown_ptr<T>> m_data;
   buffer<adapted_type> m_ptrs;
 };
 
-template <typename T>
-struct host_adapter<data_array<T>> {
-  typedef typename host_adapter<T>::type* type;
+template <typename T> struct host_adapter<data_array<T>> {
+  typedef typename host_adapter<T>::type *type;
 
-  static inline type apply(data_array<T>& array) {
-    return array.host_ptrs();
-  }
+  static inline type apply(data_array<T> &array) { return array.host_ptrs(); }
 };
 
 #ifdef CUDA_ENABLED
 
-template <typename T>
-struct cuda_adapter<data_array<T>> {
-  typedef typename cuda_adapter<T>::type* type;
+template <typename T> struct cuda_adapter<data_array<T>> {
+  typedef typename cuda_adapter<T>::type *type;
 
-  static inline type apply(data_array<T>& array) {
-    return array.dev_ptrs();
-  }
+  static inline type apply(data_array<T> &array) { return array.dev_ptrs(); }
 };
 
 #endif
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // __DATA_ARRAY_H_
+#endif // __DATA_ARRAY_H_

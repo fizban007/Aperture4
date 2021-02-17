@@ -38,8 +38,8 @@ namespace {
 
 template <typename value_t>
 HOST_DEVICE void
-gr_ks_boris_update(value_t a, const vec_t<value_t, 3>& x, vec_t<value_t, 3>& u,
-                   const vec_t<value_t, 3>& B, const vec_t<value_t, 3>& D,
+gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
+                   const vec_t<value_t, 3> &B, const vec_t<value_t, 3> &D,
                    value_t dt, value_t e_over_m) {
   value_t sth = math::sin(x[1]);
   value_t cth = math::cos(x[1]);
@@ -93,8 +93,8 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3>& x, vec_t<value_t, 3>& u,
 
 template <typename value_t>
 HOST_DEVICE void
-gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3>& x,
-                       vec_t<value_t, 3>& u, bool is_photon = false,
+gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
                        int n_iter = 3) {
   vec_t<value_t, 3> x0 = x, x1 = x;
   vec_t<value_t, 3> u0 = u, u1 = u;
@@ -138,15 +138,14 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3>& x,
 //   CudaCheckError();
 // }
 
-}  // namespace
+} // namespace
 
-template <typename Conf>
-class coord_policy_gr_ks_sph {
- public:
+template <typename Conf> class coord_policy_gr_ks_sph {
+public:
   typedef typename Conf::value_t value_t;
 
-  coord_policy_gr_ks_sph(const grid_t<Conf>& grid)
-      : m_grid(dynamic_cast<const grid_ks_t<Conf>&>(grid)) {
+  coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
+      : m_grid(dynamic_cast<const grid_ks_t<Conf> &>(grid)) {
     m_a = m_grid.a;
   }
   ~coord_policy_gr_ks_sph() = default;
@@ -154,14 +153,23 @@ class coord_policy_gr_ks_sph {
   void init() {
     nonown_ptr<vector_field<Conf>> E;
     sim_env().get_data("E", E);
-    m_E = E->at(0).cref();
-    m_E = E->at(1).cref();
-    m_E = E->at(2).cref();
     nonown_ptr<vector_field<Conf>> B;
     sim_env().get_data("B", B);
-    m_B = B->at(0).cref();
-    m_B = B->at(1).cref();
-    m_B = B->at(2).cref();
+#ifdef CUDA_ENABLED
+    m_E[0] = E->at(0).dev_ndptr_const();
+    m_E[1] = E->at(1).dev_ndptr_const();
+    m_E[2] = E->at(2).dev_ndptr_const();
+    m_B[0] = B->at(0).dev_ndptr_const();
+    m_B[1] = B->at(1).dev_ndptr_const();
+    m_B[2] = B->at(2).dev_ndptr_const();
+#else
+    m_E[0] = E->at(0).ndptr_const();
+    m_E[1] = E->at(1).ndptr_const();
+    m_E[2] = E->at(2).ndptr_const();
+    m_B[0] = B->at(0).ndptr_const();
+    m_B[1] = B->at(1).ndptr_const();
+    m_B[2] = B->at(2).ndptr_const();
+#endif
   }
 
   // Static coordinate functions
@@ -176,10 +184,9 @@ class coord_policy_gr_ks_sph {
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
-  HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
-                            const extent_t<Conf::dim>& ext,
-                            PtcContext& context, index_t<Conf::dim>& pos,
-                            value_t dt) const {
+  HD_INLINE void update_ptc(const Grid<Conf::dim, value_t> &grid,
+                            const extent_t<Conf::dim> &ext, PtcContext &context,
+                            index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.pos_global(pos, context.x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
@@ -187,6 +194,8 @@ class coord_policy_gr_ks_sph {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.B, context.E,
                          0.5f * dt, context.q / context.m);
+      // dt, context.q / context.m);
+      // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
 
     move_ptc(grid, context, x_global, pos, dt, false);
@@ -209,10 +218,9 @@ class coord_policy_gr_ks_sph {
 
   // Abstracted moving routine that is shared by both ptc and ph
   template <typename PtcContext>
-  HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
-                          PtcContext& context,
-                          vec_t<value_t, 3>& new_x,
-                          index_t<Conf::dim>& pos, value_t dt,
+  HD_INLINE void move_ptc(const Grid<Conf::dim, value_t> &grid,
+                          PtcContext &context, vec_t<value_t, 3> &new_x,
+                          index_t<Conf::dim> &pos, value_t dt,
                           bool is_photon) const {
     vec_t<value_t, 3> x_global = new_x;
     // Both new_x and u are updated
@@ -242,9 +250,9 @@ class coord_policy_gr_ks_sph {
   }
 
   // Inline functions to be called in the photon update loop
-  HD_INLINE void update_ph(const Grid<Conf::dim, value_t>& grid,
-                           ph_context<Conf::dim, value_t>& context,
-                           index_t<Conf::dim>& pos, value_t dt) const {
+  HD_INLINE void update_ph(const Grid<Conf::dim, value_t> &grid,
+                           ph_context<Conf::dim, value_t> &context,
+                           index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.pos_global(pos, context.x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
@@ -254,20 +262,20 @@ class coord_policy_gr_ks_sph {
 
   // Extra processing routines
   template <typename ExecPolicy>
-  void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
+  void process_J_Rho(vector_field<Conf> &J, data_array<scalar_field<Conf>> &Rho,
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     ExecPolicy::launch(
         [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
                                               auto grid_ptrs) {
-          auto& grid = ExecPolicy::grid();
+          auto &grid = ExecPolicy::grid();
           auto ext = grid.extent();
 
           auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
               [&grid, &ext, num_species, w, process_rho] LAMBDA(
-                  auto idx, auto& j, auto& rho, const auto& grid_ptrs) {
+                  auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
                 auto pos = get_pos(idx, ext);
                 // if (grid.is_in_bound(pos)) {
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
@@ -275,7 +283,7 @@ class coord_policy_gr_ks_sph {
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] *=
-                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                      w / grid_ptrs.Ad[2][idx]; // A_phi is effectively dV
                 }
                 // }
                 typename Conf::value_t theta =
@@ -292,9 +300,9 @@ class coord_policy_gr_ks_sph {
   }
 
   template <typename ExecPolicy>
-  void filter_field(vector_field<Conf>& field,
-                    typename Conf::multi_array_t& tmp,
-                    const vec_t<bool, Conf::dim * 2>& is_boundary) const {
+  void filter_field(vector_field<Conf> &field,
+                    typename Conf::multi_array_t &tmp,
+                    const vec_t<bool, Conf::dim * 2> &is_boundary) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ad[0],
                                        is_boundary);
     filter_field_component<ExecPolicy>(field.at(1), tmp, m_grid.m_Ad[1],
@@ -304,20 +312,22 @@ class coord_policy_gr_ks_sph {
   }
 
   template <typename ExecPolicy>
-  void filter_field(scalar_field<Conf>& field,
-                    typename Conf::multi_array_t& tmp,
-                    const vec_t<bool, Conf::dim * 2>& is_boundary) const {
+  void filter_field(scalar_field<Conf> &field,
+                    typename Conf::multi_array_t &tmp,
+                    const vec_t<bool, Conf::dim * 2> &is_boundary) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ab[2],
                                        is_boundary);
   }
 
- private:
-  const grid_ks_t<Conf>& m_grid;
-  typename Conf::value_t m_a;
-  vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
-  vec_t<typename Conf::multi_array_t::cref_t, 3> m_B;
+private:
+  const grid_ks_t<Conf> &m_grid;
+  value_t m_a;
+  // vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
+  // vec_t<typename Conf::multi_array_t::cref_t, 3> m_B;
+  vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
+  vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
 };
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // __COORD_POLICY_GR_KS_SPH_H_
+#endif // __COORD_POLICY_GR_KS_SPH_H_

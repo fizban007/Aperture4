@@ -51,6 +51,7 @@ data_exporter<Conf>::data_exporter(const grid_t<Conf>& grid,
 
   // Obtain the output grid
   for (int i = 0; i < Conf::dim; i++) {
+    m_output_grid.N[i] = m_grid.reduced_dim(i) / m_downsample;
     m_output_grid.dims[i] =
         m_grid.reduced_dim(i) / m_downsample + 2 * m_grid.guard[i];
     m_output_grid.offset[i] = m_grid.offset[i] / m_downsample;
@@ -139,7 +140,10 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
+      } else {
+        Logger::print_info("Data exporter doesn't know how to write {}", it.first);
       }
+
       if (data->reset_after_output()) {
         data->init();
       }
@@ -172,8 +176,10 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
         Logger::print_info("Writing tracked particles");
+        // TODO: Add tracked particles
       } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
         Logger::print_info("Writing tracked photons");
+        // TODO: Add tracked photons
       }
     }
     m_ptc_num += 1;

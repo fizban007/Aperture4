@@ -31,14 +31,16 @@ namespace Aperture {
 template <typename Conf> void bh_injector<Conf>::register_data_components() {}
 
 template <typename Conf> void bh_injector<Conf>::init() {
-  sim_env().get_data("E", &D);
-  sim_env().get_data("B", &B);
-  sim_env().get_data("particles", &ptc);
-  sim_env().get_data("rand_states", &m_rand_states);
+  sim_env().get_data("E", D);
+  sim_env().get_data("B", B);
+  sim_env().get_data("particles", ptc);
+  sim_env().get_data("rng_states", m_rng_states);
 
   auto ext = m_grid.extent();
+  m_num_per_cell.set_memtype(MemType::host_device);
   m_num_per_cell.resize(ext);
   m_num_per_cell.assign_dev(0);
+  m_cum_num_per_cell.set_memtype(MemType::host_device);
   m_cum_num_per_cell.resize(ext);
   m_cum_num_per_cell.assign_dev(0);
 
@@ -63,7 +65,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   value_t inj_thr = m_inj_thr;
   value_t sigma_thr = m_sigma_thr;
   value_t qe = m_qe;
-  int num_species = m_rho_ptrs.size();
+  int num_species = Rho.size();
 
   m_num_per_cell.assign_dev(0);
 
@@ -76,8 +78,11 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
         auto interp = lerp<Conf::dim>{};
         rng_t rng(states);
 
+        // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
+        // {
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
+          // printf("idx.linear is %ld\n", idx.linear);
 
           if (grid.is_in_bound(pos)) {
             value_t r =
@@ -111,19 +116,20 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             }
             value_t sigma = B_sqr / n;
 
+            auto u = rng.uniform<float>();
+            // printf("u is %f\n", u);
             if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr &&
-                rng.uniform<float>() < 0.02f) {
+                u < 0.02f) {
               // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
+              // printf("idx.linear is %ld\n", idx.linear);
               num_per_cell[idx] = 0;
             }
           }
         }
       },
-      *B, *D, Rho, m_num_per_cell, m_rand_states);
-      // B->get_ptrs(), D->get_ptrs(), m_rho_ptrs.dev_ptr(),
-      // m_num_per_cell.dev_ndptr(), m_rand_states->states());
+      B, D, Rho, m_num_per_cell, m_rng_states);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 
@@ -200,7 +206,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           }
         }
       },
-      *B, *D, *ptc, m_num_per_cell, m_cum_num_per_cell, m_rand_states);
+      B, D, ptc, m_num_per_cell, m_cum_num_per_cell, m_rng_states);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 

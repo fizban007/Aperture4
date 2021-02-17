@@ -31,7 +31,7 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater_new(
-    const grid_t<Conf>& grid)
+    const grid_t<Conf> &grid)
     : m_grid(grid) {
   sim_env().params().get_value("fld_output_interval", m_data_interval);
   // By default, rho_interval is the same as field output interval
@@ -57,7 +57,7 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater_new(
-    const grid_t<Conf>& grid, const domain_comm<Conf>& comm)
+    const grid_t<Conf> &grid, const domain_comm<Conf> &comm)
     : ptc_updater_new(grid) {
   m_comm = &comm;
 }
@@ -71,9 +71,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::init_charge_mass() {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::init_charge_mass() {
   // Default values are 1.0
   float q_e = 1.0;
   float ion_mass = 1.0;
@@ -95,8 +94,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::init() {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::init() {
   sim_env().get_data_optional("photons", ph);
   sim_env().get_data_optional("Rho_ph", rho_ph);
 
@@ -107,9 +105,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::init() {
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::register_data_components() {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::register_data_components() {
   size_t max_ptc_num = 10000;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
 
@@ -145,13 +142,14 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   size_t seed = default_random_seed;
   sim_env().params().get_value("random_seed", seed);
   rng_states = sim_env().register_data<rng_states_t>("rng_states", seed);
+  rng_states->skip_output(true);
+  rng_states->include_in_snapshot(true);
 }
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     double dt, uint32_t step) {
   update_particles(dt, step);
 
@@ -200,10 +198,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
-    value_t dt, uint32_t step, size_t begin, size_t end) {
-  if (end - begin <= 0) return;
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::update_particles(value_t dt, uint32_t step,
+                                                      size_t begin,
+                                                      size_t end) {
+  if (end - begin <= 0)
+    return;
   int rho_interval = m_rho_interval;
   auto charges = m_charges;
   auto masses = m_masses;
@@ -215,18 +215,19 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
        phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho) {
-        auto& grid = ExecPolicy<Conf>::grid();
+        auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(
             begin, end,
-            [&ext, &charges, &masses, &coord_policy, dt,
-             deposit_rho, interp] LAMBDA(auto n, auto& ptc, auto& E, auto& B,
-                                         auto& J, auto& Rho, auto& grid, auto& phys_policy) {
+            [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
+             interp] LAMBDA(auto n, auto &ptc, auto &E, auto &B, auto &J,
+                            auto &Rho, auto &grid, auto &phys_policy) {
               ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
               context.cell = ptc.cell[n];
-              if (context.cell == empty_cell) return;
+              if (context.cell == empty_cell)
+                return;
 
               typename Conf::idx_t idx = Conf::idx(context.cell, ext);
 
@@ -265,8 +266,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
               //        charges[context.sp] / masses[context.sp], dt);
 
               auto pos = get_pos(idx, ext);
-              coord_policy.update_ptc(grid, ext, context, pos,
-                                      dt);
+              coord_policy.update_ptc(grid, ext, context, pos, dt);
 
               phys_policy(grid, context, pos, dt);
 
@@ -298,36 +298,37 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
-    value_t dt, uint32_t step) {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::update_particles(value_t dt,
+                                                      uint32_t step) {
   update_particles(dt, step, 0, ptc->number());
 }
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_photons(
-    value_t dt, uint32_t step) {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::update_photons(value_t dt, uint32_t step) {
   auto num = ph->number();
-  if (num == 0) return;
+  if (num == 0)
+    return;
   int rho_interval = m_rho_interval;
   auto coord_policy = *m_coord_policy;
 
   // Photon movement loop
   ExecPolicy<Conf>::launch(
       [num, dt, rho_interval, step, coord_policy] LAMBDA(auto ph, auto Rho_ph) {
-        auto& grid = ExecPolicy<Conf>::grid();
+        auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         bool deposit_rho = (step % rho_interval == 0);
         ExecPolicy<Conf>::loop(
             0ul, num,
-            [&ext, &coord_policy, dt, deposit_rho] LAMBDA(
-                auto n, auto& ph, auto& Rho_ph, auto& grid) {
+            [&ext, &coord_policy, dt,
+             deposit_rho] LAMBDA(auto n, auto &ph, auto &Rho_ph, auto &grid) {
               ph_context<Conf::dim, value_t> context;
               context.cell = ph.cell[n];
-              if (context.cell == empty_cell) return;
+              if (context.cell == empty_cell)
+                return;
 
               auto idx = Conf::idx(context.cell, ext);
 
@@ -367,24 +368,25 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_photons(
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::clear_guard_cells() {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::clear_guard_cells() {
   auto num = ptc->number();
 
   ExecPolicy<Conf>::launch(
       [num] LAMBDA(auto ptc) {
-        auto& grid = ExecPolicy<Conf>::grid();
+        auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         ExecPolicy<Conf>::loop(
             0ul, num,
-            [ext] LAMBDA(auto n, auto& grid, auto& ptc) {
+            [ext] LAMBDA(auto n, auto &grid, auto &ptc) {
               auto cell = ptc.cell[n];
-              if (cell == empty_cell) return;
+              if (cell == empty_cell)
+                return;
 
               auto idx = Conf::idx(cell, ext);
               auto pos = get_pos(idx, ext);
-              if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
+              if (!grid.is_in_bound(pos))
+                ptc.cell[n] = empty_cell;
             },
             grid, ptc);
       },
@@ -393,17 +395,19 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   if (ph != nullptr) {
     ExecPolicy<Conf>::launch(
         [num] LAMBDA(auto ph) {
-          auto& grid = ExecPolicy<Conf>::grid();
+          auto &grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(
               0ul, num,
-              [ext] LAMBDA(auto n, auto& grid, auto& ph) {
+              [ext] LAMBDA(auto n, auto &grid, auto &ph) {
                 auto cell = ph.cell[n];
-                if (cell == empty_cell) return;
+                if (cell == empty_cell)
+                  return;
 
                 auto idx = Conf::idx(cell, ext);
                 auto pos = get_pos(idx, ext);
-                if (!grid.is_in_bound(pos)) ph.cell[n] = empty_cell;
+                if (!grid.is_in_bound(pos))
+                  ph.cell[n] = empty_cell;
               },
               grid, ph);
         },
@@ -414,37 +418,36 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::sort_particles() {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::sort_particles() {
   ptc->sort_by_cell(m_grid.extent().size());
-  if (ph != nullptr) ph->sort_by_cell(m_grid.extent().size());
+  if (ph != nullptr)
+    ph->sort_by_cell(m_grid.extent().size());
 }
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::fill_multiplicity(int mult, value_t weight,
-                                                  value_t dp) {
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::fill_multiplicity(int mult, value_t weight,
+                                                       value_t dp) {
   // CoordPolicy<Conf>::template fill_multiplicity<ExecPolicy<Conf>>(
   //     *ptc, *rng_states, mult, weight);
   auto num = ptc->number();
 
   ExecPolicy<Conf>::launch(
       [num, mult, weight, dp] LAMBDA(auto ptc, auto states) {
-        auto& grid = ExecPolicy<Conf>::grid();
+        auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t rng(states);
         ExecPolicy<Conf>::loop(
             // 0, ext.size(),
             Conf::begin(ext), Conf::end(ext),
             [&grid, num, ext, mult, weight, dp] LAMBDA(
-                auto idx, auto& ptc,
+                auto idx, auto &ptc,
                 // auto n, auto& ptc,
                 // [&grid, num, ext, mult, weight] LAMBDA(auto n, auto& ptc,
-                auto& rng) {
+                auto &rng) {
               // auto idx = Conf::idx(n, ext);
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
@@ -493,15 +496,17 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
-void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
-    int num_times, uint32_t step) {
-  if (num_times <= 0) return;
+void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                     PhysicsPolicy>::filter_current(int num_times,
+                                                    uint32_t step) {
+  if (num_times <= 0)
+    return;
 
   // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, )
   vec_t<bool, Conf::dim * 2> is_boundary;
   is_boundary.set(true);
-  if (m_comm != nullptr) is_boundary = m_comm->domain_info().is_boundary;
+  if (m_comm != nullptr)
+    is_boundary = m_comm->domain_info().is_boundary;
 
   for (int i = 0; i < num_times; i++) {
     // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, is_boundary);
@@ -510,19 +515,21 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
     m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
                                                             is_boundary);
 
-    if (m_comm != nullptr) m_comm->send_guard_cells(*J);
+    if (m_comm != nullptr)
+      m_comm->send_guard_cells(*J);
 
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         // filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
         m_coord_policy->template filter_field<ExecPolicy<Conf>>(
             *Rho[sp], m_tmpj, is_boundary);
-        if (m_comm != nullptr) m_comm->send_guard_cells(*Rho[sp]);
+        if (m_comm != nullptr)
+          m_comm->send_guard_cells(*Rho[sp]);
       }
     }
   }
 }
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // __PTC_UPDATER_BASE_IMPL_H_
+#endif // __PTC_UPDATER_BASE_IMPL_H_

@@ -25,6 +25,7 @@
 #include "data/data_array.hpp"
 #include "framework/system.h"
 #include "systems/grid_ks.h"
+#include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
@@ -49,9 +50,9 @@ class bh_injector : public system_t {
   multi_array<int, Conf::dim> m_cum_num_per_cell;
 
   // curand_states_t* m_rand_states;
-  rand_state* m_rand_states;
-  particle_data_t* ptc;
-  vector_field<Conf> *B, *D;
+  nonown_ptr<rng_states_t> m_rng_states;
+  nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<vector_field<Conf>> B, D;
   // std::vector<const scalar_field<Conf>*> Rho;
   data_array<scalar_field<Conf>> Rho;
 

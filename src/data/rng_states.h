@@ -37,7 +37,7 @@ class rng_states_t : public data_t {
 
 #ifdef CUDA_ENABLED
   static constexpr int block_num = 512;
-  static constexpr int thread_num = 512;
+  static constexpr int thread_num = 1024;
 #endif
 
  private:

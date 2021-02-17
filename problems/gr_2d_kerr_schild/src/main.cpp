@@ -49,16 +49,15 @@ main(int argc, char *argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // domain_comm<Conf> comm(env);
-  grid_ks_t<Conf> grid;
+  domain_comm<Conf> comm;
+  grid_ks_t<Conf> grid(comm);
 
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, grid);
-  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid);
+  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
   // auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid, comm);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 
@@ -69,13 +68,14 @@ main(int argc, char *argv[]) {
   env.get_data("E0", &D0);
   env.get_data("Bdelta", &B);
   env.get_data("Edelta", &D);
-  env.get_data("particles", &ptc);
+  // env.get_data("particles", &ptc);
 
   initial_vacuum_wald(*B0, *D0, grid);
   B->copy_from(*B0);
   D->copy_from(*D0);
 
-  pusher->fill_multiplicity(2, 1.0, 0.1);
+  // pusher->fill_multiplicity(20, 1.0, 0.1);
+  // Logger::print_info("number of particles is {}", ptc->number());
   // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
   // index_t<2> pos;
   // vec_t<value_t, 3> x;

@@ -140,22 +140,20 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
               int sp = get_ptc_type(flag);
               if (sp == (int)PtcType::ion) return;
 
-              if (rad_policy.check_emit_photon(ptc, n, rng)) {
+              size_t ph_offset =
+                  rad_policy.emit_photon(ptc, n, ph, ph_num, ph_pos, rng);
+
+              if (ph_offset != 0) {
                 auto w = ptc.weight[n];
 
-                // ph_pos[n] = atomicAdd(&photon_produced, 1) + 1;
-                atomic_add(&ph_produced[idx], w);
+                atomic_add(&ph_produced[idx], w * ph_per_scatter);
 
-                size_t ph_offset = ph_num + atomic_add(ph_pos, ph_per_scatter);
                 for (int i = 0; i < ph_per_scatter; i++) {
-                  rad_policy.emit_photon(ptc, n, ph, ph_offset + i, rng);
-
                   // Set the photon to be tracked according to the given ratio
                   float u = rng.uniform<float>();
                   if (u < tracked_fraction) {
                     ph.flag[ph_offset + i] = flag_or(PhFlag::tracked);
                     ph.id[ph_offset + i] = track_rank + atomic_add(ph_id, 1);
-                    // ph.id[offset] = dev_rank + atomicAdd(&dev_ph_id, 1);
                   }
                 }
               }
@@ -214,16 +212,14 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
 
               if (!grid.is_in_bound(pos)) return;
 
-              if (rad_policy.check_produce_pair(ph, n, rng)) {
+              size_t ptc_offset =
+                  rad_policy.produce_pair(ph, n, ptc, ptc_num, ptc_pos, rng);
+
+              // if (rad_policy.check_produce_pair(ph, n, rng)) {
+              if (ptc_offset != 0) {
                 auto w = ph.weight[n];
 
-                // ph_pos[n] = atomicAdd(&photon_produced, 1) + 1;
                 atomic_add(&pair_produced[idx], 2.0f * w);
-
-                size_t ptc_offset = ptc_num + atomic_add(ptc_pos, 2);
-
-                // This will produce two particles: an electron and a positron
-                rad_policy.produce_pair(ph, n, ptc, ptc_offset, rng);
 
                 // Set the photon cell to empty (delete the photon)
                 ph.cell[n] = empty_cell;
@@ -233,8 +229,6 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
                 if (u < tracked_fraction) {
                   set_flag(ptc.flag[ptc_offset], PtcFlag::tracked);
                   set_flag(ptc.flag[ptc_offset + 1], PtcFlag::tracked);
-                  // ptc.id[offset] = dev_rank + atomicAdd(&dev_ptc_id, 1);
-                  // ptc.id[offset + 1] = dev_rank + atomicAdd(&dev_ptc_id, 1);
                   ptc.id[ptc_offset] = track_rank + atomic_add(ptc_id, 1);
                   ptc.id[ptc_offset + 1] = track_rank + atomic_add(ptc_id, 1);
                 }

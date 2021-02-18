@@ -20,7 +20,7 @@
 
 #include "data/fields.h"
 #include "data/particle_data.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid.h"
@@ -42,7 +42,7 @@ class boundary_condition : public system_t {
 
   vector_field<Conf> *E, *B, *E0, *B0;
   particle_data_t *ptc;
-  curand_states_t *rand_states;
+  // curand_states_t *rand_states;
 
   buffer<float> m_surface_np, m_surface_ne;
   std::unique_ptr<typename Conf::multi_array_t> m_prev_E1, m_prev_E2, m_prev_E3;

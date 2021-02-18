@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "data/curand_states.h"
+#include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/boundary_condition.h"
@@ -24,7 +24,8 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/legacy/ptc_updater_old.h"
+// #include "systems/legacy/ptc_updater_old.h"
+#include "systems/ptc_updater_base.h"
 #include <iostream>
 
 using namespace std;
@@ -33,17 +34,17 @@ using namespace Aperture;
 namespace Aperture {
 template <typename Conf>
 void set_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
-                           curand_states_t &states, int mult, Scalar weight);
+                           rng_states_t &states, int mult, Scalar weight);
 
 template <typename Conf>
 void initial_condition_wave(vector_field<Conf> &B, vector_field<Conf> &E,
                             vector_field<Conf> &B0, particle_data_t &ptc,
-                            curand_states_t &states, int mult, Scalar weight);
+                            rng_states_t &states, int mult, Scalar weight);
 
 template <typename Conf>
 void initial_condition_standing_alfven(
     vector_field<Conf> &B, vector_field<Conf> &E, vector_field<Conf> &B0,
-    particle_data_t &ptc, curand_states_t &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t &states, int mult, Scalar weight);
 
 }  // namespace Aperture
 
@@ -59,7 +60,9 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
-  auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
+  // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
@@ -73,12 +76,14 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
-  curand_states_t *states;
+  // curand_states_t *states;
+  rng_states_t *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
-  env.get_data("rand_states", &states);
+  env.get_data("rng_states", &states);
+  // env.get_data("rand_states", &states);
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
   initial_condition_wave(*Bdelta, *Edelta, *B0, *ptc, *states, 10, 1.0);

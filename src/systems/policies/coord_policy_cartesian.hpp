@@ -124,7 +124,6 @@ class coord_policy_cartesian {
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
               [&grid, &ext] LAMBDA(auto idx, auto& j) {
-                auto pos = get_pos(idx, ext);
 #pragma unroll
                 for (int i = 0; i < Conf::dim; i++) {
                   j[i][idx] *= grid.delta[i];

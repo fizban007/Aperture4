@@ -166,6 +166,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     }
   }
 
+  filter_current(m_filter_times, step);
+
   // Send particles
   if (m_comm != nullptr) {
     m_comm->send_particles(*ptc, m_grid);
@@ -296,8 +298,6 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 
   coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt,
                                                         deposit_rho);
-
-  filter_current(m_filter_times, step);
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -376,7 +376,6 @@ template <typename Conf, template <class> class ExecPolicy,
 void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                      PhysicsPolicy>::clear_guard_cells() {
   auto num = ptc->number();
-
   ExecPolicy<Conf>::launch(
       [num] LAMBDA(auto ptc) {
         auto &grid = ExecPolicy<Conf>::grid();
@@ -398,12 +397,13 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
       *ptc);
 
   if (ph != nullptr) {
+    auto ph_num = ph->number();
     ExecPolicy<Conf>::launch(
-        [num] LAMBDA(auto ph) {
+        [ph_num] LAMBDA(auto ph) {
           auto &grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(
-              0ul, num,
+              0ul, ph_num,
               [ext] LAMBDA(auto n, auto &grid, auto &ph) {
                 auto cell = ph.cell[n];
                 if (cell == empty_cell)
@@ -520,16 +520,18 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
     m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
                                                             is_boundary);
 
-    if (m_comm != nullptr)
+    if (m_comm != nullptr) {
       m_comm->send_guard_cells(*J);
+    }
 
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         // filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
         m_coord_policy->template filter_field<ExecPolicy<Conf>>(
             *Rho[sp], m_tmpj, is_boundary);
-        if (m_comm != nullptr)
+        if (m_comm != nullptr) {
           m_comm->send_guard_cells(*Rho[sp]);
+        }
       }
     }
   }

@@ -63,88 +63,88 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
     return 0.0;
 }
 
-template <typename Conf>
-void
-inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
-                 buffer<float>& surface_ne, buffer<float>& surface_np,
-                 int num_per_cell, typename Conf::value_t weight,
-                 const grid_t<Conf>& grid, const wpert_cart_t& wpert,
-                 int multiplicity) {
-  surface_ne.assign_dev(0.0f);
-  surface_np.assign_dev(0.0f);
+// template <typename Conf>
+// void
+// inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
+//                  buffer<float>& surface_ne, buffer<float>& surface_np,
+//                  int num_per_cell, typename Conf::value_t weight,
+//                  const grid_t<Conf>& grid, const wpert_cart_t& wpert,
+//                  int multiplicity) {
+//   surface_ne.assign_dev(0.0f);
+//   surface_np.assign_dev(0.0f);
 
-  auto ptc_num = ptc.number();
-  // First measure surface density
-  kernel_launch(
-      [ptc_num] __device__(auto ptc, auto surface_ne, auto surface_np) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        for (auto n : grid_stride_range(0, ptc_num)) {
-          auto c = ptc.cell[n];
-          if (c == empty_cell) continue;
+//   auto ptc_num = ptc.number();
+//   // First measure surface density
+//   kernel_launch(
+//       [ptc_num] __device__(auto ptc, auto surface_ne, auto surface_np) {
+//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+//         auto ext = grid.extent();
+//         for (auto n : grid_stride_range(0, ptc_num)) {
+//           auto c = ptc.cell[n];
+//           if (c == empty_cell) continue;
 
-          auto idx = typename Conf::idx_t(c, ext);
-          auto pos = idx.get_pos();
-          if (pos[0] == grid.guard[0]) {
-            auto flag = ptc.flag[n];
-            auto sp = get_ptc_type(flag);
+//           auto idx = typename Conf::idx_t(c, ext);
+//           auto pos = idx.get_pos();
+//           if (pos[0] == grid.guard[0]) {
+//             auto flag = ptc.flag[n];
+//             auto sp = get_ptc_type(flag);
 
-            if (sp == 0)
-              atomicAdd(&surface_ne[pos[1]],
-                        ptc.weight[n] * math::abs(dev_charges[sp]));
-            else if (sp == 1)
-              atomicAdd(&surface_np[pos[1]],
-                        ptc.weight[n] * math::abs(dev_charges[sp]));
-          }
-        }
-      },
-      ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr());
-  CudaSafeCall(cudaDeviceSynchronize());
+//             if (sp == 0)
+//               atomicAdd(&surface_ne[pos[1]],
+//                         ptc.weight[n] * math::abs(dev_charges[sp]));
+//             else if (sp == 1)
+//               atomicAdd(&surface_np[pos[1]],
+//                         ptc.weight[n] * math::abs(dev_charges[sp]));
+//           }
+//         }
+//       },
+//       ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr());
+//   CudaSafeCall(cudaDeviceSynchronize());
 
-  // Then inject particles
-  kernel_launch(
-      [ptc_num, weight] __device__(auto ptc, auto surface_ne, auto surface_np,
-                                   auto num_inj, auto states) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        int inj_n0 = grid.guard[0];
-        int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
-        for (auto n1 :
-             grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
-          size_t offset = ptc_num + n1 * num_inj * 2;
-          auto pos = index_t<Conf::dim>(inj_n0, n1);
-          auto cell_x2 = grid.template pos<1>(n1, false);
-          if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
-          auto idx = typename Conf::idx_t(pos, ext);
-          if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
-              square(1.0f / grid.delta[0]))
-            continue;
-          for (int i = 0; i < num_inj; i++) {
-            float x2 = rng();
-            ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 1.0f;
-            ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
-            ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
-            ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
-            ptc.p2[offset + i * 2] = ptc.p2[offset + i * 2 + 1] = 0.0f;
-            ptc.p3[offset + i * 2] = ptc.p3[offset + i * 2 + 1] = 0.0f;
-            ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = 1.0f;
-            ptc.cell[offset + i * 2] = ptc.cell[offset + i * 2 + 1] =
-                idx.linear;
-            ptc.weight[offset + i * 2] = ptc.weight[offset + i * 2 + 1] =
-                weight;
-            ptc.flag[offset + i * 2] = set_ptc_type_flag(0, PtcType::electron);
-            ptc.flag[offset + i * 2 + 1] =
-                set_ptc_type_flag(0, PtcType::positron);
-          }
-        }
-      },
-      ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr(),
-      num_per_cell, rand_states.states());
-  CudaSafeCall(cudaDeviceSynchronize());
+//   // Then inject particles
+//   kernel_launch(
+//       [ptc_num, weight] __device__(auto ptc, auto surface_ne, auto surface_np,
+//                                    auto num_inj, auto states) {
+//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+//         auto ext = grid.extent();
+//         int inj_n0 = grid.guard[0];
+//         int id = threadIdx.x + blockIdx.x * blockDim.x;
+//         cuda_rng_t rng(&states[id]);
+//         for (auto n1 :
+//              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
+//           size_t offset = ptc_num + n1 * num_inj * 2;
+//           auto pos = index_t<Conf::dim>(inj_n0, n1);
+//           auto cell_x2 = grid.template pos<1>(n1, false);
+//           if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
+//           auto idx = typename Conf::idx_t(pos, ext);
+//           if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
+//               square(1.0f / grid.delta[0]))
+//             continue;
+//           for (int i = 0; i < num_inj; i++) {
+//             float x2 = rng();
+//             ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 1.0f;
+//             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
+//             ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
+//             ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
+//             ptc.p2[offset + i * 2] = ptc.p2[offset + i * 2 + 1] = 0.0f;
+//             ptc.p3[offset + i * 2] = ptc.p3[offset + i * 2 + 1] = 0.0f;
+//             ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = 1.0f;
+//             ptc.cell[offset + i * 2] = ptc.cell[offset + i * 2 + 1] =
+//                 idx.linear;
+//             ptc.weight[offset + i * 2] = ptc.weight[offset + i * 2 + 1] =
+//                 weight;
+//             ptc.flag[offset + i * 2] = set_ptc_type_flag(0, PtcType::electron);
+//             ptc.flag[offset + i * 2 + 1] =
+//                 set_ptc_type_flag(0, PtcType::positron);
+//           }
+//         }
+//       },
+//       ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr(),
+//       num_per_cell, rand_states.states());
+//   CudaSafeCall(cudaDeviceSynchronize());
 
-  ptc.add_num(num_per_cell * 2 * grid.dims[1]);
-}
+//   ptc.add_num(num_per_cell * 2 * grid.dims[1]);
+// }
 
 template <typename Conf>
 boundary_condition<Conf>::boundary_condition(const grid_t<Conf>& grid)
@@ -195,7 +195,7 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("E0", &E0);
   sim_env().get_data("Bdelta", &B);
   sim_env().get_data("B0", &B0);
-  sim_env().get_data("rand_states", &rand_states);
+  // sim_env().get_data("rand_states", &rand_states);
   sim_env().get_data("particles", &ptc);
 
   sim_env().params().get_value("tp_start", m_tp_start);

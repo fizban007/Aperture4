@@ -16,9 +16,11 @@
  */
 
 #include "core/math.hpp"
+#include "core/random.h"
 #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
+#include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "utils/kernel_helper.hpp"
@@ -212,7 +214,7 @@ template <typename Conf>
 void
 initial_condition_wave(vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
-                       particle_data_t &ptc, curand_states_t &states, int mult,
+                       particle_data_t &ptc, rng_states_t &states, int mult,
                        Scalar weight) {
   Scalar weight_enhance_factor = 1.0f;
   Scalar sinth = sim_env().params().get_as<double>("muB", 0.1);
@@ -269,8 +271,9 @@ initial_condition_wave(vector_field<Conf> &B,
           auto cum_num_per_cell) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
-        int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
+        // int id = threadIdx.x + blockIdx.x * blockDim.x;
+        // cuda_rng_t rng(&states[id]);
+        rng_t rng(states);
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = Conf::idx(cell, ext);
           // auto pos = idx.get_pos();
@@ -280,8 +283,8 @@ initial_condition_wave(vector_field<Conf> &B,
             for (int i = 0; i < num_per_cell[idx]; i++) {
               uint32_t offset = num + cum_num_per_cell[idx] + i;
               // uint32_t offset = num + idx_row.linear * mult * 2 + i * 2;
-              ptc.x1[offset] = 0.1f * rng();
-              ptc.x2[offset] = 0.1f * rng();
+              ptc.x1[offset] = rng.uniform<float>();
+              ptc.x2[offset] = rng.uniform<float>();
               ptc.x3[offset] = 0.0f;
 
               ptc.cell[offset] = cell;
@@ -426,7 +429,7 @@ initial_condition_wave(vector_field<Conf> &B,
           }
         }
       },
-      ptc.dev_ptrs(), states.states(), weight, num_per_cell.dev_ndptr(),
+      ptc.dev_ptrs(), states.states().dev_ptr(), weight, num_per_cell.dev_ndptr(),
       cum_num_per_cell.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   ptc.set_num(num + new_particles);
@@ -435,6 +438,6 @@ initial_condition_wave(vector_field<Conf> &B,
 template void initial_condition_wave<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, curand_states_t &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t &states, int mult, Scalar weight);
 
 }  // namespace Aperture

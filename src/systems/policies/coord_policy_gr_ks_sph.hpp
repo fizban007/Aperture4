@@ -39,8 +39,8 @@ namespace {
 template <typename value_t>
 HOST_DEVICE void
 gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
-                   const vec_t<value_t, 3> &B, const vec_t<value_t, 3> &D,
-                   value_t dt, value_t e_over_m) {
+                   value_t &gamma, const vec_t<value_t, 3> &B,
+                   const vec_t<value_t, 3> &D, value_t dt, value_t e_over_m) {
   value_t sth = math::sin(x[1]);
   value_t cth = math::cos(x[1]);
 
@@ -89,6 +89,7 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
           ((gu11 * u_prime[0] + gu13 * u_prime[2]) * t[1] -
            gu22 * u_prime[1] * t[0]) *
           s;
+  gamma = Metric_KS::u0(a, x[0], sth, cth, u, false);
 }
 
 template <typename value_t>
@@ -109,39 +110,11 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
   }
 }
 
-// template <typename Conf>
-// void
-// ptc_outflow(particle_data_t& ptc, const grid_ks_t<Conf>& grid,
-//             int damping_length) {
-//   auto ptc_num = ptc.number();
-//   kernel_launch(
-//       [ptc_num, damping_length] __device__(auto ptc, auto gp) {
-//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-//         auto ext = grid.extent();
-//         for (auto n : grid_stride_range(0, ptc_num)) {
-//           auto c = ptc.cell[n];
-//           if (c == empty_cell) continue;
+}  // namespace
 
-//           auto idx = typename Conf::idx_t(c, grid.extent());
-//           // auto pos = idx.get_pos();
-//           auto pos = get_pos(idx, ext);
-//           auto flag = ptc.flag[n];
-//           if (check_flag(flag, PtcFlag::ignore_EM)) continue;
-//           if (pos[0] > grid.dims[0] - damping_length + 2) {
-//             flag |= flag_or(PtcFlag::ignore_EM);
-//             ptc.flag[n] = flag;
-//           }
-//         }
-//       },
-//       ptc.get_dev_ptrs(), grid.get_grid_ptrs());
-//   CudaSafeCall(cudaDeviceSynchronize());
-//   CudaCheckError();
-// }
-
-} // namespace
-
-template <typename Conf> class coord_policy_gr_ks_sph {
-public:
+template <typename Conf>
+class coord_policy_gr_ks_sph {
+ public:
   typedef typename Conf::value_t value_t;
 
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
@@ -192,8 +165,8 @@ public:
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      gr_ks_boris_update(m_a, x_global, context.p, context.B, context.E,
-                         0.5f * dt, context.q / context.m);
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
+                         context.E, 0.5f * dt, context.q / context.m);
       // dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
@@ -211,8 +184,9 @@ public:
       context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
       context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-      gr_ks_boris_update(m_a, x_global, context.p, context.B, context.E,
-                         0.5f * dt, context.q / context.m);
+      // Note: context.p stores the lower components u_i, while gamma is upper u^0.
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
+                         context.E, 0.5f * dt, context.q / context.m);
     }
   }
 
@@ -283,7 +257,7 @@ public:
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] *=
-                      w / grid_ptrs.Ad[2][idx]; // A_phi is effectively dV
+                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
                 // }
                 typename Conf::value_t theta =
@@ -319,7 +293,7 @@ public:
                                        is_boundary);
   }
 
-private:
+ private:
   const grid_ks_t<Conf> &m_grid;
   value_t m_a;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
@@ -328,6 +302,6 @@ private:
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
 };
 
-} // namespace Aperture
+}  // namespace Aperture
 
-#endif // __COORD_POLICY_GR_KS_SPH_H_
+#endif  // __COORD_POLICY_GR_KS_SPH_H_

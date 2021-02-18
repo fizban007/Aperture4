@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,29 +15,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __THRESHOLD_EMISSION_H_
-#define __THRESHOLD_EMISSION_H_
+#ifndef _GR_INVERSE_COMPTON_H_
+#define _GR_INVERSE_COMPTON_H_
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
 #include "core/random.h"
 #include "framework/environment.h"
+#include "systems/physics/ic_scattering.hpp"
 
 namespace Aperture {
 
-struct threshold_emission {
-  float gamma_thr = 30.0f;
+template <typename Conf>
+struct gr_ic_radiation_scheme {
+  using value_t = typename Conf::value_t;
 
-  void init() {
-    sim_env().params().get_value("gamma_thr", gamma_thr);
-  }
+  ic_scatter_t m_ic_module;
+  value_t m_a = 0.99;
 
-  HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, size_t tid,
-                                     rng_t& rng) const {
-    return ptc.E[tid] > gamma_thr;
-  }
+  void init();
+
+  HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, size_t tid, rng_t& rng);
+
+  HOST_DEVICE void emit_photon(ptc_ptrs& ptc, size_t tid, ph_ptrs& ph,
+                               size_t offset, rng_t& rng);
+
+  HOST_DEVICE bool check_produce_pair(ph_ptrs& ph, size_t tid, rng_t& rng);
+
+  HOST_DEVICE void produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc, size_t offset, rng_t& rng);
 };
 
 }  // namespace Aperture
 
-#endif  // __THRESHOLD_EMISSION_H_
+#endif  // _GR_INVERSE_COMPTON_H_

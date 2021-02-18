@@ -2,6 +2,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_library(gr_2d_kerr_schild
     "injector.cu"
     "initial_condition.cu"
+    "systems/radiation/gr_inverse_compton.cu"
     )
   target_link_libraries(gr_2d_kerr_schild Aperture)
 

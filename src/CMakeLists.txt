@@ -20,7 +20,6 @@ set(Aperture_src
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
   "systems/inverse_compton.cpp"
-  # "systems/radiative_transfer.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -44,7 +43,8 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
     "systems/ptc_updater_base.cu"
-    "systems/radiative_transfer_new.cu"
+    # "systems/radiative_transfer_new.cu"
+    "systems/radiative_transfer.cu"
     )
 else()
   list(APPEND Aperture_src
@@ -52,6 +52,7 @@ else()
     "data/rng_states.cpp"
     "systems/ptc_updater_base.cpp"
     "systems/ptc_updater_simd.cpp"
+    "systems/radiative_transfer.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

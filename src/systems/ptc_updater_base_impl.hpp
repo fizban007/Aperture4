@@ -355,7 +355,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
               auto idx_new = Conf::idx(pos + context.dc, ext);
               if (deposit_rho) {
                 // Simple deposit, do not care about weight function
-                deposit_add(&Rho_ph[idx_new], ph.weight[n]);
+                atomic_add(&Rho_ph[idx_new], ph.weight[n]);
               }
 
               ph.x1[n] = context.new_x[0];

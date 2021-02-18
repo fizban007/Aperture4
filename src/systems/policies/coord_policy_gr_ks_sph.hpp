@@ -136,12 +136,12 @@ class coord_policy_gr_ks_sph {
     m_B[1] = B->at(1).dev_ndptr_const();
     m_B[2] = B->at(2).dev_ndptr_const();
 #else
-    m_E[0] = E->at(0).ndptr_const();
-    m_E[1] = E->at(1).ndptr_const();
-    m_E[2] = E->at(2).ndptr_const();
-    m_B[0] = B->at(0).ndptr_const();
-    m_B[1] = B->at(1).ndptr_const();
-    m_B[2] = B->at(2).ndptr_const();
+    m_E[0] = E->at(0).host_ndptr_const();
+    m_E[1] = E->at(1).host_ndptr_const();
+    m_E[2] = E->at(2).host_ndptr_const();
+    m_B[0] = B->at(0).host_ndptr_const();
+    m_B[1] = B->at(1).host_ndptr_const();
+    m_B[2] = B->at(2).host_ndptr_const();
 #endif
   }
 

@@ -33,7 +33,7 @@ radiative_transfer<Conf, exec_policy_cuda, CoordPolicy, RadiationPolicy>::
     radiative_transfer(const grid_t<Conf>& grid, const domain_comm<Conf>* comm)
     : radiative_transfer_base<Conf>(grid, comm) {
   m_coord_policy = std::make_unique<CoordPolicy<Conf>>(grid);
-  m_rad_policy = std::make_unique<RadiationPolicy<Conf>>();
+  m_rad_policy = std::make_unique<RadiationPolicy<Conf>>(grid);
 
   size_t max_ptc_num, max_ph_num;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);

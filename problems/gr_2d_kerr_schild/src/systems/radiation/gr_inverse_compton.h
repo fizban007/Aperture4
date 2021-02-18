@@ -22,6 +22,7 @@
 #include "core/particle_structs.h"
 #include "core/random.h"
 #include "framework/environment.h"
+#include "systems/grid.h"
 #include "systems/physics/ic_scattering.hpp"
 
 namespace Aperture {
@@ -30,8 +31,11 @@ template <typename Conf>
 struct gr_ic_radiation_scheme {
   using value_t = typename Conf::value_t;
 
+  const grid_t<Conf>& m_grid;
   ic_scatter_t m_ic_module;
   value_t m_a = 0.99;
+
+  gr_ic_radiation_scheme(const grid_t<Conf>& grid) : m_grid(grid) {}
 
   void init();
 
@@ -42,7 +46,8 @@ struct gr_ic_radiation_scheme {
 
   HOST_DEVICE bool check_produce_pair(ph_ptrs& ph, size_t tid, rng_t& rng);
 
-  HOST_DEVICE void produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc, size_t offset, rng_t& rng);
+  HOST_DEVICE void produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc,
+                                size_t offset, rng_t& rng);
 };
 
 }  // namespace Aperture

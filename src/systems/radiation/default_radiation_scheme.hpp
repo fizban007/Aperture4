@@ -21,6 +21,7 @@
 #include "fixed_photon_path.hpp"
 #include "photon_pair_creation.hpp"
 #include "threshold_emission.hpp"
+#include "systems/grid.h"
 
 namespace Aperture {
 
@@ -28,6 +29,8 @@ template <typename Conf>
 struct default_radiation_scheme : public fixed_photon_path<Conf>,
                                   public photon_pair_creation<Conf>,
                                   public threshold_emission {
+  default_radiation_scheme(const grid_t<Conf>& grid) {}
+
   void init() {
     fixed_photon_path<Conf>::init();
     threshold_emission::init();

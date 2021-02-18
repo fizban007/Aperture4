@@ -95,16 +95,16 @@ struct pusher_impl_t {
   }
 };
 
-template <typename value_t>
-HD_INLINE void
-deposit_add(value_t* addr, value_t value) {
-#ifdef __CUDACC__
-  atomicAdd(addr, value);
-#else
-#pragma omp atomic
-  *addr += value;
-#endif
-}
+// template <typename value_t>
+// HD_INLINE void
+// deposit_add(value_t* addr, value_t value) {
+// #ifdef __CUDACC__
+//   atomicAdd(addr, value);
+// #else
+// #pragma omp atomic
+//   *addr += value;
+// #endif
+// }
 
 template <int Dim, typename spline_t>
 struct deposit_t {
@@ -135,25 +135,25 @@ struct deposit_t<1, spline_t> {
       auto offset = idx + i;
       djx += sx1 - sx0;
       // atomicAdd(&J[0][offset], -weight * djx);
-      deposit_add(&J[0][offset], -context.weight * djx / dt);
+      atomic_add(&J[0][offset], -context.weight * djx / dt);
 
       // j2 is simply v2 times rho at center
       value_t val1 = 0.5f * (sx0 + sx1);
       // atomicAdd(&J[1][offset], weight * v[1] * val1);
-      deposit_add(
+      atomic_add(
           &J[1][offset],
           context.weight * (context.new_x[1] - context.x[1]) / dt * val1);
 
       // j3 is simply v3 times rho at center
       // atomicAdd(&J[2][offset], weight * v[2] * val1);
-      deposit_add(
+      atomic_add(
           &J[2][offset],
           context.weight * (context.new_x[2] - context.x[2]) / dt * val1);
 
       // rho is deposited at the final position
       if (deposit_rho) {
         // atomicAdd(&Rho[sp][offset], weight * sx1);
-        deposit_add(&Rho[context.sp][offset], context.weight * sx1);
+        atomic_add(&Rho[context.sp][offset], context.weight * sx1);
       }
     }
   }
@@ -188,17 +188,17 @@ struct deposit_t<2, spline_t> {
         auto offset = inc_y(idx + i, ext, j);
         djx += movement2d(sy0, sy1, sx0, sx1);
         if (math::abs(djx) > TINY) {
-          deposit_add(&J[0][offset], -context.weight * djx / dt);
+          atomic_add(&J[0][offset], -context.weight * djx / dt);
         }
 
         // j2 is movement in x2
         djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
         if (math::abs(djy[i - i_0]) > TINY) {
-          deposit_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
+          atomic_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
         }
 
         // j3 is simply v3 times rho at center
-        deposit_add(&J[2][offset], context.weight *
+        atomic_add(&J[2][offset], context.weight *
                                        (context.new_x[2] - context.x[2]) / dt *
                                        center2d(sx0, sx1, sy0, sy1));
         // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
@@ -206,7 +206,7 @@ struct deposit_t<2, spline_t> {
         // rho is deposited at the final position
         if (deposit_rho) {
           if (math::abs(sx1 * sy1) > TINY) {
-            deposit_add(&Rho[context.sp][offset], context.weight * sx1 * sy1);
+            atomic_add(&Rho[context.sp][offset], context.weight * sx1 * sy1);
             // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
           }
         }
@@ -255,26 +255,26 @@ struct deposit_t<3, spline_t> {
           auto offset = inc_x(idx_y, ext, i);
           djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
           if (math::abs(djx) > TINY) {
-            deposit_add(&J[0][offset], -context.weight * djx / dt);
+            atomic_add(&J[0][offset], -context.weight * djx / dt);
           }
           // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
           // j2 is movement in x2
           djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
           if (math::abs(djy[i - i_0]) > TINY) {
-            deposit_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
+            atomic_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
           }
 
           // j3 is movement in x3
           djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
           if (math::abs(djz[j - j_0][i - i_0]) > TINY) {
-            deposit_add(&J[2][offset],
+            atomic_add(&J[2][offset],
                         -context.weight * djz[j - j_0][i - i_0] / dt);
           }
 
           // rho is deposited at the final position
           if (deposit_rho) {
-            deposit_add(&Rho[context.sp][offset],
+            atomic_add(&Rho[context.sp][offset],
                         context.weight * sx1 * sy1 * sz1);
           }
         }
@@ -313,22 +313,22 @@ struct deposit_t<1, spline_t> {
       // j1 is movement in x1
       auto offset = idx.inc_x(i);
       djx += sx1 - sx0;
-      deposit_add(&J[0][offset], -context.weight[n] * djx / dt);
+      atomic_add(&J[0][offset], -context.weight[n] * djx / dt);
 
       // j2 is simply v2 times rho at center
       value_t val1 = 0.5f * (sx0 + sx1);
-      deposit_add(&J[1][offset], context.weight[n] *
+      atomic_add(&J[1][offset], context.weight[n] *
                                      (context.new_x[1][n] - context.x[1][n]) /
                                      dt * val1);
 
       // j3 is simply v3 times rho at center
-      deposit_add(&J[2][offset], context.weight[n] *
+      atomic_add(&J[2][offset], context.weight[n] *
                                      (context.new_x[2][n] - context.x[2][n]) /
                                      dt * val1);
 
       // rho is deposited at the final position
       if (deposit_rho) {
-        deposit_add(&Rho[context.sp[n]][offset], context.weight[n] * sx1);
+        atomic_add(&Rho[context.sp[n]][offset], context.weight[n] * sx1);
       }
     }
   }
@@ -364,17 +364,17 @@ struct deposit_t<2, spline_t> {
         auto offset = idx.inc_x(i).inc_y(j);
         djx += movement2d(sy0, sy1, sx0, sx1);
         if (math::abs(djx) > TINY) {
-          deposit_add(&J[0][offset], -context.weight[n] * djx / dt);
+          atomic_add(&J[0][offset], -context.weight[n] * djx / dt);
         }
 
         // j2 is movement in x2
         djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
         if (math::abs(djy[i - i_0]) > TINY) {
-          deposit_add(&J[1][offset], -context.weight[n] * djy[i - i_0] / dt);
+          atomic_add(&J[1][offset], -context.weight[n] * djy[i - i_0] / dt);
         }
 
         // j3 is simply v3 times rho at center
-        deposit_add(&J[2][offset], context.weight[n] *
+        atomic_add(&J[2][offset], context.weight[n] *
                                        (context.new_x[2][n] - context.x[2][n]) /
                                        dt * center2d(sx0, sx1, sy0, sy1));
         // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
@@ -382,7 +382,7 @@ struct deposit_t<2, spline_t> {
         // rho is deposited at the final position
         if (deposit_rho) {
           if (math::abs(sx1 * sy1) > TINY) {
-            deposit_add(&Rho[context.sp[n]][offset],
+            atomic_add(&Rho[context.sp[n]][offset],
                         context.weight[n] * sx1 * sy1);
             // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
           }
@@ -430,26 +430,26 @@ struct deposit_t<3, spline_t> {
           auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
           djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
           if (math::abs(djx) > TINY) {
-            deposit_add(&J[0][offset], -context.weight[n] * djx / dt);
+            atomic_add(&J[0][offset], -context.weight[n] * djx / dt);
           }
           // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
           // j2 is movement in x2
           djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
           if (math::abs(djy[i - i_0]) > TINY) {
-            deposit_add(&J[1][offset], -context.weight[n] * djy[i - i_0] / dt);
+            atomic_add(&J[1][offset], -context.weight[n] * djy[i - i_0] / dt);
           }
 
           // j3 is movement in x3
           djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
           if (math::abs(djz[j - j_0][i - i_0]) > TINY) {
-            deposit_add(&J[2][offset],
+            atomic_add(&J[2][offset],
                         -context.weight[n] * djz[j - j_0][i - i_0] / dt);
           }
 
           // rho is deposited at the final position
           if (deposit_rho) {
-            deposit_add(&Rho[context.sp[n]][offset],
+            atomic_add(&Rho[context.sp[n]][offset],
                         context.weight[n] * sx1 * sy1 * sz1);
           }
         }
@@ -478,21 +478,21 @@ deposit_1d(const vec_t<value_t, 3>& x, const vec_t<value_t, 3>& new_x, int dc,
     auto offset = idx.inc_x(i);
     djx += sx1 - sx0;
     // atomicAdd(&J[0][offset], -weight * djx);
-    deposit_add(&J[0][offset], -weight * djx);
+    atomic_add(&J[0][offset], -weight * djx);
 
     // j2 is simply v2 times rho at center
     value_t val1 = 0.5f * (sx0 + sx1);
     // atomicAdd(&J[1][offset], weight * v[1] * val1);
-    deposit_add(&J[1][offset], weight * v[1] * val1);
+    atomic_add(&J[1][offset], weight * v[1] * val1);
 
     // j3 is simply v3 times rho at center
     // atomicAdd(&J[2][offset], weight * v[2] * val1);
-    deposit_add(&J[2][offset], weight * v[2] * val1);
+    atomic_add(&J[2][offset], weight * v[2] * val1);
 
     // rho is deposited at the final position
     if (deposit_rho) {
       // atomicAdd(&Rho[sp][offset], weight * sx1);
-      deposit_add(&Rho[sp][offset], weight * sx1);
+      atomic_add(&Rho[sp][offset], weight * sx1);
     }
   }
 }
@@ -525,23 +525,23 @@ deposit_2d(const vec_t<value_t, 3>& x, const vec_t<value_t, 3>& new_x,
       auto offset = idx.inc_x(i).inc_y(j);
       djx += movement2d(sy0, sy1, sx0, sx1);
       if (math::abs(djx) > TINY) {
-        deposit_add(&J[0][offset], -weight * djx);
+        atomic_add(&J[0][offset], -weight * djx);
       }
 
       // j2 is movement in x2
       djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
       if (math::abs(djy[i - i_0]) > TINY) {
-        deposit_add(&J[1][offset], -weight * djy[i - i_0]);
+        atomic_add(&J[1][offset], -weight * djy[i - i_0]);
       }
 
       // j3 is simply v3 times rho at center
-      deposit_add(&J[2][offset], weight * v3 * center2d(sx0, sx1, sy0, sy1));
+      atomic_add(&J[2][offset], weight * v3 * center2d(sx0, sx1, sy0, sy1));
       // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
 
       // rho is deposited at the final position
       if (deposit_rho) {
         if (math::abs(sx1 * sy1) > TINY) {
-          deposit_add(&Rho[sp][offset], weight * sx1 * sy1);
+          atomic_add(&Rho[sp][offset], weight * sx1 * sy1);
           // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
         }
       }
@@ -584,25 +584,25 @@ deposit_3d(const vec_t<value_t, 3>& x, const vec_t<value_t, 3>& new_x,
         auto offset = idx.inc_x(i).inc_y(j).inc_z(k);
         djx += movement3d(sy0, sy1, sz0, sz1, sx0, sx1);
         if (math::abs(djx) > TINY) {
-          deposit_add(&J[0][offset], -weight * djx);
+          atomic_add(&J[0][offset], -weight * djx);
         }
         // Logger::print_debug("J0 is {}", (*J)[0][offset]);
 
         // j2 is movement in x2
         djy[i - i_0] += movement3d(sz0, sz1, sx0, sx1, sy0, sy1);
         if (math::abs(djy[i - i_0]) > TINY) {
-          deposit_add(&J[1][offset], -weight * djy[i - i_0]);
+          atomic_add(&J[1][offset], -weight * djy[i - i_0]);
         }
 
         // j3 is movement in x3
         djz[j - j_0][i - i_0] += movement3d(sx0, sx1, sy0, sy1, sz0, sz1);
         if (math::abs(djz[j - j_0][i - i_0]) > TINY) {
-          deposit_add(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
+          atomic_add(&J[2][offset], -weight * djz[j - j_0][i - i_0]);
         }
 
         // rho is deposited at the final position
         if (deposit_rho) {
-          deposit_add(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
+          atomic_add(&Rho[sp][offset], weight * sx1 * sy1 * sz1);
         }
       }
     }

@@ -29,6 +29,23 @@ namespace Aperture {
 
 template <typename T>
 HD_INLINE T
+atomic_add(T* addr, type_identity_t<T> value) {
+// atomic_add(T* addr, T value) {
+#ifdef __CUDACC__
+  return atomicAdd(addr, value);
+#else
+  T tmp;
+#pragma omp atomic capture
+  {
+    tmp = *addr;
+    *addr += value;
+  }
+  return tmp;
+#endif
+}
+
+template <typename T>
+HD_INLINE T
 square(const T& val) {
   return val * val;
 }
@@ -53,9 +70,9 @@ sgn(T val) {
   return (T(0) < val) - (val < T(0));
 }
 
-template <typename T, typename U>
+template <typename T>
 HD_INLINE T
-clamp(T val, U a, type_identity_t<U> b) {
+clamp(T val, type_identity_t<T> a, type_identity_t<T> b) {
   return std::max(T(a), std::min(T(b), val));
 }
 

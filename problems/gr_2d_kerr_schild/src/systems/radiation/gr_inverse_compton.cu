@@ -49,7 +49,7 @@ HOST_DEVICE bool
 gr_ic_radiation_scheme<Conf>::check_emit_photon(ptc_ptrs &ptc, size_t tid,
                                                 rng_t &rng) {
   // First obtain the particle Lorentz factor in the correct frame
-  value_t r = grid_ks_t<Conf>::radius(value_t x1)
+  // value_t r = grid_ks_t<Conf>::radius(value_t x1)
   // value_t u_0 = Metric_KS::u_0
   return true;
 }

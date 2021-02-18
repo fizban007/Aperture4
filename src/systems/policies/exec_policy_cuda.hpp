@@ -20,6 +20,7 @@
 
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
+#include "core/cuda_control.h"
 #include "core/data_adapter.h"
 #include "systems/grid.h"
 #include "utils/kernel_helper.hpp"
@@ -38,18 +39,18 @@ class exec_policy_cuda {
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
     kernel_launch(f, adapt_cuda(args)...);
+    CudaCheckError();
   }
 
   template <typename Func, typename Idx, typename... Args>
-  static __device__ void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
+  static __device__ void loop(Idx begin, type_identity_t<Idx> end,
+                              const Func& f, Args&&... args) {
     for (auto idx : grid_stride_range(begin, end)) {
       f(idx, args...);
     }
   }
 
-  static void sync() {
-    CudaSafeCall(cudaDeviceSynchronize());
-  }
+  static void sync() { CudaSafeCall(cudaDeviceSynchronize()); }
 
   static __device__ const Grid<Conf::dim, typename Conf::value_t>& grid() {
     return dev_grid<Conf::dim, typename Conf::value_t>();

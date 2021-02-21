@@ -46,6 +46,8 @@ class sim_environment_impl {
   std::unordered_map<std::string, std::unique_ptr<data_t>> m_data_map;
   std::vector<std::string> m_system_order;
   std::vector<std::string> m_data_order;
+  // std::vector<float> m_system_time;
+  std::unordered_map<std::string, float> m_system_time;
 
   // Modules that manage callback, shared data pointers, and parameters
   // callback_handler_t m_callback_handler;

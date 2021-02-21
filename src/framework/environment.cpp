@@ -24,7 +24,8 @@
 
 namespace Aperture {
 
-sim_environment_impl::sim_environment_impl() : sim_environment_impl(nullptr, nullptr) {}
+sim_environment_impl::sim_environment_impl()
+    : sim_environment_impl(nullptr, nullptr) {}
 
 sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
   int is_initialized = 0;
@@ -52,7 +53,7 @@ sim_environment_impl::~sim_environment_impl() {
 }
 
 void
-sim_environment_impl::reset(int *argc, char ***argv) {
+sim_environment_impl::reset(int* argc, char*** argv) {
   // Reset the systems and data
   m_system_map.clear();
   m_system_order.clear();
@@ -76,7 +77,8 @@ sim_environment_impl::reset(int *argc, char ***argv) {
   } else {
     m_commandline_args = nullptr;
   }
-  std::string conf_filename = m_params.get_as<std::string>("config_file", "config.toml");
+  std::string conf_filename =
+      m_params.get_as<std::string>("config_file", "config.toml");
   Logger::print_info("config file is {}", conf_filename);
   m_params.parse(conf_filename);
 }
@@ -124,6 +126,7 @@ sim_environment_impl::init() {
     auto& s = m_system_map[name];
     Logger::print_info("Initializing system '{}'", name);
     s->init();
+    m_system_time.insert({name, 0.0f});
   }
 
   // Initialize all data
@@ -132,6 +135,8 @@ sim_environment_impl::init() {
     Logger::print_info("Initializing data '{}'", name);
     c->init();
   }
+
+  // m_system_time.assign(m_data_order.size(), 0.0f);
 }
 
 void
@@ -141,9 +146,14 @@ sim_environment_impl::update() {
     timer::stamp();
     m_system_map[name]->update(dt, step);
     float time_spent = timer::get_duration_since_stamp("us");
-    if (step % perf_interval == 0 && time_spent > 10.0f)
+    m_system_time[name] += time_spent;
+
+    if (step % perf_interval == 0 &&
+        m_system_time[name] / perf_interval > 10.0f) {
       Logger::print_info("Time for {} is {:.2f}ms", name,
-                         time_spent / 1000.0);
+                         m_system_time[name] / perf_interval / 1000.0);
+      m_system_time[name] = 0.0f;
+    }
     // timer::show_duration_since_stamp(name, "us");
   }
   time += dt;

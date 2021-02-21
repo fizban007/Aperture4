@@ -21,6 +21,7 @@
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/momentum_space.hpp"
+#include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
@@ -34,7 +35,6 @@ namespace Aperture {
 
 // class sim_environment;
 class particle_data_t;
-class curand_states_t;
 template <typename T, int Rank>
 class multi_array_data;
 
@@ -81,42 +81,6 @@ class data_exporter : public system_t {
       return true;
   }
 
-  // template <typename T, int Dim>
-  // void write_multi_array(const multi_array<T, Dim>& array,
-  //                        const std::string& name,
-  //                        const extent_t<Dim>& total_ext,
-  //                        const index_t<Dim>& offset, H5File& file);
-
-  // template <typename Func>
-  // void add_grid_output(sim_data& data, const std::string& name, Func f,
-  //                      H5File& file, uint32_t timestep);
-
-  // template <typename T>
-  // void add_grid_output(multi_array<T>& array, Stagger stagger,
-  //                      const std::string& name, H5File& file,
-  //                      uint32_t timestep);
-
-  // template <typename Ptc>
-  // void add_ptc_output(Ptc& data, size_t num, H5File& file,
-  //                     const std::string& prefix);
-
-  // template <typename Ptc>
-  // void read_ptc_output(Ptc& data, size_t num, H5File& file,
-  //                      const std::string& prefix);
-
-  // template <typename T, typename Func>
-  // void add_tracked_ptc_output(sim_data& data, int sp,
-  //                             const std::string& name,
-  //                             uint64_t total, uint64_t offset,
-  //                             Func f, H5File& file);
-
-  // void save_snapshot(const std::string& filename, sim_data& data,
-  //                    uint32_t step, Scalar time);
-  // void load_snapshot(const std::string& filename, sim_data& data,
-  //                    uint32_t& step, Scalar& time);
-
-  // buffer<float>& grid_buffer() { return tmp_grid_data; }
-  // buffer<double>& ptc_buffer() { return tmp_ptc_data; }
   void write(particle_data_t& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
   template <int N>
@@ -124,7 +88,9 @@ class data_exporter : public system_t {
              bool snapshot = false);
   void write(momentum_space<Conf>& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
-  void write(curand_states_t& data, const std::string& name, H5File& datafile,
+  // void write(curand_states_t& data, const std::string& name, H5File& datafile,
+  //            bool snapshot = false);
+  void write(rng_states_t& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
   template <typename T, int Rank>
   void write(multi_array_data<T, Rank>& data, const std::string& name,
@@ -134,8 +100,10 @@ class data_exporter : public system_t {
   template <int N>
   void read(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
             bool snapshot = false);
-  void read(curand_states_t& data, const std::string& name, H5File& datafile,
-            bool snapshot = false);
+  void read(rng_states_t& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
+  // void read(curand_states_t& data, const std::string& name, H5File& datafile,
+  //           bool snapshot = false);
   template <typename T, int Rank>
   void read(multi_array_data<T, Rank>& data, const std::string& name,
             H5File& datafile, bool snapshot = false);

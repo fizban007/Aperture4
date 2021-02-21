@@ -98,7 +98,7 @@ template <class Conf, template <class> class ExecPolicy,
           template <class> class RadiationPolicy>
 void
 radiative_transfer<Conf, ExecPolicy, CoordPolicy,
-                   RadiationPolicy>::emit_photons(double dt) {
+                   RadiationPolicy>::emit_photons(value_t dt) {
   auto ptc_num = ptc->number();
   if (ptc_num == 0) return;
   // Have to define these variables in this scope in order to capture them in a
@@ -116,9 +116,9 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
 
   // Loop over the particle array to test photon emission and produce photons
   ExecPolicy<Conf>::launch(
-      [ptc_num, ph_num, ph_per_scatter, tracked_fraction, track_rank] LAMBDA(
-          auto ptc, auto ph, auto ph_pos, auto ph_id, auto ph_produced,
-          auto states, auto rad_policy) {
+      [ptc_num, ph_num, ph_per_scatter, tracked_fraction, track_rank,
+       dt] LAMBDA(auto ptc, auto ph, auto ph_pos, auto ph_id, auto ph_produced,
+                  auto states, auto rad_policy) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t rng(states);
@@ -126,9 +126,9 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
         ExecPolicy<Conf>::loop(
             0, ptc_num,
             [&grid, &ext, &rng, ph_num, ph_per_scatter, tracked_fraction,
-             track_rank] LAMBDA(auto n, auto& ptc, auto& ph, auto& ph_pos,
-                                auto& ph_id, auto& ph_produced,
-                                auto& rad_policy) {
+             track_rank, dt] LAMBDA(auto n, auto& ptc, auto& ph, auto& ph_pos,
+                                    auto& ph_id, auto& ph_produced,
+                                    auto& rad_policy) {
               auto cell = ptc.cell[n];
               if (cell == empty_cell) return;
 
@@ -140,8 +140,8 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
               int sp = get_ptc_type(flag);
               if (sp == (int)PtcType::ion) return;
 
-              size_t ph_offset =
-                  rad_policy.emit_photon(ptc, n, ph, ph_num, ph_pos, rng);
+              size_t ph_offset = rad_policy.emit_photon(
+                  grid, ext, ptc, n, ph, ph_num, ph_pos, rng, dt);
 
               if (ph_offset != 0) {
                 auto w = ptc.weight[n];
@@ -174,7 +174,7 @@ template <class Conf, template <class> class ExecPolicy,
           template <class> class RadiationPolicy>
 void
 radiative_transfer<Conf, ExecPolicy, CoordPolicy,
-                   RadiationPolicy>::create_pairs(double dt) {
+                   RadiationPolicy>::create_pairs(value_t dt) {
   auto ph_num = ph->number();
   if (ph_num == 0) return;
 
@@ -192,7 +192,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   // Loop over the photons array to test pair production and create the pairs in
   // the particle array
   ExecPolicy<Conf>::launch(
-      [ptc_num, ph_num, tracked_fraction, track_rank] LAMBDA(
+      [ptc_num, ph_num, tracked_fraction, track_rank, dt] LAMBDA(
           auto ph, auto ptc, auto ptc_pos, auto ptc_id, auto pair_produced,
           auto states, auto rad_policy) {
         auto& grid = ExecPolicy<Conf>::grid();
@@ -201,9 +201,9 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
 
         ExecPolicy<Conf>::loop(
             0, ph_num,
-            [&grid, &ext, &rng, ptc_num, tracked_fraction, track_rank] LAMBDA(
-                auto n, auto& ph, auto& ptc, auto& ptc_pos, auto& ptc_id,
-                auto& pair_produced, auto& rad_policy) {
+            [&grid, &ext, &rng, ptc_num, tracked_fraction, track_rank,
+             dt] LAMBDA(auto n, auto& ph, auto& ptc, auto& ptc_pos,
+                        auto& ptc_id, auto& pair_produced, auto& rad_policy) {
               auto cell = ph.cell[n];
               if (cell == empty_cell) return;
 
@@ -212,8 +212,8 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
 
               if (!grid.is_in_bound(pos)) return;
 
-              size_t ptc_offset =
-                  rad_policy.produce_pair(ph, n, ptc, ptc_num, ptc_pos, rng);
+              size_t ptc_offset = rad_policy.produce_pair(
+                  grid, ext, ph, n, ptc, ptc_num, ptc_pos, rng, dt);
 
               // if (rad_policy.check_produce_pair(ph, n, rng)) {
               if (ptc_offset != 0) {

@@ -49,10 +49,10 @@ Z(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / rho2(a, r, sth, cth);
 }
 
-// HD_INLINE Scalar
-// Delta(Scalar a, Scalar r) {
-//   return r * r + a * a - 2.0f * r;
-// }
+HD_INLINE Scalar
+Delta(Scalar a, Scalar r) {
+  return r * r + a * a - 2.0f * r;
+}
 
 HD_INLINE Scalar
 Sigma(Scalar a, Scalar r, Scalar th) {

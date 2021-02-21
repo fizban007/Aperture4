@@ -218,9 +218,9 @@ class multi_array : public buffer<T> {
       return m_dev_ptr[Idx_t(pos, m_ext)];
     }
 
-    const extent_t<Rank>& ext() const { return m_ext; }
+    HD_INLINE const extent_t<Rank>& ext() const { return m_ext; }
     const const_ptr_t& ptr() const { return m_ptr; }
-    const const_ptr_t& dev_ptr() const { return m_dev_ptr; }
+    HD_INLINE const const_ptr_t& dev_ptr() const { return m_dev_ptr; }
 
    private:
     const_ptr_t m_ptr;

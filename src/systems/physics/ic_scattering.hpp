@@ -64,12 +64,15 @@ struct ic_scatter_t {
     if (b < 2) {
       b = array_upper_bound(u, n_gamma, dNde_thomson, l, h);
       value_t bb = (u - l) / (h - l) + b;
-      return clamp(math::exp(dlep * bb) * min_ep, 0.0, gamma - 1.01);
+      // return clamp(math::exp(dlep * bb) * min_ep, 0.0, gamma - 1.01);
+      return clamp(math::exp(dlep * bb) * min_ep, 0.0, 1.0);
     } else if (b >= dNde.ext()[0]) {
-      return clamp(dep * dNde.ext()[0], 0.0, gamma - 1.01);
+      // return clamp(dep * dNde.ext()[0], 0.0, gamma - 1.01);
+      return clamp(dep * dNde.ext()[0], 0.0, 1.0);
     } else {
       value_t bb = (u - l) / (h - l) + b;
-      return clamp(dep * bb, 0.0, gamma - 1.01);
+      // return clamp(dep * bb, 0.0, gamma - 1.01);
+      return clamp(dep * bb, 0.0, 1.0);
     }
   }
 

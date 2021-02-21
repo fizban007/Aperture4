@@ -35,6 +35,8 @@ template <class Conf, template <class> class ExecPolicy,
           template <class> class RadiationPolicy>
 class radiative_transfer : public system_t {
  public:
+  using value_t = typename Conf::value_t;
+
   radiative_transfer(const grid_t<Conf>& grid,
                      const domain_comm<Conf>* comm = nullptr);
   ~radiative_transfer();
@@ -43,8 +45,8 @@ class radiative_transfer : public system_t {
   virtual void register_data_components() override;
   virtual void update(double dt, uint32_t step) override;
 
-  void emit_photons(double dt);
-  void create_pairs(double dt);
+  void emit_photons(value_t dt);
+  void create_pairs(value_t dt);
 
  protected:
   std::unique_ptr<CoordPolicy<Conf>> m_coord_policy;

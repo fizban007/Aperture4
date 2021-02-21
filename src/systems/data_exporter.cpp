@@ -141,7 +141,8 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else {
-        Logger::print_info("Data exporter doesn't know how to write {}", it.first);
+        Logger::print_info("Data exporter doesn't know how to write {}",
+                           it.first);
       }
 
       if (data->reset_after_output()) {
@@ -404,14 +405,14 @@ data_exporter<Conf>::write_grid_multiarray(
     const std::string& name, const typename Conf::multi_array_t& array,
     stagger_t stagger, H5File& file) {
   // if (m_downsample != 1) {
-    if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-      resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-                   stagger, m_output_stagger, m_downsample);
-      tmp_grid_data.copy_to_host();
-    } else {
-      resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-               stagger, m_output_stagger, m_downsample);
-    }
+  if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
+    resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+                 stagger, m_output_stagger, m_downsample);
+    tmp_grid_data.copy_to_host();
+  } else {
+    resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+             stagger, m_output_stagger, m_downsample);
+  }
   // } else {
   //   tmp_grid_data.copy_from(array);
   //   tmp_grid_data.copy_to_host();
@@ -493,12 +494,18 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 
 template <typename Conf>
 void
+data_exporter<Conf>::write(rng_states_t& data, const std::string& name, H5File& datafile,
+                           bool snapshot) {}
+
+template <typename Conf>
+void
 data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
   data.copy_to_host();
 
   // First figure out the extent and offset of each node
-  extent_t<Conf::dim + 1> ext_total(data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
+  extent_t<Conf::dim + 1> ext_total(
+      data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
   extent_t<Conf::dim + 1> ext(data.m_num_bins[0], data.m_grid_ext);
   // ext.get_strides();
   // ext_total.get_strides();
@@ -510,18 +517,24 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
       idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i - 1];
     }
 
-    datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_e");
-    datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_p");
+    datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src,
+                            name + "_p1_e");
+    datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src,
+                            name + "_p1_p");
     ext[0] = ext_total[0] = data.m_num_bins[1];
     ext.get_strides();
     ext_total.get_strides();
-    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
-    datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_p");
+    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src,
+                            name + "_p2_e");
+    datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src,
+                            name + "_p2_p");
     ext[0] = ext_total[0] = data.m_num_bins[2];
     ext.get_strides();
     ext_total.get_strides();
-    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
-    datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_p");
+    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src,
+                            name + "_p3_e");
+    datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src,
+                            name + "_p3_p");
   } else {
     datafile.write(data.e_p1, name + "_p1_e");
     datafile.write(data.p_p1, name + "_p1_p");
@@ -585,6 +598,11 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
     }
   }
 }
+
+template <typename Conf>
+void
+data_exporter<Conf>::read(rng_states_t& data, const std::string& name, H5File& datafile,
+                          bool snapshot) {}
 
 template <typename Conf>
 void

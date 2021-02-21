@@ -52,9 +52,10 @@ struct default_radiation_scheme {
     }
   }
 
-  HOST_DEVICE size_t emit_photon(ptc_ptrs& ptc, size_t tid, ph_ptrs& ph,
-                                 size_t ph_num, unsigned long long int* ph_pos,
-                                 rng_t& rng) {
+  HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t>& grid,
+                                 const extent_t<Conf::dim>& ext, ptc_ptrs& ptc,
+                                 size_t tid, ph_ptrs& ph, size_t ph_num,
+                                 unsigned long long int* ph_pos, rng_t& rng, value_t dt) {
     value_t gamma = ptc.E[tid];
     if (gamma < gamma_thr) {
       return 0;  // 0 means no photon is produced
@@ -96,9 +97,10 @@ struct default_radiation_scheme {
     return offset;
   }
 
-  HOST_DEVICE size_t produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc,
-                                  size_t ptc_num,
-                                  unsigned long long int* ptc_pos, rng_t& rng) {
+  HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t>& grid,
+                                  const extent_t<Conf::dim>& ext, ph_ptrs& ph,
+                                  size_t tid, ptc_ptrs& ptc, size_t ptc_num,
+                                  unsigned long long int* ptc_pos, rng_t& rng, value_t dt) {
     value_t path_left = ph.path_left[tid];
     if (path_left > 0.0f) {
       return 0;  // 0 means no pairs are produced

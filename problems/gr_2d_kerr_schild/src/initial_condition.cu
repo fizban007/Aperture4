@@ -114,7 +114,7 @@ initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
 
 template <typename Conf>
 void
-initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf>& D,
+initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
                         const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
   sim_env().params().get_value("Bp", Bp);
@@ -138,8 +138,53 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf>& D,
           // Both B^\phi and D^\phi are zero
           B[2][idx] = 0.0f;
           D[2][idx] = 0.0f;
-          }
-        }, B.get_ptrs(), D.get_ptrs(), grid.a);
+
+          auto sth = math::sin(th);
+          auto cth = math::cos(th);
+          auto sth_s = math::sin(th_s);
+          auto cth_s = math::cos(th_s);
+
+          auto Br = [a] __device__(auto r, auto sth, auto cth) {
+            return ((a * a + r * r) * (r * r - square(a * cth)) * sth /
+                    square(r * r + square(a * cth))) /
+                   Metric_KS::sqrt_gamma(a, r, sth, cth);
+          };
+
+          auto Bth = [a] __device__(auto r, auto sth, auto cth) {
+            return -(2.0 * r * cth * square(a * sth) /
+                     square(r * r + square(a * cth))) /
+                   Metric_KS::sqrt_gamma(a, r, sth, cth);
+          };
+
+          auto Er = [a] __device__(auto r, auto sth, auto cth) {
+            return -2.0 * a * r * cth / square(r * r + square(a * cth));
+          };
+
+          auto Eth = [a] __device__(auto r, auto sth, auto cth) {
+            return -a * sth * (r * r - square(a * cth)) /
+                   square(r * r + square(a * cth));
+          };
+
+          B[0][idx] = Br(r_s, sth, cth);
+          B[1][idx] = Bth(r, sth_s, cth_s);
+
+          D[0][idx] =
+              (Metric_KS::gu11(a, r, sth_s, cth_s) * Er(r, sth_s, cth_s) -
+               Metric_KS::gu13(a, r, sth_s, cth_s) *
+                   Metric_KS::sq_gamma_beta(a, r, sth_s, cth_s) *
+                   Bth(r, sth_s, cth_s)) /
+              Metric_KS::alpha(a, r, sth_s, cth_s);
+          D[1][idx] = (Metric_KS::gu22(a, r_s, sth, cth) * Eth(r_s, sth, cth)) /
+                      Metric_KS::alpha(a, r_s, sth, cth);
+          D[2][idx] =
+              (Metric_KS::gu13(a, r_s, sth_s, cth_s) * Er(r_s, sth_s, cth_s) -
+               Metric_KS::gu33(a, r_s, sth_s, cth_s) *
+                   Metric_KS::sq_gamma_beta(a, r_s, sth_s, cth_s) *
+                   Bth(r_s, sth_s, cth_s)) /
+              Metric_KS::alpha(a, r_s, sth_s, cth_s);
+        }
+      },
+      B.get_ptrs(), D.get_ptrs(), grid.a);
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -158,9 +203,8 @@ template void initial_vacuum_wald(vector_field<Config<2, double>> &B0,
                                   vector_field<Config<2, double>> &D0,
                                   const grid_ks_t<Config<2, double>> &grid);
 
-template
-void
-initial_vacuum_monopole(vector_field<Config<2>> &B, vector_field<Config<2>>& D,
-                        const grid_ks_t<Config<2>> &grid);
+template void initial_vacuum_monopole(vector_field<Config<2>> &B,
+                                      vector_field<Config<2>> &D,
+                                      const grid_ks_t<Config<2>> &grid);
 
 }  // namespace Aperture

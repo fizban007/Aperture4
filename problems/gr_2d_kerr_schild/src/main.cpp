@@ -74,7 +74,7 @@ main(int argc, char *argv[]) {
   B->copy_from(*B0);
   D->copy_from(*D0);
 
-  // pusher->fill_multiplicity(20, 1.0, 0.1);
+  pusher->fill_multiplicity(5, 1.0, 0.1);
   // Logger::print_info("number of particles is {}", ptc->number());
   // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
   // index_t<2> pos;

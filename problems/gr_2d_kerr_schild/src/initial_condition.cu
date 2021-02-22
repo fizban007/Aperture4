@@ -26,9 +26,9 @@
 namespace Aperture {
 
 template <typename Conf>
-void
-initial_nonrotating_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
-                                const grid_ks_t<Conf> &grid) {
+void initial_nonrotating_vacuum_wald(vector_field<Conf> &B0,
+                                     vector_field<Conf> &D0,
+                                     const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
   sim_env().params().get_value("Bp", Bp);
 
@@ -78,9 +78,8 @@ initial_nonrotating_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
 }
 
 template <typename Conf>
-void
-initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
-                    const grid_ks_t<Conf> &grid) {
+void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
+                         const grid_ks_t<Conf> &grid) {
   typename Conf::value_t Bp = 1.0;
   sim_env().params().get_value("Bp", Bp);
 
@@ -113,9 +112,8 @@ initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
 }
 
 template <typename Conf>
-void
-initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
-                        const grid_ks_t<Conf> &grid) {
+void initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
+                             const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
   sim_env().params().get_value("Bp", Bp);
 
@@ -165,18 +163,21 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
                    square(r * r + square(a * cth));
           };
 
-          B[0][idx] = Br(r_s, sth, cth);
-          B[1][idx] = Bth(r, sth_s, cth_s);
+          B[0][idx] = Bp * Br(r_s, sth, cth);
+          B[1][idx] = Bp * Bth(r, sth_s, cth_s);
 
           D[0][idx] =
+              Bp *
               (Metric_KS::gu11(a, r, sth_s, cth_s) * Er(r, sth_s, cth_s) -
                Metric_KS::gu13(a, r, sth_s, cth_s) *
                    Metric_KS::sq_gamma_beta(a, r, sth_s, cth_s) *
                    Bth(r, sth_s, cth_s)) /
               Metric_KS::alpha(a, r, sth_s, cth_s);
-          D[1][idx] = (Metric_KS::gu22(a, r_s, sth, cth) * Eth(r_s, sth, cth)) /
+          D[1][idx] = Bp *
+                      (Metric_KS::gu22(a, r_s, sth, cth) * Eth(r_s, sth, cth)) /
                       Metric_KS::alpha(a, r_s, sth, cth);
           D[2][idx] =
+              Bp *
               (Metric_KS::gu13(a, r_s, sth_s, cth_s) * Er(r_s, sth_s, cth_s) -
                Metric_KS::gu33(a, r_s, sth_s, cth_s) *
                    Metric_KS::sq_gamma_beta(a, r_s, sth_s, cth_s) *
@@ -189,12 +190,14 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
   CudaCheckError();
 }
 
-template void initial_nonrotating_vacuum_wald(
-    vector_field<Config<2, float>> &B0, vector_field<Config<2, float>> &D0,
-    const grid_ks_t<Config<2, float>> &grid);
-template void initial_nonrotating_vacuum_wald(
-    vector_field<Config<2, double>> &B0, vector_field<Config<2, double>> &D0,
-    const grid_ks_t<Config<2, double>> &grid);
+template void
+initial_nonrotating_vacuum_wald(vector_field<Config<2, float>> &B0,
+                                vector_field<Config<2, float>> &D0,
+                                const grid_ks_t<Config<2, float>> &grid);
+template void
+initial_nonrotating_vacuum_wald(vector_field<Config<2, double>> &B0,
+                                vector_field<Config<2, double>> &D0,
+                                const grid_ks_t<Config<2, double>> &grid);
 
 template void initial_vacuum_wald(vector_field<Config<2, float>> &B0,
                                   vector_field<Config<2, float>> &D0,
@@ -207,4 +210,4 @@ template void initial_vacuum_monopole(vector_field<Config<2>> &B,
                                       vector_field<Config<2>> &D,
                                       const grid_ks_t<Config<2>> &grid);
 
-}  // namespace Aperture
+} // namespace Aperture

@@ -36,6 +36,7 @@ template <class Conf, template <class> class ExecPolicy,
 class radiative_transfer : public system_t {
  public:
   using value_t = typename Conf::value_t;
+  static std::string name() { return "radiative_transfer"; }
 
   radiative_transfer(const grid_t<Conf>& grid,
                      const domain_comm<Conf>* comm = nullptr);

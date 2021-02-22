@@ -27,6 +27,8 @@
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
 #include "systems/ptc_updater_base.h"
+#include "systems/radiative_transfer.h"
+#include "systems/radiation/gr_ks_ic_radiation_scheme.hpp"
 #include "utils/util_functions.h"
 
 using namespace std;
@@ -34,15 +36,13 @@ using namespace std;
 namespace Aperture {
 
 template <typename Conf>
-void
-initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf>& D,
-                        const grid_ks_t<Conf> &grid);
-}  // namespace Aperture
+void initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
+                             const grid_ks_t<Conf> &grid);
+} // namespace Aperture
 
 using namespace Aperture;
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
@@ -54,9 +54,13 @@ main(int argc, char *argv[]) {
   grid_ks_t<Conf> grid(comm);
 
   auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
-  // auto pusher = env.register_system<
-  //     ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid, comm);
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid,
+                                                                       comm);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
+  auto rt = env.register_system<
+      radiative_transfer<Conf, exec_policy_cuda, coord_policy_gr_ks_sph,
+                         gr_ks_ic_radiation_scheme>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
@@ -73,13 +77,10 @@ main(int argc, char *argv[]) {
   value_t Bp = 1000.0;
   env.params().get_value("Bp", Bp);
 
-  // B0->set_values(0, [Bp](auto x1, auto x2, auto x3) {
-  //   return Bp / math::exp(2.0 * x1);
-  // });
   initial_vacuum_monopole(*B0, *D0, grid);
   B->copy_from(*B0);
 
-  // pusher->fill_multiplicity(20, 1.0, 0.1);
+  // pusher->fill_multiplicity(10, 1.0, 0.1);
   // Logger::print_info("number of particles is {}", ptc->number());
   // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
   // index_t<2> pos;
@@ -88,12 +89,12 @@ main(int argc, char *argv[]) {
   // auto ext = grid.extent();
   // typename Conf::idx_t idx(pos, ext);
 
-  // for (int i = 0; i < 1; i++) {
-  //   ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
-  //                   set_ptc_type_flag(0, PtcType::positron));
-  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
-  // }
-  // CudaSafeCall(cudaDeviceSynchronize());
+  for (int i = 0; i < 1; i++) {
+    ptc->append_dev({0.5, 0.5, 0.0}, {1000.0, 0.0, 0.0}, 100 + grid.dims[0] * 400, 1000.0,
+                    set_ptc_type_flag(0, PtcType::positron));
+    // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  }
+  CudaSafeCall(cudaDeviceSynchronize());
 
   // index_t<2> pos(200, 768);
   // auto ext = grid.extent();

@@ -15,6 +15,10 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(gr_vacuum gr_2d_kerr_schild)
   add_dependencies(problems gr_vacuum)
 
+  add_executable(gr_monopole "monopole_vacuum.cpp")
+  target_link_libraries(gr_monopole gr_2d_kerr_schild)
+  add_dependencies(problems gr_monopole)
+
   add_executable(gr_single_ptc "test_particle.cpp")
   target_link_libraries(gr_single_ptc gr_2d_kerr_schild)
   add_dependencies(problems gr_single_ptc)

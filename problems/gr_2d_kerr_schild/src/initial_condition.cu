@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -112,6 +112,38 @@ initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
   CudaCheckError();
 }
 
+template <typename Conf>
+void
+initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf>& D,
+                        const grid_ks_t<Conf> &grid) {
+  Scalar Bp = 1.0;
+  sim_env().params().get_value("Bp", Bp);
+
+  kernel_launch(
+      [Bp] __device__(auto B, auto D, auto a) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
+
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          auto r_s =
+              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+          auto th_s =
+              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+          if (math::abs(th_s) < TINY)
+            th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
+
+          // Both B^\phi and D^\phi are zero
+          B[2][idx] = 0.0f;
+          D[2][idx] = 0.0f;
+          }
+        }, B.get_ptrs(), D.get_ptrs(), grid.a);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
 template void initial_nonrotating_vacuum_wald(
     vector_field<Config<2, float>> &B0, vector_field<Config<2, float>> &D0,
     const grid_ks_t<Config<2, float>> &grid);
@@ -125,5 +157,10 @@ template void initial_vacuum_wald(vector_field<Config<2, float>> &B0,
 template void initial_vacuum_wald(vector_field<Config<2, double>> &B0,
                                   vector_field<Config<2, double>> &D0,
                                   const grid_ks_t<Config<2, double>> &grid);
+
+template
+void
+initial_vacuum_monopole(vector_field<Config<2>> &B, vector_field<Config<2>>& D,
+                        const grid_ks_t<Config<2>> &grid);
 
 }  // namespace Aperture

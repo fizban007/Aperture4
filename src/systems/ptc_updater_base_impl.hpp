@@ -319,13 +319,16 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
     return;
   int rho_interval = m_rho_interval;
   auto coord_policy = *m_coord_policy;
+  bool deposit_rho = (step % rho_interval == 0);
+
+  rho_ph->init();
 
   // Photon movement loop
   ExecPolicy<Conf>::launch(
-      [num, dt, rho_interval, step, coord_policy] LAMBDA(auto ph, auto Rho_ph) {
+      [num, dt, rho_interval, deposit_rho, coord_policy] LAMBDA(auto ph,
+                                                                auto Rho_ph) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        bool deposit_rho = (step % rho_interval == 0);
         ExecPolicy<Conf>::loop(
             0ul, num,
             [&ext, &coord_policy, dt,
@@ -352,7 +355,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
               // Photon enery should not change
               // ph.E[n] = context.gamma;
 
-              auto idx_new = Conf::idx(pos + context.dc, ext);
+              // auto idx_new = Conf::idx(pos + context.dc, ext);
+              auto idx_new = Conf::idx(pos, ext);
               if (deposit_rho) {
                 // Simple deposit, do not care about weight function
                 atomic_add(&Rho_ph[idx_new], ph.weight[n]);
@@ -426,8 +430,13 @@ template <typename Conf, template <class> class ExecPolicy,
 void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                      PhysicsPolicy>::sort_particles() {
   ptc->sort_by_cell(m_grid.extent().size());
-  if (ph != nullptr)
+  Logger::print_info("Sorting complete, there are {} particles in the pool",
+                     ptc->number());
+  if (ph != nullptr) {
     ph->sort_by_cell(m_grid.extent().size());
+    Logger::print_info("Sorting complete, there are {} photons in the pool",
+                       ph->number());
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy,

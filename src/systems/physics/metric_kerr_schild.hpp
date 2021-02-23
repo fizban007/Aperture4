@@ -279,7 +279,7 @@ u_0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
 
 HD_INLINE Scalar
 rH(Scalar a) {
-  return 1.0f - math::sqrt(1.0f - a * a);
+  return 1.0f + math::sqrt(1.0f - a * a);
 }
 
 }  // namespace Metric_KS

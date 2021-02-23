@@ -174,8 +174,6 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
                                    empty_cell - 1) -
                ptr_cell;
 
-    Logger::print_info("Sorting complete, there are {} particles in the pool",
-                       m_number);
     cudaDeviceSynchronize();
     CudaCheckError();
   }

@@ -30,7 +30,8 @@
 
 namespace Aperture {
 
-template <typename Conf> struct gr_ks_ic_radiation_scheme {
+template <typename Conf>
+struct gr_ks_ic_radiation_scheme {
   using value_t = typename Conf::value_t;
 
   const grid_t<Conf> &m_grid;
@@ -89,8 +90,8 @@ template <typename Conf> struct gr_ks_ic_radiation_scheme {
     value_t zamo_u_0 = (sqrt_sigma * u_0 + 2.0f * m_a * r * u[2] / sqrt_sigma) /
                        sqrt_delta * sqrt_rho2;
     printf("particle r is %f, theta is %f\n", r, x_global[1]);
-    printf("particle u_0 is %f, u_i is (%f, %f, %f), zamo_u_0 is %f\n",
-           u_0, u[0], u[1], u[2], zamo_u_0);
+    printf("particle u_0 is %f, u_i is (%f, %f, %f), zamo_u_0 is %f\n", u_0,
+           u[0], u[1], u[2], zamo_u_0);
 
     value_t gamma = math::abs(zamo_u_0);
     // Transform dt into ZAMO frame
@@ -157,7 +158,8 @@ template <typename Conf> struct gr_ks_ic_radiation_scheme {
     ptc.p3[tid] -= ph.p3[offset];
     // Note: not necessary to write ptc.E[tid] since we really don't use it at
     // all
-    printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
+    printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid],
+           ptc.p3[tid]);
 
     return offset;
   }
@@ -200,7 +202,7 @@ template <typename Conf> struct gr_ks_ic_radiation_scheme {
     value_t gg_prob = m_ic_module.gg_scatter_rate(math::abs(zamo_u_0)) * dt;
 
     if (rng.uniform<value_t>() >= gg_prob) {
-      return 0; // Does not produce a pair
+      return 0;  // Does not produce a pair
     }
 
     size_t offset = ptc_num + atomic_add(ptc_pos, 2);
@@ -231,6 +233,6 @@ template <typename Conf> struct gr_ks_ic_radiation_scheme {
   }
 };
 
-} // namespace Aperture
+}  // namespace Aperture
 
-#endif // _GR_KS_IC_RADIATION_SCHEME_H_
+#endif  // _GR_KS_IC_RADIATION_SCHEME_H_

@@ -143,7 +143,7 @@ class coord_policy_cartesian {
     }
   }
 
- private:
+ protected:
   const grid_t<Conf>& m_grid;
 };
 

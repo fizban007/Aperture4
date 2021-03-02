@@ -115,10 +115,10 @@ struct gr_ks_ic_radiation_scheme {
     }
 
     // draw emitted photon energy
-    rand = rng.uniform<value_t>();
+    // rand = rng.uniform<value_t>();
     // e_ph is a number between 0 and 1, the fraction of the photon energy with
     // respect to the electron energy
-    value_t e_ph = m_ic_module.gen_photon_e(gamma, rand);
+    value_t e_ph = m_ic_module.gen_photon_e(gamma, rng);
     printf("emitting photon with energy e_ph %f\n", e_ph);
     if (e_ph * u0 < 2.01f) {
       ptc.p1[tid] *= (1.0f - e_ph);

@@ -46,17 +46,29 @@ main(int argc, char *argv[]) {
   file.write(ic.dlep(), "dlep");
 
   auto ic_module = ic.get_ic_module();
-  int N = 100000;
+  int N = 1000000;
   int n_scatter = 1000;
-  buffer<double> gamma_e(N);
-  buffer<double> eph(n_scatter * N);
+  // buffer<double> gamma_e(N);
+  // buffer<double> eph(n_scatter * N);
   rand_state state;
   rng_t rng(&state);
 
+  buffer<double> g1(N), g2(N), g3(N), g4(N), g5(N);
   // Prepare electron spectrum
   for (int i = 0; i < N; i++) {
-
+    // auto u = rng.uniform<double>();
+    g1[i] = ic_module.gen_photon_e(10, rng);
+    g2[i] = ic_module.gen_photon_e(100, rng);
+    g3[i] = ic_module.gen_photon_e(1000, rng);
+    g4[i] = ic_module.gen_photon_e(10000, rng);
+    g5[i] = ic_module.gen_photon_e(100000, rng);
   }
+
+  file.write(g1, "mono1e1");
+  file.write(g2, "mono1e2");
+  file.write(g3, "mono1e3");
+  file.write(g4, "mono1e4");
+  file.write(g5, "mono1e5");
 
   file.close();
 

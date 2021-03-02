@@ -86,9 +86,11 @@ inverse_compton_t::inverse_compton_t() {
   sim_env().params().get_value("n_ep", n_ep);
 
   m_min_ep = 1.0e-10;
+  sim_env().params().get_value("min_ep", m_min_ep);
   m_dgamma = math::log(max_gamma) / (n_gamma - 1.0);
   m_dep = 1.0 / (n_ep - 1.0);
-  m_dlep = -math::log(m_min_ep) / (n_ep - 1.0);
+  // m_dlep = -math::log(m_min_ep) / (n_ep - 1.0);
+  m_dlep = (math::log(2.0 * m_dep) - math::log(m_min_ep)) / (n_ep - 1.0);
 
   auto spec_ext = extent(n_ep, n_gamma);
   m_dNde.resize(spec_ext);

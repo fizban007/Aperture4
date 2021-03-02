@@ -57,20 +57,24 @@ struct ic_scatter_t {
   }
 
   // u is a generated random number between 0 and 1
-  HOST_DEVICE value_t gen_photon_e(value_t gamma, value_t u) {
+  template <typename Rng>
+  HOST_DEVICE value_t gen_photon_e(value_t gamma, Rng& rng) {
     int n_gamma = find_n_gamma(gamma);
     value_t l, h;
+    value_t u = rng.template uniform<value_t>();
     int b = array_upper_bound(u, n_gamma, dNde, l, h);
+    // TODO: This is an arbitrary division
     if (b < 2) {
+      u = rng.template uniform<value_t>();
       b = array_upper_bound(u, n_gamma, dNde_thomson, l, h);
-      value_t bb = (u - l) / (h - l) + b;
-      // return clamp(math::exp(dlep * bb) * min_ep, 0.0, gamma - 1.01);
+      value_t bb = (u - l) / (h - l) + b - 1;
+
       return clamp(math::exp(dlep * bb) * min_ep, 0.0, 1.0);
     } else if (b >= dNde.ext()[0]) {
       // return clamp(dep * dNde.ext()[0], 0.0, gamma - 1.01);
       return clamp(dep * dNde.ext()[0], 0.0, 1.0);
     } else {
-      value_t bb = (u - l) / (h - l) + b;
+      value_t bb = (u - l) / (h - l) + b - 1;
       // return clamp(dep * bb, 0.0, gamma - 1.01);
       return clamp(dep * bb, 0.0, 1.0);
     }

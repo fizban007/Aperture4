@@ -64,6 +64,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
 
   add_executable(mock_loop "mock_loop.cu")
   target_link_libraries(mock_loop Aperture)
+
+  add_executable(test_maxwellian "test_maxwellian.cu")
+  target_link_libraries(test_maxwellian Aperture)
 else()
   add_executable(perf_ptc_update_cpu "perf_ptc_update_cpu.cpp")
   target_link_libraries(perf_ptc_update_cpu Aperture)

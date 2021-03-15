@@ -81,7 +81,7 @@ struct rng_t {
   template <typename Float>
   __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, Float beta) {
     vec_t<Float, 3> u = maxwell_juttner_3d(theta);
-    auto G = 1.0f / (1.0f - beta*beta);
+    auto G = 1.0f / math::sqrt(1.0f - beta*beta);
     auto u0 = math::sqrt(1.0f + u.dot(u));
 
     auto x1 = uniform<Float>();

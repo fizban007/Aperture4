@@ -151,6 +151,8 @@ field_solver<Conf>::register_data_impl(MemType type) {
       "divB", m_grid, field_type::cell_centered, type);
   divE = sim_env().register_data<scalar_field<Conf>>(
       "divE", m_grid, field_type::vert_centered, type);
+  flux = sim_env().register_data<scalar_field<Conf>>(
+      "flux", m_grid, field_type::vert_centered, type);
   // EdotB = sim_env().register_data<scalar_field<Conf>>("EdotB", m_grid,
   //                                                 field_type::vert_centered);
 }

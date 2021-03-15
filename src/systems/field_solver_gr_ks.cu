@@ -257,8 +257,8 @@ void
 field_solver_gr_ks_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
-  flux = sim_env().template register_data<scalar_field<Conf>>(
-      "flux", this->m_grid, field_type::vert_centered);
+  // flux = sim_env().template register_data<scalar_field<Conf>>(
+  //     "flux", this->m_grid, field_type::vert_centered);
 }
 
 template <typename Conf>

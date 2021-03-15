@@ -209,6 +209,31 @@ compute_divs_cu(scalar_field<Conf> &divE, scalar_field<Conf> &divB,
 
 template <typename Conf>
 void
+compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
+             const grid_t<Conf> &grid) {
+  if constexpr (Conf::dim == 2) {
+    flux.init();
+    auto ext = grid.extent();
+    kernel_launch(
+        [ext] __device__(auto flux, auto b) {
+          auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+          for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+            for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
+                 n1++) {
+              auto pos = index_t<Conf::dim>(n0, n1);
+              auto idx = typename Conf::idx_t(pos, ext);
+              flux[idx] = flux[idx.dec_y()] + b[0][idx] * grid.delta[1];
+            }
+          }
+        },
+        flux.dev_ndptr(), b.get_ptrs());
+    CudaSafeCall(cudaDeviceSynchronize());
+    CudaCheckError();
+  }
+}
+
+template <typename Conf>
+void
 clean_field(vector_field<Conf> &f) {
   kernel_launch(
       [] __device__(auto f) {
@@ -359,6 +384,13 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
     is_boundary = true;
     compute_divs_cu(*(this->divE), *(this->divB), *(this->E), *(this->B),
                     is_boundary);
+  }
+
+  auto step = sim_env().get_step();
+  if (step % this->m_data_interval == 0) {
+    // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
+    // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
+    compute_flux(*(this->flux), *(this->Btotal), this->m_grid);
   }
 }
 

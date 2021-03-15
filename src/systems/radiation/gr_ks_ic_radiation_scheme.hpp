@@ -73,7 +73,7 @@ struct gr_ks_ic_radiation_scheme {
     value_t cth = math::cos(x_global[1]);
     value_t r = x_global[0];
 
-    if (r < Metric_KS::rH(m_a) + 0.1f) {
+    if (r < Metric_KS::rH(m_a) + 0.1f || r > 5.0f) {
       return 0;
     }
 
@@ -89,9 +89,9 @@ struct gr_ks_ic_radiation_scheme {
     // U_0 in zamo is the particle energy (with a minus sign?)
     value_t zamo_u_0 = (sqrt_sigma * u_0 + 2.0f * m_a * r * u[2] / sqrt_sigma) /
                        sqrt_delta * sqrt_rho2;
-    printf("particle r is %f, theta is %f\n", r, x_global[1]);
-    printf("particle u_0 is %f, u_i is (%f, %f, %f), zamo_u_0 is %f\n", u_0,
-           u[0], u[1], u[2], zamo_u_0);
+    // printf("particle r is %f, theta is %f\n", r, x_global[1]);
+    // printf("particle u_0 is %f, u_i is (%f, %f, %f), zamo_u_0 is %f\n",
+    //        u_0, u[0], u[1], u[2], zamo_u_0);
 
     value_t gamma = math::abs(zamo_u_0);
     // Transform dt into ZAMO frame
@@ -106,7 +106,7 @@ struct gr_ks_ic_radiation_scheme {
     value_t ic_prob = m_ic_module.ic_scatter_rate(gamma) * math::abs(dt);
 
     // printf("gamma is %f, ic_prob is %f, e_ph is %f\n", gamma, ic_prob, e_ph);
-    printf("gamma is %f, ic_prob is %f\n", gamma, ic_prob);
+    // printf("gamma is %f, ic_prob is %f\n", gamma, ic_prob);
 
     value_t rand = rng.uniform<value_t>();
     if (rand >= ic_prob) {
@@ -118,9 +118,9 @@ struct gr_ks_ic_radiation_scheme {
     // rand = rng.uniform<value_t>();
     // e_ph is a number between 0 and 1, the fraction of the photon energy with
     // respect to the electron energy
-    value_t e_ph = m_ic_module.gen_photon_e(gamma, rng);
-    printf("emitting photon with energy e_ph %f\n", e_ph);
-    if (e_ph * u0 < 2.01f) {
+    value_t e_ph = m_ic_module.gen_photon_e(gamma, rand);
+    // printf("emitting photon with energy e_ph %f\n", e_ph);
+    if (e_ph * u0 < 100.01f) {
       ptc.p1[tid] *= (1.0f - e_ph);
       ptc.p2[tid] *= (1.0f - e_ph);
       ptc.p3[tid] *= (1.0f - e_ph);
@@ -158,8 +158,7 @@ struct gr_ks_ic_radiation_scheme {
     ptc.p3[tid] -= ph.p3[offset];
     // Note: not necessary to write ptc.E[tid] since we really don't use it at
     // all
-    printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid],
-           ptc.p3[tid]);
+    // printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
 
     return offset;
   }
@@ -181,6 +180,17 @@ struct gr_ks_ic_radiation_scheme {
     value_t cth = math::cos(x_global[1]);
     value_t r = x_global[0];
 
+    // Censor photons at large distances
+    if (r < Metric_KS::rH(m_a) || r > 5.0f) {
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
+
+    // if (r < Metric_KS::rH(m_a) + 0.1f) {
+    if (r < Metric_KS::rH(m_a) + 0.01f || r > 5.0f) {
+      return 0;
+    }
+
     // Obtain the lower 4-momentum components
     vec_t<value_t, 3> u(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
     value_t u_0 = Metric_KS::u_0(m_a, r, sth, cth, u, true);
@@ -192,6 +202,11 @@ struct gr_ks_ic_radiation_scheme {
     // U_0 in zamo is the photon energy (with a minus sign?)
     value_t zamo_u_0 = (sqrt_sigma * u_0 + 2.0f * m_a * r * u[2] / sqrt_sigma) /
                        (sqrt_delta * sqrt_rho2);
+    if (math::abs(zamo_u_0) < 100.1f) {
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
+
     // Transform the photon interval into dt in ZAMO
     value_t delta_x1 = (Metric_KS::gu11(m_a, r, sth, cth) * u[0] +
                         Metric_KS::gu13(m_a, r, sth, cth) * u[2]) /

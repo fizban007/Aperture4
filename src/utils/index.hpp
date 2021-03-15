@@ -161,7 +161,7 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
     //     for (int i = 1; i < Dir + 1; i++) {
     //       stride *= this->ext[i - 1];
     //     }
-    result.linear = (long)result.linear + n * ext.strides()[Dir];
+    result.linear = (long)result.linear + n * (int64_t)ext.strides()[Dir];
     return result;
   }
 
@@ -176,7 +176,7 @@ struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
     //     for (int i = 1; i < Dir + 1; i++) {
     //       stride *= this->ext[i - 1];
     //     }
-    result.linear = (long)result.linear - n * ext.strides()[Dir];
+    result.linear = (long)result.linear - n * (int64_t)ext.strides()[Dir];
     return result;
   }
 

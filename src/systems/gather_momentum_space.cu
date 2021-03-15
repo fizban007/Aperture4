@@ -57,6 +57,8 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
 
             auto weight = ptc.weight[n];
             auto flag = ptc.flag[n];
+            if (check_flag(flag, PtcFlag::exclude_from_spectrum))
+              continue;
             auto sp = get_ptc_type(flag);
 
             auto p1 = clamp(ptc.p1[n], lower[0], upper[0]);

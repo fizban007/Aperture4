@@ -21,6 +21,7 @@
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/environment.h"
+#include "utils/vec.hpp"
 
 #ifdef CUDA_ENABLED
 #include <curand_kernel.h>
@@ -45,6 +46,52 @@ struct rng_t {
 
   template <typename Float>
   __device__ __forceinline__ Float gaussian(Float sigma);
+
+  template <typename Float>
+  __device__ Float maxwell_juttner(Float theta) {
+    // This is the Sobol algorithm described in Zenitani 2015
+    Float u;
+    while (true) {
+      auto x1 = uniform<Float>();
+      auto x2 = uniform<Float>();
+      auto x3 = uniform<Float>();
+      auto x4 = uniform<Float>();
+      u = -theta * math::log(x1 * x2 * x3);
+      auto eta = -theta * math::log(x1 * x2 * x3 * x4);
+      if (eta * eta - u * u > 1.0) {
+        return u;
+      }
+    }
+  }
+
+  template <typename Float>
+  __device__ vec_t<Float, 3> maxwell_juttner_3d(Float theta) {
+    vec_t<Float, 3> result;
+
+    auto u = maxwell_juttner(theta);
+    auto x1 = uniform<Float>();
+    auto x2 = uniform<Float>();
+
+    result[0] = u * (2.0f * x1 - 1.0f);
+    result[1] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::cos(2.0f * M_PI * x2);
+    result[2] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::sin(2.0f * M_PI * x2);
+    return result;
+  }
+
+  template <typename Float>
+  __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, Float beta) {
+    vec_t<Float, 3> u = maxwell_juttner_3d(theta);
+    auto G = 1.0f / (1.0f - beta*beta);
+    auto u0 = math::sqrt(1.0f + u.dot(u));
+
+    auto x1 = uniform<Float>();
+    if (-beta * u[0] / u0 > x1)
+      u[0] = -u[0];
+
+    u[0] = G * (u[0] + beta * u0);
+
+    return u;
+  }
 
   int id;
   rand_state* m_state;
@@ -145,11 +192,16 @@ struct rng_t {
   }
 
   template <typename Float>
-  inline Float gaussian(double sigma) {
+  inline Float gaussian(Float sigma) {
     auto u1 = uniform<Float>();
     auto u2 = uniform<Float>();
     return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
            sigma;
+  }
+
+  template <typename Float>
+  Float maxwell_juttner(Float theta) {
+    // FIXME: Implement this
   }
 };
 

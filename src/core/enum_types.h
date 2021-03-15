@@ -80,12 +80,11 @@ enum class PtcFlag : uint32_t {
   ignore_current,
   ignore_EM,
   ignore_radiation,
+  exclude_from_spectrum,
   primary,
   secondary,
   initial,
-  annihilate,
-  emit_photon,
-  max = emit_photon,
+  max = initial,
   count = max + 1
 };
 

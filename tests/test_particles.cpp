@@ -62,7 +62,7 @@ TEST_CASE("Particle flag manipulation", "[particles]") {
   REQUIRE(check_flag(flag, PtcFlag::tracked) == true);
   REQUIRE(check_flag(flag, PtcFlag::ignore_EM) == false);
   REQUIRE(check_flag(flag, PtcFlag::ignore_current) == false);
-  REQUIRE(check_flag(flag, PtcFlag::emit_photon) == false);
+  // REQUIRE(check_flag(flag, PtcFlag::emit_photon) == false);
 }
 
 TEST_CASE("Init, copy and assign particles", "[particles]") {

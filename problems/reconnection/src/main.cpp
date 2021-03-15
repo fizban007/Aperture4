@@ -55,7 +55,7 @@ main(int argc, char *argv[]) {
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto momentum = env.register_system<gather_momentum_space_cu<Conf>>(grid);
+  // auto momentum = env.register_system<gather_momentum_space_cu<Conf>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   // auto bc = env.register_system<boundary_condition<Conf>>(grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);

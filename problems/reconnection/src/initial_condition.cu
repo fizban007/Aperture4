@@ -28,14 +28,13 @@
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 
-namespace {}  // namespace
+namespace {} // namespace
 
 namespace Aperture {
 
 template <typename Conf>
-void
-harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                     rng_states_t &states, int mult) {
+void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                          rng_states_t &states, int mult) {
   using value_t = typename Conf::value_t;
   auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   auto kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
@@ -63,8 +62,8 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // auto policy = exec_policy_cuda<Conf>{};
   using policy = exec_policy_cuda<Conf>;
   policy::launch(
-      [delta, kT_cs, beta_d, n_cs, n_upstream, B0, q_e] __device__(
-          auto ptc, auto states, auto ptc_pos) {
+      [delta, kT_cs, beta_d, n_cs, n_upstream, B0,
+       q_e] __device__(auto ptc, auto states, auto ptc_pos) {
         auto &grid = policy::grid();
         auto ext = grid.extent();
         rng_t rng(states);
@@ -74,7 +73,9 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
             [delta, kT_cs, beta_d, n_cs, n_upstream, B0, q_e, &grid, &ext,
              &rng] __device__(auto idx, auto &ptc, auto &ptc_pos) {
               auto pos = get_pos(idx, ext);
-              if (!grid.is_in_bound(pos)) return;
+              if (!grid.is_in_bound(pos))
+                return;
+              // printf("cell %ld\n", idx.linear);
 
               // grid center position in y
               auto y = grid.pos(1, pos[1], 0.5f);
@@ -86,6 +87,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                 // Background plasma
                 for (int i = 0; i < n_upstream; i++) {
                   auto offset = atomic_add(ptc_pos, 2);
+                  // auto offset = idx.linear * 2 * n_upstream + i * 2;
                   auto offset_e = offset;
                   auto offset_p = offset + 1;
 
@@ -93,12 +95,21 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                   ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
                   ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
 
-                  auto u = rng.maxwell_juttner_3d(1.0e-3);
-                  ptc.p1[offset_e] = ptc.p1[offset_p] = u[0];
-                  ptc.p2[offset_e] = ptc.p2[offset_p] = u[1];
-                  ptc.p3[offset_e] = ptc.p3[offset_p] = u[2];
-                  ptc.E[offset_e] = ptc.E[offset_p] =
-                      math::sqrt(1.0f + u.dot(u));
+                  ptc.p1[offset_e] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.p2[offset_e] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.p3[offset_e] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.E[offset_e] = math::sqrt(1.0f + square(ptc.p1[offset_e]) +
+                                               square(ptc.p2[offset_e]) +
+                                               square(ptc.p3[offset_e]));
+
+                  ptc.p1[offset_p] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.p2[offset_p] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.p3[offset_p] = rng.gaussian<value_t>(2.0e-2);
+                  ptc.E[offset_p] = math::sqrt(1.0f + square(ptc.p1[offset_p]) +
+                                               square(ptc.p2[offset_p]) +
+                                               square(ptc.p3[offset_p]));
+
+                  // auto u = rng.maxwell_juttner_3d(1.0e-3);
                   ptc.weight[offset_e] = ptc.weight[offset_p] = 1.0f;
                   ptc.cell[offset_e] = ptc.cell[offset_p] = idx.linear;
                   ptc.flag[offset_e] = set_ptc_type_flag(
@@ -109,7 +120,9 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
               } else {
                 // Current sheet plasma, only one sign
                 for (int i = 0; i < n_cs; i++) {
+                  // for (int i = 0; i < n_upstream; i++) {
                   auto offset = atomic_add(ptc_pos, 2);
+                  // auto offset = idx.linear * 2 * n_upstream + i * 2;
                   auto offset_e = offset;
                   auto offset_p = offset + 1;
 
@@ -149,10 +162,12 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       },
       ptc, states, ptc_pos);
   policy::sync();
+  ptc_pos.copy_to_host();
+  ptc.set_num(ptc_pos[0]);
 }
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               particle_data_t &ptc,
                                               rng_states_t &states, int mult);
 
-}  // namespace Aperture
+} // namespace Aperture

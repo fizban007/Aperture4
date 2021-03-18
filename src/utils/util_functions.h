@@ -32,7 +32,8 @@ HD_INLINE T
 atomic_add(T* addr, type_identity_t<T> value) {
 // atomic_add(T* addr, T value) {
 #ifdef __CUDACC__
-  return atomicAdd(addr, value);
+  auto result = atomicAdd(addr, value);
+  return result;
 #else
   T tmp;
 #pragma omp atomic capture

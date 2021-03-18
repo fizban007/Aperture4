@@ -273,6 +273,15 @@ struct Grid {
     }
     return result;
   }
+
+  HD_INLINE uint32_t size() const {
+    uint32_t result = dims[0];
+#pragma unroll
+    for (int i = 1; i < Dim; i++) {
+      result *= dims[i];
+    }
+    return result;
+  }
 };
 
 template <int Dim, typename value_t>

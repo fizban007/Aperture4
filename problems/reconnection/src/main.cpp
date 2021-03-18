@@ -36,15 +36,18 @@ template <typename Conf>
 void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                           rng_states_t &states, int mult);
 
-}  // namespace Aperture
+template <typename Conf>
+void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                                 rng_states_t &states, int mult);
 
-int
-main(int argc, char *argv[]) {
+} // namespace Aperture
+
+int main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
+  env.params().add("log_level", (int64_t)LogLevel::detail);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;
@@ -76,7 +79,7 @@ main(int argc, char *argv[]) {
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
   // initial_condition_wave(*Bdelta, *Edelta, *B0, *ptc, *states, 10, 1.0);
-  harris_current_sheet(*B0, *ptc, *states, 10);
+  double_harris_current_sheet(*Bdelta, *ptc, *states, 10);
 
   env.run();
   return 0;

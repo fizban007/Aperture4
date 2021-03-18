@@ -312,6 +312,12 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
                     is_boundary);
   }
 
+  auto step = sim_env().get_step();
+  if (step % this->m_data_interval == 0) {
+    // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
+    // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
+    compute_flux(*(this->flux), *(this->Btotal), this->m_grid);
+  }
   CudaSafeCall(cudaDeviceSynchronize());
 }
 

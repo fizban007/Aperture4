@@ -34,11 +34,14 @@ namespace Aperture {
 typedef curandState rand_state;
 
 struct rng_t {
-  __device__ rng_t(rand_state* state) : m_state(state) {
+  __device__ rng_t(rand_state* state) {
     id = threadIdx.x + blockIdx.x * blockDim.x;
-    m_local_state = state[id];
+    m_state = state;
+    m_local_state = m_state[id];
   }
-  __device__ ~rng_t() { m_state[id] = m_local_state; }
+  __device__ ~rng_t() {
+    m_state[id] = m_local_state;
+  }
 
   // Generates a device random number between 0.0 and 1.0
   template <typename Float>
@@ -46,11 +49,17 @@ struct rng_t {
 
   template <typename Float>
   __device__ __forceinline__ Float gaussian(Float sigma);
+  // __device__ __forceinline__ Float gaussian(Float sigma) {
+  //   auto u1 = uniform<Float>();
+  //   auto u2 = uniform<Float>();
+  //   return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
+  //          sigma;
+  // }
 
   template <typename Float>
   __device__ Float maxwell_juttner(Float theta) {
     // This is the Sobol algorithm described in Zenitani 2015
-    Float u;
+    Float u = 0.0f;
     while (true) {
       auto x1 = uniform<Float>();
       auto x2 = uniform<Float>();
@@ -59,9 +68,10 @@ struct rng_t {
       u = -theta * math::log(x1 * x2 * x3);
       auto eta = -theta * math::log(x1 * x2 * x3 * x4);
       if (eta * eta - u * u > 1.0) {
-        return u;
+        break;
       }
     }
+    return u;
   }
 
   template <typename Float>

@@ -17,6 +17,10 @@ if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
 endif()
 
+if(POLICY CMP0104)
+  cmake_policy(SET CMP0104 NEW)
+endif()
+
 # Detect C++ compiler features
 # message("Your C++ compiler supports these C++ features:")
 # foreach(i ${CMAKE_CXX_COMPILE_FEATURES})
@@ -94,7 +98,7 @@ if(use_cuda)
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 60 61)
+    set(CMAKE_CUDA_ARCHITECTURES 86 60)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)

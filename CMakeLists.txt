@@ -17,6 +17,10 @@ if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
 endif()
 
+if(POLICY CMP0104)
+  cmake_policy(SET CMP0104 NEW)
+endif()
+
 # Detect C++ compiler features
 # message("Your C++ compiler supports these C++ features:")
 # foreach(i ${CMAKE_CXX_COMPILE_FEATURES})
@@ -42,23 +46,34 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
 # find_package(Boost COMPONENTS system filesystem REQUIRED)
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
 
 # Set include directories
+set(BOOST_INCLUDE_DIR deps)
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/single_include/catch2)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
 set(CPPTOML_INCLUDE_DIR deps/cpptoml/include)
 set(CXXOPT_INCLUDE_DIR deps/cxxopts/include)
 set(GSL_INCLUDE_DIR deps/gsl/include)
+set(VECTORCLASS_INCLUDE_DIR deps/vectorclass1)
 
 include_directories(
+  ${BOOST_INCLUDE_DIR}
   ${MPI_INCLUDE_PATH}
+  ${HDF5_INCLUDE_DIR}
   ${FMT_INCLUDE_DIR}
   ${CATCH_INCLUDE_DIR}
   ${VISIT_STRUCT_INCLUDE_DIR}
   ${CPPTOML_INCLUDE_DIR}
   ${CXXOPT_INCLUDE_DIR}
   ${GSL_INCLUDE_DIR}
+  ${VECTORCLASS_INCLUDE_DIR}
   src)
 
 # Check for cuda support
@@ -83,9 +98,9 @@ if(use_cuda)
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 60 61)
+    set(CMAKE_CUDA_ARCHITECTURES 86 60)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    set(CMAKE_CUDA_STANDARD 14)
+    set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     # message(${CMAKE_CXX_COMPILER})
     find_library(CUDART_LIBRARY cudart
@@ -98,6 +113,10 @@ endif()
 if(use_double)
   add_definitions(-DUSE_DOUBLE)
 endif()
+
+# if(use_simd)
+#   add_definitions(-DUSE_SIMD)
+# endif()
 
 add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)

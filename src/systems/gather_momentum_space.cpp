@@ -26,23 +26,23 @@ template <typename Conf>
 void
 gather_momentum_space<Conf>::register_data_components() {
   int downsample =
-      this->m_env.params().template get_as<int64_t>("momentum_downsample", 16);
+      sim_env().params().template get_as<int64_t>("momentum_downsample", 16);
   int num_bins[3] = {256, 256, 256};
-  this->m_env.params().get_array("momentum_num_bins", num_bins);
+  sim_env().params().get_array("momentum_num_bins", num_bins);
   float lim_lower[3] = {};
-  this->m_env.params().get_array("momentum_lower", lim_lower);
+  sim_env().params().get_array("momentum_lower", lim_lower);
   float lim_upper[3] = {};
-  this->m_env.params().get_array("momentum_upper", lim_upper);
-  this->m_env.params().get_value("fld_output_interval", m_data_interval);
+  sim_env().params().get_array("momentum_upper", lim_upper);
+  sim_env().params().get_value("fld_output_interval", m_data_interval);
 
-  momentum = m_env.register_data<momentum_space<Conf>>("momentum", m_grid, downsample, num_bins,
+  momentum = sim_env().register_data<momentum_space<Conf>>("momentum", m_grid, downsample, num_bins,
                                                        lim_lower, lim_upper);
 }
 
 template <typename Conf>
 void
 gather_momentum_space<Conf>::init() {
-  m_env.get_data("particles", &ptc);
+  sim_env().get_data("particles", ptc);
 }
 
 template <typename Conf>

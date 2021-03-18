@@ -32,7 +32,7 @@ namespace Aperture {
 
 #ifdef CUDA_ENABLED
 
-class exec_policy {
+class kernel_exec_policy {
  public:
   enum class config_state : uint32_t {
     Automatic = 0,
@@ -42,27 +42,27 @@ class exec_policy {
     FullManual = GridSize | BlockSize | SharedMem
   };
 
-  exec_policy()
+  kernel_exec_policy()
       : m_state(0),
         m_grid_size(0),
         m_block_size(0),
         m_shared_mem_bytes(0),
         m_stream((cudaStream_t)0) {}
 
-  exec_policy(int gridSize, int blockSize)
+  kernel_exec_policy(int gridSize, int blockSize)
       : m_state(0), m_stream(0) {
     set_grid_size(gridSize);
     set_block_size(blockSize);
   }
 
-  exec_policy(int gridSize, int blockSize, size_t sharedMemBytes)
+  kernel_exec_policy(int gridSize, int blockSize, size_t sharedMemBytes)
       : m_state(0), m_stream(0) {
     set_grid_size(gridSize);
     set_block_size(blockSize);
     set_shared_mem_bytes(sharedMemBytes);
   }
 
-  exec_policy(int gridSize, int blockSize, size_t sharedMemBytes,
+  kernel_exec_policy(int gridSize, int blockSize, size_t sharedMemBytes,
               cudaStream_t stream)
       : m_state(0) {
     set_grid_size(gridSize);
@@ -71,7 +71,7 @@ class exec_policy {
     set_stream(stream);
   }
 
-  ~exec_policy() {}
+  ~kernel_exec_policy() {}
 
   uint32_t get_config_state() const { return m_state; }
 
@@ -154,10 +154,10 @@ available_shared_bytes_per_block(size_t sharedMemPerMultiprocessor,
 
 template <typename KernelFunc>
 cudaError_t
-configure_grid(exec_policy &p, KernelFunc k) {
+configure_grid(kernel_exec_policy &p, KernelFunc k) {
   uint32_t configState = p.get_config_state();
 
-  if (configState == (uint32_t)exec_policy::config_state::FullManual)
+  if (configState == (uint32_t)kernel_exec_policy::config_state::FullManual)
     return cudaSuccess;
 
   cudaDeviceProp *props;
@@ -182,7 +182,7 @@ configure_grid(exec_policy &p, KernelFunc k) {
 
   int numSMs = props->multiProcessorCount;
 
-  if (!check_flag(configState, exec_policy::config_state::BlockSize)) {
+  if (!check_flag(configState, kernel_exec_policy::config_state::BlockSize)) {
     int bsize = 0, minGridSize = 0;
     cudaOccError occErr = cudaOccMaxPotentialOccupancyBlockSize(
         &minGridSize, &bsize, &occProp, &occAttrib, &occState,
@@ -192,8 +192,8 @@ configure_grid(exec_policy &p, KernelFunc k) {
     p.set_block_size(bsize);
   }
 
-  // if ((configState & exec_policy::GridSize) == 0) {
-  if (!check_flag(configState, exec_policy::config_state::GridSize)) {
+  // if ((configState & kernel_exec_policy::GridSize) == 0) {
+  if (!check_flag(configState, kernel_exec_policy::config_state::GridSize)) {
     cudaOccResult result;
     cudaOccError occErr = cudaOccMaxActiveBlocksPerMultiprocessor(
         &result, &occProp, &occAttrib, &occState, p.get_block_size(),
@@ -205,8 +205,8 @@ configure_grid(exec_policy &p, KernelFunc k) {
       return cudaErrorInvalidConfiguration;
   }
 
-  // if ((configState & exec_policy::SharedMem) == 0) {
-  if (!check_flag(configState, exec_policy::config_state::SharedMem)) {
+  // if ((configState & kernel_exec_policy::SharedMem) == 0) {
+  if (!check_flag(configState, kernel_exec_policy::config_state::SharedMem)) {
     int smemGranularity = 0;
     cudaOccError occErr =
         cudaOccSMemAllocationGranularity(&smemGranularity, &occProp);
@@ -237,14 +237,14 @@ generic_kernel(Func f, Args... args) {
 
 template <typename Func, typename... Args>
 void
-configure_grid(exec_policy& policy, Func f, Args... args) {
+configure_grid(kernel_exec_policy& policy, Func f, Args... args) {
   CudaSafeCall(configure_grid(policy, generic_kernel<Func, Args...>));
 }
 
 template <typename Func, typename... Args>
 void
-kernel_launch(const exec_policy &policy, Func f, Args... args) {
-  exec_policy p = policy;
+kernel_launch(const kernel_exec_policy &policy, Func f, Args... args) {
+  kernel_exec_policy p = policy;
   CudaSafeCall(configure_grid(p, generic_kernel<Func, Args...>));
   generic_kernel<<<p.get_grid_size(), p.get_block_size(),
                    p.get_shared_mem_bytes(), p.get_stream()>>>(f,
@@ -255,15 +255,15 @@ kernel_launch(const exec_policy &policy, Func f, Args... args) {
 template <typename Func, typename... Args>
 void
 kernel_launch(Func f, Args... args) {
-  exec_policy p;
+  kernel_exec_policy p;
   kernel_launch(p, f, args...);
 }
 
 template <typename... Args>
 void
-kernel_launch(const exec_policy &policy, void (*f)(Args... args),
+kernel_launch(const kernel_exec_policy &policy, void (*f)(Args... args),
               Args... args) {
-  exec_policy p = policy;
+  kernel_exec_policy p = policy;
   CudaSafeCall(configure_grid(p, f));
   f<<<p.get_grid_size(), p.get_block_size(), p.get_shared_mem_bytes(),
       p.get_stream()>>>(args...);
@@ -273,7 +273,7 @@ kernel_launch(const exec_policy &policy, void (*f)(Args... args),
 template <typename... Args>
 void
 kernel_launch(void (*f)(Args... args), Args... args) {
-  exec_policy p;
+  kernel_exec_policy p;
   kernel_launch(p, f, args...);
 }
 

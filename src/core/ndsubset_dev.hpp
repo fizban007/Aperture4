@@ -88,7 +88,7 @@ class ndsubset_dev_t {
            src.at_dev(src_pos + get_pos(idx, ext)));
       }
     };
-    exec_policy p;
+    kernel_exec_policy p;
     configure_grid(p, kernel, m_array, subset.m_array, m_begin, subset.m_begin, m_ext);
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel,
@@ -111,7 +111,7 @@ class ndsubset_dev_t {
         op(dst.at_dev(pos + get_pos(idx, ext)), src.at_dev(pos + get_pos(idx, ext)));
       }
     };
-    exec_policy p;
+    kernel_exec_policy p;
     configure_grid(p, kernel, m_array, other, m_begin, m_ext, op);
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel, m_array, other, m_begin, m_ext, op);
@@ -132,7 +132,7 @@ class ndsubset_dev_t {
             op(dst.at_dev(pos + get_pos(idx, ext)));
           }
         };
-    exec_policy p;
+    kernel_exec_policy p;
     configure_grid(p, kernel, m_array, m_begin, m_ext);
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel, m_array, m_begin, m_ext);

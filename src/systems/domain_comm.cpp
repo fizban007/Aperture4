@@ -34,7 +34,8 @@
 namespace Aperture {
 
 template <typename Conf>
-domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
+// domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
+domain_comm<Conf>::domain_comm() {
   setup_domain();
 }
 
@@ -47,12 +48,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
 
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
-  // This is the first place where rank is defined. Tell logger about
-  // this
-  Logger::init(m_rank, (LogLevel)m_env.params().template get_as<int64_t>(
-                           "log_level", (int64_t)LogLevel::info));
-
-  auto dims = m_env.params().template get_as<std::vector<int64_t>>("nodes");
+  auto dims = sim_env().params().template get_as<std::vector<int64_t>>("nodes");
   if (dims.size() < Conf::dim)
     dims.resize(Conf::dim, 1);
 
@@ -83,7 +79,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
   }
 
   auto periodic =
-      m_env.params().template get_as<std::vector<bool>>("periodic_boundary");
+      sim_env().params().template get_as<std::vector<bool>>("periodic_boundary");
   for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
     m_domain_info.is_periodic[i] = periodic[i];
 
@@ -102,7 +98,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
     MPI_Cart_shift(m_cart, n, 1, &rank, &right);
     m_domain_info.neighbor_left[n] = left;
     m_domain_info.neighbor_right[n] = right;
-    Logger::print_info_all(
+    Logger::print_detail_all(
         "Rank {} has neighbors in {} direction: left {}, right {}", m_rank, n,
         left, right);
     if (left < 0)
@@ -149,9 +145,9 @@ void domain_comm<Conf>::resize_buffers(
   }
 
   size_t ptc_buffer_size =
-      m_env.params().template get_as<int64_t>("ptc_buffer_size", 100000l);
+      sim_env().params().template get_as<int64_t>("ptc_buffer_size", 100000l);
   size_t ph_buffer_size =
-      m_env.params().template get_as<int64_t>("ph_buffer_size", 100000l);
+      sim_env().params().template get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
     m_ptc_buffers.emplace_back(ptc_buffer_size);
@@ -231,6 +227,7 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
     //           0, m_world, &req_send);
     // MPI_Wait(&req_recv, &status);
     // timer::show_duration_since_stamp("MPI sendrecv", "ms");
+
 
     if (origin != MPI_PROC_NULL) {
       if (array.mem_type() == MemType::host_only) {
@@ -457,8 +454,8 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
             // }
             MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
                           &num_recv);
-            Logger::print_info_all("Rank {} received {} particles from {}",
-                                   m_rank, num_recv, src);
+            // Logger::print_info_all("Rank {} received {} particles from {}",
+            //                        m_rank, num_recv, src);
           }
         });
     recv_buffer.set_num(recv_offset + num_recv);
@@ -478,8 +475,8 @@ template <typename Conf>
 template <typename PtcType>
 void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
                                             const grid_t<Conf> &grid) const {
-  Logger::print_info("Sending paticles");
-  timer::stamp("send_ptc");
+  Logger::print_detail("Sending paticles");
+  // timer::stamp("send_ptc");
   if (!m_buffers_ready)
     resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);
@@ -576,7 +573,7 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   //     "now",
   //     buffers[central].number(), ptc.number());
   buffers[central].set_num(0);
-  timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
+  // timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
 }
 
 template <typename Conf>

@@ -41,13 +41,18 @@ class grid_curv_t : public grid_t<Conf> {
  public:
   static std::string name() { return "grid"; }
   typedef typename Conf::value_t value_t;
-  typedef grid_ptrs<value_t, Conf::dim, typename Conf::idx_t>
-      grid_ptrs_t;
+  typedef grid_ptrs<value_t, Conf::dim, typename Conf::idx_t> grid_ptrs_t;
 
-  using grid_t<Conf>::grid_t;
+  grid_curv_t() : grid_t<Conf>() {
+    resize_arrays();
+  }
+  grid_curv_t(const domain_comm<Conf>& comm) : grid_t<Conf>(comm) {
+    resize_arrays();
+  }
+  grid_curv_t(const grid_curv_t<Conf>& grid) = default;
   virtual ~grid_curv_t() {}
 
-  void init() {
+  void resize_arrays() {
     for (int i = 0; i < 3; i++) {
       m_le[i].resize(this->extent());
       m_lb[i].resize(this->extent());
@@ -55,7 +60,9 @@ class grid_curv_t : public grid_t<Conf> {
       m_Ab[i].resize(this->extent());
     }
     m_dV.resize(this->extent());
+  }
 
+  void init() {
     compute_coef();
   }
 
@@ -81,7 +88,6 @@ class grid_curv_t : public grid_t<Conf> {
   multi_array<value_t, Conf::dim> m_dV;
 };
 
-
-}
+}  // namespace Aperture
 
 #endif  // _GRID_CURV_H_

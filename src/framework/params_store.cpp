@@ -144,6 +144,11 @@ params_store::params_store() { p_impl = new params_store_impl; }
 params_store::~params_store() { delete p_impl; }
 
 void
+params_store::clear() {
+  p_impl->m_param_map.clear();
+}
+
+void
 params_store::parse(const std::string& filename) {
   p_impl->parse(filename);
 }

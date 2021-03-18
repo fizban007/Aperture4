@@ -21,15 +21,18 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "core/particle_structs.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
+#include "core/random.h"
+#include "framework/environment.h"
 #include "utils/util_functions.h"
 
 namespace Aperture {
 
-template <typename value_t>
-struct photon_pair_creation_t {
-  HOST_DEVICE void produce_pair(ph_ptrs& ph, uint32_t tid, ptc_ptrs& ptc,
-                                uint32_t offset, cuda_rng_t& rng) const {
+template <typename Conf>
+struct photon_pair_creation {
+  HOST_DEVICE void produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc,
+                                size_t offset, rng_t& rng) const {
+    using value_t = typename Conf::value_t;
     value_t p1 = ph.p1[tid];
     value_t p2 = ph.p2[tid];
     value_t p3 = ph.p3[tid];
@@ -38,8 +41,8 @@ struct photon_pair_creation_t {
 
     value_t ratio = math::sqrt(0.25f - 1.0f / Eph2);
     value_t gamma = math::sqrt(1.0f + ratio * ratio * Eph2);
-    uint32_t offset_e = offset;
-    uint32_t offset_p = offset + 1;
+    size_t offset_e = offset;
+    size_t offset_p = offset + 1;
 
     ptc.x1[offset_e] = ptc.x1[offset_p] = ph.x1[tid];
     ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];

@@ -25,15 +25,15 @@ namespace Aperture {
 template <typename Conf>
 void
 compute_lorentz_factor<Conf>::register_data_impl(MemType type) {
-  m_env.params().get_value("num_species", m_num_species);
+  sim_env().params().get_value("num_species", m_num_species);
 
   gamma.resize(m_num_species);
   avg_p.resize(m_num_species);
   for (int n = 0; n < m_num_species; n++) {
-    gamma[n] = m_env.register_data<scalar_field<Conf>>(
+    gamma[n] = sim_env().register_data<scalar_field<Conf>>(
         std::string("gamma_") + ptc_type_name(n), m_grid,
         field_type::cell_centered, type);
-    avg_p[n] = m_env.register_data<vector_field<Conf>>(
+    avg_p[n] = sim_env().register_data<vector_field<Conf>>(
         std::string("avg_p_") + ptc_type_name(n), m_grid,
         field_type::cell_centered, type);
   }
@@ -48,8 +48,8 @@ compute_lorentz_factor<Conf>::register_data_components() {
 template <typename Conf>
 void
 compute_lorentz_factor<Conf>::init() {
-  m_env.get_data("particles", &ptc);
-  m_env.params().get_value("fld_output_interval", m_data_interval);
+  sim_env().get_data("particles", ptc);
+  sim_env().params().get_value("fld_output_interval", m_data_interval);
 }
 
 template <typename Conf>

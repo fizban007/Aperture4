@@ -27,15 +27,16 @@ using namespace Aperture;
 int main(int argc, char *argv[]) {
   typedef Config<3> Conf;
   Logger::print_info("value_t has size {}", sizeof(typename Conf::value_t));
-  sim_environment env;
+  // sim_environment env;
+  auto& env = sim_env();
   env.params().add("N", std::vector<int64_t>({128, 128, 128}));
   env.params().add("guard", std::vector<int64_t>({4, 4, 4}));
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
   env.params().add("max_ptc_num", 60000000l);
 
-  auto grid = env.register_system<grid_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater_cu<Conf>>(env, *grid);
+  auto grid = env.register_system<grid_t<Conf>>();
+  auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(*grid);
 
   env.init();
 

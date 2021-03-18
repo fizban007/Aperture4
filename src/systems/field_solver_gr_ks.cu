@@ -209,7 +209,7 @@ damping_boundary(vector_field<Conf> &E, vector_field<Conf> &B,
         auto ext = grid.extent();
         for (auto n1 :
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
-          // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
+          // for (int i = 0; i < damping_length - grid.guard[0] - 1; i++) {
           for (int i = 0; i < damping_length - 1; i++) {
             int n0 = grid.dims[0] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
@@ -240,11 +240,11 @@ void
 field_solver_gr_ks_cu<Conf>::init() {
   field_solver<Conf>::init();
 
-  this->m_env.params().get_value("bh_spin", m_a);
+  sim_env().params().get_value("bh_spin", m_a);
   Logger::print_info("bh_spin in field solver is {}", m_a);
-  this->m_env.params().get_value("implicit_beta", this->m_beta);
-  this->m_env.params().get_value("damping_length", m_damping_length);
-  this->m_env.params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("implicit_beta", this->m_beta);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("damping_coef", m_damping_coef);
 
   m_prev_D.resize(this->m_grid);
   m_prev_B.resize(this->m_grid);
@@ -257,8 +257,8 @@ void
 field_solver_gr_ks_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
-  flux = this->m_env.template register_data<scalar_field<Conf>>(
-      "flux", this->m_grid, field_type::vert_centered);
+  // flux = sim_env().template register_data<scalar_field<Conf>>(
+  //     "flux", this->m_grid, field_type::vert_centered);
 }
 
 template <typename Conf>

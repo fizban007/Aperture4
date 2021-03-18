@@ -15,11 +15,11 @@ set(Aperture_src
   "systems/grid_sph.cpp"
   "systems/grid_ks.cpp"
   "systems/field_solver.cpp"
-  "systems/ptc_updater.cpp"
+  "systems/legacy/ptc_updater_old.cpp"
   "systems/ptc_injector.cpp"
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
-  # "systems/radiative_transfer.cpp"
+  "systems/inverse_compton.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
@@ -29,22 +29,30 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"
     "data/curand_states.cu"
+    "data/rng_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
     "systems/field_solver_sph.cu"
     "systems/field_solver_gr_ks.cu"
-    "systems/ptc_updater.cu"
-    "systems/ptc_updater_sph.cu"
-    "systems/ptc_updater_gr_ks.cu"
+    "systems/legacy/ptc_updater_old.cu"
+    "systems/legacy/ptc_updater_old_sph.cu"
+    "systems/legacy/ptc_updater_old_gr_ks.cu"
     "systems/ptc_injector.cu"
-    "systems/ph_freepath_dev.cu"
+    # "systems/ph_freepath_dev.cu"
     "systems/domain_comm_async.cpp"
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
+    "systems/ptc_updater_base.cu"
+    # "systems/radiative_transfer_new.cu"
+    "systems/radiative_transfer.cu"
     )
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"
+    "data/rng_states.cpp"
+    "systems/ptc_updater_base.cpp"
+    "systems/ptc_updater_simd.cpp"
+    "systems/radiative_transfer.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

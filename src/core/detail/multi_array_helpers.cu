@@ -39,7 +39,8 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
     auto interp = lerp<Rank>{};
     for (auto n : grid_stride_range(0, ext.size())) {
       auto idx = p_dst.idx_at(n, ext);
-      auto pos = idx.get_pos();
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
       bool in_bound = true;
 #pragma unroll
       for (int i = 0; i < Rank; i++) {
@@ -52,7 +53,7 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
       p_dst[idx] = interp(p_src, idx_src, st_src, st_dst);
     }
   };
-  exec_policy p;
+  kernel_exec_policy p;
   configure_grid(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
                  offset_src, offset_dst, st_src, st_dst);
   if (stream != nullptr) p.set_stream(*stream);
@@ -76,7 +77,7 @@ add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   //     dst_ptr[idx_dst] += src_ptr[idx_src] * scale;
   //   }
   // };
-  // exec_policy p;
+  // kernel_exec_policy p;
   // configure_grid(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
   // dst_pos,
   //                src_pos, dst.extent(), src.extent());
@@ -111,7 +112,7 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   //     dst_ptr[idx_dst] = src_ptr[idx_src];
   //   }
   // };
-  // exec_policy p;
+  // kernel_exec_policy p;
   // configure_grid(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
   //                dst_pos, src_pos, dst.extent(), src.extent());
   // if (stream != nullptr) p.set_stream(*stream);

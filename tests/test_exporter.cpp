@@ -23,7 +23,8 @@
 using namespace Aperture;
 
 TEST_CASE("Writing a grid to file", "[data_output]") {
-  sim_environment env;
+  // sim_environment env;
+  auto& env = sim_env();
 
   // SECTION("1D grid") {
   //   typedef Config<1> Conf;
@@ -47,8 +48,8 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
     env.params().add("lower", std::vector<double>({0.0, 0.0}));
     env.params().add<int64_t>("downsample", 4);
 
-    grid_t<Conf> grid(env);
-    data_exporter<Conf> exporter(env, grid);
+    grid_t<Conf> grid;
+    data_exporter<Conf> exporter(grid);
 
     exporter.init();
     exporter.write_grid();

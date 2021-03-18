@@ -21,7 +21,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/grid.h"
-#include "systems/grid_sph.h"
+#include "systems/grid_sph.hpp"
 #include "utils/index.hpp"
 #include "utils/kernel_helper.hpp"
 
@@ -32,8 +32,8 @@ TEST_CASE("Using grid", "[grid]") {
     Grid<1, float> g1;
 
     g1.dims[0] = 12;
+    g1.N[0] = 8;
     g1.guard[0] = 2;
-    g1.skirt[0] = 2;
     g1.sizes[0] = 1.0;
     g1.lower[0] = 0.0;
     g1.delta[0] = g1.sizes[0] / g1.reduced_dim<0>();
@@ -57,7 +57,7 @@ TEST_CASE("Using grid", "[grid]") {
     for (int i = 0; i < 2; i++) {
       g2.dims[i] = 12;
       g2.guard[i] = 2;
-      g2.skirt[i] = 2;
+      g2.N[i] = 8;
       g2.sizes[i] = 1.0;
       g2.lower[i] = 0.0;
       g2.delta[i] = g2.sizes[i] / g2.reduced_dim(i);
@@ -103,7 +103,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
   for (int i = 0; i < 3; i++) {
     g3.dims[i] = 12;
     g3.guard[i] = 2;
-    g3.skirt[i] = g3.guard[i];
+    g3.guard[i] = g3.guard[i];
     g3.sizes[i] = 1.0;
     g3.lower[i] = 0.0;
     g3.delta[i] = g3.sizes[i] / g3.reduced_dim(i);
@@ -111,7 +111,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
   }
 
   kernel_launch(
-      exec_policy(1, 1),
+      kernel_exec_policy(1, 1),
       [] __device__(Grid<3, float> g) {
         if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
       },
@@ -121,7 +121,8 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 
 TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   Logger::init(0, LogLevel::debug);
-  sim_environment env;
+  // sim_environment env;
+  auto& env = sim_env();
   typedef Config<3, float> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -130,7 +131,7 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
 
-  auto grid = env.register_system<grid_t<Conf>>(env);
+  auto grid = env.register_system<grid_t<Conf>>();
   // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
@@ -147,17 +148,20 @@ TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
 }
 
 TEST_CASE("Logsph grid", "[grid][sph]") {
-  sim_environment env;
+  // sim_environment env;
+  auto& env = sim_env();
   typedef Config<2> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
-  env.params().add("N", std::vector<int64_t>({32, 32, 32}));
-  env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
-  env.params().add("size", std::vector<double>({1.0, 1.0, 1.0}));
-  env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+  env.params().add("N", std::vector<int64_t>({32, 32}));
+  env.params().add("guard", std::vector<int64_t>({2, 2}));
+  env.params().add("size", std::vector<double>({1.0, 1.0}));
+  env.params().add("lower", std::vector<double>({0.0, 0.0}));
 
   int arr[3];
 
   env.params().get_array("guard", arr);
-  auto grid = env.register_system<grid_sph_t<Conf>>(env);
+  // auto grid = env.register_system<grid_sph_t<Conf>>();
+  grid_sph_t<Conf> grid;
+  grid.init();
 }

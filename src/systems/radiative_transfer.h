@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -18,103 +18,64 @@
 #ifndef _RADIATIVE_TRANSFER_H_
 #define _RADIATIVE_TRANSFER_H_
 
-#include "data/curand_states.h"
+#include "data/fields.h"
 #include "data/particle_data.h"
+#include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
+#include "systems/policies.h"
+#include "utils/nonown_ptr.hpp"
 #include <memory>
 
 namespace Aperture {
 
-template <typename Conf>
-class radiative_transfer_common : public system_t {
+template <class Conf, template <class> class ExecPolicy,
+          template <class> class CoordPolicy,
+          template <class> class RadiationPolicy>
+class radiative_transfer : public system_t {
+ public:
+  using value_t = typename Conf::value_t;
+  static std::string name() { return "radiative_transfer"; }
+
+  radiative_transfer(const grid_t<Conf>& grid,
+                     const domain_comm<Conf>* comm = nullptr);
+  ~radiative_transfer();
+
+  virtual void init() override;
+  virtual void register_data_components() override;
+  virtual void update(double dt, uint32_t step) override;
+
+  void emit_photons(value_t dt);
+  void create_pairs(value_t dt);
+
  protected:
+  std::unique_ptr<CoordPolicy<Conf>> m_coord_policy;
+  std::unique_ptr<RadiationPolicy<Conf>> m_rad_policy;
+
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>* m_comm;
+  const domain_comm<Conf>* m_comm = nullptr;
 
-  particle_data_t* ptc;
-  photon_data_t* ph;
+  // associated data components
+  nonown_ptr<photon_data_t> ph;
+  nonown_ptr<scalar_field<Conf>> rho_ph;
+  nonown_ptr<scalar_field<Conf>> photon_produced;
+  nonown_ptr<scalar_field<Conf>> pair_produced;
 
-  scalar_field<Conf>* rho_ph;
-  scalar_field<Conf>* photon_produced;
-  scalar_field<Conf>* pair_produced;
+  // data components managed by other systems
+  nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<rng_states_t> rng_states;
 
   // parameters for this module
   uint32_t m_data_interval = 1;
   uint32_t m_sort_interval = 20;
   int m_ph_per_scatter = 1;
   float m_tracked_fraction = 0.01;
+  uint64_t m_track_rank = 0;
 
- public:
-  radiative_transfer_common(sim_environment& env, const grid_t<Conf>& grid,
-                            const domain_comm<Conf>* comm = nullptr);
-  virtual ~radiative_transfer_common() {}
-
-  virtual void init() override;
-  virtual void update(double dt, uint32_t step) override;
-  // virtual void register_data_components() override;
-
-  // virtual void move_photons(double dt, uint32_t step);
-  virtual void emit_photons(double dt) = 0;
-  virtual void produce_pairs(double dt) = 0;
-  // virtual void sort_photons();
-  // virtual void clear_guard_cells();
 };
 
-template <typename Conf, typename RadImpl>
-class radiative_transfer : public radiative_transfer_common<Conf> {
- public:
-  static std::string name() { return "radiative_transfer"; }
+}
 
-  radiative_transfer(sim_environment& env, const grid_t<Conf>& grid,
-                     const domain_comm<Conf>* comm = nullptr);
-  virtual ~radiative_transfer();
-
-  // virtual void init() override;
-  virtual void register_data_components() override;
-
-  virtual void emit_photons(double dt) override;
-  virtual void produce_pairs(double dt) override;
-
- protected:
-  std::unique_ptr<RadImpl> m_rad;
-};
-
-template <typename Conf, typename RadImpl>
-class radiative_transfer_cu : public radiative_transfer_common<Conf> {
- public:
-  static std::string name() { return "radiative_transfer"; }
-
-  radiative_transfer_cu(sim_environment& env, const grid_t<Conf>& grid,
-                        const domain_comm<Conf>* comm = nullptr);
-  virtual ~radiative_transfer_cu();
-
-  void init() override;
-  // void update(double dt, uint32_t step) override;
-  void register_data_components() override;
-
-  // virtual void move_photons(double dt, uint32_t step) override;
-  virtual void emit_photons(double dt) override;
-  virtual void produce_pairs(double dt) override;
-  // virtual void sort_photons() override;
-  // virtual void clear_guard_cells() override;
-
- protected:
-  std::unique_ptr<RadImpl> m_rad;
-
-  curand_states_t* m_rand_states;
-  buffer<int> m_num_per_block;
-  buffer<int> m_cum_num_per_block;
-  buffer<int> m_pos_in_block;
-
-  vector_field<Conf>* B;
-  std::vector<scalar_field<Conf>*> Rho;
-
-  int m_threads_per_block = 512;
-  int m_blocks_per_grid = 256;
-};
-
-}  // namespace Aperture
 
 #endif  // _RADIATIVE_TRANSFER_H_

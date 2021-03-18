@@ -26,16 +26,19 @@
 
 namespace Aperture {
 
-template <int Rank> struct idx_col_major_t;
-template <int Rank> struct idx_row_major_t;
-template <int Rank> struct idx_zorder_t;
+template <int Rank>
+struct idx_col_major_t;
+template <int Rank>
+struct idx_row_major_t;
+template <int Rank>
+struct idx_zorder_t;
 
 template <int Rank>
 using default_idx_t = idx_col_major_t<Rank>;
 
 template <class Derived, int Rank>
 struct idx_base_t {
-  uint64_t linear;
+  int64_t linear;
 
   typedef idx_base_t<Derived, Rank> self_type;
   static constexpr int dim = Rank;
@@ -51,23 +54,31 @@ struct idx_base_t {
     return (Derived&)*this;
   }
 
-  HD_INLINE Derived operator+(int x) const {
+  HD_INLINE Derived operator+(int64_t x) const {
     Derived result((Derived&)*this);
     result.linear += x;
     return result;
   }
 
-  HD_INLINE Derived operator+(uint32_t x) const {
+  HD_INLINE Derived operator-(int64_t x) const {
     Derived result((Derived&)*this);
-    result.linear += x;
+    result.linear -= x;
     return result;
   }
 
-  HD_INLINE Derived operator+(uint64_t x) const {
-    Derived result((Derived&)*this);
-    result.linear += x;
-    return result;
-  }
+  HD_INLINE int operator-(const Derived& x) const { return linear - x.linear; }
+
+  // HD_INLINE Derived operator+(uint32_t x) const {
+  //   Derived result((Derived&)*this);
+  //   result.linear += x;
+  //   return result;
+  // }
+
+  // HD_INLINE Derived operator+(uint64_t x) const {
+  //   Derived result((Derived&)*this);
+  //   result.linear += x;
+  //   return result;
+  // }
 
   HD_INLINE Derived& operator+=(uint32_t x) {
     linear += x;
@@ -88,34 +99,33 @@ struct idx_base_t {
 };
 
 template <int Rank>
-struct idx_col_major_t
-    : public idx_base_t<idx_col_major_t<Rank>, Rank> {
+struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
   // index_t<Rank> strides;
   const extent_t<Rank>& ext;
 
   typedef idx_base_t<idx_col_major_t<Rank>, Rank> base_type;
   typedef idx_col_major_t<Rank> self_type;
 
-  HOST_DEVICE idx_col_major_t(uint64_t n,
-                              const extent_t<Rank>& extent) :
-      ext(extent) {
+  using base_type::operator-;
+
+  HOST_DEVICE idx_col_major_t(int64_t n, const extent_t<Rank>& extent)
+      : ext(extent) {
     this->linear = n;
   }
 
   HOST_DEVICE idx_col_major_t(const index_t<Rank>& pos,
-                              const extent_t<Rank>& extent) :
-      ext(extent) {
+                              const extent_t<Rank>& extent)
+      : ext(extent) {
     this->linear = to_linear(pos);
   }
 
   HD_INLINE idx_col_major_t(const self_type& idx) = default;
   HD_INLINE self_type& operator=(const self_type& idx) = default;
 
-  HD_INLINE index_t<Rank> get_pos() const {
-    return pos(this->linear);
-  }
+  // HD_INLINE index_t<Rank> get_pos() const {
+  inline index_t<Rank> get_pos() const { return pos(this->linear); }
 
-  HD_INLINE index_t<Rank> pos(uint64_t linear) const {
+  inline index_t<Rank> pos(int64_t linear) const {
     auto result = index_t<Rank>{};
     auto n = linear;
     result[0] = n % this->ext[0];
@@ -128,14 +138,14 @@ struct idx_col_major_t
     return result;
   }
 
-  HD_INLINE uint64_t to_linear(const index_t<Rank>& pos) const {
-//     uint64_t result = pos[0];
-//     int64_t stride = 1;
-// #pragma unroll
-//     for (int i = 1; i < Rank; i++) {
-//       stride *= this->ext[i - 1];
-//       result += pos[i] * stride;
-//     }
+  HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
+    //     uint64_t result = pos[0];
+    //     int64_t stride = 1;
+    // #pragma unroll
+    //     for (int i = 1; i < Rank; i++) {
+    //       stride *= this->ext[i - 1];
+    //       result += pos[i] * stride;
+    //     }
     // return result;
     return pos.dot(ext.strides());
   }
@@ -146,12 +156,12 @@ struct idx_col_major_t
   HD_INLINE self_type inc(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] += n;
-//     int64_t stride = 1;
-// #pragma unroll
-//     for (int i = 1; i < Dir + 1; i++) {
-//       stride *= this->ext[i - 1];
-//     }
-    result.linear = (long)result.linear + n * ext.strides()[Dir];
+    //     int64_t stride = 1;
+    // #pragma unroll
+    //     for (int i = 1; i < Dir + 1; i++) {
+    //       stride *= this->ext[i - 1];
+    //     }
+    result.linear = (long)result.linear + n * (int64_t)ext.strides()[Dir];
     return result;
   }
 
@@ -161,22 +171,22 @@ struct idx_col_major_t
   HD_INLINE self_type dec(int n = 1) const {
     auto result = *this;
     // result.pos[Dir] -= n;
-//     int64_t stride = 1;
-// #pragma unroll
-//     for (int i = 1; i < Dir + 1; i++) {
-//       stride *= this->ext[i - 1];
-//     }
-    result.linear = (long)result.linear - n * ext.strides()[Dir];
+    //     int64_t stride = 1;
+    // #pragma unroll
+    //     for (int i = 1; i < Dir + 1; i++) {
+    //       stride *= this->ext[i - 1];
+    //     }
+    result.linear = (long)result.linear - n * (int64_t)ext.strides()[Dir];
     return result;
   }
 
   using base_type::operator+;
 
-  HD_INLINE uint64_t operator+(const index_t<Rank>& pos) {
+  HD_INLINE int64_t operator+(const index_t<Rank>& pos) {
     return this->linear + pos.dot(ext.strides());
   }
 
-  HD_INLINE uint64_t operator-(const index_t<Rank>& pos) {
+  HD_INLINE int64_t operator-(const index_t<Rank>& pos) {
     return this->linear - pos.dot(ext.strides());
   }
 
@@ -193,190 +203,98 @@ struct idx_col_major_t
   HD_INLINE self_type dec_z(int n = 1) const { return dec<2>(n); }
 };
 
-// // Specialization for Rank = 1 to optimize things
-// template <>
-// struct idx_col_major_t<1>
-//     : public idx_base_t<idx_col_major_t<1>, 1> {
-//   // index_t<Rank> strides;
-//   const extent_t<1>& ext;
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+inc_x(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx + n;
+}
 
-//   typedef idx_base_t<idx_col_major_t<1>, 1> base_type;
-//   typedef idx_col_major_t<1> self_type;
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+dec_x(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx - n;
+}
 
-//   HOST_DEVICE idx_col_major_t(uint64_t n,
-//                               const extent_t<1>& extent) :
-//       ext(extent) {
-//     this->linear = n;
-//   }
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+inc_y(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx + n * (int64_t)ext[0];
+}
 
-//   HOST_DEVICE idx_col_major_t(const index_t<1>& pos,
-//                               const extent_t<1>& extent) :
-//       ext(extent) {
-//     this->linear = to_linear(pos);
-//   }
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+dec_y(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx - n * (int64_t)ext[0];
+}
 
-//   HD_INLINE index_t<1> get_pos() const {
-//     return pos(this->linear);
-//   }
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+inc_z(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx + n * (int64_t)(ext[0] * ext[1]);
+}
 
-//   HD_INLINE index_t<1> pos(uint64_t linear) const {
-//     return index_t<1>(linear);
-//   }
-
-//   HD_INLINE uint64_t to_linear(const index_t<1>& pos) const {
-//     return pos[0];
-//   }
-
-//   template <int Dir>
-//   // HD_INLINE std::enable_if_t <
-//   // Dir<Rank, self_type> inc(int n = 1) const {
-//   HD_INLINE self_type inc(int n = 1) const {
-//     auto result = *this;
-//     result.linear = (long)result.linear + n;
-//     return result;
-//   }
-
-//   template <int Dir>
-//   // HD_INLINE std::enable_if_t <
-//   // Dir<Rank, self_type> dec(int n = 1) const {
-//   HD_INLINE self_type dec(int n = 1) const {
-//     auto result = *this;
-//     result.linear = (long)result.linear - n;
-//     return result;
-//   }
-
-//   HD_INLINE self_type inc_x(int n = 1) const { return inc<0>(n); }
-//   HD_INLINE self_type dec_x(int n = 1) const { return dec<0>(n); }
-//   HD_INLINE self_type inc_y(int n = 1) const { return *this; }
-//   HD_INLINE self_type dec_y(int n = 1) const { return *this; }
-//   HD_INLINE self_type inc_z(int n = 1) const { return *this; }
-//   HD_INLINE self_type dec_z(int n = 1) const { return *this; }
-// };
-
-// Specialization for Rank = 2
-// template <>
-// struct idx_col_major_t<2>
-//     : public idx_base_t<idx_col_major_t<2>, 2> {
-//   // index_t<Rank> strides;
-//   const extent_t<2>& ext;
-
-//   typedef idx_base_t<idx_col_major_t<2>, 2> base_type;
-//   typedef idx_col_major_t<2> self_type;
-
-//   HOST_DEVICE idx_col_major_t(uint64_t n,
-//                               const extent_t<2>& extent) :
-//       ext(extent) {
-//     this->linear = n;
-//   }
-
-//   HOST_DEVICE idx_col_major_t(const index_t<2>& pos,
-//                               const extent_t<2>& extent) :
-//       ext(extent) {
-//     this->linear = to_linear(pos);
-//   }
-
-//   HD_INLINE index_t<2> get_pos() const {
-//     return pos(this->linear);
-//   }
-
-//   HD_INLINE index_t<2> pos(uint64_t linear) const {
-//     return index_t<2>(linear % ext[0], linear / ext[0]);
-//     // return result;
-//   }
-
-//   HD_INLINE uint64_t to_linear(const index_t<2>& pos) const {
-//     return pos[0] + pos[1] * ext[0];
-//   }
-
-//   template <int Dir>
-//   // HD_INLINE std::enable_if_t <
-//   // Dir<Rank, self_type> inc(int n = 1) const {
-//   HD_INLINE self_type inc(int n = 1) const {
-//     // auto result = *this;
-//     long result = (long)linear + n * ext.strides[Dir];
-//     return self_type(result, ext);
-//   }
-
-//   template <int Dir>
-//   // HD_INLINE std::enable_if_t <
-//   // Dir<Rank, self_type> dec(int n = 1) const {
-//   HD_INLINE self_type dec(int n = 1) const {
-//     // auto result = *this;
-//     // result.linear = (long)linear - (Dir == 0 ? n : n * ext[0]);
-//     // return result;
-//     return self_type((long)linear - n * ext.strides[Dir], ext);
-//   }
-
-//   using base_type::operator+;
-
-//   HD_INLINE uint64_t operator+(const index_t<2>& pos) {
-//     return linear + pos[0] + pos[1] * ext[0];
-//   }
-
-//   HD_INLINE uint64_t operator-(const index_t<2>& pos) {
-//     return linear - pos[0] - pos[1] * ext[0];
-//   }
-
-//   HD_INLINE self_type inc_x(int n = 1) const { return inc<0>(n); }
-//   HD_INLINE self_type dec_x(int n = 1) const { return dec<0>(n); }
-//   HD_INLINE self_type inc_y(int n = 1) const { return inc<1>(n); }
-//   HD_INLINE self_type dec_y(int n = 1) const { return dec<1>(n); }
-//   HD_INLINE self_type inc_z(int n = 1) const { return *this; }
-//   HD_INLINE self_type dec_z(int n = 1) const { return *this; }
-// };
+template <int Rank, int N>
+HD_INLINE idx_col_major_t<Rank>
+dec_z(const idx_col_major_t<Rank>& idx, const vec_t<uint32_t, N>& ext,
+      int n = 1) {
+  return idx - n * (int64_t)(ext[0] * ext[1]);
+}
 
 template <int Rank>
-HD_INLINE index_t<Rank> get_pos(const idx_col_major_t<Rank>& idx,
-                                const extent_t<Rank>& ext) {
+HD_INLINE index_t<Rank>
+get_pos(const idx_col_major_t<Rank>& idx, const extent_t<Rank>& ext) {
   return idx.get_pos();
 }
 
 template <>
-HD_INLINE index_t<1> get_pos(const idx_col_major_t<1>& idx,
-                             const extent_t<1>& ext) {
+HD_INLINE index_t<1>
+get_pos(const idx_col_major_t<1>& idx, const extent_t<1>& ext) {
   return index_t<1>(idx.linear);
 }
 
 template <>
-HD_INLINE index_t<2> get_pos(const idx_col_major_t<2>& idx,
-                             const extent_t<2>& ext) {
-  return index_t<2>(idx.linear % ext[0], idx.linear / ext[0]);
+HD_INLINE index_t<2>
+get_pos(const idx_col_major_t<2>& idx, const extent_t<2>& ext) {
+  auto tmp = idx.linear / ext[0];
+  return index_t<2>(idx.linear - tmp * ext[0], tmp);
 }
 
 template <>
-HD_INLINE index_t<3> get_pos(const idx_col_major_t<3>& idx,
-                             const extent_t<3>& ext) {
-  return index_t<3>(idx.linear % ext[0], (idx.linear / ext[0]) % ext[1],
-                    idx.linear / (ext[0] * ext[1]));
+HD_INLINE index_t<3>
+get_pos(const idx_col_major_t<3>& idx, const extent_t<3>& ext) {
+  auto tmp = idx.linear / ext[0];
+  auto tmp2 = tmp / ext[1];
+  return index_t<3>(idx.linear - tmp * ext[0], tmp - tmp2 * ext[1], tmp2);
 }
 
 template <int Rank>
-struct idx_row_major_t
-    : public idx_base_t<idx_row_major_t<Rank>, Rank> {
+struct idx_row_major_t : public idx_base_t<idx_row_major_t<Rank>, Rank> {
   // index_t<Rank> strides;
   const extent_t<Rank>& ext;
 
   typedef idx_base_t<idx_row_major_t<Rank>, Rank> base_type;
   typedef idx_row_major_t<Rank> self_type;
 
-  HOST_DEVICE idx_row_major_t(uint64_t n,
-                              const extent_t<Rank>& extent) :
-      ext(extent) {
+  HOST_DEVICE idx_row_major_t(int64_t n, const extent_t<Rank>& extent)
+      : ext(extent) {
     this->linear = n;
   }
 
   HOST_DEVICE idx_row_major_t(const index_t<Rank>& pos,
-                              const extent_t<Rank>& extent) :
-      ext(extent) {
+                              const extent_t<Rank>& extent)
+      : ext(extent) {
     this->linear = to_linear(pos);
   }
 
-  HD_INLINE index_t<Rank> get_pos() const {
-    return pos(this->linear);
-  }
+  inline index_t<Rank> get_pos() const { return pos(this->linear); }
 
-  HD_INLINE uint64_t to_linear(const index_t<Rank>& pos) const {
-    uint64_t result = pos[Rank - 1];
+  HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
+    int64_t result = pos[Rank - 1];
     int64_t stride = this->ext[Rank - 1];
     if (Rank > 1) {
 #pragma unroll
@@ -388,7 +306,7 @@ struct idx_row_major_t
     return result;
   }
 
-  HD_INLINE index_t<Rank> pos(uint64_t linear) const {
+  HD_INLINE index_t<Rank> pos(int64_t linear) const {
     auto result = index_t<Rank>{};
     auto n = linear;
 #pragma unroll
@@ -429,54 +347,42 @@ struct idx_row_major_t
     return result;
   }
 
-  HD_INLINE self_type inc_x(int n = 1) const {
-    return inc<Rank - 1>(n);
-  }
+  HD_INLINE self_type inc_x(int n = 1) const { return inc<Rank - 1>(n); }
 
-  HD_INLINE self_type inc_y(int n = 1) const {
-    return inc<Rank - 2>(n);
-  }
+  HD_INLINE self_type inc_y(int n = 1) const { return inc<Rank - 2>(n); }
 
-  HD_INLINE self_type inc_z(int n = 1) const {
-    return inc<Rank - 3>(n);
-  }
+  HD_INLINE self_type inc_z(int n = 1) const { return inc<Rank - 3>(n); }
 
-  HD_INLINE self_type dec_x(int n = 1) const {
-    return dec<Rank - 1>(n);
-  }
+  HD_INLINE self_type dec_x(int n = 1) const { return dec<Rank - 1>(n); }
 
-  HD_INLINE self_type dec_y(int n = 1) const {
-    return dec<Rank - 2>(n);
-  }
+  HD_INLINE self_type dec_y(int n = 1) const { return dec<Rank - 2>(n); }
 
-  HD_INLINE self_type dec_z(int n = 1) const {
-    return dec<Rank - 3>(n);
-  }
+  HD_INLINE self_type dec_z(int n = 1) const { return dec<Rank - 3>(n); }
 };
 
 template <int Rank>
-HD_INLINE index_t<Rank> get_pos(const idx_row_major_t<Rank>& idx,
-                                const extent_t<Rank>& ext) {
+HD_INLINE index_t<Rank>
+get_pos(const idx_row_major_t<Rank>& idx, const extent_t<Rank>& ext) {
   return idx.get_pos();
 }
 
 template <>
-HD_INLINE index_t<1> get_pos(const idx_row_major_t<1>& idx,
-                             const extent_t<1>& ext) {
+HD_INLINE index_t<1>
+get_pos(const idx_row_major_t<1>& idx, const extent_t<1>& ext) {
   return index_t<1>(idx.linear);
 }
 
 template <>
-HD_INLINE index_t<2> get_pos(const idx_row_major_t<2>& idx,
-                             const extent_t<2>& ext) {
+HD_INLINE index_t<2>
+get_pos(const idx_row_major_t<2>& idx, const extent_t<2>& ext) {
   return index_t<2>(idx.linear / ext[0], idx.linear % ext[0]);
 }
 
 template <>
-HD_INLINE index_t<3> get_pos(const idx_row_major_t<3>& idx,
-                             const extent_t<3>& ext) {
-  return index_t<3>(idx.linear / (ext[0] * ext[1]), (idx.linear / ext[0]) % ext[1],
-                    idx.linear % ext[0]);
+HD_INLINE index_t<3>
+get_pos(const idx_row_major_t<3>& idx, const extent_t<3>& ext) {
+  return index_t<3>(idx.linear / (ext[0] * ext[1]),
+                    (idx.linear / ext[0]) % ext[1], idx.linear % ext[0]);
 }
 
 template <int Rank>
@@ -487,19 +393,15 @@ struct idx_zorder_t<2> : public idx_base_t<idx_zorder_t<2>, 2> {
   typedef idx_base_t<idx_zorder_t<2>, 2> base_type;
   typedef idx_zorder_t<2> self_type;
 
-  HOST_DEVICE idx_zorder_t(uint64_t n,
-                           const extent_t<2>& extent) {
+  HOST_DEVICE idx_zorder_t(uint64_t n, const extent_t<2>& extent) {
     this->linear = n;
   }
 
-  HOST_DEVICE idx_zorder_t(const index_t<2>& pos,
-                           const extent_t<2>& extent) {
+  HOST_DEVICE idx_zorder_t(const index_t<2>& pos, const extent_t<2>& extent) {
     this->linear = to_linear(pos);
   }
 
-  HD_INLINE index_t<2> get_pos() const {
-    return pos(this->linear);
-  }
+  HD_INLINE index_t<2> get_pos() const { return pos(this->linear); }
 
   HD_INLINE uint64_t to_linear(const index_t<2>& pos) const {
     return morton2d<uint32_t>(pos[0], pos[1]).key;
@@ -577,24 +479,44 @@ idx_zorder_t<2>::dec<1>(int n) const {
   return dec_y(n);
 }
 
+template <int N>
+HD_INLINE idx_zorder_t<2>
+inc_x(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+dec_x(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+inc_y(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<2>
+dec_y(const idx_zorder_t<2>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_y(n);
+}
+
 template <>
 struct idx_zorder_t<3> : public idx_base_t<idx_zorder_t<3>, 3> {
   typedef idx_base_t<idx_zorder_t<3>, 3> base_type;
   typedef idx_zorder_t<3> self_type;
 
-  HOST_DEVICE idx_zorder_t(uint64_t n,
-                           const extent_t<3>& extent) {
+  HOST_DEVICE idx_zorder_t(uint64_t n, const extent_t<3>& extent) {
     this->linear = n;
   }
 
-  HOST_DEVICE idx_zorder_t(const index_t<3>& pos,
-                           const extent_t<3>& extent) {
+  HOST_DEVICE idx_zorder_t(const index_t<3>& pos, const extent_t<3>& extent) {
     this->linear = to_linear(pos);
   }
 
-  HD_INLINE index_t<3> get_pos() const {
-    return pos(this->linear);
-  }
+  HD_INLINE index_t<3> get_pos() const { return pos(this->linear); }
 
   HD_INLINE uint64_t to_linear(const index_t<3>& pos) const {
     return morton3d<uint32_t>(pos[0], pos[1], pos[2]).key;
@@ -698,9 +620,45 @@ idx_zorder_t<3>::dec<2>(int n) const {
   return dec_z(n);
 }
 
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_x(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_x(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_x(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_y(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_y(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_y(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+inc_z(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.inc_z(n);
+}
+
+template <int N>
+HD_INLINE idx_zorder_t<3>
+dec_z(const idx_zorder_t<3>& idx, const vec_t<uint32_t, N>& ext, int n = 1) {
+  return idx.dec_z(n);
+}
+
 template <int Rank>
-HD_INLINE index_t<Rank> get_pos(const idx_zorder_t<Rank>& idx,
-                                const extent_t<Rank>& ext) {
+HD_INLINE index_t<Rank>
+get_pos(const idx_zorder_t<Rank>& idx, const extent_t<Rank>& ext) {
   return idx.get_pos();
 }
 

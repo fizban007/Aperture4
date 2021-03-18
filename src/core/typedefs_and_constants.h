@@ -46,6 +46,8 @@ typedef double Scalar;
 constexpr double TINY = eps_double;
 #endif
 
+constexpr uint64_t default_random_seed = 0x3141592653589793;
+
 }  // namespace Aperture
 
 #endif  // _TYPEDEFS_N_CONSTANTS_H_

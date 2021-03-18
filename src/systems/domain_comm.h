@@ -36,7 +36,8 @@ class domain_comm : public system_t {
  public:
   static std::string name() { return "domain_comm"; }
 
-  domain_comm(sim_environment& env);
+  // domain_comm(sim_environment& env);
+  domain_comm();
   virtual ~domain_comm();
 
   bool is_root() const { return m_rank == 0; }

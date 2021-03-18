@@ -30,7 +30,7 @@
 
 namespace Aperture {
 
-class sim_environment;
+// class sim_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  The Config class basically maintains all the compile time type
@@ -50,6 +50,7 @@ template <int Dim, typename FloatT = Scalar,
 class Config {
  public:
   static constexpr int dim = Dim;  //!< Access the dimension of the simulation
+  static constexpr int interp_order = InterpOrder;
   static constexpr bool is_zorder =
       std::is_same<Idx_t<Dim>,
                    idx_zorder_t<Dim>>::value;  //!< Whether this is zorder
@@ -83,6 +84,14 @@ class Config {
   static multi_array_t make_multi_array(const extent_t<Dim>& ext,
                                         MemType type = default_mem_type) {
     return multi_array_t(ext, type);
+  }
+
+  /// Construct and return a grid object
+  static Grid<Dim, FloatT> make_grid(const vec_t<uint32_t, Dim>& N,
+                                     const vec_t<uint32_t, Dim>& guard,
+                                     const vec_t<value_t, Dim>& sizes,
+                                     const vec_t<value_t, Dim>& lower) {
+    return Aperture::make_grid(N, guard, sizes, lower);
   }
 
   /// Make an idx object from a linear position and an extent.

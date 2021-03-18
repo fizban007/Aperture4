@@ -18,7 +18,7 @@
 #include "catch.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/ptc_updater.h"
+#include "systems/legacy/ptc_updater_old.h"
 #include <fstream>
 #include <iomanip>
 
@@ -27,7 +27,8 @@ using namespace Aperture;
 TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   Logger::init(0, LogLevel::debug);
   typedef Config<2> Conf;
-  sim_environment env;
+  // sim_environment env;
+  auto& env = sim_env();
   env.params().add("log_level", 2l);
   env.params().add("N", std::vector<int64_t>({64, 64, 64}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
@@ -38,8 +39,8 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
                                                 MemType::host_device);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid);
+  auto grid = env.register_system<grid_t<Conf>>();
+  auto pusher = env.register_system<ptc_updater_old<Conf>>(*grid);
 
   env.init();
 

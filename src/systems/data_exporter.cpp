@@ -31,26 +31,27 @@ namespace fs = std::filesystem;
 namespace Aperture {
 
 template <typename Conf>
-data_exporter<Conf>::data_exporter(sim_environment& env,
-                                   const grid_t<Conf>& grid,
+// data_exporter<Conf>::data_exporter(sim_environment& env,
+data_exporter<Conf>::data_exporter(const grid_t<Conf>& grid,
                                    const domain_comm<Conf>* comm)
-    : system_t(env), m_grid(grid), m_comm(comm), m_output_grid(grid) {
-  m_env.params().get_value("ptc_output_interval", m_ptc_output_interval);
-  m_env.params().get_value("fld_output_interval", m_fld_output_interval);
-  m_env.params().get_value("snapshot_interval", m_snapshot_interval);
-  m_env.params().get_value("output_dir", m_output_dir);
-  m_env.params().get_value("downsample", m_downsample);
+    : m_grid(grid), m_comm(comm), m_output_grid(grid) {
+  sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
+  sim_env().params().get_value("fld_output_interval", m_fld_output_interval);
+  sim_env().params().get_value("snapshot_interval", m_snapshot_interval);
+  sim_env().params().get_value("output_dir", m_output_dir);
+  sim_env().params().get_value("downsample", m_downsample);
 
   // Resize the tmp data array
   size_t max_ptc_num = 100, max_ph_num = 100;
-  m_env.params().get_value("max_ptc_num", max_ptc_num);
-  m_env.params().get_value("max_ph_num", max_ph_num);
+  sim_env().params().get_value("max_ptc_num", max_ptc_num);
+  sim_env().params().get_value("max_ph_num", max_ph_num);
 
   tmp_ptc_data.set_memtype(MemType::host_device);
   tmp_ptc_data.resize(std::max(max_ptc_num, max_ph_num));
 
   // Obtain the output grid
   for (int i = 0; i < Conf::dim; i++) {
+    m_output_grid.N[i] = m_grid.reduced_dim(i) / m_downsample;
     m_output_grid.dims[i] =
         m_grid.reduced_dim(i) / m_downsample + 2 * m_grid.guard[i];
     m_output_grid.offset[i] = m_grid.offset[i] / m_downsample;
@@ -58,7 +59,7 @@ data_exporter<Conf>::data_exporter(sim_environment& env,
   tmp_grid_data.resize(m_output_grid.extent_less());
 
   // Obtain the global extent of the grid
-  m_env.params().get_vec_t("N", m_global_ext);
+  sim_env().params().get_vec_t("N", m_global_ext);
   m_global_ext /= m_downsample;
   m_global_ext.get_strides();
 }
@@ -99,12 +100,15 @@ data_exporter<Conf>::register_data_components() {
 template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
-  double time = m_env.get_time();
+  double time = sim_env().get_time();
   if (step % m_fld_output_interval == 0) {
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
+
+    datafile.write(step, "step");
+    datafile.write(time, "time");
 
     if (!m_xmf.is_open() && is_root()) {
       m_xmf.open(m_output_dir + "data.xmf");
@@ -112,7 +116,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     write_xmf_step_header(m_xmf_buffer, time);
 
     // Loop over all data components and output according to their type
-    for (auto& it : m_env.data_map()) {
+    for (auto& it : sim_env().data_map()) {
       // Do not output the skipped components
       if (it.second->skip_output()) continue;
 
@@ -136,7 +140,11 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
         Logger::print_info("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
+      } else {
+        Logger::print_info("Data exporter doesn't know how to write {}",
+                           it.first);
       }
+
       if (data->reset_after_output()) {
         data->init();
       }
@@ -165,12 +173,14 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
   if (step % m_ptc_output_interval == 0) {
     // Output tracked particles!
 
-    for (auto& it : m_env.data_map()) {
+    for (auto& it : sim_env().data_map()) {
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
         Logger::print_info("Writing tracked particles");
+        // TODO: Add tracked particles
       } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
         Logger::print_info("Writing tracked photons");
+        // TODO: Add tracked photons
       }
     }
     m_ptc_num += 1;
@@ -190,7 +200,7 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
 
   // Walk over all data components and write them to the snapshot file according
   // to their `include_in_snapshot`
-  for (auto& it : m_env.data_map()) {
+  for (auto& it : sim_env().data_map()) {
     auto data = it.second.get();
     if (!data->include_in_snapshot()) {
       continue;
@@ -230,7 +240,7 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
 
   // Walk over all data components and read them from the snapshot file
   // according to their `include_in_snapshot`
-  for (auto& it : m_env.data_map()) {
+  for (auto& it : sim_env().data_map()) {
     auto data = it.second.get();
     if (!data->include_in_snapshot()) {
       continue;
@@ -261,7 +271,7 @@ void
 data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
   std::string conf_file =
-      m_env.params().template get_as<std::string>("config_file");
+      sim_env().params().template get_as<std::string>("config_file");
   Logger::print_info("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
@@ -395,14 +405,14 @@ data_exporter<Conf>::write_grid_multiarray(
     const std::string& name, const typename Conf::multi_array_t& array,
     stagger_t stagger, H5File& file) {
   // if (m_downsample != 1) {
-    if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-      resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-                   stagger, m_output_stagger, m_downsample);
-      tmp_grid_data.copy_to_host();
-    } else {
-      resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-               stagger, m_output_stagger, m_downsample);
-    }
+  if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
+    resample_dev(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+                 stagger, m_output_stagger, m_downsample);
+    tmp_grid_data.copy_to_host();
+  } else {
+    resample(array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+             stagger, m_output_stagger, m_downsample);
+  }
   // } else {
   //   tmp_grid_data.copy_from(array);
   //   tmp_grid_data.copy_to_host();
@@ -484,35 +494,47 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 
 template <typename Conf>
 void
+data_exporter<Conf>::write(rng_states_t& data, const std::string& name, H5File& datafile,
+                           bool snapshot) {}
+
+template <typename Conf>
+void
 data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
   data.copy_to_host();
 
   // First figure out the extent and offset of each node
-  extent_t<Conf::dim + 1> ext_total(data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
+  extent_t<Conf::dim + 1> ext_total(
+      data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
   extent_t<Conf::dim + 1> ext(data.m_num_bins[0], data.m_grid_ext);
   // ext.get_strides();
   // ext_total.get_strides();
-  index_t<Conf::dim + 1> idx_src = 0;
-  index_t<Conf::dim + 1> idx_dst = 0;
+  index_t<Conf::dim + 1> idx_src(0);
+  index_t<Conf::dim + 1> idx_dst(0);
   // FIXME: This again assumes a uniform grid, which is no good in the long term
   if (m_comm != nullptr && m_comm->size() > 1) {
     for (int i = 1; i < Conf::dim + 1; i++) {
       idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i - 1];
     }
 
-    datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_e");
-    datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src, name + "_p1_p");
+    datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src,
+                            name + "_p1_e");
+    datafile.write_parallel(data.p_p1, ext_total, idx_dst, ext, idx_src,
+                            name + "_p1_p");
     ext[0] = ext_total[0] = data.m_num_bins[1];
     ext.get_strides();
     ext_total.get_strides();
-    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_e");
-    datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src, name + "_p2_p");
+    datafile.write_parallel(data.e_p2, ext_total, idx_dst, ext, idx_src,
+                            name + "_p2_e");
+    datafile.write_parallel(data.p_p2, ext_total, idx_dst, ext, idx_src,
+                            name + "_p2_p");
     ext[0] = ext_total[0] = data.m_num_bins[2];
     ext.get_strides();
     ext_total.get_strides();
-    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_e");
-    datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src, name + "_p3_p");
+    datafile.write_parallel(data.e_p3, ext_total, idx_dst, ext, idx_src,
+                            name + "_p3_e");
+    datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src,
+                            name + "_p3_p");
   } else {
     datafile.write(data.e_p1, name + "_p1_e");
     datafile.write(data.p_p1, name + "_p1_p");
@@ -576,6 +598,11 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
     }
   }
 }
+
+template <typename Conf>
+void
+data_exporter<Conf>::read(rng_states_t& data, const std::string& name, H5File& datafile,
+                          bool snapshot) {}
 
 template <typename Conf>
 void

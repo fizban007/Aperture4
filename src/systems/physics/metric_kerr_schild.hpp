@@ -49,10 +49,10 @@ Z(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / rho2(a, r, sth, cth);
 }
 
-// HD_INLINE Scalar
-// Delta(Scalar a, Scalar r) {
-//   return r * r + a * a - 2.0f * r;
-// }
+HD_INLINE Scalar
+Delta(Scalar a, Scalar r) {
+  return r * r + a * a - 2.0f * r;
+}
 
 HD_INLINE Scalar
 Sigma(Scalar a, Scalar r, Scalar th) {
@@ -241,17 +241,6 @@ dot_product_l(const vec_t<Scalar, 3>& v1, const vec_t<Scalar, 3>& v2, Scalar a,
 
 // function to compute u^0 from lower index components
 HD_INLINE Scalar
-u0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
-   bool is_photon = false) {
-  Scalar sth = math::sin(th);
-  Scalar cth = math::cos(th);
-  Scalar ep = (is_photon ? 0.0f : 1.0f);
-  return math::sqrt(dot_product_l(u, u, a, r, sth, cth) + ep) /
-         alpha(a, r, sth, cth);
-}
-
-// function to compute u^0 from lower index components
-HD_INLINE Scalar
 u0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
    bool is_photon = false) {
   Scalar ep = (is_photon ? 0.0f : 1.0f);
@@ -259,9 +248,38 @@ u0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
          alpha(a, r, sth, cth);
 }
 
+// function to compute u^0 from lower index components
+HD_INLINE Scalar
+u0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
+   bool is_photon = false) {
+  Scalar sth = math::sin(th);
+  Scalar cth = math::cos(th);
+  return u0(a, r, sth, cth, u, is_photon);
+}
+
+// Compute u_0 from lower index u_i
+HD_INLINE Scalar
+u_0(Scalar a, Scalar r, Scalar sth, Scalar cth, const vec_t<Scalar, 3>& u,
+    bool is_photon = false) {
+  Scalar ep = (is_photon ? 0.0f : 1.0f);
+  return u[0] * beta1(a, r, sth, cth) -
+         alpha(a, r, sth, cth) *
+             math::sqrt(dot_product_l(u, u, a, r, sth, cth) + ep);
+}
+
+// Compute u_0 from lower index u_i
+HD_INLINE Scalar
+u_0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
+    bool is_photon = false) {
+  Scalar sth = math::sin(th);
+  Scalar cth = math::cos(th);
+  return u_0(a, r, sth, cth, u, is_photon);
+}
+
+
 HD_INLINE Scalar
 rH(Scalar a) {
-  return 1.0f - math::sqrt(1.0f - a*a);
+  return 1.0f + math::sqrt(1.0f - a * a);
 }
 
 }  // namespace Metric_KS

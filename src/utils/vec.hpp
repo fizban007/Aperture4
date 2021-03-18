@@ -223,6 +223,16 @@ class vec_t {
     }
   }
 
+  template <int A, int B, typename = std::enable_if_t<B - A <= Rank>>
+  HD_INLINE vec_t<T, B - A> subset() const {
+    vec_t<T, B - A> result;
+#pragma unroll
+    for (int i = A; i < B; i++) {
+      result[i - A] = memory[i];
+    }
+    return result;
+  }
+
   template <typename U>
   HD_INLINE T dot(const vec_t<U, Rank>& other) const {
     T result = 0;
@@ -234,6 +244,8 @@ class vec_t {
   }
 
   constexpr int rank() const { return Rank; }
+
+  const T* data() const { return memory; }
 
   HD_INLINE T product() const {
     T result = memory[0];
@@ -261,8 +273,7 @@ operator*(const T& q, const vec_t<T, Rank>& v) {
 template <typename T>
 HD_INLINE vec_t<T, 3>
 cross(const vec_t<T, 3>& u, const vec_t<T, 3>& v) {
-  return vec_t<T, 3>(u[1] * v[2] - u[2] * v[1],
-                     u[2] * v[0] - u[0] * v[2],
+  return vec_t<T, 3>(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
                      u[0] * v[1] - u[1] * v[0]);
 }
 
@@ -325,6 +336,8 @@ template <int Rank>
 // using index_t = vec_t<int32_t, Rank>;
 class index_t : public vec_t<int32_t, Rank> {
  public:
+  HD_INLINE index_t() : vec_t<int32_t, Rank>(0) {}
+
   HD_INLINE index_t(const vec_t<int32_t, Rank>& v) : vec_t<int32_t, Rank>(v) {}
 
   HD_INLINE index_t(const int32_t& v, const vec_t<int32_t, Rank - 1>& vec)
@@ -334,7 +347,7 @@ class index_t : public vec_t<int32_t, Rank> {
       : vec_t<int32_t, Rank>(vec, v) {}
 
   template <typename... Args, typename = all_convertible_to<int32_t, Args...>>
-  HD_INLINE index_t(Args... args) : vec_t<int32_t, Rank>(args...) {}
+  HD_INLINE explicit index_t(Args... args) : vec_t<int32_t, Rank>(args...) {}
 
   HD_INLINE index_t<Rank> inc_x(int n) {
     index_t<Rank> result = *this;

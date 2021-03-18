@@ -19,6 +19,7 @@
 #define __RESONANT_DRAG_H_
 
 #include "core/cuda_control.h"
+#include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "utils/util_functions.h"
 #include <cstdint>

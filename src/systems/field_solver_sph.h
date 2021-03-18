@@ -23,6 +23,7 @@
 #include "framework/system.h"
 #include "systems/field_solver.h"
 #include "systems/grid_curv.h"
+#include "utils/nonown_ptr.hpp"
 #include <memory>
 
 namespace Aperture {
@@ -35,7 +36,7 @@ class field_solver_sph_cu : public field_solver_cu<Conf> {
   int m_damping_length = 64;
   double m_damping_coef = 0.003;
 
-  scalar_field<Conf>* flux;
+  nonown_ptr<scalar_field<Conf>> flux;
 
  public:
   static std::string name() { return "field_solver"; }

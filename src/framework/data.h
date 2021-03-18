@@ -22,7 +22,7 @@
 
 namespace Aperture {
 
-class sim_environment;
+// class sim_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
 ///  A very basic interface class to inherit from. All data components are

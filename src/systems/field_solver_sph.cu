@@ -63,7 +63,8 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_mx = idx.dec_x();
             auto idx_my = idx.dec_y();
@@ -124,7 +125,8 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_py = idx.inc_y();
             result[0][idx] += -dt *
@@ -170,7 +172,8 @@ compute_e_update_explicit(vector_field<Conf>& result,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = result[0].idx_at(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_my = idx.dec_y();
             result[0][idx] +=
@@ -224,7 +227,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_py = idx.inc_y();
             result[0][idx] -= dt * circ0(e, gp.le, idx, idx_py) / gp.Ab[0][idx];
@@ -331,7 +335,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
       [ext, damping_length, damping_coef] __device__(auto e, auto b) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          // for (int i = 0; i < damping_length - grid.skirt[0] - 1; i++) {
+          // for (int i = 0; i < damping_length - grid.guard[0] - 1; i++) {
           for (int i = 0; i < damping_length - 1; i++) {
             int n0 = grid.dims[0] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
@@ -365,7 +369,8 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
         // gp is short for grid_ptrs
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(n, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             auto idx_mx = idx.dec_x();
             auto idx_my = idx.dec_y();
@@ -382,13 +387,13 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
                  b[1][idx_py] * gp.Ab[1][idx_py] - b[1][idx] * gp.Ab[1][idx]) /
                 (gp.dV[idx] * grid.delta[0] * grid.delta[1]);
 
-            if (is_boundary[0] && pos[0] == grid.skirt[0])
+            if (is_boundary[0] && pos[0] == grid.guard[0])
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.skirt[0] - 1)
+            if (is_boundary[1] && pos[0] == grid.dims[0] - grid.guard[0] - 1)
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[2] && pos[1] == grid.skirt[1])
+            if (is_boundary[2] && pos[1] == grid.guard[1])
               divE[idx] = divB[idx] = 0.0f;
-            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.skirt[1] - 1)
+            if (is_boundary[3] && pos[1] == grid.dims[1] - grid.guard[1] - 1)
               divE[idx] = divB[idx] = 0.0f;
           }
         }
@@ -429,8 +434,8 @@ void
 field_solver_sph_cu<Conf>::init() {
   field_solver_cu<Conf>::init();
 
-  this->m_env.params().get_value("damping_length", m_damping_length);
-  this->m_env.params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("damping_coef", m_damping_coef);
 }
 
 template <typename Conf>
@@ -438,8 +443,6 @@ void
 field_solver_sph_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
-  flux = this->m_env.template register_data<scalar_field<Conf>>(
-      "flux", this->m_grid, field_type::vert_centered);
 }
 
 template <typename Conf>

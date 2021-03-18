@@ -18,9 +18,9 @@
 #include "catch.hpp"
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
+#include "core/detail/multi_array_helpers.h"
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
-#include "core/detail/multi_array_helpers.h"
 #include "core/ndptr.hpp"
 #include "core/ndsubset.hpp"
 #include "core/ndsubset_dev.hpp"
@@ -76,7 +76,8 @@ TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
       [] __device__(auto p, auto ext) {
         for (auto i : grid_stride_range(0u, ext.size())) {
           auto idx = p.idx_at(i, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           p[i] = pos[0] * pos[1];
         }
       },
@@ -84,7 +85,8 @@ TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
   CudaSafeCall(cudaDeviceSynchronize());
 
   for (auto idx : array.indices()) {
-    auto pos = idx.get_pos();
+    // auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
     REQUIRE(array[idx] == Approx((float)pos[0] * pos[1]));
   }
 }
@@ -104,15 +106,17 @@ TEST_CASE("Performance of different indexing schemes",
   auto v2 = make_multi_array<float, idx_zorder_t>(ext, MemType::host_device);
 
   for (auto idx : v1.indices()) {
-    auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
     v1[idx] = float(0.3 * pos[0] + 0.4 * pos[1] - pos[2]);
   }
   for (auto idx : v2.indices()) {
-    auto pos = idx.get_pos();
+    // auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
     v2[idx] = float(0.3 * pos[0] + 0.4 * pos[1] - pos[2]);
   }
   for (auto idx : v1.indices()) {
-    auto pos = idx.get_pos();
+    // auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
     REQUIRE(v1(pos[0], pos[1], pos[2]) == v2(pos[0], pos[1], pos[2]));
   }
   v1.copy_to_device();
@@ -303,7 +307,8 @@ TEST_CASE("Performance of expression template",
              grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
           p[idx] = p[idx] * 7.0f + 9.0f / p[idx];
         }
-      }, v1.dev_ndptr());
+      },
+      v1.dev_ndptr());
   CudaSafeCall(cudaDeviceSynchronize());
   timer::show_duration_since_stamp("Evaluation using Kernel Launch", "us");
 
@@ -341,7 +346,6 @@ TEST_CASE("Performance of expression template",
   for (auto idx : v3.indices()) {
     REQUIRE(v3[idx] == v1[idx]);
   }
-
 }
 
 #endif

@@ -24,19 +24,10 @@
 
 namespace Aperture {
 
-sim_environment::sim_environment() : sim_environment(nullptr, nullptr) {}
+sim_environment_impl::sim_environment_impl()
+    : sim_environment_impl(nullptr, nullptr) {}
 
-sim_environment::sim_environment(int* argc, char*** argv) {
-  // Parse options
-  m_options = std::unique_ptr<cxxopts::Options>(
-      new cxxopts::Options("aperture", "Aperture PIC code"));
-  m_options->add_options()("h,help", "Prints this help message.")(
-      "c,config", "Configuration file for the simulation.",
-      cxxopts::value<std::string>()->default_value("config.toml"))(
-      "d,dry-run",
-      "Only initialize, do not actualy run the simulation. Useful for looking "
-      "at initialization stage problems.");
-
+sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
   int is_initialized = 0;
   MPI_Initialized(&is_initialized);
 
@@ -47,17 +38,14 @@ sim_environment::sim_environment(int* argc, char*** argv) {
       MPI_Init(argc, argv);
     }
   }
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  Logger::init(rank, LogLevel::debug);
 
-  // Parse options and store the results
-  if (argc != nullptr && argv != nullptr) {
-    parse_options(*argc, *argv);
-  } else {
-    m_commandline_args = nullptr;
-  }
-  m_params.parse(m_params.get_as<std::string>("config_file", "config.toml"));
+  reset(argc, argv);
 }
 
-sim_environment::~sim_environment() {
+sim_environment_impl::~sim_environment_impl() {
   int is_finalized = 0;
   MPI_Finalized(&is_finalized);
 
@@ -65,7 +53,38 @@ sim_environment::~sim_environment() {
 }
 
 void
-sim_environment::parse_options(int argc, char** argv) {
+sim_environment_impl::reset(int* argc, char*** argv) {
+  // Reset the systems and data
+  m_system_map.clear();
+  m_system_order.clear();
+  m_data_map.clear();
+  m_data_order.clear();
+  m_params.clear();
+
+  // Parse options
+  m_options = std::unique_ptr<cxxopts::Options>(
+      new cxxopts::Options("aperture", "Aperture PIC code"));
+  m_options->add_options()("h,help", "Prints this help message.")(
+      "c,config", "Configuration file for the simulation.",
+      cxxopts::value<std::string>()->default_value("config.toml"))(
+      "d,dry-run",
+      "Only initialize, do not actualy run the simulation. Useful for looking "
+      "at initialization stage problems.");
+
+  // Parse options and store the results
+  if (argc != nullptr && argv != nullptr) {
+    parse_options(*argc, *argv);
+  } else {
+    m_commandline_args = nullptr;
+  }
+  std::string conf_filename =
+      m_params.get_as<std::string>("config_file", "config.toml");
+  Logger::print_info("config file is {}", conf_filename);
+  m_params.parse(conf_filename);
+}
+
+void
+sim_environment_impl::parse_options(int argc, char** argv) {
   // Read command line arguments
   try {
     m_commandline_args.reset(
@@ -90,7 +109,7 @@ sim_environment::parse_options(int argc, char** argv) {
 }
 
 void
-sim_environment::init() {
+sim_environment_impl::init() {
   // Set log level independent of domain comm
   int log_level = (int)LogLevel::info;
   m_params.get_value("log_level", log_level);
@@ -107,6 +126,7 @@ sim_environment::init() {
     auto& s = m_system_map[name];
     Logger::print_info("Initializing system '{}'", name);
     s->init();
+    m_system_time.insert({name, 0.0f});
   }
 
   // Initialize all data
@@ -115,18 +135,25 @@ sim_environment::init() {
     Logger::print_info("Initializing data '{}'", name);
     c->init();
   }
+
+  // m_system_time.assign(m_data_order.size(), 0.0f);
 }
 
 void
-sim_environment::update() {
+sim_environment_impl::update() {
   Logger::print_info("=== Time step {}, Time is {:.5f} ===", step, time);
   for (auto& name : m_system_order) {
     timer::stamp();
     m_system_map[name]->update(dt, step);
     float time_spent = timer::get_duration_since_stamp("us");
-    if (step % perf_interval == 0 && time_spent > 10.0f)
+    m_system_time[name] += time_spent;
+
+    if (step % perf_interval == 0 &&
+        m_system_time[name] / perf_interval > 10.0f) {
       Logger::print_info("Time for {} is {:.2f}ms", name,
-                         time_spent / 1000.0);
+                         m_system_time[name] / perf_interval / 1000.0);
+      m_system_time[name] = 0.0f;
+    }
     // timer::show_duration_since_stamp(name, "us");
   }
   time += dt;
@@ -134,7 +161,7 @@ sim_environment::update() {
 }
 
 void
-sim_environment::run() {
+sim_environment_impl::run() {
   if (is_dry_run) {
     Logger::print_info("This is a dry-run, exiting...");
     return;

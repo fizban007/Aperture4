@@ -27,6 +27,16 @@ struct less_than {
   enum { value = A < B };
 };
 
+template <class T>
+struct type_identity {
+  using type = T;
+};
+
+template <class T>
+using type_identity_t = typename type_identity<T>::type;
+
+template <typename T>
+using is_integral_t = typename std::enable_if<std::is_integral<T>::value>::type;
 
 // This implementation of conjunction is taken from
 // https://www.fluentcpp.com/2019/01/25/variadic-number-function-parameters-type/
@@ -49,14 +59,13 @@ struct disjunction<B1, Bn...>
     : std::conditional_t<B1::value, B1, disjunction<Bn...>> {};
 
 template <typename T, typename U>
-using is_convertible_to = typename std::enable_if<
-  std::is_convertible<U, T>::value>::type;
+using is_convertible_to =
+    typename std::enable_if<std::is_convertible<U, T>::value>::type;
 
 // This checks if a given type pack Ts are all convertible to T
 template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<
     conjunction<std::is_convertible<Ts, T>...>::value>::type;
-
 
 }  // namespace Aperture
 

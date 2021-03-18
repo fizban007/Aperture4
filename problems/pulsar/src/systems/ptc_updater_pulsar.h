@@ -28,12 +28,12 @@ template <typename Pusher>
 struct pusher_impl_pulsar;
 
 template <typename Conf>
-class ptc_updater_pulsar : public ptc_updater_sph_cu<Conf> {
+class ptc_updater_pulsar : public ptc_updater_old_sph_cu<Conf> {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  using ptc_updater_sph_cu<Conf>::ptc_updater_sph_cu;
+  using ptc_updater_old_sph_cu<Conf>::ptc_updater_sph_cu;
   ~ptc_updater_pulsar();
 
   void init() override;

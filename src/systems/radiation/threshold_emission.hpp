@@ -20,15 +20,20 @@
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
-#include "data/curand_states.h"
+#include "core/random.h"
+#include "framework/environment.h"
 
 namespace Aperture {
 
-struct threshold_emission_t {
+struct threshold_emission {
   float gamma_thr = 30.0f;
 
-  HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, uint32_t tid,
-                                     cuda_rng_t& rng) const {
+  void init() {
+    sim_env().params().get_value("gamma_thr", gamma_thr);
+  }
+
+  HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, size_t tid,
+                                     rng_t& rng) const {
     return ptc.E[tid] > gamma_thr;
   }
 };

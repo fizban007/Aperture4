@@ -39,6 +39,50 @@ class photon_data_t : public data_t, public photons_t {
   void init() override;
 };
 
+template <>
+struct host_adapter<particle_data_t> {
+  typedef ptc_ptrs type;
+  typedef ptc_ptrs const_type;
+
+  static inline type apply(particle_data_t& array) {
+    return array.get_host_ptrs();
+  }
+};
+
+template <>
+struct host_adapter<photon_data_t> {
+  typedef ph_ptrs type;
+  typedef ph_ptrs const_type;
+
+  static inline type apply(photon_data_t& array) {
+    return array.get_host_ptrs();
+  }
+};
+
+#ifdef CUDA_ENABLED
+
+template <>
+struct cuda_adapter<particle_data_t> {
+  typedef ptc_ptrs type;
+  typedef ptc_ptrs const_type;
+
+  static inline type apply(particle_data_t& array) {
+    return array.get_dev_ptrs();
+  }
+};
+
+template <>
+struct cuda_adapter<photon_data_t> {
+  typedef ph_ptrs type;
+  typedef ph_ptrs const_type;
+
+  static inline type apply(photon_data_t& array) {
+    return array.get_dev_ptrs();
+  }
+};
+
+#endif
+
 }
 
 #endif

@@ -20,6 +20,7 @@
 
 #include "core/grid.hpp"
 #include "core/ndptr.hpp"
+#include "core/data_adapter.h"
 #include "framework/data.h"
 #include "utils/logger.h"
 #include "utils/stagger.h"
@@ -125,6 +126,18 @@ class field_t : public data_t {
   }
   void add_by(const field_t<N, Conf>& other, typename Conf::value_t scale = 1.0);
 
+  void copy_to_host() {
+    for (int i = 0; i < N; i++) {
+      m_data[i].copy_to_host();
+    }
+  }
+
+  void copy_to_device() {
+    for (int i = 0; i < N; i++) {
+      m_data[i].copy_to_device();
+    }
+  }
+
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>
   vec_t<typename Conf::ndptr_const_t, M> get_const_ptrs() const {
@@ -138,11 +151,7 @@ class field_t : public data_t {
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>
   vec_t<typename Conf::ndptr_const_t, M> get_ptrs() const {
-    vec_t<typename Conf::ndptr_const_t, M> result;
-    for (int i = 0; i < M; i++) {
-      result[i] = m_data[i].dev_ndptr_const();
-    }
-    return result;
+    return get_const_ptrs();
   }
 
   // Only provides this method for N > 1
@@ -155,12 +164,36 @@ class field_t : public data_t {
     return result;
   }
 
+  // Only provides this method for N > 1
+  template <int M = N, greater_than_unity<M> = true>
+  vec_t<typename Conf::ndptr_t, M> host_ptrs() {
+    vec_t<typename Conf::ndptr_t, M> result;
+    for (int i = 0; i < M; i++) {
+      result[i] = m_data[i].host_ndptr();
+    }
+    return result;
+  }
+
+  // Only provides this method for N > 1
+  template <int M = N, greater_than_unity<M> = true>
+  vec_t<typename Conf::ndptr_const_t, M> host_ptrs() const {
+    vec_t<typename Conf::ndptr_const_t, M> result;
+    for (int i = 0; i < M; i++) {
+      result[i] = m_data[i].host_ndptr();
+    }
+    return result;
+  }
+
   void set_memtype(MemType type);
 
   typename Conf::ndptr_const_t dev_ndptr(int n = 0) const {
     return m_data[n].dev_ndptr_const();
   }
   typename Conf::ndptr_t dev_ndptr(int n = 0) { return m_data[n].dev_ndptr(); }
+  typename Conf::ndptr_const_t host_ndptr(int n = 0) const {
+    return m_data[n].host_ndptr_const();
+  }
+  typename Conf::ndptr_t host_ndptr(int n = 0) { return m_data[n].host_ndptr(); }
 
   const Grid_t& grid() const { return *m_grid; }
 
@@ -176,6 +209,62 @@ using vector_field = field_t<3, Conf>;
 
 template <typename Conf>
 using scalar_field = field_t<1, Conf>;
+
+template <typename Conf>
+struct host_adapter<field_t<1, Conf>> {
+  typedef typename Conf::ndptr_t type;
+  typedef typename Conf::ndptr_const_t const_type;
+
+  static inline const_type apply(const field_t<1, Conf>& f) {
+    return f.host_ndptr();
+  }
+  static inline type apply(field_t<1, Conf>& f) {
+    return f.host_ndptr();
+  }
+};
+
+template <int N, typename Conf>
+struct host_adapter<field_t<N, Conf>> {
+  typedef vec_t<typename Conf::ndptr_t, N> type;
+  typedef vec_t<typename Conf::ndptr_const_t, N> const_type;
+
+  static inline const_type apply(const field_t<N, Conf>& f) {
+    return f.host_ptrs();
+  }
+  static inline type apply(field_t<N, Conf>& f) {
+    return f.host_ptrs();
+  }
+};
+
+#ifdef CUDA_ENABLED
+
+template <typename Conf>
+struct cuda_adapter<field_t<1, Conf>> {
+  typedef typename Conf::ndptr_t type;
+  typedef typename Conf::ndptr_const_t const_type;
+
+  static inline const_type apply(const field_t<1, Conf>& f) {
+    return f.dev_ndptr();
+  }
+  static inline type apply(field_t<1, Conf>& f) {
+    return f.dev_ndptr();
+  }
+};
+
+template <int N, typename Conf>
+struct cuda_adapter<field_t<N, Conf>> {
+  typedef vec_t<typename Conf::ndptr_t, N> type;
+  typedef vec_t<typename Conf::ndptr_const_t, N> const_type;
+
+  static inline const_type apply(const field_t<N, Conf>& f) {
+    return f.get_const_ptrs();
+  }
+  static inline type apply(field_t<N, Conf>& f) {
+    return f.get_ptrs();
+  }
+};
+
+#endif
 
 }  // namespace Aperture
 

@@ -57,8 +57,10 @@ class H5File {
             H5OpenMode mode = H5OpenMode::read_only);
   void close();
 
-  template <typename T, int Dim>
-  void write(const multi_array<T, Dim>& array, const std::string& name);
+  template <typename T, int Dim, typename Idx_t>
+  void write(const multi_array<T, Dim, Idx_t>& array, const std::string& name);
+  template <typename T>
+  void write(const buffer<T>& array, const std::string& name);
   template <typename T>
   void write(const T* array, size_t size, const std::string& name);
   template <typename T>

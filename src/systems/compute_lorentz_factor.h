@@ -22,6 +22,7 @@
 #include "data/particle_data.h"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "utils/nonown_ptr.hpp"
 #include <vector>
 
 namespace Aperture {
@@ -31,8 +32,9 @@ class compute_lorentz_factor : public system_t {
  public:
   static std::string name() { return "compute_lorentz_factor"; }
 
-  compute_lorentz_factor(sim_environment& env, const grid_t<Conf>& grid)
-      : system_t(env), m_grid(grid) {}
+  // compute_lorentz_factor(sim_environment& env, const grid_t<Conf>& grid)
+  compute_lorentz_factor(const grid_t<Conf>& grid)
+      : m_grid(grid) {}
   virtual ~compute_lorentz_factor() {}
 
   virtual void register_data_components() override;
@@ -44,9 +46,9 @@ class compute_lorentz_factor : public system_t {
   int m_data_interval = 1;
   int m_num_species = 2;
 
-  std::vector<scalar_field<Conf>*> gamma;
-  std::vector<vector_field<Conf>*> avg_p;
-  particle_data_t* ptc;
+  std::vector<nonown_ptr<scalar_field<Conf>>> gamma;
+  std::vector<nonown_ptr<vector_field<Conf>>> avg_p;
+  nonown_ptr<particle_data_t> ptc;
 
   virtual void register_data_impl(MemType type);
 };
@@ -57,8 +59,8 @@ class compute_lorentz_factor_cu : public compute_lorentz_factor<Conf> {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "compute_lorentz_factor"; }
 
-  compute_lorentz_factor_cu(sim_environment& env, const grid_t<Conf>& grid)
-      : compute_lorentz_factor<Conf>(env, grid) {}
+  compute_lorentz_factor_cu(const grid_t<Conf>& grid)
+      : compute_lorentz_factor<Conf>(grid) {}
   virtual ~compute_lorentz_factor_cu() {}
 
   virtual void register_data_components() override;

@@ -94,7 +94,7 @@ class multi_array : public buffer<T> {
     other.m_ext = extent_t<Rank>{};
   }
 
-  virtual ~multi_array() {}
+  ~multi_array() {}
 
   using buffer<T>::assign;
 
@@ -194,20 +194,33 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
+    cref_t() = default;
     cref_t(const multi_array_t& array)
         : m_ptr(array.host_ndptr_const()),
           m_dev_ptr(array.dev_ndptr_const()),
           m_ext(array.extent()) {}
     HOST_DEVICE cref_t(const cref_t& other) = default;
-    HOST_DEVICE virtual ~cref_t() {}
+    HOST_DEVICE ~cref_t() {}
 
-    HD_INLINE value_t operator[](const idx_t& idx) const { return m_ptr[idx]; }
+    // HD_INLINE const value_t& operator[](const idx_t& idx) const {
+    HD_INLINE value_t operator[](const idx_t& idx) const {
+#ifdef __CUDACC__
+      return m_dev_ptr[idx];
+#else
+      return m_ptr[idx];
+#endif
+    }
+
     value_t at(const index_t<Rank>& pos) const {
       return m_ptr[Idx_t(pos, m_ext)];
     }
     HD_INLINE value_t at_dev(const index_t<Rank>& pos) const {
       return m_dev_ptr[Idx_t(pos, m_ext)];
     }
+
+    HD_INLINE const extent_t<Rank>& ext() const { return m_ext; }
+    const const_ptr_t& ptr() const { return m_ptr; }
+    HD_INLINE const const_ptr_t& dev_ptr() const { return m_dev_ptr; }
 
    private:
     const_ptr_t m_ptr;
@@ -223,18 +236,27 @@ class multi_array : public buffer<T> {
     typedef T value_t;
     typedef Idx_t idx_t;
 
+    ref_t() = default;
     ref_t(multi_array_t& array)
         : m_ptr(array.host_ndptr()),
           m_dev_ptr(array.dev_ndptr()),
           m_ext(array.extent()) {}
     HOST_DEVICE ref_t(const ref_t& other) = default;
-    HOST_DEVICE virtual ~ref_t() {}
+    HOST_DEVICE ~ref_t() {}
 
-    HD_INLINE value_t& operator[](const idx_t& idx) { return m_ptr[idx]; }
+    HD_INLINE value_t& operator[](const idx_t& idx) {
+#ifdef __CUDACC__
+      return m_dev_ptr[idx];
+#else
+      return m_ptr[idx];
+#endif
+    }
     value_t& at(const index_t<Rank>& pos) { return m_ptr[Idx_t(pos, m_ext)]; }
     HD_INLINE value_t& at_dev(const index_t<Rank>& pos) {
       return m_dev_ptr[Idx_t(pos, m_ext)];
     }
+
+    const extent_t<Rank>& ext() const { return m_ext; }
 
    private:
     ptr_t m_ptr;
@@ -262,6 +284,36 @@ auto
 make_multi_array(const extent_t<Rank>& ext, MemType type = default_mem_type) {
   return multi_array<T, Rank, Index_t<Rank>>(ext, type);
 }
+
+template <typename T, int Rank, typename Idx_t>
+struct host_adapter<multi_array<T, Rank, Idx_t>> {
+  typedef ndptr<T, Rank, Idx_t> type;
+  typedef ndptr_const<T, Rank, Idx_t> const_type;
+
+  static inline type apply(multi_array<T, Rank, Idx_t>& array) {
+    return array.host_ndptr();
+  }
+  static inline const_type apply(const multi_array<T, Rank, Idx_t>& array) {
+    return array.host_ndptr_const();
+  }
+};
+
+#ifdef CUDA_ENABLED
+
+template <typename T, int Rank, typename Idx_t>
+struct cuda_adapter<multi_array<T, Rank, Idx_t>> {
+  typedef ndptr<T, Rank, Idx_t> type;
+  typedef ndptr_const<T, Rank, Idx_t> const_type;
+
+  static inline type apply(multi_array<T, Rank, Idx_t>& array) {
+    return array.dev_ndptr();
+  }
+  static inline const_type apply(const multi_array<T, Rank, Idx_t>& array) {
+    return array.dev_ndptr_const();
+  }
+};
+
+#endif
 
 }  // namespace Aperture
 

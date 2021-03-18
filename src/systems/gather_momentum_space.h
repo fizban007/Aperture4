@@ -19,10 +19,11 @@
 #define _GATHER_MOMENTUM_SPACE_H_
 
 #include "core/multi_array.hpp"
-#include "data/particle_data.h"
 #include "data/momentum_space.hpp"
+#include "data/particle_data.h"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "utils/nonown_ptr.hpp"
 #include <vector>
 
 namespace Aperture {
@@ -32,8 +33,7 @@ class gather_momentum_space : public system_t {
  public:
   static std::string name() { return "gather_momentum_space"; }
 
-  gather_momentum_space(sim_environment& env, const grid_t<Conf>& grid)
-      : system_t(env), m_grid(grid) {}
+  gather_momentum_space(const grid_t<Conf>& grid) : m_grid(grid) {}
   virtual ~gather_momentum_space() {}
 
   virtual void register_data_components() override;
@@ -44,8 +44,8 @@ class gather_momentum_space : public system_t {
   const grid_t<Conf>& m_grid;
   int m_data_interval = 1;
 
-  momentum_space<Conf>* momentum;
-  particle_data_t* ptc;
+  nonown_ptr<momentum_space<Conf>> momentum;
+  nonown_ptr<particle_data_t> ptc;
 };
 
 template <typename Conf>
@@ -54,14 +54,13 @@ class gather_momentum_space_cu : public gather_momentum_space<Conf> {
   typedef typename Conf::value_t value_t;
   static std::string name() { return "gather_momentum_space"; }
 
-  gather_momentum_space_cu(sim_environment& env, const grid_t<Conf>& grid)
-      : gather_momentum_space<Conf>(env, grid) {}
+  gather_momentum_space_cu(const grid_t<Conf>& grid)
+      : gather_momentum_space<Conf>(grid) {}
   virtual ~gather_momentum_space_cu() {}
 
   // virtual void register_data_components() override;
   // virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
-
 };
 
 }  // namespace Aperture

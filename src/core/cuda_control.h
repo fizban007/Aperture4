@@ -21,9 +21,11 @@
 #if defined(__CUDACC__) && defined(CUDA_ENABLED)
 #define HOST_DEVICE __host__ __device__
 #define HD_INLINE __host__ __device__ __forceinline__
+#define LAMBDA __device__
 #else
 #define HOST_DEVICE
 #define HD_INLINE inline
+#define LAMBDA
 #endif
 
 #if defined(CUDA_ENABLED)

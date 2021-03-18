@@ -50,12 +50,15 @@ gather_momentum_space_cu<Conf>::update(double dt, uint32_t step) {
           if (cell == empty_cell) continue;
 
           auto idx = Conf::idx(cell, ext);
-          auto pos = idx.get_pos();
+          // auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / downsample);
 
             auto weight = ptc.weight[n];
             auto flag = ptc.flag[n];
+            if (check_flag(flag, PtcFlag::exclude_from_spectrum))
+              continue;
             auto sp = get_ptc_type(flag);
 
             auto p1 = clamp(ptc.p1[n], lower[0], upper[0]);

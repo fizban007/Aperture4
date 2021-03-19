@@ -20,6 +20,7 @@
 
 #include "core/cuda_control.h"
 #include "core/enum_types.h"
+#include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "utils/type_traits.hpp"
 #include <cmath>
@@ -69,6 +70,12 @@ template <typename T>
 HD_INLINE int
 sgn(T val) {
   return (T(0) < val) - (val < T(0));
+}
+
+template <typename T>
+HD_INLINE T
+symlog(T val) {
+  return sgn(val) * math::log(1.0f + math::abs(val));
 }
 
 template <typename T>

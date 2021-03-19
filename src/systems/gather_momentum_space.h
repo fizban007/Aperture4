@@ -23,12 +23,13 @@
 #include "data/particle_data.h"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "systems/policies.h"
 #include "utils/nonown_ptr.hpp"
 #include <vector>
 
 namespace Aperture {
 
-template <typename Conf>
+template <typename Conf, template <class> class ExecPolicy>
 class gather_momentum_space : public system_t {
  public:
   static std::string name() { return "gather_momentum_space"; }
@@ -48,20 +49,20 @@ class gather_momentum_space : public system_t {
   nonown_ptr<particle_data_t> ptc;
 };
 
-template <typename Conf>
-class gather_momentum_space_cu : public gather_momentum_space<Conf> {
- public:
-  typedef typename Conf::value_t value_t;
-  static std::string name() { return "gather_momentum_space"; }
+// template <typename Conf>
+// class gather_momentum_space_cu : public gather_momentum_space<Conf> {
+//  public:
+//   typedef typename Conf::value_t value_t;
+//   static std::string name() { return "gather_momentum_space"; }
 
-  gather_momentum_space_cu(const grid_t<Conf>& grid)
-      : gather_momentum_space<Conf>(grid) {}
-  virtual ~gather_momentum_space_cu() {}
+//   gather_momentum_space_cu(const grid_t<Conf>& grid)
+//       : gather_momentum_space<Conf>(grid) {}
+//   virtual ~gather_momentum_space_cu() {}
 
-  // virtual void register_data_components() override;
-  // virtual void init() override;
-  virtual void update(double dt, uint32_t step) override;
-};
+//   // virtual void register_data_components() override;
+//   // virtual void init() override;
+//   virtual void update(double dt, uint32_t step) override;
+// };
 
 }  // namespace Aperture
 

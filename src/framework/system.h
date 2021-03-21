@@ -59,10 +59,14 @@ class system_t {
    */
   virtual void update(double dt, uint32_t step) {}
 
+  void pause() { m_paused = true; }
+  void unpause() { m_paused = false; }
+
  protected:
   /// Keeps a reference to the `sim_environment` so that any derived `system` can
   /// access it via this member
   // sim_environment& m_env;
+  bool m_paused = false;
 };
 
 }  // namespace Aperture

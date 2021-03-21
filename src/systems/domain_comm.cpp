@@ -475,7 +475,7 @@ template <typename Conf>
 template <typename PtcType>
 void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
                                             const grid_t<Conf> &grid) const {
-  Logger::print_detail("Sending paticles");
+  // Logger::print_detail("Sending paticles");
   // timer::stamp("send_ptc");
   if (!m_buffers_ready)
     resize_buffers(grid);

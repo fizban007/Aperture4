@@ -59,6 +59,7 @@ class system_t {
    */
   virtual void update(double dt, uint32_t step) {}
 
+  bool is_paused() const { return m_paused; }
   void pause() { m_paused = true; }
   void unpause() { m_paused = false; }
 

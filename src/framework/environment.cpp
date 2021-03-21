@@ -142,19 +142,24 @@ sim_environment_impl::init() {
 void
 sim_environment_impl::update() {
   Logger::print_info("=== Time step {}, Time is {:.5f} ===", step, time);
+  // Call the update() method of each system in order
   for (auto& name : m_system_order) {
+    if (m_system_map[name]->is_paused()) continue;
+
     timer::stamp();
+
     m_system_map[name]->update(dt, step);
+
     float time_spent = timer::get_duration_since_stamp("us");
     m_system_time[name] += time_spent;
 
+    // Display the time elapsed during the system update on given interval
     if (step % perf_interval == 0 &&
         m_system_time[name] / perf_interval > 10.0f) {
       Logger::print_info("Time for {} is {:.2f}ms", name,
                          m_system_time[name] / perf_interval / 1000.0);
       m_system_time[name] = 0.0f;
     }
-    // timer::show_duration_since_stamp(name, "us");
   }
   time += dt;
   step += 1;

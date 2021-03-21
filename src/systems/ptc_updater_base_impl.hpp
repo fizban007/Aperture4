@@ -174,7 +174,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     m_comm->send_particles(*ptc, m_grid);
   }
 
-  Logger::print_detail("Finished sending particles");
+  // Logger::print_detail("Finished sending particles");
 
   // Also move photons if the data component exists
   if (ph != nullptr) {
@@ -189,13 +189,13 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // Clear guard cells
   clear_guard_cells();
 
-  Logger::print_detail("Finished clearing guard cells");
+  // Logger::print_detail("Finished clearing guard cells");
 
   // sort at the given interval. Turn off sorting if m_sort_interval is 0
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
   }
-  Logger::print_detail("Finished sorting");
+  // Logger::print_detail("Finished sorting");
 }
 
 template <typename Conf, template <class> class ExecPolicy,

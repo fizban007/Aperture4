@@ -278,7 +278,7 @@ field_solver_cu<Conf>::register_data_components() {
 template <typename Conf>
 void
 field_solver_cu<Conf>::update_explicit(double dt, double time) {
-  Logger::print_info("explicit solver!");
+  Logger::print_detail("Running explicit Cartesian solver!");
   // dt *= 1.025;
   if (time < TINY) {
     compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
@@ -325,6 +325,7 @@ template <typename Conf>
 void
 field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
                                             double beta, double time) {
+  Logger::print_detail("Running semi-implicit Cartesian solver!");
   this->m_tmp_b2->init();
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));

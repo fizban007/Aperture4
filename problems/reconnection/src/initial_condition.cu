@@ -39,6 +39,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
   value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
+  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
   value_t beta_d =
       sim_env().params().get_as<double>("current_sheet_drift", 0.5);
   value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
@@ -103,7 +104,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // kernel_launch(
   using policy = exec_policy_cuda<Conf>;
   policy::launch(
-      [delta, kT_cs, beta_d, n_cs, n_upstream, B0,
+      [delta, kT_cs, kT_upstream, beta_d, n_cs, n_upstream, B0,
        q_e] __device__(auto ptc, rand_state *states, auto num_per_cell,
                        auto cum_num_per_cell) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -123,18 +124,18 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                 ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
                 ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
 
-                auto p1 = rng.gaussian<value_t>(2.0e-2f);
-                auto p2 = rng.gaussian<value_t>(2.0e-2f);
-                auto p3 = rng.gaussian<value_t>(2.0e-2f);
+                auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
+                auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
+                auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
                 ptc.p1[offset_e] = p1;
                 ptc.p2[offset_e] = p2;
                 ptc.p3[offset_e] = p3;
                 ptc.E[offset_e] =
                     math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
 
-                p1 = rng.gaussian<value_t>(2.0e-2f);
-                p2 = rng.gaussian<value_t>(2.0e-2f);
-                p3 = rng.gaussian<value_t>(2.0e-2f);
+                p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
+                p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
+                p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
                 // // p1 = curand_normal(&local_state) * 2.0e-2;
                 // // p2 = curand_normal(&local_state) * 2.0e-2;
                 // // p3 = curand_normal(&local_state) * 2.0e-2;

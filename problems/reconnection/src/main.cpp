@@ -18,6 +18,7 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "systems/boundary_condition.h"
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
@@ -60,7 +61,7 @@ int main(int argc, char *argv[]) {
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum = env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 

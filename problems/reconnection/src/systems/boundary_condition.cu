@@ -19,13 +19,15 @@
 #include "core/math.hpp"
 #include "framework/config.h"
 #include "systems/grid.h"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include "utils/kernel_helper.hpp"
+#include "utils/range.hpp"
 #include "utils/util_functions.h"
 
 namespace Aperture {
 
-HOST_DEVICE Scalar
-pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
+HOST_DEVICE Scalar pml_sigma(Scalar x, Scalar xh, Scalar pmlscale,
+                             Scalar sig0) {
   if (x > xh)
     return sig0 * square((x - xh) / pmlscale);
   else
@@ -33,16 +35,20 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
 }
 
 template <typename Conf>
-boundary_condition<Conf>::boundary_condition(const grid_t<Conf>& grid)
+boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid)
     : m_grid(grid) {
   using multi_array_t = typename Conf::multi_array_t;
 
   sim_env().params().get_value("damping_coef", m_damping_coef);
-  sim_env().params().get_value("Bp", m_Bp);
+  value_t sigma = 10.0;
+  sim_env().params().get_value("sigma", sigma);
+  m_Bp = math::sqrt(sigma);
   sim_env().params().get_value("damping_length", m_damping_length);
-  sim_env().params().get_value("pmllen", m_pmllen);
-  sim_env().params().get_value("sigpml", m_sigpml);
+  sim_env().params().get_value("upstream_kT", m_upstream_kT);
+  sim_env().params().get_value("upstream_n", m_upstream_n);
+  m_inj_length = m_damping_length / 2;
 
+  Logger::print_info("Boundary condition Bp is {}", m_Bp);
   // m_prev_E1 = std::make_unique<multi_array_t>(
   //     extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
   // m_prev_E2 = std::make_unique<multi_array_t>(
@@ -75,33 +81,39 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf>& grid)
   // m_prev_B[2] = m_prev_B3->dev_ptr();
   // m_prev_E.copy_to_device();
   // m_prev_B.copy_to_device();
+
+  extent_t<Conf::dim> ext_inj(grid.reduced_dim(0), m_inj_length);
+  m_dens_e1 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
+  m_dens_p1 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
+  m_dens_e2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
+  m_dens_p2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
 }
 
-template <typename Conf>
-void
-boundary_condition<Conf>::init() {
+template <typename Conf> void boundary_condition<Conf>::init() {
   sim_env().get_data("Edelta", E);
   sim_env().get_data("E0", E0);
   sim_env().get_data("Bdelta", B);
   sim_env().get_data("B0", B0);
   // sim_env().get_data("rand_states", &rand_states);
   sim_env().get_data("particles", ptc);
+  sim_env().get_data("rng_states", rng_states);
 }
 
 template <typename Conf>
-void
-boundary_condition<Conf>::update(double dt, uint32_t step) {
-  typedef typename Conf::idx_t idx_t;
-  typedef typename Conf::value_t value_t;
+void boundary_condition<Conf>::update(double dt, uint32_t step) {
+  damp_fields();
+  inject_plasma();
+}
 
-  value_t time = sim_env().get_time();
+template <typename Conf> void boundary_condition<Conf>::damp_fields() {
+  typedef typename Conf::idx_t idx_t;
   value_t Bp = m_Bp;
 
   // Apply damping boundary condition on both Y boundaries
   kernel_launch(
-      [Bp] __device__(auto e, auto b, auto prev_e, auto prev_b, auto damping_length,
-                    auto damping_coef) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+      [Bp] __device__(auto e, auto b, auto prev_e, auto prev_b,
+                      auto damping_length, auto damping_coef) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         // auto ext_damping = extent(damping_length, grid.dims[0]);
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
@@ -110,7 +122,8 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
             int n1 = i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t lambda =
-                1.0f - damping_coef * cube((value_t)(damping_length - i) / (damping_length - 1));
+                1.0f - damping_coef * cube((value_t)(damping_length - i) /
+                                           (damping_length - 1));
             e[0][idx] *= lambda;
             e[1][idx] *= lambda;
             e[2][idx] *= lambda;
@@ -120,7 +133,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           }
           // y = y_max boundary
           for (int i = 0; i < damping_length; i++) {
-            int n1 = grid.dims[0] - damping_length + i;
+            int n1 = grid.dims[1] - damping_length + i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t lambda =
                 1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
@@ -139,6 +152,151 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaCheckError();
 }
 
+template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
+  m_dens_e1->assign_dev(0.0f);
+  m_dens_p1->assign_dev(0.0f);
+  m_dens_e2->assign_dev(0.0f);
+  m_dens_p2->assign_dev(0.0f);
+
+  auto inj_length = m_inj_length;
+  auto upstream_kT = m_upstream_kT;
+  auto upstream_n = m_upstream_n;
+  auto num = ptc->number();
+
+  // Measure the density in the injection region and determine how many
+  // particles need to be injected
+  using policy = exec_policy_cuda<Conf>;
+  policy::launch(
+      [inj_length, num] __device__(auto ptc, auto dens_e1, auto dens_p1,
+                                   auto dens_e2, auto dens_p2) {
+        auto &grid = policy::grid();
+        auto ext = grid.extent();
+        auto ext_inj = extent_t<2>(grid.reduced_dim(0), inj_length);
+
+        for (auto n : grid_stride_range(0, num)) {
+          uint32_t cell = ptc.cell[n];
+          if (cell == empty_cell)
+            continue;
+
+          auto idx = Conf::idx(cell, ext);
+          auto pos = get_pos(idx, ext);
+
+          if (pos[1] - grid.guard[1] < inj_length) {
+            index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.guard[1]);
+            auto sp = get_ptc_type(ptc.flag[n]);
+            if (sp == 0) {
+              atomic_add(&dens_e1[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
+            } else if (sp == 1) {
+              atomic_add(&dens_p1[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
+            }
+          } else if (pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
+            index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.dims[1] +
+                                                           grid.guard[1] +
+                                                           inj_length);
+            auto sp = get_ptc_type(ptc.flag[n]);
+            if (sp == 0) {
+              atomic_add(&dens_e2[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
+            } else if (sp == 1) {
+              atomic_add(&dens_p2[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
+            }
+          }
+        }
+      },
+      ptc, *m_dens_e1, *m_dens_p1, *m_dens_e2, *m_dens_p2);
+  policy::sync();
+
+  // Actually inject the particles
+  buffer<int> offset(1, MemType::host_device);
+  offset[0] = num;
+  offset.copy_to_device();
+  auto ext_inj = m_dens_e1->extent();
+
+  policy::launch(
+      [inj_length, upstream_kT, upstream_n,
+       ext_inj] __device__(auto ptc, auto dens_e1, auto dens_p1, auto dens_e2,
+                           auto dens_p2, auto states, auto offset) {
+        auto &grid = policy::grid();
+        auto ext = grid.extent();
+        rng_t rng(states);
+
+        for (auto idx :
+             grid_stride_range(Conf::begin(ext_inj), Conf::end(ext_inj))) {
+          auto pos_inj = get_pos(idx, ext_inj);
+          // First check lower boundary
+          value_t dens = dens_e1[idx] + dens_p1[idx];
+          if (dens < 2.0f - 2.0f / upstream_n) {
+            auto n = atomic_add(offset, 2);
+            index_t<2> pos = index_t<2>(pos_inj[0] + grid.guard[0], pos_inj[1] + grid.guard[1]);
+
+            ptc.x1[n] = ptc.x1[n + 1] = rng.uniform<value_t>();
+            ptc.x2[n] = ptc.x2[n + 1] = rng.uniform<value_t>();
+            ptc.x3[n] = ptc.x3[n + 1] = rng.uniform<value_t>();
+            auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            ptc.p1[n] = p1;
+            ptc.p2[n] = p2;
+            ptc.p3[n] = p3;
+            ptc.E[n] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
+            p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            ptc.p1[n + 1] = p1;
+            ptc.p2[n + 1] = p2;
+            ptc.p3[n + 1] = p3;
+            ptc.E[n + 1] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
+            ptc.weight[n] = ptc.weight[n + 1] = 1.0f / upstream_n;
+            auto idx_p = Conf::idx(pos, ext);
+            ptc.cell[n] = ptc.cell[n + 1] = idx_p.linear;
+            ptc.flag[n] = set_ptc_type_flag(0, PtcType::electron);
+            ptc.flag[n + 1] = set_ptc_type_flag(0, PtcType::positron);
+          }
+
+          // Then check upper boundary
+          dens = dens_e2[idx] + dens_p2[idx];
+          if (dens < 2.0f - 2.0f / upstream_n) {
+            auto n = atomic_add(offset, 2);
+            index_t<2> pos = index_t<2>(
+                pos_inj[0] + grid.guard[0],
+                pos_inj[1] + (grid.dims[1] - grid.guard[1] - inj_length));
+
+            ptc.x1[n] = ptc.x1[n + 1] = rng.uniform<value_t>();
+            ptc.x2[n] = ptc.x2[n + 1] = rng.uniform<value_t>();
+            ptc.x3[n] = ptc.x3[n + 1] = rng.uniform<value_t>();
+            auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            ptc.p1[n] = p1;
+            ptc.p2[n] = p2;
+            ptc.p3[n] = p3;
+            ptc.E[n] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
+            p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+            ptc.p1[n + 1] = p1;
+            ptc.p2[n + 1] = p2;
+            ptc.p3[n + 1] = p3;
+            ptc.E[n + 1] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
+            ptc.weight[n] = ptc.weight[n + 1] = 1.0f / upstream_n;
+            auto idx_p = Conf::idx(pos, ext);
+            ptc.cell[n] = ptc.cell[n + 1] = idx_p.linear;
+            ptc.flag[n] = set_ptc_type_flag(0, PtcType::electron);
+            ptc.flag[n + 1] = set_ptc_type_flag(0, PtcType::positron);
+          }
+        }
+      },
+      ptc, *m_dens_e1, *m_dens_p1, *m_dens_e2, *m_dens_p2, rng_states, offset);
+  policy::sync();
+
+  offset.copy_to_host();
+  ptc->set_num(offset[0]);
+  Logger::print_info("Injected {} particles", offset[0] - num);
+}
+
 template class boundary_condition<Config<2>>;
 
-}  // namespace Aperture
+} // namespace Aperture

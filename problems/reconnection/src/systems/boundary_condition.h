@@ -20,6 +20,7 @@
 
 #include "data/fields.h"
 #include "data/particle_data.h"
+#include "data/rng_states.h"
 // #include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
@@ -40,23 +41,24 @@ class boundary_condition : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  void damp_fields();
+  void inject_plasma();
 
  protected:
   const grid_t<Conf>& m_grid;
+  int m_inj_length = 16;
   int m_damping_length = 64;
-  float m_pmllen = 1.0f;
-  float m_sigpml = 1.0f;
+  int m_upstream_n = 1;
+  float m_upstream_kT = 1.0e-2f;
   float m_damping_coef = 1.0f;
-  float m_qe = 1.0f;
   float m_Bp = 10.0f;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<rng_states_t> rng_states;
   // curand_states_t *rand_states;
 
-  std::unique_ptr<typename Conf::multi_array_t> m_prev_E1, m_prev_E2, m_prev_E3;
-  std::unique_ptr<typename Conf::multi_array_t> m_prev_B1, m_prev_B2, m_prev_B3;
-  // vec_t<typename Conf::ndptr_t, 3> m_prev_E, m_prev_B;
+  std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;
   buffer<typename Conf::ndptr_t> m_prev_E, m_prev_B;
 
 };

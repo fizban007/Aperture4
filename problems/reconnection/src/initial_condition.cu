@@ -24,6 +24,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
@@ -63,138 +64,187 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
     return B0 * tanh(y / delta);
   });
 
-  // Compute how many particles to initialize in every cell
-  multi_array<int, Conf::dim> num_per_cell(ext);
-  multi_array<int, Conf::dim> cum_num_per_cell(ext);
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  injector->init();
 
-  kernel_launch(
-      [delta, n_cs, n_upstream] __device__(auto num_per_cell) {
-        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
+  injector->inject(
+      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+        return 2 * n_upstream;
+      },
+      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                               PtcType type) {
+        auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
+        auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
+        auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
+        return vec_t<value_t, 3>(p1, p2, p3);
+      },
+      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+        return 1.0 / n_upstream;
+      });
 
-        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          auto pos = get_pos(idx, ext);
-          if (grid.is_in_bound(pos)) {
-            num_per_cell[idx] = 2 * n_upstream;
-
-            value_t y = grid.template pos<1>(pos, 0.5f);
-            value_t cs_y = 3.0f * delta;
-            if (math::abs(y) < cs_y) {
-              num_per_cell[idx] += 2 * n_cs;
-            }
-          }
+  injector->inject(
+      [delta] __device__(auto &pos, auto &grid, auto &ext) {
+        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t cs_y = 3.0f * delta;
+        if (math::abs(y) < cs_y) {
+          return true;
+        } else {
+          return false;
         }
       },
-      num_per_cell.dev_ndptr());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+      [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                                 PtcType type) {
+        vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
+        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t sign = (y < 0 ? 1.0f : -1.0f);
+        if (type == PtcType::positron) sign *= -1.0f;
 
-  thrust::device_ptr<int> p_num_per_cell(num_per_cell.dev_ptr());
-  thrust::device_ptr<int> p_cum_num_per_cell(cum_num_per_cell.dev_ptr());
+        auto p1 = u_d[1] * sign;
+        auto p2 = u_d[2] * sign;
+        auto p3 = u_d[0] * sign;
+        return vec_t<value_t, 3>(p1, p2, p3);
+      },
+      [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid, auto &ext) {
+        auto y = grid.pos(1, pos[1], 0.5f);
+        value_t j = -B0 / delta / square(cosh(y / delta));
+        value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
+        return w;
+      }, flag_or(PtcFlag::exclude_from_spectrum));
 
-  thrust::exclusive_scan(p_num_per_cell, p_num_per_cell + ext.size(),
-                         p_cum_num_per_cell);
-  CudaCheckError();
-  num_per_cell.copy_to_host();
-  cum_num_per_cell.copy_to_host();
-  int new_particles =
-      (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
-  Logger::print_info("Initializing {} particles", new_particles);
+  // Compute how many particles to initialize in every cell
+  // multi_array<int, Conf::dim> num_per_cell(ext);
+  // multi_array<int, Conf::dim> cum_num_per_cell(ext);
 
   // kernel_launch(
-  using policy = exec_policy_cuda<Conf>;
-  policy::launch(
-      [delta, kT_cs, kT_upstream, beta_d, n_cs, n_upstream, B0,
-       q_e] __device__(auto ptc, rand_state *states, auto num_per_cell,
-                       auto cum_num_per_cell) {
-        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        rng_t rng(states);
-        for (auto cell : grid_stride_range(0, ext.size())) {
-          auto idx = Conf::idx(cell, ext);
-          auto pos = get_pos(idx, ext);
+  //     [delta, n_cs, n_upstream] __device__(auto num_per_cell) {
+  //       auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+  //       auto ext = grid.extent();
 
-          if (grid.is_in_bound(pos)) {
-            for (int i = 0; i < num_per_cell[idx]; i += 2) {
-              uint32_t offset_e = cum_num_per_cell[idx] + i;
-              uint32_t offset_p = offset_e + 1;
+  //       for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+  //         auto pos = get_pos(idx, ext);
+  //         if (grid.is_in_bound(pos)) {
+  //           num_per_cell[idx] = 2 * n_upstream;
 
-              if (i < 2 * n_upstream) {
-                ptc.x1[offset_e] = ptc.x1[offset_p] = rng.uniform<value_t>();
-                ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
-                ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
+  //           value_t y = grid.template pos<1>(pos, 0.5f);
+  //           value_t cs_y = 3.0f * delta;
+  //           if (math::abs(y) < cs_y) {
+  //             num_per_cell[idx] += 2 * n_cs;
+  //           }
+  //         }
+  //       }
+  //     },
+  //     num_per_cell.dev_ndptr());
+  // CudaSafeCall(cudaDeviceSynchronize());
+  // CudaCheckError();
 
-                auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                ptc.p1[offset_e] = p1;
-                ptc.p2[offset_e] = p2;
-                ptc.p3[offset_e] = p3;
-                ptc.E[offset_e] =
-                    math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+  // thrust::device_ptr<int> p_num_per_cell(num_per_cell.dev_ptr());
+  // thrust::device_ptr<int> p_cum_num_per_cell(cum_num_per_cell.dev_ptr());
 
-                p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
-                // // p1 = curand_normal(&local_state) * 2.0e-2;
-                // // p2 = curand_normal(&local_state) * 2.0e-2;
-                // // p3 = curand_normal(&local_state) * 2.0e-2;
-                ptc.p1[offset_p] = p1;
-                ptc.p2[offset_p] = p2;
-                ptc.p3[offset_p] = p3;
-                ptc.E[offset_p] =
-                    math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+  // thrust::exclusive_scan(p_num_per_cell, p_num_per_cell + ext.size(),
+  //                        p_cum_num_per_cell);
+  // CudaCheckError();
+  // num_per_cell.copy_to_host();
+  // cum_num_per_cell.copy_to_host();
+  // int new_particles =
+  //     (cum_num_per_cell[ext.size() - 1] + num_per_cell[ext.size() - 1]);
+  // Logger::print_info("Initializing {} particles", new_particles);
 
-                ptc.weight[offset_e] = ptc.weight[offset_p] = 1.0f / n_upstream;
-                ptc.cell[offset_e] = idx.linear;
-                ptc.cell[offset_p] = idx.linear;
-                ptc.flag[offset_e] = set_ptc_type_flag(
-                    flag_or(PtcFlag::initial), PtcType::electron);
-                ptc.flag[offset_p] = set_ptc_type_flag(
-                    flag_or(PtcFlag::initial), PtcType::positron);
+  // // kernel_launch(
+  // using policy = exec_policy_cuda<Conf>;
+  // policy::launch(
+  //     [delta, kT_cs, kT_upstream, beta_d, n_cs, n_upstream, B0,
+  //      q_e] __device__(auto ptc, rand_state *states, auto num_per_cell,
+  //                      auto cum_num_per_cell) {
+  //       auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+  //       auto ext = grid.extent();
+  //       rng_t rng(states);
+  //       for (auto cell : grid_stride_range(0, ext.size())) {
+  //         auto idx = Conf::idx(cell, ext);
+  //         auto pos = get_pos(idx, ext);
 
-              } else {
-                auto y = grid.pos(1, pos[1], 0.5f);
-                value_t j = -B0 / delta / square(cosh(y / delta));
-                value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
+  //         if (grid.is_in_bound(pos)) {
+  //           for (int i = 0; i < num_per_cell[idx]; i += 2) {
+  //             uint32_t offset_e = cum_num_per_cell[idx] + i;
+  //             uint32_t offset_p = offset_e + 1;
 
-                ptc.x1[offset_e] = ptc.x1[offset_p] = rng.uniform<value_t>();
-                ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
-                ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
+  //             if (i < 2 * n_upstream) {
+  //               ptc.x1[offset_e] = ptc.x1[offset_p] = rng.uniform<value_t>();
+  //               ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
+  //               ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
 
-                vec_t<value_t, 3> u_d =
-                    rng.maxwell_juttner_drifting(kT_cs, beta_d);
-                // auto u_d = rng.maxwell_juttner_3d(kT_cs);
-                value_t sign = (y < 0 ? 1.0f : -1.0f);
+  //               auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               ptc.p1[offset_e] = p1;
+  //               ptc.p2[offset_e] = p2;
+  //               ptc.p3[offset_e] = p3;
+  //               ptc.E[offset_e] =
+  //                   math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
 
-                ptc.p1[offset_e] = u_d[1] * sign;
-                ptc.p2[offset_e] = u_d[2] * sign;
-                ptc.p3[offset_e] = u_d[0] * sign;
-                ptc.E[offset_e] = math::sqrt(1.0f + u_d.dot(u_d));
+  //               p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
+  //               // // p1 = curand_normal(&local_state) * 2.0e-2;
+  //               // // p2 = curand_normal(&local_state) * 2.0e-2;
+  //               // // p3 = curand_normal(&local_state) * 2.0e-2;
+  //               ptc.p1[offset_p] = p1;
+  //               ptc.p2[offset_p] = p2;
+  //               ptc.p3[offset_p] = p3;
+  //               ptc.E[offset_p] =
+  //                   math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
 
-                u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
-                ptc.p1[offset_p] = -u_d[1] * sign;
-                ptc.p2[offset_p] = -u_d[2] * sign;
-                ptc.p3[offset_p] = -u_d[0] * sign;
-                ptc.E[offset_p] = math::sqrt(1.0f + u_d.dot(u_d));
+  //               ptc.weight[offset_e] = ptc.weight[offset_p] = 1.0f / n_upstream;
+  //               ptc.cell[offset_e] = idx.linear;
+  //               ptc.cell[offset_p] = idx.linear;
+  //               ptc.flag[offset_e] = set_ptc_type_flag(
+  //                   flag_or(PtcFlag::initial), PtcType::electron);
+  //               ptc.flag[offset_p] = set_ptc_type_flag(
+  //                   flag_or(PtcFlag::initial), PtcType::positron);
 
-                ptc.weight[offset_e] = ptc.weight[offset_p] = w;
-                ptc.cell[offset_e] = ptc.cell[offset_p] = idx.linear;
-                ptc.flag[offset_e] = set_ptc_type_flag(
-                    flag_or(PtcFlag::initial, PtcFlag::exclude_from_spectrum),
-                    PtcType::electron);
-                ptc.flag[offset_p] = set_ptc_type_flag(
-                    flag_or(PtcFlag::initial, PtcFlag::exclude_from_spectrum),
-                    PtcType::positron);
-              }
-            }
-          }
-        }
-      },
-      ptc, states, num_per_cell, cum_num_per_cell);
-  CudaSafeCall(cudaDeviceSynchronize());
-  ptc.add_num(new_particles);
-  ptc.sort_by_cell(grid.size());
+  //             } else {
+  //               auto y = grid.pos(1, pos[1], 0.5f);
+  //               value_t j = -B0 / delta / square(cosh(y / delta));
+  //               value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
+
+  //               ptc.x1[offset_e] = ptc.x1[offset_p] = rng.uniform<value_t>();
+  //               ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
+  //               ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
+
+  //               vec_t<value_t, 3> u_d =
+  //                   rng.maxwell_juttner_drifting(kT_cs, beta_d);
+  //               // auto u_d = rng.maxwell_juttner_3d(kT_cs);
+  //               value_t sign = (y < 0 ? 1.0f : -1.0f);
+
+  //               ptc.p1[offset_e] = u_d[1] * sign;
+  //               ptc.p2[offset_e] = u_d[2] * sign;
+  //               ptc.p3[offset_e] = u_d[0] * sign;
+  //               ptc.E[offset_e] = math::sqrt(1.0f + u_d.dot(u_d));
+
+  //               u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
+  //               ptc.p1[offset_p] = -u_d[1] * sign;
+  //               ptc.p2[offset_p] = -u_d[2] * sign;
+  //               ptc.p3[offset_p] = -u_d[0] * sign;
+  //               ptc.E[offset_p] = math::sqrt(1.0f + u_d.dot(u_d));
+
+  //               ptc.weight[offset_e] = ptc.weight[offset_p] = w;
+  //               ptc.cell[offset_e] = ptc.cell[offset_p] = idx.linear;
+  //               ptc.flag[offset_e] = set_ptc_type_flag(
+  //                   flag_or(PtcFlag::initial, PtcFlag::exclude_from_spectrum),
+  //                   PtcType::electron);
+  //               ptc.flag[offset_p] = set_ptc_type_flag(
+  //                   flag_or(PtcFlag::initial, PtcFlag::exclude_from_spectrum),
+  //                   PtcType::positron);
+  //             }
+  //           }
+  //         }
+  //       }
+  //     },
+  //     ptc, states, num_per_cell, cum_num_per_cell);
+  // CudaSafeCall(cudaDeviceSynchronize());
+  // ptc.add_num(new_particles);
+  // ptc.sort_by_cell(grid.size());
   Logger::print_info("After initial condition, there are {} particles", ptc.number());
   // using value_t = typename Conf::value_t;
   // // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);

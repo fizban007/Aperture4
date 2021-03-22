@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -26,8 +26,8 @@
 
 namespace Aperture {
 
-HOST_DEVICE Scalar pml_sigma(Scalar x, Scalar xh, Scalar pmlscale,
-                             Scalar sig0) {
+HOST_DEVICE Scalar
+pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
   if (x > xh)
     return sig0 * square((x - xh) / pmlscale);
   else
@@ -89,7 +89,9 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid)
   m_dens_p2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
 }
 
-template <typename Conf> void boundary_condition<Conf>::init() {
+template <typename Conf>
+void
+boundary_condition<Conf>::init() {
   sim_env().get_data("Edelta", E);
   sim_env().get_data("E0", E0);
   sim_env().get_data("Bdelta", B);
@@ -100,12 +102,15 @@ template <typename Conf> void boundary_condition<Conf>::init() {
 }
 
 template <typename Conf>
-void boundary_condition<Conf>::update(double dt, uint32_t step) {
+void
+boundary_condition<Conf>::update(double dt, uint32_t step) {
   damp_fields();
   inject_plasma();
 }
 
-template <typename Conf> void boundary_condition<Conf>::damp_fields() {
+template <typename Conf>
+void
+boundary_condition<Conf>::damp_fields() {
   typedef typename Conf::idx_t idx_t;
   value_t Bp = m_Bp;
 
@@ -152,7 +157,9 @@ template <typename Conf> void boundary_condition<Conf>::damp_fields() {
   CudaCheckError();
 }
 
-template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
+template <typename Conf>
+void
+boundary_condition<Conf>::inject_plasma() {
   m_dens_e1->assign_dev(0.0f);
   m_dens_p1->assign_dev(0.0f);
   m_dens_e2->assign_dev(0.0f);
@@ -175,8 +182,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
 
         for (auto n : grid_stride_range(0, num)) {
           uint32_t cell = ptc.cell[n];
-          if (cell == empty_cell)
-            continue;
+          if (cell == empty_cell) continue;
 
           auto idx = Conf::idx(cell, ext);
           auto pos = get_pos(idx, ext);
@@ -190,9 +196,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
               atomic_add(&dens_p1[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
             }
           } else if (pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-            index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.dims[1] +
-                                                           grid.guard[1] +
-                                                           inj_length);
+            index_t<2> pos_inj(
+                pos[0] - grid.guard[0],
+                pos[1] - grid.dims[1] + grid.guard[1] + inj_length);
             auto sp = get_ptc_type(ptc.flag[n]);
             if (sp == 0) {
               atomic_add(&dens_e2[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
@@ -212,9 +218,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   auto ext_inj = m_dens_e1->extent();
 
   policy::launch(
-      [inj_length, upstream_kT, upstream_n,
-       ext_inj] __device__(auto ptc, auto dens_e1, auto dens_p1, auto dens_e2,
-                           auto dens_p2, auto states, auto offset) {
+      [inj_length, upstream_kT, upstream_n, ext_inj] __device__(
+          auto ptc, auto dens_e1, auto dens_p1, auto dens_e2, auto dens_p2,
+          auto states, auto offset) {
         auto &grid = policy::grid();
         auto ext = grid.extent();
         rng_t rng(states);
@@ -226,7 +232,8 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
           value_t dens = dens_e1[idx] + dens_p1[idx];
           if (dens < 2.0f - 2.0f / upstream_n) {
             auto n = atomic_add(offset, 2);
-            index_t<2> pos = index_t<2>(pos_inj[0] + grid.guard[0], pos_inj[1] + grid.guard[1]);
+            index_t<2> pos = index_t<2>(pos_inj[0] + grid.guard[0],
+                                        pos_inj[1] + grid.guard[1]);
 
             ptc.x1[n] = ptc.x1[n + 1] = rng.uniform<value_t>();
             ptc.x2[n] = ptc.x2[n + 1] = rng.uniform<value_t>();
@@ -299,4 +306,4 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
 
 template class boundary_condition<Config<2>>;
 
-} // namespace Aperture
+}  // namespace Aperture

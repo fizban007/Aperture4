@@ -19,6 +19,7 @@
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca.hpp"
+#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
@@ -35,6 +36,8 @@ template class ptc_updater_new<Config<3>, exec_policy_cuda,
 
 template class ptc_updater_new<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian_gca>;
+template class ptc_updater_new<Config<2>, exec_policy_cuda,
+                               coord_policy_cartesian_impl_cooling>;
 
 template class ptc_updater_new<Config<2>, exec_policy_cuda,
                                coord_policy_spherical>;

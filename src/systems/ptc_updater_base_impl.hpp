@@ -446,8 +446,6 @@ template <typename Conf, template <class> class ExecPolicy,
 void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                      PhysicsPolicy>::fill_multiplicity(int mult, value_t weight,
                                                        value_t dp) {
-  // CoordPolicy<Conf>::template fill_multiplicity<ExecPolicy<Conf>>(
-  //     *ptc, *rng_states, mult, weight);
   auto num = ptc->number();
 
   ExecPolicy<Conf>::launch(
@@ -517,16 +515,12 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   if (num_times <= 0)
     return;
 
-  // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, )
   vec_t<bool, Conf::dim * 2> is_boundary;
   is_boundary.set(true);
   if (m_comm != nullptr)
     is_boundary = m_comm->domain_info().is_boundary;
 
   for (int i = 0; i < num_times; i++) {
-    // filter_field<ExecPolicy<Conf>>(J->at(0), m_tmpj, is_boundary);
-    // filter_field<ExecPolicy<Conf>>(J->at(1), m_tmpj, is_boundary);
-    // filter_field<ExecPolicy<Conf>>(J->at(2), m_tmpj, is_boundary);
     m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
                                                             is_boundary);
 
@@ -536,7 +530,6 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
 
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
-        // filter_field<ExecPolicy<Conf>>(Rho[sp]->at(0), m_tmpj, is_boundary);
         m_coord_policy->template filter_field<ExecPolicy<Conf>>(
             *Rho[sp], m_tmpj, is_boundary);
         if (m_comm != nullptr) {

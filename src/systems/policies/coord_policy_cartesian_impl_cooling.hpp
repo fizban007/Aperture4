@@ -31,7 +31,16 @@ class coord_policy_cartesian_impl_cooling
   using vec3 = vec_t<value_t, 3>;
   using coord_policy_cartesian<Conf>::coord_policy_cartesian;
 
-  void init() { sim_env().params().get_value("cooling_re", m_re); }
+  void init() {
+    value_t t_cool = 100.0f, sigma = 10.0f;
+    sim_env().params().get_value("cooling", m_use_cooling);
+    sim_env().params().get_value("cooling_time", t_cool);
+    sim_env().params().get_value("sigma", sigma);
+    if (!m_use_cooling)
+      m_cooling_coef = 0.0f;
+    else
+      m_cooling_coef = 1.0f / (t_cool * sigma);
+  }
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext, typename UIntT>
@@ -39,7 +48,9 @@ class coord_policy_cartesian_impl_cooling
                             const extent_t<Conf::dim>& ext, PtcContext& context,
                             vec_t<UIntT, Conf::dim>& pos, value_t dt) const {
     iterate(context.x, context.p, context.E, context.B, context.q / context.m,
-            2.0f * m_re / 3.0f, dt);
+            m_cooling_coef, dt);
+    context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
+    move_ptc(grid, context, pos, dt);
   }
 
   HD_INLINE vec3 rhs_x(const vec3& u, value_t dt) const {
@@ -58,6 +69,7 @@ class coord_policy_cartesian_impl_cooling
         cooling_coef *
             (cross(Epbetaxb, B) + E * u.dot(E) / gamma -
              u * (gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma))));
+             // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
 
     return result * dt;
   }
@@ -76,7 +88,8 @@ class coord_policy_cartesian_impl_cooling
   }
 
  private:
-  value_t m_re = 1.0f;
+  bool m_use_cooling = false;
+  value_t m_cooling_coef = 0.0f;
 };
 
 }  // namespace Aperture

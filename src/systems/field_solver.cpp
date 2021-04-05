@@ -160,7 +160,6 @@ field_solver<Conf>::register_data_impl(MemType type) {
 template <typename Conf>
 void
 field_solver<Conf>::update(double dt, uint32_t step) {
-  timer::stamp("field_update");
   double time = sim_env().get_time();
   if (m_use_implicit)
     this->update_semi_implicit(dt, m_alpha, m_beta, time);
@@ -171,7 +170,6 @@ field_solver<Conf>::update(double dt, uint32_t step) {
   this->Etotal->add_by(*(this->E));
   this->Btotal->copy_from(*(this->B0));
   this->Btotal->add_by(*(this->B));
-  timer::show_duration_since_stamp("Field update", "ms", "field_update");
 }
 
 template <typename Conf>

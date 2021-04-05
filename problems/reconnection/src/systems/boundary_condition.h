@@ -25,6 +25,8 @@
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid.h"
+#include "systems/policies.h"
+#include "systems/ptc_injector_new.h"
 #include "utils/nonown_ptr.hpp"
 #include <memory>
 
@@ -52,10 +54,13 @@ class boundary_condition : public system_t {
   float m_upstream_kT = 1.0e-2f;
   float m_damping_coef = 1.0f;
   float m_Bp = 10.0f;
+  value_t m_Bg = 0.0f;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
+  nonown_ptr<scalar_field<Conf>> rho_e, rho_p;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<rng_states_t> rng_states;
+  nonown_ptr<ptc_injector<Conf, exec_policy_cuda>> injector;
   // curand_states_t *rand_states;
 
   std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;

@@ -25,6 +25,7 @@
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
+#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/ptc_updater_base.h"
 #include <iostream>
 
@@ -55,11 +56,11 @@ int main(int argc, char *argv[]) {
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
-  auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                       comm);
+  auto pusher = env.register_system<ptc_updater_new<
+      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto momentum = env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+  auto momentum =
+      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
@@ -78,7 +79,6 @@ int main(int argc, char *argv[]) {
   env.get_data("rng_states", &states);
   // env.get_data("rand_states", &states);
 
-  // double_harris_current_sheet(*Bdelta, *ptc, *states, 10);
   harris_current_sheet(*Bdelta, *ptc, *states);
 
   env.run();

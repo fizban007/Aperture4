@@ -535,6 +535,13 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
                             name + "_p3_e");
     datafile.write_parallel(data.p_p3, ext_total, idx_dst, ext, idx_src,
                             name + "_p3_p");
+    ext[0] = ext_total[0] = data.m_num_bins[3];
+    ext.get_strides();
+    ext_total.get_strides();
+    datafile.write_parallel(data.e_E, ext_total, idx_dst, ext, idx_src,
+                            name + "_E_e");
+    datafile.write_parallel(data.p_E, ext_total, idx_dst, ext, idx_src,
+                            name + "_E_p");
   } else {
     datafile.write(data.e_p1, name + "_p1_e");
     datafile.write(data.p_p1, name + "_p1_p");
@@ -544,6 +551,9 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
     ext[0] = ext_total[0] = data.m_num_bins[2];
     datafile.write(data.e_p3, name + "_p3_e");
     datafile.write(data.p_p3, name + "_p3_p");
+    ext[0] = ext_total[0] = data.m_num_bins[3];
+    datafile.write(data.e_E, name + "_E_e");
+    datafile.write(data.p_E, name + "_E_p");
   }
 }
 

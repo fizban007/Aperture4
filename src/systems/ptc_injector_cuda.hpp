@@ -34,11 +34,11 @@ namespace Aperture {
 
 template <typename Conf>
 class ptc_injector<Conf, exec_policy_cuda> : public system_t {
- public:
+public:
   using value_t = typename Conf::value_t;
   static std::string name() { return "ptc_injector"; }
 
-  ptc_injector(const Grid<Conf::dim, value_t>& grid) : m_grid(grid) {
+  ptc_injector(const Grid<Conf::dim, value_t> &grid) : m_grid(grid) {
     auto ext = grid.extent();
     m_num_per_cell.resize(ext);
     m_cum_num_per_cell.resize(ext);
@@ -53,14 +53,17 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
             typename FWeight>
-  void inject(const FCriteria& fc, const FNumPerCell& fn, const FDist& fd,
-              const FWeight& fw, uint32_t flag = 0) {
+  void inject(const FCriteria& fc, const FNumPerCell& fn, const FDist& fd, const FWeight& fw,
+              uint32_t flag = 0) {
     using policy = exec_policy_cuda<Conf>;
+    m_num_per_cell.assign_dev(0);
+    m_cum_num_per_cell.assign_dev(0);
 
+    // Logger::print_debug("Before calculating num_per_cell");
     // First compute the number of particles per cell
     policy::launch(
-        [fc, fn] __device__(auto num_per_cell) {
-          auto& grid = policy::grid();
+        [] __device__(auto num_per_cell, auto fc, auto fn) {
+          auto &grid = policy::grid();
           auto ext = grid.extent();
 
           for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
@@ -72,8 +75,9 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
             }
           }
         },
-        m_num_per_cell);
+        m_num_per_cell, fc, fn);
     policy::sync();
+    // Logger::print_debug("Finished calculating num_per_cell");
 
     // Compute cumulative number per cell
     thrust::device_ptr<int> p_num_per_cell(m_num_per_cell.dev_ptr());
@@ -84,15 +88,17 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
     CudaCheckError();
     m_num_per_cell.copy_to_host();
     m_cum_num_per_cell.copy_to_host();
-    int new_particles =
-        (m_cum_num_per_cell[m_grid.size() - 1] + m_num_per_cell[m_grid.size() - 1]);
+    int new_particles = (m_cum_num_per_cell[m_grid.size() - 1] +
+                         m_num_per_cell[m_grid.size() - 1]);
     auto num = ptc->number();
+    // Logger::print_debug("Current num is {}, injecting {}", num, new_particles);
+    Logger::print_info("Injecting {}", new_particles);
 
     // Actually create the particles
     policy::launch(
-        [fd, fw, flag, num] __device__(auto ptc, auto states, auto num_per_cell,
-                                       auto cum_num_per_cell) {
-          auto& grid = policy::grid();
+        [flag, num] __device__(auto ptc, auto states, auto num_per_cell,
+                               auto cum_num_per_cell, auto fd, auto fw) {
+          auto &grid = policy::grid();
           auto ext = grid.extent();
           rng_t rng(states);
 
@@ -129,19 +135,20 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
             }
           }
         },
-        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell);
+        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, fd, fw);
     policy::sync();
+    Logger::print_debug("Finished creating particles");
     ptc->add_num(new_particles);
   }
 
- private:
-  const Grid<Conf::dim, value_t>& m_grid;
+private:
+  const Grid<Conf::dim, value_t> &m_grid;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<rng_states_t> rng_states;
 
   multi_array<int, Conf::dim> m_num_per_cell, m_cum_num_per_cell;
 };
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // _PTC_INJECTOR_CUDA_H_
+#endif // _PTC_INJECTOR_CUDA_H_

@@ -115,7 +115,7 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 auto p1 = (log_scale ? symlog(ptc.p1[n]) : ptc.p1[n]);
                 auto p2 = (log_scale ? symlog(ptc.p2[n]) : ptc.p2[n]);
                 auto p3 = (log_scale ? symlog(ptc.p3[n]) : ptc.p3[n]);
-                auto E = (log_scale ? math::log(ptc.E[n]) : ptc.E[n]);
+                auto E = (log_scale ? math::log(ptc.E[n] - 1.0f) : ptc.E[n] - 1.0f);
 
                 p1 = clamp(p1, lower[0], upper[0]);
                 p2 = clamp(p2, lower[1], upper[1]);

@@ -37,12 +37,12 @@ rhs_u(const vec3& u, double Bz, double cooling_coef, double dt) {
   double betaxb_y = -u[0] * Bz / gamma;
   double betaxb_sqr = betaxb_x * betaxb_x + betaxb_y * betaxb_y;
 
-  // result[0] =
-  //     betaxb_x + cooling_coef * (betaxb_y * Bz - gamma * u[0] * betaxb_sqr);
-  // result[1] =
-  //     betaxb_y + cooling_coef * (-betaxb_x * Bz - gamma * u[1] * betaxb_sqr);
-  result[0] = betaxb_x + cooling_coef * (-gamma * u[0] * betaxb_sqr);
-  result[1] = betaxb_y + cooling_coef * (-gamma * u[1] * betaxb_sqr);
+  result[0] =
+      betaxb_x + cooling_coef * (betaxb_y * Bz - gamma * u[0] * betaxb_sqr);
+  result[1] =
+      betaxb_y + cooling_coef * (-betaxb_x * Bz - gamma * u[1] * betaxb_sqr);
+  // result[0] = betaxb_x + cooling_coef * (-gamma * u[0] * betaxb_sqr);
+  // result[1] = betaxb_y + cooling_coef * (-gamma * u[1] * betaxb_sqr);
   result[2] = cooling_coef * (-gamma * u[2] * betaxb_sqr);
 
   return result * dt;

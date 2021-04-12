@@ -45,7 +45,7 @@ main(int argc, char *argv[]) {
   typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
-  auto& env = sim_environment::instance(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
   env.params().add("Bp", 2.0);

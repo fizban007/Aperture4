@@ -36,7 +36,7 @@ int
 main(int argc, char* argv[]) {
   typedef Config<3> Conf3D;
 
-  auto& env = sim_env();
+  auto& env = sim_env(&argc, &argv, false);
   env.params().add("N", std::vector<int64_t>({128, 128, 128}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({2.0, 3.14, 1.0}));

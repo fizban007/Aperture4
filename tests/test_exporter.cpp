@@ -24,7 +24,7 @@ using namespace Aperture;
 
 TEST_CASE("Writing a grid to file", "[data_output]") {
   // sim_environment env;
-  auto& env = sim_env();
+  auto& env = sim_env(nullptr, nullptr, false);
 
   // SECTION("1D grid") {
   //   typedef Config<1> Conf;

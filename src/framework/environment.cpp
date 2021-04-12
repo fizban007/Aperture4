@@ -24,32 +24,39 @@
 
 namespace Aperture {
 
-sim_environment_impl::sim_environment_impl()
-    : sim_environment_impl(nullptr, nullptr) {}
+sim_environment_impl::sim_environment_impl(bool use_mpi)
+    : sim_environment_impl(nullptr, nullptr, use_mpi) {}
 
-sim_environment_impl::sim_environment_impl(int* argc, char*** argv) {
-  int is_initialized = 0;
-  MPI_Initialized(&is_initialized);
-
-  if (!is_initialized) {
-    if (argc == nullptr && argv == nullptr) {
-      MPI_Init(NULL, NULL);
-    } else {
-      MPI_Init(argc, argv);
-    }
-  }
+sim_environment_impl::sim_environment_impl(int* argc, char*** argv, bool use_mpi) {
+  m_use_mpi = use_mpi;
   int rank = 0;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (m_use_mpi) {
+    int is_initialized = 0;
+    MPI_Initialized(&is_initialized);
+
+    if (!is_initialized) {
+      if (argc == nullptr && argv == nullptr) {
+        MPI_Init(NULL, NULL);
+      } else {
+        MPI_Init(argc, argv);
+      }
+    }
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  }
+  // Default log level is debug
   Logger::init(rank, LogLevel::debug);
 
   reset(argc, argv);
 }
 
 sim_environment_impl::~sim_environment_impl() {
-  int is_finalized = 0;
-  MPI_Finalized(&is_finalized);
+  if (m_use_mpi) {
+    int is_finalized = 0;
+    MPI_Finalized(&is_finalized);
 
-  if (!is_finalized) MPI_Finalize();
+    if (!is_finalized) MPI_Finalize();
+  }
 }
 
 void

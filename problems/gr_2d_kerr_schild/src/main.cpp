@@ -45,19 +45,19 @@ main(int argc, char *argv[]) {
   typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
-  auto &env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  domain_comm<Conf> comm;
-  grid_ks_t<Conf> grid(comm);
+  // domain_comm<Conf> comm;
+  grid_ks_t<Conf> grid;
 
-  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
+  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid);
   // auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid, comm);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid);
 
   env.init();
 

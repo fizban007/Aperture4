@@ -61,6 +61,7 @@ class sim_environment_impl {
   void parse_options(int argc, char** argv);
 
   // These are variables governing the lifetime of the simulation
+  bool m_use_mpi = true;
   bool is_dry_run = false;
   double dt;
   double time;
@@ -71,8 +72,8 @@ class sim_environment_impl {
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
 
-  sim_environment_impl();
-  sim_environment_impl(int* argc, char*** argv);
+  sim_environment_impl(bool use_mpi = true);
+  sim_environment_impl(int* argc, char*** argv, bool use_mpi = true);
   ~sim_environment_impl();
 
   sim_environment_impl(const sim_environment_impl& other) = delete;
@@ -327,8 +328,8 @@ class sim_environment_impl {
 using sim_environment = singleton_holder<sim_environment_impl>;
 
 inline sim_environment_impl&
-sim_env(int* argc = nullptr, char*** argv = nullptr) {
-  return sim_environment::instance(argc, argv);
+sim_env(int* argc = nullptr, char*** argv = nullptr, bool use_mpi = true) {
+  return sim_environment::instance(argc, argv, use_mpi);
 }
 
 }  // namespace Aperture

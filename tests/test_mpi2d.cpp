@@ -27,7 +27,7 @@ using namespace Aperture;
 int
 main(int argc, char* argv[]) {
   // sim_environment env(&argc, &argv);
-  auto& env = sim_environment::instance(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv, true);
   typedef Config<2> Conf;
 
   env.params().add("log_level", int64_t(LogLevel::debug));

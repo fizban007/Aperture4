@@ -122,7 +122,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   Logger::init(0, LogLevel::debug);
   // sim_environment env;
-  auto& env = sim_env();
+  auto& env = sim_env(nullptr, nullptr, false);
   typedef Config<3, float> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -149,7 +149,7 @@ TEST_CASE("Grid with different indexing schemes", "[grid][index]") {
 
 TEST_CASE("Logsph grid", "[grid][sph]") {
   // sim_environment env;
-  auto& env = sim_env();
+  auto& env = sim_env(nullptr, nullptr, false);
   typedef Config<2> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));

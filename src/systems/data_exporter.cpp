@@ -105,7 +105,10 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
-    H5File datafile = hdf_create(filename, H5CreateMode::trunc_parallel);
+    auto create_mode = H5CreateMode::trunc_parallel;
+    if (sim_env().use_mpi() == false)
+      create_mode = H5CreateMode::trunc;
+    H5File datafile = hdf_create(filename, create_mode);
 
     datafile.write(step, "step");
     datafile.write(time, "time");
@@ -196,7 +199,10 @@ template <typename Conf>
 void
 data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
                                     double time) {
-  H5File snapfile = hdf_create(filename, H5CreateMode::trunc_parallel);
+  auto create_mode = H5CreateMode::trunc_parallel;
+  if (sim_env().use_mpi() == false)
+    create_mode = H5CreateMode::trunc;
+  H5File snapfile = hdf_create(filename, create_mode);
 
   // Walk over all data components and write them to the snapshot file according
   // to their `include_in_snapshot`
@@ -283,7 +289,10 @@ template <typename Conf>
 void
 data_exporter<Conf>::write_grid() {
   std::string meshfilename = m_output_dir + "grid.h5";
-  H5File meshfile = hdf_create(meshfilename, H5CreateMode::trunc_parallel);
+  auto create_mode = H5CreateMode::trunc_parallel;
+  if (sim_env().use_mpi() == false)
+    create_mode = H5CreateMode::trunc;
+  H5File meshfile = hdf_create(meshfilename, create_mode);
 
   // std::vector<float> x1_array(out_ext.x);
   multi_array<float, Conf::dim> x1_array(m_output_grid.extent_less(),

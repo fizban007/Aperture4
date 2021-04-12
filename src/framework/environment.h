@@ -316,6 +316,7 @@ class sim_environment_impl {
     return m_commandline_args.get();
   }
 
+  bool use_mpi() const { return m_use_mpi; }
   uint32_t get_step() const { return step; }
   uint32_t get_max_steps() const { return max_steps; }
   double get_time() const { return time; }

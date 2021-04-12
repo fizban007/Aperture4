@@ -33,7 +33,8 @@ using namespace std;
 using namespace Aperture;
 
 template <typename Conf>
-void init_upstream(vector_field<Conf> &B, particle_data_t &ptc,
+void init_upstream(vector_field<Conf> &E,
+                   vector_field<Conf> &B, particle_data_t &ptc,
                    rng_states_t &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
@@ -63,8 +64,8 @@ void init_upstream(vector_field<Conf> &B, particle_data_t &ptc,
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
     return B0;
   });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) {
-    return B0 * B_g;
+  E.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
+    return 0.1 * B0;
   });
 
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
@@ -112,18 +113,19 @@ int main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *E0, *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
   // curand_states_t *states;
   rng_states_t *states;
   env.get_data("B0", &B0);
+  env.get_data("E0", &E0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
   // env.get_data("rand_states", &states);
 
-  init_upstream(*Bdelta, *ptc, *states);
+  init_upstream(*E0, *B0, *ptc, *states);
 
   env.run();
   return 0;

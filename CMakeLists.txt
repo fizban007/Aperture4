@@ -32,12 +32,13 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
+set(CXX_EXTRA_FLAGS "-DNO_WARN_X86_INTRINSICS")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
   set(CMAKE_CXX_FLAGS_RELEASE
       "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div -DUSE_BMI2 ${CXX_EXTRA_FLAGS}")
 else()
   set(CMAKE_CXX_FLAGS_RELEASE
-      "${CMAKE_CXX_FLAGS_RELEASE} -march=native -DUSE_BMI2 ${CXX_EXTRA_FLAGS}")
+      "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=native -DUSE_BMI2 ${CXX_EXTRA_FLAGS}")
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
@@ -93,12 +94,13 @@ if(use_cuda)
     )
     include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
                         ${CUDA_INCLUDE_DIRS})
+    #set(CUDA_EXTRA_FLAGS "-DNO_WARN_X86_INTRINSICS")
     set(CMAKE_CUDA_FLAGS
         "--expt-extended-lambda --expt-relaxed-constexpr\
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
-      -Xcudafe --diag_suppress=code_is_unreachable")
+      -Xcudafe --diag_suppress=code_is_unreachable ${CUDA_EXTRA_FLAGS}")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 86 60)
+    set(CMAKE_CUDA_ARCHITECTURES 86 70)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)

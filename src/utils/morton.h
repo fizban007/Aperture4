@@ -51,7 +51,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <immintrin.h>
 #endif
 
-#if __GNUC__
+#if (__GNUC__ && !defined(__CUDACC__))
 #include <x86intrin.h>
 #endif
 

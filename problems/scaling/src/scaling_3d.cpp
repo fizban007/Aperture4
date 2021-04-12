@@ -18,7 +18,6 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.h"
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"

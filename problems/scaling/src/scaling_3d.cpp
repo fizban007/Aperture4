@@ -53,9 +53,9 @@ int main(int argc, char *argv[]) {
   //     Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
   auto pusher = env.register_system<ptc_updater_new<
       Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
-  // auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  // auto momentum =
-  //     env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  auto momentum =
+      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 

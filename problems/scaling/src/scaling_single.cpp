@@ -18,14 +18,12 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.h"
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/ptc_updater_base.h"
 #include <iostream>
 
@@ -41,26 +39,25 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 } // namespace Aperture
 
 int main(int argc, char *argv[]) {
-  typedef Config<2> Conf;
+  typedef Config<3> Conf;
   // sim_environment env(&argc, &argv);
-  auto &env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::info);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  domain_comm<Conf> comm;
+  // domain_comm<Conf> comm;
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
-  grid_t<Conf> grid(comm);
-  // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
+  grid_t<Conf> grid;
+  // auto pusher = env.register_system<ptc_updater_new<
+  //     Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
   auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
+      Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
-  auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto bc = env.register_system<boundary_condition<Conf>>(grid);
-  // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto solver = env.register_system<field_solver_cu<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid);
 
   env.init();
 

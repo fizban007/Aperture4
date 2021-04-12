@@ -40,6 +40,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
 int main(int argc, char *argv[]) {
   typedef Config<3> Conf;
+  Logger::print_info("Scalar size is {}", sizeof(typename Conf::value_t));
   // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv, false);
 

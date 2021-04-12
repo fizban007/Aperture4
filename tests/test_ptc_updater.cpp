@@ -28,7 +28,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   Logger::init(0, LogLevel::debug);
   typedef Config<2> Conf;
   // sim_environment env;
-  auto& env = sim_env();
+  auto& env = sim_env(nullptr, nullptr, false);
   env.params().add("log_level", 2l);
   env.params().add("N", std::vector<int64_t>({64, 64, 64}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));

@@ -26,7 +26,8 @@ using namespace Aperture;
 
 TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   Logger::init(0, LogLevel::debug);
-  typedef Config<2> Conf;
+  typedef Config<2, double> Conf;
+  Logger::print_info("size of scalar is %d\n", sizeof(typename Conf::value_t));
   // sim_environment env;
   auto& env = sim_env(nullptr, nullptr, false);
   env.params().add("log_level", 2l);

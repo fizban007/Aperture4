@@ -75,6 +75,16 @@ int main(int argc, char *argv[]) {
 
   harris_current_sheet(*Bdelta, *ptc, *states);
 
-  env.run();
+  // env.run();
+
+  size_t free_mem, total_mem;
+  cudaMemGetInfo( &free_mem, &total_mem );
+  std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+
+  for (int n = 0; n < env.get_max_steps(); n++) {
+    env.update();
+    cudaMemGetInfo( &free_mem, &total_mem );
+    std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+  }
   return 0;
 }

@@ -35,6 +35,7 @@ template class ptc_updater_new<Config<3>, exec_policy_cuda,
 int
 main(int argc, char* argv[]) {
   typedef Config<3> Conf3D;
+  Logger::print_info("size of scalar is {}", sizeof(typename Conf3D::value_t));
 
   auto& env = sim_env(&argc, &argv, false);
   env.params().add("N", std::vector<int64_t>({128, 128, 128}));

@@ -41,9 +41,9 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 int main(int argc, char *argv[]) {
   typedef Config<3> Conf;
   // sim_environment env(&argc, &argv);
-  auto &env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv, true);
 
-  env.params().add("log_level", (int64_t)LogLevel::info);
+  env.params().add("log_level", (int64_t)LogLevel::detail);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;
@@ -74,6 +74,15 @@ int main(int argc, char *argv[]) {
 
   harris_current_sheet(*Bdelta, *ptc, *states);
 
-  env.run();
+  //size_t free_mem, total_mem;
+  //cudaMemGetInfo( &free_mem, &total_mem );
+  //std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+
+  for (int n = 0; n < env.get_max_steps(); n++) {
+    env.update();
+    //cudaMemGetInfo( &free_mem, &total_mem );
+    //std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+  }
+
   return 0;
 }

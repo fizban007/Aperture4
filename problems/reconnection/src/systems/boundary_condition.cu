@@ -242,6 +242,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
         auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
         auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
         auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+        // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
+        // value_t beta = p1 / gamma;
+        // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
         return vec_t<value_t, 3>(p1, p2, p3);
       },
       [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {

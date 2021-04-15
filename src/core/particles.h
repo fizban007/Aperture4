@@ -83,6 +83,7 @@ class particles_base : public BufferType {
     // Can't set a number larger than maximum size
     m_number = std::min(num, m_size);
   }
+
   void set_segment_size(size_t s) {
     m_sort_segment_size = s;
   }

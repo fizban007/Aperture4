@@ -163,6 +163,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
   if (m_number > 0) {
     // Lazy resize the tmp arrays
     resize_tmp_arrays();
+    m_segment_nums.assign_host(0);
 
     // 1st: Sort the particle array segment by segment
     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
@@ -227,7 +228,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
       }
     }
 
-    Logger::print_info("Last segment size is {}", m_segment_nums[last_segment]);
+    // Logger::print_info("Last segment size is {}", m_segment_nums[last_segment]);
     m_number =
         last_segment * m_sort_segment_size + m_segment_nums[last_segment];
 

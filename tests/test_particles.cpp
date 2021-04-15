@@ -98,14 +98,14 @@ TEST_CASE("Particle pointers", "[particles]") {
 #endif
 
 TEST_CASE("Sorting particles by cell", "[particles]") {
-  size_t N = 10;
+  size_t N = 30;
 
   particles_t ptc(N, mem_type);
   ptc.set_segment_size(4);
   ptc.x1.emplace(0, {0.1, 0.2, 0.3});
   ptc.cell.assign_host(empty_cell);
-  ptc.cell.emplace(0, {34, 24, 14, empty_cell, 4, 90, 12, 35});
-  ptc.set_num(8);
+  ptc.cell.emplace(0, {34, 24, 14, empty_cell, 4, 90, 12, 35, 9, 50, 42, empty_cell, empty_cell, 70, 99});
+  ptc.set_num(15);
 
 #ifdef CUDA_ENABLED
   ptc.copy_to_device();
@@ -123,5 +123,5 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   REQUIRE(ptc.cell[0] == 14);
   REQUIRE(ptc.cell[1] == 24);
   REQUIRE(ptc.cell[2] == 34);
-  REQUIRE(ptc.number() == 7);
+  REQUIRE(ptc.number() == 12);
 }

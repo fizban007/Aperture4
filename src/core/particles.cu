@@ -193,15 +193,19 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
 
       // Update the new number of particles in each sorted segment
       m_segment_nums[n] =
-          thrust::upper_bound(ptr_cell + offset, ptr_cell + offset + sort_size,
+          thrust::upper_bound(ptr_cell, ptr_cell + sort_size,
                               empty_cell - 1) -
-          (ptr_cell + offset);
+          ptr_cell;
+      // Logger::print_info("segment[{}] has size {}", n, m_segment_nums[n]);
     }
 
     // 2nd: Defragment the particle array
     int last_segment = m_number / m_sort_segment_size;
     for (int m = 0; m < last_segment; m++) {
-      // Logger::print_info("Filling segment {}", m);
+      // Logger::print_info(
+      //     "Filling segment {}, last_segment is {}, num_last is {}", m,
+      //     last_segment, m_segment_nums[last_segment]);
+
       while (m_segment_nums[m] < m_sort_segment_size) {
         // deficit is how many "holes" do we have in this segment
         int deficit = m_sort_segment_size - m_segment_nums[m];
@@ -211,6 +215,9 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
         size_t offset_from = last_segment * m_sort_segment_size +
                              m_segment_nums[last_segment] - num_to_copy;
         size_t offset_to = m * m_sort_segment_size + m_segment_nums[m];
+        // Logger::print_info(
+        //     "deficit is {}, num_to_copy is {}, offset_from is {}", deficit,
+        //     num_to_copy, offset_from);
 
         // Copy the particles from the end of the last segment to the end of
         // this segment
@@ -220,15 +227,17 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
 
         m_segment_nums[m] += num_to_copy;
         m_segment_nums[last_segment] -= num_to_copy;
+        // Logger::print_info("Segment num is {}", m_segment_nums[m]);
 
-        if (deficit >= m_segment_nums[last_segment]) {
+        if (m_segment_nums[last_segment] == 0) {
           last_segment -= 1;
           if (last_segment == m) break;
         }
       }
     }
 
-    // Logger::print_info("Last segment size is {}", m_segment_nums[last_segment]);
+    // Logger::print_info("Last segment size is {}",
+    // m_segment_nums[last_segment]);
     m_number =
         last_segment * m_sort_segment_size + m_segment_nums[last_segment];
 

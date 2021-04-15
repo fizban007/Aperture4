@@ -99,6 +99,7 @@ TEST_CASE("Particle pointers", "[particles]") {
 
 TEST_CASE("Sorting particles by cell", "[particles]") {
   size_t N = 30;
+  Logger::init(0, LogLevel::detail);
 
   particles_t ptc(N, mem_type);
   ptc.set_segment_size(4);

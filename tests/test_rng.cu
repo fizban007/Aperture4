@@ -31,6 +31,7 @@ TEST_CASE("Uniform random numbers", "[rng]") {
   int N = 1000000;
   int M = 20;
   buffer<float> hist(M);
+  hist.assign_dev(0.0f);
 
   timer::stamp();
   kernel_launch([N, M] __device__ (auto states, auto hist) {

@@ -25,6 +25,7 @@ set(Aperture_src
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   list(APPEND Aperture_src
     "core/buffer_impl.cu"
+    "core/cached_allocator.cu"
     "core/constant_mem.cu"
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"

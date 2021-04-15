@@ -111,4 +111,6 @@ class cached_allocator {
   }
 };
 
+extern cached_allocator alloc_global;
+
 }  // namespace Aperture

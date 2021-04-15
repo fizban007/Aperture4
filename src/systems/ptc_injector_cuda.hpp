@@ -18,6 +18,7 @@
 #ifndef _PTC_INJECTOR_CUDA_H_
 #define _PTC_INJECTOR_CUDA_H_
 
+#include "core/cached_allocator.hpp"
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/particle_data.h"

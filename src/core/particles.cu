@@ -165,7 +165,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
     // Lazy resize the tmp arrays
     resize_tmp_arrays();
     m_segment_nums.assign_host(0);
-    static cached_allocator alloc;
+    // static cached_allocator alloc;
 
     // 1st: Sort the particle array segment by segment
     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
@@ -187,7 +187,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
       thrust::copy_n(iter, sort_size, ptr_idx);
 
       // Logger::print_info("Sort_size is {}, offset is {}", sort_size, offset);
-      thrust::sort_by_key(thrust::cuda::par(alloc), ptr_cell, ptr_cell + sort_size, ptr_idx);
+      thrust::sort_by_key(ptr_cell, ptr_cell + sort_size, ptr_idx);
 
       // Move the rest of particle array using the new index
       // Logger::print_info("Rearranging");

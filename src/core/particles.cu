@@ -110,7 +110,8 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
                   .dec_y(dy * grid.reduced_dim(1))
                   .dec_x(dx * grid.reduced_dim(0))
                   .linear;
-          // printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n", dcell,
+          // printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n",
+          // dcell,
           //        ptc_data.cell[n],
           //        ptc_buffers[zone - zone_offset].cell[pos],
           //        zone - zone_offset);
@@ -125,21 +126,33 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
 
 template <typename BufferType>
 void
-particles_base<BufferType>::rearrange_arrays(const std::string& skip) {
-  const uint32_t padding = 100;
+particles_base<BufferType>::resize_tmp_arrays() {
+  if (m_index.size() != m_sort_segment_size ||
+      m_tmp_data.size() != m_sort_segment_size) {
+    m_index.resize(m_sort_segment_size);
+    m_tmp_data.resize(m_sort_segment_size);
+    m_segment_nums.set_memtype(MemType::host_device);
+    m_segment_nums.resize(m_size / m_sort_segment_size + 1);
+  }
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::rearrange_arrays(const std::string& skip,
+                                             size_t offset, size_t num) {
   auto ptc = typename BufferType::single_type{};
   for_each_double_with_name(
       m_dev_ptrs, ptc,
-      [this, padding, &skip](const char* name, auto& x, auto& u) {
+      [this, offset, num, &skip](const char* name, auto& x, auto& u) {
         typedef typename std::remove_reference<decltype(x)>::type x_type;
         auto ptr_index = thrust::device_pointer_cast(m_index.dev_ptr());
         if (std::strcmp(name, skip.c_str()) == 0) return;
 
-        auto x_ptr = thrust::device_pointer_cast(x);
+        auto x_ptr = thrust::device_pointer_cast(x + offset);
         auto tmp_ptr = thrust::device_pointer_cast(
             reinterpret_cast<x_type>(m_tmp_data.dev_ptr()));
-        thrust::gather(ptr_index, ptr_index + m_number, x_ptr, tmp_ptr);
-        thrust::copy_n(tmp_ptr, m_number, x_ptr);
+        thrust::gather(ptr_index, ptr_index + num, x_ptr, tmp_ptr);
+        thrust::copy_n(tmp_ptr, num, x_ptr);
         CudaCheckError();
       });
 }
@@ -149,30 +162,74 @@ void
 particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
   if (m_number > 0) {
     // Lazy resize the tmp arrays
-    if (m_index.size() != m_size || m_tmp_data.size() != m_size) {
-      m_index.resize(m_size);
-      m_tmp_data.resize(m_size);
+    resize_tmp_arrays();
+
+    // 1st: Sort the particle array segment by segment
+    for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
+      // Logger::print_info("Sorting segment {}", n);
+      size_t offset = n * m_sort_segment_size;
+      // Fringe case of m_number being an exact multiple of segment_size
+      if (offset == m_number) {
+        m_segment_nums[n] = 0;
+        continue;
+      }
+      // Generate particle index array
+      auto ptr_cell =
+          thrust::device_pointer_cast(this->cell.dev_ptr() + offset);
+      auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+
+      // Sort the index array by key
+      size_t sort_size = std::min(m_sort_segment_size, m_number - offset);
+      thrust::counting_iterator<size_t> iter(0);
+      thrust::copy_n(iter, sort_size, ptr_idx);
+
+      // Logger::print_info("Sort_size is {}, offset is {}", sort_size, offset);
+      thrust::sort_by_key(ptr_cell, ptr_cell + sort_size, ptr_idx);
+
+      // Move the rest of particle array using the new index
+      // Logger::print_info("Rearranging");
+      rearrange_arrays("cell", offset, sort_size);
+
+      // Update the new number of particles in each sorted segment
+      m_segment_nums[n] =
+          thrust::upper_bound(ptr_cell + offset, ptr_cell + offset + sort_size,
+                              empty_cell - 1) -
+          (ptr_cell + offset);
     }
 
-    // Generate particle index array
-    auto ptr_cell = thrust::device_pointer_cast(this->cell.dev_ptr());
-    auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
-    thrust::counting_iterator<size_t> iter(0);
-    thrust::copy_n(iter, m_number, ptr_idx);
+    // 2nd: Defragment the particle array
+    int last_segment = m_number / m_sort_segment_size;
+    for (int m = 0; m < last_segment; m++) {
+      // Logger::print_info("Filling segment {}", m);
+      while (m_segment_nums[m] < m_sort_segment_size) {
+        // deficit is how many "holes" do we have in this segment
+        int deficit = m_sort_segment_size - m_segment_nums[m];
+        // do not copy more particles than the number in the last segment
+        int num_to_copy = std::min(deficit, m_segment_nums[last_segment]);
+        // calculate offsets
+        size_t offset_from = last_segment * m_sort_segment_size +
+                             m_segment_nums[last_segment] - num_to_copy;
+        size_t offset_to = m * m_sort_segment_size + m_segment_nums[m];
 
-    // Sort the index array by key
-    thrust::sort_by_key(ptr_cell, ptr_cell + m_number, ptr_idx);
-    // cudaDeviceSynchronize();
-    // Logger::print_debug("Finished sorting");
+        // Copy the particles from the end of the last segment to the end of
+        // this segment
+        copy_from(*this, num_to_copy, offset_from, offset_to);
+        // Erase particles from the last segment
+        erase(offset_from, num_to_copy);
 
-    // Move the rest of particle array using the new index
-    rearrange_arrays("cell");
+        m_segment_nums[m] += num_to_copy;
+        m_segment_nums[last_segment] -= num_to_copy;
 
-    // Update the new number of particles
-    const int padding = 0;
-    m_number = thrust::upper_bound(ptr_cell, ptr_cell + m_number + padding,
-                                   empty_cell - 1) -
-               ptr_cell;
+        if (deficit >= m_segment_nums[last_segment]) {
+          last_segment -= 1;
+          if (last_segment == m) break;
+        }
+      }
+    }
+
+    Logger::print_info("Last segment size is {}", m_segment_nums[last_segment]);
+    m_number =
+        last_segment * m_sort_segment_size + m_segment_nums[last_segment];
 
     cudaDeviceSynchronize();
     CudaCheckError();
@@ -194,7 +251,8 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
         ptrs.p1[pos] = p[0];
         ptrs.p2[pos] = p[1];
         ptrs.p3[pos] = p[2];
-        ptrs.E[pos] = math::sqrt(1.0f + p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+        ptrs.E[pos] =
+            math::sqrt(1.0f + p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
         ptrs.weight[pos] = weight;
         ptrs.cell[pos] = cell;
         ptrs.flag[pos] = flag;

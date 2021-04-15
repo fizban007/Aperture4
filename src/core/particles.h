@@ -83,6 +83,9 @@ class particles_base : public BufferType {
     // Can't set a number larger than maximum size
     m_number = std::min(num, m_size);
   }
+  void set_segment_size(size_t s) {
+    m_sort_segment_size = s;
+  }
 
   void add_num(size_t num) { set_num(m_number + num); }
 
@@ -93,8 +96,10 @@ class particles_base : public BufferType {
  private:
   size_t m_size = 0;
   size_t m_number = 0;
+  size_t m_sort_segment_size = 10000000;
   MemType m_mem_type;
   buffer<uint32_t> m_ptc_id;
+  buffer<int> m_segment_nums;
 
   // Temporary data for sorting particles on device
   buffer<size_t> m_index;
@@ -106,7 +111,8 @@ class particles_base : public BufferType {
   typename BufferType::ptrs_type m_host_ptrs;
   typename BufferType::ptrs_type m_dev_ptrs;
 
-  void rearrange_arrays(const std::string& skip);
+  void resize_tmp_arrays();
+  void rearrange_arrays(const std::string& skip, size_t offset, size_t num);
   void rearrange_arrays_host();
   void swap(size_t pos, single_type& p);
 };

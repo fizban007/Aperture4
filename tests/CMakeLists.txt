@@ -45,6 +45,9 @@ add_custom_target(
 add_dependencies(check run_tests)
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
+  add_executable(test_summit_mpi "test_summit_mpi.cu")
+  target_link_libraries(test_summit_mpi Aperture)
+
   add_executable(test_mpi2d "test_mpi2d.cpp")
   target_link_libraries(test_mpi2d Aperture)
 

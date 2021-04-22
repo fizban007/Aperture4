@@ -78,7 +78,7 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   // Loop over the particle array to gather momentum space information
   auto num = ptc->number();
 
-  Logger::print_info("gathering particle momentum space");
+  Logger::print_detail("gathering particle momentum space");
   ExecPolicy<Conf>::launch(
       [num, num_bins, lower, upper, log_scale] LAMBDA(
           auto ptc, auto e_p1, auto e_p2, auto e_p3, auto e_E, auto p_p1,

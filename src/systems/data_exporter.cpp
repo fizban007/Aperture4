@@ -126,25 +126,25 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
-        Logger::print_info("Writing vector field {}", it.first);
+        Logger::print_detail("Writing vector field {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
-        Logger::print_info("Writing scalar field {}", it.first);
+        Logger::print_detail("Writing scalar field {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
-        Logger::print_info("Writing momentum space data");
+        Logger::print_detail("Writing momentum space data");
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
-        Logger::print_info("Writing 1D array {}", it.first);
+        Logger::print_detail("Writing 1D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
-        Logger::print_info("Writing 2D array {}", it.first);
+        Logger::print_detail("Writing 2D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
-        Logger::print_info("Writing 3D array {}", it.first);
+        Logger::print_detail("Writing 3D array {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else {
-        Logger::print_info("Data exporter doesn't know how to write {}",
+        Logger::print_detail("Data exporter doesn't know how to write {}",
                            it.first);
       }
 
@@ -179,10 +179,10 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     for (auto& it : sim_env().data_map()) {
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
-        Logger::print_info("Writing tracked particles");
+        Logger::print_detail("Writing tracked particles");
         // TODO: Add tracked particles
       } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
-        Logger::print_info("Writing tracked photons");
+        Logger::print_detail("Writing tracked photons");
         // TODO: Add tracked photons
       }
     }
@@ -211,7 +211,7 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
     if (!data->include_in_snapshot()) {
       continue;
     }
-    Logger::print_info("Writing {} to snapshot", it.first);
+    Logger::print_detail("Writing {} to snapshot", it.first);
     if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
     } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
@@ -251,7 +251,7 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
     if (!data->include_in_snapshot()) {
       continue;
     }
-    Logger::print_info("Writing {} to snapshot", it.first);
+    Logger::print_detail("Writing {} to snapshot", it.first);
     if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
       read(*ptr, it.first, snapfile, true);
       if (m_comm != nullptr) {
@@ -278,7 +278,7 @@ data_exporter<Conf>::copy_config_file() {
   std::string path = m_output_dir + "config.toml";
   std::string conf_file =
       sim_env().params().template get_as<std::string>("config_file");
-  Logger::print_info("Copying config file from {} to {}", conf_file, path);
+  Logger::print_detail("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
     fs::copy_file(conf_file, path, fs::copy_options::overwrite_existing);

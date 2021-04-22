@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
   // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv, true);
 
-  env.params().add("log_level", (int64_t)LogLevel::detail);
+  env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;

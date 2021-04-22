@@ -65,6 +65,7 @@ class sim_environment_impl {
   bool is_dry_run = false;
   double dt;
   double time;
+  float step_time = 0.0f;
   uint32_t step;
   uint32_t max_steps;
   uint32_t perf_interval;

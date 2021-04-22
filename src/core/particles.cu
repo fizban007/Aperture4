@@ -36,21 +36,32 @@
 
 namespace Aperture {
 
+template <int Dim>
+constexpr int get_zone_offset() {
+  if constexpr (Dim == 1) {
+    return 12;
+  } else if (Dim == 2) {
+    return 9;
+  }
+  return 0;
+}
+
 template <typename Conf>
 void
-compute_target_buffers(const uint32_t* cells, size_t num,
+compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
                        buffer<int>& buffer_num, size_t* index) {
   kernel_launch(
-      [num] __device__(auto cells, auto buffer_num, auto index) {
+      [offset, num] __device__(auto cells, auto buffer_num, auto index) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
-        int zone_offset = 0;
-        if (Conf::dim == 2)
-          zone_offset = 9;
-        else if (Conf::dim == 1)
-          zone_offset = 12;
+        // int zone_offset = 0;
+        // if (Conf::dim == 2)
+        //   zone_offset = 9;
+        // else if (Conf::dim == 1)
+        //   zone_offset = 12;
+        int zone_offset = get_zone_offset<Conf::dim>();
         for (auto n : grid_stride_range(0, num)) {
-          uint32_t cell = cells[n];
+          uint32_t cell = cells[n + offset];
           if (cell == empty_cell) continue;
           auto idx = Conf::idx(cell, ext);
           auto grid_pos = get_pos(idx, ext);
@@ -65,29 +76,30 @@ compute_target_buffers(const uint32_t* cells, size_t num,
         }
       },
       cells, buffer_num.dev_ptr(), index);
-  CudaSafeCall(cudaDeviceSynchronize());
+  // CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
 
 template <typename Conf, typename PtcPtrs>
 void
-copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
-                         buffer<PtcPtrs>& ptc_buffers) {
+copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
+                         size_t* index, buffer<PtcPtrs>& ptc_buffers) {
   kernel_launch(
-      [num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
+      [offset, num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int bitshift_width = (sizeof(size_t) * 8 - 5);
-        int zone_offset = 0;
-        if (Conf::dim == 2)
-          zone_offset = 9;
-        else if (Conf::dim == 1)
-          zone_offset = 12;
+        // int zone_offset = 0;
+        // if (Conf::dim == 2)
+        //   zone_offset = 9;
+        // else if (Conf::dim == 1)
+        //   zone_offset = 12;
+        int zone_offset = get_zone_offset<Conf::dim>();
         // loop through the particle array
         for (auto n : grid_stride_range(0, num)) {
-          auto cell = ptc_data.cell[n];
-          if (cell == empty_cell) continue;
+          auto cell = ptc_data.cell[n + offset];
           size_t i = index[n];
+          if (cell == empty_cell || i == size_t(-1)) continue;
           size_t zone = ((i >> bitshift_width) & 0b11111);
           if (zone == 13 || zone > 27) continue;
           size_t pos = i - (zone << bitshift_width);
@@ -117,7 +129,7 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t num, size_t* index,
           //        ptc_buffers[zone - zone_offset].cell[pos],
           //        zone - zone_offset);
           // Set the particle to empty
-          ptc_data.cell[n] = empty_cell;
+          ptc_data.cell[n + offset] = empty_cell;
         }
       },
       ptc_data, index, ptc_buffers.dev_ptr());
@@ -165,7 +177,6 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
     // Lazy resize the tmp arrays
     resize_tmp_arrays();
     m_segment_nums.assign_host(0);
-    // static cached_allocator alloc;
 
     // 1st: Sort the particle array segment by segment
     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
@@ -195,8 +206,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
 
       // Update the new number of particles in each sorted segment
       m_segment_nums[n] =
-          thrust::upper_bound(ptr_cell, ptr_cell + sort_size,
-                              empty_cell - 1) -
+          thrust::upper_bound(ptr_cell, ptr_cell + sort_size, empty_cell - 1) -
           ptr_cell;
       // Logger::print_info("segment[{}] has size {}", n, m_segment_nums[n]);
     }
@@ -282,15 +292,25 @@ particles_base<BufferType>::copy_to_comm_buffers(
     const grid_t<Conf>& grid) {
   if (m_number > 0) {
     // timer::stamp("compute_buffer");
-    if (m_index.size() != m_size) m_index.resize(m_size);
-    m_index.assign_dev(0, m_number, size_t(-1));
-    auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
-
+    // Lazy resize the tmp arrays
+    resize_tmp_arrays();
     m_zone_buffer_num.assign_dev(0);
-    compute_target_buffers<Conf>(this->cell.dev_ptr(), m_number,
-                                 m_zone_buffer_num, m_index.dev_ptr());
+
+    for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
+      size_t offset = n * m_sort_segment_size;
+      // Logger::print_debug("offset is {}, n is {}", offset, n);
+
+      m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
+      auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+      compute_target_buffers<Conf>(this->cell.dev_ptr(), offset,
+                                   m_sort_segment_size, m_zone_buffer_num,
+                                   m_index.dev_ptr());
+
+      copy_component_to_buffer<Conf>(m_dev_ptrs, offset, m_sort_segment_size,
+                                     m_index.dev_ptr(), buf_ptrs);
+    }
+
     m_zone_buffer_num.copy_to_host();
-    CudaSafeCall(cudaDeviceSynchronize());
     // timer::show_duration_since_stamp("Computing target buffers", "ms",
     // "compute_buffer");
 
@@ -306,8 +326,6 @@ particles_base<BufferType>::copy_to_comm_buffers(
       buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
     }
     // timer::stamp("copy_to_buffer");
-    copy_component_to_buffer<Conf>(m_dev_ptrs, m_number, m_index.dev_ptr(),
-                                   buf_ptrs);
     // for (unsigned int i = 0; i < buffers.size(); i++) {
     //   if (buffers[i].number() > 0) {
     //     buffers[i].copy_to_host();
@@ -317,7 +335,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
     //   buffers[7].copy_to_host();
     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
     // }
-    CudaSafeCall(cudaDeviceSynchronize());
+    // CudaSafeCall(cudaDeviceSynchronize());
     // timer::show_duration_since_stamp("Copy to buffer", "ms",
     // "copy_to_buffer");
   }

@@ -48,6 +48,7 @@ main(int argc, char* argv[]) {
   ptc.set_segment_size(20);
   ph.set_segment_size(20);
   int N1 = grid->dims[0];
+  ptc.set_num(18);
   if (comm->rank() == 0) {
     ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
     ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);

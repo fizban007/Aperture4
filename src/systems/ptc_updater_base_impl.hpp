@@ -151,7 +151,7 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class PhysicsPolicy>
 void ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     double dt, uint32_t step) {
-  Logger::print_info("Updating {} particles", ptc->number());
+  Logger::print_detail("Updating {} particles", ptc->number());
   update_particles(dt, step);
 
   // Communicate deposited current and charge densities

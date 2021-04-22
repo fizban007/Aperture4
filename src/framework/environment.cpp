@@ -148,8 +148,11 @@ sim_environment_impl::init() {
 
 void
 sim_environment_impl::update() {
-  Logger::print_info("=== Time step {}, Time is {:.5f} ===", step, time);
+  if (step % perf_interval == 0 && step > 0) {
+    Logger::print_info("=== Time step {}, Time is {:.5f} ===", step, time);
+  }
   // Call the update() method of each system in order
+  timer::stamp("step");
   for (auto& name : m_system_order) {
     if (m_system_map[name]->is_paused()) continue;
 
@@ -167,6 +170,12 @@ sim_environment_impl::update() {
                          m_system_time[name] / perf_interval / 1000.0);
       m_system_time[name] = 0.0f;
     }
+  }
+  step_time += timer::get_duration_since_stamp("ms", "step");
+  if (step % perf_interval == 0 && step > 0) {
+    Logger::print_info(">>>>>>>>>>> Time for a step is {:.2f}ms",
+                       step_time / perf_interval);
+    step_time = 0.0f;
   }
   time += dt;
   step += 1;

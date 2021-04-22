@@ -62,6 +62,12 @@ particles_base<BufferType>::resize(size_t size) {
   m_ptc_id.resize(1);
   m_ptc_id.assign(0);
   m_ptc_id.assign_dev(0);
+  if (m_mem_type == MemType::host_only || m_mem_type == MemType::host_device) {
+    this->cell.assign_host(empty_cell);
+  }
+  if (m_mem_type == MemType::device_only || m_mem_type == MemType::device_managed) {
+    this->cell.assign_dev(empty_cell);
+  }
 }
 
 template <typename BufferType>

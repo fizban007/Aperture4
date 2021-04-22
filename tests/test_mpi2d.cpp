@@ -45,6 +45,8 @@ main(int argc, char* argv[]) {
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);
+  ptc.set_segment_size(20);
+  ph.set_segment_size(20);
   int N1 = grid->dims[0];
   if (comm->rank() == 0) {
     ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
@@ -53,6 +55,10 @@ main(int argc, char* argv[]) {
     ptc.append_dev({0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
     ph.append_dev({0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
   }
+  Logger::print_debug_all("initially Rank {} has {} particles:",
+                          comm->rank(), ptc.number());
+  // ptc.sort_by_cell(grid->size());
+  // ph.sort_by_cell(grid->size());
   comm->send_particles(ptc, *grid);
   comm->send_particles(ph, *grid);
   ptc.sort_by_cell(grid->size());

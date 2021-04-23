@@ -79,6 +79,9 @@ else()
 
 endif()
 
+add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
+target_link_libraries(test_exporter_mpi Aperture)
+
 add_executable(gr_pusher "test_gr_pusher.cpp")
 target_link_libraries(gr_pusher Aperture)
 

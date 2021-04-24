@@ -21,7 +21,8 @@
 
 using namespace Aperture;
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[]) {
   auto& env = sim_env();
   using Conf = Config<3>;
 
@@ -34,7 +35,8 @@ int main(int argc, char *argv[]) {
 
   grid_t<Conf> grid;
   data_exporter<Conf> exporter(grid);
-  exporter.write_grid();
+  exporter.init();
+  // exporter.write_grid();
 
   return 0;
 }

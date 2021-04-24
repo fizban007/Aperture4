@@ -36,9 +36,10 @@ template <typename Conf>
 void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                           rng_states_t &states);
 
-} // namespace Aperture
+}  // namespace Aperture
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   typedef Config<3> Conf;
   // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv, true);
@@ -49,10 +50,10 @@ int main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
-  // auto pusher = env.register_system<ptc_updater_new<
-  //     Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
-  auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
+  grid.init();
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+                                                                       comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
@@ -63,25 +64,25 @@ int main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
-  // curand_states_t *states;
   rng_states_t *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
-  // env.get_data("rand_states", &states);
 
   harris_current_sheet(*Bdelta, *ptc, *states);
 
-  //size_t free_mem, total_mem;
-  //cudaMemGetInfo( &free_mem, &total_mem );
-  //std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+  size_t free_mem, total_mem;
+  // cudaMemGetInfo( &free_mem, &total_mem );
+  // std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" <<
+  // total_mem/1.0e9 << "GiB" << std::endl;
 
   for (int n = 0; n < env.get_max_steps(); n++) {
     env.update();
-    //cudaMemGetInfo( &free_mem, &total_mem );
-    //std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+    cudaMemGetInfo(&free_mem, &total_mem);
+    Logger::print_info("GPU memory: free = {} GiB, total = {}",
+                       free_mem / 1.0e9, total_mem / 1.0e9);
   }
 
   return 0;

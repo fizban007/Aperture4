@@ -106,8 +106,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     auto create_mode = H5CreateMode::trunc_parallel;
-    if (sim_env().use_mpi() == false)
-      create_mode = H5CreateMode::trunc;
+    if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
     H5File datafile = hdf_create(filename, create_mode);
 
     datafile.write(step, "step");
@@ -145,7 +144,7 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         write(*ptr, it.first, datafile, false);
       } else {
         Logger::print_detail("Data exporter doesn't know how to write {}",
-                           it.first);
+                             it.first);
       }
 
       if (data->reset_after_output()) {
@@ -200,8 +199,7 @@ void
 data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
                                     double time) {
   auto create_mode = H5CreateMode::trunc_parallel;
-  if (sim_env().use_mpi() == false)
-    create_mode = H5CreateMode::trunc;
+  if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
   H5File snapfile = hdf_create(filename, create_mode);
 
   // Walk over all data components and write them to the snapshot file according
@@ -289,9 +287,9 @@ template <typename Conf>
 void
 data_exporter<Conf>::write_grid() {
   std::string meshfilename = m_output_dir + "grid.h5";
+  Logger::print_info("Writing to grid file {}", meshfilename);
   auto create_mode = H5CreateMode::trunc_parallel;
-  if (sim_env().use_mpi() == false)
-    create_mode = H5CreateMode::trunc;
+  if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
   H5File meshfile = hdf_create(meshfilename, create_mode);
 
   // std::vector<float> x1_array(out_ext.x);
@@ -503,8 +501,8 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 
 template <typename Conf>
 void
-data_exporter<Conf>::write(rng_states_t& data, const std::string& name, H5File& datafile,
-                           bool snapshot) {}
+data_exporter<Conf>::write(rng_states_t& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {}
 
 template <typename Conf>
 void
@@ -620,8 +618,8 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
 
 template <typename Conf>
 void
-data_exporter<Conf>::read(rng_states_t& data, const std::string& name, H5File& datafile,
-                          bool snapshot) {}
+data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
+                          H5File& datafile, bool snapshot) {}
 
 template <typename Conf>
 void

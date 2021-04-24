@@ -54,7 +54,7 @@ main(int argc, char* argv[]) {
   double* dev_send_buffer;
   double* dev_recv_buffer;
   
-  int N = 1000000;
+  int N = 20000000;
   cudaMalloc(&dev_send_buffer, N * sizeof(double));
   cudaMalloc(&dev_recv_buffer, N * sizeof(double));
 
@@ -73,7 +73,8 @@ main(int argc, char* argv[]) {
                 dev_recv_buffer, N, MPI_DOUBLE, src, 0,
                 MPI_COMM_WORLD, &status);
     cudaMemGetInfo( &free_mem, &total_mem );
-    std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
+    if (rank == 0)
+      std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
   }
 
   std::vector<double> host_recv_buffer(N);

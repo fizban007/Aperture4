@@ -434,30 +434,45 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
 #endif
 
     int num_recv = 0;
+    int struct_size = visit_struct::field_count(send_ptrs);
+    std::vector<MPI_Request> vec_send_req(struct_size);
+    std::vector<MPI_Request> vec_recv_req(struct_size);
+    std::vector<MPI_Status> vec_recv_stat(struct_size);
+    int n = 0;
     visit_struct::for_each(
         send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
-          // MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
-          //           MPI_Helper::get_mpi_datatype(v[0]), src, tag,
-          //           m_cart, recv_req);
-          // MPI_Isend((void*)u, num_send,
-          //           MPI_Helper::get_mpi_datatype(u[0]), dst, tag,
-          //           m_cart, send_req);
-          MPI_Sendrecv((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
-                       dst, tag, (void *)(v + recv_offset), recv_buffer.size(),
-                       MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
-                       recv_stat);
+          // Logger::print_info("sending {}, {}", n, name);
+          MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
+                    MPI_Helper::get_mpi_datatype(v[0]), src, tag * struct_size + n,
+                    m_cart, &vec_recv_req[n]);
+          MPI_Isend((void*)u, num_send,
+                    MPI_Helper::get_mpi_datatype(u[0]), dst, tag * struct_size + n,
+                    m_cart, &vec_send_req[n]);
+          // MPI_Sendrecv((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
+          //              dst, tag, (void *)(v + recv_offset), recv_buffer.size(),
+          //              MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
+          //              recv_stat);
           // MPI_Wait(recv_req, recv_stat);
-          if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
+          // if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
             // if (num_send > 0) {
             // Logger::print_debug("Send count is {}, send cell[0] is {}",
             //                     num_send, u[0]);
             // }
-            MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(v[0]),
-                          &num_recv);
+            // MPI_Wait(&vec_recv_req[n], &vec_recv_stat[n]);
+            // MPI_Get_count(&vec_recv_stat[n], MPI_Helper::get_mpi_datatype(v[0]),
+            //               &num_recv);
             // Logger::print_info_all("Rank {} received {} particles from {}",
             //                        m_rank, num_recv, src);
-          }
+          // }
+          n += 1;
         });
+    for (int i = 0; i < struct_size; i++) {
+      MPI_Wait(&vec_recv_req[i], &vec_recv_stat[i]);
+    }
+    MPI_Get_count(
+        &vec_recv_stat[0],
+        MPI_Helper::get_mpi_datatype(visit_struct::get<0>(send_ptrs)[0]),
+        &num_recv);
     recv_buffer.set_num(recv_offset + num_recv);
 
     MPI_Barrier(m_cart);

@@ -29,19 +29,22 @@
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 
-namespace {} // namespace
+namespace {}  // namespace
 
 namespace Aperture {
 
 template <typename Conf>
-void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                          rng_states_t &states) {
+void
+harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                     rng_states_t &states) {
+  Logger::print_info_all("Setting initial condition");
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
   value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
   value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
-  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
+  value_t kT_upstream =
+      sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
   value_t beta_d =
       sim_env().params().get_as<double>("current_sheet_drift", 0.5);
   value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
@@ -60,15 +63,15 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   auto ext = grid.extent();
   value_t ysize = grid.sizes[1];
 
+  Logger::print_info_all("Setting initial B field");
   // Initialize the magnetic field values
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
     return B0 * tanh(y / delta);
   });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) {
-    return B0 * B_g;
-  });
+  B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
   injector->init();
 
   injector->inject(
@@ -86,16 +89,18 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 1.0 / n_upstream;
       });
+  Logger::print_info_all("Injected background");
 
   injector->inject(
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template pos<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
-        if (math::abs(y) < cs_y) {
-          return true;
-        } else {
-          return false;
-        }
+        // if (math::abs(y) < cs_y) {
+        //   return true;
+        // } else {
+        //   return false;
+        // }
+        return math::abs(y) < cs_y;
       },
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
@@ -110,14 +115,17 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p3 = u_d[0] * sign;
         return vec_t<value_t, 3>(p1, p2, p3);
       },
-      [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid, auto &ext) {
+      [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid,
+                                                auto &ext) {
         auto y = grid.pos(1, pos[1], 0.5f);
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
-      }, flag_or(PtcFlag::exclude_from_spectrum));
+      },
+      flag_or(PtcFlag::exclude_from_spectrum));
 
-  Logger::print_info("After initial condition, there are {} particles", ptc.number());
+  Logger::print_info("After initial condition, there are {} particles",
+                     ptc.number());
 }
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
@@ -128,4 +136,4 @@ template void harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                               particle_data_t &ptc,
                                               rng_states_t &states);
 
-} // namespace Aperture
+}  // namespace Aperture

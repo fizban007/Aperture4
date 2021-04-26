@@ -85,6 +85,22 @@ TEST_CASE("Init, copy and assign particles", "[particles]") {
     REQUIRE(ptc2.cell[i] == empty_cell);
 }
 
+TEST_CASE("Assigning between particle array and single particle", "[particles]") {
+  size_t N = 100;
+  particles_t ptc(N, mem_type);
+  ptc.init();
+  ptc.copy_to_host();
+
+  buffer<single_ptc_t> ptc_buffer(N, mem_type);
+  ptc_buffer[2].cell = 10;
+
+  assign_ptc(ptc.host_ptrs(), 0, ptc_buffer[2]);
+  REQUIRE(ptc.host_ptrs().cell[0] == 10);
+
+  assign_ptc(ptc_buffer[1], ptc.host_ptrs(), 0);
+  REQUIRE(ptc_buffer[1].cell == 10);
+}
+
 #ifdef CUDA_ENABLED
 TEST_CASE("Particle pointers", "[particles]") {
   particles_t ptc(100, MemType::host_device);

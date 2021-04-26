@@ -59,10 +59,15 @@
                 BOOST_PP_SEQ_ELEM(2, data), BOOST_PP_SEQ_ELEM(3, data), \
                 BOOST_PP_TUPLE_ELEM(3, 1, elem))
 
-#define ASSIGN_SINGLE_(arr1, idx1, single, name) arr1.name[idx1] = single.name;
-#define ASSIGN_SINGLE(r, data, elem)                                     \
-  ASSIGN_SINGLE_(BOOST_PP_SEQ_ELEM(0, data), BOOST_PP_SEQ_ELEM(1, data), \
-                 BOOST_PP_SEQ_ELEM(2, data), BOOST_PP_TUPLE_ELEM(3, 1, elem))
+#define ASSIGN_FROM_SINGLE_(arr1, idx1, single, name) arr1.name[idx1] = single.name;
+#define ASSIGN_FROM_SINGLE(r, data, elem)                                     \
+  ASSIGN_FROM_SINGLE_(BOOST_PP_SEQ_ELEM(0, data), BOOST_PP_SEQ_ELEM(1, data), \
+                      BOOST_PP_SEQ_ELEM(2, data), BOOST_PP_TUPLE_ELEM(3, 1, elem))
+
+#define ASSIGN_TO_SINGLE_(arr1, idx1, single, name) single.name = arr1.name[idx1];
+#define ASSIGN_TO_SINGLE(r, data, elem)                                     \
+  ASSIGN_TO_SINGLE_(BOOST_PP_SEQ_ELEM(0, data), BOOST_PP_SEQ_ELEM(1, data), \
+                    BOOST_PP_SEQ_ELEM(2, data), BOOST_PP_TUPLE_ELEM(3, 1, elem))
 
 #define GET_NAME_(type, name, dv) (name)
 #define GET_NAME(r, data, elem) EXPAND_ELEMS(GET_NAME_, elem)
@@ -142,8 +147,13 @@
                             GLK_PP_SEQ_DOUBLE_PARENS(content))}                \
                                                                                \
   HD_INLINE void assign_ptc(name##_ptrs array_1, size_t idx_1,                 \
-                            single_##name##_t single) {                        \
-    BOOST_PP_SEQ_FOR_EACH(ASSIGN_SINGLE, (array_1)(idx_1)(single),             \
+                            const single_##name##_t& single) {                 \
+    BOOST_PP_SEQ_FOR_EACH(ASSIGN_FROM_SINGLE, (array_1)(idx_1)(single),        \
+                          GLK_PP_SEQ_DOUBLE_PARENS(content))                   \
+  }                                                                            \
+  HD_INLINE void assign_ptc(single_##name##_t& single, name##_ptrs array,      \
+                            size_t idx) {                                      \
+    BOOST_PP_SEQ_FOR_EACH(ASSIGN_TO_SINGLE, (array)(idx)(single),              \
                           GLK_PP_SEQ_DOUBLE_PARENS(content))                   \
   }                                                                            \
   }                                                                            \

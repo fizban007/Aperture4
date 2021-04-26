@@ -26,7 +26,7 @@
 #include "utils/timer.h"
 
 #if defined(OPEN_MPI) && OPEN_MPI
-#include <mpi-ext.h> // Needed for CUDA-aware check
+#include <mpi-ext.h>  // Needed for CUDA-aware check
 #endif
 
 #define USE_CUDA_AWARE_MPI true
@@ -39,9 +39,12 @@ domain_comm<Conf>::domain_comm() {
   setup_domain();
 }
 
-template <typename Conf> domain_comm<Conf>::~domain_comm() {}
+template <typename Conf>
+domain_comm<Conf>::~domain_comm() {}
 
-template <typename Conf> void domain_comm<Conf>::setup_domain() {
+template <typename Conf>
+void
+domain_comm<Conf>::setup_domain() {
   m_world = MPI_COMM_WORLD;
   MPI_Comm_rank(m_world, &m_rank);
   MPI_Comm_size(m_world, &m_size);
@@ -49,8 +52,7 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
   auto dims = sim_env().params().template get_as<std::vector<int64_t>>("nodes");
-  if (dims.size() < Conf::dim)
-    dims.resize(Conf::dim, 1);
+  if (dims.size() < Conf::dim) dims.resize(Conf::dim, 1);
 
   int64_t total_dim = 1;
   for (int i = 0; i < Conf::dim; i++) {
@@ -62,24 +64,21 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
     Logger::print_err(
         "Domain decomp in config file does not make sense, generating "
         "our own.");
-    for (int i = 0; i < Conf::dim; i++)
-      dims[i] = 0;
+    for (int i = 0; i < Conf::dim; i++) dims[i] = 0;
 
     MPI_Dims_create(m_size, Conf::dim, m_domain_info.mpi_dims);
     Logger::err("Created domain decomp as");
     for (int i = 0; i < Conf::dim; i++) {
       Logger::err("{}", m_domain_info.mpi_dims[i]);
-      if (i != Conf::dim - 1)
-        Logger::err(" x ");
+      if (i != Conf::dim - 1) Logger::err(" x ");
     }
     Logger::err("\n");
   } else {
-    for (int i = 0; i < Conf::dim; i++)
-      m_domain_info.mpi_dims[i] = dims[i];
+    for (int i = 0; i < Conf::dim; i++) m_domain_info.mpi_dims[i] = dims[i];
   }
 
-  auto periodic =
-      sim_env().params().template get_as<std::vector<bool>>("periodic_boundary");
+  auto periodic = sim_env().params().template get_as<std::vector<bool>>(
+      "periodic_boundary");
   for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
     m_domain_info.is_periodic[i] = periodic[i];
 
@@ -101,10 +100,8 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
     Logger::print_detail_all(
         "Rank {} has neighbors in {} direction: left {}, right {}", m_rank, n,
         left, right);
-    if (left < 0)
-      m_domain_info.is_boundary[2 * n] = true;
-    if (right < 0)
-      m_domain_info.is_boundary[2 * n + 1] = true;
+    if (left < 0) m_domain_info.is_boundary[2 * n] = true;
+    if (right < 0) m_domain_info.is_boundary[2 * n + 1] = true;
   }
 
 #ifdef CUDA_ENABLED
@@ -127,10 +124,9 @@ template <typename Conf> void domain_comm<Conf>::setup_domain() {
 }
 
 template <typename Conf>
-void domain_comm<Conf>::resize_buffers(
-    const typename Conf::grid_t &grid) const {
-  if (m_buffers_ready)
-    return;
+void
+domain_comm<Conf>::resize_buffers(const typename Conf::grid_t &grid) const {
+  if (m_buffers_ready) return;
   for (int i = 0; i < Conf::dim; i++) {
     auto ext = extent_t<Conf::dim>{};
     for (int j = 0; j < Conf::dim; j++) {
@@ -155,10 +151,10 @@ void domain_comm<Conf>::resize_buffers(
   }
   m_ptc_buffer_ptrs.resize(num_ptc_buffers);
   m_ph_buffer_ptrs.resize(num_ptc_buffers);
-  for (int i = 0; i < num_ptc_buffers; i++) {
-    m_ptc_buffer_ptrs[i] = m_ptc_buffers[i].dev_ptrs();
-    m_ph_buffer_ptrs[i] = m_ph_buffers[i].dev_ptrs();
-  }
+  // for (int i = 0; i < num_ptc_buffers; i++) {
+  //   m_ptc_buffer_ptrs[i] = m_ptc_buffers[i].dev_ptr();
+  //   m_ph_buffer_ptrs[i] = m_ph_buffers[i].dev_ptr();
+  // }
   m_ptc_buffer_ptrs.copy_to_device();
   m_ph_buffer_ptrs.copy_to_device();
   // Logger::print_debug("m_ptc_buffers has size {}", m_ptc_buffers.size());
@@ -166,11 +162,11 @@ void domain_comm<Conf>::resize_buffers(
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_array_guard_cells_single_dir(
+void
+domain_comm<Conf>::send_array_guard_cells_single_dir(
     typename Conf::multi_array_t &array, const typename Conf::grid_t &grid,
     int dim, int dir) const {
-  if (dim < 0 || dim >= Conf::dim)
-    return;
+  if (dim < 0 || dim >= Conf::dim) return;
 
   int dest, origin;
   MPI_Status status;
@@ -204,7 +200,7 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
     }
     // timer::show_duration_since_stamp("copy guard cells", "ms");
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) &&  \
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
 #pragma message "CUDA-aware MPI found!"
     auto send_ptr = m_send_buffers[dim].dev_ptr();
@@ -228,14 +224,13 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
     // MPI_Wait(&req_recv, &status);
     // timer::show_duration_since_stamp("MPI sendrecv", "ms");
 
-
     if (origin != MPI_PROC_NULL) {
       if (array.mem_type() == MemType::host_only) {
         copy(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
              m_recv_buffers[dim].extent());
       } else {
-#if CUDA_ENABLED &&                                                            \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
         m_recv_buffers[dim].copy_to_device();
 #endif
@@ -247,11 +242,11 @@ void domain_comm<Conf>::send_array_guard_cells_single_dir(
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_add_array_guard_cells_single_dir(
+void
+domain_comm<Conf>::send_add_array_guard_cells_single_dir(
     typename Conf::multi_array_t &array, const typename Conf::grid_t &grid,
     int dim, int dir) const {
-  if (dim < 0 || dim >= Conf::dim)
-    return;
+  if (dim < 0 || dim >= Conf::dim) return;
 
   int dest, origin;
   MPI_Status status;
@@ -284,7 +279,7 @@ void domain_comm<Conf>::send_add_array_guard_cells_single_dir(
                m_send_buffers[dim].extent());
     }
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) &&  \
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
     auto send_ptr = m_send_buffers[dim].dev_ptr();
     auto recv_ptr = m_recv_buffers[dim].dev_ptr();
@@ -311,8 +306,8 @@ void domain_comm<Conf>::send_add_array_guard_cells_single_dir(
         add(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
             m_recv_buffers[dim].extent());
       } else {
-#if CUDA_ENABLED &&                                                            \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
         m_recv_buffers[dim].copy_to_device();
 #endif
@@ -324,25 +319,25 @@ void domain_comm<Conf>::send_add_array_guard_cells_single_dir(
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {
-  if (!m_buffers_ready)
-    resize_buffers(field.grid());
+void
+domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {
+  if (!m_buffers_ready) resize_buffers(field.grid());
   send_guard_cells(field[0], field.grid());
   send_guard_cells(field[1], field.grid());
   send_guard_cells(field[2], field.grid());
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {
-  if (!m_buffers_ready)
-    resize_buffers(field.grid());
+void
+domain_comm<Conf>::send_guard_cells(scalar_field<Conf> &field) const {
+  if (!m_buffers_ready) resize_buffers(field.grid());
   send_guard_cells(field[0], field.grid());
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_guard_cells(
-    typename Conf::multi_array_t &array,
-    const typename Conf::grid_t &grid) const {
+void
+domain_comm<Conf>::send_guard_cells(typename Conf::multi_array_t &array,
+                                    const typename Conf::grid_t &grid) const {
   send_array_guard_cells_single_dir(array, grid, 0, -1);
   send_array_guard_cells_single_dir(array, grid, 0, 1);
   send_array_guard_cells_single_dir(array, grid, 1, -1);
@@ -352,23 +347,24 @@ void domain_comm<Conf>::send_guard_cells(
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {
-  if (!m_buffers_ready)
-    resize_buffers(field.grid());
+void
+domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {
+  if (!m_buffers_ready) resize_buffers(field.grid());
   send_add_guard_cells(field[0], field.grid());
   send_add_guard_cells(field[1], field.grid());
   send_add_guard_cells(field[2], field.grid());
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {
-  if (!m_buffers_ready)
-    resize_buffers(field.grid());
+void
+domain_comm<Conf>::send_add_guard_cells(scalar_field<Conf> &field) const {
+  if (!m_buffers_ready) resize_buffers(field.grid());
   send_add_guard_cells(field[0], field.grid());
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_add_guard_cells(
+void
+domain_comm<Conf>::send_add_guard_cells(
     typename Conf::multi_array_t &array,
     const typename Conf::grid_t &grid) const {
   send_add_array_guard_cells_single_dir(array, grid, 0, -1);
@@ -381,11 +377,11 @@ void domain_comm<Conf>::send_add_guard_cells(
 
 template <typename Conf>
 template <typename T>
-void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
-                                            int src, int dst, int tag,
-                                            MPI_Request *send_req,
-                                            MPI_Request *recv_req,
-                                            MPI_Status *recv_stat) const {
+void
+domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
+                                       int dst, int tag, MPI_Request *send_req,
+                                       MPI_Request *recv_req,
+                                       MPI_Status *recv_stat) const {
   // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_buffer.number();
   int num_send = send_buffer.number();
@@ -423,7 +419,7 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
       recv_buffer.set_num(recv_offset + num_recv);
     }
   } else {
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) &&  \
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
     auto send_ptrs = send_buffer.get_dev_ptrs();
     auto recv_ptrs = recv_buffer.get_dev_ptrs();
@@ -442,27 +438,29 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
     visit_struct::for_each(
         send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
           // Logger::print_info("sending {}, {}", n, name);
-          MPI_Irecv((void*)(v + recv_offset), recv_buffer.size(),
-                    MPI_Helper::get_mpi_datatype(v[0]), src, tag * struct_size + n,
-                    m_cart, &vec_recv_req[n]);
-          MPI_Isend((void*)u, num_send,
-                    MPI_Helper::get_mpi_datatype(u[0]), dst, tag * struct_size + n,
-                    m_cart, &vec_send_req[n]);
-          // MPI_Sendrecv((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
-          //              dst, tag, (void *)(v + recv_offset), recv_buffer.size(),
+          MPI_Irecv((void *)(v + recv_offset), recv_buffer.size(),
+                    MPI_Helper::get_mpi_datatype(v[0]), src,
+                    tag * struct_size + n, m_cart, &vec_recv_req[n]);
+          MPI_Isend((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
+                    dst, tag * struct_size + n, m_cart, &vec_send_req[n]);
+          // MPI_Sendrecv((void *)u, num_send,
+          // MPI_Helper::get_mpi_datatype(u[0]),
+          //              dst, tag, (void *)(v + recv_offset),
+          //              recv_buffer.size(),
           //              MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
           //              recv_stat);
           // MPI_Wait(recv_req, recv_stat);
           // if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
-            // if (num_send > 0) {
-            // Logger::print_debug("Send count is {}, send cell[0] is {}",
-            //                     num_send, u[0]);
-            // }
-            // MPI_Wait(&vec_recv_req[n], &vec_recv_stat[n]);
-            // MPI_Get_count(&vec_recv_stat[n], MPI_Helper::get_mpi_datatype(v[0]),
-            //               &num_recv);
-            // Logger::print_info_all("Rank {} received {} particles from {}",
-            //                        m_rank, num_recv, src);
+          // if (num_send > 0) {
+          // Logger::print_debug("Send count is {}, send cell[0] is {}",
+          //                     num_send, u[0]);
+          // }
+          // MPI_Wait(&vec_recv_req[n], &vec_recv_stat[n]);
+          // MPI_Get_count(&vec_recv_stat[n],
+          // MPI_Helper::get_mpi_datatype(v[0]),
+          //               &num_recv);
+          // Logger::print_info_all("Rank {} received {} particles from {}",
+          //                        m_rank, num_recv, src);
           // }
           n += 1;
         });
@@ -477,8 +475,8 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
 
     MPI_Barrier(m_cart);
 
-#if CUDA_ENABLED &&                                                            \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
     recv_buffer.copy_to_device();
 #endif
@@ -488,12 +486,12 @@ void domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer,
 
 template <typename Conf>
 template <typename PtcType>
-void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
-                                            const grid_t<Conf> &grid) const {
+void
+domain_comm<Conf>::send_particles_impl(PtcType &ptc,
+                                       const grid_t<Conf> &grid) const {
   // Logger::print_detail("Sending paticles");
   // timer::stamp("send_ptc");
-  if (!m_buffers_ready)
-    resize_buffers(grid);
+  if (!m_buffers_ready) resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);
   auto &buf_ptrs = ptc_buffer_ptrs(ptc);
   // timer::stamp("copy_comm");
@@ -537,8 +535,7 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   // Send in y direction next
   if constexpr (Conf::dim >= 2) {
     int num_send_y = 3;
-    if (Conf::dim == 2)
-      num_send_y = 1;
+    if (Conf::dim == 2) num_send_y = 1;
     // Send left in y
     for (int i = 0; i < num_send_y; i++) {
       int buf_send = 1 + i * 9;
@@ -577,8 +574,8 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   }
 
   // Copy the central recv buffer into the main array
-#if CUDA_ENABLED &&                                                            \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) ||               \
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
   buffers[central].copy_to_device();
 #endif
@@ -592,20 +589,23 @@ void domain_comm<Conf>::send_particles_impl(PtcType &ptc,
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_particles(photons_t &ptc,
-                                       const grid_t<Conf> &grid) const {
+void
+domain_comm<Conf>::send_particles(photons_t &ptc,
+                                  const grid_t<Conf> &grid) const {
   send_particles_impl(ptc, grid);
 }
 
 template <typename Conf>
-void domain_comm<Conf>::send_particles(particles_t &ptc,
-                                       const grid_t<Conf> &grid) const {
+void
+domain_comm<Conf>::send_particles(particles_t &ptc,
+                                  const grid_t<Conf> &grid) const {
   send_particles_impl(ptc, grid);
 }
 
 template <typename Conf>
-void domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
-                                             uint64_t &offset) const {
+void
+domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
+                                        uint64_t &offset) const {
   // Carry out an MPI scan to get the total number and local offset,
   // used for particle output into a file
   uint64_t result = 0;
@@ -620,7 +620,8 @@ void domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
 
 template <typename Conf>
 template <typename T>
-void domain_comm<Conf>::gather_to_root(buffer<T> &buf) const {
+void
+domain_comm<Conf>::gather_to_root(buffer<T> &buf) const {
   buffer<T> tmp_buf(buf.size(), buf.mem_type());
   // #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
   //   auto result =
@@ -659,38 +660,39 @@ domain_comm<Conf>::ptc_buffer_ptrs(const particles_t &ptc) const {
 }
 
 template <typename Conf>
-buffer<ph_ptrs> &domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
+buffer<ph_ptrs> &
+domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
   return m_ph_buffer_ptrs;
 }
 
 // Explicitly instantiate some of the configurations that may occur
 // template class domain_comm<Config<1>>;
 INSTANTIATE_WITH_CONFIG(domain_comm);
-template void
-domain_comm<Config<1, float>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<1, float>>::gather_to_root(buffer<double> &buf) const;
-template void
-domain_comm<Config<1, double>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<1, double>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<1, float>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<1, float>>::gather_to_root(
+    buffer<double> &buf) const;
+template void domain_comm<Config<1, double>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<1, double>>::gather_to_root(
+    buffer<double> &buf) const;
 // template class domain_comm<Config<2>>;
-template void
-domain_comm<Config<2, float>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<2, float>>::gather_to_root(buffer<double> &buf) const;
-template void
-domain_comm<Config<2, double>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<2, double>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<2, float>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<2, float>>::gather_to_root(
+    buffer<double> &buf) const;
+template void domain_comm<Config<2, double>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<2, double>>::gather_to_root(
+    buffer<double> &buf) const;
 // template class domain_comm<Config<3>>;
-template void
-domain_comm<Config<3, float>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<3, float>>::gather_to_root(buffer<double> &buf) const;
-template void
-domain_comm<Config<3, double>>::gather_to_root(buffer<float> &buf) const;
-template void
-domain_comm<Config<3, double>>::gather_to_root(buffer<double> &buf) const;
+template void domain_comm<Config<3, float>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<3, float>>::gather_to_root(
+    buffer<double> &buf) const;
+template void domain_comm<Config<3, double>>::gather_to_root(
+    buffer<float> &buf) const;
+template void domain_comm<Config<3, double>>::gather_to_root(
+    buffer<double> &buf) const;
 
-} // namespace Aperture
+}  // namespace Aperture

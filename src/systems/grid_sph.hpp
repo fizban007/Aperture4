@@ -131,7 +131,8 @@ grid_sph_t<Conf>::compute_coef() {
     // Length elements for E field
     this->m_le[0][idx] = rs_plus - rs;
     this->m_le[1][idx] = rs * this->delta[1];
-    if constexpr (Conf::dim == 2) {
+    // if constexpr (Conf::dim == 2) {
+    if (Conf::dim == 2) {
       this->m_le[2][idx] = rs * std::sin(ths);
     } else if (Conf::dim == 3) {
       this->m_le[2][idx] = rs * std::sin(ths) * this->delta[2];
@@ -140,7 +141,8 @@ grid_sph_t<Conf>::compute_coef() {
     // Length elements for B field
     this->m_lb[0][idx] = r - r_minus;
     this->m_lb[1][idx] = r * this->delta[1];
-    if constexpr (Conf::dim == 2) {
+    // if constexpr (Conf::dim == 2) {
+    if (Conf::dim == 2) {
       this->m_lb[2][idx] = r * std::sin(th);
     } else if (Conf::dim == 3) {
       this->m_lb[2][idx] = r * std::sin(th) * this->delta[2];
@@ -153,12 +155,14 @@ grid_sph_t<Conf>::compute_coef() {
     } else if (std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
       this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
     }
-    if constexpr (Conf::dim == 3) {
+    // if constexpr (Conf::dim == 3) {
+    if (Conf::dim == 3) {
       this->m_Ae[0][idx] *= this->delta[2];
     }
 
     this->m_Ae[1][idx] = 0.5 * (square(r) - square(r_minus)) * std::sin(th);
-    if constexpr (Conf::dim == 3) {
+    // if constexpr (Conf::dim == 3) {
+    if (Conf::dim == 3) {
       this->m_Ae[1][idx] *= this->delta[2];
     }
 
@@ -167,7 +171,8 @@ grid_sph_t<Conf>::compute_coef() {
 
     // Area elements for B field
     this->m_Ab[0][idx] = rs * rs * (std::cos(ths) - std::cos(ths_plus));
-    if constexpr (Conf::dim == 3) {
+    // if constexpr (Conf::dim == 3) {
+    if (Conf::dim == 3) {
       this->m_Ab[0][idx] *= this->delta[2];
     }
 
@@ -176,7 +181,8 @@ grid_sph_t<Conf>::compute_coef() {
       this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
     else
       this->m_Ab[1][idx] = TINY;
-    if constexpr (Conf::dim == 3) {
+    // if constexpr (Conf::dim == 3) {
+    if (Conf::dim == 3) {
       this->m_Ab[1][idx] *= this->delta[2];
     }
 
@@ -194,7 +200,8 @@ grid_sph_t<Conf>::compute_coef() {
                         (1.0 - std::cos(0.5 * this->delta[1])) /
                         (this->delta[0] * this->delta[1]);
     }
-    if constexpr (Conf::dim == 3) {
+    // if constexpr (Conf::dim == 3) {
+    if (Conf::dim == 3) {
       this->m_dV[idx] /= this->delta[2];
     }
   }

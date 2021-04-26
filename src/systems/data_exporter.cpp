@@ -22,11 +22,20 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
+#if __GNUC__ >= 8
 #include <filesystem>
+#else
+#define USE_BOOST_FILESYSTEM
+#include <boost/filesystem.hpp>
+#endif
 // #include <fmt/ostream.h>
 #include <fmt/core.h>
 
+#ifndef USE_BOOST_FILESYSTEM
 namespace fs = std::filesystem;
+#else
+namespace fs = boost::filesystem;
+#endif
 
 namespace Aperture {
 
@@ -78,8 +87,12 @@ data_exporter<Conf>::init() {
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
 
+#ifndef USE_BOOST_FILESYSTEM
   std::error_code returnedError;
   fs::create_directories(outPath, returnedError);
+#else
+  fs::create_directories(outPath);
+#endif
 
   // Copy config file to the output directory
   copy_config_file();
@@ -101,6 +114,7 @@ template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
+  m_comm->barrier();
   if (step % m_fld_output_interval == 0) {
     // Output downsampled fields!
     std::string filename =
@@ -279,7 +293,11 @@ data_exporter<Conf>::copy_config_file() {
   Logger::print_detail("Copying config file from {} to {}", conf_file, path);
   fs::path conf_path(conf_file);
   if (fs::exists(conf_path)) {
+#ifndef USE_BOOST_FILESYSTEM
     fs::copy_file(conf_file, path, fs::copy_options::overwrite_existing);
+#else
+    fs::copy_file(conf_file, path, fs::copy_option::overwrite_if_exists);
+#endif
   }
 }
 

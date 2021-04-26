@@ -90,9 +90,10 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
         // for (auto n : grid_stride_range(0, num)) {
         ExecPolicy<Conf>::loop(
             0, num,
-            [&num_bins, &lower, &upper, &grid, &ext, &ext_out, log_scale, downsample] LAMBDA(
-                auto n, auto& ptc, auto& e_p1, auto& e_p2, auto& e_p3,
-                auto& e_E, auto& p_p1, auto& p_p2, auto& p_p3, auto& p_E) {
+            [&num_bins, &lower, &upper, &grid, &ext, &ext_out, log_scale,
+             downsample] LAMBDA(auto n, auto& ptc, auto& e_p1, auto& e_p2,
+                                auto& e_p3, auto& e_E, auto& p_p1, auto& p_p2,
+                                auto& p_p3, auto& p_E) {
               uint32_t cell = ptc.cell[n];
               if (cell == empty_cell) return;
 
@@ -115,7 +116,8 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 auto p1 = (log_scale ? symlog(ptc.p1[n]) : ptc.p1[n]);
                 auto p2 = (log_scale ? symlog(ptc.p2[n]) : ptc.p2[n]);
                 auto p3 = (log_scale ? symlog(ptc.p3[n]) : ptc.p3[n]);
-                auto E = (log_scale ? math::log(ptc.E[n] - 1.0f) : ptc.E[n] - 1.0f);
+                auto E =
+                    (log_scale ? math::log(ptc.E[n] - 1.0f) : ptc.E[n] - 1.0f);
 
                 p1 = clamp(p1, lower[0], upper[0]);
                 p2 = clamp(p2, lower[1], upper[1]);
@@ -134,37 +136,37 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 if (sp == (int)PtcType::electron) {
                   pos_out[0] = bin1;
                   atomic_add(&e_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[0], ext_out))],
-                            weight);
+                                                      num_bins[0], ext_out))],
+                             weight);
                   pos_out[0] = bin2;
                   atomic_add(&e_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[1], ext_out))],
-                            weight);
+                                                      num_bins[1], ext_out))],
+                             weight);
                   pos_out[0] = bin3;
                   atomic_add(&e_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[2], ext_out))],
-                            weight);
+                                                      num_bins[2], ext_out))],
+                             weight);
                   pos_out[0] = bin4;
                   atomic_add(&e_E[idx_t(pos_out, extent_t<Conf::dim + 1>(
                                                      num_bins[3], ext_out))],
-                            weight);
+                             weight);
                 } else if (sp == (int)PtcType::positron) {
                   pos_out[0] = bin1;
                   atomic_add(&p_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[0], ext_out))],
-                            weight);
+                                                      num_bins[0], ext_out))],
+                             weight);
                   pos_out[0] = bin2;
                   atomic_add(&p_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[1], ext_out))],
-                            weight);
+                                                      num_bins[1], ext_out))],
+                             weight);
                   pos_out[0] = bin3;
                   atomic_add(&p_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                     num_bins[2], ext_out))],
-                            weight);
+                                                      num_bins[2], ext_out))],
+                             weight);
                   pos_out[0] = bin4;
                   atomic_add(&p_E[idx_t(pos_out, extent_t<Conf::dim + 1>(
                                                      num_bins[3], ext_out))],
-                            weight);
+                             weight);
                 }
               }
             },

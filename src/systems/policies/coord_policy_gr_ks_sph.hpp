@@ -184,7 +184,8 @@ class coord_policy_gr_ks_sph {
       context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
       context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-      // Note: context.p stores the lower components u_i, while gamma is upper u^0.
+      // Note: context.p stores the lower components u_i, while gamma is upper
+      // u^0.
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
                          context.E, 0.5f * dt, context.q / context.m);
     }
@@ -208,7 +209,8 @@ class coord_policy_gr_ks_sph {
         context.x[1] + (grid_ks_t<Conf>::from_theta(new_x[1]) -
                         grid_ks_t<Conf>::from_theta(x_global[1])) *
                            grid.inv_delta[1];
-    if constexpr (Conf::dim == 2) {
+    // if constexpr (Conf::dim == 2) {
+    if (Conf::dim == 2) {
       context.new_x[2] = new_x[2];
     } else {
       context.new_x[2] =

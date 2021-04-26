@@ -37,13 +37,27 @@
 namespace Aperture {
 
 template <int Dim>
-constexpr int get_zone_offset() {
-  if constexpr (Dim == 1) {
-    return 12;
-  } else if (Dim == 2) {
-    return 9;
-  }
+constexpr int
+get_zone_offset() {
   return 0;
+  // if constexpr (Dim == 1) {
+  //   return 12;
+  // } else if (Dim == 2) {
+  //   return 9;
+  // }
+  // return 0;
+}
+
+template <>
+constexpr int
+get_zone_offset<1>() {
+  return 12;
+}
+
+template <>
+constexpr int
+get_zone_offset<2>() {
+  return 9;
 }
 
 template <typename Conf>

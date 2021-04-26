@@ -55,8 +55,9 @@ main(int argc, char *argv[]) {
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+  // auto momentum =
+  //     env.register_system<gather_momentum_space<Conf,
+  //     exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
@@ -74,9 +75,10 @@ main(int argc, char *argv[]) {
   harris_current_sheet(*Bdelta, *ptc, *states);
 
   size_t free_mem, total_mem;
-  // cudaMemGetInfo( &free_mem, &total_mem );
-  // std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" <<
-  // total_mem/1.0e9 << "GiB" << std::endl;
+  cudaMemGetInfo(&free_mem, &total_mem);
+  Logger::print_info("GPU memory: free = {} GiB, total = {}", free_mem / 1.0e9,
+                     total_mem / 1.0e9);
+  comm.barrier();
 
   for (int n = 0; n < env.get_max_steps(); n++) {
     env.update();

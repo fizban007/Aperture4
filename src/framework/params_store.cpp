@@ -17,17 +17,26 @@
 
 #include "params_store.h"
 #include "cpptoml.h"
+#if __GNUC__ >= 8
 #include <filesystem>
+#else
+#include <boost/filesystem.hpp>
+#endif
+#include <fmt/format.h>
 #include <memory>
 #include <type_traits>
 #include <variant>
-#include <fmt/format.h>
 
+#if __GNUC__ >= 8
 namespace fs = std::filesystem;
+#else
+namespace fs = boost::filesystem;
+#endif
 
-template<typename T> struct is_vector : public std::false_type {};
+template <typename T>
+struct is_vector : public std::false_type {};
 
-template<typename T, typename A>
+template <typename T, typename A>
 struct is_vector<std::vector<T, A>> : public std::true_type {};
 
 namespace Aperture {
@@ -65,11 +74,13 @@ class params_store::params_store_impl {
       }
     } else {
       if constexpr (is_vector<T>::value) {
-        Logger::print_err("> Parameter '{}' not found in store, using default [{}]",
-                          name, fmt::join(default_value, ","));
+        Logger::print_err(
+            "> Parameter '{}' not found in store, using default [{}]", name,
+            fmt::join(default_value, ","));
       } else {
-        Logger::print_err("> Parameter '{}' not found in store, using default {}", name,
-                          default_value);
+        Logger::print_err(
+            "> Parameter '{}' not found in store, using default {}", name,
+            default_value);
       }
       return default_value;
     }
@@ -79,10 +90,9 @@ class params_store::params_store_impl {
   void add(const std::string& name, const T& value) {
     // m_param_map.insert({name, param_type(value)});
     auto it = m_param_map.find(name);
-    if( it != m_param_map.end() ) {
+    if (it != m_param_map.end()) {
       it->second = value;
-    }
-    else {
+    } else {
       m_param_map.insert({name, param_type(value)});
     }
   }
@@ -178,15 +188,15 @@ params_store::add(const std::string& name, const T& value) {
 
 ////////////////////////////////////////////////////////////////
 template bool params_store::get_as(const std::string& name,
-                                bool default_value) const;
+                                   bool default_value) const;
 template int64_t params_store::get_as(const std::string& name,
-                                   int64_t default_value) const;
+                                      int64_t default_value) const;
 // template uint64_t params_store::get_as(const std::string& name,
 //                                    uint64_t default_value) const;
 template double params_store::get_as(const std::string& name,
-                                  double default_value) const;
+                                     double default_value) const;
 template std::string params_store::get_as(const std::string& name,
-                                       std::string default_value) const;
+                                          std::string default_value) const;
 
 template std::string params_store::get_as<std::string>(
     const std::string& name) const;
@@ -198,8 +208,8 @@ template std::vector<int64_t> params_store::get_as<std::vector<int64_t>>(
 //     const std::string& name) const;
 template std::vector<double> params_store::get_as<std::vector<double>>(
     const std::string& name) const;
-template std::vector<std::string> params_store::get_as<std::vector<std::string>>(
-    const std::string& name) const;
+template std::vector<std::string>
+params_store::get_as<std::vector<std::string>>(const std::string& name) const;
 
 template void params_store::add(const std::string& name, const bool& value);
 template void params_store::add(const std::string& name, const int64_t& value);

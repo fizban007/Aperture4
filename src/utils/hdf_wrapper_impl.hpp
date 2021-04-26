@@ -45,13 +45,15 @@ H5File::write(T value, const std::string& name) {
 
 template <typename T, int Dim, typename Idx_t>
 void
-H5File::write(const multi_array<T, Dim, Idx_t>& array, const std::string& name) {
+H5File::write(const multi_array<T, Dim, Idx_t>& array,
+              const std::string& name) {
   hsize_t dims[Dim];
   for (int i = 0; i < Dim; i++) {
     // TODO: implement a check for row major too
-    if constexpr (std::is_same_v<Idx_t, idx_col_major_t<Dim>>) {
+    // if constexpr (std::is_same_v<Idx_t, idx_col_major_t<Dim>>) {
+    if (std::is_same<Idx_t, idx_col_major_t<Dim>>::value) {
       dims[i] = array.extent()[Dim - 1 - i];
-    } else if (std::is_same_v<Idx_t, idx_row_major_t<Dim>>) {
+    } else if (std::is_same<Idx_t, idx_row_major_t<Dim>>::value) {
       dims[i] = array.extent()[i];
     }
   }
@@ -73,13 +75,13 @@ H5File::write(const multi_array<T, Dim, Idx_t>& array, const std::string& name) 
 
 template <typename T>
 void
-H5File::write(const buffer<T> &array, const std::string &name) {
+H5File::write(const buffer<T>& array, const std::string& name) {
   write(array.host_ptr(), array.size(), name);
 }
 
 template <typename T>
 void
-H5File::write(const T *array, size_t size, const std::string &name) {
+H5File::write(const T* array, size_t size, const std::string& name) {
   hsize_t dims[1];
   dims[0] = size;
 
@@ -102,9 +104,9 @@ H5File::write(const T *array, size_t size, const std::string &name) {
 template <typename T, int Dim>
 void
 H5File::write_parallel(const multi_array<T, Dim>& array,
-                       const extent_t<Dim>& ext_total, const index_t<Dim>& idx_dst,
-                       const extent_t<Dim>& ext, const index_t<Dim>& idx_src,
-                       const std::string& name) {
+                       const extent_t<Dim>& ext_total,
+                       const index_t<Dim>& idx_dst, const extent_t<Dim>& ext,
+                       const index_t<Dim>& idx_src, const std::string& name) {
   hsize_t dims[Dim], array_dims[Dim];
   for (int i = 0; i < Dim; i++) {
     dims[i] = ext_total[Dim - 1 - i];
@@ -126,15 +128,15 @@ H5File::write_parallel(const multi_array<T, Dim>& array,
     offsets_l[i] = idx_src[Dim - i - 1];
     out_dim[i] = ext[Dim - i - 1];
   }
-  H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride,
-                      count, out_dim);
-  H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride,
-                      count, out_dim);
+  H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride, count,
+                      out_dim);
+  H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride, count,
+                      out_dim);
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-  auto status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id,
-                         filespace_id, plist_id, array.host_ptr());
+  auto status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id, filespace_id,
+                         plist_id, array.host_ptr());
 
   H5Dclose(dataset_id);
   H5Sclose(filespace_id);
@@ -148,9 +150,9 @@ H5File::write_parallel(const multi_array<T, Dim>& array,
 
 template <typename T>
 void
-H5File::write_parallel(const T* array, size_t array_size,
-                       size_t len_total, size_t idx_dst, size_t len,
-                       size_t idx_src, const std::string& name) {
+H5File::write_parallel(const T* array, size_t array_size, size_t len_total,
+                       size_t idx_dst, size_t len, size_t idx_src,
+                       const std::string& name) {
   if (len == 0 && len_total == 0) {
     write(array, array_size, name);
     return;
@@ -175,16 +177,16 @@ H5File::write_parallel(const T* array, size_t array_size,
   offsets_l[0] = idx_src;
   out_dim[0] = len;
 
-  H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride,
-                      count, out_dim);
-  H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride,
-                      count, out_dim);
+  H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride, count,
+                      out_dim);
+  H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride, count,
+                      out_dim);
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
   hid_t status;
-  status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id,
-                    filespace_id, plist_id, array);
+  status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id, filespace_id,
+                    plist_id, array);
 
   H5Dclose(dataset_id);
   H5Sclose(filespace_id);
@@ -230,8 +232,7 @@ H5File::read_scalar(const std::string& name) {
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
 
-  H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
-          &result);
+  H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &result);
 
   H5Dclose(dataset);
   H5Sclose(dataspace);
@@ -274,7 +275,8 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
   int dim = H5Sget_simple_extent_ndims(dataspace);
   if (dim != Dim) {
-    throw std::runtime_error(fmt::format("Dimesion of {} from hdf5 file mismatch with given multi_array", name));
+    throw std::runtime_error(fmt::format(
+        "Dimesion of {} from hdf5 file mismatch with given multi_array", name));
   }
   H5Sget_simple_extent_dims(dataspace, dims, NULL);
 
@@ -294,13 +296,13 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
   }
   H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offsets, stride, count,
                       out_dim);
-  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride,
-                      count, out_dim);
+  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride, count,
+                      out_dim);
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-  auto status = H5Dread(dataset, h5datatype<T>(), memspace, dataspace,
-                        plist_id, array.host_ptr());
+  auto status = H5Dread(dataset, h5datatype<T>(), memspace, dataspace, plist_id,
+                        array.host_ptr());
 
   H5Dclose(dataset);
   H5Sclose(dataspace);
@@ -314,9 +316,8 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
 
 template <typename T>
 void
-H5File::read_subset(T* array, size_t array_size,
-                    const std::string& name, size_t idx_src, size_t len,
-                    size_t idx_dst) {
+H5File::read_subset(T* array, size_t array_size, const std::string& name,
+                    size_t idx_src, size_t len, size_t idx_dst) {
   hsize_t dims[1] = {0};
   hsize_t array_dims[1] = {0};
   // dims[i] = ext_total[ext_total.dim() - 1 - i];
@@ -348,13 +349,13 @@ H5File::read_subset(T* array, size_t array_size,
 
   H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offsets, stride, count,
                       out_dim);
-  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride,
-                      count, out_dim);
+  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride, count,
+                      out_dim);
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-  auto status = H5Dread(dataset, h5datatype<T>(), memspace, dataspace,
-                        plist_id, array);
+  auto status =
+      H5Dread(dataset, h5datatype<T>(), memspace, dataspace, plist_id, array);
 
   H5Dclose(dataset);
   H5Sclose(dataspace);

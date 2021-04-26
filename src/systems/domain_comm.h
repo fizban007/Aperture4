@@ -40,6 +40,8 @@ class domain_comm : public system_t {
   domain_comm();
   virtual ~domain_comm();
 
+  void barrier() const { MPI_Barrier(m_world); }
+
   bool is_root() const { return m_rank == 0; }
   int rank() const { return m_rank; }
   int size() const { return m_size; }
@@ -86,12 +88,12 @@ class domain_comm : public system_t {
   mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
 
   void setup_domain();
-  void send_array_guard_cells_single_dir(
-      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid, int dim,
-      int dir) const;
+  void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
+                                         const typename Conf::grid_t& grid,
+                                         int dim, int dir) const;
   void send_add_array_guard_cells_single_dir(
-      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid, int dim,
-      int dir) const;
+      typename Conf::multi_array_t& array, const typename Conf::grid_t& grid,
+      int dim, int dir) const;
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 

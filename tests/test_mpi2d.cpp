@@ -16,10 +16,10 @@
  */
 
 #include "core/particles.h"
-#include "framework/environment.h"
 #include "framework/config.h"
+#include "framework/environment.h"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
-#include "systems/domain_comm_async.h"
 #include "utils/logger.h"
 
 using namespace Aperture;
@@ -40,7 +40,7 @@ main(int argc, char* argv[]) {
   env.params().add("ptc_buffer_size", int64_t(100));
   env.params().add("ph_buffer_size", int64_t(100));
 
-  auto comm = env.register_system<domain_comm_async<Conf>>();
+  auto comm = env.register_system<domain_comm<Conf>>();
   auto grid = env.register_system<grid_t<Conf>>(*comm);
 
   particles_t ptc(100, MemType::device_managed);
@@ -56,8 +56,8 @@ main(int argc, char* argv[]) {
     ptc.append_dev({0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
     ph.append_dev({0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
   }
-  Logger::print_debug_all("initially Rank {} has {} particles:",
-                          comm->rank(), ptc.number());
+  Logger::print_debug_all("initially Rank {} has {} particles:", comm->rank(),
+                          ptc.number());
   // ptc.sort_by_cell(grid->size());
   // ph.sort_by_cell(grid->size());
   comm->send_particles(ptc, *grid);
@@ -65,10 +65,9 @@ main(int argc, char* argv[]) {
   ptc.sort_by_cell(grid->size());
   ph.sort_by_cell(grid->size());
 
-  Logger::print_debug_all("Rank {} has {} particles:",
-                          comm->rank(), ptc.number());
-  Logger::print_debug_all(
-      "Rank {} has {} photons:", comm->rank(), ph.number());
+  Logger::print_debug_all("Rank {} has {} particles:", comm->rank(),
+                          ptc.number());
+  Logger::print_debug_all("Rank {} has {} photons:", comm->rank(), ph.number());
   for (unsigned int i = 0; i < ptc.number(); i++) {
     auto c = ptc.cell[i];
     Logger::print_debug_all("cell {}, {}", c % N1, c / N1);

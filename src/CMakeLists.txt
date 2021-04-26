@@ -40,7 +40,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/legacy/ptc_updater_old_gr_ks.cu"
     # "systems/ptc_injector.cu"
     # "systems/ph_freepath_dev.cu"
-    "systems/domain_comm_async.cpp"
+    #"systems/domain_comm_async.cpp"
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
     "systems/ptc_updater_base.cu"
@@ -61,7 +61,7 @@ endif()
 add_library(Aperture STATIC ${Aperture_src})
 # set_property(TARGET Aperture PROPERTY CUDA_ARCHITECTURES 60 61)
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
-  ${HDF5_LIBRARIES})
+  ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})

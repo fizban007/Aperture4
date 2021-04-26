@@ -86,8 +86,10 @@ class domain_comm : public system_t {
   // mutable std::vector<photons_t> m_ph_buffers;
   mutable std::vector<buffer<single_ptc_t>> m_ptc_buffers;
   mutable std::vector<buffer<single_ph_t>> m_ph_buffers;
-  mutable buffer<ptc_ptrs> m_ptc_buffer_ptrs;
-  mutable buffer<ph_ptrs> m_ph_buffer_ptrs;
+  mutable buffer<int> m_ptc_buffer_num;
+  mutable buffer<int> m_ph_buffer_num;
+  mutable buffer<single_ptc_t*> m_ptc_buffer_ptrs;
+  mutable buffer<single_ph_t*> m_ph_buffer_ptrs;
 
   void setup_domain();
   void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
@@ -100,15 +102,22 @@ class domain_comm : public system_t {
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 
   template <typename T>
-  void send_particle_array(T& send_buffer, T& recv_buffer, int src, int dst,
-                           int tag, MPI_Request* send_req,
-                           MPI_Request* recv_req, MPI_Status* recv_stat) const;
+  void send_particle_array(T& send_buffer, int& send_num, T& recv_buffer,
+                           int& recv_num, int src, int dst, int tag,
+                           MPI_Request* send_req, MPI_Request* recv_req,
+                           MPI_Status* recv_stat) const;
   // std::vector<particles_t>& ptc_buffers(const particles_t& ptc) const;
   // std::vector<photons_t>& ptc_buffers(const photons_t& ptc) const;
   std::vector<buffer<single_ptc_t>>& ptc_buffers(const particles_t& ptc) const;
   std::vector<buffer<single_ph_t>>& ptc_buffers(const photons_t& ptc) const;
-  buffer<ptc_ptrs>& ptc_buffer_ptrs(const particles_t& ptc) const;
-  buffer<ph_ptrs>& ptc_buffer_ptrs(const photons_t& ph) const;
+  buffer<single_ptc_t*>& ptc_buffer_ptrs(const particles_t& ptc) const;
+  buffer<single_ph_t*>& ptc_buffer_ptrs(const photons_t& ph) const;
+  buffer<int>& ptc_buffer_nums(const particles_t& ptc) const {
+    return m_ptc_buffer_num;
+  }
+  buffer<int>& ptc_buffer_nums(const photons_t& ph) const {
+    return m_ph_buffer_num;
+  }
 };
 
 }  // namespace Aperture

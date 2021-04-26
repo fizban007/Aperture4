@@ -37,10 +37,15 @@ template <typename Conf>
 // domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
 domain_comm<Conf>::domain_comm() {
   setup_domain();
+  MPI_Helper::register_particle_type(single_ptc_t{}, &MPI_PARTICLES);
+  MPI_Helper::register_particle_type(single_ph_t{}, &MPI_PHOTONS);
 }
 
 template <typename Conf>
-domain_comm<Conf>::~domain_comm() {}
+domain_comm<Conf>::~domain_comm() {
+  MPI_Type_free(&MPI_PARTICLES);
+  MPI_Type_free(&MPI_PHOTONS);
+}
 
 template <typename Conf>
 void
@@ -151,12 +156,17 @@ domain_comm<Conf>::resize_buffers(const typename Conf::grid_t &grid) const {
   }
   m_ptc_buffer_ptrs.resize(num_ptc_buffers);
   m_ph_buffer_ptrs.resize(num_ptc_buffers);
-  // for (int i = 0; i < num_ptc_buffers; i++) {
-  //   m_ptc_buffer_ptrs[i] = m_ptc_buffers[i].dev_ptr();
-  //   m_ph_buffer_ptrs[i] = m_ph_buffers[i].dev_ptr();
-  // }
+  m_ptc_buffer_num.resize(num_ptc_buffers);
+  m_ph_buffer_num.resize(num_ptc_buffers);
+  for (int i = 0; i < num_ptc_buffers; i++) {
+    m_ptc_buffer_ptrs[i] = m_ptc_buffers[i].dev_ptr();
+    m_ph_buffer_ptrs[i] = m_ph_buffers[i].dev_ptr();
+  }
   m_ptc_buffer_ptrs.copy_to_device();
   m_ph_buffer_ptrs.copy_to_device();
+  m_ptc_buffer_num.assign_dev(0);
+  m_ph_buffer_num.assign_dev(0);
+
   // Logger::print_debug("m_ptc_buffers has size {}", m_ptc_buffers.size());
   m_buffers_ready = true;
 }
@@ -378,13 +388,14 @@ domain_comm<Conf>::send_add_guard_cells(
 template <typename Conf>
 template <typename T>
 void
-domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
+domain_comm<Conf>::send_particle_array(T &send_buffer, int &send_num,
+                                       T &recv_buffer, int &recv_num, int src,
                                        int dst, int tag, MPI_Request *send_req,
                                        MPI_Request *recv_req,
                                        MPI_Status *recv_stat) const {
   // TODO: Detect cuda-aware MPI and use that accordingly
-  int recv_offset = recv_buffer.number();
-  int num_send = send_buffer.number();
+  int recv_offset = recv_num;
+  // int num_send = send_buffer.number();
   // Logger::print_info_all("rank {}, src {}, dst {}, num_send {}", m_rank, src,
   // dst, num_send); if (num_send > 0) {
   //   Logger::print_info_all("Sending {} particles from rank {} to rank {}",
@@ -392,96 +403,69 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, T &recv_buffer, int src,
   //                          m_rank, dst);
   // }
   // if (m_size == 1 && m_rank == 0) {
-  if (false) {
-    // Logger::print_info("Not using MPI!");
-#if CUDA_ENABLED
-    auto send_ptrs = send_buffer.get_dev_ptrs();
-    auto recv_ptrs = recv_buffer.get_dev_ptrs();
-#else
-    auto send_ptrs = send_buffer.get_host_ptrs();
-    auto recv_ptrs = recv_buffer.get_host_ptrs();
-#endif
-    int num_recv = num_send;
-    // Logger::print_info("sending rank {}, src {}, dst {}", m_rank, src, dst);
-    if (src != MPI_PROC_NULL || dst != MPI_PROC_NULL) {
-      visit_struct::for_each(
-          send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
-#if CUDA_ENABLED
-            // Logger::print_info("Sending size {} * {}", num_send,
-            // sizeof(u[0]));
-            CudaSafeCall(cudaMemcpy((void *)(v + recv_offset), (void *)u,
-                                    num_send * sizeof(u[0]),
-                                    cudaMemcpyDeviceToDevice));
-#else
-            std::copy(u, u + num_send, v + recv_offset);
-#endif
-          });
-      recv_buffer.set_num(recv_offset + num_recv);
-    }
-  } else {
+//   if (false) {
+//     // Logger::print_info("Not using MPI!");
+// #if CUDA_ENABLED
+//     auto send_ptr = send_buffer.get_dev_ptrs();
+//     auto recv_ptrs = recv_buffer.get_dev_ptrs();
+// #else
+//     auto send_ptrs = send_buffer.get_host_ptrs();
+//     auto recv_ptrs = recv_buffer.get_host_ptrs();
+// #endif
+//     int num_recv = send_num;
+//     // Logger::print_info("sending rank {}, src {}, dst {}", m_rank, src,
+//     dst); if (src != MPI_PROC_NULL || dst != MPI_PROC_NULL) {
+//       visit_struct::for_each(
+//           send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
+// #if CUDA_ENABLED
+//             // Logger::print_info("Sending size {} * {}", num_send,
+//             // sizeof(u[0]));
+//             CudaSafeCall(cudaMemcpy((void *)(v + recv_offset), (void *)u,
+//                                     num_send * sizeof(u[0]),
+//                                     cudaMemcpyDeviceToDevice));
+// #else
+//             std::copy(u, u + num_send, v + recv_offset);
+// #endif
+//           });
+//       recv_buffer.set_num(recv_offset + num_recv);
+//     }
+//   } else {
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptrs = send_buffer.get_dev_ptrs();
-    auto recv_ptrs = recv_buffer.get_dev_ptrs();
+  auto send_ptr = send_buffer.dev_ptr();
+  auto recv_ptr = recv_buffer.dev_ptr();
 #else
-    send_buffer.copy_to_host();
-    auto send_ptrs = send_buffer.get_host_ptrs();
-    auto recv_ptrs = recv_buffer.get_host_ptrs();
+  send_buffer.copy_to_host();
+  auto send_ptr = send_buffer.host_ptr();
+  auto recv_ptr = recv_buffer.host_ptr();
 #endif
 
-    int num_recv = 0;
-    int struct_size = visit_struct::field_count(send_ptrs);
-    std::vector<MPI_Request> vec_send_req(struct_size);
-    std::vector<MPI_Request> vec_recv_req(struct_size);
-    std::vector<MPI_Status> vec_recv_stat(struct_size);
-    int n = 0;
-    visit_struct::for_each(
-        send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
-          // Logger::print_info("sending {}, {}", n, name);
-          MPI_Irecv((void *)(v + recv_offset), recv_buffer.size(),
-                    MPI_Helper::get_mpi_datatype(v[0]), src,
-                    tag * struct_size + n, m_cart, &vec_recv_req[n]);
-          MPI_Isend((void *)u, num_send, MPI_Helper::get_mpi_datatype(u[0]),
-                    dst, tag * struct_size + n, m_cart, &vec_send_req[n]);
-          // MPI_Sendrecv((void *)u, num_send,
-          // MPI_Helper::get_mpi_datatype(u[0]),
-          //              dst, tag, (void *)(v + recv_offset),
-          //              recv_buffer.size(),
-          //              MPI_Helper::get_mpi_datatype(v[0]), src, tag, m_world,
-          //              recv_stat);
-          // MPI_Wait(recv_req, recv_stat);
-          // if (strcmp(name, "cell") == 0 && src != MPI_PROC_NULL) {
-          // if (num_send > 0) {
-          // Logger::print_debug("Send count is {}, send cell[0] is {}",
-          //                     num_send, u[0]);
-          // }
-          // MPI_Wait(&vec_recv_req[n], &vec_recv_stat[n]);
-          // MPI_Get_count(&vec_recv_stat[n],
-          // MPI_Helper::get_mpi_datatype(v[0]),
-          //               &num_recv);
-          // Logger::print_info_all("Rank {} received {} particles from {}",
-          //                        m_rank, num_recv, src);
-          // }
-          n += 1;
-        });
-    for (int i = 0; i < struct_size; i++) {
-      MPI_Wait(&vec_recv_req[i], &vec_recv_stat[i]);
-    }
-    MPI_Get_count(
-        &vec_recv_stat[0],
-        MPI_Helper::get_mpi_datatype(visit_struct::get<0>(send_ptrs)[0]),
-        &num_recv);
-    recv_buffer.set_num(recv_offset + num_recv);
+  // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is {}", send_num,
+  //                       send_num * sizeof(send_buffer[0]),
+  //                       recv_buffer.size() * sizeof(recv_buffer[0]));
+  MPI_Sendrecv(send_ptr, send_num * sizeof(send_buffer[0]), MPI_BYTE, dst, tag,
+               recv_ptr, recv_buffer.size() * sizeof(recv_buffer[0]), MPI_BYTE,
+               src, tag, m_world, recv_stat);
+  // MPI_Sendrecv(send_ptr, send_num, MPI_Helper::get_mpi_datatype(send_ptr[0]), dst, tag,
+  //              recv_ptr, recv_buffer.size(), MPI_Helper::get_mpi_datatype(recv_ptr[0]),
+  //              src, tag, m_world, recv_stat);
+  int num_recved = 0;
+  MPI_Get_count(recv_stat, MPI_BYTE, &num_recved);
+  // MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(recv_ptr[0]), &num_recved);
+  // Logger::print_debug_all("Rank {} received {}", m_rank, num_recved);
+  recv_num = recv_offset + num_recved / sizeof(recv_buffer[0]);
+  // recv_num = recv_offset + num_recved;
 
-    MPI_Barrier(m_cart);
+  // MPI_Barrier(m_cart);
 
 #if CUDA_ENABLED &&                                              \
     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
-    recv_buffer.copy_to_device();
+  recv_buffer.copy_to_device();
 #endif
-  }
-  send_buffer.set_num(0);
+  // }
+  // send_buffer.set_num(0);
+  send_num = 0;
 }
 
 template <typename Conf>
@@ -494,8 +478,10 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   if (!m_buffers_ready) resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);
   auto &buf_ptrs = ptc_buffer_ptrs(ptc);
+  auto &buf_nums = ptc_buffer_nums(ptc);
+  buf_nums.assign_host(0);
   // timer::stamp("copy_comm");
-  ptc.copy_to_comm_buffers(buffers, buf_ptrs, grid);
+  ptc.copy_to_comm_buffers(buffers, buf_ptrs, buf_nums, grid);
   // timer::show_duration_since_stamp("Coping to comm buffers", "ms",
   // "copy_comm");
 
@@ -517,7 +503,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   for (int i = 0; i < num_send_x; i++) {
     int buf_send = i * 3;
     int buf_recv = i * 3 + 1;
-    send_particle_array(buffers[buf_send], buffers[buf_recv],
+    send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                        buffers[buf_recv], buf_nums[buf_recv],
                         m_domain_info.neighbor_right[0],
                         m_domain_info.neighbor_left[0], i, &req_send[i],
                         &req_recv[i], &stat_recv[i]);
@@ -526,7 +513,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   for (int i = 0; i < num_send_x; i++) {
     int buf_send = i * 3 + 2;
     int buf_recv = i * 3 + 1;
-    send_particle_array(buffers[buf_send], buffers[buf_recv],
+    send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                        buffers[buf_recv], buf_nums[buf_recv],
                         m_domain_info.neighbor_left[0],
                         m_domain_info.neighbor_right[0], i, &req_send[i],
                         &req_recv[i], &stat_recv[i]);
@@ -540,7 +528,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
     for (int i = 0; i < num_send_y; i++) {
       int buf_send = 1 + i * 9;
       int buf_recv = 1 + 3 + i * 9;
-      send_particle_array(buffers[buf_send], buffers[buf_recv],
+      send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                          buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_right[1],
                           m_domain_info.neighbor_left[1], i, &req_send[i],
                           &req_recv[i], &stat_recv[i]);
@@ -549,7 +538,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
     for (int i = 0; i < num_send_y; i++) {
       int buf_send = 1 + 6 + i * 9;
       int buf_recv = 1 + 3 + i * 9;
-      send_particle_array(buffers[buf_send], buffers[buf_recv],
+      send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                          buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_left[1],
                           m_domain_info.neighbor_right[1], i, &req_send[i],
                           &req_recv[i], &stat_recv[i]);
@@ -560,13 +550,15 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
       // Send left in z
       int buf_send = 4;
       int buf_recv = 13;
-      send_particle_array(buffers[buf_send], buffers[buf_recv],
+      send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                          buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_right[2],
                           m_domain_info.neighbor_left[2], 0, &req_send[0],
                           &req_recv[0], &stat_recv[0]);
       // Send right in z
       buf_send = 22;
-      send_particle_array(buffers[buf_send], buffers[buf_recv],
+      send_particle_array(buffers[buf_send], buf_nums[buf_send],
+                          buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_left[2],
                           m_domain_info.neighbor_right[2], 0, &req_send[0],
                           &req_recv[0], &stat_recv[0]);
@@ -579,12 +571,15 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
      !MPIX_CUDA_AWARE_SUPPORT)
   buffers[central].copy_to_device();
 #endif
-  ptc.copy_from(buffers[central], buffers[central].number(), 0, ptc.number());
-  // Logger::print_debug(
+  // ptc.copy_from(buffers[central], buffers[central].number(), 0,
+  // ptc.number());
+  ptc.copy_from_buffer(buffers[central], buf_nums[central], ptc.number());
+  // Logger::print_debug_all(
   //     "Communication resulted in {} ptc in total, ptc has {} particles "
   //     "now",
-  //     buffers[central].number(), ptc.number());
-  buffers[central].set_num(0);
+  //     buf_nums[central], ptc.number());
+  // buffers[central].set_num(0);
+  buf_nums[central] = 0;
   // timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");
 }
 
@@ -642,25 +637,25 @@ domain_comm<Conf>::gather_to_root(buffer<T> &buf) const {
 }
 
 template <typename Conf>
-std::vector<particles_t> &
+std::vector<buffer<single_ptc_t>> &
 domain_comm<Conf>::ptc_buffers(const particles_t &ptc) const {
   return m_ptc_buffers;
 }
 
 template <typename Conf>
-std::vector<photons_t> &
+std::vector<buffer<single_ph_t>> &
 domain_comm<Conf>::ptc_buffers(const photons_t &ptc) const {
   return m_ph_buffers;
 }
 
 template <typename Conf>
-buffer<ptc_ptrs> &
+buffer<single_ptc_t *> &
 domain_comm<Conf>::ptc_buffer_ptrs(const particles_t &ptc) const {
   return m_ptc_buffer_ptrs;
 }
 
 template <typename Conf>
-buffer<ph_ptrs> &
+buffer<single_ph_t *> &
 domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
   return m_ph_buffer_ptrs;
 }

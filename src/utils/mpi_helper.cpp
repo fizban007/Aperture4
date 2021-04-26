@@ -16,12 +16,16 @@
  */
 
 #include "mpi_helper.h"
+#include "core/particle_structs.h"
 #include <cstdint>
 #include <cstdio>
 
 #define BUFSIZE 1024
 
 namespace Aperture {
+
+MPI_Datatype MPI_PARTICLES;
+MPI_Datatype MPI_PHOTONS;
 
 namespace MPI_Helper {
 
@@ -108,6 +112,18 @@ get_mpi_datatype(const long double& x) {
   return MPI_LONG_DOUBLE;
 }
 
+template <>
+MPI_Datatype
+get_mpi_datatype(const single_ptc_t& x) {
+  return MPI_PARTICLES;
+}
+
+template <>
+MPI_Datatype
+get_mpi_datatype(const single_ph_t& x) {
+  return MPI_PHOTONS;
+}
+
 void
 handle_mpi_error(int error_code, int rank) {
   if (error_code != MPI_SUCCESS) {
@@ -119,5 +135,32 @@ handle_mpi_error(int error_code, int rank) {
   }
 }
 
+template <typename PtcType>
+void register_particle_type(const PtcType& ptc, MPI_Datatype* type) {
+  constexpr int n_entries = visit_struct::field_count<PtcType>();
+  int blocklengths[n_entries];
+  MPI_Datatype types[n_entries];
+  MPI_Aint offsets[n_entries];
+
+  int n = 0;
+  int offset = 0;
+  visit_struct::for_each(
+      ptc, [&n, &offset, &blocklengths, &types, &offsets](const char* name, auto& x) {
+        blocklengths[n] = 1;
+        types[n] = get_mpi_datatype(
+            typename std::remove_reference<decltype(x)>::type());
+        offsets[n] = offset;
+        n += 1;
+        offset += sizeof(typename std::remove_reference<decltype(x)>::type);
+      });
+
+  MPI_Type_create_struct(n_entries, blocklengths, offsets, types, type);
+  MPI_Type_commit(type);
+}
+
+template void register_particle_type(const single_ptc_t& ptc, MPI_Datatype* type);
+template void register_particle_type(const single_ph_t& ptc, MPI_Datatype* type);
+
 }  // namespace MPI_Helper
+
 }  // namespace Aperture

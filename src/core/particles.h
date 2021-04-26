@@ -71,10 +71,16 @@ class particles_base : public BufferType {
   void copy_to_host(cudaStream_t stream, bool all = true);
   void copy_to_device(cudaStream_t stream, bool all = true);
 
+  // template <typename Conf>
+  // void copy_to_comm_buffers(std::vector<self_type>& buffers,
+  //                           buffer<ptrs_type>& buf_ptrs,
+  //                           const grid_t<Conf>& grid);
   template <typename Conf>
-  void copy_to_comm_buffers(std::vector<self_type>& buffers,
-                            buffer<ptrs_type>& buf_ptrs,
+  void copy_to_comm_buffers(std::vector<buffer<single_type>>& buffers,
+                            buffer<single_type*>& buf_ptrs,
+                            buffer<int>& buf_nums,
                             const grid_t<Conf>& grid);
+  void copy_from_buffer(const buffer<single_type>& buf, int num, size_t dst_idx);
 
   size_t size() const { return m_size; }
   size_t number() const { return m_number; }

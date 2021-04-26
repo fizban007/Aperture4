@@ -94,10 +94,10 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
   CudaCheckError();
 }
 
-template <typename Conf, typename PtcPtrs>
+template <typename Conf, typename PtcPtrs, typename SinglePtc>
 void
 copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
-                         size_t* index, buffer<PtcPtrs>& ptc_buffers) {
+                         size_t* index, buffer<SinglePtc*>& ptc_buffers) {
   kernel_launch(
       [offset, num] __device__(auto ptc_data, auto index, auto ptc_buffers) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -118,7 +118,8 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           if (zone == 13 || zone > 27) continue;
           size_t pos = i - (zone << bitshift_width);
           // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
-          assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
+          // assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
+          assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data, n);
           // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
           //                                                 zone_offset].cell[pos],
           //                                                 ptc_data.cell[n]);
@@ -132,7 +133,7 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           //     -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
           //     dy * grid.reduced_dim(1) * grid.dims[0] -
           //     dx * grid.reduced_dim(0);
-          ptc_buffers[zone - zone_offset].cell[pos] =
+          ptc_buffers[zone - zone_offset][pos].cell =
               idx.dec_z(dz * grid.reduced_dim(2))
                   .dec_y(dy * grid.reduced_dim(1))
                   .dec_x(dx * grid.reduced_dim(0))
@@ -298,11 +299,70 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
   m_number += 1;
 }
 
+// template <typename BufferType>
+// template <typename Conf>
+// void
+// particles_base<BufferType>::copy_to_comm_buffers(
+//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+//     const grid_t<Conf>& grid) {
+//   if (m_number > 0) {
+//     // timer::stamp("compute_buffer");
+//     // Lazy resize the tmp arrays
+//     resize_tmp_arrays();
+//     m_zone_buffer_num.assign_dev(0);
+
+//     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
+//       size_t offset = n * m_sort_segment_size;
+//       // Logger::print_debug("offset is {}, n is {}", offset, n);
+
+//       m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
+//       auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+//       compute_target_buffers<Conf>(this->cell.dev_ptr(), offset,
+//                                    m_sort_segment_size, m_zone_buffer_num,
+//                                    m_index.dev_ptr());
+
+//       copy_component_to_buffer<Conf>(m_dev_ptrs, offset, m_sort_segment_size,
+//                                      m_index.dev_ptr(), buf_ptrs);
+//     }
+
+//     m_zone_buffer_num.copy_to_host();
+//     // timer::show_duration_since_stamp("Computing target buffers", "ms",
+//     // "compute_buffer");
+
+//     int zone_offset = 0;
+//     if (buffers.size() == 9)
+//       zone_offset = 9;
+//     else if (buffers.size() == 3)
+//       zone_offset = 12;
+//     for (unsigned int i = 0; i < buffers.size(); i++) {
+//       // Logger::print_debug("zone {} buffer has {} ptc", i + zone_offset,
+//       //                     m_zone_buffer_num[i + zone_offset]);
+//       if (i + zone_offset == 13) continue;
+//       buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
+//     }
+//     // timer::stamp("copy_to_buffer");
+//     // for (unsigned int i = 0; i < buffers.size(); i++) {
+//     //   if (buffers[i].number() > 0) {
+//     //     buffers[i].copy_to_host();
+//     //   }
+//     // }
+//     // if (buffers[7].number() > 0) {
+//     //   buffers[7].copy_to_host();
+//     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
+//     // }
+//     // CudaSafeCall(cudaDeviceSynchronize());
+//     // timer::show_duration_since_stamp("Copy to buffer", "ms",
+//     // "copy_to_buffer");
+//   }
+// }
+
 template <typename BufferType>
 template <typename Conf>
 void
 particles_base<BufferType>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
     const grid_t<Conf>& grid) {
   if (m_number > 0) {
     // timer::stamp("compute_buffer");
@@ -337,7 +397,8 @@ particles_base<BufferType>::copy_to_comm_buffers(
       // Logger::print_debug("zone {} buffer has {} ptc", i + zone_offset,
       //                     m_zone_buffer_num[i + zone_offset]);
       if (i + zone_offset == 13) continue;
-      buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
+      // buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
+      buf_nums[i] = m_zone_buffer_num[i + zone_offset];
     }
     // timer::stamp("copy_to_buffer");
     // for (unsigned int i = 0; i < buffers.size(); i++) {
@@ -355,45 +416,98 @@ particles_base<BufferType>::copy_to_comm_buffers(
   }
 }
 
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_from_buffer(const buffer<single_type> &buf,
+                                             int num, size_t dst_idx) {
+  if (dst_idx + num > m_size)
+    num = m_size - dst_idx;
+  if (num > 0) {
+    kernel_launch([num, dst_idx] __device__(auto ptc, auto buf) {
+        for (auto n : grid_stride_range(0, num)) {
+            assign_ptc(ptc, dst_idx + n, buf[n]);
+        }
+        }, m_dev_ptrs, buf.dev_ptr());
+  }
+  if (dst_idx + num > m_number)
+    m_number = dst_idx + num;
+}
+
 // Explicit instantiation
 template class particles_base<ptc_buffer>;
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<1, float>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<1, double>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<2, float>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<2, double>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<3, float>>& grid);
 template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<3, double>>& grid);
 
 template class particles_base<ph_buffer>;
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<1, float>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<1, double>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<2, float>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<2, double>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<3, float>>& grid);
 template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
+    std::vector<buffer<single_type>>& buffers,
+    buffer<single_type*>& buf_ptrs,
+    buffer<int>& buf_nums,
+    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
     const grid_t<Config<3, double>>& grid);
 
 }  // namespace Aperture

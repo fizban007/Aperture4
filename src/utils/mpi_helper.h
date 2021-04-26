@@ -22,12 +22,18 @@
 
 namespace Aperture {
 
+extern MPI_Datatype MPI_PARTICLES;
+extern MPI_Datatype MPI_PHOTONS;
+
 namespace MPI_Helper {
 
 template <typename T>
 MPI_Datatype get_mpi_datatype(const T& x);
 
 void handle_mpi_error(int error_code, int rank);
+
+template <typename PtcType>
+void register_particle_type(const PtcType& ptc, MPI_Datatype* type);
 
 }  // namespace MPI_Helper
 

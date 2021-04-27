@@ -386,6 +386,49 @@ domain_comm<Conf>::send_add_guard_cells(
 }
 
 template <typename Conf>
+template <typename SingleType>
+void
+domain_comm<Conf>::send_particle_array(
+    std::vector<buffer<SingleType>> &buffers, buffer<int> &buf_nums,
+    const std::vector<int> &buf_send_idx, const std::vector<int> &buf_recv_idx,
+    int src, int dst, std::vector<MPI_Request> &req_send,
+    std::vector<MPI_Request> &req_recv,
+    std::vector<MPI_Status> &stat_recv) const {
+  for (int i = 0; i < buf_send_idx.size(); i++) {
+    auto &send_buffer = buffers[buf_send_idx[i]];
+    auto &recv_buffer = buffers[buf_recv_idx[i]];
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT
+    auto send_ptr = send_buffer.dev_ptr();
+    auto recv_ptr = recv_buffer.dev_ptr();
+#else
+    send_buffer.copy_to_host();
+    auto send_ptr = send_buffer.host_ptr();
+    auto recv_ptr = recv_buffer.host_ptr();
+#endif
+
+    MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
+              src, i, m_cart, &req_recv[i]);
+    MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+              MPI_BYTE, dst, i, m_cart, &req_send[i]);
+    buf_nums[buf_send_idx[i]] = 0;
+  }
+
+  for (int i = 0; i < buf_recv_idx.size(); i++) {
+    auto &recv_buffer = buffers[buf_recv_idx[i]];
+    int num_recved = 0;
+    MPI_Wait(&req_recv[i], &stat_recv[i]);
+    MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
+    buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+     !MPIX_CUDA_AWARE_SUPPORT)
+    recv_buffer.copy_to_device();
+#endif
+  }
+}
+
+template <typename Conf>
 template <typename T>
 void
 domain_comm<Conf>::send_particle_array(T &send_buffer, int &send_num,
@@ -440,19 +483,23 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, int &send_num,
   auto recv_ptr = recv_buffer.host_ptr();
 #endif
 
-  // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is {}", send_num,
+  // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is
+  // {}", send_num,
   //                       send_num * sizeof(send_buffer[0]),
   //                       recv_buffer.size() * sizeof(recv_buffer[0]));
   MPI_Sendrecv(send_ptr, send_num * sizeof(send_buffer[0]), MPI_BYTE, dst, tag,
                recv_ptr, recv_buffer.size() * sizeof(recv_buffer[0]), MPI_BYTE,
                src, tag, m_world, recv_stat);
-  // MPI_Sendrecv(send_ptr, send_num, MPI_Helper::get_mpi_datatype(send_ptr[0]), dst, tag,
-  //              recv_ptr, recv_buffer.size(), MPI_Helper::get_mpi_datatype(recv_ptr[0]),
-  //              src, tag, m_world, recv_stat);
+  // MPI_Sendrecv(send_ptr, send_num, MPI_Helper::get_mpi_datatype(send_ptr[0]),
+  // dst, tag,
+  //              recv_ptr, recv_buffer.size(),
+  //              MPI_Helper::get_mpi_datatype(recv_ptr[0]), src, tag, m_world,
+  //              recv_stat);
   int num_recved = 0;
   MPI_Get_count(recv_stat, MPI_BYTE, &num_recved);
-  // MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(recv_ptr[0]), &num_recved);
-  // Logger::print_debug_all("Rank {} received {}", m_rank, num_recved);
+  // MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(recv_ptr[0]),
+  // &num_recved); Logger::print_debug_all("Rank {} received {}", m_rank,
+  // num_recved);
   recv_num = recv_offset + num_recved / sizeof(recv_buffer[0]);
   // recv_num = recv_offset + num_recved;
 
@@ -496,54 +543,83 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
     num_send_x = 1;
   }
 
-  // Send left in x
   std::vector<MPI_Request> req_send(num_send_x);
   std::vector<MPI_Request> req_recv(num_send_x);
   std::vector<MPI_Status> stat_recv(num_send_x);
+  std::vector<int> vec_buf_send_x(num_send_x);
+  std::vector<int> vec_buf_recv_x(num_send_x);
+  // Send left in x
   for (int i = 0; i < num_send_x; i++) {
-    int buf_send = i * 3;
-    int buf_recv = i * 3 + 1;
-    send_particle_array(buffers[buf_send], buf_nums[buf_send],
-                        buffers[buf_recv], buf_nums[buf_recv],
-                        m_domain_info.neighbor_right[0],
-                        m_domain_info.neighbor_left[0], i, &req_send[i],
-                        &req_recv[i], &stat_recv[i]);
+    vec_buf_send_x[i] = i * 3;
+    vec_buf_recv_x[i] = i * 3 + 1;
+    // int buf_send = i * 3;
+    // int buf_recv = i * 3 + 1;
+    // send_particle_array(buffers[buf_send], buf_nums[buf_send],
+    //                     buffers[buf_recv], buf_nums[buf_recv],
+    //                     m_domain_info.neighbor_right[0],
+    //                     m_domain_info.neighbor_left[0], i, &req_send[i],
+    //                     &req_recv[i], &stat_recv[i]);
   }
+  send_particle_array(buffers, buf_nums, vec_buf_send_x, vec_buf_recv_x,
+                      m_domain_info.neighbor_right[0],
+                      m_domain_info.neighbor_left[0], req_send, req_recv,
+                      stat_recv);
   // Send right in x
   for (int i = 0; i < num_send_x; i++) {
-    int buf_send = i * 3 + 2;
-    int buf_recv = i * 3 + 1;
-    send_particle_array(buffers[buf_send], buf_nums[buf_send],
-                        buffers[buf_recv], buf_nums[buf_recv],
-                        m_domain_info.neighbor_left[0],
-                        m_domain_info.neighbor_right[0], i, &req_send[i],
-                        &req_recv[i], &stat_recv[i]);
+    vec_buf_send_x[i] = i * 3 + 2;
+    vec_buf_recv_x[i] = i * 3 + 1;
+    // int buf_send = i * 3 + 2;
+    // int buf_recv = i * 3 + 1;
+    // send_particle_array(buffers[buf_send], buf_nums[buf_send],
+    //                     buffers[buf_recv], buf_nums[buf_recv],
+    //                     m_domain_info.neighbor_left[0],
+    //                     m_domain_info.neighbor_right[0], i, &req_send[i],
+    //                     &req_recv[i], &stat_recv[i]);
   }
+  send_particle_array(buffers, buf_nums, vec_buf_send_x, vec_buf_recv_x,
+                      m_domain_info.neighbor_left[0],
+                      m_domain_info.neighbor_right[0], req_send, req_recv,
+                      stat_recv);
 
   // Send in y direction next
   if constexpr (Conf::dim >= 2) {
     int num_send_y = 3;
     if (Conf::dim == 2) num_send_y = 1;
+    std::vector<int> vec_buf_send_y(num_send_y);
+    std::vector<int> vec_buf_recv_y(num_send_y);
     // Send left in y
     for (int i = 0; i < num_send_y; i++) {
-      int buf_send = 1 + i * 9;
-      int buf_recv = 1 + 3 + i * 9;
-      send_particle_array(buffers[buf_send], buf_nums[buf_send],
-                          buffers[buf_recv], buf_nums[buf_recv],
-                          m_domain_info.neighbor_right[1],
-                          m_domain_info.neighbor_left[1], i, &req_send[i],
-                          &req_recv[i], &stat_recv[i]);
+      vec_buf_send_y[i] = 1 + i * 9;
+      vec_buf_recv_y[i] = 1 + 3 + i * 9;
+      // int buf_send = 1 + i * 9;
+      // int buf_recv = 1 + 3 + i * 9;
+      // send_particle_array(buffers[buf_send], buf_nums[buf_send],
+      //                     buffers[buf_recv], buf_nums[buf_recv],
+      //                     m_domain_info.neighbor_right[1],
+      //                     m_domain_info.neighbor_left[1], i, &req_send[i],
+      //                     &req_recv[i], &stat_recv[i]);
     }
+    send_particle_array(buffers, buf_nums, vec_buf_send_y, vec_buf_recv_y,
+                        m_domain_info.neighbor_right[1],
+                        m_domain_info.neighbor_left[1], req_send, req_recv,
+                        stat_recv);
+
     // Send right in y
     for (int i = 0; i < num_send_y; i++) {
-      int buf_send = 1 + 6 + i * 9;
-      int buf_recv = 1 + 3 + i * 9;
-      send_particle_array(buffers[buf_send], buf_nums[buf_send],
-                          buffers[buf_recv], buf_nums[buf_recv],
-                          m_domain_info.neighbor_left[1],
-                          m_domain_info.neighbor_right[1], i, &req_send[i],
-                          &req_recv[i], &stat_recv[i]);
+      vec_buf_send_y[i] = 1 + 6 + i * 9;
+      vec_buf_recv_y[i] = 1 + 3 + i * 9;
+      // int buf_send = 1 + 6 + i * 9;
+      // int buf_recv = 1 + 3 + i * 9;
+      // send_particle_array(buffers[buf_send], buf_nums[buf_send],
+      //                     buffers[buf_recv], buf_nums[buf_recv],
+      //                     m_domain_info.neighbor_left[1],
+      //                     m_domain_info.neighbor_right[1], i, &req_send[i],
+      //                     &req_recv[i], &stat_recv[i]);
     }
+    send_particle_array(buffers, buf_nums, vec_buf_send_y, vec_buf_recv_y,
+                        m_domain_info.neighbor_left[1],
+                        m_domain_info.neighbor_right[1], req_send, req_recv,
+                        stat_recv);
 
     // Finally send z direction
     if constexpr (Conf::dim == 3) {

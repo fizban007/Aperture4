@@ -106,6 +106,13 @@ class domain_comm : public system_t {
                            int& recv_num, int src, int dst, int tag,
                            MPI_Request* send_req, MPI_Request* recv_req,
                            MPI_Status* recv_stat) const;
+  template <typename SingleType>
+  void send_particle_array(std::vector<buffer<SingleType>>& buffers,
+                           buffer<int>& buf_nums, const std::vector<int>& buf_send_idx,
+                           const std::vector<int>& buf_recv_idx, int src, int dst,
+                           std::vector<MPI_Request>& req_send,
+                           std::vector<MPI_Request>& req_recv,
+                           std::vector<MPI_Status>& stat_recv) const;
   // std::vector<particles_t>& ptc_buffers(const particles_t& ptc) const;
   // std::vector<photons_t>& ptc_buffers(const photons_t& ptc) const;
   std::vector<buffer<single_ptc_t>>& ptc_buffers(const particles_t& ptc) const;

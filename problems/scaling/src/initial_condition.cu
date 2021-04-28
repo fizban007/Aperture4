@@ -63,10 +63,9 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   auto ext = grid.extent();
   value_t ysize = grid.sizes[1];
 
-  Logger::print_info_all("Setting initial B field");
   // Initialize the magnetic field values
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
-    return B0 * tanh(y / delta);
+    return B0;
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
@@ -89,40 +88,6 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 1.0 / n_upstream;
       });
-  Logger::print_info_all("Injected background");
-
-  injector->inject(
-      [delta] __device__(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
-        value_t cs_y = 3.0f * delta;
-        // if (math::abs(y) < cs_y) {
-        //   return true;
-        // } else {
-        //   return false;
-        // }
-        return math::abs(y) < cs_y;
-      },
-      [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                                 PtcType type) {
-        vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
-        value_t y = grid.template pos<1>(pos, 0.5f);
-        value_t sign = 1.0f;
-        if (type == PtcType::positron) sign *= -1.0f;
-
-        auto p1 = u_d[1] * sign;
-        auto p2 = u_d[2] * sign;
-        auto p3 = u_d[0] * sign;
-        return vec_t<value_t, 3>(p1, p2, p3);
-      },
-      [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid,
-                                                auto &ext) {
-        auto y = grid.pos(1, pos[1], 0.5f);
-        value_t j = -B0 / delta / square(cosh(y / delta));
-        value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
-        return w;
-      },
-      flag_or(PtcFlag::exclude_from_spectrum));
 
   Logger::print_info("After initial condition, there are {} particles",
                      ptc.number());

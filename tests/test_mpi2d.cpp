@@ -16,6 +16,7 @@
  */
 
 #include "core/particles.h"
+#include "data/fields.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/domain_comm.h"
@@ -73,9 +74,12 @@ main(int argc, char* argv[]) {
     Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
   }
 
-  typename Conf::multi_array_t v(grid->extent());
+  // typename Conf::multi_array_t v(grid->extent());
+  vector_field<Conf> f(*grid);
+  auto& v = f[2];
   v.assign_dev(comm->rank());
-  comm->send_guard_cells(v, *grid);
+  // comm->send_guard_cells(v, *grid);
+  comm->send_guard_cells(f);
   v.copy_to_host();
 
   for (int n = 0; n < comm->size(); n++) {
@@ -92,9 +96,10 @@ main(int argc, char* argv[]) {
   }
 
   v.assign_dev(comm->rank());
-  comm->send_add_guard_cells(v, *grid);
+  // comm->send_add_guard_cells(v, *grid);
   // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, -1);
   // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, 1);
+  comm->send_add_guard_cells(f);
 
   v.copy_to_host();
 

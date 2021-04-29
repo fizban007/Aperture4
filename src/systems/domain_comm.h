@@ -82,6 +82,8 @@ class domain_comm : public system_t {
 
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
+  mutable std::vector<multi_array_t> m_send_vec_buffers;
+  mutable std::vector<multi_array_t> m_recv_vec_buffers;
   // mutable std::vector<particles_t> m_ptc_buffers;
   // mutable std::vector<photons_t> m_ph_buffers;
   mutable std::vector<buffer<single_ptc_t>> m_ptc_buffers;
@@ -98,6 +100,10 @@ class domain_comm : public system_t {
   void send_add_array_guard_cells_single_dir(
       typename Conf::multi_array_t& array, const typename Conf::grid_t& grid,
       int dim, int dir) const;
+  void send_vector_field_guard_cells_single_dir(vector_field<Conf>& field,
+                                                int dim, int dir) const;
+  void send_add_vector_field_guard_cells_single_dir(vector_field<Conf>& field,
+                                                    int dim, int dir) const;
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 

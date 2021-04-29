@@ -31,6 +31,11 @@
 
 #define USE_CUDA_AWARE_MPI true
 
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT
+#pragma message "CUDA-aware MPI found!"
+#endif
+
 namespace Aperture {
 
 template <typename Conf>
@@ -140,9 +145,14 @@ domain_comm<Conf>::resize_buffers(const typename Conf::grid_t &grid) const {
       else
         ext[j] = grid.dims[j];
     }
+    // ext_vec is a bundled 3-pack of send/recv buffer, used for vector fields
+    auto ext_vec = ext;
+    ext_vec[Conf::dim - 1] *= 3;
     // ext.get_strides();
     m_send_buffers.emplace_back(ext);
     m_recv_buffers.emplace_back(ext);
+    m_send_vec_buffers.emplace_back(ext_vec);
+    m_recv_vec_buffers.emplace_back(ext_vec);
   }
 
   size_t ptc_buffer_size =
@@ -212,7 +222,6 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
 
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
-#pragma message "CUDA-aware MPI found!"
     auto send_ptr = m_send_buffers[dim].dev_ptr();
     auto recv_ptr = m_recv_buffers[dim].dev_ptr();
 #else
@@ -330,11 +339,191 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
 
 template <typename Conf>
 void
+domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
+    vector_field<Conf>& field, int dim, int dir) const {
+  if (dim < 0 || dim >= Conf::dim) return;
+
+  int dest, origin;
+  auto& grid = field.grid();
+  MPI_Status status;
+
+  dest = (dir == -1 ? m_domain_info.neighbor_left[dim]
+                    : m_domain_info.neighbor_right[dim]);
+  origin = (dir == -1 ? m_domain_info.neighbor_right[dim]
+                      : m_domain_info.neighbor_left[dim]);
+
+  // Index send_idx(0, 0, 0);
+  auto send_idx = index_t<Conf::dim>{};
+  send_idx[dim] =
+      (dir == -1 ? grid.guard[dim] : grid.dims[dim] - 2 * grid.guard[dim]);
+  auto recv_idx = index_t<Conf::dim>{};
+  recv_idx[dim] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
+
+  if (dest == m_rank && origin == m_rank) {
+    for (int n = 0; n < 3; n++) {
+      auto& array = field[n];
+      if (array.mem_type() == MemType::host_only) {
+        copy(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+      } else {
+        copy_dev(array, array, recv_idx, send_idx,
+                 m_send_buffers[dim].extent());
+      }
+    }
+  } else {
+    // timer::stamp();
+    for (int n = 0; n < 3; n++) {
+      auto& array = field[n];
+      index_t<Conf::dim> vec_buf_idx{};
+      vec_buf_idx[Conf::dim - 1] = n * m_send_buffers[dim].extent()[Conf::dim - 1];
+      if (array.mem_type() == MemType::host_only) {
+        copy(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+             m_send_buffers[dim].extent());
+      } else {
+        copy_dev(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+                 m_send_buffers[dim].extent());
+      }
+    }
+    // timer::show_duration_since_stamp("copy guard cells", "ms");
+
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT
+    auto send_ptr = m_send_vec_buffers[dim].dev_ptr();
+    auto recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
+#else
+    auto send_ptr = m_send_vec_buffers[dim].host_ptr();
+    auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
+    m_send_vec_buffers[dim].copy_to_host();
+#endif
+
+    // timer::stamp();
+    MPI_Sendrecv(send_ptr, m_send_vec_buffers[dim].size(), m_scalar_type, dest, 0,
+                 recv_ptr, m_recv_vec_buffers[dim].size(), m_scalar_type, origin, 0,
+                 m_cart, &status);
+    // timer::show_duration_since_stamp("MPI sendrecv", "ms");
+
+    if (origin != MPI_PROC_NULL) {
+      for (int n = 0; n < 3; n++) {
+        auto &array = field[n];
+        index_t<Conf::dim> vec_buf_idx{};
+        vec_buf_idx[Conf::dim - 1] =
+            n * m_send_buffers[dim].extent()[Conf::dim - 1];
+        if (array.mem_type() == MemType::host_only) {
+          copy(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+               m_recv_buffers[dim].extent());
+        } else {
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+     !MPIX_CUDA_AWARE_SUPPORT)
+          m_recv_vec_buffers[dim].copy_to_device();
+#endif
+          copy_dev(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+                   m_recv_buffers[dim].extent());
+        }
+      }
+    }
+  }
+}
+
+template <typename Conf>
+void
+domain_comm<Conf>::send_add_vector_field_guard_cells_single_dir(
+    vector_field<Conf>& field, int dim, int dir) const {
+  if (dim < 0 || dim >= Conf::dim) return;
+
+  int dest, origin;
+  auto& grid = field.grid();
+  MPI_Status status;
+
+  dest = (dir == -1 ? m_domain_info.neighbor_left[dim]
+                    : m_domain_info.neighbor_right[dim]);
+  origin = (dir == -1 ? m_domain_info.neighbor_right[dim]
+                      : m_domain_info.neighbor_left[dim]);
+
+  // Index send_idx(0, 0, 0);
+  auto send_idx = index_t<Conf::dim>{};
+  send_idx[dim] =
+      (dir == -1 ? 0 : grid.dims[dim] - grid.guard[dim]);
+  auto recv_idx = index_t<Conf::dim>{};
+  recv_idx[dim] = (dir == -1 ? grid.dims[dim] - 2 * grid.guard[dim] : grid.guard[dim]);
+
+  if (dest == m_rank && origin == m_rank) {
+    for (int n = 0; n < 3; n++) {
+      auto& array = field[n];
+      if (array.mem_type() == MemType::host_only) {
+        add(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+      } else {
+        add_dev(array, array, recv_idx, send_idx,
+                 m_send_buffers[dim].extent());
+      }
+    }
+  } else {
+    // timer::stamp();
+    for (int n = 0; n < 3; n++) {
+      auto& array = field[n];
+      index_t<Conf::dim> vec_buf_idx{};
+      vec_buf_idx[Conf::dim - 1] = n * m_send_buffers[dim].extent()[Conf::dim - 1];
+      if (array.mem_type() == MemType::host_only) {
+        copy(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+             m_send_buffers[dim].extent());
+      } else {
+        copy_dev(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+                 m_send_buffers[dim].extent());
+      }
+    }
+    // timer::show_duration_since_stamp("copy guard cells", "ms");
+
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT
+    auto send_ptr = m_send_vec_buffers[dim].dev_ptr();
+    auto recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
+#else
+    auto send_ptr = m_send_vec_buffers[dim].host_ptr();
+    auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
+    m_send_vec_buffers[dim].copy_to_host();
+#endif
+
+    // timer::stamp();
+    MPI_Sendrecv(send_ptr, m_send_vec_buffers[dim].size(), m_scalar_type, dest, 0,
+                 recv_ptr, m_recv_vec_buffers[dim].size(), m_scalar_type, origin, 0,
+                 m_cart, &status);
+    // timer::show_duration_since_stamp("MPI sendrecv", "ms");
+
+    if (origin != MPI_PROC_NULL) {
+      for (int n = 0; n < 3; n++) {
+        auto &array = field[n];
+        index_t<Conf::dim> vec_buf_idx{};
+        vec_buf_idx[Conf::dim - 1] =
+            n * m_send_buffers[dim].extent()[Conf::dim - 1];
+        if (array.mem_type() == MemType::host_only) {
+          add(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+               m_recv_buffers[dim].extent());
+        } else {
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+     !MPIX_CUDA_AWARE_SUPPORT)
+          m_recv_vec_buffers[dim].copy_to_device();
+#endif
+          add_dev(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+                  m_recv_buffers[dim].extent());
+        }
+      }
+    }
+  }
+}
+
+template <typename Conf>
+void
 domain_comm<Conf>::send_guard_cells(vector_field<Conf> &field) const {
   if (!m_buffers_ready) resize_buffers(field.grid());
-  send_guard_cells(field[0], field.grid());
-  send_guard_cells(field[1], field.grid());
-  send_guard_cells(field[2], field.grid());
+  // send_guard_cells(field[0], field.grid());
+  // send_guard_cells(field[1], field.grid());
+  // send_guard_cells(field[2], field.grid());
+  send_vector_field_guard_cells_single_dir(field, 0, -1);
+  send_vector_field_guard_cells_single_dir(field, 0, 1);
+  send_vector_field_guard_cells_single_dir(field, 1, -1);
+  send_vector_field_guard_cells_single_dir(field, 1, 1);
+  send_vector_field_guard_cells_single_dir(field, 2, -1);
+  send_vector_field_guard_cells_single_dir(field, 2, 1);
 }
 
 template <typename Conf>
@@ -360,9 +549,15 @@ template <typename Conf>
 void
 domain_comm<Conf>::send_add_guard_cells(vector_field<Conf> &field) const {
   if (!m_buffers_ready) resize_buffers(field.grid());
-  send_add_guard_cells(field[0], field.grid());
-  send_add_guard_cells(field[1], field.grid());
-  send_add_guard_cells(field[2], field.grid());
+  // send_add_guard_cells(field[0], field.grid());
+  // send_add_guard_cells(field[1], field.grid());
+  // send_add_guard_cells(field[2], field.grid());
+  send_add_vector_field_guard_cells_single_dir(field, 0, -1);
+  send_add_vector_field_guard_cells_single_dir(field, 0, 1);
+  send_add_vector_field_guard_cells_single_dir(field, 1, -1);
+  send_add_vector_field_guard_cells_single_dir(field, 1, 1);
+  send_add_vector_field_guard_cells_single_dir(field, 2, -1);
+  send_add_vector_field_guard_cells_single_dir(field, 2, 1);
 }
 
 template <typename Conf>

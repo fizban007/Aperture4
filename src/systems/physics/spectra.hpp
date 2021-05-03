@@ -21,6 +21,7 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
+#include "utils/util_functions.h"
 
 namespace Aperture {
 
@@ -89,7 +90,10 @@ struct black_body {
 
   HD_INLINE double operator()(double e) const {
     // The normalization factor comes as 8 \pi/(h^3 c^3) (me c^2)^3
-    return 1.75464e30 * e * e / (exp(e / kT_) - 1.0);
+    // return 1.75464e30 * e * e / (exp(e / kT_) - 1.0);
+
+    // The integral of e^2/(exp(e/kT) - 1) is 2*(kT)^3*Zeta(3)
+    return e * e / (exp(e / kT_) - 1.0) / (2.40412 * cube(kT_));
   }
 
   HD_INLINE Scalar emin() const { return 1e-10 * kT_; }

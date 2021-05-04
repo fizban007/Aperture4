@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
+#include "data/rng_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
@@ -29,11 +30,11 @@ void
 set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
   particle_data_t* ptc;
   vector_field<Conf>*B0, *B;
-  curand_states_t* states;
+  rng_states_t* states;
   sim_env().get_data("particles", &ptc);
   sim_env().get_data("B0", &B0);
   sim_env().get_data("B", &B);
-  sim_env().get_data("rand_states", &states);
+  sim_env().get_data("rng_states", &states);
 
   double Bp = sim_env().params().get_as<double>("Bp", 10000.0);
 
@@ -46,7 +47,7 @@ set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
           auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           int id = threadIdx.x + blockIdx.x * blockDim.x;
-          cuda_rng_t rng(&states[id]);
+          rng_t rng(&states[id]);
           for (auto n : grid_stride_range(0, ext.size())) {
             auto idx = idx_t(n, ext);
             auto pos = get_pos(idx, ext);
@@ -54,8 +55,8 @@ set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
               for (int i = 0; i < mult; i++) {
                 uint32_t offset = num + idx.linear * mult * 2 + i * 2;
 
-                ptc.x1[offset] = ptc.x1[offset + 1] = rng();
-                ptc.x2[offset] = ptc.x2[offset + 1] = rng();
+                ptc.x1[offset] = ptc.x1[offset + 1] = rng.uniform<float>();
+                ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
                 ptc.x3[offset] = ptc.x3[offset + 1] = 0.0;
                 Scalar theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
                 Scalar r = grid_sph_t<Conf>::radius(
@@ -75,7 +76,7 @@ set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
             }
           }
         },
-        ptc->dev_ptrs(), states->states(), mult, weight);
+        ptc->dev_ptrs(), states->states().dev_ptr(), mult, weight);
     CudaSafeCall(cudaDeviceSynchronize());
     ptc->set_num(num + mult * 2 * grid.extent().size());
     Logger::print_info("ptc has number {}", ptc->number());

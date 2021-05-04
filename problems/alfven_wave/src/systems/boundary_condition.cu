@@ -58,7 +58,7 @@ struct wpert_sph_t {
 
 template <typename Conf>
 void
-inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
+inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
                  buffer<float>& surface_n, int num_per_cell,
                  typename Conf::value_t weight,
                  const grid_curv_t<Conf>& grid,
@@ -104,7 +104,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
         auto ext = grid.extent();
         int inj_n0 = grid.guard[0];
         int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
+        rng_t rng(&states[id]);
         for (auto n1 :
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
           size_t offset = ptc_num + n1 * num_inj * 2;
@@ -115,7 +115,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
               square(0.5f / grid.delta[1]) * math::sin(theta))
             continue;
           for (int i = 0; i < num_inj; i++) {
-            float x2 = rng();
+            auto x2 = rng.uniform<float>();
             theta = grid.template pos<1>(n1, x2);
             ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 0.5f;
             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
@@ -135,7 +135,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
         }
       },
       ptc.get_dev_ptrs(), surface_n.dev_ptr(), num_per_cell,
-      rand_states.states());
+      rng_states.states().dev_ptr());
   CudaSafeCall(cudaDeviceSynchronize());
 
   ptc.add_num(num_per_cell * 2 * grid.dims[1]);
@@ -148,7 +148,7 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("E0", &E0);
   sim_env().get_data("Bdelta", &B);
   sim_env().get_data("B0", &B0);
-  sim_env().get_data("rand_states", &rand_states);
+  sim_env().get_data("rng_states", &rng_states);
   sim_env().get_data("particles", &ptc);
 
   sim_env().params().get_value("rpert1", m_rpert1);
@@ -211,7 +211,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Inject particles
   if (step % 1 == 0) {
-    inject_particles<Conf>(*ptc, *rand_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
+    inject_particles<Conf>(*ptc, *rng_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
   }
 }
 

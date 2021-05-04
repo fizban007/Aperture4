@@ -128,6 +128,8 @@ grid_sph_t<Conf>::compute_coef() {
     double ths = theta(this->template pos<1>(pos[1], true));
     double ths_plus = theta(this->template pos<1>(pos[1] + 1, true));
 
+    // Note: Nothing depends on phi, so staggering in phi does not matter
+
     // Length elements for E field
     this->m_le[0][idx] = rs_plus - rs;
     this->m_le[1][idx] = rs * this->delta[1];

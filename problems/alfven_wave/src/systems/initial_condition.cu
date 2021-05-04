@@ -26,17 +26,16 @@ namespace Aperture {
 
 template <typename Conf>
 void
-set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
-                      int mult, double weight) {
+set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
   particle_data_t* ptc;
-  vector_field<Conf> *B0, *B;
+  vector_field<Conf>*B0, *B;
   curand_states_t* states;
-  env.get_data("particles", &ptc);
-  env.get_data("B0", &B0);
-  env.get_data("B", &B);
-  env.get_data("rand_states", &states);
+  sim_env().get_data("particles", &ptc);
+  sim_env().get_data("B0", &B0);
+  sim_env().get_data("B", &B);
+  sim_env().get_data("rand_states", &states);
 
-  double Bp = env.params().get_as<double>("Bp", 10000.0);
+  double Bp = sim_env().params().get_as<double>("Bp", 10000.0);
 
   if (ptc != nullptr && states != nullptr) {
     auto num = ptc->number();
@@ -50,7 +49,7 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
           cuda_rng_t rng(&states[id]);
           for (auto n : grid_stride_range(0, ext.size())) {
             auto idx = idx_t(n, ext);
-            auto pos = idx.get_pos();
+            auto pos = get_pos(idx, ext);
             if (grid.is_in_bound(pos)) {
               for (int i = 0; i < mult; i++) {
                 uint32_t offset = num + idx.linear * mult * 2 + i * 2;
@@ -59,17 +58,19 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
                 ptc.x2[offset] = ptc.x2[offset + 1] = rng();
                 ptc.x3[offset] = ptc.x3[offset + 1] = 0.0;
                 Scalar theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
-                Scalar r = grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], ptc.x1[offset]));
+                Scalar r = grid_sph_t<Conf>::radius(
+                    grid.template pos<0>(pos[0], ptc.x1[offset]));
                 ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
                 ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
                 ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
                 ptc.E[offset] = ptc.E[offset + 1] = 1.0;
                 ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-                ptc.weight[offset] = ptc.weight[offset + 1] = sin(theta) * weight;
+                ptc.weight[offset] = ptc.weight[offset + 1] =
+                    sin(theta) * weight;
                 ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                      PtcType::electron);
-                ptc.flag[offset + 1] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                         PtcType::positron);
+                ptc.flag[offset + 1] = set_ptc_type_flag(
+                    flag_or(PtcFlag::primary), PtcType::positron);
               }
             }
           }
@@ -93,7 +94,6 @@ set_initial_condition(sim_environment& env, const grid_sph_t<Conf>& grid,
 }
 
 template void set_initial_condition<Config<2>>(
-    sim_environment& env, const grid_sph_t<Config<2>>& grid, int mult,
-    double weight);
+    const grid_sph_t<Config<2>>& grid, int mult, double weight);
 
 }  // namespace Aperture

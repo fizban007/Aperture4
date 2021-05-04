@@ -81,7 +81,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
           if (c == empty_cell) continue;
 
           auto idx = typename Conf::idx_t(c, ext);
-          auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           // Scalar th = grid.pos<1>(pos[1], false);
           // if (pos[0] == grid.guard[0] && th > th1 && th < th2) {
           if (pos[0] == grid.guard[0]) {
@@ -144,19 +144,19 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
 template <typename Conf>
 void
 boundary_condition<Conf>::init() {
-  m_env.get_data("Edelta", &E);
-  m_env.get_data("E0", &E0);
-  m_env.get_data("Bdelta", &B);
-  m_env.get_data("B0", &B0);
-  m_env.get_data("rand_states", &rand_states);
-  m_env.get_data("particles", &ptc);
+  sim_env().get_data("Edelta", &E);
+  sim_env().get_data("E0", &E0);
+  sim_env().get_data("Bdelta", &B);
+  sim_env().get_data("B0", &B0);
+  sim_env().get_data("rand_states", &rand_states);
+  sim_env().get_data("particles", &ptc);
 
-  m_env.params().get_value("rpert1", m_rpert1);
-  m_env.params().get_value("rpert2", m_rpert2);
-  m_env.params().get_value("tp_start", m_tp_start);
-  m_env.params().get_value("tp_end", m_tp_end);
-  m_env.params().get_value("nT", m_nT);
-  m_env.params().get_value("dw0", m_dw0);
+  sim_env().params().get_value("rpert1", m_rpert1);
+  sim_env().params().get_value("rpert2", m_rpert2);
+  sim_env().params().get_value("tp_start", m_tp_start);
+  sim_env().params().get_value("tp_end", m_tp_end);
+  sim_env().params().get_value("nT", m_nT);
+  sim_env().params().get_value("dw0", m_dw0);
   Logger::print_info("{}, {}, {}, {}, {}, {}", m_rpert1, m_rpert2, m_tp_start,
                      m_tp_end, m_nT, m_dw0);
 
@@ -170,7 +170,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   typedef typename Conf::idx_t idx_t;
   typedef typename Conf::value_t value_t;
 
-  value_t time = m_env.get_time();
+  value_t time = sim_env().get_time();
   wpert_sph_t wpert(m_rpert1, m_rpert2, m_tp_start, m_tp_end, m_nT, m_dw0);
 
   // Apply twist on the stellar surface

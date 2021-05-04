@@ -55,7 +55,7 @@ compute_inject_num(multi_array<int, Conf::dim>& num_per_cell,
         cuda_rng_t rng(&states[id]);
         for (auto idx :
              grid_stride_range(Conf::idx(0, ext), Conf::idx(ext.size(), ext))) {
-          auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
 
           if (grid.is_in_bound(pos)) {
             value_t J1 = interp(j[0], idx, stagger_t(0b110), stagger_t(0b111));
@@ -99,7 +99,7 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
         cuda_rng_t rng(&states[id]);
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(cell, ext);
-          auto pos = idx.get_pos();
+          auto pos = get_pos(idx, ext);
           for (int i = 0; i < num_per_cell[cell]; i++) {
             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
             ptc.x1[offset] = ptc.x1[offset + 1] = rng();
@@ -131,13 +131,13 @@ void
 ptc_injector_mult<Conf>::init() {
   ptc_injector<Conf>::init();
 
-  this->m_env.get_data("rand_states", &m_rand_states);
-  this->m_env.get_data("J", &J);
+  sim_env().get_data("rand_states", &m_rand_states);
+  sim_env().get_data("J", &J);
   int num_species = 2;
-  this->m_env.params().get_value("num_species", num_species);
+  sim_env().params().get_value("num_species", num_species);
   Rho.resize(num_species);
   for (int i = 0; i < num_species; i++) {
-    this->m_env.get_data(std::string("Rho_") + ptc_type_name(i), &Rho[i]);
+    sim_env().get_data(std::string("Rho_") + ptc_type_name(i), &Rho[i]);
   }
   m_rho_ptrs.set_memtype(MemType::host_device);
   m_rho_ptrs.resize(num_species);

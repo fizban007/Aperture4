@@ -44,8 +44,8 @@ class boundary_condition : public system_t {
  public:
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(sim_environment& env, const grid_curv_t<Conf>& grid) :
-      system_t(env), m_grid(grid) {}
+  boundary_condition(const grid_curv_t<Conf>& grid) :
+      m_grid(grid) {}
 
   void init() override;
   void update(double dt, uint32_t step) override;

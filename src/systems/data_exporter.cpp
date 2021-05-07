@@ -538,9 +538,15 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
   index_t<Conf::dim + 1> idx_dst(0);
   // FIXME: This again assumes a uniform grid, which is no good in the long term
   if (m_comm != nullptr && m_comm->size() > 1) {
-    for (int i = 1; i < Conf::dim + 1; i++) {
-      idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i - 1];
+    for (int i = 0; i < Conf::dim + 1; i++) {
+      if (i > 1)
+        idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i - 1];
+      else
+        idx_dst[i] = 0;
     }
+    Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {}, {}, {}",
+                       idx_dst[0], idx_dst[1], idx_dst[2], idx_dst[3],
+                       ext_total[0], ext_total[1], ext_total[2], ext_total[3]);
 
     datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src,
                             name + "_p1_e");

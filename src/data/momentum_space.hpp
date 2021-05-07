@@ -39,7 +39,7 @@ class momentum_space : public data_t {
   float m_upper[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
   momentum_space(const typename Conf::grid_t& grid, int downsample,
-                 int num_bins[3], float lower[3], float upper[3],
+                 int num_bins[4], float lower[4], float upper[4],
                  bool log_scale = false, MemType memtype = default_mem_type)
       : m_grid(grid) {
     m_downsample = downsample;

@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "data/momentum_space.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
@@ -34,9 +35,15 @@ main(int argc, char* argv[]) {
   env.params().add<int64_t>("downsample", 2);
 
   grid_t<Conf> grid;
+  int num_bins[4] = {32, 32, 32, 32};
+  float lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  momentum_space<Conf> mom(grid, 4, num_bins, lowers, uppers, false);
   data_exporter<Conf> exporter(grid);
   exporter.init();
-  // exporter.write_grid();
+
+  auto outfile = hdf_create("Data/momenta_mpi.h5", H5CreateMode::trunc_parallel);
+  exporter.write(mom, "momentum", outfile);
 
   return 0;
 }

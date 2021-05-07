@@ -16,6 +16,7 @@
  */
 
 #include "catch.hpp"
+#include "data/momentum_space.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
@@ -65,6 +66,31 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
   }
 }
 
+TEST_CASE("Writing momentum space", "[data_output]") {
+  auto& env = sim_env(nullptr, nullptr, false);
+
+  SECTION("3D grid") {
+    typedef Config<3> Conf;
+    using value_t = typename Conf::value_t;
+    env.params().add("N", std::vector<int64_t>({40, 40, 40}));
+    env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
+    env.params().add("size", std::vector<double>({1.0, 2.0, 2.0}));
+    env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+    env.params().add<int64_t>("downsample", 1);
+
+    grid_t<Conf> grid;
+    data_exporter<Conf> exporter(grid);
+    int num_bins[4] = {32, 32, 32, 32};
+    value_t lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    value_t uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    momentum_space<Conf> mom(grid, 4, num_bins, lowers, uppers, false);
+
+    exporter.init();
+    auto outfile = hdf_create("Data/momenta.h5", H5CreateMode::trunc);
+    exporter.write(mom, "momentum", outfile);
+
+  }
+}
 // TEST_CASE("Writing a 2D grid", "[data_output]") {
 //   sim_environment env;
 // }

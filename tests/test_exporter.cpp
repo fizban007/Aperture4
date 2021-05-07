@@ -81,8 +81,8 @@ TEST_CASE("Writing momentum space", "[data_output]") {
     grid_t<Conf> grid;
     data_exporter<Conf> exporter(grid);
     int num_bins[4] = {32, 32, 32, 32};
-    value_t lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    value_t uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    float lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     momentum_space<Conf> mom(grid, 4, num_bins, lowers, uppers, false);
 
     exporter.init();

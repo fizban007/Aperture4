@@ -116,16 +116,16 @@ H5File::write_parallel(const multi_array<T, Dim>& array,
   auto memspace_id = H5Screate_simple(Dim, array_dims, NULL);
 
   if (Dim == 1)
-    Logger::print_debug_all("Writing dim {}, array_dim {}", dims[0], array_dims[0]);
+    Logger::print_detail_all("Writing dim {}, array_dim {}", dims[0], array_dims[0]);
   else if (Dim == 2)
-    Logger::print_debug_all("Writing dims {}x{}, array_dims {}x{}", dims[0],
+    Logger::print_detail_all("Writing dims {}x{}, array_dims {}x{}", dims[0],
                             dims[1], array_dims[0], array_dims[1]);
   else if (Dim == 3)
-    Logger::print_debug_all("Writing dims {}x{}x{}, array_dims {}x{}x{}",
+    Logger::print_detail_all("Writing dims {}x{}x{}, array_dims {}x{}x{}",
                             dims[0], dims[1], dims[2], array_dims[0],
                             array_dims[1], array_dims[2]);
   else if (Dim == 4)
-    Logger::print_debug_all("Writing dims {}x{}x{}x{}, array_dims {}x{}x{}x{}",
+    Logger::print_detail_all("Writing dims {}x{}x{}x{}, array_dims {}x{}x{}x{}",
                             dims[0], dims[1], dims[2], dims[3], array_dims[0],
                             array_dims[1], array_dims[2], array_dims[3]);
 

@@ -21,6 +21,8 @@
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "initial_condition.h"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -42,44 +44,61 @@ set_initial_condition(const grid_sph_t<Conf>& grid, int mult, double weight) {
     auto num = ptc->number();
     using idx_t = typename Conf::idx_t;
 
-    kernel_launch(
-        [num] __device__(auto ptc, auto states, auto mult, auto weight) {
-          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-          auto ext = grid.extent();
-          int id = threadIdx.x + blockIdx.x * blockDim.x;
-          rng_t rng(&states[id]);
-          for (auto n : grid_stride_range(0, ext.size())) {
-            auto idx = idx_t(n, ext);
-            auto pos = get_pos(idx, ext);
-            if (grid.is_in_bound(pos)) {
-              for (int i = 0; i < mult; i++) {
-                uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  injector->init();
 
-                ptc.x1[offset] = ptc.x1[offset + 1] = rng.uniform<float>();
-                ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
-                ptc.x3[offset] = ptc.x3[offset + 1] = 0.0;
-                Scalar theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
-                Scalar r = grid_sph_t<Conf>::radius(
-                    grid.template pos<0>(pos[0], ptc.x1[offset]));
-                ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
-                ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
-                ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
-                ptc.E[offset] = ptc.E[offset + 1] = 1.0;
-                ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-                ptc.weight[offset] = ptc.weight[offset + 1] =
-                    sin(theta) * weight;
-                ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-                                                     PtcType::electron);
-                ptc.flag[offset + 1] = set_ptc_type_flag(
-                    flag_or(PtcFlag::primary), PtcType::positron);
-              }
-            }
-          }
-        },
-        ptc->dev_ptrs(), states->states().dev_ptr(), mult, weight);
-    CudaSafeCall(cudaDeviceSynchronize());
-    ptc->set_num(num + mult * 2 * grid.extent().size());
-    Logger::print_info("ptc has number {}", ptc->number());
+  injector->inject(
+      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [mult] __device__(auto &pos, auto &grid, auto &ext) {
+        return 2 * mult;
+      },
+      [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                    PtcType type) {
+        return vec_t<typename Conf::value_t, 3>(0.0f, 0.0f, 0.0f);
+      },
+      // [weight] __device__(auto &pos, auto &grid, auto &ext) {
+      [weight] __device__(auto& x_global) {
+        return weight * math::sin(x_global[1]);
+      });
+
+    // kernel_launch(
+    //     [num] __device__(auto ptc, auto states, auto mult, auto weight) {
+    //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+    //       auto ext = grid.extent();
+    //       int id = threadIdx.x + blockIdx.x * blockDim.x;
+    //       rng_t rng(states);
+    //       for (auto n : grid_stride_range(0, ext.size())) {
+    //         auto idx = idx_t(n, ext);
+    //         auto pos = get_pos(idx, ext);
+    //         if (grid.is_in_bound(pos)) {
+    //           for (int i = 0; i < mult; i++) {
+    //             uint32_t offset = num + idx.linear * mult * 2 + i * 2;
+
+    //             ptc.x1[offset] = ptc.x1[offset + 1] = rng.uniform<float>();
+    //             ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
+    //             ptc.x3[offset] = ptc.x3[offset + 1] = 0.0;
+    //             Scalar theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
+    //             Scalar r = grid_sph_t<Conf>::radius(
+    //                 grid.template pos<0>(pos[0], ptc.x1[offset]));
+    //             ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
+    //             ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
+    //             ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
+    //             ptc.E[offset] = ptc.E[offset + 1] = 1.0;
+    //             ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
+    //             ptc.weight[offset] = ptc.weight[offset + 1] =
+    //                 sin(theta) * weight;
+    //             ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
+    //                                                  PtcType::electron);
+    //             ptc.flag[offset + 1] = set_ptc_type_flag(
+    //                 flag_or(PtcFlag::primary), PtcType::positron);
+    //           }
+    //         }
+    //       }
+    //     },
+    //     ptc->dev_ptrs(), states->states().dev_ptr(), mult, weight);
+    // CudaSafeCall(cudaDeviceSynchronize());
+    // ptc->set_num(num + mult * 2 * grid.extent().size());
+    // Logger::print_info("ptc has number {}", ptc->number());
   }
 
   B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {

@@ -17,6 +17,7 @@
 
 #include "environment.h"
 #include "cxxopts.hpp"
+#include "utils/logger.h"
 #include "utils/timer.h"
 #include <algorithm>
 #include <iostream>
@@ -27,7 +28,8 @@ namespace Aperture {
 sim_environment_impl::sim_environment_impl(bool use_mpi)
     : sim_environment_impl(nullptr, nullptr, use_mpi) {}
 
-sim_environment_impl::sim_environment_impl(int* argc, char*** argv, bool use_mpi) {
+sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
+                                           bool use_mpi) {
   m_use_mpi = use_mpi;
   int rank = 0;
 

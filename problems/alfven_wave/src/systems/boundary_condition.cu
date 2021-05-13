@@ -104,7 +104,7 @@ inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
         auto ext = grid.extent();
         int inj_n0 = grid.guard[0];
         int id = threadIdx.x + blockIdx.x * blockDim.x;
-        rng_t rng(&states[id]);
+        rng_t rng(states);
         for (auto n1 :
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
           size_t offset = ptc_num + n1 * num_inj * 2;
@@ -166,7 +166,7 @@ boundary_condition<Conf>::init() {
 template <typename Conf>
 void
 boundary_condition<Conf>::update(double dt, uint32_t step) {
-  auto ext = m_grid.extent();
+  // auto ext = m_grid.extent();
   typedef typename Conf::idx_t idx_t;
   typedef typename Conf::value_t value_t;
 
@@ -175,8 +175,9 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Apply twist on the stellar surface
   kernel_launch(
-      [ext, time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
+      [time] __device__(auto e, auto b, auto e0, auto b0, auto wpert) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           value_t theta =
               grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));
@@ -211,7 +212,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Inject particles
   if (step % 1 == 0) {
-    inject_particles<Conf>(*ptc, *rng_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
+    // inject_particles<Conf>(*ptc, *rng_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
   }
 }
 

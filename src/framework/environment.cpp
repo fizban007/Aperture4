@@ -158,11 +158,11 @@ sim_environment_impl::update() {
   for (auto& name : m_system_order) {
     if (m_system_map[name]->is_paused()) continue;
 
-    timer::stamp();
+    timer::stamp(name);
 
     m_system_map[name]->update(dt, step);
 
-    float time_spent = timer::get_duration_since_stamp("us");
+    float time_spent = timer::get_duration_since_stamp("us", name);
     m_system_time[name] += time_spent;
 
     // Display the time elapsed during the system update on given interval

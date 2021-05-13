@@ -98,6 +98,8 @@ domain_comm<Conf>::setup_domain() {
 
   // Obtain the mpi coordinate of the current rank
   MPI_Cart_coords(m_cart, m_rank, Conf::dim, m_domain_info.mpi_coord);
+  std::cout << "Rank " << m_rank << " has mpi coord " << m_domain_info.mpi_coord[0] << ", "
+    << m_domain_info.mpi_coord[1] << ", " << m_domain_info.mpi_coord[2];
 
   // Figure out if the current rank is at any boundary
   int left = 0, right = 0;
@@ -722,10 +724,10 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   auto &buf_ptrs = ptc_buffer_ptrs(ptc);
   auto &buf_nums = ptc_buffer_nums(ptc);
   buf_nums.assign_host(0);
-  // timer::stamp("copy_comm");
+  timer::stamp("copy_comm");
   ptc.copy_to_comm_buffers(buffers, buf_ptrs, buf_nums, grid);
-  // timer::show_duration_since_stamp("Coping to comm buffers", "ms",
-  // "copy_comm");
+  timer::show_duration_since_stamp("Coping to comm buffers", "ms",
+  "copy_comm");
 
   // Define the central zone and number of send_recv in x direction
   int central = 13;

@@ -55,13 +55,15 @@ main(int argc, char *argv[]) {
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  // auto momentum =
-  //     env.register_system<gather_momentum_space<Conf,
-  //     exec_policy_cuda>>(grid);
+  auto momentum =
+      env.register_system<gather_momentum_space<Conf,
+      exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
+  Logger::print_debug_all("env init complete");
+  comm.barrier();
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
@@ -73,6 +75,7 @@ main(int argc, char *argv[]) {
   env.get_data("rng_states", &states);
 
   harris_current_sheet(*Bdelta, *ptc, *states);
+  comm.barrier();
 
   size_t free_mem, total_mem;
   cudaMemGetInfo(&free_mem, &total_mem);

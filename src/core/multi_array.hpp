@@ -102,6 +102,7 @@ class multi_array : public buffer<T> {
 
   void resize(const extent_t<Rank>& ext) {
     m_ext = ext;
+    m_ext.get_strides();
     buffer<T>::resize(ext.size());
   }
 

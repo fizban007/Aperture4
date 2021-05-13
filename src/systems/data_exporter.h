@@ -130,7 +130,7 @@ class data_exporter : public system_t {
   int m_ptc_num = 0;
   int m_ptc_output_interval = 1;
   int m_fld_output_interval = 1;
-  int m_snapshot_interval = 1;
+  int m_snapshot_interval = 0;
   int m_downsample = 1;
   // extent_t<Conf::dim> m_local_ext;
   // index_t<Conf::dim> m_local_offset;

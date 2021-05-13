@@ -409,10 +409,11 @@ void
 compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
              const grid_curv_t<Conf>& grid) {
   flux.init();
-  auto ext = grid.extent();
+  // auto ext = grid.extent();
   kernel_launch(
-      [ext] __device__(auto flux, auto b, auto gp) {
+      [] __device__(auto flux, auto b, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
                n1++) {
@@ -452,7 +453,7 @@ field_solver_sph_cu<Conf>::update(double dt, uint32_t step) {
 
   if (step % this->m_data_interval == 0) {
     auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
-    compute_flux(*flux, *(this->Btotal), grid);
+    compute_flux(*(this->flux), *(this->Btotal), grid);
   }
 }
 
@@ -495,6 +496,7 @@ template <typename Conf>
 void
 field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
                                                 double beta, double time) {
+  Logger::print_info("updating sph fields implicitly");
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
 

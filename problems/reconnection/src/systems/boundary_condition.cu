@@ -168,7 +168,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   // m_dens_p2->assign_dev(0.0f);
 
   auto inj_length = m_inj_length;
-  auto upstream_kT = m_upstream_kT;
+  value_t upstream_kT = m_upstream_kT;
   auto upstream_n = m_upstream_n;
   auto num = ptc->number();
 
@@ -239,15 +239,22 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
       [upstream_kT] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
-        auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
-        // value_t beta = p1 / gamma;
-        // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
+        vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
+
+        auto p1 = u_d[0];
+        auto p2 = u_d[1];
+        auto p3 = u_d[2];
         return vec_t<value_t, 3>(p1, p2, p3);
+        // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+        // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+        // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+        // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
+        // // value_t beta = p1 / gamma;
+        // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
+        // return vec_t<value_t, 3>(p1, p2, p3);
       },
-      [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+      // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+      [upstream_n] __device__(auto& x_global) {
         return 1.0 / upstream_n;
       });
 

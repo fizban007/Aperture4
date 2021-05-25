@@ -107,8 +107,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
         auto ext = grid.extent();
         ExecPolicy::loop(
             Idx_t(0, ext), Idx_t(ext.size(), ext),
-            [&grid, &ext, &is_boundary] LAMBDA(auto idx, auto& result,
-                                               auto& f) {
+            [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
@@ -123,8 +122,8 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                       detail::field_filter<Dim>::apply(idx, f, boundary_cell);
                 }
               }
-            },
-            result, f);
+            });
+            // result, f);
       },
       tmp, field);
   ExecPolicy::sync();
@@ -145,9 +144,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
         ExecPolicy::loop(
             Idx_t(0, ext), Idx_t(ext.size(), ext),
             // 0, ext.size(),
-            [&grid, &ext, &is_boundary] LAMBDA(auto idx, auto& result, auto& f,
-            // [&grid, &ext, &is_boundary] LAMBDA(auto n, auto& result, auto& f,
-                                               auto& factor) {
+            [&] LAMBDA(auto idx) {
               // auto idx = Idx_t(n, ext);
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
@@ -165,8 +162,8 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                       factor[idx];
                 }
               }
-            },
-            result, f, factor);
+            });
+            // result, f, factor);
       },
       tmp, field, geom_factor);
   ExecPolicy::sync();

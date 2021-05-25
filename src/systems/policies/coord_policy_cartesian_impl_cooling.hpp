@@ -74,8 +74,8 @@ class coord_policy_cartesian_impl_cooling
     return result * dt;
   }
 
-  HOST_DEVICE void iterate(vec3& x, vec3& u, const vec3& E, const vec3& B,
-                           double e_over_m, double cooling_coef, double dt) const {
+  HD_INLINE void iterate(vec3& x, vec3& u, const vec3& E, const vec3& B,
+                         double e_over_m, double cooling_coef, double dt) const {
     // vec3 x0 = x, x1 = x;
     vec3 u0 = u, u1 = u;
 

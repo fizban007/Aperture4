@@ -121,15 +121,14 @@ class coord_policy_cartesian {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
           // grid.cell_size() is simply the product of all deltas
-          ExecPolicy::loop(
-              Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext] LAMBDA(auto idx, auto& j) {
+          ExecPolicy::loop(Conf::begin(ext), Conf::end(ext),
+                           [&] LAMBDA(auto idx) {
 #pragma unroll
-                for (int i = 0; i < Conf::dim; i++) {
-                  j[i][idx] *= grid.delta[i];
-                }
-              },
-              j);
+                             for (int i = 0; i < Conf::dim; i++) {
+                               j[i][idx] *= grid.delta[i];
+                             }
+                           });
+          // j);
         },
         J);
     ExecPolicy::sync();

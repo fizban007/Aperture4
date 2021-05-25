@@ -227,11 +227,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         auto ext = grid.extent();
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
-        ExecPolicy<Conf>::loop(
-            begin, end,
-            [&ext, &charges, &masses, &coord_policy, dt, deposit_rho,
-             interp] LAMBDA(auto n, auto &ptc, auto &E, auto &B, auto &J,
-                            auto &Rho, auto &grid, auto &phys_policy) {
+        ExecPolicy<Conf>::loop(begin, end, [&] LAMBDA(auto n) {
               ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
               context.cell = ptc.cell[n];
               if (context.cell == empty_cell)
@@ -291,8 +287,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
               ptc.x3[n] = context.new_x[2];
               ptc.cell[n] = Conf::idx(pos, ext).linear;
               // ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
-            },
-            ptc, E, B, J, Rho, grid, phys_policy);
+            });
+            // ptc, E, B, J, Rho, grid, phys_policy);
       },
       *ptc, *E, *B, *J, Rho);
   ExecPolicy<Conf>::sync();
@@ -332,8 +328,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         auto ext = grid.extent();
         ExecPolicy<Conf>::loop(
             0ul, num,
-            [&ext, &coord_policy, dt,
-             deposit_rho] LAMBDA(auto n, auto &ph, auto &Rho_ph, auto &grid) {
+            [&] LAMBDA(auto n) {
               ph_context<Conf::dim, value_t> context;
               context.cell = ph.cell[n];
               if (context.cell == empty_cell)
@@ -368,8 +363,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
               ph.x3[n] = context.new_x[2];
               ph.cell[n] = idx_new.linear;
               ph.path_left[n] -= dt;
-            },
-            ph, Rho_ph, grid);
+            });
+            // ph, Rho_ph, grid);
       },
       *ph, *rho_ph);
   ExecPolicy<Conf>::sync();
@@ -385,9 +380,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
       [num] LAMBDA(auto ptc) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        ExecPolicy<Conf>::loop(
-            0ul, num,
-            [ext] LAMBDA(auto n, auto &grid, auto &ptc) {
+        ExecPolicy<Conf>::loop(0ul, num, [&] LAMBDA(auto n) {
               auto cell = ptc.cell[n];
               if (cell == empty_cell)
                 return;
@@ -396,8 +389,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
               auto pos = get_pos(idx, ext);
               if (!grid.is_in_bound(pos))
                 ptc.cell[n] = empty_cell;
-            },
-            grid, ptc);
+            });
+            // grid, ptc);
       },
       *ptc);
 
@@ -407,9 +400,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         [ph_num] LAMBDA(auto ph) {
           auto &grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
-          ExecPolicy<Conf>::loop(
-              0ul, ph_num,
-              [ext] LAMBDA(auto n, auto &grid, auto &ph) {
+          ExecPolicy<Conf>::loop(0ul, ph_num, [&] LAMBDA(auto n) {
                 auto cell = ph.cell[n];
                 if (cell == empty_cell)
                   return;
@@ -418,8 +409,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                 auto pos = get_pos(idx, ext);
                 if (!grid.is_in_bound(pos))
                   ph.cell[n] = empty_cell;
-              },
-              grid, ph);
+              });
+              // grid, ph);
         },
         *ph);
   }
@@ -455,12 +446,7 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         rng_t rng(states);
         ExecPolicy<Conf>::loop(
             // 0, ext.size(),
-            Conf::begin(ext), Conf::end(ext),
-            [&grid, num, ext, mult, weight, dp] LAMBDA(
-                auto idx, auto &ptc,
-                // auto n, auto& ptc,
-                // [&grid, num, ext, mult, weight] LAMBDA(auto n, auto& ptc,
-                auto &rng) {
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
               // auto idx = Conf::idx(n, ext);
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
@@ -496,8 +482,8 @@ void ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                       flag_or(PtcFlag::primary), PtcType::positron);
                 }
               }
-            },
-            ptc, rng);
+            });
+            // ptc, rng);
       },
       *ptc, *rng_states);
   ExecPolicy<Conf>::sync();

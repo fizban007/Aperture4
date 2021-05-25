@@ -47,18 +47,6 @@ atomic_add(T* addr, type_identity_t<T> value) {
 }
 
 template <typename T>
-HD_INLINE T
-square(const T& val) {
-  return val * val;
-}
-
-template <typename T>
-HD_INLINE T
-cube(const T& val) {
-  return val * val * val;
-}
-
-template <typename T>
 HD_INLINE void
 swap_values(T& a, T& b) {
   T tmp = a;

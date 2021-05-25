@@ -142,9 +142,7 @@ class coord_policy_spherical {
           // auto w = grid.cell_size() / dt;
           auto w = grid.cell_size();
           ExecPolicy::loop(
-              Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, num_species, w, process_rho] LAMBDA(
-                  auto idx, auto& j, auto& rho, const auto& grid_ptrs) {
+              Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
                 auto pos = get_pos(idx, ext);
 
                 j[0][idx] *= w / grid_ptrs.Ae[0][idx];
@@ -167,8 +165,8 @@ class coord_policy_spherical {
                   // j[1][idx] = 0.0;
                   j[2][idx] = 0.0;
                 }
-              },
-              j, rho, grid_ptrs);
+              });
+              // j, rho, grid_ptrs);
         },
         J, Rho, m_grid.get_grid_ptrs());
     ExecPolicy::sync();

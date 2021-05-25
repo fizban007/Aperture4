@@ -52,6 +52,18 @@ HD_INLINE float sqrt(float x) { return sqrtf(x); }
 HD_INLINE double floor(double x) { return ::floor(x); }
 HD_INLINE float floor(float x) { return floorf(x); }
 
+template <typename T>
+HD_INLINE T
+square(const T& val) {
+  return val * val;
+}
+
+template <typename T>
+HD_INLINE T
+cube(const T& val) {
+  return val * val * val;
+}
+
 }
 
 

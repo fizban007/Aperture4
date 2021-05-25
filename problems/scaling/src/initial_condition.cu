@@ -85,7 +85,8 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
         return vec_t<value_t, 3>(p1, p2, p3);
       },
-      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [n_upstream] __device__(auto& x_global) {
         return 1.0 / n_upstream;
       });
 

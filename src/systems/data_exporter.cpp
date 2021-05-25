@@ -114,7 +114,9 @@ template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
-  m_comm->barrier();
+  if (m_comm != nullptr) {
+    m_comm->barrier();
+  }
   if (step % m_fld_output_interval == 0) {
     // Output downsampled fields!
     std::string filename =

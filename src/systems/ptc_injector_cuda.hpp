@@ -111,9 +111,12 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
                 uint32_t offset_e = num + cum_num_per_cell[idx] + i;
                 uint32_t offset_p = offset_e + 1;
 
-                ptc.x1[offset_e] = ptc.x1[offset_p] = rng.uniform<value_t>();
-                ptc.x2[offset_e] = ptc.x2[offset_p] = rng.uniform<value_t>();
-                ptc.x3[offset_e] = ptc.x3[offset_p] = rng.uniform<value_t>();
+                auto x = vec_t<value_t, 3>(rng.uniform<value_t>(),
+                                           rng.uniform<value_t>(),
+                                           rng.uniform<value_t>());
+                ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
+                ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
+                ptc.x3[offset_e] = ptc.x3[offset_p] = x[2];
 
                 auto p = fd(pos, grid, ext, rng, PtcType::electron);
                 ptc.p1[offset_e] = p[0];
@@ -127,8 +130,8 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
                 ptc.p3[offset_p] = p[2];
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                ptc.weight[offset_e] = ptc.weight[offset_p] =
-                    fw(pos, grid, ext);
+                auto x_global = grid.pos_global(pos, x);
+                ptc.weight[offset_e] = ptc.weight[offset_p] = fw(x_global);
                 ptc.cell[offset_e] = idx.linear;
                 ptc.cell[offset_p] = idx.linear;
                 ptc.flag[offset_e] = set_ptc_type_flag(flag, PtcType::electron);

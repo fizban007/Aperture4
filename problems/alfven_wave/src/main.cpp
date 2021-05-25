@@ -34,7 +34,7 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
+  env.params().add("log_level", (int64_t)LogLevel::detail);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>();

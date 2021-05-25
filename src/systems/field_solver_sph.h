@@ -36,7 +36,7 @@ class field_solver_sph_cu : public field_solver_cu<Conf> {
   int m_damping_length = 64;
   double m_damping_coef = 0.003;
 
-  nonown_ptr<scalar_field<Conf>> flux;
+  // nonown_ptr<scalar_field<Conf>> flux;
 
  public:
   static std::string name() { return "field_solver"; }

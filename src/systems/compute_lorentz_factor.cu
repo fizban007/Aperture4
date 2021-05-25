@@ -16,8 +16,8 @@
  */
 
 #include "compute_lorentz_factor.h"
-#include "framework/environment.h"
 #include "framework/config.h"
+#include "framework/environment.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
 #include <memory>
@@ -71,7 +71,8 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
 
   auto num = this->ptc->number();
   if (num > 0) {
-    kernel_launch([num] __device__(auto ptc, auto gammas, auto avg_p, auto nums) {
+    kernel_launch(
+        [num] __device__(auto ptc, auto gammas, auto avg_p, auto nums) {
           auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
           for (auto n : grid_stride_range(0, num)) {
@@ -91,30 +92,33 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
             atomicAdd(&avg_p[sp][2][idx], weight * ptc.p3[n]);
             atomicAdd(&nums[sp][idx], weight);
           }
-      }, this->ptc->dev_ptrs(), this->m_gamma_ptrs.dev_ptr(),
-      this->m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
+        },
+        this->ptc->dev_ptrs(), this->m_gamma_ptrs.dev_ptr(),
+        this->m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
     CudaCheckError();
 
     int num_species = this->m_num_species;
-    kernel_launch([num_species] __device__(auto gammas, auto avg_p, auto nums) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
-          for (int i = 0; i < num_species; i++) {
-            if (nums[i][idx] > TINY) {
-              gammas[i][idx] /= nums[i][idx];
-              avg_p[i][0][idx] /= nums[i][idx];
-              avg_p[i][1][idx] /= nums[i][idx];
-              avg_p[i][2][idx] /= nums[i][idx];
-            } else {
-              gammas[i][idx] = 0.0f;
-              avg_p[i][0][idx] = 0.0f;
-              avg_p[i][1][idx] = 0.0f;
-              avg_p[i][2][idx] = 0.0f;
+    kernel_launch(
+        [num_species] __device__(auto gammas, auto avg_p, auto nums) {
+          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+          auto ext = grid.extent();
+          for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+            for (int i = 0; i < num_species; i++) {
+              if (nums[i][idx] > TINY) {
+                gammas[i][idx] /= nums[i][idx];
+                avg_p[i][0][idx] /= nums[i][idx];
+                avg_p[i][1][idx] /= nums[i][idx];
+                avg_p[i][2][idx] /= nums[i][idx];
+              } else {
+                gammas[i][idx] = 0.0f;
+                avg_p[i][0][idx] = 0.0f;
+                avg_p[i][1][idx] = 0.0f;
+                avg_p[i][2][idx] = 0.0f;
+              }
             }
           }
-        }
-      }, m_gamma_ptrs.dev_ptr(), m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
+        },
+        m_gamma_ptrs.dev_ptr(), m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
     CudaSafeCall(cudaDeviceSynchronize());
     CudaCheckError();
   }

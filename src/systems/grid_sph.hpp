@@ -170,6 +170,11 @@ grid_sph_t<Conf>::compute_coef() {
 
     this->m_Ae[2][idx] =
         (cube(r) - cube(r_minus)) / 3.0 * (std::cos(th_minus) - std::cos(th));
+    if (std::abs(ths) < 0.1 * this->delta[1] ||
+        std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+      this->m_Ae[2][idx] =
+          (cube(r) - cube(r_minus)) * 2.0/ 3.0 * (1.0 - std::cos(0.5 * this->delta[1]));
+    }
 
     // Area elements for B field
     this->m_Ab[0][idx] = rs * rs * (std::cos(ths) - std::cos(ths_plus));

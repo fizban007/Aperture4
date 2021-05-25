@@ -118,7 +118,8 @@ class coord_policy_spherical {
     }
 #pragma unroll
     for (int i = Conf::dim; i < 3; i++) {
-      context.new_x[i] = context.x[i] + context.p[i] * (dt / context.gamma);
+      // context.new_x[i] = context.x[i] + context.p[i] * (dt / context.gamma);
+      context.new_x[i] = x_global_sph_new[i];
     }
   }
 
@@ -153,13 +154,13 @@ class coord_policy_spherical {
                 // if (Conf::dim == 2)
                 //   j[2][idx] /= grid_ptrs.dV[idx];
                 // else if (Conf::dim == 3)
+                typename Conf::value_t theta =
+                    grid.template pos<1>(pos[1], true);
                 j[2][idx] *= w / grid_ptrs.Ae[2][idx];
 
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] /= grid_ptrs.dV[idx];
                 }
-                typename Conf::value_t theta =
-                    grid.template pos<1>(pos[1], true);
                 if (math::abs(theta) < 0.1 * grid.delta[1] ||
                     math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
                   // j[1][idx] = 0.0;

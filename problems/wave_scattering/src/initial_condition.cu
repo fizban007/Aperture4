@@ -77,22 +77,6 @@ struct fast_wave_solution {
     return 2.0 * M_PI * clamp<value_t>((x - t) / lambda, 0.0f, length);
   }
 
-  // HD_INLINE value_t width_arg(value_t x, value_t y) const {
-  //   return (eta(x - x0, y) - eta0) / delta_eta;
-  // }
-
-  // HD_INLINE value_t width_arg_clamped(value_t x, value_t y) const {
-  //   return clamp<value_t>((eta(x - x0, y) - eta0) / delta_eta, 0.0, 1.0);
-  // }
-
-  // HD_INLINE value_t width_prof(value_t w) const { return
-  // square(math::sin(M_PI * w)); }
-
-  // HD_INLINE value_t d_width(value_t w) const {
-  //   return 2.0 * M_PI * math::sin(M_PI * w) * math::cos(M_PI * w) /
-  //   delta_eta;
-  // }
-
   HD_INLINE value_t wave_profile(value_t x) const {
     // Convert x into a number between 0 and 1
     value_t arg = clamp<value_t>(x / (2.0 * M_PI) / length, 0.0f, 1.0f);
@@ -110,96 +94,15 @@ struct fast_wave_solution {
     // return math::sin(x) * square(math::sin(0.5 * x / length));
   }
 
-  // HD_INLINE value_t d_wave_profile(value_t x) const {
-  //   // Convert x into a number between 0 and 1
-  //   value_t norm_x = clamp<value_t>(x / (2.0 * M_PI) / length, 0.0f, 1.0f);
-  //   if (norm_x < smooth_width) {
-  //     value_t arg = norm_x * M_PI / (smooth_width * 2.0f);
-  //     return 2.0 * M_PI *
-  //            (math::cos(x) * square(math::sin(arg)) +
-  //             math::sin(x) * math::sin(arg) * math::cos(arg) /
-  //                 (length * smooth_width * 2.0));
-  //   } else if (norm_x > (1.0f - smooth_width)) {
-  //     value_t arg = (norm_x - 1.0f + smooth_width) * M_PI / (smooth_width * 2.0f) +
-  //                   0.5f * M_PI;
-  //     return 2.0 * M_PI *
-  //            (math::cos(x) * square(math::sin(arg)) +
-  //             math::sin(x) * math::sin(arg) * math::cos(arg) /
-  //                 (length * smooth_width * 2.0));
-  //   } else {
-  //     return 2.0 * M_PI * math::cos(x);
-  //   }
-  //   // return math::sin(x) * prof;
-  //   // return 2.0 * M_PI *
-  //   //        (math::cos(x) * square(math::sin(0.5 * x / length)) +
-  //   //         math::sin(x) * math::sin(0.5 * x / length) *
-  //   //             math::cos(0.5 * x / length) / length);
-  // }
-
   HD_INLINE value_t Bz(value_t t, value_t x, value_t y) const {
     return a0 * omega * wave_profile(wave_arg_clamped(t, x, y));
   }
-
-  // HD_INLINE value_t Ex(value_t t, value_t x, value_t y) const {
-  //   return costh * (-Bz(t, x, y));
-  // }
 
   HD_INLINE value_t Ey(value_t t, value_t x, value_t y) const {
     return Bz(t, x, y);
   }
 
-  // HD_INLINE value_t Jx(value_t t, value_t x, value_t y) const {
-  //   return -B0 * sinth *
-  //          (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
-  // }
-
-  // HD_INLINE value_t Jy(value_t t, value_t x, value_t y) const {
-  //   return -B0 * costh *
-  //          (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
-  // }
-
-  // HD_INLINE value_t Rho(value_t t, value_t x, value_t y) const {
-  //   return -B0 *
-  //          (d_wave_profile(wave_arg_clamped(t, x, y)) * costh / lambda / sinth);
-  // }
 };
-
-template <typename Conf>
-void
-compute_ptc_per_cell(fast_wave_solution<typename Conf::value_t> &wave,
-                     multi_array<int, Conf::dim> &num_per_cell, Scalar q_e,
-                     int mult, int mult_wave) {
-  // num_per_cell.assign_dev(2 * mult);
-  kernel_launch(
-      [q_e, mult, mult_wave, wave] __device__(auto num_per_cell) {
-        // q_e *= 10.0;
-        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = Conf::idx(n, ext);
-          // auto pos = idx.get_pos();
-          auto pos = get_pos(idx, ext);
-          if (grid.is_in_bound(pos)) {
-            num_per_cell[idx] = 2 * mult;
-            Scalar x = grid.template pos<0>(pos, 0.0f);
-            Scalar y = grid.template pos<1>(pos, 0.0f);
-            auto wave_arg = wave.wave_arg(0.0f, x, y);
-
-            if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI * wave.length) {
-              auto rho = wave.Rho(0.0f, x, y);
-              int num = floor(math::abs(rho) / q_e);
-
-              // atomicAdd(&num_per_cell[idx], num * (mult_wave * 2 + 1));
-              num_per_cell[idx] += num * (mult_wave * 2 + 1);
-            }
-          }
-        }
-      },
-      num_per_cell.dev_ndptr());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-}
 
 }  // namespace
 
@@ -242,7 +145,7 @@ initial_condition_wave(vector_field<Conf> &B,
   num_per_cell.assign_dev(0);
   cum_num_per_cell.assign_dev(0);
 
-  compute_ptc_per_cell<Conf>(wave, num_per_cell, q_e, mult, mult_wave);
+  // compute_ptc_per_cell<Conf>(wave, num_per_cell, q_e, mult, mult_wave);
 
   thrust::device_ptr<int> p_num_per_cell(num_per_cell.dev_ptr());
   thrust::device_ptr<int> p_cum_num_per_cell(cum_num_per_cell.dev_ptr());
@@ -333,91 +236,6 @@ initial_condition_wave(vector_field<Conf> &B,
                       ((rho < 0.0f) ? PtcType::electron : PtcType::positron));
                 }
               }
-
-              // Scalar weight = w * cube(
-              //     math::abs(0.5f * grid.sizes[0] - x) * 2.0f /
-              //     grid.sizes[0]);
-              // Scalar weight = std::max(w * cube(
-              //     (0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]), 0.02f *
-              //     w);
-              // Scalar weight = (pos[0] > grid.dims[0] * 0.4f ? 0.020 * w : w);
-              // Scalar weight = w;
-              // if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI) {
-              //   auto rho = wave.Rho(0.0f, x, y);
-              //   // auto jx = rho * wave.sinth;
-              //   // auto jy = rho * wave.costh;
-              //   // auto jy = wave.Jy(0.0f, x, y);
-              //   // auto j = math::sqrt(jx * jx + jy * jy);
-              //   // auto v = j / (2.0f * q_e * mult);
-              //   // auto v = math::abs(rho) / (2.0f * q_e * mult * weight);
-              //   auto v = math::abs(rho) / (math::abs(rho) * 3.0f / (q_e *
-              //   mult)) / (q_e * mult);
-              //   // auto v3 = math::abs(rho) * 3.0f / (2.0f * q_e * mult *
-              //   weight); auto v_d = wave.Bz(0.0f, x, y) /
-              //   math::sqrt(square(wave.Bz(0.0f, x, y)) + Bp * Bp);
-              //   // auto v_d = 0.0f;
-              //   auto gamma = 1.0f / math::sqrt(1.0f - v * v - v_d * v_d);
-              //   // auto gamma3 = 1.0f / math::sqrt(1.0f - v3 * v3 - v_d *
-              //   v_d);
-              //   // auto sgn_jy = sgn(jy);
-
-              //   if (rho > 0.0f) {
-              //     ptc.p1[offset] = 0.0f;
-              //     ptc.p1[offset + 1] = v * wave.sinth * gamma;
-              //     ptc.p2[offset] = 0.0f;
-              //     ptc.p2[offset + 1] = v * wave.costh * gamma;
-              //     ptc.p3[offset] = v_d / math::sqrt(1.0f - v_d * v_d);
-              //     ptc.p3[offset + 1] = v_d * gamma;
-              //     ptc.E[offset] = 1.0f / math::sqrt(1.0f - v_d * v_d);
-              //     ptc.E[offset + 1] = gamma;
-              //     ptc.weight[offset] = weight + math::abs(rho) * 2.0f / (q_e
-              //     * mult); ptc.weight[offset + 1] = weight + math::abs(rho)
-              //     * 3.0f / (q_e * mult);
-              //     // ptc.weight[offset] = weight;
-              //     // ptc.weight[offset + 1] = weight;
-              //   } else {
-              //     ptc.p1[offset] = v * wave.sinth * gamma;
-              //     ptc.p1[offset + 1] = 0.0f;
-              //     ptc.p2[offset] = v * wave.costh * gamma;
-              //     ptc.p2[offset + 1] = 0.0f;
-              //     ptc.p3[offset] = v_d * gamma;
-              //     ptc.p3[offset + 1] = v_d / math::sqrt(1.0f - v_d * v_d);
-              //     ptc.E[offset] = gamma;
-              //     ptc.E[offset + 1] = 1.0f / math::sqrt(1.0f - v_d * v_d);
-              //     ptc.weight[offset] = weight + math::abs(rho) * 3.0f / (q_e
-              //     * mult); ptc.weight[offset + 1] = weight + math::abs(rho)
-              //     * 2.0f / (q_e * mult);
-              //     // ptc.weight[offset] = weight;
-              //     // ptc.weight[offset + 1] = weight;
-              //   }
-              //   // ptc.p1[offset] = -jx * gamma / (2.0f * q_e * mult *
-              //   weight);
-              //   // ptc.p1[offset + 1] = jx * gamma / (2.0f * q_e * mult *
-              //   weight);
-              //   // ptc.p2[offset] = -jy * gamma / (2.0f * q_e * mult *
-              //   weight);
-              //   // ptc.p2[offset + 1] = jy * gamma / (2.0f * q_e * mult *
-              //   weight);
-              //   // ptc.p3[offset] = v_d * gamma;
-              //   // ptc.p3[offset + 1] = v_d * gamma;
-              //   // ptc.E[offset] = gamma;
-              //   // ptc.E[offset + 1] = gamma;
-              //   // ptc.weight[offset] = ptc.weight[offset + 1] = weight;
-              // } else {
-              //   ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
-              //   ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
-              //   ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
-              //   ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
-              //   ptc.weight[offset] = ptc.weight[offset + 1] = weight;
-              // }
-
-              // ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-
-              // // Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
-              // ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
-              //                                      PtcType::electron);
-              // ptc.flag[offset + 1] = set_ptc_type_flag(
-              //     flag_or(PtcFlag::primary), PtcType::positron);
             }
           }
         }

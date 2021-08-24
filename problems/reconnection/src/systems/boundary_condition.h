@@ -55,6 +55,7 @@ class boundary_condition : public system_t {
   float m_damping_coef = 1.0f;
   float m_Bp = 10.0f;
   value_t m_Bg = 0.0f;
+  float m_boost_beta = 0.0f;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<scalar_field<Conf>> rho_e, rho_p;

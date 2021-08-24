@@ -19,6 +19,7 @@
 #include "core/math.hpp"
 #include "framework/config.h"
 #include "systems/grid.h"
+#include "systems/physics/lorentz_transform.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
@@ -48,6 +49,7 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid)
   sim_env().params().get_value("upstream_kT", m_upstream_kT);
   sim_env().params().get_value("upstream_n", m_upstream_n);
   sim_env().params().get_value("guide_field", m_Bg);
+  sim_env().params().get_value("boost_beta", m_boost_beta);
   // m_inj_length = m_damping_length / 2;
   m_inj_length = m_damping_length;
 
@@ -171,6 +173,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   value_t upstream_kT = m_upstream_kT;
   auto upstream_n = m_upstream_n;
   auto num = ptc->number();
+  auto boost_beta = m_boost_beta;
 
   // Measure the density in the injection region and determine how many
   // particles need to be injected
@@ -237,14 +240,16 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
         return false;
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-      [upstream_kT] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
         auto p1 = u_d[0];
         auto p2 = u_d[1];
         auto p3 = u_d[2];
-        return vec_t<value_t, 3>(p1, p2, p3);
+        auto p = vec_t<value_t, 3>(p1, p2, p3);
+        return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
+        // return vec_t<value_t, 3>(p1, p2, p3);
         // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);

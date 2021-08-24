@@ -27,12 +27,27 @@ namespace Aperture {
 
 template <typename Scalar>
 HD_INLINE vec_t<Scalar, 3>
-lorentz_transform(const vec_t<Scalar, 3>& u_orig, const vec_t<Scalar, 3>& v) {
+lorentz_transform_velocity(const vec_t<Scalar, 3>& u_orig,
+                           const vec_t<Scalar, 3>& v) {
   Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
   Scalar udotv = u_orig.dot(v);
 
   return (u_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
          (1.0f - udotv);
+}
+
+template <typename Scalar>
+HD_INLINE vec_t<Scalar, 3>
+lorentz_transform_momentum(const vec_t<Scalar, 3>& u_orig,
+                           const vec_t<Scalar, 3>& v) {
+  vec_t<Scalar, 3> v_orig = u_orig / math::sqrt(1.0f + u_orig.dot(u_orig));
+  Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
+  Scalar udotv = v_orig.dot(v);
+  vec_t<Scalar, 3> v_f =
+      (v_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
+      (1.0f - udotv);
+
+  return v_f / math::sqrt(1.0f - v_f.dot(v_f));
 }
 
 }  // namespace Aperture

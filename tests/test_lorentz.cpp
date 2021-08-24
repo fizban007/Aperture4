@@ -25,7 +25,11 @@ TEST_CASE("Lorentz Transform", "[physics]") {
   vec_t<double, 3> u_orig(0.9, 0.0, 0.0);
   vec_t<double, 3> v(0.8, 0.0, 0.0);
 
-  vec_t<double, 3> u_prime = lorentz_transform(u_orig, v);
+  vec_t<double, 3> u_prime = lorentz_transform_velocity(u_orig, v);
 
   REQUIRE(u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
+
+  u_orig = vec_t<double, 3>(0.0, 0.0, 0.0);
+  u_prime = lorentz_transform_velocity(u_orig, v);
+  REQUIRE(u_prime[0] == Approx(-v[0]));
 }

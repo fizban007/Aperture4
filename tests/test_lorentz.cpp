@@ -15,26 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _LORENTZ_TRANSFORM_H_
-#define _LORENTZ_TRANSFORM_H_
+#include "catch.hpp"
+#include "systems/physics/lorentz_transform.hpp"
 
-#include "core/cuda_control.h"
-#include "core/math.hpp"
-#include "utils/util_functions.h"
-#include "utils/vec.hpp"
+using namespace Aperture;
 
-namespace Aperture {
+TEST_CASE("Lorentz Transform", "[physics]") {
+  // 1D velocity addition
+  vec_t<double, 3> u_orig(0.9, 0.0, 0.0);
+  vec_t<double, 3> v(0.8, 0.0, 0.0);
 
-template <typename Scalar>
-HD_INLINE vec_t<Scalar, 3>
-lorentz_transform(const vec_t<Scalar, 3>& u_orig, const vec_t<Scalar, 3>& v) {
-  Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
-  Scalar udotv = u_orig.dot(v);
+  vec_t<double, 3> u_prime = lorentz_transform(u_orig, v);
 
-  return (u_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
-         (1.0f - udotv);
+  REQUIRE(u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
 }
-
-}  // namespace Aperture
-
-#endif  // _LORENTZ_TRANSFORM_H_

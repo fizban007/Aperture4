@@ -15,6 +15,7 @@ target_sources(tests PUBLIC
   "test_gaussian_quadrature.cpp"
   "test_singleton.cpp"
   "test_mem_layout.cpp"
+  "test_lorentz.cpp"
   )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_sources(tests PUBLIC

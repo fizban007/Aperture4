@@ -17,6 +17,7 @@
 
 #include "catch.hpp"
 #include "systems/physics/lorentz_transform.hpp"
+#include "utils/logger.h"
 
 using namespace Aperture;
 
@@ -24,12 +25,13 @@ TEST_CASE("Lorentz Transform", "[physics]") {
   // 1D velocity addition
   vec_t<double, 3> u_orig(0.9, 0.0, 0.0);
   vec_t<double, 3> v(0.8, 0.0, 0.0);
+  double gamma_u = 1.0f / math::sqrt(1.0f - u_orig.dot(u_orig));
 
-  vec_t<double, 3> u_prime = lorentz_transform_velocity(u_orig, v);
-
-  REQUIRE(u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
+  vec_t<double, 4> u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, v);
+  Logger::print("u0 is {}, u1 is {}", u_prime[0], u_prime[1]);
+  REQUIRE(u_prime[1] / u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
 
   u_orig = vec_t<double, 3>(0.0, 0.0, 0.0);
-  u_prime = lorentz_transform_velocity(u_orig, v);
-  REQUIRE(u_prime[0] == Approx(-v[0]));
+  u_prime = lorentz_transform_vector(1.0, u_orig, v);
+  REQUIRE(u_prime[1] / u_prime[0] == Approx(-v[0]));
 }

@@ -25,29 +25,27 @@
 
 namespace Aperture {
 
+// template <typename Scalar>
+// HD_INLINE vec_t<Scalar, 3>
+// lorentz_transform_velocity(const vec_t<Scalar, 3>& u_orig,
+//                            const vec_t<Scalar, 3>& v) {
+//   Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
+//   Scalar udotv = u_orig.dot(v);
+
+//   return (u_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
+//          (1.0f - udotv);
+// }
+
 template <typename Scalar>
-HD_INLINE vec_t<Scalar, 3>
-lorentz_transform_velocity(const vec_t<Scalar, 3>& u_orig,
-                           const vec_t<Scalar, 3>& v) {
-  Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
+HD_INLINE vec_t<Scalar, 4>
+lorentz_transform_vector(Scalar u0, const vec_t<Scalar, 3>& u_orig,
+                         const vec_t<Scalar, 3>& v) {
+  Scalar v_sqr = v.dot(v);
+  Scalar gamma = 1.0f / math::sqrt(1.0f - v_sqr);
   Scalar udotv = u_orig.dot(v);
-
-  return (u_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
-         (1.0f - udotv);
-}
-
-template <typename Scalar>
-HD_INLINE vec_t<Scalar, 3>
-lorentz_transform_momentum(const vec_t<Scalar, 3>& u_orig,
-                           const vec_t<Scalar, 3>& v) {
-  vec_t<Scalar, 3> v_orig = u_orig / math::sqrt(1.0f + u_orig.dot(u_orig));
-  Scalar gamma = 1.0f / math::sqrt(1.0f - v.dot(v));
-  Scalar udotv = v_orig.dot(v);
-  vec_t<Scalar, 3> v_f =
-      (v_orig / gamma + v * (gamma * udotv / (gamma + 1.0f) - 1.0f)) /
-      (1.0f - udotv);
-
-  return v_f / math::sqrt(1.0f - v_f.dot(v_f));
+  Scalar u0p = gamma * (u0 - udotv);
+  vec_t<Scalar, 3> up = u_orig + v * ((gamma - 1.0f) * udotv / v_sqr - gamma * u0);
+  return {u0p, up};
 }
 
 }  // namespace Aperture

@@ -195,7 +195,7 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t gamma = math::sqrt(1.0f + p.dot(p));
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
-        return p_prime.template subset<0, 3>();
+        return p_prime.template subset<1, 4>();
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
       [n_upstream] __device__(auto &x_global) {
@@ -231,7 +231,7 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t gamma = math::sqrt(1.0f + p.dot(p));
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
-        return p_prime.template subset<0, 3>();
+        return p_prime.template subset<1, 4>();
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         // return vec_t<value_t, 3>(gamma_shift * (p1 + beta_shift * gamma_d), p2, p3);
       },

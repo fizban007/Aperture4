@@ -252,7 +252,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
         value_t gamma = math::sqrt(1.0f + p.dot(p));
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
-        return p_prime.template subset<0, 3>();
+        return p_prime.template subset<1, 4>();
         // return vec_t<value_t, 3>(p1, p2, p3);
         // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);

@@ -41,6 +41,9 @@ HD_INLINE vec_t<Scalar, 4>
 lorentz_transform_vector(Scalar u0, const vec_t<Scalar, 3>& u_orig,
                          const vec_t<Scalar, 3>& v) {
   Scalar v_sqr = v.dot(v);
+  if (v_sqr < TINY) {
+    return {u0, u_orig};
+  }
   Scalar gamma = 1.0f / math::sqrt(1.0f - v_sqr);
   Scalar udotv = u_orig.dot(v);
   Scalar u0p = gamma * (u0 - udotv);

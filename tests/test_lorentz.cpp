@@ -31,6 +31,11 @@ TEST_CASE("Lorentz Transform", "[physics]") {
   Logger::print("u0 is {}, u1 is {}", u_prime[0], u_prime[1]);
   REQUIRE(u_prime[1] / u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
 
+  u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, {0.0, 0.0, 0.0});
+  REQUIRE(u_prime[0] == gamma_u);
+  REQUIRE(u_prime[1] == u_orig[0] * gamma_u);
+  REQUIRE(u_prime[2] == u_orig[1] * gamma_u);
+
   u_orig = vec_t<double, 3>(0.0, 0.0, 0.0);
   u_prime = lorentz_transform_vector(1.0, u_orig, v);
   REQUIRE(u_prime[1] / u_prime[0] == Approx(-v[0]));

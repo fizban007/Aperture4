@@ -46,12 +46,15 @@ main(int argc, char* argv[]) {
 
   particles_t ptc(100, MemType::device_managed);
   photons_t ph(100, MemType::device_managed);
-  ptc.set_segment_size(20);
-  ph.set_segment_size(20);
+  ptc.set_segment_size(1);
+  ph.set_segment_size(1);
   int N1 = grid->dims[0];
   ptc.set_num(18);
   if (comm->rank() == 0) {
     ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
     ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
     ptc.append_dev({0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
     ptc.append_dev({0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
@@ -68,11 +71,12 @@ main(int argc, char* argv[]) {
 
   Logger::print_debug_all("Rank {} has {} particles:", comm->rank(),
                           ptc.number());
-  Logger::print_debug_all("Rank {} has {} photons:", comm->rank(), ph.number());
+  // ptc.copy_to_host();
   for (unsigned int i = 0; i < ptc.number(); i++) {
     auto c = ptc.cell[i];
     Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
   }
+  Logger::print_debug_all("Rank {} has {} photons:", comm->rank(), ph.number());
 
   // typename Conf::multi_array_t v(grid->extent());
   vector_field<Conf> f(*grid);

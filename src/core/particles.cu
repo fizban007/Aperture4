@@ -86,7 +86,9 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
           // Zone is less than 32, so we can use 5 bits to represent this. The
           // rest of the bits go to encode the index of this particle in that
           // zone.
-          index[n] = ((zone & 0b11111) << (sizeof(size_t) * 8 - 5)) + pos;
+          int bitshift_width = (sizeof(size_t) * 8 - 5);
+          index[n] = ((zone & 0b11111) << bitshift_width) + pos;
+          // printf("pos is %lu, index is %lu, zone is %lu\n", pos, index[n], zone);
         }
       },
       cells, buffer_num.dev_ptr(), index);
@@ -103,11 +105,6 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         int bitshift_width = (sizeof(size_t) * 8 - 5);
-        // int zone_offset = 0;
-        // if (Conf::dim == 2)
-        //   zone_offset = 9;
-        // else if (Conf::dim == 1)
-        //   zone_offset = 12;
         int zone_offset = get_zone_offset<Conf::dim>();
         // loop through the particle array
         for (auto n : grid_stride_range(0, num)) {
@@ -117,9 +114,11 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           size_t zone = ((i >> bitshift_width) & 0b11111);
           if (zone == 13 || zone > 27) continue;
           size_t pos = i - (zone << bitshift_width);
+          // printf("i is %lu, zone is %lu, zone_shifted is %lu, pos is %lu\n",
+          //        i, zone, zone << bitshift_width, pos);
           // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
           // assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
-          assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data, n);
+          assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data, n + offset);
           // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
           //                                                 zone_offset].cell[pos],
           //                                                 ptc_data.cell[n]);
@@ -133,15 +132,18 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           //     -dz * grid.reduced_dim(2) * grid.dims[0] * grid.dims[1] -
           //     dy * grid.reduced_dim(1) * grid.dims[0] -
           //     dx * grid.reduced_dim(0);
+
+          // TODO: This needs to be modified if the domain decomp is not uniform
           ptc_buffers[zone - zone_offset][pos].cell =
               idx.dec_z(dz * grid.reduced_dim(2))
                   .dec_y(dy * grid.reduced_dim(1))
                   .dec_x(dx * grid.reduced_dim(0))
                   .linear;
-          // printf("dc is %d, cell is %u, cell after is %u, zone is %lu\n",
-          // dcell,
-          //        ptc_data.cell[n],
-          //        ptc_buffers[zone - zone_offset].cell[pos],
+          // auto cell_after = ptc_buffers[zone - zone_offset][pos].cell;
+          // printf("i is %lu, pos is %lu, cell is %u, cell after is (%d, %d), zone is %lu\n",
+          //        i, pos, cell,
+          //        cell_after % grid.dims[0],
+          //        cell_after / grid.dims[0],
           //        zone - zone_offset);
           // Set the particle to empty
           ptc_data.cell[n + offset] = empty_cell;
@@ -372,10 +374,10 @@ particles_base<BufferType>::copy_to_comm_buffers(
 
     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
       size_t offset = n * m_sort_segment_size;
-      // Logger::print_debug("offset is {}, n is {}", offset, n);
+      Logger::print_debug("offset is {}, n is {}", offset, n);
 
       m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
-      auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+      // auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
       compute_target_buffers<Conf>(this->cell.dev_ptr(), offset,
                                    m_sort_segment_size, m_zone_buffer_num,
                                    m_index.dev_ptr());
@@ -388,11 +390,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
     // timer::show_duration_since_stamp("Computing target buffers", "ms",
     // "compute_buffer");
 
-    int zone_offset = 0;
-    if (buffers.size() == 9)
-      zone_offset = 9;
-    else if (buffers.size() == 3)
-      zone_offset = 12;
+    int zone_offset = get_zone_offset<Conf::dim>();
     for (unsigned int i = 0; i < buffers.size(); i++) {
       // Logger::print_debug("zone {} buffer has {} ptc", i + zone_offset,
       //                     m_zone_buffer_num[i + zone_offset]);
@@ -428,6 +426,7 @@ particles_base<BufferType>::copy_from_buffer(const buffer<single_type> &buf,
             assign_ptc(ptc, dst_idx + n, buf[n]);
         }
         }, m_dev_ptrs, buf.dev_ptr());
+    // CudaSafeCall(cudaDeviceSynchronize());
   }
   if (dst_idx + num > m_number)
     m_number = dst_idx + num;

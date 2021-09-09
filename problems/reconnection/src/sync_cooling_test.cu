@@ -20,13 +20,14 @@
 #include "systems/domain_comm.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
-#include "systems/policies/sync_cooling_policy.hpp"
+// #include "systems/policies/sync_cooling_policy.hpp"
+#include "systems/policies/phys_policy_sync_cooling.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
 
 template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian, sync_cooling_policy>;
+                               coord_policy_cartesian, phys_policy_sync_cooling>;
 
 }
 
@@ -44,7 +45,7 @@ main(int argc, char* argv[]) {
 
   auto grid = env.register_system<grid_t<Conf>>(comm);
   auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian, sync_cooling_policy>>(
+      Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_sync_cooling>>(
       *grid, comm);
   auto exporter = env.register_system<data_exporter<Conf>>(*grid, &comm);
 

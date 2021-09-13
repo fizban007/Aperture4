@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(Aperture LANGUAGES C CXX)
+project(Aperture LANGUAGES C CXX CUDA)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -38,15 +38,15 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
       "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div -DUSE_BMI2 ${CXX_EXTRA_FLAGS}")
 else()
   set(CMAKE_CXX_FLAGS_RELEASE
-      "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=native -DUSE_BMI2 ${CXX_EXTRA_FLAGS}")
+      "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=native ${CXX_EXTRA_FLAGS}")
 endif()
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/../bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 # Find required packages
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
-# find_package(Boost COMPONENTS system filesystem REQUIRED)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 find_package(OpenMP)
 if (OPENMP_FOUND)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -100,9 +100,9 @@ if(use_cuda)
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable ${CUDA_EXTRA_FLAGS}")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 86 70)
+    set(CMAKE_CUDA_ARCHITECTURES 70)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     # message(${CMAKE_CXX_COMPILER})
     find_library(CUDART_LIBRARY cudart

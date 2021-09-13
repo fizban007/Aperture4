@@ -30,7 +30,7 @@ main(int argc, char* argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::detail);
   env.params().add("N", std::vector<int64_t>({256, 256, 384}));
-  env.params().add("nodes", std::vector<int64_t>({2, 2, 1}));
+  env.params().add("nodes", std::vector<int64_t>({2, 2, 3}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({1.0, 2.0, 3.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));

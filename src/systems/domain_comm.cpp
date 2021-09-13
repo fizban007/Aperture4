@@ -591,37 +591,64 @@ domain_comm<Conf>::send_particle_array(
     int src, int dst, std::vector<MPI_Request> &req_send,
     std::vector<MPI_Request> &req_recv,
     std::vector<MPI_Status> &stat_recv) const {
+  // Logger::print_debug("Sending particle array in batch of {}", buf_send_idx.size());
   for (int i = 0; i < buf_send_idx.size(); i++) {
     auto &send_buffer = buffers[buf_send_idx[i]];
     auto &recv_buffer = buffers[buf_recv_idx[i]];
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
     auto send_ptr = send_buffer.dev_ptr();
-    auto recv_ptr = recv_buffer.dev_ptr();
+    auto recv_ptr = recv_buffer.dev_ptr() + buf_nums[buf_recv_idx[i]];
 #else
     send_buffer.copy_to_host();
     auto send_ptr = send_buffer.host_ptr();
     auto recv_ptr = recv_buffer.host_ptr();
 #endif
 
-    MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
-              src, i, m_cart, &req_recv[i]);
-    MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-              MPI_BYTE, dst, i, m_cart, &req_send[i]);
-    buf_nums[buf_send_idx[i]] = 0;
+    if (src == dst && src == m_rank) {
+    // if (false) {
+#if CUDA_ENABLED && USE_CUDA_AWARE_MPI
+      cudaMemcpy(recv_ptr, send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+                 cudaMemcpyDeviceToDevice);
+#else
+      std::copy_n(send_ptr, buf_nums[buf_send_idx[i]], recv_ptr);
+#endif
+      // send_buffer.copy_to_host();
+      // recv_buffer.copy_to_host();
+      // for (int n = buf_nums[buf_recv_idx[i]]; n < buf_nums[buf_send_idx[i]] + buf_nums[buf_recv_idx[i]]; n++) {
+      //   auto c = recv_buffer[n].cell;
+      //   auto cs = send_buffer[n - buf_nums[buf_recv_idx[i]]].cell;
+      //   Logger::print_debug_all("in send buffer, cell {}, {}; in recv buffer, cell {}, {}", cs % 14, cs / 14,
+      //                           c % 14, c / 14);
+      // }
+      buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
+    } else {
+      MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
+                src, i, m_cart, &req_recv[i]);
+      MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+                MPI_BYTE, dst, i, m_cart, &req_send[i]);
+    }
+    // buf_nums[buf_send_idx[i]] = 0;
   }
 
   for (int i = 0; i < buf_recv_idx.size(); i++) {
     auto &recv_buffer = buffers[buf_recv_idx[i]];
-    int num_recved = 0;
-    MPI_Wait(&req_recv[i], &stat_recv[i]);
-    MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
-    buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
+    if (src != dst || src != m_rank) {
+    // if (true) {
+      int num_recved = 0;
+      MPI_Wait(&req_recv[i], &stat_recv[i]);
+      MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
+      buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
+      // Logger::print_debug("recved is {}, buf_num + {}", num_recved, num_recved / sizeof(recv_buffer[0]));
+    }
 #if CUDA_ENABLED &&                                              \
     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
      !MPIX_CUDA_AWARE_SUPPORT)
     recv_buffer.copy_to_device();
 #endif
+  }
+  for (int i = 0; i < buf_recv_idx.size(); i++) {
+    buf_nums[buf_send_idx[i]] = 0;
   }
 }
 
@@ -724,10 +751,10 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   auto &buf_ptrs = ptc_buffer_ptrs(ptc);
   auto &buf_nums = ptc_buffer_nums(ptc);
   buf_nums.assign_host(0);
-  timer::stamp("copy_comm");
+  // timer::stamp("copy_comm");
   ptc.copy_to_comm_buffers(buffers, buf_ptrs, buf_nums, grid);
-  timer::show_duration_since_stamp("Coping to comm buffers", "ms",
-  "copy_comm");
+  // timer::show_duration_since_stamp("Coping to comm buffers", "ms",
+  // "copy_comm");
 
   // Define the central zone and number of send_recv in x direction
   int central = 13;
@@ -780,8 +807,8 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
 
   // Send in y direction next
   if constexpr (Conf::dim >= 2) {
-    int num_send_y = 3;
-    if (Conf::dim == 2) num_send_y = 1;
+    int num_send_y = (Conf::dim == 2 ? 1 : 3);
+    // if (Conf::dim == 2) num_send_y = 1;
     std::vector<int> vec_buf_send_y(num_send_y);
     std::vector<int> vec_buf_recv_y(num_send_y);
     // Send left in y
@@ -847,10 +874,14 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   // ptc.copy_from(buffers[central], buffers[central].number(), 0,
   // ptc.number());
   ptc.copy_from_buffer(buffers[central], buf_nums[central], ptc.number());
-  // Logger::print_debug_all(
-  //     "Communication resulted in {} ptc in total, ptc has {} particles "
-  //     "now",
-  //     buf_nums[central], ptc.number());
+  Logger::print_debug_all(
+      "Communication resulted in {} ptc in total, ptc has {} particles "
+      "now",
+      buf_nums[central], ptc.number());
+  // for (unsigned int i = ptc.number() - 4; i < ptc.number(); i++) {
+  //   auto c = ptc.cell[i];
+  //   Logger::print_debug_all("c {}, cell {}, {}", c, c % grid.dims[0], c / grid.dims[0]);
+  // }
   // buffers[central].set_num(0);
   buf_nums[central] = 0;
   // timer::show_duration_since_stamp("Send particles", "ms", "send_ptc");

@@ -15,8 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SYNC_COOLING_POLICY_H_
-#define _SYNC_COOLING_POLICY_H_
+#ifndef _PHYS_POLICY_SYNC_COOLING_H_
+#define _PHYS_POLICY_SYNC_COOLING_H_
+
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -27,7 +28,7 @@
 namespace Aperture {
 
 template <typename Conf>
-class sync_cooling_policy {
+class phys_policy_sync_cooling {
  public:
   using value_t = typename Conf::value_t;
 
@@ -95,4 +96,5 @@ class sync_cooling_policy {
 
 }  // namespace Aperture
 
-#endif  // _SYNC_COOLING_POLICY_H_
+
+#endif  // _PHYS_POLICY_SYNC_COOLING_H_

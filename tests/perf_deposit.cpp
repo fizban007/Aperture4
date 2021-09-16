@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "framework/environment.h"
 #include "framework/config.h"
+#include "framework/environment.h"
 #include "systems/ptc_updater_sph.h"
 #include "utils/timer.h"
 #include <fstream>
@@ -24,7 +24,8 @@
 
 using namespace Aperture;
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[]) {
   typedef Config<2> Conf;
   Logger::print_info("value_t has size {}", sizeof(typename Conf::value_t));
   // sim_environment env;
@@ -54,8 +55,7 @@ int main(int argc, char *argv[]) {
     pusher->move_and_deposit(0.1, 2);
     double dt = 0.001 * timer::get_duration_since_stamp("us");
     t += dt;
-    if (i % 10 == 0)
-      Logger::print_info("Deposit took {}ms", dt);
+    if (i % 10 == 0) Logger::print_info("Deposit took {}ms", dt);
   }
   t /= N;
   Logger::print_info("Ran deposit {} times, average time {}ms", N, t);

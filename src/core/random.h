@@ -21,6 +21,7 @@
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/environment.h"
+#include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
 
 #ifdef CUDA_ENABLED
@@ -89,7 +90,7 @@ struct rng_t {
   }
 
   template <typename Float>
-  __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, Float beta) {
+  __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, type_identity_t<Float> beta) {
     vec_t<Float, 3> u = maxwell_juttner_3d(theta);
     auto G = 1.0f / math::sqrt(1.0f - beta*beta);
     auto u0 = math::sqrt(1.0f + u.dot(u));

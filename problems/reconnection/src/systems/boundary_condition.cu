@@ -223,19 +223,20 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   // auto dens_e2 = m_dens_e2->dev_ndptr();
   // auto dens_p2 = m_dens_p2->dev_ndptr();
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
+  auto inj_size = inj_length * m_grid.delta[1];
   injector->inject(
-      [rho_e_ptr, rho_p_ptr, inj_length, upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-        if (pos[1] < inj_length + grid.guard[1] ||
-            pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
+      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+        auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
+
+        if (x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size ||
+            x_global[1] < grid.lower[1] + inj_size) {
           auto idx = Conf::idx(pos, ext);
-          return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 3.0f / upstream_n;
+          return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
         }
-        // else if (pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-        //   index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.dims[1] +
-        //                                                  grid.guard[1] +
-        //                                                  inj_length);
-        //   auto idx = Conf::idx(pos_inj, ext_inj);
-        //   return dens_e2[idx] + dens_p2[idx] < 2.0f - 4.0f / upstream_n;
+        // if (pos[1] < inj_length + grid.guard[1] ||
+        //     pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
+        //   auto idx = Conf::idx(pos, ext);
+        //   return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
         // }
         return false;
       },

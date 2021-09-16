@@ -159,6 +159,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   Logger::print_detail("Updating {} particles", ptc->number());
   timer::stamp();
   update_particles(dt, step);
+  ExecPolicy<Conf>::sync();
   timer::show_duration_since_stamp("update", "ms");
 
   timer::stamp();
@@ -174,6 +175,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
       }
     }
   }
+  ExecPolicy<Conf>::sync();
   timer::show_duration_since_stamp("commJRho", "ms");
 
   timer::stamp();
@@ -185,6 +187,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   if (m_comm != nullptr) {
     m_comm->send_particles(*ptc, m_grid);
   }
+  ExecPolicy<Conf>::sync();
   timer::show_duration_since_stamp("send_particles", "ms");
 
   // Logger::print_detail("Finished sending particles");

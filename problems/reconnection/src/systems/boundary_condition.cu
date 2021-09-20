@@ -37,8 +37,8 @@ HOST_DEVICE Scalar pml_sigma(Scalar x, Scalar xh, Scalar pmlscale,
 }
 
 template <typename Conf>
-boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid)
-    : m_grid(grid) {
+boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid, const domain_comm<Conf>* comm)
+    : m_grid(grid), m_comm(comm) {
   using multi_array_t = typename Conf::multi_array_t;
 
   sim_env().params().get_value("damping_coef", m_damping_coef);
@@ -119,41 +119,53 @@ template <typename Conf> void boundary_condition<Conf>::damp_fields() {
   typedef typename Conf::idx_t idx_t;
   value_t Bp = m_Bp;
   value_t Bg = m_Bg;
+  bool is_boundary[Conf::dim * 2];
+  for (int i = 0; i < Conf::dim * 2; i++) {
+    if (m_comm != nullptr) {
+      is_boundary[i] = m_comm->domain_info().is_boundary[i];
+    } else {
+      is_boundary[i] = true;
+    }
+  }
 
   // Apply damping boundary condition on both Y boundaries
   kernel_launch(
-      [Bp, Bg] __device__(auto e, auto b, auto prev_e, auto prev_b,
+      [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
                       auto damping_length, auto damping_coef) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         // auto ext_damping = extent(damping_length, grid.dims[0]);
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           // y = -y_max boundary
-          for (int i = 0; i < damping_length; i++) {
-            int n1 = i;
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t lambda =
-                1.0f - damping_coef * cube((value_t)(damping_length - i) /
-                                           (damping_length - 1));
-            e[0][idx] *= lambda;
-            e[1][idx] *= lambda;
-            e[2][idx] *= lambda;
-            b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
-            b[1][idx] *= lambda;
-            b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+          if (is_boundary[2] == true) {
+            for (int i = 0; i < damping_length; i++) {
+              int n1 = i;
+              auto idx = idx_t(index_t<2>(n0, n1), ext);
+              value_t lambda =
+                  1.0f - damping_coef * cube((value_t)(damping_length - i) /
+                                             (damping_length - 1));
+              e[0][idx] *= lambda;
+              e[1][idx] *= lambda;
+              e[2][idx] *= lambda;
+              b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
+              b[1][idx] *= lambda;
+              b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+            }
           }
           // y = y_max boundary
-          for (int i = 0; i < damping_length; i++) {
-            int n1 = grid.dims[1] - damping_length + i;
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t lambda =
-                1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
-            e[0][idx] *= lambda;
-            e[1][idx] *= lambda;
-            e[2][idx] *= lambda;
-            b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
-            b[1][idx] *= lambda;
-            b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+          if (is_boundary[3] == true) {
+            for (int i = 0; i < damping_length; i++) {
+              int n1 = grid.dims[1] - damping_length + i;
+              auto idx = idx_t(index_t<2>(n0, n1), ext);
+              value_t lambda =
+                  1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+              e[0][idx] *= lambda;
+              e[1][idx] *= lambda;
+              e[2][idx] *= lambda;
+              b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
+              b[1][idx] *= lambda;
+              b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+            }
           }
         }
       },
@@ -168,6 +180,14 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   // m_dens_p1->assign_dev(0.0f);
   // m_dens_e2->assign_dev(0.0f);
   // m_dens_p2->assign_dev(0.0f);
+  bool is_boundary[Conf::dim * 2];
+  for (int i = 0; i < Conf::dim * 2; i++) {
+    if (m_comm != nullptr) {
+      is_boundary[i] = m_comm->domain_info().is_boundary[i];
+    } else {
+      is_boundary[i] = true;
+    }
+  }
 
   auto inj_length = m_inj_length;
   value_t upstream_kT = m_upstream_kT;
@@ -175,69 +195,19 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   auto num = ptc->number();
   auto boost_beta = m_boost_beta;
 
-  // Measure the density in the injection region and determine how many
-  // particles need to be injected
-  // using policy = exec_policy_cuda<Conf>;
-  // policy::launch(
-  //     [inj_length, num] __device__(auto ptc, auto dens_e1, auto dens_p1,
-  //                                  auto dens_e2, auto dens_p2) {
-  //       auto &grid = policy::grid();
-  //       auto ext = grid.extent();
-  //       auto ext_inj = extent_t<2>(grid.reduced_dim(0), inj_length);
-
-  //       for (auto n : grid_stride_range(0, num)) {
-  //         uint32_t cell = ptc.cell[n];
-  //         if (cell == empty_cell)
-  //           continue;
-
-  //         auto idx = Conf::idx(cell, ext);
-  //         auto pos = get_pos(idx, ext);
-
-  //         if (pos[1] - grid.guard[1] < inj_length) {
-  //           index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.guard[1]);
-  //           auto sp = get_ptc_type(ptc.flag[n]);
-  //           if (sp == 0) {
-  //             atomic_add(&dens_e1[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
-  //           } else if (sp == 1) {
-  //             atomic_add(&dens_p1[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
-  //           }
-  //         } else if (pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-  //           index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.dims[1] +
-  //                                                          grid.guard[1] +
-  //                                                          inj_length);
-  //           auto sp = get_ptc_type(ptc.flag[n]);
-  //           if (sp == 0) {
-  //             atomic_add(&dens_e2[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
-  //           } else if (sp == 1) {
-  //             atomic_add(&dens_p2[Conf::idx(pos_inj, ext_inj)], ptc.weight[n]);
-  //           }
-  //         }
-  //       }
-  //     },
-  //     ptc, *m_dens_e1, *m_dens_p1, *m_dens_e2, *m_dens_p2);
-  // policy::sync();
-
-  // Actually inject the particles
   auto rho_e_ptr = rho_e->dev_ndptr();
   auto rho_p_ptr = rho_p->dev_ndptr();
-  // auto dens_e2 = m_dens_e2->dev_ndptr();
-  // auto dens_p2 = m_dens_p2->dev_ndptr();
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
   auto inj_size = inj_length * m_grid.delta[1];
   injector->inject(
-      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
 
-        if (x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size ||
-            x_global[1] < grid.lower[1] + inj_size) {
+        if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size && is_boundary[3]) ||
+            (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
           auto idx = Conf::idx(pos, ext);
           return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
         }
-        // if (pos[1] < inj_length + grid.guard[1] ||
-        //     pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-        //   auto idx = Conf::idx(pos, ext);
-        //   return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
-        // }
         return false;
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },

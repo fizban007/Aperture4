@@ -24,6 +24,7 @@
 // #include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include "systems/policies.h"
 #include "systems/ptc_injector_new.h"
@@ -38,7 +39,7 @@ class boundary_condition : public system_t {
   using value_t = typename Conf::value_t;
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(const grid_t<Conf>& grid);
+  boundary_condition(const grid_t<Conf>& grid, const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
   void update(double dt, uint32_t step) override;
@@ -48,6 +49,7 @@ class boundary_condition : public system_t {
 
  protected:
   const grid_t<Conf>& m_grid;
+  const domain_comm<Conf>* m_comm;
   int m_inj_length = 16;
   int m_damping_length = 64;
   int m_upstream_n = 1;

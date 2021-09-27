@@ -74,10 +74,13 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // Background (upstream) particles
   injector->inject(
+      // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      // Number injected
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
+      // Initialize particles
       [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_upstream, 0.995f);
@@ -86,21 +89,15 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p2 = u_d[1];
         auto p3 = u_d[2];
         return vec_t<value_t, 3>(p1, p2, p3);
-        // auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        // auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        // auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
-        // // value_t beta = p1 / gamma;
-        // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
-        // return vec_t<value_t, 3>(p1, p2, p3);
       },
-      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      // Particle weight
       [n_upstream] __device__(auto &x_global) {
         return 1.0 / n_upstream;
       });
 
   // Current sheet particles
   injector->inject(
+      // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template pos<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
@@ -110,7 +107,9 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
           return false;
         }
       },
+      // Number injected
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      // Initialize particles
       [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
@@ -127,7 +126,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return vec_t<value_t, 3>(p1, p2, p3);
         // return vec_t<value_t, 3>(gamma_shift * (p1 + beta_shift * gamma_d), p2, p3);
       },
-      // [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid, auto &ext) {
+      // Particle weight
       [B0, n_cs, q_e, beta_d, delta] __device__(auto &x_global) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));
@@ -179,10 +178,13 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // Background (upstream) particles
   injector->inject(
+      // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      // Number injected
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
+      // Initialize particles
       [kT_upstream, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
         auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
@@ -197,13 +199,14 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
         return p_prime.template subset<1, 4>();
       },
-      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      // Particle weight
       [n_upstream] __device__(auto &x_global) {
         return 1.0 / n_upstream;
       });
 
   // Current sheet particles
   injector->inject(
+      // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template pos<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
@@ -213,7 +216,9 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
           return false;
         }
       },
+      // Number injected
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      // Initialize particles
       [kT_cs, beta_d, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
@@ -232,10 +237,8 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
         return p_prime.template subset<1, 4>();
-        // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        // return vec_t<value_t, 3>(gamma_shift * (p1 + beta_shift * gamma_d), p2, p3);
       },
-      // [B0, n_cs, q_e, beta_d, delta] __device__(auto &pos, auto &grid, auto &ext) {
+      // Particle weight
       [B0, n_cs, q_e, beta_d, delta] __device__(auto &x_global) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));

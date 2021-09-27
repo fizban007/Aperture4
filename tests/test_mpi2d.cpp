@@ -44,8 +44,8 @@ main(int argc, char* argv[]) {
   auto comm = env.register_system<domain_comm<Conf>>();
   auto grid = env.register_system<grid_t<Conf>>(*comm);
 
-  particles_t ptc(100, MemType::device_managed);
-  photons_t ph(100, MemType::device_managed);
+  particles_t ptc(100, MemType::device_only);
+  photons_t ph(100, MemType::device_only);
   ptc.set_segment_size(1);
   ph.set_segment_size(1);
   int N1 = grid->dims[0];
@@ -72,10 +72,10 @@ main(int argc, char* argv[]) {
   Logger::print_debug_all("Rank {} has {} particles:", comm->rank(),
                           ptc.number());
   // ptc.copy_to_host();
-  for (unsigned int i = 0; i < ptc.number(); i++) {
-    auto c = ptc.cell[i];
-    Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
-  }
+  // for (unsigned int i = 0; i < ptc.number(); i++) {
+  //   auto c = ptc.cell[i];
+  //   Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
+  // }
   Logger::print_debug_all("Rank {} has {} photons:", comm->rank(), ph.number());
 
   // typename Conf::multi_array_t v(grid->extent());

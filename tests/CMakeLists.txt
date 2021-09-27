@@ -69,9 +69,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(mock_loop "mock_loop.cu")
   target_link_libraries(mock_loop Aperture)
 
-  add_executable(test_maxwellian "test_maxwellian.cu")
-  target_link_libraries(test_maxwellian Aperture)
-
   add_executable(test_IC_cooling "test_IC_cooling.cu")
   target_link_libraries(test_IC_cooling Aperture)
 

@@ -41,7 +41,6 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
   Scalar gamma0 = math::sqrt(1.0 + p0 * p0);
   Scalar beta0 = p0 / gamma0;
   // Scalar j = (mult - 5) * q_e * beta0;
-  Scalar delta_p = sim_env().params().get_as<double>("delta_p", 0.0);
   int n = sim_env().params().get_as<int64_t>("multiplicity", 10);
   auto &grid = B.grid();
 

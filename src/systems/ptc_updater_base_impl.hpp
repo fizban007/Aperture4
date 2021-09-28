@@ -113,10 +113,13 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                 PhysicsPolicy>::register_data_components() {
   size_t max_ptc_num = 10000;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
+  int segment_size = 10000000;
+  sim_env().params().get_value("ptc_segment_size", segment_size);
 
   ptc = sim_env().register_data<particle_data_t>(
       "particles", max_ptc_num, ExecPolicy<Conf>::tmp_mem_type());
   ptc->include_in_snapshot(true);
+  ptc->set_segment_size(segment_size);
 
   E = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered,
@@ -157,12 +160,12 @@ void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     double dt, uint32_t step) {
   Logger::print_detail("Updating {} particles", ptc->number());
-  timer::stamp();
+  // timer::stamp();
   update_particles(dt, step);
   ExecPolicy<Conf>::sync();
-  timer::show_duration_since_stamp("update", "ms");
+  // timer::show_duration_since_stamp("update", "ms");
 
-  timer::stamp();
+  // timer::stamp();
   // Communicate deposited current and charge densities
   if (m_comm != nullptr) {
     m_comm->send_add_guard_cells(*J);
@@ -176,11 +179,11 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     }
   }
   ExecPolicy<Conf>::sync();
-  timer::show_duration_since_stamp("commJRho", "ms");
+  // timer::show_duration_since_stamp("commJRho", "ms");
 
-  timer::stamp();
+  // timer::stamp();
   filter_current(m_filter_times, step);
-  timer::show_duration_since_stamp("filter_current", "ms");
+  // timer::show_duration_since_stamp("filter_current", "ms");
 
   // Send particles
   timer::stamp();

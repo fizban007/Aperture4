@@ -42,6 +42,7 @@ class singleton_holder {
   static inline void init(Args&&... args) {
     if (p_instance == nullptr) {
       p_instance = new T(std::forward<Args>(args)...);
+      // p_instance.reset(new T(std::forward<Args>(args)...));
     }
   }
 
@@ -58,11 +59,13 @@ class singleton_holder {
   ~singleton_holder() = delete;
 
  private:
+  // static std::unique_ptr<T> p_instance;
   static T* p_instance;
 };
 
 template <typename T>
 T* singleton_holder<T>::p_instance = nullptr;
+// std::unique_ptr<T> singleton_holder<T>::p_instance = nullptr;
 
 }
 

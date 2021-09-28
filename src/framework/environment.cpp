@@ -34,17 +34,17 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
   int rank = 0;
 
   if (m_use_mpi) {
-    int is_initialized = 0;
-    MPI_Initialized(&is_initialized);
+  //   int is_initialized = 0;
+  //   MPI_Initialized(&is_initialized);
 
-    if (!is_initialized) {
-      if (argc == nullptr && argv == nullptr) {
-        MPI_Init(NULL, NULL);
-      } else {
-        MPI_Init(argc, argv);
-      }
-    }
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  //   if (!is_initialized) {
+  //     if (argc == nullptr && argv == nullptr) {
+  //       MPI_Init(NULL, NULL);
+  //     } else {
+  //       MPI_Init(argc, argv);
+  //     }
+  //   }
+    // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   }
   // Default log level is debug
   Logger::init(rank, LogLevel::debug);
@@ -53,12 +53,8 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
 }
 
 sim_environment_impl::~sim_environment_impl() {
-  if (m_use_mpi) {
-    int is_finalized = 0;
-    MPI_Finalized(&is_finalized);
-
-    if (!is_finalized) MPI_Finalize();
-  }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // end();
 }
 
 void
@@ -194,6 +190,16 @@ sim_environment_impl::run() {
   for (int n = 0; n < max_steps; n++) {
     update();
   }
+}
+
+void
+sim_environment_impl::end() {
+  // if (m_use_mpi) {
+  //   int is_finalized = 0;
+  //   MPI_Finalized(&is_finalized);
+
+  //   if (!is_finalized) MPI_Finalize();
+  // }
 }
 
 }  // namespace Aperture

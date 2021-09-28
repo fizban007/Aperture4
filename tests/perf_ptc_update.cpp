@@ -105,7 +105,7 @@ main(int argc, char* argv[]) {
   Logger::print_info("Ran particle update {} times, average time {}ms", N, t);
   Logger::print_info("Time per particle: {}ns", t / ptc->number() * 1.0e6);
 
-  sim_environment::kill_instance();
+  // sim_environment::kill_instance();
 
   return 0;
 }

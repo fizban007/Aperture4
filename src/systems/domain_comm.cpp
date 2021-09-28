@@ -40,7 +40,23 @@ namespace Aperture {
 
 template <typename Conf>
 // domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
-domain_comm<Conf>::domain_comm() {
+domain_comm<Conf>::domain_comm(int* argc, char*** argv) {
+  int is_initialized = 0;
+  MPI_Initialized(&is_initialized);
+
+  if (!is_initialized) {
+    if (argc == nullptr && argv == nullptr) {
+      MPI_Init(NULL, NULL);
+    } else {
+      MPI_Init(argc, argv);
+    }
+  }
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  int log_level = (int)LogLevel::debug;
+  sim_env().params().get_value("log_level", log_level);
+  Logger::init(rank, (LogLevel)log_level);
+
   setup_domain();
   MPI_Helper::register_particle_type(single_ptc_t{}, &MPI_PARTICLES);
   MPI_Helper::register_particle_type(single_ph_t{}, &MPI_PHOTONS);
@@ -50,6 +66,11 @@ template <typename Conf>
 domain_comm<Conf>::~domain_comm() {
   MPI_Type_free(&MPI_PARTICLES);
   MPI_Type_free(&MPI_PHOTONS);
+
+  int is_finalized = 0;
+  MPI_Finalized(&is_finalized);
+
+  if (!is_finalized) MPI_Finalize();
 }
 
 template <typename Conf>
@@ -591,7 +612,7 @@ domain_comm<Conf>::send_particle_array(
     int src, int dst, std::vector<MPI_Request> &req_send,
     std::vector<MPI_Request> &req_recv,
     std::vector<MPI_Status> &stat_recv) const {
-  // Logger::print_debug("Sending particle array in batch of {}", buf_send_idx.size());
+  Logger::print_debug("Sending particle array in batch of {}", buf_send_idx.size());
   for (int i = 0; i < buf_send_idx.size(); i++) {
     auto &send_buffer = buffers[buf_send_idx[i]];
     auto &recv_buffer = buffers[buf_recv_idx[i]];
@@ -623,30 +644,45 @@ domain_comm<Conf>::send_particle_array(
       // }
       buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
     } else {
-      MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
-                src, i, m_cart, &req_recv[i]);
-      MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-                MPI_BYTE, dst, i, m_cart, &req_send[i]);
+      // MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
+      //           src, i, m_cart, &req_recv[i]);
+      // MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+      //           MPI_BYTE, dst, i, m_cart, &req_send[i]);
+      // MPI_Recv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
+      //          src, i, m_cart, &stat_recv[i]);
+      // MPI_Send(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+      //          MPI_BYTE, dst, i, m_cart);
+      MPI_Sendrecv(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]), MPI_BYTE,
+                   dst, i, recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
+                   src, i, m_cart, &stat_recv[i]);
+      int num_recved = 0;
+      MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
+      buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
+#if CUDA_ENABLED &&                                              \
+    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+     !MPIX_CUDA_AWARE_SUPPORT)
+      recv_buffer.copy_to_device();
+#endif
     }
     // buf_nums[buf_send_idx[i]] = 0;
   }
 
-  for (int i = 0; i < buf_recv_idx.size(); i++) {
-    auto &recv_buffer = buffers[buf_recv_idx[i]];
-    if (src != dst || src != m_rank) {
-    // if (true) {
-      int num_recved = 0;
-      MPI_Wait(&req_recv[i], &stat_recv[i]);
-      MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
-      buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
-      // Logger::print_debug("recved is {}, buf_num + {}", num_recved, num_recved / sizeof(recv_buffer[0]));
-    }
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-    recv_buffer.copy_to_device();
-#endif
-  }
+//   for (int i = 0; i < buf_recv_idx.size(); i++) {
+//     auto &recv_buffer = buffers[buf_recv_idx[i]];
+//     if (src != dst || src != m_rank) {
+//     // if (true) {
+//       int num_recved = 0;
+//       MPI_Wait(&req_recv[i], &stat_recv[i]);
+//       MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
+//       buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
+//       // Logger::print_debug_all("recved is {}, buf_num + {}", num_recved, num_recved / sizeof(recv_buffer[0]));
+//     }
+// #if CUDA_ENABLED &&                                              \
+//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+//      !MPIX_CUDA_AWARE_SUPPORT)
+//     recv_buffer.copy_to_device();
+// #endif
+//   }
   for (int i = 0; i < buf_recv_idx.size(); i++) {
     buf_nums[buf_send_idx[i]] = 0;
   }
@@ -744,7 +780,7 @@ template <typename PtcType>
 void
 domain_comm<Conf>::send_particles_impl(PtcType &ptc,
                                        const grid_t<Conf> &grid) const {
-  // Logger::print_detail("Sending paticles");
+  Logger::print_detail("Sending paticles");
   // timer::stamp("send_ptc");
   if (!m_buffers_ready) resize_buffers(grid);
   auto &buffers = ptc_buffers(ptc);

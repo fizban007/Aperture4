@@ -37,7 +37,7 @@ class domain_comm : public system_t {
   static std::string name() { return "domain_comm"; }
 
   // domain_comm(sim_environment& env);
-  domain_comm();
+  domain_comm(int* argc = nullptr, char*** argv = nullptr);
   virtual ~domain_comm();
 
   void barrier() const { MPI_Barrier(m_world); }

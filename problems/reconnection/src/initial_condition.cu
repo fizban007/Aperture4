@@ -83,7 +83,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // Initialize particles
       [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
-        vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_upstream, 0.995f);
+        vec_t<value_t, 3> u_d = rng.maxwell_juttner_3d(kT_upstream);
 
         auto p1 = u_d[0];
         auto p2 = u_d[1];
@@ -113,12 +113,8 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
-        value_t gamma_d = math::sqrt(1.0f + u_d.dot(u_d));
         value_t sign = 1.0f;
         if (type == PtcType::positron) sign *= -1.0f;
-
-        value_t beta_shift = 0.995f;
-        value_t gamma_shift = 1.0f / math::sqrt(1.0f - beta_shift * beta_shift);
 
         auto p1 = u_d[1] * sign;
         auto p2 = u_d[2] * sign;

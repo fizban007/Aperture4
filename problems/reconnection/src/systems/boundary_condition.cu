@@ -199,44 +199,44 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   auto rho_p_ptr = rho_p->dev_ndptr();
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
   auto inj_size = inj_length * m_grid.delta[1];
-  injector->inject(
-      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(auto &pos, auto &grid, auto &ext) {
-        auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
+  // injector->inject(
+  //     [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(auto &pos, auto &grid, auto &ext) {
+  //       auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
 
-        if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size && is_boundary[3]) ||
-            (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
-          auto idx = Conf::idx(pos, ext);
-          return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
-        }
-        return false;
-      },
-      [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-      [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                               PtcType type) {
-        vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
+  //       if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size && is_boundary[3]) ||
+  //           (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
+  //         auto idx = Conf::idx(pos, ext);
+  //         return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 2.0f / upstream_n;
+  //       }
+  //       return false;
+  //     },
+  //     [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
+  //     [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+  //                              PtcType type) {
+  //       vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
-        auto p1 = u_d[0];
-        auto p2 = u_d[1];
-        auto p3 = u_d[2];
-        auto p = vec_t<value_t, 3>(p1, p2, p3);
-        // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        value_t gamma = math::sqrt(1.0f + p.dot(p));
-        // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
-        return p_prime.template subset<1, 4>();
-        // return vec_t<value_t, 3>(p1, p2, p3);
-        // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
-        // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
-        // // value_t beta = p1 / gamma;
-        // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
-        // return vec_t<value_t, 3>(p1, p2, p3);
-      },
-      // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-      [upstream_n] __device__(auto& x_global) {
-        return 1.0 / upstream_n;
-      });
+  //       auto p1 = u_d[0];
+  //       auto p2 = u_d[1];
+  //       auto p3 = u_d[2];
+  //       auto p = vec_t<value_t, 3>(p1, p2, p3);
+  //       // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
+  //       value_t gamma = math::sqrt(1.0f + p.dot(p));
+  //       // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
+  //       vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
+  //       return p_prime.template subset<1, 4>();
+  //       // return vec_t<value_t, 3>(p1, p2, p3);
+  //       // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
+  //       // // value_t beta = p1 / gamma;
+  //       // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
+  //       // return vec_t<value_t, 3>(p1, p2, p3);
+  //     },
+  //     // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+  //     [upstream_n] __device__(auto& x_global) {
+  //       return 1.0 / upstream_n;
+  //     });
 
   // buffer<int> offset(1, MemType::host_device);
   // offset[0] = num;

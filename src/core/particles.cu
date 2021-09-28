@@ -374,7 +374,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
 
     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
       size_t offset = n * m_sort_segment_size;
-      Logger::print_debug("offset is {}, n is {}", offset, n);
+      // Logger::print_debug("offset is {}, n is {}", offset, n);
 
       m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
       // auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());

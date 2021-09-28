@@ -396,7 +396,7 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
     }
   } else {
     // timer::stamp();
-    Logger::print_debug_all("At rank {}; Recving from rank {}, and sending to rank {}", m_rank, origin, dest);
+    // Logger::print_debug_all("At rank {}; Recving from rank {}, and sending to rank {}", m_rank, origin, dest);
     for (int n = 0; n < 3; n++) {
       auto& array = field[n];
       index_t<Conf::dim> vec_buf_idx{};
@@ -615,7 +615,7 @@ domain_comm<Conf>::send_particle_array(
     int src, int dst, std::vector<MPI_Request> &req_send,
     std::vector<MPI_Request> &req_recv,
     std::vector<MPI_Status> &stat_recv) const {
-  Logger::print_debug("Sending particle array in batch of {}", buf_send_idx.size());
+  // Logger::print_debug("Sending particle array in batch of {}", buf_send_idx.size());
   for (int i = 0; i < buf_send_idx.size(); i++) {
     auto &send_buffer = buffers[buf_send_idx[i]];
     auto &recv_buffer = buffers[buf_recv_idx[i]];

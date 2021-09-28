@@ -904,10 +904,10 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
   // ptc.copy_from(buffers[central], buffers[central].number(), 0,
   // ptc.number());
   ptc.copy_from_buffer(buffers[central], buf_nums[central], ptc.number());
-  Logger::print_debug_all(
-      "Communication resulted in {} ptc in total, ptc has {} particles "
-      "now",
-      buf_nums[central], ptc.number());
+  // Logger::print_debug_all(
+  //     "Communication resulted in {} ptc in total, ptc has {} particles "
+  //     "now",
+  //     buf_nums[central], ptc.number());
   // for (unsigned int i = ptc.number() - 4; i < ptc.number(); i++) {
   //   auto c = ptc.cell[i];
   //   Logger::print_debug_all("c {}, cell {}, {}", c, c % grid.dims[0], c / grid.dims[0]);

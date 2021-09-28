@@ -168,10 +168,12 @@ domain_comm<Conf>::resize_buffers(const typename Conf::grid_t &grid) const {
       else
         ext[j] = grid.dims[j];
     }
+    ext.get_strides();
     // ext_vec is a bundled 3-pack of send/recv buffer, used for vector fields
     auto ext_vec = ext;
     ext_vec[Conf::dim - 1] *= 3;
-    // ext.get_strides();
+    ext_vec.get_strides();
+
     m_send_buffers.emplace_back(ext);
     m_recv_buffers.emplace_back(ext);
     m_send_vec_buffers.emplace_back(ext_vec);
@@ -254,8 +256,8 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
 #endif
 
     // timer::stamp();
-    MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, 0,
-                 recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, 0,
+    MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, dim,
+                 recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, dim,
                  m_cart, &status);
     // MPI_Request req_send, req_recv;
 
@@ -394,6 +396,7 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
     }
   } else {
     // timer::stamp();
+    Logger::print_debug_all("At rank {}; Recving from rank {}, and sending to rank {}", m_rank, origin, dest);
     for (int n = 0; n < 3; n++) {
       auto& array = field[n];
       index_t<Conf::dim> vec_buf_idx{};
@@ -429,7 +432,7 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
         auto &array = field[n];
         index_t<Conf::dim> vec_buf_idx{};
         vec_buf_idx[Conf::dim - 1] =
-            n * m_send_buffers[dim].extent()[Conf::dim - 1];
+            n * m_recv_buffers[dim].extent()[Conf::dim - 1];
         if (array.mem_type() == MemType::host_only) {
           copy(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
                m_recv_buffers[dim].extent());
@@ -623,25 +626,16 @@ domain_comm<Conf>::send_particle_array(
 #else
     send_buffer.copy_to_host();
     auto send_ptr = send_buffer.host_ptr();
-    auto recv_ptr = recv_buffer.host_ptr();
+    auto recv_ptr = recv_buffer.host_ptr() + buf_nums[buf_recv_idx[i]];
 #endif
 
     if (src == dst && src == m_rank) {
-    // if (false) {
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI
       cudaMemcpy(recv_ptr, send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
                  cudaMemcpyDeviceToDevice);
 #else
       std::copy_n(send_ptr, buf_nums[buf_send_idx[i]], recv_ptr);
 #endif
-      // send_buffer.copy_to_host();
-      // recv_buffer.copy_to_host();
-      // for (int n = buf_nums[buf_recv_idx[i]]; n < buf_nums[buf_send_idx[i]] + buf_nums[buf_recv_idx[i]]; n++) {
-      //   auto c = recv_buffer[n].cell;
-      //   auto cs = send_buffer[n - buf_nums[buf_recv_idx[i]]].cell;
-      //   Logger::print_debug_all("in send buffer, cell {}, {}; in recv buffer, cell {}, {}", cs % 14, cs / 14,
-      //                           c % 14, c / 14);
-      // }
       buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
     } else {
       // MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE,
@@ -658,11 +652,11 @@ domain_comm<Conf>::send_particle_array(
       int num_recved = 0;
       MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
       buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-      recv_buffer.copy_to_device();
-#endif
+// #if CUDA_ENABLED &&                                              \
+//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
+//      !MPIX_CUDA_AWARE_SUPPORT)
+//       recv_buffer.copy_to_device();
+// #endif
     }
     // buf_nums[buf_send_idx[i]] = 0;
   }

@@ -169,9 +169,9 @@ compute_e_update_explicit(vector_field<Conf>& result,
   kernel_launch(
       [dt, ext] __device__(auto result, auto b, auto j, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        using idx_t = typename Conf::idx_t;
         // gp is short for grid_ptrs
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = result[0].idx_at(n, ext);
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           // auto pos = idx.get_pos();
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
@@ -186,19 +186,36 @@ compute_e_update_explicit(vector_field<Conf>& result,
             result[2][idx] += dt * (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                                         gp.Ae[2][idx] -
                                     j[2][idx]);
-            // Take care of axis boundary
+            // Take care of axis boundary, setting E_phi to zero
             Scalar theta = grid.template pos<1>(pos[1], true);
             if (abs(theta) < 0.1f * grid.delta[1]) {
               result[2][idx] = 0.0f;
             }
-            // if (pos[0] == 3 && pos[1] == 256) {
-            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f\n",
+            // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1] + 1) {
+            //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f, %f\n",
             //   b[0][idx_my],
             //          b[0][idx], b[0][idx.inc_y()], b[1][idx_mx], b[1][idx],
-            //          b[1][idx.inc_x()]);
+            //          b[1][idx.inc_x()], b[1][idx.inc_x(2)]);
             //   printf("Ephi is %f, circ2_b is %f, jphi is %f\n",
             //   result[2][idx],
             //          circ2(b, gp.lb, idx_mx, idx_my, idx, idx), j[2][idx]);
+            // }
+            // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1] + 1) {
+            //   printf("Br is:\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n",
+            //          b[0][idx.dec_y(2).inc_x()], b[0][idx.dec_y().inc_x()], b[0][idx.inc_x()], b[0][idx.inc_y().inc_x()],
+            //          b[0][idx.dec_y(2)], b[0][idx.dec_y()], b[0][idx], b[0][idx.inc_y()],
+            //          b[0][idx.dec_y(2).dec_x()], b[0][idx.dec_y().dec_x()], b[0][idx.dec_x()], b[0][idx.inc_y().dec_x()]);
+            //   printf("Bth is:\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n",
+            //          b[1][idx.dec_y(2).inc_x()], b[1][idx.dec_y().inc_x()], b[1][idx.inc_x()], b[1][idx.inc_y().inc_x()],
+            //          b[1][idx.dec_y(2)], b[1][idx.dec_y()], b[1][idx], b[1][idx.inc_y()],
+            //          b[1][idx.dec_y(2).dec_x()], b[1][idx.dec_y().dec_x()], b[1][idx.dec_x()], b[1][idx.inc_y().dec_x()]);
+            //   printf("circ B is: %f\n", circ2(b, gp.lb, idx_mx, idx_my, idx, idx));
             // }
           }
           // extra work for the theta = pi axis
@@ -225,8 +242,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
       [dt, ext] __device__(auto result, auto e, auto gp) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         // gp is short for grid_ptrs
-        for (auto n : grid_stride_range(0, ext.size())) {
-          auto idx = typename Conf::idx_t(n, ext);
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          // auto idx = typename Conf::idx_t(n, ext);
           // auto pos = idx.get_pos();
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
@@ -240,6 +257,16 @@ compute_b_update_explicit(vector_field<Conf>& result,
             if (abs(theta) < 0.1f * grid.delta[1]) {
               result[1][idx] = 0.0f;
             }
+            // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1] + 1) {
+            //   printf("Eph is:\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n",
+            //          e[2][idx.dec_y(2).inc_x()], e[2][idx.dec_y().inc_x()], e[2][idx.inc_x()], e[2][idx.inc_y().inc_x()],
+            //          e[2][idx.dec_y(2)], e[2][idx.dec_y()], e[2][idx], e[2][idx.inc_y()],
+            //          e[2][idx.dec_y(2).dec_x()], e[2][idx.dec_y().dec_x()], e[2][idx.dec_x()], e[2][idx.inc_y().dec_x()]);
+            //   printf("circ E is: %f\n", circ2(e, gp.le, idx, idx, idx_px, idx_py));
+            // }
 
             result[2][idx] -=
                 dt * circ2(e, gp.le, idx, idx, idx_px, idx_py) / gp.Ab[2][idx];

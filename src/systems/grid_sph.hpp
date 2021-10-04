@@ -38,11 +38,11 @@ class grid_sph_t : public grid_curv_t<Conf> {
   using grid_curv_t<Conf>::grid_curv_t;
   // ~grid_sph_t();
 
-  // static HD_INLINE value_t radius(value_t x1) { return x1; }
-  static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
+  static HD_INLINE value_t radius(value_t x1) { return x1; }
+  // static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
-  // static HD_INLINE value_t from_radius(value_t r) { return r; }
-  static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
+  static HD_INLINE value_t from_radius(value_t r) { return r; }
+  // static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
 
   // Coordinate for output position
@@ -116,7 +116,7 @@ grid_sph_t<Conf>::compute_coef() {
 
   // Now this should work for both 2D and 3D
   for (auto idx : range(Conf::begin(ext), Conf::end(ext))) {
-    auto pos = idx.get_pos();
+    auto pos = get_pos(idx, ext);
 
     double r = radius(this->template pos<0>(pos[0], false));
     double r_minus = radius(this->template pos<0>(pos[0] - 1, false));
@@ -163,18 +163,22 @@ grid_sph_t<Conf>::compute_coef() {
     }
 
     this->m_Ae[1][idx] = 0.5 * (square(r) - square(r_minus)) * std::sin(th);
+    // this->m_Ae[1][idx] = (cube(r) - cube(r_minus)) * std::sin(th) / 3.0;
     // if constexpr (Conf::dim == 3) {
     if (Conf::dim == 3) {
       this->m_Ae[1][idx] *= this->delta[2];
     }
 
     this->m_Ae[2][idx] =
-        (cube(r) - cube(r_minus)) / 3.0 * (std::cos(th_minus) - std::cos(th));
-    if (std::abs(ths) < 0.1 * this->delta[1] ||
-        std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
-      this->m_Ae[2][idx] =
-          (cube(r) - cube(r_minus)) * 2.0/ 3.0 * (1.0 - std::cos(0.5 * this->delta[1]));
-    }
+        // (cube(r) - cube(r_minus)) * (std::cos(th_minus) - std::cos(th)) / 3.0;
+        // 0.5 * (square(r) - square(r_minus)) * (std::cos(th_minus) - std::cos(th));
+        0.5 * (square(r) - square(r_minus)) * this->delta[1];
+    // if (std::abs(ths) < 0.1 * this->delta[1] ||
+    //     std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+    //   this->m_Ae[2][idx] =
+    //       // (cube(r) - cube(r_minus)) * 2.0 * (1.0 - std::cos(0.5 * this->delta[1])) / 3.0;
+    //       0.5 * (square(r) - square(r_minus)) * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
+    // }
 
     // Area elements for B field
     this->m_Ab[0][idx] = rs * rs * (std::cos(ths) - std::cos(ths_plus));
@@ -183,29 +187,33 @@ grid_sph_t<Conf>::compute_coef() {
       this->m_Ab[0][idx] *= this->delta[2];
     }
 
-    if (std::abs(ths) > 0.1 * this->delta[1] &&
-        std::abs(ths - M_PI) > 0.1 * this->delta[1])
-      this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
-    else
+    // this->m_Ab[1][idx] = (cube(rs_plus) - cube(rs)) * std::sin(ths) / 3.0;
+    this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
+    if (std::abs(ths) < 0.1 * this->delta[1] ||
+        std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+      // this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
       this->m_Ab[1][idx] = TINY;
+    }
     // if constexpr (Conf::dim == 3) {
     if (Conf::dim == 3) {
       this->m_Ab[1][idx] *= this->delta[2];
     }
 
     this->m_Ab[2][idx] =
-        (cube(rs_plus) - cube(rs)) / 3.0 * (std::cos(ths) - std::cos(ths_plus));
+        // (cube(rs_plus) - cube(rs)) * (std::cos(ths) - std::cos(ths_plus)) / 3.0;
+        // 0.5 * (square(rs_plus) - square(rs)) * (std::cos(ths) - std::cos(ths_plus));
+        0.5 * (square(rs_plus) - square(rs)) * this->delta[1];
 
     // Volume element, defined at cell vertices
-    this->m_dV[idx] = (cube(r) - cube(r_minus)) / 3.0 *
+    this->m_dV[idx] = (cube(r) - cube(r_minus)) *
                       (std::cos(th_minus) - std::cos(th)) /
-                      (this->delta[0] * this->delta[1]);
+                      (this->delta[0] * this->delta[1] * 3.0);
 
     if (std::abs(ths) < 0.1 * this->delta[1] ||
         std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
-      this->m_dV[idx] = (cube(r) - cube(r_minus)) * 2.0 / 3.0 *
+      this->m_dV[idx] = (cube(r) - cube(r_minus)) * 2.0 *
                         (1.0 - std::cos(0.5 * this->delta[1])) /
-                        (this->delta[0] * this->delta[1]);
+                        (this->delta[0] * this->delta[1] * 3.0);
     }
     // if constexpr (Conf::dim == 3) {
     if (Conf::dim == 3) {

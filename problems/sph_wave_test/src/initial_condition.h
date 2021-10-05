@@ -32,8 +32,7 @@ template <typename Conf>
 void initial_condition_vacuum(const grid_sph_t<Conf>& grid, double Bp);
 
 template <typename Conf>
-void initial_condition_plasma(const grid_sph_t<Conf>& grid, int mult,
-                              double weight, double Bp);
+void initial_condition_plasma(const grid_sph_t<Conf>& grid);
 
 }
 

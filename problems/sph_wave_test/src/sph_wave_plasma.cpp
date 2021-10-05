@@ -18,9 +18,11 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/field_solver_sph.h"
-#include "systems/legacy/ptc_updater_sph.h"
-#include "systems/data_exporter.h"
+// #include "systems/legacy/ptc_updater_sph.h"
 #include "systems/boundary_condition.h"
+#include "systems/data_exporter.h"
+#include "systems/gather_momentum_space.h"
+#include "systems/ptc_updater_base.h"
 #include "initial_condition.h"
 // #include "systems/ptc_injector.h"
 #include <iostream>
@@ -31,25 +33,25 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  auto& env = sim_environment::instance(&argc, &argv);
+  auto& env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
-  // auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto grid = grid_sph_t<Conf>();
-  auto pusher =
-      env.register_system<ptc_updater_old_sph_cu<Conf>>(grid);
+  // domain_comm<Conf> comm;
+  // grid_sph_t<Conf> grid(comm);
+  grid_sph_t<Conf> grid;
+  grid.init();
+
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_spherical>>(grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(grid);
-  // auto injector =
-  //     env.register_system<ptc_injector_cu<Conf>>(env, *grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid);
 
   env.init();
 
-  initial_condition_plasma(grid, 0, 1.0, 10000.0);
+  initial_condition_plasma(grid);
 
   env.run();
   return 0;

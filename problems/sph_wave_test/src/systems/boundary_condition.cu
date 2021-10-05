@@ -30,7 +30,7 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("Bdelta", &B);
   sim_env().get_data("B0", &B0);
 
-  sim_env().params().get_value("omega", m_omega_0);
+  sim_env().params().get_value("E0", m_E0);
   sim_env().params().get_value("omega_t", m_omega_t);
 }
 
@@ -44,8 +44,9 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   value_t time = sim_env().get_time();
   value_t omega;
   // if (m_omega_t * time < 5000.0)
-  if (time < 3.0)
-    omega = m_omega_0 * sin(2.0 * M_PI * m_omega_t * time);
+  value_t phase = time * m_omega_t;
+  if (phase < 4.0)
+    omega = m_E0 * sin(2.0 * M_PI * phase);
   else
     omega = 0.0;
   Logger::print_debug("time is {}, Omega is {}", time, omega);
@@ -57,7 +58,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         value_t theta_s = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, true));
 
         // For quantities that are not continuous across the surface
-        for (int n0 = 0; n0 < grid.guard[0]; n0++) {
+        for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
           auto idx = idx_t(index_t<2>(n0, n1), ext);
           e[0][idx] = 0.0;
           b[1][idx] = 0.0;
@@ -69,8 +70,12 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           value_t r = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, false));
           value_t r_s = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, true));
           b[0][idx] = 0.0;
-          e[1][idx] = -omega * sin(theta) * r_s * b0[0][idx];
-          e[2][idx] = 0.0;
+          e[1][idx] = 0.0;
+          if (theta_s > 0.7 && theta_s < 1.2)
+            e[2][idx] = -omega * sin(theta_s) * r_s * b0[0][idx];
+          else
+            e[2][idx] = 0.0;
+          // e[2][idx] = 0.0;
         }
       }
     }, E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs());

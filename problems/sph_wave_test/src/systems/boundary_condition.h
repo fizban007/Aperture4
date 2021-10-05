@@ -30,6 +30,7 @@ template <typename Conf>
 class boundary_condition : public system_t {
  protected:
   const grid_curv_t<Conf>& m_grid;
+  double m_E0 = 1.0;
   double m_omega_0 = 0.0;
   double m_omega_t = 0.0;
 

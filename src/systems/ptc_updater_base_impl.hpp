@@ -186,12 +186,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // timer::show_duration_since_stamp("filter_current", "ms");
 
   // Send particles
-  timer::stamp();
+  // timer::stamp();
   if (m_comm != nullptr) {
     m_comm->send_particles(*ptc, m_grid);
   }
   ExecPolicy<Conf>::sync();
-  timer::show_duration_since_stamp("send_particles", "ms");
+  // timer::show_duration_since_stamp("send_particles", "ms");
 
   // Logger::print_detail("Finished sending particles");
 

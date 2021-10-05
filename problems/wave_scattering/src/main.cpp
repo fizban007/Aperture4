@@ -33,18 +33,9 @@ using namespace Aperture;
 
 namespace Aperture {
 template <typename Conf>
-void set_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
-                           rng_states_t &states, int mult, Scalar weight);
-
-template <typename Conf>
 void initial_condition_wave(vector_field<Conf> &B, vector_field<Conf> &E,
                             vector_field<Conf> &B0, particle_data_t &ptc,
-                            rng_states_t &states, int mult, Scalar weight);
-
-template <typename Conf>
-void initial_condition_standing_alfven(
-    vector_field<Conf> &B, vector_field<Conf> &E, vector_field<Conf> &B0,
-    particle_data_t &ptc, rng_states_t &states, int mult, Scalar weight);
+                            rng_states_t &states);
 
 }  // namespace Aperture
 
@@ -56,11 +47,8 @@ main(int argc, char *argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;
-  // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
-  // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
   auto lorentz =
@@ -68,25 +56,21 @@ main(int argc, char *argv[]) {
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto bc = env.register_system<boundary_condition<Conf>>(grid);
-  // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
+  // auto bc = env.register_system<boundary_condition<Conf>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
-  // curand_states_t *states;
   rng_states_t *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
-  // env.get_data("rand_states", &states);
 
-  // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
-  initial_condition_wave(*Bdelta, *Edelta, *B0, *ptc, *states, 10, 1.0);
+  initial_condition_wave(*Bdelta, *Edelta, *B0, *ptc, *states);
 
   env.run();
   return 0;

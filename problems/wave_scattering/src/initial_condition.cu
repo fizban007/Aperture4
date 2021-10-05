@@ -110,25 +110,68 @@ namespace Aperture {
 
 template <typename Conf>
 void
+initial_condition_bg(vector_field<Conf> &B,
+                     vector_field<Conf> &E, vector_field<Conf> &B0,
+                     particle_data_t &ptc, rng_states_t &states) {
+  using value_t = typename Conf::value_t;
+  value_t th_bg = sim_env().params().get_as<double>("theta_bg", M_PI * 0.5);
+  value_t Bbg = sim_env().params().get_as<double>("Bbg", 1.0);
+  value_t rho_bg = sim_env().params().get_as<double>("rho_bg", 10000.0);
+  value_t q_e = sim_env().params().get_as<double>("q_e", 100.0);
+  int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
+
+  value_t sinth = 1.0;
+  fast_wave_solution<value_t> wave(sinth, 1.0, 0.05, 4.0, 1.0);
+
+  B0.set_values(
+      2, [Bbg, wave, sinth](value_t x, value_t y, value_t z) { return Bbg * sinth; });
+  B0.set_values(
+      0, [Bbg, wave, sinth](value_t x, value_t y, value_t z) { return Bbg * wave.costh; });
+
+  auto& grid = B.grid();
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  injector->init();
+
+  injector->inject(
+      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [mult] __device__(auto &pos, auto &grid, auto &ext) {
+        return 2 * mult;
+      },
+      [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                    PtcType type) {
+        return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+      },
+      [mult, rho_bg, q_e] __device__(auto &x_global) {
+        return rho_bg / q_e / mult;
+      });
+
+  Logger::print_info("After initial condition, there are {} particles", ptc.number());
+}
+
+template <typename Conf>
+void
 initial_condition_wave(vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
-                       particle_data_t &ptc, rng_states_t &states, int mult,
-                       Scalar weight) {
+                       particle_data_t &ptc, rng_states_t &states) {
   using value_t = typename Conf::value_t;
-  value_t weight_enhance_factor = 1.0f;
-  value_t sinth = sim_env().params().get_as<double>("theta_bg", 0.0);
+  value_t th_bg = sim_env().params().get_as<double>("theta_bg", M_PI * 0.5);
+  value_t sinth = math::sin(th_bg);
+  value_t Bbg = sim_env().params().get_as<double>("Bbg", 10.0);
+  value_t Bbg_reduced = sim_env().params().get_as<double>("Bbg_reduced", 2.0);
   value_t rho_bg = sim_env().params().get_as<double>("rho_bg", 10000.0);
   value_t a0 = sim_env().params().get_as<double>("a0", 5000.0);
-  value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
-  q_e *= weight_enhance_factor;
+  value_t q_e = sim_env().params().get_as<double>("q_e", 100.0);
+  value_t omega = sim_env().params().get_as<double>("omega", 0.1);
+  int num_lambda = sim_env().params().get_as<int64_t>("num_lambda", 4);
+  int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
+  auto L = sim_env().params().get_as<std::vector<double>>("size");
 
-  fast_wave_solution<value_t> wave(sinth, 1.0, 0.05, 4.0, a0);
+  fast_wave_solution<value_t> wave(sinth, 1.0 / omega, 0.05, num_lambda, a0);
 
-  // TODO: how about changing background B0?
   B0.set_values(
-      2, [wave, sinth](value_t x, value_t y, value_t z) { return wave.B0 * sinth; });
-  B0.set_values(
-      0, [wave, sinth](value_t x, value_t y, value_t z) { return wave.B0 * wave.costh; });
+      2, [Bbg, Bbg_reduced, L](value_t x, value_t y, value_t z) {
+        return Bbg_reduced + (Bbg - Bbg_reduced) * (tanh((0.4 * L[0] - x) / (0.1 * L[0])) + 1.0);
+      });
   B.set_values(
       2, [wave](value_t x, value_t y, value_t z) { return wave.Bz(0.0, x); });
   E.set_values(
@@ -190,10 +233,14 @@ initial_condition_single_ptc(vector_field<Conf> &B, vector_field<Conf> &E,
 }
 
 // Explicit instantiation
+template void initial_condition_bg<Config<2>>(
+    vector_field<Config<2>> &B,
+    vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
+    particle_data_t &ptc, rng_states_t &states);
 template void initial_condition_wave<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, rng_states_t &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t &states);
 template void initial_condition_single_ptc<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,

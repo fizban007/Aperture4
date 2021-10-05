@@ -63,129 +63,10 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
     return 0.0;
 }
 
-// template <typename Conf>
-// void
-// inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
-//                  buffer<float>& surface_ne, buffer<float>& surface_np,
-//                  int num_per_cell, typename Conf::value_t weight,
-//                  const grid_t<Conf>& grid, const wpert_cart_t& wpert,
-//                  int multiplicity) {
-//   surface_ne.assign_dev(0.0f);
-//   surface_np.assign_dev(0.0f);
-
-//   auto ptc_num = ptc.number();
-//   // First measure surface density
-//   kernel_launch(
-//       [ptc_num] __device__(auto ptc, auto surface_ne, auto surface_np) {
-//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-//         auto ext = grid.extent();
-//         for (auto n : grid_stride_range(0, ptc_num)) {
-//           auto c = ptc.cell[n];
-//           if (c == empty_cell) continue;
-
-//           auto idx = typename Conf::idx_t(c, ext);
-//           auto pos = idx.get_pos();
-//           if (pos[0] == grid.guard[0]) {
-//             auto flag = ptc.flag[n];
-//             auto sp = get_ptc_type(flag);
-
-//             if (sp == 0)
-//               atomicAdd(&surface_ne[pos[1]],
-//                         ptc.weight[n] * math::abs(dev_charges[sp]));
-//             else if (sp == 1)
-//               atomicAdd(&surface_np[pos[1]],
-//                         ptc.weight[n] * math::abs(dev_charges[sp]));
-//           }
-//         }
-//       },
-//       ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr());
-//   CudaSafeCall(cudaDeviceSynchronize());
-
-//   // Then inject particles
-//   kernel_launch(
-//       [ptc_num, weight] __device__(auto ptc, auto surface_ne, auto surface_np,
-//                                    auto num_inj, auto states) {
-//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-//         auto ext = grid.extent();
-//         int inj_n0 = grid.guard[0];
-//         int id = threadIdx.x + blockIdx.x * blockDim.x;
-//         cuda_rng_t rng(&states[id]);
-//         for (auto n1 :
-//              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
-//           size_t offset = ptc_num + n1 * num_inj * 2;
-//           auto pos = index_t<Conf::dim>(inj_n0, n1);
-//           auto cell_x2 = grid.template pos<1>(n1, false);
-//           if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
-//           auto idx = typename Conf::idx_t(pos, ext);
-//           if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
-//               square(1.0f / grid.delta[0]))
-//             continue;
-//           for (int i = 0; i < num_inj; i++) {
-//             float x2 = rng();
-//             ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 1.0f;
-//             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
-//             ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
-//             ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
-//             ptc.p2[offset + i * 2] = ptc.p2[offset + i * 2 + 1] = 0.0f;
-//             ptc.p3[offset + i * 2] = ptc.p3[offset + i * 2 + 1] = 0.0f;
-//             ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = 1.0f;
-//             ptc.cell[offset + i * 2] = ptc.cell[offset + i * 2 + 1] =
-//                 idx.linear;
-//             ptc.weight[offset + i * 2] = ptc.weight[offset + i * 2 + 1] =
-//                 weight;
-//             ptc.flag[offset + i * 2] = set_ptc_type_flag(0, PtcType::electron);
-//             ptc.flag[offset + i * 2 + 1] =
-//                 set_ptc_type_flag(0, PtcType::positron);
-//           }
-//         }
-//       },
-//       ptc.get_dev_ptrs(), surface_ne.dev_ptr(), surface_np.dev_ptr(),
-//       num_per_cell, rand_states.states());
-//   CudaSafeCall(cudaDeviceSynchronize());
-
-//   ptc.add_num(num_per_cell * 2 * grid.dims[1]);
-// }
-
 template <typename Conf>
 boundary_condition<Conf>::boundary_condition(const grid_t<Conf>& grid)
     : m_grid(grid) {
   using multi_array_t = typename Conf::multi_array_t;
-  sim_env().params().get_value("damping_length", m_damping_length);
-  sim_env().params().get_value("pmllen", m_pmllen);
-  sim_env().params().get_value("sigpml", m_sigpml);
-
-  m_prev_E1 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-  m_prev_E2 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-  m_prev_E3 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-  m_prev_B1 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-  m_prev_B2 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-  m_prev_B3 = std::make_unique<multi_array_t>(
-      extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
-
-  m_prev_E1->assign_dev(0.0f);
-  m_prev_E2->assign_dev(0.0f);
-  m_prev_E3->assign_dev(0.0f);
-  m_prev_B1->assign_dev(0.0f);
-  m_prev_B2->assign_dev(0.0f);
-  m_prev_B3->assign_dev(0.0f);
-
-  m_prev_E.set_memtype(MemType::host_device);
-  m_prev_B.set_memtype(MemType::host_device);
-  m_prev_E.resize(3);
-  m_prev_B.resize(3);
-  m_prev_E[0] = m_prev_E1->dev_ptr();
-  m_prev_E[1] = m_prev_E2->dev_ptr();
-  m_prev_E[2] = m_prev_E3->dev_ptr();
-  m_prev_B[0] = m_prev_B1->dev_ptr();
-  m_prev_B[1] = m_prev_B2->dev_ptr();
-  m_prev_B[2] = m_prev_B3->dev_ptr();
-  m_prev_E.copy_to_device();
-  m_prev_B.copy_to_device();
 }
 
 template <typename Conf>
@@ -195,21 +76,10 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("E0", &E0);
   sim_env().get_data("Bdelta", &B);
   sim_env().get_data("B0", &B0);
-  // sim_env().get_data("rand_states", &rand_states);
-  sim_env().get_data("particles", &ptc);
 
-  sim_env().params().get_value("tp_start", m_tp_start);
-  sim_env().params().get_value("tp_end", m_tp_end);
-  sim_env().params().get_value("nT", m_nT);
-  sim_env().params().get_value("dw0", m_dw0);
-  sim_env().params().get_value("q_e", m_qe);
-  sim_env().params().get_value("damping_coef", m_damping_coef);
-  sim_env().params().get_value("muB", m_muB);
-
-  m_surface_ne.set_memtype(MemType::host_device);
-  m_surface_ne.resize(m_grid.dims[1]);
-  m_surface_np.set_memtype(MemType::host_device);
-  m_surface_np.resize(m_grid.dims[1]);
+  sim_env().params().get_value("a0", m_a0);
+  sim_env().params().get_value("omega", m_omega);
+  sim_env().params().get_value("num_lambda", m_num_lambda);
 }
 
 template <typename Conf>
@@ -219,22 +89,22 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   typedef typename Conf::value_t value_t;
 
   value_t time = sim_env().get_time();
+  value_t a0 = m_a0;
+  value_t omega = m_omega;
+  value_t num_lambda = m_num_lambda;
 
-  // Apply zero boundary condition on the left side
+  // Apply wave boundary condition on the left side
   kernel_launch(
-      [] __device__(auto e, auto b) {
+      [time, a0, omega, num_lambda] __device__(auto e, auto b) {
         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int i = 0; i < grid.guard[0] + 8; i++) {
+          for (int i = 0; i < grid.guard[0] + 1; i++) {
             int n0 = i;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
-            e[0][idx] = 0.0f;
-            e[1][idx] = 0.0f;
-            e[2][idx] = 0.0f;
-            b[0][idx] = 0.0f;
-            b[1][idx] = 0.0f;
-            b[2][idx] = 0.0f;
+            if (omega * time * 0.5 / M_PI < num_lambda) {
+              e[1][idx] = a0 * omega * math::sin(omega * time);
+            }
           }
         }
       },
@@ -243,63 +113,38 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   CudaCheckError();
 
   // Apply damping boundary condition on the other side
-  kernel_launch(
-      [] __device__(auto e, auto b, auto prev_e, auto prev_b, auto damping_length,
-                    auto damping_coef) {
-        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        auto ext_damping = extent(damping_length, grid.dims[1]);
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          for (int i = 0; i < damping_length; i++) {
-            int n0 = grid.dims[0] - damping_length + i;
-            auto idx = idx_t(index_t<2>(n0, n1), ext);
-            value_t lambda =
-                1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
-            e[0][idx] *= lambda;
-            e[1][idx] *= lambda;
-            e[2][idx] *= lambda;
-            b[0][idx] *= lambda;
-            b[1][idx] *= lambda;
-            b[2][idx] *= lambda;
-            if (n0 > grid.dims[0] - 8) {
-              e[0][idx] = 0.0f;
-              e[1][idx] = 0.0f;
-              e[2][idx] = 0.0f;
-              b[0][idx] = 0.0f;
-              b[1][idx] = 0.0f;
-              b[2][idx] = 0.0f;
-            }
-          }
-        }
-      },
-      E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
-      m_damping_length, m_damping_coef);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
-
-  // Apply damping to particle momenta in the region behind the alfven wave
-  // value_t x_damp = time * m_muB - 0.5f;
-  // value_t ptc_damping_factor = 0.999f;
-  // auto num = ptc->number();
   // kernel_launch(
-  //     [x_damp, num, ptc_damping_factor] __device__(auto ptc) {
+  //     [] __device__(auto e, auto b) {
   //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
   //       auto ext = grid.extent();
-  //       for (auto n : grid_stride_range(0, num)) {
-  //         auto cell = ptc.cell[n];
-  //         auto idx = Conf::idx(cell, ext);
-  //         auto pos = idx.get_pos();
-
-  //         auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
-  //         if (x < x_damp) {
-  //           ptc.p1[n] *= ptc_damping_factor;
-  //           ptc.p2[n] *= ptc_damping_factor;
-  //           ptc.p3[n] *= ptc_damping_factor;
-  //           ptc.E[n] = math::sqrt(1.0f + ptc.p1[n] * ptc.p1[n] + ptc.p2[n] * ptc.p2[n]
-  //                                 + ptc.p3[n] * ptc.p3[n]);
+  //       auto ext_damping = extent(damping_length, grid.dims[1]);
+  //       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+  //         for (int i = 0; i < damping_length; i++) {
+  //           int n0 = grid.dims[0] - damping_length + i;
+  //           auto idx = idx_t(index_t<2>(n0, n1), ext);
+  //           value_t lambda =
+  //               1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+  //           e[0][idx] *= lambda;
+  //           e[1][idx] *= lambda;
+  //           e[2][idx] *= lambda;
+  //           b[0][idx] *= lambda;
+  //           b[1][idx] *= lambda;
+  //           b[2][idx] *= lambda;
+  //           if (n0 > grid.dims[0] - 8) {
+  //             e[0][idx] = 0.0f;
+  //             e[1][idx] = 0.0f;
+  //             e[2][idx] = 0.0f;
+  //             b[0][idx] = 0.0f;
+  //             b[1][idx] = 0.0f;
+  //             b[2][idx] = 0.0f;
+  //           }
   //         }
   //       }
-  //     }, ptc->get_dev_ptrs());
+  //     },
+  //     E->get_ptrs(), B->get_ptrs());
+  // CudaSafeCall(cudaDeviceSynchronize());
+  // CudaCheckError();
+
 }
 
 template class boundary_condition<Config<2>>;

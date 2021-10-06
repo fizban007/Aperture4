@@ -60,7 +60,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
 
-    Logger::print_debug_all("Before calculating num_per_cell");
+    Logger::print_detail_all("Before calculating num_per_cell");
     // First compute the number of particles per cell
     policy::launch(
         [] __device__(auto num_per_cell, auto fc, auto fn) {
@@ -94,7 +94,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
     auto num = ptc->number();
     // Logger::print_debug("Current num is {}, injecting {}", num,
     // new_particles);
-    Logger::print_info_all("Injecting {}", new_particles);
+    Logger::print_info("Injecting {}", new_particles);
 
     // Actually create the particles
     policy::launch(
@@ -142,7 +142,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
         },
         ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, fd, fw);
     policy::sync();
-    Logger::print_debug_all("Finished creating particles");
+    Logger::print_detail_all("Finished injecting particles");
     ptc->add_num(new_particles);
   }
 

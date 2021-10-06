@@ -61,16 +61,20 @@ struct rng_t {
   __device__ Float maxwell_juttner(Float theta) {
     // This is the Sobol algorithm described in Zenitani 2015
     Float u = 0.0f;
-    while (true) {
-      auto x1 = uniform<Float>();
-      auto x2 = uniform<Float>();
-      auto x3 = uniform<Float>();
-      auto x4 = uniform<Float>();
-      u = -theta * math::log(x1 * x2 * x3);
-      auto eta = -theta * math::log(x1 * x2 * x3 * x4);
-      if (eta * eta - u * u > 1.0) {
-        break;
+    if (theta > 0.1) {
+      while (true) {
+        auto x1 = uniform<Float>();
+        auto x2 = uniform<Float>();
+        auto x3 = uniform<Float>();
+        auto x4 = uniform<Float>();
+        u = -theta * math::log(x1 * x2 * x3);
+        auto eta = -theta * math::log(x1 * x2 * x3 * x4);
+        if (eta * eta - u * u > 1.0) {
+          break;
+        }
       }
+    } else {
+      u = gaussian<Float>(math::sqrt(theta));
     }
     return u;
   }

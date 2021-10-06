@@ -10,22 +10,45 @@ import re
 
 class Data:
   _coord_keys = ["x1", "x2", "r", "theta", "rv", "thetav", "dr", "dtheta"]
+  _extra_fld_keys = ["B", "J", "flux"]
 
   def __init__(self, path):
-    conf = self.load_conf(path)
-    self._conf = conf
+    self._conf = self.load_conf(os.path.join(path, "config.toml"))
     self._path = path
 
     # Load mesh file
     self._meshfile = os.path.join(path, "grid.h5")
+    f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
+    self._mesh_keys = list(f_mesh.keys())
+    for k in self._mesh_keys:
+      self.__dict__[k] = f_mesh[k][()]
+    f_mesh.close()
+    # find mesh deltas
+    self.delta = np.zeros(len(self._conf["N"]))
+    for n in range(len(self.delta)):
+      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
 
     # Generate a list of output steps
     num_re = re.compile(r"\d+")
+    self._fld_keys = []
     self.fld_steps = [
       int(num_re.findall(f.stem)[0]) for f in Path(path).glob("fld.*.h5")
     ]
-    self.fld_steps.sort()
-    self.fld_interval = self.fld_steps[-1] - self.fld_steps[-2]
+    if len(self.fld_steps) > 0:
+      self.fld_steps.sort()
+      self._current_fld_step = self.fld_steps[0]
+      self.fld_interval = self.fld_steps[-1] - self.fld_steps[-2]
+      f_fld = h5py.File(
+        os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
+        "r",
+      )
+      self._original_fld_keys = list(f_fld.keys())
+      self._fld_keys = list(f_fld.keys())
+      for k in self._extra_fld_keys:
+        if k not in self._original_fld_keys:
+          self._fld_keys.append(k)
+      print("fld keys are:", self._fld_keys)
+      f_fld.close()
 
     self.ptc_steps = [
       int(num_re.findall(f.stem)[0]) for f in Path(path).glob("ptc.*.h5")
@@ -33,13 +56,6 @@ class Data:
     self._current_fld_step = self.fld_steps[0]
     self._mesh_loaded = False
 
-    f_fld = h5py.File(
-      os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
-      "r",
-      swmr=True,
-    )
-    self._fld_keys = list(f_fld.keys()) + ["B", "EdotB", "flux", "J", "JdotB"]
-    f_fld.close()
     if len(self.ptc_steps) > 0:
       self.ptc_steps.sort()
       self.ptc_interval = self.ptc_steps[-1] - self.ptc_steps[-2]

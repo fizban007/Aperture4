@@ -295,14 +295,11 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       },
       [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
-        auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
-        return vec_t<value_t, 3>(p1, p2, p3);
+        return rng.maxwell_juttner_3d(kT_upstream);
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
-      [n_upstream] __device__(auto& x_global) {
-        return 1.0 / n_upstream;
+      [n_upstream, q_e] __device__(auto& x_global) {
+        return 1.0 / q_e / n_upstream;
       });
 
   // Current sheet particles

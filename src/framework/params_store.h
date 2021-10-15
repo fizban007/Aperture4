@@ -148,6 +148,8 @@ class params_store {
   void parse(const std::string& filename);
   // const params_struct& params() const;
 
+  bool has(const std::string& name);
+
   /// Get a parameter from the store. This version is overloaded for `bool`,
   /// `int64_t`, `double`, and `std::string`. A @default_value needs to be
   /// provided since otherwise the function does not know what to return in case

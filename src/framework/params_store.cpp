@@ -61,6 +61,11 @@ class params_store::params_store_impl {
     Logger::print_debug("=== End parsing parameter file ===");
   }
 
+  bool has(const std::string& name) {
+    auto it = m_param_map.find(name);
+    return (it != m_param_map.end());
+  }
+
   template <typename T>
   T get(const std::string& name, T default_value) {
     auto it = m_param_map.find(name);
@@ -161,6 +166,11 @@ params_store::clear() {
 void
 params_store::parse(const std::string& filename) {
   p_impl->parse(filename);
+}
+
+bool
+params_store::has(const std::string& name) {
+  return p_impl->has(name);
 }
 
 // const params_struct&

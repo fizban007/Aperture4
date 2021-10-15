@@ -31,7 +31,19 @@ class phys_policy_IC_cooling {
  public:
   using value_t = typename Conf::value_t;
 
-  void init() { sim_env().params().get_value("IC_coef", m_IC_coef); }
+  void init() {
+    if (sim_env().params().has("gamma_IC") && sim_env().params().has("sigma")) {
+      value_t gamma_IC = sim_env().params().get_as<double>("gamma_IC", 0.0);
+      value_t sigma = sim_env().params().get_as<double>("sigma", 1.0);
+      if (gamma_IC <= 0.0) {
+        m_IC_coef = 0.0;
+      } else {
+        m_IC_coef = 0.3 * math::sqrt(sigma) / (4.0 * square(gamma_IC));
+      }
+    } else {
+      sim_env().params().get_value("IC_coef", m_IC_coef);
+    }
+  }
 
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
@@ -39,6 +51,7 @@ class phys_policy_IC_cooling {
                             const vec_t<IntT, Conf::dim>& pos,
                             value_t dt) const {
     auto gamma = context.gamma;
+    if (gamma - 1.0f < 1.0e-4) return;
     context.p[0] -= (4.0f / 3.0f) * m_IC_coef * gamma * context.p[0] * dt;
     context.p[1] -= (4.0f / 3.0f) * m_IC_coef * gamma * context.p[1] * dt;
     context.p[2] -= (4.0f / 3.0f) * m_IC_coef * gamma * context.p[2] * dt;
@@ -49,7 +62,7 @@ class phys_policy_IC_cooling {
 
  private:
   // IC coef is defined as sigma_T U_ph / m_e c omega, where omega is the inerse
-  // time unit
+  // time unit. f_IC = 0.3 * sqrt(sigma) / (4 * gamma_rad^2)
   value_t m_IC_coef = 0.1f;
 };
 

@@ -58,6 +58,19 @@ struct rng_t {
   // }
 
   template <typename Float>
+  __device__ __forceinline__ int poisson(Float lambda) {
+    // return curand_poisson(&m_local_state, lambda);
+    Float L = math::exp(-lambda);
+    Float p = 1.0;
+    int k = 0;
+    do {
+      k += 1;
+      p *= uniform<Float>();
+    } while (p > L);
+    return k - 1;
+  }
+
+  template <typename Float>
   __device__ Float maxwell_juttner(Float theta) {
     // This is the Sobol algorithm described in Zenitani 2015
     Float u = 0.0f;
@@ -212,6 +225,18 @@ struct rng_t {
     auto u2 = uniform<Float>();
     return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
            sigma;
+  }
+
+  template <typename Float>
+  inline int poisson(Float lambda) {
+    Float L = math::exp(-lambda);
+    Float p = 1.0;
+    int k = 0;
+    do {
+      k += 1;
+      p *= uniform<Float>();
+    } while (p > L);
+    return k - 1;
   }
 
   template <typename Float>

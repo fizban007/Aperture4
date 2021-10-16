@@ -41,7 +41,7 @@ class phys_policy_IC_cooling {
         m_IC_coef = 0.3 * math::sqrt(sigma) / (4.0 * square(gamma_IC));
       }
     } else {
-      sim_env().params().get_value("IC_coef", m_IC_coef);
+      sim_env().params().get_value("IC_compactness", m_IC_coef);
     }
   }
 

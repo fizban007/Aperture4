@@ -38,6 +38,7 @@ struct power_law_hard {
       return 0.0;
   }
 
+  HD_INLINE Scalar emean() const { return emax_ / (1.0f + delta_); }
   HD_INLINE Scalar emin() const { return emin_; }
   HD_INLINE Scalar emax() const { return emax_; }
 
@@ -55,6 +56,7 @@ struct power_law_soft {
       return 0.0;
   }
 
+  HD_INLINE Scalar emean() const { return emin_ / (alpha_ - 1.0f); }
   HD_INLINE Scalar emin() const { return emin_; }
   HD_INLINE Scalar emax() const { return emax_; }
 
@@ -79,6 +81,12 @@ struct broken_power_law {
       return 0.0;
   }
 
+  HD_INLINE Scalar emean() const {
+    Scalar e1 = (emax_ - epeak_ * pow(epeak_ / emax_, delta_)) / (1.0f + delta_);
+    Scalar e2 = (epeak_ * pow(epeak_ / emin_, -alpha_) - emin_) / (alpha_ - 1.0f);
+    return e1 + e2;
+  }
+
   HD_INLINE Scalar emin() const { return emin_; }
   HD_INLINE Scalar emax() const { return emax_; }
 
@@ -93,9 +101,10 @@ struct black_body {
     // return 1.75464e30 * e * e / (exp(e / kT_) - 1.0);
 
     // The integral of e^2/(exp(e/kT) - 1) is 2*(kT)^3*Zeta(3)
-    return e * e / (exp(e / kT_) - 1.0) / (2.40412 * cube(kT_));
+    return e * e / (exp(e / kT_) - 1.0) / (2.40411 * cube(kT_));
   }
 
+  HD_INLINE Scalar emean() const { return 2.7f * kT_; }
   HD_INLINE Scalar emin() const { return 1e-10 * kT_; }
   HD_INLINE Scalar emax() const { return 1e3 * kT_; }
 
@@ -112,6 +121,7 @@ struct mono_energetic {
       return 0.0;
   }
 
+  HD_INLINE Scalar emean() const { return e0_; }
   HD_INLINE Scalar emin() const { return e0_ * 1e-2; }
   HD_INLINE Scalar emax() const { return e0_ * 1e2; }
 

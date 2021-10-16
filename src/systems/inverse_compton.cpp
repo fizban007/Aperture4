@@ -84,6 +84,7 @@ inverse_compton_t::inverse_compton_t() {
 
   sim_env().params().get_value("n_gamma", n_gamma);
   sim_env().params().get_value("n_ep", n_ep);
+  sim_env().params().get_value("IC_compactness", m_ic_compactness);
 
   m_min_ep = 1.0e-10;
   sim_env().params().get_value("min_ep", m_min_ep);
@@ -118,13 +119,16 @@ inverse_compton_t::get_ic_module() {
   result.dep = m_dep;
   result.dlep = m_dlep;
   result.dgamma = m_dgamma;
+  result.compactness = m_ic_compactness;
+  result.e_mean = m_e_mean;
   return result;
 }
 
 template <typename Spectrum>
 void
 inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
-                                      value_t emax, value_t n0) {
+                                        value_t emax) {
+  m_e_mean = n_e.emean();
   // These are the parameters of the cross-section integration
   constexpr int N_mu = 100;
   constexpr int N_e = 800;
@@ -154,12 +158,13 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
       }
     }
     // m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
-    m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
+    // m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
+    m_ic_rate[n] = result * dmu * de * m_ic_compactness / n_e.emean();
     if (n % 10 == 0)
       Logger::print_info(
           "IC rate at gamma {} is {}, result is {}, factor is {}", gamma,
           m_ic_rate[n], result,
-          (dmu * de * n0) * sigma_T);
+          dmu * de * m_ic_compactness / n_e.emean());
   }
   m_ic_rate.copy_to_device();
 
@@ -185,7 +190,8 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
           // {}", eph, s, b, sigma_gg(b));
         }
       }
-      m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * (n0 * r_e_square);
+      // m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * (n0 * r_e_square);
+      m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * m_ic_compactness * 3.0 / (8.0 * M_PI);
       // if (n != 0)
       //   m_gg_rate[n] /= m_gg_rate[0];
       if (n % 10 == 0)
@@ -258,15 +264,14 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
 }
 
 template void inverse_compton_t::compute_coefficients<Spectra::power_law_hard>(
-    const Spectra::power_law_hard& n_e, value_t emin, value_t emax, value_t n0);
+    const Spectra::power_law_hard& n_e, value_t emin, value_t emax);
 template void inverse_compton_t::compute_coefficients<Spectra::power_law_soft>(
-    const Spectra::power_law_soft& n_e, value_t emin, value_t emax, value_t n0);
+    const Spectra::power_law_soft& n_e, value_t emin, value_t emax);
 template void inverse_compton_t::compute_coefficients<Spectra::black_body>(
-    const Spectra::black_body& n_e, value_t emin, value_t emax, value_t n0);
+    const Spectra::black_body& n_e, value_t emin, value_t emax);
 template void inverse_compton_t::compute_coefficients<Spectra::mono_energetic>(
-    const Spectra::mono_energetic& n_e, value_t emin, value_t emax, value_t n0);
+    const Spectra::mono_energetic& n_e, value_t emin, value_t emax);
 template void inverse_compton_t::compute_coefficients<Spectra::broken_power_law>(
-    const Spectra::broken_power_law& n_e, value_t emin, value_t emax,
-    value_t n0);
+    const Spectra::broken_power_law& n_e, value_t emin, value_t emax);
 
 }  // namespace Aperture

@@ -34,8 +34,7 @@ class inverse_compton_t : public system_t {
   ~inverse_compton_t();
 
   template <typename Spectrum>
-  void compute_coefficients(const Spectrum& n_e, value_t emin, value_t emax,
-                            value_t n0);
+  void compute_coefficients(const Spectrum& n_e, value_t emin, value_t emax);
 
   ic_scatter_t get_ic_module();
 
@@ -56,7 +55,8 @@ class inverse_compton_t : public system_t {
   multi_array<value_t, 2, idx_col_major_t<2>> m_dNde;
   multi_array<value_t, 2, idx_col_major_t<2>> m_dNde_thomson;
   buffer<value_t> m_ic_rate, m_gg_rate;
-  value_t m_min_ep, m_dgamma, m_dep, m_dlep;
+  value_t m_min_ep, m_dgamma, m_dep, m_dlep, m_e_mean;
+  value_t m_ic_compactness = 0.01;
 };
 
 }  // namespace Aperture

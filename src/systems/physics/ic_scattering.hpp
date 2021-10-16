@@ -112,6 +112,7 @@ struct ic_scatter_t {
   value_t* ic_rate;
   value_t* gg_rate;
   value_t min_ep, dgamma, dep, dlep;
+  value_t compactness, e_mean;
 };
 
 }  // namespace Aperture

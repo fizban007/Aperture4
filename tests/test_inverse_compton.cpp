@@ -28,7 +28,7 @@ main(int argc, char *argv[]) {
   inverse_compton_t ic;
 
   Spectra::black_body spec(1e-3);
-  ic.compute_coefficients(spec, spec.emin(), spec.emax(), 1.0);
+  ic.compute_coefficients(spec, spec.emin(), spec.emax());
 
   H5File file = hdf_create("ic_test.h5");
 

@@ -119,6 +119,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   ptc = sim_env().register_data<particle_data_t>(
       "particles", max_ptc_num, ExecPolicy<Conf>::tmp_mem_type());
   ptc->include_in_snapshot(true);
+  if (segment_size > max_ptc_num)
+    segment_size = max_ptc_num;
   ptc->set_segment_size(segment_size);
 
   E = sim_env().register_data<vector_field<Conf>>(

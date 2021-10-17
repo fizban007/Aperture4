@@ -40,6 +40,7 @@ struct IC_radiation_scheme {
   float m_lim_lower = 1.0e-4;
   float m_lim_upper = 1.0e4;
   int m_downsample = 16;
+  value_t m_IC_compactness = 0.0;
   ndptr<value_t, Conf::dim + 1> m_spec_ptr;
 
   IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
@@ -53,6 +54,7 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("IC_bb_kT", bb_kT);
     std::string spec_type = "soft_power_law";
     sim_env().params().get_value("IC_spectrum", spec_type);
+    sim_env().params().get_value("IC_compactness", m_IC_compactness);
 
     // Configure the spectrum here and initialize the ic module
     // Spectra::black_body spec(bb_kT);
@@ -106,6 +108,19 @@ struct IC_radiation_scheme {
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
+
+    // We don't care too much about the radiation from lowest energy particles. Just cool them using usual formula
+    if (gamma < 2.0f) {
+      if (gamma < 1.0001) return 0;
+
+      ptc.p1[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p1[tid] * dt;
+      ptc.p2[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p2[tid] * dt;
+      ptc.p3[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p3[tid] * dt;
+
+      ptc.E[tid] = math::sqrt(1.0f + square(ptc.p1[tid]) + square(ptc.p2[tid]) + square(ptc.p3[tid]));
+      return 0;
+    }
+
     value_t p_i = math::sqrt(square(p1) + square(p2) + square(p3));
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);

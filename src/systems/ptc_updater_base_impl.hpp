@@ -199,7 +199,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
 
   // Also move photons if the data component exists
   if (ph != nullptr) {
-    Logger::print_info("Moving {} photons", ph->number());
+    Logger::print_detail("Moving {} photons", ph->number());
     update_photons(dt, step);
 
     if (m_comm != nullptr) {

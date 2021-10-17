@@ -51,15 +51,26 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("IC_alpha", ic_alpha);
     value_t bb_kT = 1e-5;
     sim_env().params().get_value("IC_bb_kT", bb_kT);
+    std::string spec_type = "soft_power_law";
+    sim_env().params().get_value("IC_spectrum", spec_type);
 
     // Configure the spectrum here and initialize the ic module
-    Spectra::power_law_soft spec(ic_alpha, emin, 1.0);
     // Spectra::black_body spec(bb_kT);
 
     auto ic = sim_env().register_system<inverse_compton_t>();
     // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 /
     // ic_path);
-    ic->compute_coefficients(spec, spec.emin(), spec.emax());
+    Logger::print_info("Using background spectrum {}", spec_type);
+    if (spec_type == "soft_power_law") {
+      Spectra::power_law_soft spec(ic_alpha, emin, 1.0);
+      ic->compute_coefficients(spec, spec.emin(), spec.emax());
+    } else if (spec_type == "black_body") {
+      Spectra::black_body spec(bb_kT);
+      ic->compute_coefficients(spec, spec.emin(), spec.emax());
+    } else {
+      Logger::err("Spectrum type {} is not recognized!", spec_type);
+      exit(1);
+    }
 
     m_ic_module = ic->get_ic_module();
 
@@ -112,8 +123,8 @@ struct IC_radiation_scheme {
     for (int i = 0; i < num_scattering; i++) {
       value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
-      if (e_ph > gamma - 1.0)
-        e_ph = gamma - 1.01;
+      if (e_ph > gamma - 1.0001)
+        e_ph = abs(gamma - 1.0001);
       gamma -= e_ph;
 
       e_ph = clamp(math::log(e_ph), m_lim_lower, m_lim_upper);
@@ -122,7 +133,7 @@ struct IC_radiation_scheme {
       pos_out[0] = bin;
       atomic_add(&m_spec_ptr[idx_t(
                      pos_out, extent_t<Conf::dim + 1>(m_num_bins, ext_out))],
-                 num_scattering * ptc.weight[tid]);
+                 ptc.weight[tid]);
     }
 
     // value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;

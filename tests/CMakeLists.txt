@@ -26,7 +26,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_math.cu"
     "test_cusparse.cu"
     "test_rng.cu"
-    "compare_new_pusher_sph.cpp"
+    # "compare_new_pusher_sph.cpp"
     )
 else()
   target_sources(tests PUBLIC

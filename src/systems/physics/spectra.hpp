@@ -33,12 +33,12 @@ struct power_law_hard {
 
   HD_INLINE Scalar operator()(Scalar e) const {
     if (e < emax_ && e > emin_)
-      return pow(e / emax_, delta_) / e;
+      return delta_ * pow(e / emax_, delta_) / e;
     else
       return 0.0;
   }
 
-  HD_INLINE Scalar emean() const { return emax_ / (1.0f + delta_); }
+  HD_INLINE Scalar emean() const { return delta_ * emax_ / (1.0f + delta_); }
   HD_INLINE Scalar emin() const { return emin_; }
   HD_INLINE Scalar emax() const { return emax_; }
 
@@ -51,12 +51,18 @@ struct power_law_soft {
 
   HD_INLINE Scalar operator()(Scalar e) const {
     if (e < emax_ && e > emin_)
-      return pow(e / emin_, -alpha_) / e;
+      return alpha_ * pow(e / emin_, -alpha_) / e;
     else
       return 0.0;
   }
 
-  HD_INLINE Scalar emean() const { return emin_ / (alpha_ - 1.0f); }
+  HD_INLINE Scalar emean() const {
+    if (alpha_ > 1.0f) {
+      return emin_ * alpha_ / (alpha_ - 1.0f);
+    } else {
+      return (emax_ * pow(emax_ / emin_, -alpha_) - emin_) / (1.0f - alpha_);
+    }
+  }
   HD_INLINE Scalar emin() const { return emin_; }
   HD_INLINE Scalar emax() const { return emax_; }
 

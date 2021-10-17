@@ -20,6 +20,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/physics/spectra.hpp"
+#include "utils/gauss_quadrature.h"
 #include "utils/logger.h"
 
 namespace Aperture {
@@ -157,9 +158,17 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
         result += 0.5f * n_e(e) * sigma * (1.0f - beta(gamma) * mu) * e;
       }
     }
+    // double result = gauss_quad([gamma, emin, emax, n_e] (auto mu) {
+    //   return gauss_quad([gamma, n_e, mu] (auto log_e) {
+    //     double e = math::exp(log_e);
+    //     double x = x_ic(gamma, e, mu);
+    //     return 0.5f * n_e(e) * sigma_ic(x) * (1.0f - beta(gamma) * mu) * e;
+    //   }, math::log(emin), math::log(emax));
+    // }, -1.0, 1.0);
     // m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
     // m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
     m_ic_rate[n] = result * dmu * de * m_ic_compactness / n_e.emean();
+    // m_ic_rate[n] = result * m_ic_compactness / n_e.emean();
     if (n % 10 == 0)
       Logger::print_info(
           "IC rate at gamma {} is {}, result is {}, factor is {}", gamma,
@@ -190,8 +199,19 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
           // {}", eph, s, b, sigma_gg(b));
         }
       }
+      // double result = gauss_quad([eph, n_e, emin, emax] (auto mu) {
+      //   return gauss_quad([eph, n_e, mu] (auto loge) {
+      //     double e = math::exp(loge);
+      //     double s = eph * e * (1.0 - mu) * 0.5;
+      //     if (s <= 1.0) return 0.0;
+      //     double b = sqrt(1.0 - 1.0 / s);
+      //     if (b == 1.0) return 0.0;
+      //     return sigma_gg(b) * (1.0 - mu) * n_e(e) * e;
+      //   }, math::log(emin), math::log(emax));
+      // }, -1.0, 1.0);
       // m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * (n0 * r_e_square);
       m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * m_ic_compactness * 3.0 / (8.0 * M_PI);
+      // m_gg_rate[n] = 0.25 * result * M_PI * m_ic_compactness * 3.0 / (8.0 * M_PI);
       // if (n != 0)
       //   m_gg_rate[n] /= m_gg_rate[0];
       if (n % 10 == 0)
@@ -212,14 +232,20 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
         // double e = exp(log(emin) + i_e * de);
         double e = ic_scatter_t::e_log(i_e, de, emin);
         double ne = n_e(e);
-        // if (ne < 1.0e-8) continue;
+        // if (ne < TINY) continue;
         double ge = gamma * e * 4.0;
         double q = e1 / (ge * (1.0 - e1));
         if (e1 < ge / (1.0 + ge) && e1 > e / gamma)
           // result += n_e(e) * sigma_lab(q, ge) / gamma;
-          result += ne * sigma_lab(q, ge) / gamma;
+          result += ne * sigma_lab(q, ge) / gamma * de;
       }
-      m_dNde(i, n) = result * de;
+      // double result = gauss_quad([e1, gamma, n_e] (auto log_e) {
+      //   double e = math::exp(log_e);
+      //   double ge = gamma * e * 4.0;
+      //   double q = e1 / (ge * (1.0 - e1));
+      //   return n_e(e) * sigma_lab(q, ge) / gamma;
+      // }, math::log(e1 / (1.0 - e1) / (4.0 * gamma)), math::log(gamma * e1));
+      m_dNde(i, n) = result;
     }
     for (uint32_t i = 1; i < n_ep; i++) {
       m_dNde(i, n) += m_dNde(i - 1, n);
@@ -243,13 +269,20 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
         // double e = exp(log(emin) + i_e * de);
         double e = ic_scatter_t::e_log(i_e, de, emin);
         double ne = n_e(e);
-        // if (ne < 1.0e-8) continue;
+        // if (ne < TINY) continue;
         double ge = gamma * e * 4.0;
         double q = e1 / (ge * (1.0 - e1));
         if (e1 < ge / (1.0 + ge) && e1 > e / gamma)
           result += ne * sigma_lab(q, ge) / gamma;
       }
       m_dNde_thomson(i, n) = result * de * e1;
+      // double result = gauss_quad([e1, gamma, n_e] (auto log_e) {
+      //   double e = math::exp(log_e);
+      //   double ge = gamma * e * 4.0;
+      //   double q = e1 / (ge * (1.0 - e1));
+      //   return n_e(e) * sigma_lab(q, ge) / gamma;
+      // }, math::log(e1 / (1.0 - e1) / (4.0 * gamma)), math::log(gamma * e1));
+      // m_dNde_thomson(i, n) = result * e1;
     }
     for (uint32_t i = 1; i < n_ep; i++) {
       m_dNde_thomson(i, n) += m_dNde_thomson(i - 1, n);

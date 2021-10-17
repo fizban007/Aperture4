@@ -39,7 +39,8 @@ gr_ic_radiation_scheme<Conf>::init() {
   Spectra::broken_power_law spec(1.25, 1.1, emin, 1.0e-10, 0.1);
 
   auto ic = sim_env().register_system<inverse_compton_t>();
-  ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 / ic_path);
+  // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 / ic_path);
+  ic->compute_coefficients(spec, spec.emin(), spec.emax());
 
   m_ic_module = ic->get_ic_module();
 }

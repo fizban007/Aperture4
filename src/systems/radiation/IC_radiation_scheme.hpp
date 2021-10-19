@@ -41,7 +41,7 @@ struct IC_radiation_scheme {
   float m_lim_upper = 1.0e4;
   int m_downsample = 16;
   value_t m_IC_compactness = 0.0;
-  ndptr<value_t, Conf::dim + 1> m_spec_ptr;
+  ndptr<float, Conf::dim + 1> m_spec_ptr;
 
   IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
 
@@ -79,7 +79,7 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("ph_num_bins", m_num_bins);
     sim_env().params().get_value("ph_spec_lower", m_lim_lower);
     sim_env().params().get_value("ph_spec_upper", m_lim_upper);
-    sim_env().params().get_value("momenum_downsample", m_downsample);
+    sim_env().params().get_value("momentum_downsample", m_downsample);
 
     m_lim_lower = math::log(m_lim_lower);
     m_lim_upper = math::log(m_lim_upper);
@@ -92,7 +92,7 @@ struct IC_radiation_scheme {
     ext.get_strides();
 
     auto photon_dist =
-        sim_env().register_data<multi_array_data<value_t, Conf::dim + 1>>(
+        sim_env().register_data<multi_array_data<float, Conf::dim + 1>>(
             "photon_spectrum", ext, MemType::host_device);
     m_spec_ptr = photon_dist->dev_ndptr();
     photon_dist->reset_after_output(true);
@@ -138,11 +138,16 @@ struct IC_radiation_scheme {
     for (int i = 0; i < num_scattering; i++) {
       value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
-      if (e_ph > gamma - 1.0001)
+      if (e_ph < 0.0)
+        e_ph = 0.0;
+      if (e_ph > gamma - 1.0001) {
         e_ph = abs(gamma - 1.0001);
-      gamma -= e_ph;
+        num_scattering = 0;
+      }
+      gamma -= abs(e_ph);
 
-      e_ph = clamp(math::log(e_ph), m_lim_lower, m_lim_upper);
+      e_ph = clamp(math::log(max(e_ph, math::exp(m_lim_lower))),
+                   m_lim_lower, m_lim_upper);
       int bin = floor((e_ph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
                       (m_num_bins - 1));
       pos_out[0] = bin;

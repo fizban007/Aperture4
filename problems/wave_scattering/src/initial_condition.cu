@@ -170,7 +170,13 @@ initial_condition_wave(vector_field<Conf> &B,
 
   B0.set_values(
       2, [Bbg, Bbg_reduced, L](value_t x, value_t y, value_t z) {
-        return Bbg_reduced + (Bbg - Bbg_reduced) * (tanh((0.4 * L[0] - x) / (0.1 * L[0])) + 1.0);
+        return Bbg_reduced + (Bbg - Bbg_reduced) * (tanh((0.3 * L[0] - x) / (0.15 * L[0])) + 1.0);
+        // value_t const_part = 0.05 * L[0];
+        // if (x < const_part) {
+        //   return Bbg;
+        // } else {
+        //   return Bbg - (Bbg - Bbg_reduced) * (x - const_part) / ((value_t)L[0] - const_part);
+        // }
       });
   B.set_values(
       2, [wave](value_t x, value_t y, value_t z) { return wave.Bz(0.0, x); });

@@ -39,6 +39,7 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid) {
 
   value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
   value_t Bp = sim_env().params().get_as<double>("Bp", 1000.0);
+  value_t rho0 = sim_env().params().get_as<double>("rho0", 10000.0);
   // value_t omega = sim_env().params().get_as<double>("omega", 100.0);
   int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
 
@@ -58,8 +59,10 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid) {
         return vec_t<value_t, 3>(0.0, 0.0, 0.0);
       },
       // Particle weights
-      [mult, Bp, q_e] __device__(auto &x_global) {
-        value_t rho_gj = Bp * 1.0;
+      [mult, rho0, q_e] __device__(auto &x_global) {
+        value_t r = grid_sph_t<Conf>::radius(x_global[0]);
+        // weight scaling as r meaning rho will scale as 1/r^2
+        value_t rho_gj = rho0 * r;
         return rho_gj / q_e / mult * sin(x_global[1]);
       });
 

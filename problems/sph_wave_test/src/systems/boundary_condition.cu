@@ -32,6 +32,7 @@ boundary_condition<Conf>::init() {
 
   sim_env().params().get_value("E0", m_E0);
   sim_env().params().get_value("omega_t", m_omega_t);
+  sim_env().params().get_value("Bp", m_Bp);
 }
 
 template <typename Conf>
@@ -42,16 +43,17 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   typedef typename Conf::value_t value_t;
 
   value_t time = sim_env().get_time();
+  value_t Bp = m_Bp;
   value_t omega;
   // if (m_omega_t * time < 5000.0)
   value_t phase = time * m_omega_t;
-  if (phase < 4.0)
+  if (phase < 8.0)
     omega = m_E0 * sin(2.0 * M_PI * phase);
   else
     omega = 0.0;
   Logger::print_debug("time is {}, Omega is {}", time, omega);
 
-  kernel_launch([ext, time, omega] __device__ (auto e, auto b, auto e0, auto b0) {
+  kernel_launch([ext, time, omega, Bp] __device__ (auto e, auto b, auto e0, auto b0) {
       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
         value_t theta = grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));
@@ -71,10 +73,11 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           value_t r_s = grid_sph_t<Conf>::radius(grid.template pos<0>(n0, true));
           b[0][idx] = 0.0;
           e[1][idx] = 0.0;
-          if (theta_s > 0.7 && theta_s < 1.2)
-            e[2][idx] = -omega * sin(theta_s) * r_s * b0[0][idx];
-          else
-            e[2][idx] = 0.0;
+          // if (theta_s > 0.7 && theta_s < 1.2)
+          // e[2][idx] = -omega * sin(theta_s) * r_s * b0[0][idx];
+          e[2][idx] = -omega * sin(theta_s) * r_s * Bp;
+          // else
+          //   e[2][idx] = 0.0;
           // e[2][idx] = 0.0;
         }
       }

@@ -33,6 +33,7 @@ class boundary_condition : public system_t {
   double m_E0 = 1.0;
   double m_omega_0 = 0.0;
   double m_omega_t = 0.0;
+  double m_Bp = 1.0;
 
   vector_field<Conf> *E, *B, *E0, *B0;
 

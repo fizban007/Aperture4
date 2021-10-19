@@ -20,6 +20,7 @@
 #include "systems/field_solver_sph.h"
 // #include "systems/legacy/ptc_updater_sph.h"
 #include "systems/boundary_condition.h"
+#include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_updater_base.h"
@@ -46,6 +47,9 @@ main(int argc, char *argv[]) {
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_spherical>>(grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(grid);
+  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  auto momentum =
+      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid);
 

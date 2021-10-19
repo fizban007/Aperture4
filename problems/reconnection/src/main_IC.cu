@@ -28,7 +28,10 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
+#include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
+#include "systems/radiation/IC_radiation_scheme.hpp"
+#include "systems/radiative_transfer_impl.hpp"
 #include <iostream>
 
 using namespace std;
@@ -63,14 +66,17 @@ main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_IC_cooling>>(
+      // Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_IC_cooling>>(
+      Conf, exec_policy_cuda, coord_policy_cartesian>>(
       grid, comm);
+  auto rad = env.register_system<radiative_transfer<
+      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   // auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
-  // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();

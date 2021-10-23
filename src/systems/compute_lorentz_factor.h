@@ -47,6 +47,7 @@ class compute_lorentz_factor : public system_t {
   int m_num_species = 2;
 
   std::vector<nonown_ptr<scalar_field<Conf>>> gamma;
+  std::vector<nonown_ptr<scalar_field<Conf>>> nums;
   std::vector<nonown_ptr<vector_field<Conf>>> avg_p;
   nonown_ptr<particle_data_t> ptc;
 
@@ -72,7 +73,7 @@ class compute_lorentz_factor_cu : public compute_lorentz_factor<Conf> {
   buffer<typename Conf::ndptr_t> m_nums_ptrs;
   buffer<vec_t<typename Conf::ndptr_t, 3>> m_avgp_ptrs;
 
-  std::vector<std::unique_ptr<scalar_field<Conf>>> m_nums;
+  // std::vector<std::unique_ptr<scalar_field<Conf>>> m_nums;
 };
 
 }

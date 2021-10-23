@@ -28,10 +28,14 @@ compute_lorentz_factor<Conf>::register_data_impl(MemType type) {
   sim_env().params().get_value("num_species", m_num_species);
 
   gamma.resize(m_num_species);
+  nums.resize(m_num_species);
   avg_p.resize(m_num_species);
   for (int n = 0; n < m_num_species; n++) {
     gamma[n] = sim_env().register_data<scalar_field<Conf>>(
         std::string("gamma_") + ptc_type_name(n), m_grid,
+        field_type::cell_centered, type);
+    nums[n] = sim_env().register_data<scalar_field<Conf>>(
+        std::string("num_") + ptc_type_name(n), m_grid,
         field_type::cell_centered, type);
     avg_p[n] = sim_env().register_data<vector_field<Conf>>(
         std::string("avg_p_") + ptc_type_name(n), m_grid,

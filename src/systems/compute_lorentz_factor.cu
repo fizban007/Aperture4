@@ -35,11 +35,11 @@ void
 compute_lorentz_factor_cu<Conf>::init() {
   compute_lorentz_factor<Conf>::init();
 
-  m_nums.resize(this->m_num_species);
-  for (auto& p : m_nums) {
-    p = std::make_unique<scalar_field<Conf>>(
-        this->m_grid, field_type::cell_centered, MemType::device_only);
-  }
+  // m_nums.resize(this->m_num_species);
+  // for (auto& p : m_nums) {
+  //   p = std::make_unique<scalar_field<Conf>>(
+  //       this->m_grid, field_type::cell_centered, MemType::device_only);
+  // }
 
   // Initialize the gamma and particle number pointers
   m_gamma_ptrs.set_memtype(MemType::host_device);
@@ -49,7 +49,7 @@ compute_lorentz_factor_cu<Conf>::init() {
   m_avgp_ptrs.resize(this->m_num_species);
   for (int i = 0; i < this->m_num_species; i++) {
     m_gamma_ptrs[i] = this->gamma[i]->dev_ndptr();
-    m_nums_ptrs[i] = m_nums[i]->dev_ndptr();
+    m_nums_ptrs[i] = this->nums[i]->dev_ndptr();
     m_avgp_ptrs[i][0] = this->avg_p[i]->dev_ndptr(0);
     m_avgp_ptrs[i][1] = this->avg_p[i]->dev_ndptr(1);
     m_avgp_ptrs[i][2] = this->avg_p[i]->dev_ndptr(2);
@@ -67,7 +67,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
   // Compute average Lorentz factors of all particles in every cell
   for (auto g : this->gamma) g->init();
   for (auto avgp : this->avg_p) avgp->init();
-  for (auto& p : this->m_nums) p->init();
+  for (auto& p : this->nums) p->init();
 
   auto num = this->ptc->number();
   if (num > 0) {

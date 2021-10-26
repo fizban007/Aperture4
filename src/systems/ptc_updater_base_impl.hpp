@@ -166,6 +166,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   update_particles(dt, step);
   ExecPolicy<Conf>::sync();
   // timer::show_duration_since_stamp("update", "ms");
+  m_coord_policy->update();
+  m_phys_policy->update();
 
   // timer::stamp();
   // Communicate deposited current and charge densities

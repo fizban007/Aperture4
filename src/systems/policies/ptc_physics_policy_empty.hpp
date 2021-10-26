@@ -29,7 +29,9 @@ class ptc_physics_policy_empty {
  public:
   using value_t = typename Conf::value_t;
 
-  void init(){};
+  void init() {}
+
+  void update() {}
 
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,

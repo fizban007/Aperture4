@@ -19,6 +19,7 @@
 #define _COORD_POLICY_CARTESIAN_IMPL_COOLING_H_
 
 #include "coord_policy_cartesian.hpp"
+#include "data/multi_array_data.hpp"
 #include "framework/environment.h"
 
 namespace Aperture {
@@ -40,6 +41,13 @@ class coord_policy_cartesian_impl_cooling
       m_cooling_coef = 0.0f;
     else
       m_cooling_coef = 1.0f / (t_cool * sigma);
+
+    auto ext = this->m_grid.extent();
+    auto sync_loss =
+        sim_env().register_data<multi_array_data<float, Conf::dim>>(
+            "sync_loss", ext, MemType::host_device);
+    m_sync_loss = sync_loss->dev_ndptr();
+    sync_loss->reset_after_output(true);
   }
 
   // Inline functions to be called in the particle update loop
@@ -47,9 +55,31 @@ class coord_policy_cartesian_impl_cooling
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
                             const extent_t<Conf::dim>& ext, PtcContext& context,
                             vec_t<UIntT, Conf::dim>& pos, value_t dt) const {
-    iterate(context.x, context.p, context.E, context.B, context.q / context.m,
-            m_cooling_coef, dt);
-    context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
+    value_t p1 = context.p[0];
+    value_t p2 = context.p[1];
+    value_t p3 = context.p[2];
+    value_t gamma = context.gamma;
+
+    default_pusher pusher;
+    // Turn off synchrotron cooling for gamma < 1.1
+    if (gamma <= 1.1f) {
+      pusher(context.p[0], context.p[1], context.p[2], context.gamma,
+             context.E[0], context.E[1], context.E[2], context.B[0],
+             context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+             decltype(context.q)(dt));
+    } else {
+      pusher(p1, p2, p3, gamma, context.E[0], context.E[1], context.E[2], context.B[0],
+             context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+             decltype(context.q)(dt));
+
+      iterate(context.x, context.p, context.E, context.B, context.q / context.m,
+              m_cooling_coef, dt);
+      context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
+
+      auto idx = Conf::idx(pos, ext);
+      atomic_add(&m_sync_loss[idx], context.weight * max(gamma - context.gamma, 0.0) / context.q);
+    }
+
     move_ptc(grid, context, pos, dt);
   }
 
@@ -90,6 +120,7 @@ class coord_policy_cartesian_impl_cooling
  private:
   bool m_use_cooling = false;
   value_t m_cooling_coef = 0.0f;
+  mutable ndptr<float, Conf::dim> m_sync_loss;
 };
 
 }  // namespace Aperture

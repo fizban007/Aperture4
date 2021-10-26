@@ -114,6 +114,7 @@ template <typename Conf>
 void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
+  using value_t = typename Conf::value_t;
   if (m_comm != nullptr) {
     m_comm->barrier();
   }
@@ -145,6 +146,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
         Logger::print_detail("Writing scalar field {}", it.first);
+        write(*ptr, it.first, datafile, false);
+      } else if (auto* ptr = dynamic_cast<scalar_data<value_t>*>(data)) {
+        Logger::print_detail("Writing scalar data {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
         Logger::print_detail("Writing momentum space data");
@@ -587,6 +591,21 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
     ext[0] = ext_total[0] = data.m_num_bins[3];
     datafile.write(data.e_E, name + "_E_e");
     datafile.write(data.p_E, name + "_E_p");
+  }
+}
+
+template <typename Conf>
+template <typename T>
+void
+data_exporter<Conf>::write(scalar_data<T>& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  if (m_comm != nullptr && m_comm->size() > 1 && data.do_gather()) {
+    m_comm->gather_to_root(data.data());
+  } else {
+    data.copy_to_host();
+  }
+  if (is_root()) {
+    datafile.write(data.data(), name);
   }
 }
 

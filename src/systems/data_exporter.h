@@ -22,6 +22,7 @@
 #include "data/fields.h"
 #include "data/momentum_space.hpp"
 #include "data/rng_states.h"
+#include "data/scalar_data.hpp"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
@@ -95,6 +96,9 @@ class data_exporter : public system_t {
   template <typename T, int Rank>
   void write(multi_array_data<T, Rank>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
+  template <typename T>
+  void write(scalar_data<T>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
   void read(particle_data_t& data, const std::string& name, H5File& datafile,
             bool snapshot = false);
   template <int N>
@@ -106,6 +110,9 @@ class data_exporter : public system_t {
   //           bool snapshot = false);
   template <typename T, int Rank>
   void read(multi_array_data<T, Rank>& data, const std::string& name,
+            H5File& datafile, bool snapshot = false);
+  template <typename T>
+  void read(scalar_data<T>& data, const std::string& name,
             H5File& datafile, bool snapshot = false);
 
  private:

@@ -20,6 +20,7 @@
 
 #include "coord_policy_cartesian.hpp"
 #include "data/multi_array_data.hpp"
+#include "data/fields.h"
 #include "framework/environment.h"
 
 namespace Aperture {
@@ -44,8 +45,8 @@ class coord_policy_cartesian_impl_cooling
 
     auto ext = this->m_grid.extent();
     auto sync_loss =
-        sim_env().register_data<multi_array_data<float, Conf::dim>>(
-            "sync_loss", ext, MemType::host_device);
+        sim_env().register_data<scalar_field<Conf>>(
+            "sync_loss", this->m_grid, field_type::cell_centered, MemType::host_device);
     m_sync_loss = sync_loss->dev_ndptr();
     sync_loss->reset_after_output(true);
   }

@@ -30,7 +30,7 @@ namespace Aperture {
 template <typename T>
 class scalar_data : public data_t {
  public:
-  scalar_data(const T& value = T(0.0), MemType type = default_mem_type)
+  scalar_data(MemType type = default_mem_type)
       : m_data(1, type) {}
 
   void init() override { m_data.assign(T(0.0)); }

@@ -36,7 +36,12 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
   auto resample_kernel = [downsample, ext, ext_src] __device__(
                              auto p_src, auto p_dst, auto offset_src,
                              auto offset_dst, auto st_src, auto st_dst) {
+    using idx_t = idx_col_major_t<Rank>;
     auto interp = lerp<Rank>{};
+    extent_t<Rank> sample_ext;
+    sample_ext.set(downsample);
+    sample_ext.get_strides();
+
     for (auto n : grid_stride_range(0, ext.size())) {
       auto idx = p_dst.idx_at(n, ext);
       // auto pos = idx.get_pos();
@@ -48,9 +53,16 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
           in_bound = false;
       }
       if (!in_bound) continue;
-      auto idx_src =
-          p_src.get_idx((pos - offset_dst) * downsample + offset_src, ext_src);
-      p_dst[idx] = interp(p_src, idx_src, st_src, st_dst);
+      // average over all the downsample points
+      p_dst[idx] = U(0.0);
+      for (auto sample_idx :
+           range(idx_t(0, sample_ext), idx_t(sample_ext.size(), sample_ext))) {
+        auto sample_pos = get_pos(sample_idx, sample_ext);
+        auto idx_src = p_src.get_idx(
+            (pos - offset_dst) * downsample + sample_pos + offset_src, ext_src);
+        p_dst[idx] += interp(p_src, idx_src, st_src, st_dst);
+      }
+      p_dst[idx] /= pow(downsample, Rank);
     }
   };
   kernel_exec_policy p;

@@ -348,4 +348,34 @@ TEST_CASE("Performance of expression template",
   }
 }
 
+TEST_CASE("Testing resample", "[multi_array]") {
+  uint32_t N1 = 8, N2 = 8;
+  using idx_t = idx_col_major_t<2>;
+  auto ext = extent(N1, N2);
+  auto array = make_multi_array<float>(ext, MemType::device_managed);
+
+  kernel_launch([ext] __device__ (auto p) {
+      for (auto idx : grid_stride_range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+        auto pos = get_pos(idx, ext);
+        p[idx] = pos[0] + pos[1];
+      }
+    }, array.dev_ndptr());
+  CudaSafeCall(cudaDeviceSynchronize());
+
+  Logger::print_info("array[3, 2] is {}", array[idx_t(index(3, 2), ext)]);
+
+  int downsample = 4;
+  auto ext2 = extent(N1 / downsample, N2 / downsample);
+  auto arr2 = make_multi_array<float>(ext2, MemType::device_managed);
+
+  auto offset = index(0, 0);
+  resample_dev(array, arr2, offset, offset, stagger_t(0b000), stagger_t(0b000), downsample);
+  CudaSafeCall(cudaDeviceSynchronize());
+
+  REQUIRE(arr2.dev_ptr()[0] == 48.0f / 16.0f);
+  REQUIRE(arr2.dev_ptr()[1] == (88.0f + 24.0f) / 16.0f);
+  REQUIRE(arr2.dev_ptr()[2] == (88.0f + 24.0f) / 16.0f);
+  REQUIRE(arr2.dev_ptr()[3] == (152.0f + 24.0f) / 16.0f);
+}
+
 #endif

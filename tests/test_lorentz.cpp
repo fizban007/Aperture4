@@ -28,7 +28,7 @@ TEST_CASE("Lorentz Transform", "[physics]") {
   double gamma_u = 1.0f / math::sqrt(1.0f - u_orig.dot(u_orig));
 
   vec_t<double, 4> u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, v);
-  Logger::print("u0 is {}, u1 is {}", u_prime[0], u_prime[1]);
+  Logger::print_info("u0 is {}, u1 is {}", u_prime[0], u_prime[1]);
   REQUIRE(u_prime[1] / u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
 
   u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, {0.0, 0.0, 0.0});

@@ -31,10 +31,11 @@ namespace Aperture {
 
 template <typename Conf>
 class boundary_condition : public system_t {
+  using value_t = typename Conf::value_t;
  protected:
   const grid_curv_t<Conf>& m_grid;
-  typename Conf::value_t m_rpert1 = 5.0, m_rpert2 = 10.0;
-  typename Conf::value_t m_tp_start, m_tp_end, m_nT, m_dw0;
+  value_t m_rpert1 = 5.0, m_rpert2 = 10.0;
+  value_t m_tp_start, m_tp_end, m_nT, m_dw0, m_weight;
 
   vector_field<Conf> *E, *B, *E0, *B0;
   particle_data_t *ptc;

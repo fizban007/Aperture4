@@ -19,8 +19,9 @@
 #include "framework/environment.h"
 #include "systems/field_solver_sph.h"
 // #include "systems/ptc_updater_sph.h"
-#include "systems/data_exporter.h"
 #include "systems/boundary_condition.h"
+#include "systems/compute_lorentz_factor.h"
+#include "systems/data_exporter.h"
 #include "systems/initial_condition.h"
 #include "systems/ptc_injector_mult.h"
 #include "systems/ptc_updater_base.h"
@@ -32,7 +33,7 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  auto &env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::detail);
 
@@ -42,6 +43,7 @@ main(int argc, char *argv[]) {
       Conf, exec_policy_cuda, coord_policy_spherical>>(*grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(*grid);
+  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(*grid);
   // auto injector =
   //     env.register_system<ptc_injector_mult<Conf>>(*grid);
   auto bc = env.register_system<boundary_condition<Conf>>(*grid);

@@ -117,13 +117,14 @@ inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
           for (int i = 0; i < num_inj; i++) {
             auto x2 = rng.uniform<float>();
             theta = grid.template pos<1>(n1, x2);
+            auto p = 0.1 - 0.2 * rng.uniform<float>();
             ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 0.5f;
             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
             ptc.x3[offset + i * 2] = ptc.x3[offset + i * 2 + 1] = 0.0f;
-            ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = 0.0f;
+            ptc.p1[offset + i * 2] = ptc.p1[offset + i * 2 + 1] = p;
             ptc.p2[offset + i * 2] = ptc.p2[offset + i * 2 + 1] = 0.0f;
             ptc.p3[offset + i * 2] = ptc.p3[offset + i * 2 + 1] = 0.0f;
-            ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = 1.0f;
+            ptc.E[offset + i * 2] = ptc.E[offset + i * 2 + 1] = math::sqrt(1.0f + p*p);
             ptc.cell[offset + i * 2] = ptc.cell[offset + i * 2 + 1] =
                 idx.linear;
             ptc.weight[offset + i * 2] = ptc.weight[offset + i * 2 + 1] =
@@ -159,6 +160,11 @@ boundary_condition<Conf>::init() {
   sim_env().params().get_value("dw0", m_dw0);
   Logger::print_info("{}, {}, {}, {}, {}, {}", m_rpert1, m_rpert2, m_tp_start,
                      m_tp_end, m_nT, m_dw0);
+
+  auto rho0 = sim_env().params().get_as<double>("rho0", 100.0);
+  int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
+  value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
+  m_weight = rho0 / mult / q_e * 5.0f;
 
   m_surface_n.resize(m_grid.dims[1]);
 }
@@ -212,7 +218,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
 
   // Inject particles
   if (step % 1 == 0) {
-    // inject_particles<Conf>(*ptc, *rng_states, m_surface_n, 10, 1.0, m_grid, m_rpert1, m_rpert2);
+    inject_particles<Conf>(*ptc, *rng_states, m_surface_n, 2, m_weight, m_grid, m_rpert1, m_rpert2);
   }
 }
 

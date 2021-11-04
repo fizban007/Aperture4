@@ -49,7 +49,7 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  set_initial_condition(*grid, 20, 1.0);
+  set_initial_condition(*grid);
 
   env.run();
   return 0;

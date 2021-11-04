@@ -21,6 +21,7 @@
 #include "coord_policy_cartesian.hpp"
 #include "data/multi_array_data.hpp"
 #include "data/fields.h"
+#include "data/scalar_data.hpp"
 #include "framework/environment.h"
 
 namespace Aperture {
@@ -49,9 +50,16 @@ class coord_policy_cartesian_impl_cooling
             "sync_loss", this->m_grid, field_type::cell_centered, MemType::host_device);
     m_sync_loss = sync_loss->dev_ndptr();
     sync_loss->reset_after_output(true);
+
+    auto total_sync_loss =
+        sim_env().register_data<scalar_data<float>>(
+            "total_sync_loss", MemType::host_device);
+    m_total_sync_loss = total_sync_loss->data().dev_ptr();
+    total_sync_loss->reset_after_output(true);
   }
 
-  void update() {
+  template <typename ExecPolicy>
+  void update(const ExecPolicy& policy) {
   }
 
   // Inline functions to be called in the particle update loop
@@ -124,7 +132,8 @@ class coord_policy_cartesian_impl_cooling
  private:
   bool m_use_cooling = false;
   value_t m_cooling_coef = 0.0f;
-  mutable ndptr<float, Conf::dim> m_sync_loss;
+  mutable ndptr<value_t, Conf::dim> m_sync_loss;
+  mutable float* m_total_sync_loss;
 };
 
 }  // namespace Aperture

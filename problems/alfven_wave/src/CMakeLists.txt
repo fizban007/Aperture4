@@ -1,5 +1,5 @@
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_executable(alfven_wave "main.cpp"
+  add_executable(alfven_wave "main.cu"
     "systems/boundary_condition.cu"
     "systems/initial_condition.cu"
     # "systems/ptc_injector_mult.cu"

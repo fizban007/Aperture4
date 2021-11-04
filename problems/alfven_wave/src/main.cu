@@ -23,7 +23,10 @@
 #include "systems/boundary_condition.h"
 #include "systems/initial_condition.h"
 #include "systems/ptc_injector_mult.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/ptc_physics_policy_gravity_sph.hpp"
 #include <iostream>
 
 using namespace std;
@@ -39,7 +42,7 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>();
   auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_spherical>>(*grid);
+      Conf, exec_policy_cuda, coord_policy_spherical, ptc_physics_policy_gravity_sph>>(*grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(*grid);
   // auto injector =

@@ -145,9 +145,6 @@ class coord_policy_gr_ks_sph {
 #endif
   }
 
-  template <typename ExecPolicy>
-  void update(const ExecPolicy& policy) {}
-
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
                                        value_t x3 = 0.0f) {

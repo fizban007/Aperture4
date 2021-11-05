@@ -36,9 +36,6 @@ class ptc_physics_policy_gravity_sph {
     sim_env().params().get_value("gravity", m_g);
   }
 
-  template <typename ExecPolicy>
-  void update(const ExecPolicy& policy) {}
-
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context, const vec_t<IntT, Conf::dim>& pos,

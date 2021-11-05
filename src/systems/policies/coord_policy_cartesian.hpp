@@ -51,9 +51,6 @@ class coord_policy_cartesian {
 
   void init() {}
 
-  template <typename ExecPolicy>
-  void update(const ExecPolicy& policy) {}
-
   // Inline functions to be called in the particle update loop
   template <typename PtcContext, typename UIntT>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,

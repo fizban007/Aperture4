@@ -37,9 +37,6 @@ class phys_policy_sync_cooling {
     sim_env().params().get_value("Bp", m_B0);
   }
 
-  template <typename ExecPolicy>
-  void update(const ExecPolicy& policy) {}
-
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context,

@@ -45,9 +45,6 @@ class phys_policy_IC_cooling {
     }
   }
 
-  template <typename ExecPolicy>
-  void update(const ExecPolicy& policy) {}
-
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context,

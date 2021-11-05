@@ -19,6 +19,7 @@
 #define __RANGE_HPP_
 
 #include "core/cuda_control.h"
+#include "utils/type_traits.hpp"
 #include <iterator>
 #include <type_traits>
 
@@ -167,25 +168,26 @@ range(U begin, T end) {
   return {(T)begin, end};
 }
 
-namespace traits {
+// namespace traits {
 
-template <typename C>
-struct has_size {
-  template <typename T>
-  static constexpr auto check(T*) -> typename std::is_integral<
-      decltype(std::declval<T const>().size())>::type;
+// template <typename C>
+// struct has_size {
+//   template <typename T>
+//   static constexpr auto check(T*) -> typename std::is_integral<
+//       decltype(std::declval<T const>().size())>::type;
 
-  template <typename>
-  static constexpr auto check(...) -> std::false_type;
+//   template <typename>
+//   static constexpr auto check(...) -> std::false_type;
 
-  using type = decltype(check<C>(0));
-  static constexpr bool value = type::value;
-};
+//   using type = decltype(check<C>(0));
+//   static constexpr bool value = type::value;
+// };
 
-}  // namespace traits
+// }  // namespace traits
+CREATE_MEMBER_FUNC_CHECK(size);
 
 template <typename C, typename = typename std::enable_if<
-                          traits::has_size<C>::value>>
+                          traits::has_size<C, size_t(void)>::value>>
 HD_INLINE auto
 indices(C const& cont) -> range_proxy<decltype(cont.size())> {
   return {0, cont.size()};

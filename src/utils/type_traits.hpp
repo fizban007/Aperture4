@@ -67,6 +67,50 @@ template <typename T, typename... Ts>
 using all_convertible_to = typename std::enable_if<
     conjunction<std::is_convertible<Ts, T>...>::value>::type;
 
+// Check for member function with given name AND signature.
+#define CREATE_MEMBER_FUNC_CHECK(func_name)                                   \
+  namespace traits {                                                          \
+  template <typename, typename T>                                             \
+  struct has_##func_name {                                                    \
+    static_assert(std::integral_constant<T, false>::value,                    \
+                  "Second template parameter needs to be of function type."); \
+  };                                                                          \
+                                                                              \
+  template <typename C, typename Ret, typename... Args>                       \
+  struct has_##func_name<C, Ret(Args...)> {                                   \
+   private:                                                                   \
+    template <typename T>                                                     \
+    static constexpr auto check(T*) -> typename std::is_same<                 \
+        decltype(std::declval<T>().func_name(std::declval<Args>()...)),       \
+        Ret      /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */ \
+        >::type; /* attempt to call it and see if the return type is correct  \
+                  */                                                          \
+                                                                              \
+    template <typename>                                                       \
+    static constexpr std::false_type check(...);                              \
+                                                                              \
+    typedef decltype(check<C>(0)) type;                                       \
+                                                                              \
+   public:                                                                    \
+    static constexpr bool value = type::value;                                \
+  };                                                                          \
+  }
+
+#define CREATE_MEMBER_FUNC_CALL(func_name)                         \
+  CREATE_MEMBER_FUNC_CHECK(func_name);                             \
+                                                                   \
+  namespace traits {                                               \
+  template <typename T, typename... Args>                          \
+  auto call_##func_name##_if_exists(T& t, Args... args)            \
+      -> std::enable_if_t<has_update<T, void(Args...)>::value> {   \
+    t.func_name(args...);                                          \
+  }                                                                \
+                                                                   \
+  template <typename T, typename... Args>                          \
+  auto call_##func_name##_if_exists(T& t, Args... args)            \
+      -> std::enable_if_t<!has_update<T, void(Args...)>::value> {} \
+  }
+
 }  // namespace Aperture
 
 #endif  // __TYPE_TRAITS_H_

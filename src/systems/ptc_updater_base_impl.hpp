@@ -25,6 +25,7 @@
 #include "systems/ptc_updater_base.h"
 #include "utils/interpolation.hpp"
 #include "utils/timer.h"
+#include "utils/type_traits.hpp"
 
 namespace Aperture {
 
@@ -119,8 +120,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   ptc = sim_env().register_data<particle_data_t>(
       "particles", max_ptc_num, ExecPolicy<Conf>::tmp_mem_type());
   ptc->include_in_snapshot(true);
-  if (segment_size > max_ptc_num)
-    segment_size = max_ptc_num;
+  if (segment_size > max_ptc_num) segment_size = max_ptc_num;
   ptc->set_segment_size(segment_size);
 
   E = sim_env().register_data<vector_field<Conf>>(
@@ -155,6 +155,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   rng_states->include_in_snapshot(true);
 }
 
+CREATE_MEMBER_FUNC_CALL(update);
+
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
@@ -166,8 +168,17 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   update_particles(dt, step);
   ExecPolicy<Conf>::sync();
   // timer::show_duration_since_stamp("update", "ms");
-  m_coord_policy->update(ExecPolicy<Conf>{});
-  m_phys_policy->update(ExecPolicy<Conf>{});
+
+  // if (traits::has_update<CoordPolicy<Conf>,
+  //                        void(const ExecPolicy<Conf> &)>::value) {
+  //   m_coord_policy->update(ExecPolicy<Conf>{});
+  // }
+  // if (traits::has_update<PhysicsPolicy<Conf>,
+  //                        void(const ExecPolicy<Conf> &)>::value) {
+  //   m_phys_policy->update(ExecPolicy<Conf>{});
+  // }
+  traits::call_update_if_exists(*m_coord_policy, ExecPolicy<Conf>{});
+  traits::call_update_if_exists(*m_phys_policy, ExecPolicy<Conf>{});
 
   // timer::stamp();
   // Communicate deposited current and charge densities
@@ -249,66 +260,60 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(begin, end, [&] LAMBDA(auto n) {
-              ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
-              context.cell = ptc.cell[n];
-              if (context.cell == empty_cell) return;
+          ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
+          context.cell = ptc.cell[n];
+          if (context.cell == empty_cell) return;
 
-              typename Conf::idx_t idx = Conf::idx(context.cell, ext);
+          typename Conf::idx_t idx = Conf::idx(context.cell, ext);
 
-              context.x = vec_t<value_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
-              context.p = vec_t<value_t, 3>(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
-              context.gamma = ptc.E[n];
+          context.x = vec_t<value_t, 3>(ptc.x1[n], ptc.x2[n], ptc.x3[n]);
+          context.p = vec_t<value_t, 3>(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
+          context.gamma = ptc.E[n];
 
-              context.flag = ptc.flag[n];
-              context.sp = get_ptc_type(context.flag);
-              context.weight = charges[context.sp] * ptc.weight[n];
-              context.q = charges[context.sp];
-              context.m = masses[context.sp];
+          context.flag = ptc.flag[n];
+          context.sp = get_ptc_type(context.flag);
+          context.weight = charges[context.sp] * ptc.weight[n];
+          context.q = charges[context.sp];
+          context.m = masses[context.sp];
 
-              // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
-              // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
-              // context.E[2] = interp(E[2], context.x, idx, stagger_t(0b011));
-              // context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
-              // context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
-              // context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
-              context.E[0] =
-                  interp(context.x, E[0], idx, ext, stagger_t(0b110));
-              context.E[1] =
-                  interp(context.x, E[1], idx, ext, stagger_t(0b101));
-              context.E[2] =
-                  interp(context.x, E[2], idx, ext, stagger_t(0b011));
-              context.B[0] =
-                  interp(context.x, B[0], idx, ext, stagger_t(0b001));
-              context.B[1] =
-                  interp(context.x, B[1], idx, ext, stagger_t(0b010));
-              context.B[2] =
-                  interp(context.x, B[2], idx, ext, stagger_t(0b100));
+          // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
+          // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
+          // context.E[2] = interp(E[2], context.x, idx, stagger_t(0b011));
+          // context.B[0] = interp(B[0], context.x, idx, stagger_t(0b001));
+          // context.B[1] = interp(B[1], context.x, idx, stagger_t(0b010));
+          // context.B[2] = interp(B[2], context.x, idx, stagger_t(0b100));
+          context.E[0] = interp(context.x, E[0], idx, ext, stagger_t(0b110));
+          context.E[1] = interp(context.x, E[1], idx, ext, stagger_t(0b101));
+          context.E[2] = interp(context.x, E[2], idx, ext, stagger_t(0b011));
+          context.B[0] = interp(context.x, B[0], idx, ext, stagger_t(0b001));
+          context.B[1] = interp(context.x, B[1], idx, ext, stagger_t(0b010));
+          context.B[2] = interp(context.x, B[2], idx, ext, stagger_t(0b100));
 
-              // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:
-              // %f\n",
-              //        context.x[0], context.x[1], context.p[0], context.p[1],
-              //        charges[context.sp] / masses[context.sp], dt);
+          // printf("x1: %f, x2: %f, p1: %f, p2: %f, q_over_m: %f, dt:
+          // %f\n",
+          //        context.x[0], context.x[1], context.p[0], context.p[1],
+          //        charges[context.sp] / masses[context.sp], dt);
 
-              auto pos = get_pos(idx, ext);
-              coord_policy.update_ptc(grid, ext, context, pos, dt);
+          auto pos = get_pos(idx, ext);
+          coord_policy.update_ptc(grid, ext, context, pos, dt);
 
-              phys_policy(grid, context, pos, dt);
+          phys_policy(grid, context, pos, dt);
 
-              ptc.p1[n] = context.p[0];
-              ptc.p2[n] = context.p[1];
-              ptc.p3[n] = context.p[2];
-              ptc.E[n] = context.gamma;
+          ptc.p1[n] = context.p[0];
+          ptc.p2[n] = context.p[1];
+          ptc.p3[n] = context.p[2];
+          ptc.E[n] = context.gamma;
 
-              deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
-              deposit(context, J, Rho, idx, ext, dt, deposit_rho);
+          deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
+          deposit(context, J, Rho, idx, ext, dt, deposit_rho);
 
-              ptc.x1[n] = context.new_x[0];
-              ptc.x2[n] = context.new_x[1];
-              ptc.x3[n] = context.new_x[2];
-              ptc.cell[n] = Conf::idx(pos, ext).linear;
-              // ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
-            });
-            // ptc, E, B, J, Rho, grid, phys_policy);
+          ptc.x1[n] = context.new_x[0];
+          ptc.x2[n] = context.new_x[1];
+          ptc.x3[n] = context.new_x[2];
+          ptc.cell[n] = Conf::idx(pos, ext).linear;
+          // ptc.cell[n] = context.cell + context.dc.dot(ext.strides());
+        });
+        // ptc, E, B, J, Rho, grid, phys_policy);
       },
       *ptc, *E, *B, *J, Rho);
   ExecPolicy<Conf>::sync();
@@ -346,44 +351,42 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_photons(
                                                                 auto Rho_ph) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        ExecPolicy<Conf>::loop(
-            0ul, num,
-            [&] LAMBDA(auto n) {
-              ph_context<Conf::dim, value_t> context;
-              context.cell = ph.cell[n];
-              if (context.cell == empty_cell) return;
+        ExecPolicy<Conf>::loop(0ul, num, [&] LAMBDA(auto n) {
+          ph_context<Conf::dim, value_t> context;
+          context.cell = ph.cell[n];
+          if (context.cell == empty_cell) return;
 
-              auto idx = Conf::idx(context.cell, ext);
+          auto idx = Conf::idx(context.cell, ext);
 
-              context.x = vec_t<value_t, 3>(ph.x1[n], ph.x2[n], ph.x3[n]);
-              context.p = vec_t<value_t, 3>(ph.p1[n], ph.p2[n], ph.p3[n]);
-              context.gamma = ph.E[n];
+          context.x = vec_t<value_t, 3>(ph.x1[n], ph.x2[n], ph.x3[n]);
+          context.p = vec_t<value_t, 3>(ph.p1[n], ph.p2[n], ph.p3[n]);
+          context.gamma = ph.E[n];
 
-              context.flag = ph.flag[n];
+          context.flag = ph.flag[n];
 
-              auto pos = get_pos(idx, ext);
-              coord_policy.update_ph(grid, context, pos, dt);
+          auto pos = get_pos(idx, ext);
+          coord_policy.update_ph(grid, context, pos, dt);
 
-              ph.p1[n] = context.p[0];
-              ph.p2[n] = context.p[1];
-              ph.p3[n] = context.p[2];
-              // Photon enery should not change
-              // ph.E[n] = context.gamma;
+          ph.p1[n] = context.p[0];
+          ph.p2[n] = context.p[1];
+          ph.p3[n] = context.p[2];
+          // Photon enery should not change
+          // ph.E[n] = context.gamma;
 
-              // auto idx_new = Conf::idx(pos + context.dc, ext);
-              auto idx_new = Conf::idx(pos, ext);
-              if (deposit_rho) {
-                // Simple deposit, do not care about weight function
-                atomic_add(&Rho_ph[idx_new], ph.weight[n]);
-              }
+          // auto idx_new = Conf::idx(pos + context.dc, ext);
+          auto idx_new = Conf::idx(pos, ext);
+          if (deposit_rho) {
+            // Simple deposit, do not care about weight function
+            atomic_add(&Rho_ph[idx_new], ph.weight[n]);
+          }
 
-              ph.x1[n] = context.new_x[0];
-              ph.x2[n] = context.new_x[1];
-              ph.x3[n] = context.new_x[2];
-              ph.cell[n] = idx_new.linear;
-              ph.path_left[n] -= dt;
-            });
-            // ph, Rho_ph, grid);
+          ph.x1[n] = context.new_x[0];
+          ph.x2[n] = context.new_x[1];
+          ph.x3[n] = context.new_x[2];
+          ph.cell[n] = idx_new.linear;
+          ph.path_left[n] -= dt;
+        });
+        // ph, Rho_ph, grid);
       },
       *ph, *rho_ph);
   ExecPolicy<Conf>::sync();
@@ -401,15 +404,14 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         ExecPolicy<Conf>::loop(0ul, num, [&] LAMBDA(auto n) {
-              auto cell = ptc.cell[n];
-              if (cell == empty_cell) return;
+          auto cell = ptc.cell[n];
+          if (cell == empty_cell) return;
 
-              auto idx = Conf::idx(cell, ext);
-              auto pos = get_pos(idx, ext);
-              if (!grid.is_in_bound(pos))
-                ptc.cell[n] = empty_cell;
-            });
-            // grid, ptc);
+          auto idx = Conf::idx(cell, ext);
+          auto pos = get_pos(idx, ext);
+          if (!grid.is_in_bound(pos)) ptc.cell[n] = empty_cell;
+        });
+        // grid, ptc);
       },
       *ptc);
 
@@ -420,15 +422,14 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
           auto &grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(0ul, ph_num, [&] LAMBDA(auto n) {
-                auto cell = ph.cell[n];
-                if (cell == empty_cell) return;
+            auto cell = ph.cell[n];
+            if (cell == empty_cell) return;
 
-                auto idx = Conf::idx(cell, ext);
-                auto pos = get_pos(idx, ext);
-                if (!grid.is_in_bound(pos))
-                  ph.cell[n] = empty_cell;
-              });
-              // grid, ph);
+            auto idx = Conf::idx(cell, ext);
+            auto pos = get_pos(idx, ext);
+            if (!grid.is_in_bound(pos)) ph.cell[n] = empty_cell;
+          });
+          // grid, ph);
         },
         *ph);
   }
@@ -503,7 +504,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                 }
               }
             });
-            // ptc, rng);
+        // ptc, rng);
       },
       *ptc, *rng_states);
   ExecPolicy<Conf>::sync();

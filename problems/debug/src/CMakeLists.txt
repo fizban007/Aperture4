@@ -1,6 +1,6 @@
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(single_stream
-    "single_stream.cpp"
+    "single_stream.cu"
     "initial_condition.cu"
     )
   set_target_properties(single_stream PROPERTIES OUTPUT_NAME "aperture")

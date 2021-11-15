@@ -44,7 +44,7 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
   int n = sim_env().params().get_as<int64_t>("multiplicity", 10);
   auto &grid = B.grid();
 
-  B.set_values(0, [Bp](Scalar x, Scalar y, Scalar z) { return Bp; });
+  B.set_values(1, [Bp](Scalar x, Scalar y, Scalar z) { return Bp; });
   // E.set_values(
   // 0, [Bp](Scalar x, Scalar y, Scalar z) { return 0.01*Bp; });
 
@@ -54,12 +54,17 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
 
   injector->inject(
       // Injection criterion
-      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [] __device__(auto &pos, auto &grid, auto &ext) { return (pos[1] < grid.dims[1] / 2 - 10); },
       // Number injected
       [n] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n; },
       // Initialize particles
       [p0] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                      PtcType type) { return vec_t<value_t, 3>(p0, 0.0, 0.0); },
+                      PtcType type) {
+        if (type == PtcType::electron)
+          return vec_t<value_t, 3>(p0, 0.0, 0.0);
+        else
+          return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+      },
       // Particle weight
       [n] __device__(auto &x_global) { return 1.0 / n; });
 }

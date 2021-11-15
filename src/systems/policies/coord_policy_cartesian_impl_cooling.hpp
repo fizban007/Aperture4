@@ -44,18 +44,17 @@ class coord_policy_cartesian_impl_cooling
     else
       m_cooling_coef = 1.0f / (t_cool * sigma);
 
-    auto ext = this->m_grid.extent();
+    // If the config file specifies a synchrotron cooling coefficient, then we
+    // use that instead. Sync cooling coefficient is roughly 2l_B/B^2
+    if (sim_env().params().has("sync_cooling_coef")) {
+      sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
+    }
+
     auto sync_loss =
         sim_env().register_data<scalar_field<Conf>>(
             "sync_loss", this->m_grid, field_type::cell_centered, MemType::host_device);
     m_sync_loss = sync_loss->dev_ndptr();
     sync_loss->reset_after_output(true);
-
-    auto total_sync_loss =
-        sim_env().register_data<scalar_data<float>>(
-            "total_sync_loss", MemType::host_device);
-    m_total_sync_loss = total_sync_loss->data().dev_ptr();
-    total_sync_loss->reset_after_output(true);
   }
 
   // Inline functions to be called in the particle update loop
@@ -129,7 +128,6 @@ class coord_policy_cartesian_impl_cooling
   bool m_use_cooling = false;
   value_t m_cooling_coef = 0.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
-  mutable float* m_total_sync_loss;
 };
 
 }  // namespace Aperture

@@ -326,6 +326,7 @@ class sim_environment_impl {
   uint32_t get_step() const { return step; }
   uint32_t get_max_steps() const { return max_steps; }
   double get_time() const { return time; }
+  uint32_t get_perf_interval() const { return perf_interval; }
 
   void set_step(uint32_t s) { step = s; }
   void set_time(double s) { step = s; }

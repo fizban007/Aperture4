@@ -21,6 +21,7 @@
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
 #include "core/random.h"
+#include "data/fields.h"
 #include "data/multi_array_data.hpp"
 #include "framework/environment.h"
 #include "systems/grid.h"
@@ -41,6 +42,7 @@ struct IC_radiation_scheme {
   float m_lim_upper = 1.0e4;
   int m_downsample = 16;
   value_t m_IC_compactness = 0.0;
+  mutable ndptr<value_t, Conf::dim> m_IC_loss;
   ndptr<float, Conf::dim + 1> m_spec_ptr;
 
   IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
@@ -84,6 +86,14 @@ struct IC_radiation_scheme {
     m_lim_lower = math::log(m_lim_lower);
     m_lim_upper = math::log(m_lim_upper);
 
+    // Scalar field to tally up the low energy IC loss not accounted for using
+    // photon spectrum
+    auto IC_loss = sim_env().register_data<scalar_field<Conf>>(
+        "IC_loss", this->m_grid, field_type::cell_centered,
+        MemType::host_device);
+    m_IC_loss = IC_loss->dev_ndptr();
+    IC_loss->reset_after_output(true);
+
     extent_t<Conf::dim + 1> ext;
     for (int i = 0; i < Conf::dim; i++) {
       ext[i + 1] = m_grid.N[i] / m_downsample;
@@ -109,15 +119,27 @@ struct IC_radiation_scheme {
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
 
-    // We don't care too much about the radiation from lowest energy particles. Just cool them using usual formula
+    // We don't care too much about the radiation from lowest energy particles.
+    // Just cool them using usual formula
     if (gamma < 2.0f) {
       if (gamma < 1.0001) return 0;
 
-      ptc.p1[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p1[tid] * dt;
-      ptc.p2[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p2[tid] * dt;
-      ptc.p3[tid] -= (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p3[tid] * dt;
+      ptc.p1[tid] -=
+          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p1[tid] * dt;
+      ptc.p2[tid] -=
+          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p2[tid] * dt;
+      ptc.p3[tid] -=
+          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p3[tid] * dt;
 
-      ptc.E[tid] = math::sqrt(1.0f + square(ptc.p1[tid]) + square(ptc.p2[tid]) + square(ptc.p3[tid]));
+      ptc.E[tid] = math::sqrt(1.0f + square(ptc.p1[tid]) + square(ptc.p2[tid]) +
+                              square(ptc.p3[tid]));
+
+      // Since this part of cooling is not accounted for in the photon spectrum,
+      // we need to accumulate it separately
+      auto idx = Conf::idx(ptc.cell[tid], ext);
+      atomic_add(&m_IC_loss[idx],
+                 ptc.weight[tid] * max(gamma - ptc.E[tid], 0.0));
+
       return 0;
     }
 
@@ -127,6 +149,7 @@ struct IC_radiation_scheme {
     auto pos = get_pos(idx, ext);
 
     auto ext_out = grid.extent_less() / m_downsample;
+    auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
     index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
 
     value_t lambda = m_ic_module.ic_scatter_rate(gamma) * dt;
@@ -138,22 +161,25 @@ struct IC_radiation_scheme {
     for (int i = 0; i < num_scattering; i++) {
       value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
-      if (e_ph < 0.0)
+      if (e_ph <= 0.0) {
         e_ph = 0.0;
+        continue;
+      }
       if (e_ph > gamma - 1.0001) {
         e_ph = abs(gamma - 1.0001);
         num_scattering = 0;
       }
       gamma -= abs(e_ph);
 
-      e_ph = clamp(math::log(max(e_ph, math::exp(m_lim_lower))),
-                   m_lim_lower, m_lim_upper);
-      int bin = floor((e_ph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
+      // add energy loss no matter what, for debug purposes
+      // atomic_add(&m_IC_loss[idx], ptc.weight[tid] * max(e_ph, 0.0));
+
+      value_t log_e_ph = clamp(math::log(max(e_ph, math::exp(m_lim_lower))),
+                               m_lim_lower, m_lim_upper);
+      int bin = round((log_e_ph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
                       (m_num_bins - 1));
       pos_out[0] = bin;
-      atomic_add(&m_spec_ptr[idx_t(
-                     pos_out, extent_t<Conf::dim + 1>(m_num_bins, ext_out))],
-                 ptc.weight[tid]);
+      atomic_add(&m_spec_ptr[idx_t(pos_out, ext_spec)], ptc.weight[tid]);
     }
 
     // value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;

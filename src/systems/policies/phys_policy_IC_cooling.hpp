@@ -21,7 +21,9 @@
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
 #include "core/math.hpp"
+#include "data/fields.h"
 #include "framework/environment.h"
+#include "systems/grid.h"
 #include "utils/vec.hpp"
 
 namespace Aperture {
@@ -43,6 +45,13 @@ class phys_policy_IC_cooling {
     } else {
       sim_env().params().get_value("IC_compactness", m_IC_coef);
     }
+
+    auto grid = dynamic_cast<const grid_t<Conf>*>(sim_env().get_system("grid").get());
+    auto IC_loss =
+        sim_env().register_data<scalar_field<Conf>>(
+            "IC_loss", *grid, field_type::cell_centered, MemType::host_device);
+    m_IC_loss = IC_loss->dev_ndptr();
+    IC_loss->reset_after_output(true);
   }
 
   template <typename PtcContext, typename IntT>
@@ -58,12 +67,17 @@ class phys_policy_IC_cooling {
 
     value_t p_sqr = context.p.dot(context.p);
     context.gamma = sqrt(1.0f + p_sqr);
+
+    auto ext = grid.extent();
+    auto idx = Conf::idx(pos, ext);
+    atomic_add(&m_IC_loss[idx], context.weight * max(gamma - context.gamma, 0.0) / context.q);
   }
 
  private:
   // IC coef is defined as sigma_T U_ph / m_e c omega, where omega is the inerse
   // time unit. f_IC = 0.3 * sqrt(sigma) / (4 * gamma_rad^2)
   value_t m_IC_coef = 0.1f;
+  mutable ndptr<value_t, Conf::dim> m_IC_loss;
 };
 
 }

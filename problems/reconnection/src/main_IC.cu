@@ -26,6 +26,7 @@
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -49,6 +50,8 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
 template class ptc_updater_new<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian, phys_policy_IC_cooling>;
+template class ptc_updater_new<Config<2>, exec_policy_cuda,
+                               coord_policy_cartesian_impl_cooling>;
 
 }  // namespace Aperture
 
@@ -62,16 +65,17 @@ main(int argc, char *argv[]) {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;
-  // auto grid = env.register_system<grid_t<Conf>>(env, comm);
-  grid_t<Conf> grid(comm);
+  auto& grid = *(env.register_system<grid_t<Conf>>(comm));
+  // grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<ptc_updater_new<
       // Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_IC_cooling>>(
-      Conf, exec_policy_cuda, coord_policy_cartesian>>(
+      // Conf, exec_policy_cuda, coord_policy_cartesian>>(
+      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
       grid, comm);
-  auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
-      grid, &comm);
+  // auto rad = env.register_system<radiative_transfer<
+  //     Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+  //     grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);

@@ -304,8 +304,11 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           ptc.p3[n] = context.p[2];
           ptc.E[n] = context.gamma;
 
-          deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
-          deposit(context, J, Rho, idx, ext, dt, deposit_rho);
+          if (!check_flag(context.flag, PtcFlag::ignore_current) &&
+              !check_flag(context.flag, PtcFlag::test_particle)) {
+            deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
+            deposit(context, J, Rho, idx, ext, dt, deposit_rho);
+          }
 
           ptc.x1[n] = context.new_x[0];
           ptc.x2[n] = context.new_x[1];

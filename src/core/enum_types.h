@@ -83,6 +83,7 @@ enum class PtcFlag : uint32_t {
   exclude_from_spectrum,
   primary,
   secondary,
+  test_particle,
   initial,
   max = initial,
   count = max + 1

@@ -118,6 +118,11 @@ struct IC_radiation_scheme {
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
+    auto flag = ptc.flag[tid];
+
+    if (check_flag(flag, PtcFlag::ignore_radiation)) {
+      return 0;
+    }
 
     // We don't care too much about the radiation from lowest energy particles.
     // Just cool them using usual formula

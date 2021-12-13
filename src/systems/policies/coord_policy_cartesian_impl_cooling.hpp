@@ -66,10 +66,11 @@ class coord_policy_cartesian_impl_cooling
     value_t p2 = context.p[1];
     value_t p3 = context.p[2];
     value_t gamma = context.gamma;
+    auto flag = context.flag;
 
     default_pusher pusher;
     // Turn off synchrotron cooling for gamma < 1.001
-    if (gamma <= 1.001f) {
+    if (gamma <= 1.001f || check_flag(flag, PtcFlag::ignore_radiation)) {
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * context.q / context.m * 0.5f,

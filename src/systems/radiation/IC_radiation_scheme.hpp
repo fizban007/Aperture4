@@ -22,7 +22,7 @@
 #include "core/particle_structs.h"
 #include "core/random.h"
 #include "data/fields.h"
-#include "data/multi_array_data.hpp"
+#include "data/phase_space.hpp"
 #include "framework/environment.h"
 #include "systems/grid.h"
 #include "systems/inverse_compton.h"
@@ -102,9 +102,10 @@ struct IC_radiation_scheme {
     ext.get_strides();
 
     auto photon_dist =
-        sim_env().register_data<multi_array_data<float, Conf::dim + 1>>(
-            "photon_spectrum", ext, MemType::host_device);
-    m_spec_ptr = photon_dist->dev_ndptr();
+        sim_env().register_data<phase_space<Conf, 1>>(
+            "photon_spectrum", m_grid, m_downsample, &m_num_bins,
+            &m_lim_lower, &m_lim_upper, true, MemType::host_device);
+    m_spec_ptr = photon_dist->data.dev_ndptr();
     photon_dist->reset_after_output(true);
   }
 

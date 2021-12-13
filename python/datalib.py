@@ -14,53 +14,7 @@ class Data:
     self._conf = self.load_conf(os.path.join(path, "config.toml"))
     self._path = path
 
-    # load mesh file
-    self._meshfile = os.path.join(path, "grid.h5")
-    f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
-    self._mesh_keys = list(f_mesh.keys())
-    for k in self._mesh_keys:
-      self.__dict__[k] = f_mesh[k][()]
-    f_mesh.close()
-    # find mesh deltas
-    self.delta = np.zeros(len(self._conf["N"]))
-    for n in range(len(self.delta)):
-      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
-
-    num_re = re.compile(r"\d+")
-    # generate a list of output steps for fields
-    self._fld_keys = []
-    self.fld_steps = [
-      int(num_re.findall(f.stem)[0]) for f in Path(path).glob("fld.*.h5")
-    ]
-    if len(self.fld_steps) > 0:
-      self.fld_steps.sort()
-      self._current_fld_step = self.fld_steps[0]
-      f_fld = h5py.File(
-        os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
-        "r",
-      )
-      self._original_fld_keys = list(f_fld.keys())
-      self._fld_keys = list(f_fld.keys())
-      for k in extra_fld_keys:
-        if k not in self._original_fld_keys:
-          self._fld_keys.append(k)
-      print("fld keys are:", self._fld_keys)
-      f_fld.close()
-
-    # generate a list of output steps for particles
-    self._ptc_keys = []
-    self.ptc_steps = [
-      int(num_re.findall(f.stem)[0]) for f in Path(path).glob("ptc.*.h5")
-    ]
-    if len(self.ptc_steps) > 0:
-      self.ptc_steps.sort()
-      self._current_ptc_step = self.ptc_steps[0]
-      f_ptc = h5py.File(
-        os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5"),
-        "r",
-      )
-      self._ptc_keys = list(f_ptc.keys())
-      f_ptc.close()
+    self.reload()
 
   def __dir__(self):
     return (
@@ -109,6 +63,55 @@ class Data:
   def load(self, step):
     self.load_fld(step)
     self.load_ptc(step)
+
+  def reload(self):
+    # load mesh file
+    self._meshfile = os.path.join(self._path, "grid.h5")
+    f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
+    self._mesh_keys = list(f_mesh.keys())
+    for k in self._mesh_keys:
+      self.__dict__[k] = f_mesh[k][()]
+    f_mesh.close()
+    # find mesh deltas
+    self.delta = np.zeros(len(self._conf["N"]))
+    for n in range(len(self.delta)):
+      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
+
+    num_re = re.compile(r"\d+")
+    # generate a list of output steps for fields
+    self._fld_keys = []
+    self.fld_steps = [
+      int(num_re.findall(f.stem)[0]) for f in Path(self._path).glob("fld.*.h5")
+    ]
+    if len(self.fld_steps) > 0:
+      self.fld_steps.sort()
+      self._current_fld_step = self.fld_steps[0]
+      f_fld = h5py.File(
+        os.path.join(self._path, f"fld.{self._current_fld_step:05d}.h5"),
+        "r",
+      )
+      self._original_fld_keys = list(f_fld.keys())
+      self._fld_keys = list(f_fld.keys())
+      for k in extra_fld_keys:
+        if k not in self._original_fld_keys:
+          self._fld_keys.append(k)
+      print("fld keys are:", self._fld_keys)
+      f_fld.close()
+
+    # generate a list of output steps for particles
+    self._ptc_keys = []
+    self.ptc_steps = [
+      int(num_re.findall(f.stem)[0]) for f in Path(self._path).glob("ptc.*.h5")
+    ]
+    if len(self.ptc_steps) > 0:
+      self.ptc_steps.sort()
+      self._current_ptc_step = self.ptc_steps[0]
+      f_ptc = h5py.File(
+        os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5"),
+        "r",
+      )
+      self._ptc_keys = list(f_ptc.keys())
+      f_ptc.close()
 
   def load_fld(self, step):
     if not step in self.fld_steps:

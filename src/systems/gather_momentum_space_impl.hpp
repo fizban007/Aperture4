@@ -71,6 +71,8 @@ gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
                     std::string("energy_") + ptc_type_name(i), m_grid,
                     m_downsample, &m_num_bins[3], &m_lim_lower[3], &m_lim_upper[3],
                     m_use_log_scale, ExecPolicy<Conf>::data_mem_type()));
+    momenta[i]->reset_after_output(true);
+    energies[i]->reset_after_output(true);
   }
   momenta.copy_to_device();
   energies.copy_to_device();

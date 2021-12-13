@@ -150,8 +150,14 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       } else if (auto* ptr = dynamic_cast<scalar_data<value_t>*>(data)) {
         Logger::print_detail("Writing scalar data {}", it.first);
         write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
-        Logger::print_detail("Writing momentum space data");
+      // } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
+      //   Logger::print_detail("Writing momentum space data");
+      //   write(*ptr, it.first, datafile, false);
+      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 1>*>(data)) {
+        Logger::print_detail("Writing 1D phase space data {}", it.first);
+        write(*ptr, it.first, datafile, false);
+      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 3>*>(data)) {
+        Logger::print_detail("Writing 3D phase space data {}", it.first);
         write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
         Logger::print_detail("Writing 1D array {}", it.first);
@@ -591,6 +597,53 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
     ext[0] = ext_total[0] = data.m_num_bins[3];
     datafile.write(data.e_E, name + "_E_e");
     datafile.write(data.p_E, name + "_E_p");
+  }
+}
+
+template <typename Conf>
+template <int N>
+void
+data_exporter<Conf>::write(phase_space<Conf, N>& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  data.copy_to_host();
+
+  // First figure out the extent and offset of each node
+  // extent_t<Conf::dim + N> ext_total(
+  //     data.m_num_bins[0], m_global_ext * m_downsample / data.m_downsample);
+  // extent_t<Conf::dim + N> ext(data.m_num_bins[0], data.m_grid_ext);
+  extent_t<Conf::dim + N> ext_total;
+  extent_t<Conf::dim + N> ext;
+  for (int i = 0; i < Conf::dim + N; i++) {
+    if (i < N) {
+      ext_total[i] = data.m_num_bins[i];
+      ext[i] = data.m_num_bins[i];
+    } else {
+      ext_total[i] = m_global_ext[i - N] * m_downsample / data.m_downsample;
+      ext[i] = data.m_grid_ext[i - N];
+    }
+  }
+  ext.get_strides();
+  ext_total.get_strides();
+
+  index_t<Conf::dim + N> idx_src(0);
+  index_t<Conf::dim + N> idx_dst(0);
+  // FIXME: This again assumes a uniform grid, which is no good in the long term
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    for (int i = 0; i < Conf::dim + N; i++) {
+      if (i < N) {
+        idx_dst[i] = 0;
+      } else {
+        idx_dst[i] = m_comm->domain_info().mpi_coord[i - N] * ext[i];
+      }
+    }
+    // Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {}, {}, {}",
+    //                    idx_dst[0], idx_dst[1], idx_dst[2], idx_dst[3],
+    //                    ext_total[0], ext_total[1], ext_total[2], ext_total[3]);
+
+    datafile.write_parallel(data.data, ext_total, idx_dst, ext, idx_src,
+                            name);
+  } else {
+    datafile.write(data.data, name);
   }
 }
 

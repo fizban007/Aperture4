@@ -30,32 +30,50 @@ namespace Aperture {
 template <typename Conf, template <class> class ExecPolicy>
 void
 gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
-  int downsample =
-      sim_env().params().template get_as<int64_t>("momentum_downsample", 16);
-  int num_bins[4] = {256, 256, 256, 256};
-  sim_env().params().get_array("momentum_num_bins", num_bins);
-  float lim_lower[4] = {-1.0, -1.0, -1.0, 1.0};
-  sim_env().params().get_array("momentum_lower", lim_lower);
-  float lim_upper[4] = {1.0, 1.0, 1.0, 100.0};
-  sim_env().params().get_array("momentum_upper", lim_upper);
-  bool use_log_scale = false;
-  sim_env().params().get_value("momentum_use_log_scale", use_log_scale);
+  // int downsample =
+  //     sim_env().params().template get_as<int64_t>("momentum_downsample", 16);
+  sim_env().params().get_value("momentum_downsample", m_downsample);
+  sim_env().params().get_array("momentum_num_bins", m_num_bins);
+  sim_env().params().get_array("momentum_lower", m_lim_lower);
+  sim_env().params().get_array("momentum_upper", m_lim_upper);
+  sim_env().params().get_value("momentum_use_log_scale", m_use_log_scale);
 
-  if (use_log_scale) {
+  if (m_use_log_scale) {
     for (int i = 0; i < 3; i++) {
-      lim_lower[i] = symlog(lim_lower[i]);
-      lim_upper[i] = symlog(lim_upper[i]);
+      m_lim_lower[i] = symlog(m_lim_lower[i]);
+      m_lim_upper[i] = symlog(m_lim_upper[i]);
     }
     // Energy doesn't need symlog
-    lim_lower[3] = math::log(lim_lower[3]);
-    lim_upper[3] = math::log(lim_upper[3]);
+    m_lim_lower[3] = math::log(m_lim_lower[3]);
+    m_lim_upper[3] = math::log(m_lim_upper[3]);
   }
 
   sim_env().params().get_value("fld_output_interval", m_data_interval);
 
-  momentum = sim_env().register_data<momentum_space<Conf>>(
-      "momentum", m_grid, downsample, num_bins, lim_lower, lim_upper,
-      use_log_scale, ExecPolicy<Conf>::data_mem_type());
+  // momentum = sim_env().register_data<momentum_space<Conf>>(
+  //     "momentum", m_grid, downsample, num_bins, lim_lower, lim_upper,
+  //     use_log_scale, ExecPolicy<Conf>::data_mem_type());
+  sim_env().params().get_value("num_species", m_num_species);
+  if (m_num_species > max_ptc_types) {
+    Logger::print_err("Too many species of particles requested! Aborting");
+    throw std::runtime_error("too many species");
+  }
+  momenta.resize(m_num_species);
+  energies.resize(m_num_species);
+  for (int i = 0; i < m_num_species; i++) {
+    momenta.set(i,
+                sim_env().register_data<phase_space<Conf, 3>>(
+                    std::string("momentum_") + ptc_type_name(i), m_grid,
+                    m_downsample, &m_num_bins[0], &m_lim_lower[0], &m_lim_upper[0],
+                    m_use_log_scale, ExecPolicy<Conf>::data_mem_type()));
+    energies.set(i,
+                sim_env().register_data<phase_space<Conf, 1>>(
+                    std::string("energy_") + ptc_type_name(i), m_grid,
+                    m_downsample, &m_num_bins[3], &m_lim_lower[3], &m_lim_upper[3],
+                    m_use_log_scale, ExecPolicy<Conf>::data_mem_type()));
+  }
+  momenta.copy_to_device();
+  energies.copy_to_device();
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -68,12 +86,12 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (step % m_data_interval != 0) return;
-  momentum->init();
+  momenta.init();
   // Convert these into things that can be passed onto the gpu
-  vec_t<int, 4> num_bins(momentum->m_num_bins);
-  vec_t<float, 4> lower(momentum->m_lower);
-  vec_t<float, 4> upper(momentum->m_upper);
-  bool log_scale = momentum->m_log_scale;
+  vec_t<int, 4> num_bins(m_num_bins);
+  vec_t<float, 4> lower(m_lim_lower);
+  vec_t<float, 4> upper(m_lim_upper);
+  bool log_scale = m_use_log_scale;
 
   // Loop over the particle array to gather momentum space information
   auto num = ptc->number();
@@ -81,23 +99,28 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   Logger::print_detail("gathering particle momentum space");
   ExecPolicy<Conf>::launch(
       [num, num_bins, lower, upper, log_scale] LAMBDA(
-          auto ptc, auto e_p1, auto e_p2, auto e_p3, auto e_E, auto p_p1,
-          auto p_p2, auto p_p3, auto p_E, int downsample) {
+          auto ptc, auto e_p, auto e_E, auto p_p, auto p_E, int downsample) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         auto ext_out = grid.extent_less() / downsample;
-        using idx_t = default_idx_t<Conf::dim + 1>;
+        using idx_E_t = default_idx_t<Conf::dim + 1>;
+        using idx_p_t = default_idx_t<Conf::dim + 3>;
         // for (auto n : grid_stride_range(0, num)) {
         ExecPolicy<Conf>::loop(0, num, [&] LAMBDA(auto n) {
           uint32_t cell = ptc.cell[n];
           if (cell == empty_cell) return;
 
+          // idx and pos of the particle in the main grid
           auto idx = Conf::idx(cell, ext);
-          // auto pos = idx.get_pos();
           auto pos = get_pos(idx, ext);
+
           if (grid.is_in_bound(pos)) {
-            index_t<Conf::dim + 1> pos_out(0,
-                                           (pos - grid.guards()) / downsample);
+            // pos for momentum space
+            index_t<Conf::dim + 3> pos_p(0, 0, 0,
+                                         (pos - grid.guards()) / downsample);
+            // pos for energy space
+            index_t<Conf::dim + 1> pos_E(0,
+                                         (pos - grid.guards()) / downsample);
 
             auto weight = ptc.weight[n];
             auto flag = ptc.flag[n];
@@ -128,47 +151,34 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                              (num_bins[3] - 1));
 
             if (sp == (int)PtcType::electron) {
-              pos_out[0] = bin1;
-              atomic_add(&e_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[0], ext_out))],
+              pos_p[0] = bin1;
+              pos_p[1] = bin2;
+              pos_p[2] = bin3;
+              atomic_add(&e_p[idx_p_t(pos_p, extent_t<Conf::dim + 3>(
+                  num_bins[0], num_bins[1], num_bins[2], ext_out))],
                          weight);
-              pos_out[0] = bin2;
-              atomic_add(&e_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[1], ext_out))],
-                         weight);
-              pos_out[0] = bin3;
-              atomic_add(&e_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[2], ext_out))],
-                         weight);
-              pos_out[0] = bin4;
-              atomic_add(&e_E[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                 num_bins[3], ext_out))],
+              pos_E[0] = bin4;
+              atomic_add(&e_E[idx_E_t(pos_E, extent_t<Conf::dim + 1>(
+                  num_bins[3], ext_out))],
                          weight);
             } else if (sp == (int)PtcType::positron) {
-              pos_out[0] = bin1;
-              atomic_add(&p_p1[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[0], ext_out))],
+              pos_p[0] = bin1;
+              pos_p[1] = bin2;
+              pos_p[2] = bin3;
+              atomic_add(&p_p[idx_p_t(pos_p, extent_t<Conf::dim + 3>(
+                  num_bins[0], num_bins[1], num_bins[2], ext_out))],
                          weight);
-              pos_out[0] = bin2;
-              atomic_add(&p_p2[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[1], ext_out))],
-                         weight);
-              pos_out[0] = bin3;
-              atomic_add(&p_p3[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                  num_bins[2], ext_out))],
-                         weight);
-              pos_out[0] = bin4;
-              atomic_add(&p_E[idx_t(pos_out, extent_t<Conf::dim + 1>(
-                                                 num_bins[3], ext_out))],
+              pos_E[0] = bin4;
+              atomic_add(&p_E[idx_E_t(pos_E, extent_t<Conf::dim + 1>(
+                  num_bins[3], ext_out))],
                          weight);
             }
           }
         });
         // ptc, e_p1, e_p2, e_p3, e_E, p_p1, p_p2, p_p3, p_E);
       },
-      ptc, momentum->e_p1, momentum->e_p2, momentum->e_p3, momentum->e_E,
-      momentum->p_p1, momentum->p_p2, momentum->p_p3, momentum->p_E,
-      momentum->m_downsample);
+      ptc, momenta[0], energies[0], momenta[1], energies[1],
+      m_downsample);
   ExecPolicy<Conf>::sync();
 }
 

@@ -21,6 +21,7 @@
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/momentum_space.hpp"
+#include "data/phase_space.hpp"
 #include "data/rng_states.h"
 #include "data/scalar_data.hpp"
 #include "framework/system.h"
@@ -88,6 +89,9 @@ class data_exporter : public system_t {
   void write(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
   void write(momentum_space<Conf>& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
+  template <int N>
+  void write(phase_space<Conf, N>& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
   // void write(curand_states_t& data, const std::string& name, H5File& datafile,
   //            bool snapshot = false);

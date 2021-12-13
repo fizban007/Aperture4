@@ -54,6 +54,16 @@ class vec_t {
       memory[i] = vec[i - 1];
     }
   }
+  HD_INLINE vec_t(const T& v1, const T& v2, const T& v3,
+                  const vec_t<T, Rank - 3>& vec) {
+    memory[0] = v1;
+    memory[1] = v2;
+    memory[2] = v3;
+#pragma unroll
+    for (int i = 3; i < Rank; i++) {
+      memory[i] = vec[i - 3];
+    }
+  }
   HD_INLINE vec_t(const vec_t<T, Rank - 1>& vec, const T& v) {
     memory[Rank - 1] = v;
 #pragma unroll
@@ -307,6 +317,12 @@ class extent_t : public vec_t<uint32_t, Rank> {
     get_strides();
   }
 
+  HOST_DEVICE extent_t(uint32_t v1, uint32_t v2, uint32_t v3,
+                       const extent_t<Rank - 3>& vec)
+      : base_class(v1, v2, v3, vec) {
+    get_strides();
+  }
+
   template <typename... Args, typename = all_convertible_to<uint32_t, Args...>>
   HOST_DEVICE extent_t(Args... args) : base_class(args...) {
     get_strides();
@@ -342,6 +358,10 @@ class index_t : public vec_t<int32_t, Rank> {
 
   HD_INLINE index_t(const int32_t& v, const vec_t<int32_t, Rank - 1>& vec)
       : vec_t<int32_t, Rank>(v, vec) {}
+
+  HD_INLINE index_t(int32_t v1, int32_t v2, int32_t v3,
+                    const vec_t<int32_t, Rank - 3>& vec)
+      : vec_t<int32_t, Rank>(v1, v2, v3, vec) {}
 
   HD_INLINE index_t(const vec_t<int32_t, Rank - 1>& vec, const int32_t& v)
       : vec_t<int32_t, Rank>(vec, v) {}

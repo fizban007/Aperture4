@@ -26,7 +26,7 @@ namespace Aperture {
 ////////////////////////////////////////////////////////////////////////////////
 ///  Thin wrapper around a multi_array for the purpose of unified data
 ///  management, so that the data_exporter can automatically output every entry
-///  of this type.
+///  of this type. This only works on one rank!!
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T, int Rank>
 class multi_array_data : public data_t, public multi_array<T, Rank> {

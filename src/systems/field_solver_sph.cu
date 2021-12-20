@@ -523,7 +523,7 @@ template <typename Conf>
 void
 field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
                                                 double beta, double time) {
-  Logger::print_info("updating sph fields implicitly");
+  Logger::print_detail("updating sph fields implicitly");
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
 

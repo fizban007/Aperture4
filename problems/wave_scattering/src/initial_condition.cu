@@ -96,6 +96,8 @@ struct fast_wave_solution {
 
   HD_INLINE value_t Bz(value_t t, value_t x) const {
     return a0 * omega * wave_profile(wave_arg_clamped(t, x));
+    // return square(a0 * omega * wave_profile(wave_arg_clamped(t, x)));
+    // return max(a0 * omega * wave_profile(wave_arg_clamped(t, x)), 0.0);
   }
 
   HD_INLINE value_t Ey(value_t t, value_t x) const {
@@ -160,7 +162,7 @@ initial_condition_wave(vector_field<Conf> &B,
   value_t Bbg_reduced = sim_env().params().get_as<double>("Bbg_reduced", 2.0);
   value_t rho_bg = sim_env().params().get_as<double>("rho_bg", 10000.0);
   value_t a0 = sim_env().params().get_as<double>("a0", 5000.0);
-  value_t q_e = sim_env().params().get_as<double>("q_e", 100.0);
+  value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
   value_t omega = sim_env().params().get_as<double>("omega", 0.1);
   int num_lambda = sim_env().params().get_as<int64_t>("num_lambda", 4);
   int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
@@ -168,20 +170,27 @@ initial_condition_wave(vector_field<Conf> &B,
 
   fast_wave_solution<value_t> wave(sinth, 1.0 / omega, 0.05, num_lambda, a0);
 
-  B0.set_values(
-      2, [Bbg, Bbg_reduced, L](value_t x, value_t y, value_t z) {
-        return Bbg_reduced + (Bbg - Bbg_reduced) * (tanh((0.3 * L[0] - x) / (0.15 * L[0])) + 1.0);
-        // value_t const_part = 0.05 * L[0];
-        // if (x < const_part) {
-        //   return Bbg;
-        // } else {
-        //   return Bbg - (Bbg - Bbg_reduced) * (x - const_part) / ((value_t)L[0] - const_part);
-        // }
-      });
+  auto Bbg_func = [Bbg, Bbg_reduced] __host__ __device__ (value_t L, value_t x) {
+    // return Bbg_reduced + (Bbg - Bbg_reduced) * (tanh((0.3 * L - x) / (0.15 * L)) + 1.0);
+    return Bbg;
+  };
+
+  // B0.set_values(
+  //     1, [L, Bbg_func](value_t x, value_t y, value_t z) {
+  //       return Bbg_func(L[0], x);
+  //       // value_t const_part = 0.05 * L[0];
+  //       // if (x < const_part) {
+  //       //   return Bbg;
+  //       // } else {
+  //       //   return Bbg - (Bbg - Bbg_reduced) * (x - const_part) / ((value_t)L[0] - const_part);
+  //       // }
+  //     });
   B.set_values(
-      2, [wave](value_t x, value_t y, value_t z) { return wave.Bz(0.0, x); });
+      1, [wave, Bbg](value_t x, value_t y, value_t z) {
+        return wave.Bz(0.0, x) + Bbg;
+        });
   E.set_values(
-      1, [wave](value_t x, value_t y, value_t z) { return wave.Ey(0.0, x); });
+      2, [wave](value_t x, value_t y, value_t z) { return -wave.Ey(0.0, x); });
 
   auto num = ptc.number();
 
@@ -189,14 +198,22 @@ initial_condition_wave(vector_field<Conf> &B,
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
   injector->init();
 
+  value_t Lbox = L[0];
+
   injector->inject(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [mult] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * mult;
       },
-      [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                    PtcType type) {
-        return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+      [Lbox, wave, Bbg_func] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                                  PtcType type) {
+        auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
+        value_t B = Bbg_func(Lbox, x_global[0]) + wave.Bz(0.0, x_global[0]);
+        value_t v_d = B * wave.Ey(0.0, x_global[0]) / (B * B);
+        // value_t v_d = 0.0f;
+        // value_t gamma = 1.0f / math::sqrt(1.0f - v_d * v_d);
+        value_t gamma = 1.0f;
+        return vec_t<value_t, 3>(v_d * gamma, 0.0, 0.0);
       },
       [mult, rho_bg, q_e] __device__(auto &x_global) {
         return rho_bg / q_e / mult;

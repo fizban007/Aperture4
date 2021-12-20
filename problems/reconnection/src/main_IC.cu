@@ -73,9 +73,9 @@ main(int argc, char *argv[]) {
       // Conf, exec_policy_cuda, coord_policy_cartesian>>(
       Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
       grid, comm);
-  // auto rad = env.register_system<radiative_transfer<
-  //     Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
-  //     grid, &comm);
+  auto rad = env.register_system<radiative_transfer<
+      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);

@@ -20,6 +20,7 @@
 
 #include "core/multi_array.hpp"
 #include "data/data_array.hpp"
+#include "data/fields.h"
 #include "data/momentum_space.hpp"
 #include "data/particle_data.h"
 #include "data/phase_space.hpp"
@@ -49,14 +50,17 @@ class gather_momentum_space : public system_t {
   int m_downsample = 16;
   int m_num_species = 2;
   int m_num_bins[4] = {256, 256, 256, 256};
+  int m_pitch_bins = 32;
   float m_lim_lower[4] = {-1.0, -1.0, -1.0, 1.0};
   float m_lim_upper[4] = {1.0, 1.0, 1.0, 1.0e2};
   bool m_use_log_scale = false;
 
   // nonown_ptr<momentum_space<Conf>> momentum;
   data_array<phase_space<Conf, 3>> momenta;
-  data_array<phase_space<Conf, 1>> energies;
+  data_array<phase_space<Conf, 2>> energies; // energies includes the pitch
+                                             // angle distribution
   nonown_ptr<particle_data_t> ptc;
+  nonown_ptr<vector_field<Conf>> B;
 };
 
 // template <typename Conf>

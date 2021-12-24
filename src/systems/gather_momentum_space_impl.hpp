@@ -86,6 +86,7 @@ void gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
 template <typename Conf, template <class> class ExecPolicy>
 void gather_momentum_space<Conf, ExecPolicy>::init() {
   sim_env().get_data("particles", ptc);
+  sim_env().get_data("B", B);
 }
 
 template <typename Conf, template <class> class ExecPolicy>

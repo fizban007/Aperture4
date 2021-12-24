@@ -29,8 +29,7 @@
 namespace Aperture {
 
 template <typename Conf, template <class> class ExecPolicy>
-void
-gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
+void gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
   // int downsample =
   //     sim_env().params().template get_as<int64_t>("momentum_downsample", 16);
   sim_env().params().get_value("momentum_downsample", m_downsample);
@@ -45,10 +44,10 @@ gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
       m_lim_lower[i] = symlog(m_lim_lower[i]);
       m_lim_upper[i] = symlog(m_lim_upper[i]);
     }
-    // Energy doesn't need symlog
-    m_lim_lower[3] = math::log(m_lim_lower[3]);
-    m_lim_upper[3] = math::log(m_lim_upper[3]);
   }
+  // Energy doesn't need symlog
+  m_lim_lower[3] = math::log(m_lim_lower[3]);
+  m_lim_upper[3] = math::log(m_lim_upper[3]);
 
   sim_env().params().get_value("fld_output_interval", m_data_interval);
 
@@ -67,16 +66,16 @@ gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
   float energy_lim_upper[2] = {m_lim_upper[3], 1.0f};
 
   for (int i = 0; i < m_num_species; i++) {
-    momenta.set(
-        i, sim_env().register_data<phase_space<Conf, 3>>(
-               std::string("momentum_") + ptc_type_name(i), m_grid,
-               m_downsample, &m_num_bins[0], &m_lim_lower[0], &m_lim_upper[0],
-               m_use_log_scale, ExecPolicy<Conf>::data_mem_type()));
-    energies.set(
-        i, sim_env().register_data<phase_space<Conf, 2>>(
-               std::string("energy_") + ptc_type_name(i), m_grid, m_downsample,
-               &energy_bins[0], &energy_lim_lower[3], &energy_lim_upper[3],
-               m_use_log_scale, ExecPolicy<Conf>::data_mem_type()));
+    momenta.set(i, sim_env().register_data<phase_space<Conf, 3>>(
+                       std::string("momentum_") + ptc_type_name(i), m_grid,
+                       m_downsample, &m_num_bins[0], &m_lim_lower[0],
+                       &m_lim_upper[0], m_use_log_scale,
+                       ExecPolicy<Conf>::data_mem_type()));
+    energies.set(i, sim_env().register_data<phase_space<Conf, 2>>(
+                        std::string("energy_") + ptc_type_name(i), m_grid,
+                        m_downsample, &energy_bins[0], &energy_lim_lower[0],
+                        &energy_lim_upper[0], m_use_log_scale,
+                        ExecPolicy<Conf>::data_mem_type()));
     momenta[i]->reset_after_output(true);
     energies[i]->reset_after_output(true);
   }
@@ -85,15 +84,14 @@ gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-void
-gather_momentum_space<Conf, ExecPolicy>::init() {
+void gather_momentum_space<Conf, ExecPolicy>::init() {
   sim_env().get_data("particles", ptc);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-void
-gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
-  if (step % m_data_interval != 0) return;
+void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
+  if (step % m_data_interval != 0)
+    return;
   momenta.init();
   // Convert these into things that can be passed onto the gpu
   vec_t<int, 4> num_bins(m_num_bins);
@@ -107,10 +105,10 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
   Logger::print_detail("gathering particle momentum space");
   ExecPolicy<Conf>::launch(
-      [num, num_bins, pitch_bins, lower, upper, log_scale] LAMBDA(
-          auto ptc, auto B, auto e_p, auto e_E, auto p_p, auto p_E,
-          int downsample) {
-        auto& grid = ExecPolicy<Conf>::grid();
+      [num, num_bins, pitch_bins, lower, upper,
+       log_scale] LAMBDA(auto ptc, auto B, auto e_p, auto e_E, auto p_p,
+                         auto p_E, int downsample) {
+        auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         auto ext_out = grid.extent_less() / downsample;
         using idx_p_t = default_idx_t<Conf::dim + 3>;
@@ -118,7 +116,8 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
         // for (auto n : grid_stride_range(0, num)) {
         ExecPolicy<Conf>::loop(0, num, [&] LAMBDA(auto n) {
           uint32_t cell = ptc.cell[n];
-          if (cell == empty_cell) return;
+          if (cell == empty_cell)
+            return;
 
           // idx and pos of the particle in the main grid
           auto idx = Conf::idx(cell, ext);
@@ -134,7 +133,8 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
             auto weight = ptc.weight[n];
             auto flag = ptc.flag[n];
-            if (check_flag(flag, PtcFlag::exclude_from_spectrum)) return;
+            if (check_flag(flag, PtcFlag::exclude_from_spectrum))
+              return;
             auto sp = get_ptc_type(flag);
 
             // auto p1 = clamp(ptc.p1[n], lower[0], upper[0]);
@@ -151,7 +151,7 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             float B2 = interp(x, B[1], idx, ext, stagger_t(0b010));
             float B3 = interp(x, B[2], idx, ext, stagger_t(0b100));
             auto p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
-            float mu = (B1 * ptc.p1[n] + B2 * ptc.p2[n] + B3 * ptc.p3[n]) /
+            float mu = (B1 * p1 + B2 * p2 + B3 * p3) /
                        (p * math::sqrt(B1 * B1 + B2 * B2 + B3 * B3));
 
             p1 = (log_scale ? symlog(p1) : p1);
@@ -211,6 +211,6 @@ gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   ExecPolicy<Conf>::sync();
 }
 
-}  // namespace Aperture
+} // namespace Aperture
 
-#endif  // _GATHER_MOMENTUM_SPACE_IMPL_H_
+#endif // _GATHER_MOMENTUM_SPACE_IMPL_H_

@@ -261,6 +261,12 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   value_t delta = 2.0f * kT_cs / (math::sqrt(sigma) * gamma_d * beta_d);
   value_t n_d = gamma_d * sigma / (4.0f * kT_cs);
 
+  value_t global_sizes[Conf::dim];
+  value_t global_lower[Conf::dim];
+
+  sim_env().params().get_array("size", global_sizes);
+  sim_env().params().get_array("lower", global_lower);
+
   int n_cs = sim_env().params().get_as<int64_t>("current_sheet_n", 15);
   int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
   value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
@@ -270,7 +276,8 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   value_t B0 = math::sqrt(sigma);
   auto &grid = B.grid();
   auto ext = grid.extent();
-  value_t ysize = grid.sizes[1];
+  value_t ysize = global_sizes[1];
+  value_t ylower = global_lower[1];
 
   // Initialize the magnetic field values
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
@@ -304,11 +311,11 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // Current sheet particles
   injector->inject(
-      [delta] __device__(auto &pos, auto &grid, auto &ext) {
+      [delta, ysize] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template pos<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
-        value_t y1 = 0.5 * grid.lower[1];
-        value_t y2 = -0.5 * grid.lower[1];
+        value_t y1 = 0.25 * ysize;
+        value_t y2 = -0.25 * ysize;
         if (math::abs(y - y1) < cs_y || math::abs(y - y2) < cs_y) {
           return true;
         } else {

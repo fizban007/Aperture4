@@ -46,16 +46,44 @@ class grid_sph_t : public grid_curv_t<Conf> {
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
 
   // Coordinate for output position
-  inline vec_t<float, Conf::dim> cart_coord(
-      const index_t<Conf::dim> &pos) const override {
-    vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
+  inline vec_t<float, 2> cart_coord(
+      const index_t<2> &pos) const {
+    vec_t<float, 2> result;
+    for (int i = 0; i < 2; i++) {
+      result[i] = this->pos(i, pos[i], false);
+    }
     float r = radius(this->pos(0, pos[0], false));
     float th = theta(this->pos(1, pos[1], false));
     result[0] = r * math::sin(th);
     result[1] = r * math::cos(th);
     return result;
   }
+
+  inline vec_t<float, 3> cart_coord(
+      const index_t<3> &pos) const {
+    vec_t<float, 3> result;
+    for (int i = 0; i < 3; i++) {
+      result[i] = this->pos(i, pos[i], false);
+    }
+    float r = radius(this->pos(0, pos[0], false));
+    float th = theta(this->pos(1, pos[1], false));
+    float ph = this->pos(2, pos[2], false);
+    result[0] = r * math::cos(ph) * math::sin(th);
+    result[1] = r * math::sin(ph) * math::sin(th);
+    result[2] = r * math::cos(th);
+    return result;
+  }
+
+  // inline vec_t<float, Conf::dim> cart_coord(
+  //     const index_t<Conf::dim> &pos) const override {
+  //   vec_t<float, Conf::dim> result;
+  //   for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
+  //   float r = radius(this->pos(0, pos[0], false));
+  //   float th = theta(this->pos(1, pos[1], false));
+  //   result[0] = r * math::sin(th);
+  //   result[1] = r * math::cos(th);
+  //   return result;
+  // }
 
   void compute_coef() override;
 };
@@ -132,7 +160,7 @@ grid_sph_t<Conf>::compute_coef() {
 
     // Length elements for E field
     this->m_le[0][idx] = rs_plus - rs;
-    this->m_le[1][idx] = rs * this->delta[1];
+    this->m_le[1][idx] = rs * (ths_plus - ths);
     // if constexpr (Conf::dim == 2) {
     if (Conf::dim == 2) {
       this->m_le[2][idx] = rs * std::sin(ths);
@@ -142,7 +170,7 @@ grid_sph_t<Conf>::compute_coef() {
 
     // Length elements for B field
     this->m_lb[0][idx] = r - r_minus;
-    this->m_lb[1][idx] = r * this->delta[1];
+    this->m_lb[1][idx] = r * (th - th_minus);
     // if constexpr (Conf::dim == 2) {
     if (Conf::dim == 2) {
       this->m_lb[2][idx] = r * std::sin(th);
@@ -153,9 +181,9 @@ grid_sph_t<Conf>::compute_coef() {
     // Area elements for E field
     this->m_Ae[0][idx] = r * r * (std::cos(th_minus) - std::cos(th));
     if (std::abs(ths) < 0.1 * this->delta[1]) {
-      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
+      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
     } else if (std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
-      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
+      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
     }
     // if constexpr (Conf::dim == 3) {
     if (Conf::dim == 3) {
@@ -172,7 +200,8 @@ grid_sph_t<Conf>::compute_coef() {
     this->m_Ae[2][idx] =
         // (cube(r) - cube(r_minus)) * (std::cos(th_minus) - std::cos(th)) / 3.0;
         // 0.5 * (square(r) - square(r_minus)) * (std::cos(th_minus) - std::cos(th));
-        0.5 * (square(r) - square(r_minus)) * this->delta[1];
+        // 0.5 * (square(r) - square(r_minus)) * this->delta[1];
+        0.5 * (square(r) - square(r_minus)) * (th - th_minus);
     // if (std::abs(ths) < 0.1 * this->delta[1] ||
     //     std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
     //   this->m_Ae[2][idx] =

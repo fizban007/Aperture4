@@ -13,6 +13,7 @@ set(Aperture_src
   "systems/domain_comm.cpp"
   "systems/grid.cpp"
   "systems/grid_sph.cpp"
+  "systems/grid_polar.cpp"
   "systems/grid_ks.cpp"
   "systems/field_solver.cpp"
   "systems/legacy/ptc_updater_old.cpp"

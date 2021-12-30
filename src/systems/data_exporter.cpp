@@ -156,6 +156,9 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       } else if (auto* ptr = dynamic_cast<phase_space<Conf, 1>*>(data)) {
         Logger::print_detail("Writing 1D phase space data {}", it.first);
         write(*ptr, it.first, datafile, false);
+      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 2>*>(data)) {
+        Logger::print_detail("Writing 2D phase space data {}", it.first);
+        write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<phase_space<Conf, 3>*>(data)) {
         Logger::print_detail("Writing 3D phase space data {}", it.first);
         write(*ptr, it.first, datafile, false);

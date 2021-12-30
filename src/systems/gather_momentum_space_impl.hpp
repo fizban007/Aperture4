@@ -158,7 +158,8 @@ void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             p1 = (log_scale ? symlog(p1) : p1);
             p2 = (log_scale ? symlog(p2) : p2);
             p3 = (log_scale ? symlog(p3) : p3);
-            auto E = (log_scale ? math::log(ptc.E[n] - 1.0f) : ptc.E[n] - 1.0f);
+            // auto E = (log_scale ? math::log(ptc.E[n] - 1.0f) : ptc.E[n] - 1.0f);
+            auto E = math::log(ptc.E[n] - 1.0f);
 
             p1 = clamp(p1, lower[0], upper[0]);
             p2 = clamp(p2, lower[1], upper[1]);
@@ -173,32 +174,32 @@ void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                              (num_bins[2] - 1));
             int bin4 = floor((E - lower[3]) / (upper[3] - lower[3]) *
                              (num_bins[3] - 1));
-            int bin_mu = floor((mu + 1.0f) / 2.0f * (pitch_bins - 1));
+            int bin_mu = round((mu + 1.0f) / 2.0f * (pitch_bins - 1));
 
             if (sp == (int)PtcType::electron) {
-              pos_p[0] = bin1;
-              pos_p[1] = bin2;
-              pos_p[2] = bin3;
+              pos_p[0] = clamp(bin1, 0, num_bins[0] - 1);
+              pos_p[1] = clamp(bin2, 0, num_bins[1] - 1);
+              pos_p[2] = clamp(bin3, 0, num_bins[2] - 1);
               atomic_add(&e_p[idx_p_t(pos_p, extent_t<Conf::dim + 3>(
                                                  num_bins[0], num_bins[1],
                                                  num_bins[2], ext_out))],
                          weight);
-              pos_E[0] = bin4;
-              pos_E[1] = bin_mu;
+              pos_E[0] = clamp(bin4, 0, num_bins[3] - 1);
+              pos_E[1] = clamp(bin_mu, 0, pitch_bins - 1);
               atomic_add(
                   &e_E[idx_E_t(pos_E, extent_t<Conf::dim + 2>(
                                           num_bins[3], pitch_bins, ext_out))],
                   weight);
             } else if (sp == (int)PtcType::positron) {
-              pos_p[0] = bin1;
-              pos_p[1] = bin2;
-              pos_p[2] = bin3;
+              pos_p[0] = clamp(bin1, 0, num_bins[0] - 1);
+              pos_p[1] = clamp(bin2, 0, num_bins[1] - 1);
+              pos_p[2] = clamp(bin3, 0, num_bins[2] - 1);
               atomic_add(&p_p[idx_p_t(pos_p, extent_t<Conf::dim + 3>(
                                                  num_bins[0], num_bins[1],
                                                  num_bins[2], ext_out))],
                          weight);
-              pos_E[0] = bin4;
-              pos_E[1] = bin_mu;
+              pos_E[0] = clamp(bin4, 0, num_bins[3] - 1);
+              pos_E[1] = clamp(bin_mu, 0, pitch_bins - 1);
               atomic_add(
                   &p_E[idx_E_t(pos_E, extent_t<Conf::dim + 2>(
                                           num_bins[3], pitch_bins, ext_out))],

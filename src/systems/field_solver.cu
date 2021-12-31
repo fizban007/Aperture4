@@ -24,6 +24,7 @@
 #include "systems/helpers/field_solver_helper_cu.hpp"
 #include "systems/helpers/finite_diff_helper.hpp"
 #include "utils/double_buffer.h"
+#include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
 
@@ -240,6 +241,41 @@ compute_flux<Config<2>>(scalar_field<Config<2>> &flux,
 
 template <typename Conf>
 void
+compute_EB_sqr(scalar_field<Conf> &E_sqr, scalar_field<Conf> &B_sqr, const vector_field<Conf> &E,
+               const vector_field<Conf> &B) {
+  E_sqr.init();
+  B_sqr.init();
+  auto& grid = B.grid();
+  kernel_launch(
+      [] __device__(auto e_sqr, auto b_sqr, auto e, auto b) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
+        auto interp = interp_t<1, Conf::dim>{};
+        using value_t = typename Conf::value_t;
+        vec_t<value_t, 3> vert(0.0, 0.0, 0.0);
+
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          if (grid.is_in_bound(pos)) {
+            value_t E1 = interp(vert, e[0], idx, ext, stagger_t(0b110));
+            value_t E2 = interp(vert, e[1], idx, ext, stagger_t(0b101));
+            value_t E3 = interp(vert, e[2], idx, ext, stagger_t(0b011));
+            value_t B1 = interp(vert, b[0], idx, ext, stagger_t(0b001));
+            value_t B2 = interp(vert, b[1], idx, ext, stagger_t(0b010));
+            value_t B3 = interp(vert, b[2], idx, ext, stagger_t(0b100));
+
+            e_sqr[idx] = E1*E1 + E2*E2 + E3*E3;
+            b_sqr[idx] = B1*B1 + B2*B2 + B3*B3;
+          }
+        }
+      },
+      E_sqr.dev_ndptr(), B_sqr.dev_ndptr(), E.get_ptrs(), B.get_ptrs());
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename Conf>
+void
 clean_field(vector_field<Conf> &f) {
   kernel_launch(
       [] __device__(auto f) {
@@ -323,6 +359,7 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     compute_flux(*(this->flux), *(this->Btotal), this->m_grid);
+    compute_EB_sqr(*(this->E_sqr), *(this->B_sqr), *(this->Etotal), *(this->Btotal));
   }
   CudaSafeCall(cudaDeviceSynchronize());
 }
@@ -404,6 +441,7 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     compute_flux(*(this->flux), *(this->Btotal), this->m_grid);
+    compute_EB_sqr(*(this->E_sqr), *(this->B_sqr), *(this->Etotal), *(this->Btotal));
   }
 }
 

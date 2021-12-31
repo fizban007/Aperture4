@@ -35,6 +35,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
     "systems/field_solver_sph.cu"
+    "systems/field_solver_polar.cu"
     "systems/field_solver_gr_ks.cu"
     "systems/legacy/ptc_updater_old.cu"
     "systems/legacy/ptc_updater_old_sph.cu"

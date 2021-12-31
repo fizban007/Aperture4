@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2021 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIELD_SOLVER_SPH_H_
-#define __FIELD_SOLVER_SPH_H_
+#ifndef _FIELD_SOLVER_POLAR_H_
+#define _FIELD_SOLVER_POLAR_H_
 
 #include "data/fields.h"
 #include "framework/environment.h"
@@ -28,10 +28,10 @@
 
 namespace Aperture {
 
-// System that updates Maxwell equations using an explicit scheme in Spherical
+// System that updates Maxwell equations using an explicit scheme in polar
 // coordinates
 template <typename Conf>
-class field_solver_sph_cu : public field_solver_cu<Conf> {
+class field_solver_polar_cu : public field_solver_cu<Conf> {
  private:
   int m_damping_length = 64;
   double m_damping_coef = 0.003;
@@ -52,4 +52,5 @@ class field_solver_sph_cu : public field_solver_cu<Conf> {
 
 }  // namespace Aperture
 
-#endif
+
+#endif  // _FIELD_SOLVER_POLAR_H_

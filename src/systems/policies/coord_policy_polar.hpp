@@ -101,7 +101,7 @@ class coord_policy_polar {
     vec_t<value_t, 3> x_global_pol_new;
     x_global_pol_new[2] = x_global_cart[2];
     x_global_pol_new[0] = math::sqrt(square(x_global_cart[0]) + square(x_global_cart[1]));
-    x_global_pol_new[1] = math::acos(x_global_cart[0] / x_global_pol_new[0]);
+    x_global_pol_new[1] = math::atan2(x_global_cart[1], x_global_cart[0]);
 
     // Transform the momentum vector to polar coorpolar coord at the new location
     cart2polar(context.p, x_global_pol_new);
@@ -141,7 +141,6 @@ class coord_policy_polar {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
           // grid.cell_size() is simply the product of all deltas
-          // auto w = grid.cell_size() / dt;
           auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
@@ -161,11 +160,6 @@ class coord_policy_polar {
 
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] /= grid_ptrs.dV[idx];
-                }
-                if (math::abs(theta) < 0.1 * grid.delta[1] ||
-                    math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
-                  // j[1][idx] = 0.0;
-                  j[2][idx] = 0.0;
                 }
               });
               // j, rho, grid_ptrs);

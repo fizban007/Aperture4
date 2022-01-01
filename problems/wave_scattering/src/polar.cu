@@ -26,6 +26,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/grid_polar.hpp"
 #include "systems/policies/coord_policy_polar.hpp"
+#include "systems/ptc_injector_cuda.hpp"
 #include "systems/ptc_updater_base.h"
 #include "utils/kernel_helper.hpp"
 // #include "systems/ptc_injector.h"
@@ -36,18 +37,18 @@ namespace Aperture {
 template <typename Conf>
 class boundary_condition : public system_t {
  protected:
-  const grid_curv_t<Conf>& m_grid;
+  const grid_curv_t<Conf> &m_grid;
   double m_E0 = 1.0;
   double m_omega_0 = 0.0;
   double m_omega_t = 0.0;
   double m_Bp = 1.0;
 
-  vector_field<Conf>*E, *B, *E0, *B0;
+  vector_field<Conf> *E, *B, *E0, *B0;
 
  public:
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(const grid_curv_t<Conf>& grid) : m_grid(grid) {}
+  boundary_condition(const grid_curv_t<Conf> &grid) : m_grid(grid) {}
 
   void init() override {
     sim_env().get_data("Edelta", &E);
@@ -70,15 +71,28 @@ class boundary_condition : public system_t {
     value_t omega;
     // if (m_omega_t * time < 5000.0)
     value_t phase = time * m_omega_t;
-    if (phase < 8.0)
-      omega = m_E0 * sin(2.0 * M_PI * phase);
-    else
+    value_t length = 4.0;
+    value_t smooth_width = 0.1;
+    if (phase < length) {
+      value_t prof = 1.0;
+      value_t arg = phase / length;
+      // omega = 2.0 * M_PI * m_omega_t * m_E0 * sin(2.0 * M_PI * phase);
+      if (arg < smooth_width) {
+        prof = square(math::sin(arg * M_PI / (smooth_width * 2.0f)));
+      } else if (arg > 1.0 - smooth_width) {
+        prof = square(math::sin((arg - 1.0f + smooth_width) * M_PI /
+                                    (smooth_width * 2.0f) +
+                                0.5f * M_PI));
+      }
+      omega = prof * m_E0 * sin(2.0 * M_PI * phase);
+    } else {
       omega = 0.0;
+    }
     Logger::print_debug("time is {}, Omega is {}", time, omega);
 
     kernel_launch(
         [ext, time, omega, Bp] __device__(auto e, auto b, auto e0, auto b0) {
-          auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+          auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
           for (auto n1 : grid_stride_range(0, grid.dims[1])) {
             value_t theta =
                 grid_polar_t<Conf>::theta(grid.template pos<1>(n1, false));
@@ -86,14 +100,15 @@ class boundary_condition : public system_t {
                 grid_polar_t<Conf>::theta(grid.template pos<1>(n1, true));
 
             // For quantities that are not continuous across the surface
-            for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
+            for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
               auto idx = idx_t(index_t<2>(n0, n1), ext);
               e[0][idx] = 0.0;
-              b[1][idx] = 0.0;
+              // b[1][idx] = Bp - omega * Bp;
+              b[1][idx] = omega * Bp;
               b[2][idx] = 0.0;
             }
             // For quantities that are continuous across the surface
-            for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
+            for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
               auto idx = idx_t(index_t<2>(n0, n1), ext);
               value_t r =
                   grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
@@ -121,17 +136,19 @@ using namespace std;
 using namespace Aperture;
 
 int
-main(int argc, char* argv[]) {
+main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  auto& env = sim_environment::instance(&argc, &argv, false);
+  using value_t = typename Conf::value_t;
+  auto &env = sim_environment::instance(&argc, &argv, false);
 
   domain_comm<Conf> comm;
   grid_polar_t<Conf> grid(comm);
   grid.init();
 
-  auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_polar>>(grid, comm);
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_polar>>(grid, comm);
   auto solver = env.register_system<field_solver_polar_cu<Conf>>(grid, &comm);
+  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
@@ -141,12 +158,39 @@ main(int argc, char* argv[]) {
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   env.get_data("B0", &B0);
   double Bp = sim_env().params().get_as<double>("Bp", 100.0);
-  B0->set_values(1, [Bp](auto x, auto y, auto z) {
-      return Bp / x;
-    });
+  B0->set_values(1, [Bp](auto x, auto y, auto z) { return Bp / grid_polar_t<Conf>::radius(x); });
 
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
+  // ptc->append_dev({0.5f, 0.5f, 0.0f}, {0.0f, 10.0f, 0.0f}, 100, 1.0);
+
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  injector->init();
+
+  int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
+  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 0.01);
+  value_t rho_bg = sim_env().params().get_as<double>("rho_bg", 100.0);
+  value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
+  // Background (upstream) particles
+  injector->inject(
+      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+        return 2 * n_upstream;
+      },
+      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                               PtcType type) {
+        auto p = rng.maxwell_juttner_3d(kT_upstream);
+        return p;
+        // return vec_t<value_t, 3>(rng.gaussian(kT_upstream),
+        //                          rng.gaussian(kT_upstream),
+        //                          rng.gaussian(kT_upstream));
+      },
+      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [rho_bg, n_upstream, q_e] __device__(auto &x_global) {
+        value_t rho = rho_bg * square(grid_polar_t<Conf>::radius(x_global[0]));
+        return rho / q_e / n_upstream;
+      });
 
   env.run();
   return 0;

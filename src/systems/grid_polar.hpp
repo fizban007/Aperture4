@@ -37,11 +37,11 @@ class grid_polar_t : public grid_curv_t<Conf> {
   using grid_curv_t<Conf>::grid_curv_t;
   // ~grid_sph_t();
 
-  static HD_INLINE value_t radius(value_t x1) { return x1; }
-  // static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
+  // static HD_INLINE value_t radius(value_t x1) { return x1; }
+  static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
-  static HD_INLINE value_t from_radius(value_t r) { return r; }
-  // static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
+  // static HD_INLINE value_t from_radius(value_t r) { return r; }
+  static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
 
   // Coordinate for output position

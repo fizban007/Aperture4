@@ -243,6 +243,21 @@ struct rng_t {
   Float maxwell_juttner(Float theta) {
     // FIXME: Implement this
   }
+
+  template <typename Float>
+  vec_t<Float, 3> maxwell_juttner_3d(Float theta) {
+    vec_t<Float, 3> result;
+
+    auto u = maxwell_juttner(theta);
+    auto x1 = uniform<Float>();
+    auto x2 = uniform<Float>();
+
+    result[0] = u * (2.0f * x1 - 1.0f);
+    result[1] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::cos(2.0f * M_PI * x2);
+    result[2] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::sin(2.0f * M_PI * x2);
+    return result;
+  }
+
 };
 
 #endif

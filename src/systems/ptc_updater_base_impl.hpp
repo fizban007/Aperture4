@@ -460,11 +460,11 @@ template <typename Conf, template <class> class ExecPolicy,
 void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                 PhysicsPolicy>::fill_multiplicity(int mult, value_t weight,
-                                                  value_t dp) {
+                                                  value_t kT) {
   auto num = ptc->number();
 
   ExecPolicy<Conf>::launch(
-      [num, mult, weight, dp] LAMBDA(auto ptc, auto states) {
+      [num, mult, weight, kT] LAMBDA(auto ptc, auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t rng(states);
@@ -490,13 +490,16 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                   value_t x3 = CoordPolicy<Conf>::x3(
                       grid.template pos<2>(pos[2], ptc.x3[offset]));
 
-                  ptc.p1[offset] = ptc.p1[offset + 1] =
-                      rng.template gaussian<value_t>(dp);
-                  ptc.p2[offset] = ptc.p2[offset + 1] =
-                      rng.template gaussian<value_t>(dp);
-                  ptc.p3[offset] = ptc.p3[offset + 1] =
-                      rng.template gaussian<value_t>(dp);
-                  ptc.E[offset] = ptc.E[offset + 1] = 1.0;
+                  auto p = rng.maxwell_juttner_3d(kT);
+                  ptc.p1[offset] = p[0];
+                  ptc.p2[offset] = p[1];
+                  ptc.p3[offset] = p[2];
+                  ptc.E[offset] = math::sqrt(1.0f + p.dot(p));
+                  p = rng.maxwell_juttner_3d(kT);
+                  ptc.p1[offset + 1] = p[0];
+                  ptc.p2[offset + 1] = p[1];
+                  ptc.p3[offset + 1] = p[2];
+                  ptc.E[offset + 1] = math::sqrt(1.0f + p.dot(p));
                   ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
                   ptc.weight[offset] = ptc.weight[offset + 1] =
                       weight * CoordPolicy<Conf>::weight_func(x1, x2, x3);

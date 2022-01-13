@@ -35,14 +35,25 @@ class coord_policy_cartesian_impl_cooling
   using coord_policy_cartesian<Conf>::coord_policy_cartesian;
 
   void init() {
-    value_t t_cool = 100.0f, sigma = 10.0f;
+    value_t t_cool = 100.0f, sigma = 10.0f, Bg = 0.0f;
     sim_env().params().get_value("cooling", m_use_cooling);
+    value_t sync_compactness = -1.0f;
+    sim_env().params().get_value("sync_compactness", sync_compactness);
     sim_env().params().get_value("cooling_time", t_cool);
+    if (sync_compactness < 0.0f) {
+      sync_compactness = 1.0f / t_cool;
+    }
     sim_env().params().get_value("sigma", sigma);
-    if (!m_use_cooling)
+    sim_env().params().get_value("guide_field", Bg);
+    if (Bg > 0.0f) {
+      sigma = sigma + Bg*Bg*sigma;
+    }
+    // The cooling coefficient is effectively 2r_e\omega_p/3c in the dimensionless units
+    if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
-    else
-      m_cooling_coef = 1.0f / (t_cool * sigma);
+    } else {
+      m_cooling_coef = 2.0f * sync_compactness / sigma;
+    }
 
     // If the config file specifies a synchrotron cooling coefficient, then we
     // use that instead. Sync cooling coefficient is roughly 2l_B/B^2

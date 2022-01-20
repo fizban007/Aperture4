@@ -38,6 +38,7 @@ template <typename Conf>
 class boundary_condition : public system_t {
  protected:
   const grid_curv_t<Conf> &m_grid;
+  const domain_comm<Conf> *m_comm;
   double m_E0 = 1.0;
   double m_omega_0 = 0.0;
   double m_omega_t = 0.0;
@@ -48,7 +49,8 @@ class boundary_condition : public system_t {
  public:
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(const grid_curv_t<Conf> &grid) : m_grid(grid) {}
+  boundary_condition(const grid_curv_t<Conf> &grid, const domain_comm<Conf>* comm)
+   : m_grid(grid), m_comm(comm) {}
 
   void init() override {
     sim_env().get_data("Edelta", &E);
@@ -90,43 +92,47 @@ class boundary_condition : public system_t {
     }
     Logger::print_debug("time is {}, Omega is {}", time, omega);
 
-    kernel_launch(
-        [ext, time, omega, Bp] __device__(auto e, auto b, auto e0, auto b0) {
-          auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-          for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-            value_t theta =
-                grid_polar_t<Conf>::theta(grid.template pos<1>(n1, false));
-            value_t theta_s =
-                grid_polar_t<Conf>::theta(grid.template pos<1>(n1, true));
+    if (m_comm == nullptr ||
+        m_comm->domain_info().neighbor_left[0] == MPI_PROC_NULL) {
+      kernel_launch(
+          [ext, time, omega, Bp] __device__(auto e, auto b, auto e0, auto b0) {
+            auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+              value_t theta =
+                  grid_polar_t<Conf>::theta(grid.template pos<1>(n1, false));
+              value_t theta_s =
+                  grid_polar_t<Conf>::theta(grid.template pos<1>(n1, true));
 
-            // For quantities that are not continuous across the surface
-            for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              e[0][idx] = 0.0;
-              // b[1][idx] = Bp - omega * Bp;
-              b[1][idx] = omega * Bp;
-              b[2][idx] = 0.0;
+              // For quantities that are not continuous across the surface
+              for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
+                auto idx = idx_t(index_t<2>(n0, n1), ext);
+                // value_t r = grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
+                e[0][idx] = 0.0;
+                // b[1][idx] = Bp - omega * Bp;
+                b[1][idx] = omega * Bp;
+                b[2][idx] = 0.0;
+              }
+              // For quantities that are continuous across the surface
+              for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
+                auto idx = idx_t(index_t<2>(n0, n1), ext);
+                value_t r =
+                    grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
+                value_t r_s =
+                    grid_polar_t<Conf>::radius(grid.template pos<0>(n0, true));
+                b[0][idx] = 0.0;
+                e[1][idx] = 0.0;
+                // if (theta_s > 0.7 && theta_s < 1.2)
+                // e[2][idx] = -omega * sin(theta_s) * r_s * b0[0][idx];
+                e[2][idx] = -omega * Bp;
+                // else
+                //   e[2][idx] = 0.0;
+                // e[2][idx] = 0.0;
+              }
             }
-            // For quantities that are continuous across the surface
-            for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              value_t r =
-                  grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
-              value_t r_s =
-                  grid_polar_t<Conf>::radius(grid.template pos<0>(n0, true));
-              b[0][idx] = 0.0;
-              e[1][idx] = 0.0;
-              // if (theta_s > 0.7 && theta_s < 1.2)
-              // e[2][idx] = -omega * sin(theta_s) * r_s * b0[0][idx];
-              e[2][idx] = -omega * Bp;
-              // else
-              //   e[2][idx] = 0.0;
-              // e[2][idx] = 0.0;
-            }
-          }
-        },
-        E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs());
-    CudaSafeCall(cudaDeviceSynchronize());
+          },
+          E->get_ptrs(), B->get_ptrs(), E0->get_ptrs(), B0->get_ptrs());
+      CudaSafeCall(cudaDeviceSynchronize());
+    }
   }
 };
 
@@ -139,7 +145,7 @@ int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   using value_t = typename Conf::value_t;
-  auto &env = sim_environment::instance(&argc, &argv, false);
+  auto &env = sim_environment::instance(&argc, &argv);
 
   domain_comm<Conf> comm;
   grid_polar_t<Conf> grid(comm);
@@ -151,7 +157,7 @@ main(int argc, char *argv[]) {
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_polar_cu<Conf>>(grid, &comm);
-  auto bc = env.register_system<boundary_condition<Conf>>(grid);
+  auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
@@ -160,7 +166,13 @@ main(int argc, char *argv[]) {
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   env.get_data("B0", &B0);
   double Bp = sim_env().params().get_as<double>("Bp", 100.0);
-  B0->set_values(1, [Bp](auto x, auto y, auto z) { return Bp / grid_polar_t<Conf>::radius(x); });
+  vec_t<value_t, Conf::dim> lowers;
+  sim_env().params().get_vec_t("lower", lowers);
+  B0->set_values(1, [Bp, lowers](auto x, auto y, auto z) {
+    auto r = grid_polar_t<Conf>::radius(x);
+    auto r0 = grid_polar_t<Conf>::radius(lowers[0]);
+    return Bp * lowers[0] / r;
+  });
 
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
@@ -189,8 +201,11 @@ main(int argc, char *argv[]) {
         //                          rng.gaussian(kT_upstream));
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
-      [rho_bg, n_upstream, q_e] __device__(auto &x_global) {
-        value_t rho = rho_bg * square(grid_polar_t<Conf>::radius(x_global[0]));
+      [rho_bg, n_upstream, q_e, lowers] __device__(auto &x_global) {
+        auto r0 = grid_polar_t<Conf>::radius(lowers[0]);
+        // value_t rho = rho_bg / square(grid_polar_t<Conf>::radius(x_global[0]));
+        // value_t rho = rho_bg / grid_polar_t<Conf>::radius(x_global[0]);
+        value_t rho = rho_bg * r0;
         return rho / q_e / n_upstream;
       });
 

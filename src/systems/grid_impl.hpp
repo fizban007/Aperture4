@@ -57,12 +57,12 @@ grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
     this->dims[i] = vec_N[i] + 2 * this->guard[i];
     this->N[i] = vec_N[i];
     Logger::print_debug("Dim {} has size {}", i, this->dims[i]);
-    if (dt > this->delta[i]) {
-      Logger::print_err(
-          "dt is larger than the grid spacing in direction {}, which is {}", i,
-          this->delta[i]);
-      exit(1);
-    }
+    // if (dt > this->delta[i]) {
+    //   Logger::print_err(
+    //       "dt is larger than the grid spacing in direction {}, which is {}", i,
+    //       this->delta[i]);
+    //   exit(1);
+    // }
   }
 
   // Adjust the grid according to domain decomposition

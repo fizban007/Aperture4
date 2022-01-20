@@ -1,11 +1,11 @@
 #!/bin/bash
 
 module load cmake
-module load gcc/9.3.0
-module load cuda/11.0.3
+module load gcc/10.2.0
+module load cuda/11.1.1
 module load spectrum-mpi
-#module load hdf5/1.10.4
-module load hdf5_perf/1.10.6.gcc
+module load hdf5/1.10.7
+#module load hdf5_perf/1.10.6.gcc
 module load boost/1.76.0-cxx17
 
 #export PAMI_ENABLE_STRIPING=1

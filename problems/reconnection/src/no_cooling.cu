@@ -24,15 +24,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
-// #include "systems/legacy/ptc_updater_old.h"
-#include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
-#include "systems/policies/phys_policy_IC_cooling.hpp"
-#include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
-#include "systems/radiation/IC_radiation_scheme.hpp"
-#include "systems/radiative_transfer_impl.hpp"
+#include "systems/ptc_updater_base.h"
 #include <iostream>
 
 using namespace std;
@@ -48,30 +40,18 @@ template <typename Conf>
 void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                                  rng_states_t &states);
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian, phys_policy_IC_cooling>;
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian_impl_cooling>;
-
 }  // namespace Aperture
 
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv);
 
-  // env.params().add("log_level", (int64_t)LogLevel::debug);
-
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
+      Conf, exec_policy_cuda, coord_policy_cartesian>>(
       grid, comm);
-  auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
-      grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
@@ -80,14 +60,15 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *B0, *Bdelta;
   particle_data_t *ptc;
+  // curand_states_t *states;
   rng_states_t *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
-  env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
+  // env.get_data("rand_states", &states);
 
   double_harris_current_sheet(*Bdelta, *ptc, *states);
 

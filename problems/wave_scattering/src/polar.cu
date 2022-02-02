@@ -43,6 +43,7 @@ class boundary_condition : public system_t {
   double m_omega_0 = 0.0;
   double m_omega_t = 0.0;
   double m_Bp = 1.0;
+  int num_wavelengths = 4;
 
   vector_field<Conf> *E, *B, *E0, *B0;
 
@@ -61,6 +62,7 @@ class boundary_condition : public system_t {
     sim_env().params().get_value("E0", m_E0);
     sim_env().params().get_value("omega_t", m_omega_t);
     sim_env().params().get_value("Bp", m_Bp);
+    sim_env().params().get_value("num_lambda", num_wavelengths);
   }
 
   void update(double dt, uint32_t step) override {
@@ -73,7 +75,7 @@ class boundary_condition : public system_t {
     value_t omega;
     // if (m_omega_t * time < 5000.0)
     value_t phase = time * m_omega_t;
-    value_t length = 4.0;
+    value_t length = num_wavelengths;
     value_t smooth_width = 0.1;
     if (phase < length) {
       value_t prof = 1.0;

@@ -176,16 +176,18 @@ struct IC_radiation_scheme {
         num_scattering = 0;
       }
       gamma -= abs(e_ph);
+      // Account for the energy loss regardless of particle flag
+      atomic_add(&m_IC_loss[idx], ptc.weight[tid] * max(e_ph, 0.0));
 
-      // add energy loss no matter what, for debug purposes
-      // atomic_add(&m_IC_loss[idx], ptc.weight[tid] * max(e_ph, 0.0));
-
-      value_t log_e_ph = clamp(math::log(max(e_ph, math::exp(m_lim_lower))),
-                               m_lim_lower, m_lim_upper);
-      int bin = round((log_e_ph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
-                      (m_num_bins - 1));
-      pos_out[0] = bin;
-      atomic_add(&m_spec_ptr[idx_t(pos_out, ext_spec)], ptc.weight[tid]);
+      auto flag = ptc.flag[tid];
+      if (!check_flag(flag, PtcFlag::exclude_from_spectrum)) {
+        value_t log_e_ph = clamp(math::log(max(e_ph, math::exp(m_lim_lower))),
+                                 m_lim_lower, m_lim_upper);
+        int bin = round((log_e_ph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
+                        (m_num_bins - 1));
+        pos_out[0] = bin;
+        atomic_add(&m_spec_ptr[idx_t(pos_out, ext_spec)], ptc.weight[tid]);
+      }
     }
 
     // value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;

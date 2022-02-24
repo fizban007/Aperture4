@@ -30,19 +30,21 @@
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 
-namespace {} // namespace
+namespace {}  // namespace
 
 namespace Aperture {
 
 template <typename Conf>
-void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                          rng_states_t &states) {
+void
+harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                     rng_states_t &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
   value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
   value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
-  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
+  value_t kT_upstream =
+      sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
   value_t beta_d =
       sim_env().params().get_as<double>("current_sheet_drift", 0.5);
   value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
@@ -65,11 +67,10 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
     return B0 * tanh(y / delta);
   });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) {
-    return B0 * B_g;
-  });
+  B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
   injector->init();
 
   // Background (upstream) particles
@@ -81,19 +82,21 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                               PtcType type) {
+      [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
+                                           rng_t &rng, PtcType type) {
+        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t Bx = tanh(y / delta);
+        value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_3d(kT_upstream);
 
-        auto p1 = u_d[0];
-        auto p2 = u_d[1];
-        auto p3 = u_d[2];
-        return vec_t<value_t, 3>(p1, p2, p3);
+        // auto p1 = u_d[0];
+        // auto p2 = u_d[1];
+        // auto p3 = u_d[2];
+        value_t pdotB = (u_d[0] * Bx + u_d[2] * B_g) / B;
+        return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // Particle weight
-      [n_upstream] __device__(auto &x_global) {
-        return 1.0 / n_upstream;
-      });
+      [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
   injector->inject(
@@ -120,7 +123,8 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p2 = u_d[2] * sign;
         auto p3 = u_d[0] * sign;
         return vec_t<value_t, 3>(p1, p2, p3);
-        // return vec_t<value_t, 3>(gamma_shift * (p1 + beta_shift * gamma_d), p2, p3);
+        // return vec_t<value_t, 3>(gamma_shift * (p1 + beta_shift * gamma_d),
+        // p2, p3);
       },
       // Particle weight
       [B0, n_cs, q_e, beta_d, delta] __device__(auto &x_global) {
@@ -128,20 +132,24 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
-      }, flag_or(PtcFlag::exclude_from_spectrum));
+      },
+      flag_or(PtcFlag::exclude_from_spectrum));
 
-  Logger::print_info("After initial condition, there are {} particles", ptc.number());
+  Logger::print_info("After initial condition, there are {} particles",
+                     ptc.number());
 }
 
 template <typename Conf>
-void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                          rng_states_t &states) {
+void
+boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                     rng_states_t &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
   value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
   value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
-  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
+  value_t kT_upstream =
+      sim_env().params().get_as<double>("upstream_kT", 1.0e-2);
   value_t beta_d =
       sim_env().params().get_as<double>("current_sheet_drift", 0.5);
   value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
@@ -165,11 +173,10 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
     return B0 * tanh(y / delta);
   });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) {
-    return B0 * B_g;
-  });
+  B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
   injector->init();
 
   // Background (upstream) particles
@@ -181,24 +188,24 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                               PtcType type) {
+      [kT_upstream, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+                                           rng_t &rng, PtcType type) {
         auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
         auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
         auto p3 = rng.gaussian<value_t>(2.0f * kT_upstream);
         // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
         // value_t beta = p1 / gamma;
-        // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
+        // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f,
+        // 0.0f);
         auto p = vec_t<value_t, 3>(p1, p2, p3);
         value_t gamma = math::sqrt(1.0f + p.dot(p));
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
+        vec_t<value_t, 4> p_prime =
+            lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
-      [n_upstream] __device__(auto &x_global) {
-        return 1.0 / n_upstream;
-      });
+      [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
   injector->inject(
@@ -215,8 +222,8 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // Number injected
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
-      [kT_cs, beta_d, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                                 PtcType type) {
+      [kT_cs, beta_d, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+                                             rng_t &rng, PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
         value_t gamma_d = math::sqrt(1.0f + u_d.dot(u_d));
         value_t sign = 1.0f;
@@ -231,7 +238,8 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p = vec_t<value_t, 3>(p1, p2, p3);
         value_t gamma = math::sqrt(1.0f + p.dot(p));
         // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
+        vec_t<value_t, 4> p_prime =
+            lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
@@ -240,14 +248,17 @@ void boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
-      }, flag_or(PtcFlag::exclude_from_spectrum));
+      },
+      flag_or(PtcFlag::exclude_from_spectrum));
 
-  Logger::print_info("After initial condition, there are {} particles", ptc.number());
+  Logger::print_info("After initial condition, there are {} particles",
+                     ptc.number());
 }
 
 template <typename Conf>
-void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                                 rng_states_t &states) {
+void
+double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+                            rng_states_t &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
@@ -287,11 +298,10 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       return -B0 * tanh((y - 0.25f * ysize) / delta);
     }
   });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) {
-    return B0 * B_g;
-  });
+  B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
   injector->init();
 
   // Background (upstream) particles
@@ -305,7 +315,7 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return rng.maxwell_juttner_3d(kT_upstream);
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
-      [n_upstream, q_e] __device__(auto& x_global) {
+      [n_upstream, q_e] __device__(auto &x_global) {
         return 1.0 / q_e / n_upstream;
       });
 
@@ -335,8 +345,9 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p3 = u_d[0] * sign;
         return vec_t<value_t, 3>(p1, p2, p3);
       },
-      // [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &pos, auto &grid, auto &ext) {
-      [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto& x_global) {
+      // [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &pos, auto &grid,
+      // auto &ext) {
+      [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &x_global) {
         // auto y = grid.pos(1, pos[1], 0.5f);
         auto y = x_global[1];
         value_t j = 0.0;
@@ -347,9 +358,11 @@ void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         }
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
-      }, flag_or(PtcFlag::exclude_from_spectrum));
+      },
+      flag_or(PtcFlag::exclude_from_spectrum));
 
-  Logger::print_info("After initial condition, there are {} particles", ptc.number());
+  Logger::print_info("After initial condition, there are {} particles",
+                     ptc.number());
 }
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
@@ -364,4 +377,4 @@ template void double_harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                                      particle_data_t &ptc,
                                                      rng_states_t &states);
 
-} // namespace Aperture
+}  // namespace Aperture

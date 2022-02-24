@@ -66,6 +66,11 @@ class coord_policy_cartesian_impl_cooling
             "sync_loss", this->m_grid, field_type::cell_centered, MemType::host_device);
     m_sync_loss = sync_loss->dev_ndptr();
     sync_loss->reset_after_output(true);
+    auto sync_loss_total =
+        sim_env().register_data<scalar_field<Conf>>(
+            "sync_loss_total", this->m_grid, field_type::cell_centered, MemType::host_device);
+    m_sync_loss_total = sync_loss_total->dev_ndptr();
+    sync_loss_total->reset_after_output(true);
   }
 
   // Inline functions to be called in the particle update loop
@@ -96,7 +101,11 @@ class coord_policy_cartesian_impl_cooling
       context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
 
       auto idx = Conf::idx(pos, ext);
-      atomic_add(&m_sync_loss[idx], context.weight * max(gamma - context.gamma, 0.0) / context.q);
+      value_t loss = context.weight * max(gamma - context.gamma, 0.0) / context.q;
+      atomic_add(&m_sync_loss_total[idx], loss);
+      if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
+        atomic_add(&m_sync_loss[idx], loss);
+      }
     }
 
     move_ptc(grid, context, pos, dt);
@@ -140,6 +149,7 @@ class coord_policy_cartesian_impl_cooling
   bool m_use_cooling = false;
   value_t m_cooling_coef = 0.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
+  mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
 };
 
 }  // namespace Aperture

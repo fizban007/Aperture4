@@ -72,6 +72,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(test_IC_cooling "test_IC_cooling.cu")
   target_link_libraries(test_IC_cooling Aperture)
 
+  add_executable(test_cyclotron_cooling "test_cyclotron_cooling.cu")
+  target_link_libraries(test_cyclotron_cooling Aperture)
+
 else()
   add_executable(perf_ptc_update_cpu "perf_ptc_update_cpu.cpp")
   target_link_libraries(perf_ptc_update_cpu Aperture)

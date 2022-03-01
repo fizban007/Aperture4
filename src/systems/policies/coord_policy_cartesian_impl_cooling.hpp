@@ -22,7 +22,9 @@
 #include "data/multi_array_data.hpp"
 #include "data/fields.h"
 #include "data/scalar_data.hpp"
+#include "data/phase_space.hpp"
 #include "framework/environment.h"
+#include "systems/sync_curv_emission.h"
 
 namespace Aperture {
 
@@ -71,6 +73,28 @@ class coord_policy_cartesian_impl_cooling
             "sync_loss_total", this->m_grid, field_type::cell_centered, MemType::host_device);
     m_sync_loss_total = sync_loss_total->dev_ndptr();
     sync_loss_total->reset_after_output(true);
+
+    // Initialize the spectrum related parameters
+    sim_env().params().get_value("B_Q", m_BQ);
+    sim_env().params().get_value("ph_num_bins", m_num_bins);
+    sim_env().params().get_value("sync_spec_lower", m_lim_lower);
+    sim_env().params().get_value("sync_spec_upper", m_lim_upper);
+    sim_env().params().get_value("momentum_downsample", m_downsample);
+    // Always use logarithmic bins
+    m_lim_lower = math::log(m_lim_lower);
+    m_lim_upper = math::log(m_lim_upper);
+
+    auto photon_dist =
+        sim_env().register_data<phase_space<Conf, 1>>(
+            "sync_spectrum", this->m_grid, m_downsample, &m_num_bins,
+            &m_lim_lower, &m_lim_upper, true, MemType::host_device);
+    m_spec_ptr = photon_dist->data.dev_ndptr();
+    photon_dist->reset_after_output(true);
+
+    // initialize synchrotron module
+    auto sync_module =
+        sim_env().register_system<sync_curv_emission_t>(MemType::host_device);
+    m_sync = sync_module->get_helper();
   }
 
   // Inline functions to be called in the particle update loop
@@ -105,6 +129,20 @@ class coord_policy_cartesian_impl_cooling
       atomic_add(&m_sync_loss_total[idx], loss);
       if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
         atomic_add(&m_sync_loss[idx], loss);
+
+        auto aL = context.E + cross(context.p, context.B) / context.gamma;
+        auto aL_perp = cross(aL, context.p) / math::sqrt(context.p.dot(context.p));
+        value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
+        auto eph = m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
+        value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
+                                m_lim_lower, m_lim_upper);
+        auto ext_out = grid.extent_less() / m_downsample;
+        auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
+        index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
+        int bin = round((log_eph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
+                        (m_num_bins - 1));
+        pos_out[0] = bin;
+        atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)], loss/eph);
       }
     }
 
@@ -150,6 +188,14 @@ class coord_policy_cartesian_impl_cooling
   value_t m_cooling_coef = 0.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
   mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
+  int m_num_bins = 512;
+  value_t m_BQ = 1e5;
+  float m_lim_lower = 1.0e-6;
+  float m_lim_upper = 1.0e2;
+  int m_downsample = 16;
+
+  mutable ndptr<value_t, Conf::dim + 1> m_spec_ptr;
+  sync_emission_helper_t m_sync;
 };
 
 }  // namespace Aperture

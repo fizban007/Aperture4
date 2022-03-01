@@ -68,17 +68,21 @@ main(int argc, char *argv[]) {
   env.get_data("B", &B);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
-  float Bp = 10.0f;
+  float Bp = 10.0f, p0 = 10.0f;
   env.params().get_value("B0", Bp);
+  env.params().get_value("p0", p0);
 
   B->set_values(2, [Bp] (auto x, auto y, auto z) {
       return Bp;
     });
 
-  ptc->append_dev({0.5f, 0.5f, 0.5f}, {10.0f, 0.0f, 0.0f},
-                  grid.dims[0] / 2 +
-                      (grid.dims[1] / 2) * grid.dims[0],
-                  1.0f, set_ptc_type_flag(0, PtcType::electron));
+  int N = 1000;
+  for (int n = 0; n < N; n++) {
+    ptc->append_dev({0.5f, 0.5f, 0.5f}, {p0, 0.0f, 0.0f},
+                    grid.dims[0] / 2 +
+                        (grid.dims[1] / 2) * grid.dims[0],
+                    1.0f, set_ptc_type_flag(0, PtcType::electron));
+  }
   env.run();
   return 0;
 }

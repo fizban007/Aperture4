@@ -37,7 +37,8 @@ struct sync_emission_helper_t {
 
   // Function to generate synchro-curvature photon energy. The resulting energy
   // is normalized such that cyclotron frequency at BQ is at electron rest mass,
-  // or hbar e BQ / m_e c = m_e c^2
+  // or hbar e BQ / m_e c = m_e c^2. We assume the photon energy is much less
+  // than gamma. Otherwise we need the quantum prescription of synchrotron emission
   template <typename Rng>
   HOST_DEVICE value_t gen_curv_photon(value_t gamma, value_t Rc, value_t BQ,
                                       Rng& rng) const {
@@ -55,7 +56,7 @@ struct sync_emission_helper_t {
       b = 0;
     }
     value_t x = math::exp(logx_min + b * dlogx);
-    return x * e_c;
+    return std::min(x * e_c, gamma - 1.001f);
   }
 
   template <typename Rng>

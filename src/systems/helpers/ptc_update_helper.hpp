@@ -21,6 +21,7 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "core/particle_structs.h"
+#include "core/random.h"
 #include "utils/vec.hpp"
 #include <cstdint>
 
@@ -46,6 +47,7 @@ struct ptc_context {
 
   vec_t<FloatType, 3> E;
   vec_t<FloatType, 3> B;
+  rng_t *rng;
 };
 
 template <int Dim, typename value_t> struct ph_context {

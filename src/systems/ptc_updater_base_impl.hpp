@@ -254,9 +254,10 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   // Main particle update loop
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
-       phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho) {
+       phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho, auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
+        rng_t rng(states);
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(begin, end, [&] LAMBDA(auto n) {
@@ -275,6 +276,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           context.weight = charges[context.sp] * ptc.weight[n];
           context.q = charges[context.sp];
           context.m = masses[context.sp];
+          context.rng = &rng;
 
           // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
           // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
@@ -318,7 +320,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
         });
         // ptc, E, B, J, Rho, grid, phys_policy);
       },
-      *ptc, *E, *B, *J, Rho);
+      *ptc, *E, *B, *J, Rho, *rng_states);
   ExecPolicy<Conf>::sync();
 
   coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt,

@@ -21,6 +21,7 @@ set(Aperture_src
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
   "systems/inverse_compton.cpp"
+  "systems/sync_curv_emission.cpp"
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)

@@ -34,7 +34,7 @@ struct ic_scatter_t {
 
   HD_INLINE int array_upper_bound(value_t u, int n, const spec_array_t& array,
                                   value_t& l, value_t& h) const {
-    auto& spec_ext = array.ext();
+    const auto& spec_ext = array.ext();
     auto idx = idx_col_major_t<2>(index(0, n), spec_ext);
 #if defined(CUDA_ENABLED) & defined(__CUDACC__)
     auto result =

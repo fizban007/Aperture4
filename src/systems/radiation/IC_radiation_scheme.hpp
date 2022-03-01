@@ -83,6 +83,7 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("ph_spec_upper", m_lim_upper);
     sim_env().params().get_value("momentum_downsample", m_downsample);
 
+    // Always use logarithmic bins
     m_lim_lower = math::log(m_lim_lower);
     m_lim_upper = math::log(m_lim_upper);
 

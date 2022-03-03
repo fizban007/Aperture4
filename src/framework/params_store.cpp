@@ -22,6 +22,7 @@
 #else
 #include <boost/filesystem.hpp>
 #endif
+#include <fstream>
 #include <fmt/format.h>
 #include <memory>
 #include <type_traits>
@@ -78,6 +79,7 @@ class params_store::params_store_impl {
         return default_value;
       }
     } else {
+      m_param_map.insert({name, default_value});
       if constexpr (is_vector<T>::value) {
         Logger::print_err(
             "> Parameter '{}' not found in store, using default [{}]", name,
@@ -194,6 +196,51 @@ template <typename T>
 void
 params_store::add(const std::string& name, const T& value) {
   p_impl->add(name, value);
+}
+
+void
+params_store::write(const std::string &path) const {
+  auto root = cpptoml::make_table();
+
+  for (auto el : p_impl->m_param_map) {
+    if (std::holds_alternative<bool>(el.second)) {
+      root->insert(el.first, std::get<bool>(el.second));
+    } else if (std::holds_alternative<int64_t>(el.second)) {
+      root->insert(el.first, std::get<int64_t>(el.second));
+    } else if (std::holds_alternative<double>(el.second)) {
+      root->insert(el.first, std::get<double>(el.second));
+    } else if (std::holds_alternative<std::string>(el.second)) {
+      root->insert(el.first, std::get<std::string>(el.second));
+    } else if (std::holds_alternative<std::vector<bool>>(el.second)) {
+      auto array = cpptoml::make_array();
+      for (bool v : std::get<std::vector<bool>>(el.second)) {
+        array->push_back(v);
+      }
+      root->insert(el.first, array);
+    } else if (std::holds_alternative<std::vector<int64_t>>(el.second)) {
+      auto array = cpptoml::make_array();
+      for (int64_t v : std::get<std::vector<int64_t>>(el.second)) {
+        array->push_back(v);
+      }
+      root->insert(el.first, array);
+    } else if (std::holds_alternative<std::vector<double>>(el.second)) {
+      auto array = cpptoml::make_array();
+      for (double v : std::get<std::vector<double>>(el.second)) {
+        array->push_back(v);
+      }
+      root->insert(el.first, array);
+    } else if (std::holds_alternative<std::vector<std::string>>(el.second)) {
+      auto array = cpptoml::make_array();
+      for (std::string v : std::get<std::vector<std::string>>(el.second)) {
+        array->push_back(v);
+      }
+      root->insert(el.first, array);
+    }
+  }
+
+  std::ofstream out(path);
+  out << *root << std::endl;
+  out.close();
 }
 
 ////////////////////////////////////////////////////////////////

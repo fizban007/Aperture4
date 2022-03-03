@@ -201,6 +201,8 @@ class params_store {
   }
 
   void clear();
+
+  void write(const std::string& path) const;
 };
 
 }  // namespace Aperture

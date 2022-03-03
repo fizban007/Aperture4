@@ -67,7 +67,10 @@ void sync_curv_emission_t::compute_lookup_table() {
   value_t dlogx = m_sync.dlogx;
   for (int n = 0; n < m_nx; n++) {
     value_t logx = m_sync.logx_min + n * dlogx;
-    m_Fx_lookup[n] = Fx(math::exp(logx));
+    value_t x = math::exp(logx);
+    // Times an extra factor of x due to log spacing
+    m_Fx_lookup[n] = Fx(x) * x;
+    // m_Fx_lookup[n] = Fx(x);
     if (n == 0) {
       m_Fx_cumulative[n] = 0.0;
     } else {

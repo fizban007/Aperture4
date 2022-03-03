@@ -23,10 +23,14 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
+#include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
+#include "systems/ptc_injector_cuda.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
+#include "systems/radiation/IC_radiation_scheme.hpp"
+#include "systems/radiative_transfer_impl.hpp"
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include "utils/vec.hpp"
@@ -57,7 +61,12 @@ main(int argc, char *argv[]) {
   auto pusher = env.register_system<ptc_updater_new<
       Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
       grid, comm);
+  auto rad = env.register_system<radiative_transfer<
+      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  auto momentum =
+      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
@@ -76,13 +85,47 @@ main(int argc, char *argv[]) {
       return Bp;
     });
 
-  int N = 1000;
-  for (int n = 0; n < N; n++) {
-    ptc->append_dev({0.5f, 0.5f, 0.5f}, {p0, 0.0f, 0.0f},
-                    grid.dims[0] / 2 +
-                        (grid.dims[1] / 2) * grid.dims[0],
-                    1.0f, set_ptc_type_flag(0, PtcType::electron));
-  }
+  // int N = 1000;
+  // for (int n = 0; n < N; n++) {
+  //   ptc->append_dev({0.5f, 0.5f, 0.5f}, {p0, 0.0f, 0.0f},
+  //                   grid.dims[0] / 2 +
+  //                       (grid.dims[1] / 2) * grid.dims[0],
+  //                   1.0f, set_ptc_type_flag(0, PtcType::electron));
+  // }
+  auto injector =
+      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  injector->init();
+
+  int n_upstream = 1;
+  float alpha = 2.0;
+  injector->inject(
+      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+        return 2 * n_upstream;
+      },
+      [p0, alpha] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                               PtcType type) {
+        // Power law distribution of particles
+        auto u = rng.uniform<float>();
+        double p = 1.0 * pow(1.0 - u, -1.0 / (alpha - 1.0));
+        while (p > 1.0e3) {
+          u = rng.uniform<float>();
+          p = 1.0 * pow(1.0 - u, -1.0 / (alpha - 1.0));
+        }
+
+        auto th = rng.uniform<float>() * M_PI;
+        auto ph = rng.uniform<float>() * 2.0 * M_PI;
+
+        return vec_t<float, 3>(p * math::sin(th) * math::cos(ph),
+                p * math::sin(th) * math::sin(ph),
+                p * math::cos(th));
+      },
+      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [n_upstream] __device__(auto &x_global) {
+        // value_t rho = rho_bg / square(grid_polar_t<Conf>::radius(x_global[0]));
+        // value_t rho = rho_bg / grid_polar_t<Conf>::radius(x_global[0]);
+        return 1.0f / n_upstream;
+      });
   env.run();
   return 0;
 }

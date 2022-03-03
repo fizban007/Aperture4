@@ -50,7 +50,8 @@ class coord_policy_cartesian_impl_cooling
     if (Bg > 0.0f) {
       sigma = sigma + Bg*Bg*sigma;
     }
-    // The cooling coefficient is effectively 2r_e\omega_p/3c in the dimensionless units
+    // The cooling coefficient is effectively 2r_e\omega_p/3c in the dimensionless units.
+    // In the reconnection setup, sigma = B_tot^2, so this makes sense.
     if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
     } else {
@@ -143,6 +144,7 @@ class coord_policy_cartesian_impl_cooling
                         (m_num_bins - 1));
         pos_out[0] = bin;
         atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)], loss/eph);
+        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)], loss);
       }
     }
 

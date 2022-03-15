@@ -310,9 +310,18 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
-      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                               PtcType type) {
-        return rng.maxwell_juttner_3d(kT_upstream);
+      // [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      //                          PtcType type) {
+      //   return rng.maxwell_juttner_3d(kT_upstream);
+      [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
+                                           rng_t &rng, PtcType type) {
+        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t Bx = tanh(y / delta);
+        value_t B = math::sqrt(Bx * Bx + B_g * B_g);
+        vec_t<value_t, 3> u_d = rng.maxwell_juttner_3d(kT_upstream);
+
+        value_t pdotB = (u_d[0] * Bx + u_d[2] * B_g) / B;
+        return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
       [n_upstream, q_e] __device__(auto &x_global) {
@@ -374,6 +383,10 @@ template void boosted_harris_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               rng_states_t &states);
 
 template void double_harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
+                                                     particle_data_t &ptc,
+                                                     rng_states_t &states);
+
+template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                      particle_data_t &ptc,
                                                      rng_states_t &states);
 

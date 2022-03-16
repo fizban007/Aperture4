@@ -730,7 +730,7 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, int &send_num,
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
   auto send_ptr = send_buffer.dev_ptr();
-  auto recv_ptr = recv_buffer.dev_ptr();
+  auto recv_ptr = recv_buffer.dev_ptr() + recv_offset;
 #else
   send_buffer.copy_to_host();
   auto send_ptr = send_buffer.host_ptr();
@@ -744,18 +744,13 @@ domain_comm<Conf>::send_particle_array(T &send_buffer, int &send_num,
   MPI_Sendrecv(send_ptr, send_num * sizeof(send_buffer[0]), MPI_BYTE, dst, tag,
                recv_ptr, recv_buffer.size() * sizeof(recv_buffer[0]), MPI_BYTE,
                src, tag, m_world, recv_stat);
-  // MPI_Sendrecv(send_ptr, send_num, MPI_Helper::get_mpi_datatype(send_ptr[0]),
-  // dst, tag,
-  //              recv_ptr, recv_buffer.size(),
-  //              MPI_Helper::get_mpi_datatype(recv_ptr[0]), src, tag, m_world,
-  //              recv_stat);
+
   int num_recved = 0;
   MPI_Get_count(recv_stat, MPI_BYTE, &num_recved);
   // MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(recv_ptr[0]),
   // &num_recved); Logger::print_debug_all("Rank {} received {}", m_rank,
   // num_recved);
   recv_num = recv_offset + num_recved / sizeof(recv_buffer[0]);
-  // recv_num = recv_offset + num_recved;
 
   // MPI_Barrier(m_cart);
 

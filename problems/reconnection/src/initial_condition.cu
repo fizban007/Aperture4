@@ -288,9 +288,11 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   auto &grid = B.grid();
   auto ext = grid.extent();
   value_t ysize = global_sizes[1];
-  value_t ylower = global_lower[1];
+  // value_t ylower = global_lower[1];
 
-  // Initialize the magnetic field values
+  // Initialize the magnetic field values. Note that the current sheet is in the
+  // x-z plane, and the B field changes sign in the y direction. This should be
+  // reflected in the grid setup as well.
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
     if (y < 0.0f) {
       return B0 * tanh((y + 0.25f * ysize) / delta);

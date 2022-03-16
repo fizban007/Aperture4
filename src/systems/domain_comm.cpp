@@ -883,14 +883,14 @@ domain_comm<Conf>::send_particles_impl(PtcType &ptc,
       send_particle_array(buffers[buf_send], buf_nums[buf_send],
                           buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_right[2],
-                          m_domain_info.neighbor_left[2], 0, &req_send[0],
+                          m_domain_info.neighbor_left[2], 13, &req_send[0],
                           &req_recv[0], &stat_recv[0]);
       // Send right in z
       buf_send = 22;
       send_particle_array(buffers[buf_send], buf_nums[buf_send],
                           buffers[buf_recv], buf_nums[buf_recv],
                           m_domain_info.neighbor_left[2],
-                          m_domain_info.neighbor_right[2], 0, &req_send[0],
+                          m_domain_info.neighbor_right[2], 13, &req_send[0],
                           &req_recv[0], &stat_recv[0]);
     }
   }

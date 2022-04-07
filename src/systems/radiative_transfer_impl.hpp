@@ -180,7 +180,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   auto track_rank = m_track_rank;
 
   // Define a variable to hold the moving position in the photon array where we
-  // insert new photons
+  // insert new photons. Using a 1-slot buffer for easy memory management
   buffer<unsigned long long int> pos(1);
   pos[0] = 0;
   pos.copy_to_device();

@@ -64,7 +64,7 @@ struct ic_scatter_t {
     value_t u = rng.template uniform<value_t>();
     int b = array_upper_bound(u, n_gamma, dNde, l, h);
     // TODO: This is an arbitrary division
-    if (b < 3 || gamma < 2.0) {
+    if (b < 1 || gamma < 2.0) {
       u = rng.template uniform<value_t>();
       b = array_upper_bound(u, n_gamma, dNde_thomson, l, h);
       value_t bb = (u - l) / (h - l) + b - 1;

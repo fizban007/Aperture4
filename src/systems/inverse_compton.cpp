@@ -273,9 +273,9 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
         double ge = gamma * e * 4.0;
         double q = e1 / (ge * (1.0 - e1));
         if (e1 < ge / (1.0 + ge) && e1 > e / gamma)
-          result += ne * sigma_lab(q, ge) / gamma;
+          result += ne * sigma_lab(q, ge) / gamma * de;
       }
-      m_dNde_thomson(i, n) = result * de * e1;
+      m_dNde_thomson(i, n) = result * e1;
       // double result = gauss_quad([e1, gamma, n_e] (auto log_e) {
       //   double e = math::exp(log_e);
       //   double ge = gamma * e * 4.0;

@@ -35,7 +35,7 @@ namespace Aperture {
 HOST_DEVICE Scalar
 dipole_curv_radius(Scalar r, Scalar th) {
   Scalar sinth =
-      std::max(math::sin(th), TINY);  // Avoid the fringe case of sinth = 0
+      std::max(math::sin(th), (Scalar)1.0e-5);  // Avoid the fringe case of sinth = 0
   Scalar costh2 = 1.0f - sinth * sinth;
   Scalar tmp = 1.0f + 3.0f * costh2;
   Scalar Rc = r * tmp * math::sqrt(tmp) / (3.0f * sinth * (1.0f + costh2));
@@ -178,7 +178,8 @@ struct curvature_emission_scheme_polar_cap {
     // value_t chi = quantum_chi(p, B, m_BQ);
     value_t B_mag = math::sqrt(B.dot(B));
     value_t eph = ph.E[tid];
-    value_t sinth = math::abs(cross(p, B) / B_mag / eph);
+    auto pxB = cross(p, B);
+    value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
 
     if (eph * sinth > 2.0f) {
       value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, eph, sinth) * dt;

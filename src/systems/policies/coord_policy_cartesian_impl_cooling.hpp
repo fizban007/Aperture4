@@ -154,7 +154,7 @@ class coord_policy_cartesian_impl_cooling
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
         auto eph =
             m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
-        if (eph > m_lim_lower) {
+        if (eph > math::exp(m_lim_lower)) {
           value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
                                   m_lim_lower, m_lim_upper);
           auto ext_out = grid.extent_less() / m_downsample;

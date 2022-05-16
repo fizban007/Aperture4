@@ -211,7 +211,7 @@ struct IC_radiation_scheme {
         // Simply deposit the photon direction along the particle direction,
         // without computing the 1/gamma cone
         value_t th = math::acos(p3 / p_i);
-        value_t phi = math::atan2(p2, p1);
+        value_t phi = math::atan2(p2, p1) + M_PI;
         int th_bin = round(th / M_PI * (m_ph_nth - 1));
         int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
         index_t<3> pos_ph_dist(th_bin, phi_bin, bin);

@@ -154,28 +154,33 @@ class coord_policy_cartesian_impl_cooling
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
         auto eph =
             m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
-        value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
-                                m_lim_lower, m_lim_upper);
-        auto ext_out = grid.extent_less() / m_downsample;
-        auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
-        index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
-        int bin = round((log_eph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
-                        (m_num_bins - 1));
-        pos_out[0] = bin;
-        atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
-                   loss / eph);
-        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
-        // ext_spec)], loss);
+        if (eph > m_lim_lower) {
+          value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
+                                  m_lim_lower, m_lim_upper);
+          auto ext_out = grid.extent_less() / m_downsample;
+          auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
+          index_t<Conf::dim + 1> pos_out(0,
+                                         (pos - grid.guards()) / m_downsample);
+          int bin = round((log_eph - m_lim_lower) /
+                          (m_lim_upper - m_lim_lower) * (m_num_bins - 1));
+          pos_out[0] = bin;
+          atomic_add(
+              &m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
+              loss / eph);
+          // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
+          // ext_spec)], loss);
 
-        // Simply deposit the photon direction along the particle direction,
-        // without computing the 1/gamma cone
-        value_t th = math::acos(context.p[2] / p);
-        value_t phi = math::atan2(context.p[1], context.p[0]);
-        int th_bin = round(th / M_PI * (m_ph_nth - 1));
-        int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
-        index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
-        atomic_add(&m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
-                   loss / eph);
+          // Simply deposit the photon direction along the particle direction,
+          // without computing the 1/gamma cone
+          value_t th = math::acos(context.p[2] / p);
+          value_t phi = math::atan2(context.p[1], context.p[0]);
+          int th_bin = round(th / M_PI * (m_ph_nth - 1));
+          int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
+          index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
+          atomic_add(
+              &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
+              loss / eph);
+        }
       }
     }
 

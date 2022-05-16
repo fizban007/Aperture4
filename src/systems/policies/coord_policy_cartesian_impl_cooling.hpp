@@ -173,7 +173,7 @@ class coord_policy_cartesian_impl_cooling
           // Simply deposit the photon direction along the particle direction,
           // without computing the 1/gamma cone
           value_t th = math::acos(context.p[2] / p);
-          value_t phi = math::atan2(context.p[1], context.p[0]);
+          value_t phi = math::atan2(context.p[1], context.p[0]) + M_PI;
           int th_bin = round(th / M_PI * (m_ph_nth - 1));
           int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
           index_t<3> pos_ph_dist(th_bin, phi_bin, bin);

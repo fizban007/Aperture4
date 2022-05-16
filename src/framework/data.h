@@ -35,6 +35,12 @@ class data_t {
   bool m_reset_after_output = false;
 
  public:
+  int m_special_output_interval =
+      0;  //! Individual output interval if not the same as
+          //! the standard intervals. If non-zero, it will be
+          //! written in a separate output file
+  int m_special_output_num = 0; //! Number to record the special output file id
+
   data_t() {}
   virtual ~data_t() {}
 

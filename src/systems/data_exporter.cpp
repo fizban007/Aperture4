@@ -112,6 +112,46 @@ data_exporter<Conf>::register_data_components() {
 
 template <typename Conf>
 void
+data_exporter<Conf>::write_data(data_t* data, const std::string &name, H5File &datafile, bool snapshot) {
+  using value_t = typename Conf::value_t;
+  if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
+    Logger::print_detail("Writing vector field {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
+    Logger::print_detail("Writing scalar field {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<scalar_data<value_t>*>(data)) {
+    Logger::print_detail("Writing scalar data {}", name);
+    write(*ptr, name, datafile, false);
+    // } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
+    //   Logger::print_detail("Writing momentum space data");
+    //   write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<phase_space<Conf, 1>*>(data)) {
+    Logger::print_detail("Writing 1D phase space data {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<phase_space<Conf, 2>*>(data)) {
+    Logger::print_detail("Writing 2D phase space data {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<phase_space<Conf, 3>*>(data)) {
+    Logger::print_detail("Writing 3D phase space data {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
+    Logger::print_detail("Writing 1D array {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
+    Logger::print_detail("Writing 2D array {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
+    Logger::print_detail("Writing 3D array {}", name);
+    write(*ptr, name, datafile, false);
+  } else {
+    Logger::print_detail("Data exporter doesn't know how to write {}",
+                         name);
+  }
+}
+
+template <typename Conf>
+void
 data_exporter<Conf>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
   using value_t = typename Conf::value_t;
@@ -138,43 +178,11 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
     for (auto& it : sim_env().data_map()) {
       // Do not output the skipped components
       if (it.second->skip_output()) continue;
+      if (it.second->m_special_output_interval != 0) continue;
 
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
-      if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
-        Logger::print_detail("Writing vector field {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
-        Logger::print_detail("Writing scalar field {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<scalar_data<value_t>*>(data)) {
-        Logger::print_detail("Writing scalar data {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      // } else if (auto* ptr = dynamic_cast<momentum_space<Conf>*>(data)) {
-      //   Logger::print_detail("Writing momentum space data");
-      //   write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 1>*>(data)) {
-        Logger::print_detail("Writing 1D phase space data {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 2>*>(data)) {
-        Logger::print_detail("Writing 2D phase space data {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<phase_space<Conf, 3>*>(data)) {
-        Logger::print_detail("Writing 3D phase space data {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
-        Logger::print_detail("Writing 1D array {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 2>*>(data)) {
-        Logger::print_detail("Writing 2D array {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
-        Logger::print_detail("Writing 3D array {}", it.first);
-        write(*ptr, it.first, datafile, false);
-      } else {
-        Logger::print_detail("Data exporter doesn't know how to write {}",
-                             it.first);
-      }
+      write_data(data, it.first, datafile, false);
 
       if (data->reset_after_output()) {
         data->init();
@@ -215,6 +223,35 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       }
     }
     m_ptc_num += 1;
+  }
+
+  // Loop over the data map again to find special output cases
+  for (auto& it : sim_env().data_map()) {
+    // m_special_output_interval == 0 means it follows the standard output interval rule
+    if (it.second->m_special_output_interval == 0) continue;
+
+    if (step % it.second->m_special_output_interval == 0) {
+      // Specifically write output file for this data component
+
+      auto data = it.second.get();
+      std::string filename =
+          fmt::format("{}data_{}.{:05d}.h5", m_output_dir, it.first, data->m_special_output_num);
+      auto create_mode = H5CreateMode::trunc_parallel;
+      if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
+      H5File datafile = hdf_create(filename, create_mode);
+
+      datafile.write(step, "step");
+      datafile.write(time, "time");
+
+      write_data(data, it.first, datafile, false);
+
+      if (data->reset_after_output()) {
+        data->init();
+      }
+
+      datafile.close();
+      data->m_special_output_num += 1;
+    }
   }
 
   if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0) {

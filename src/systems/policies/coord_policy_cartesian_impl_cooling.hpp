@@ -19,10 +19,10 @@
 #define _COORD_POLICY_CARTESIAN_IMPL_COOLING_H_
 
 #include "coord_policy_cartesian.hpp"
-#include "data/multi_array_data.hpp"
 #include "data/fields.h"
-#include "data/scalar_data.hpp"
+#include "data/multi_array_data.hpp"
 #include "data/phase_space.hpp"
+#include "data/scalar_data.hpp"
 #include "framework/environment.h"
 #include "systems/sync_curv_emission.h"
 
@@ -48,10 +48,11 @@ class coord_policy_cartesian_impl_cooling
     sim_env().params().get_value("sigma", sigma);
     sim_env().params().get_value("guide_field", Bg);
     if (Bg > 0.0f) {
-      sigma = sigma + Bg*Bg*sigma;
+      sigma = sigma + Bg * Bg * sigma;
     }
-    // The cooling coefficient is effectively 2r_e\omega_p/3c in the dimensionless units.
-    // In the reconnection setup, sigma = B_tot^2, so this makes sense.
+    // The cooling coefficient is effectively 2r_e\omega_p/3c in the
+    // dimensionless units. In the reconnection setup, sigma = B_tot^2, so this
+    // makes sense.
     if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
     } else {
@@ -64,14 +65,14 @@ class coord_policy_cartesian_impl_cooling
       sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
     }
 
-    auto sync_loss =
-        sim_env().register_data<scalar_field<Conf>>(
-            "sync_loss", this->m_grid, field_type::cell_centered, MemType::host_device);
+    auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
+        "sync_loss", this->m_grid, field_type::cell_centered,
+        MemType::host_device);
     m_sync_loss = sync_loss->dev_ndptr();
     sync_loss->reset_after_output(true);
-    auto sync_loss_total =
-        sim_env().register_data<scalar_field<Conf>>(
-            "sync_loss_total", this->m_grid, field_type::cell_centered, MemType::host_device);
+    auto sync_loss_total = sim_env().register_data<scalar_field<Conf>>(
+        "sync_loss_total", this->m_grid, field_type::cell_centered,
+        MemType::host_device);
     m_sync_loss_total = sync_loss_total->dev_ndptr();
     sync_loss_total->reset_after_output(true);
 
@@ -85,10 +86,9 @@ class coord_policy_cartesian_impl_cooling
     m_lim_lower = math::log(m_lim_lower);
     m_lim_upper = math::log(m_lim_upper);
 
-    auto photon_dist =
-        sim_env().register_data<phase_space<Conf, 1>>(
-            "sync_spectrum", this->m_grid, m_downsample, &m_num_bins,
-            &m_lim_lower, &m_lim_upper, true, MemType::host_device);
+    auto photon_dist = sim_env().register_data<phase_space<Conf, 1>>(
+        "sync_spectrum", this->m_grid, m_downsample, &m_num_bins, &m_lim_lower,
+        &m_lim_upper, true, MemType::host_device);
     m_spec_ptr = photon_dist->data.dev_ndptr();
     photon_dist->reset_after_output(true);
 
@@ -96,6 +96,20 @@ class coord_policy_cartesian_impl_cooling
     auto sync_module =
         sim_env().register_system<sync_curv_emission_t>(MemType::host_device);
     m_sync = sync_module->get_helper();
+
+    // synchrotron angular distribution
+    sim_env().params().get_value("ph_dist_n_th", m_ph_nth);
+    sim_env().params().get_value("ph_dist_n_phi", m_ph_nphi);
+    int ph_dist_interval = 10;
+    sim_env().params().get_value("ph_dist_interval", ph_dist_interval);
+
+    auto photon_angular_dist =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "sync_dist", m_ph_nth, m_ph_nphi, m_num_bins);
+    m_angle_dist_ptr = photon_angular_dist->dev_ndptr();
+    photon_angular_dist->reset_after_output(true);
+    photon_angular_dist->m_special_output_interval = ph_dist_interval;
+    m_ext_ph_dist = photon_angular_dist->extent();
   }
 
   // Inline functions to be called in the particle update loop
@@ -111,30 +125,35 @@ class coord_policy_cartesian_impl_cooling
 
     default_pusher pusher;
     // Turn off synchrotron cooling for gamma < 1.001
-    if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) || m_cooling_coef == 0.0f) {
+    if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
+        m_cooling_coef == 0.0f) {
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
              decltype(context.q)(dt));
     } else {
-      pusher(p1, p2, p3, gamma, context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
-             decltype(context.q)(dt));
+      pusher(p1, p2, p3, gamma, context.E[0], context.E[1], context.E[2],
+             context.B[0], context.B[1], context.B[2],
+             dt * context.q / context.m * 0.5f, decltype(context.q)(dt));
 
       iterate(context.x, context.p, context.E, context.B, context.q / context.m,
               m_cooling_coef, dt);
       context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
 
       auto idx = Conf::idx(pos, ext);
-      value_t loss = context.weight * max(gamma - context.gamma, 0.0) / context.q;
+      value_t loss =
+          context.weight * max(gamma - context.gamma, 0.0) / context.q;
       atomic_add(&m_sync_loss_total[idx], loss);
       if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
         atomic_add(&m_sync_loss[idx], loss);
 
         auto aL = context.E + cross(context.p, context.B) / context.gamma;
-        auto aL_perp = cross(aL, context.p) / math::sqrt(context.p.dot(context.p));
+        auto p = math::sqrt(context.p.dot(context.p));
+        auto aL_perp =
+            cross(aL, context.p) / p;
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
-        auto eph = m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
+        auto eph =
+            m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
         value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
                                 m_lim_lower, m_lim_upper);
         auto ext_out = grid.extent_less() / m_downsample;
@@ -143,8 +162,20 @@ class coord_policy_cartesian_impl_cooling
         int bin = round((log_eph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
                         (m_num_bins - 1));
         pos_out[0] = bin;
-        atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)], loss/eph);
-        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)], loss);
+        atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
+                   loss / eph);
+        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
+        // ext_spec)], loss);
+
+        // Simply deposit the photon direction along the particle direction,
+        // without computing the 1/gamma cone
+        value_t th = math::acos(context.p[2] / p);
+        value_t phi = math::atan2(context.p[1], context.p[0]);
+        int th_bin = round(th / M_PI * (m_ph_nth - 1));
+        int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
+        index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
+        atomic_add(&m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
+                   loss / eph);
       }
     }
 
@@ -157,7 +188,8 @@ class coord_policy_cartesian_impl_cooling
   }
 
   HD_INLINE vec3 rhs_u(const vec3& E, const vec3& B, const vec3& u,
-                       value_t e_over_m, value_t cooling_coef, value_t dt) const {
+                       value_t e_over_m, value_t cooling_coef,
+                       value_t dt) const {
     vec3 result;
     value_t gamma = math::sqrt(1.0f + u.dot(u));
     vec3 Epbetaxb = E + cross(u, B) / gamma;
@@ -167,13 +199,14 @@ class coord_policy_cartesian_impl_cooling
         cooling_coef *
             (cross(Epbetaxb, B) + E * u.dot(E) / gamma -
              u * (gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma))));
-             // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
+    // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
 
     return result * dt;
   }
 
   HD_INLINE void iterate(vec3& x, vec3& u, const vec3& E, const vec3& B,
-                         double e_over_m, double cooling_coef, double dt) const {
+                         double e_over_m, double cooling_coef,
+                         double dt) const {
     // vec3 x0 = x, x1 = x;
     vec3 u0 = u, u1 = u;
 
@@ -195,8 +228,12 @@ class coord_policy_cartesian_impl_cooling
   float m_lim_lower = 1.0e-6;
   float m_lim_upper = 1.0e2;
   int m_downsample = 16;
+  int m_ph_nth = 32;
+  int m_ph_nphi = 64;
+  extent_t<3> m_ext_ph_dist;
 
   mutable ndptr<value_t, Conf::dim + 1> m_spec_ptr;
+  mutable ndptr<value_t, 3> m_angle_dist_ptr;
   sync_emission_helper_t m_sync;
 };
 

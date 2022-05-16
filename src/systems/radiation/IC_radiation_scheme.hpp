@@ -22,6 +22,7 @@
 #include "core/particle_structs.h"
 #include "core/random.h"
 #include "data/fields.h"
+#include "data/multi_array_data.hpp"
 #include "data/phase_space.hpp"
 #include "framework/environment.h"
 #include "systems/grid.h"
@@ -43,7 +44,11 @@ struct IC_radiation_scheme {
   int m_downsample = 16;
   value_t m_IC_compactness = 0.0;
   mutable ndptr<value_t, Conf::dim> m_IC_loss;
+  mutable ndptr<value_t, 3> m_angle_dist_ptr;
   ndptr<float, Conf::dim + 1> m_spec_ptr;
+  int m_ph_nth = 32;
+  int m_ph_nphi = 64;
+  extent_t<3> m_ext_ph_dist;
 
   IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
 
@@ -108,6 +113,20 @@ struct IC_radiation_scheme {
             &m_lim_lower, &m_lim_upper, true, MemType::host_device);
     m_spec_ptr = photon_dist->data.dev_ndptr();
     photon_dist->reset_after_output(true);
+
+    // IC angular distribution
+    sim_env().params().get_value("ph_dist_n_th", m_ph_nth);
+    sim_env().params().get_value("ph_dist_n_phi", m_ph_nphi);
+    int ph_dist_interval = 10;
+    sim_env().params().get_value("ph_dist_interval", ph_dist_interval);
+
+    auto photon_angular_dist =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "IC_dist", m_ph_nth, m_ph_nphi, m_num_bins);
+    m_angle_dist_ptr = photon_angular_dist->dev_ndptr();
+    photon_angular_dist->reset_after_output(true);
+    photon_angular_dist->m_special_output_interval = ph_dist_interval;
+    m_ext_ph_dist = photon_angular_dist->extent();
   }
 
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
@@ -188,6 +207,17 @@ struct IC_radiation_scheme {
                         (m_num_bins - 1));
         pos_out[0] = bin;
         atomic_add(&m_spec_ptr[idx_t(pos_out, ext_spec)], ptc.weight[tid]);
+
+        // Simply deposit the photon direction along the particle direction,
+        // without computing the 1/gamma cone
+        value_t th = math::acos(p3 / p_i);
+        value_t phi = math::atan2(p2, p1);
+        int th_bin = round(th / M_PI * (m_ph_nth - 1));
+        int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
+        index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
+        atomic_add(&m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
+                   ptc.weight[tid]);
+
       }
     }
 

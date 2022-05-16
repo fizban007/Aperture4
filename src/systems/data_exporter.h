@@ -62,6 +62,8 @@ class data_exporter : public system_t {
   void write_xmf_field_entry(std::string& buffer, int num,
                              const std::string& name);
   void write_xmf(uint32_t step, double time);
+  void write_data(data_t* data, const std::string& name, H5File& datafile,
+                  bool snapshot = false);
   void prepare_xmf_restart(uint32_t restart_step, int data_interval,
                            float time);
   // void write_output(sim_data& data, uint32_t timestep, double time);

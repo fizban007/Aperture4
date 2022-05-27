@@ -23,6 +23,7 @@
 #include "framework/config.h"
 #include "systems/helpers/field_solver_helper_cu.hpp"
 #include "systems/helpers/finite_diff_helper.hpp"
+#include "systems/helpers/pml_data.hpp"
 #include "utils/double_buffer.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
@@ -32,11 +33,261 @@ namespace Aperture {
 
 namespace {
 
+constexpr int diff_order = 2;
+
 template <typename Conf>
-using fd = finite_diff<Conf::dim, 2>;
+using fd = finite_diff<Conf::dim, diff_order>;
 
 // constexpr float cherenkov_factor = 1.025f;
 constexpr float cherenkov_factor = 1.0f;
+
+// This is the profile of the pml conductivity
+template <typename Float>
+HD_INLINE
+Float pml_sigma(Float x, Float dx, int n_pml) {
+  // x is the distance into the pml, dx is the cell size, and n_pml is the
+  // number of pml cells
+  return 4.0f * square(x / dx / n_pml) / dx;
+}
+
+// This is the profile of current damping in the pml, c.f. Lehe et al (2022)
+template <typename Float>
+HD_INLINE
+Float pml_alpha(Float x, Float dx, int n_pml) {
+  // x is the distance into the pml, dx is the cell size, and n_pml is the
+  // number of pml cells
+  return math::exp(-4.0f * cube(x) / (3.0f * n_pml * cube(dx)));
+}
+
+template <typename Conf>
+void
+compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
+                                 vector_field<Conf> &e1, vector_field<Conf> &e2,
+                                 const vector_field<Conf> &b,
+                                 const vector_field<Conf> &j,
+                                 typename Conf::value_t dt, int n_pml,
+                                 const vec_t<bool, Conf::dim * 2> &damping) {
+  using value_t = typename Conf::value_t;
+  kernel_launch(
+      [dt, n_pml] __device__(auto result, auto e1, auto e2, auto b, auto stagger, auto j,
+                             auto damping) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          if (grid.is_in_bound(pos)) {
+            // First compute the pml coefficients
+            value_t sigma_0 = 0.0f, sigma_1 = 0.0f, sigma_2 = 0.0f;
+            value_t alpha = 1.0f;
+            if (damping[0] && pos[0] < n_pml + grid.guard[0]) {
+              value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
+              alpha *= pml_alpha(x, grid.delta[0], n_pml);
+            } else if (damping[1] &&
+                       pos[0] >= grid.guard[0] + grid.N[0] - n_pml) {
+              value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
+                          grid.delta[0];
+              sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
+              alpha *= pml_alpha(x, grid.delta[0], n_pml);
+            }
+            if (Conf::dim > 1 && damping[2] && pos[1] < n_pml + grid.guard[1]) {
+              value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
+              alpha *= pml_alpha(y, grid.delta[1], n_pml);
+            } else if (Conf::dim > 1 && damping[3] &&
+                       pos[1] >= grid.guard[1] + grid.N[1] - n_pml) {
+              value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
+                          grid.delta[1];
+              sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
+              alpha *= pml_alpha(y, grid.delta[1], n_pml);
+            }
+            if (Conf::dim > 2 && damping[4] && pos[2] < n_pml + grid.guard[2]) {
+              value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
+              alpha *= pml_alpha(z, grid.delta[2], n_pml);
+            } else if (Conf::dim > 2 && damping[5] &&
+                       pos[2] >= grid.guard[2] + grid.N[2] - n_pml) {
+              value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
+                          grid.delta[2];
+              sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
+              alpha *= pml_alpha(z, grid.delta[2], n_pml);
+            }
+
+            // evolve E0
+            e1[0][idx] +=
+                dt * ((Conf::dim > 1 ? cherenkov_factor *
+                                           diff<1>(b[2], idx, stagger[2],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[1]
+                                     : 0.0f) -
+                      e1[0][idx] * sigma_1);
+
+            e2[0][idx] +=
+                dt * ((Conf::dim > 2 ? cherenkov_factor *
+                                           (-diff<2>(b[1], idx, stagger[1],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[2])
+                                     : 0.0f) -
+                      e2[0][idx] * sigma_2);
+
+            result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha;
+
+            // evolve E1
+            e1[1][idx] +=
+                dt * ((Conf::dim > 2 ? cherenkov_factor *
+                                           diff<2>(b[0], idx, stagger[0],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[2]
+                                     : 0.0f) -
+                      e1[1][idx] * sigma_2);
+
+            e2[1][idx] +=
+                dt * ((Conf::dim > 0 ? cherenkov_factor *
+                                           (-diff<0>(b[2], idx, stagger[2],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[0])
+                                     : 0.0f) -
+                      e2[1][idx] * sigma_0);
+
+            result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
+
+            // evolve E2
+            e1[2][idx] +=
+                dt * ((Conf::dim > 0 ? cherenkov_factor *
+                                           diff<0>(b[1], idx, stagger[1],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[0]
+                                     : 0.0f) -
+                      e1[2][idx] * sigma_0);
+
+            e2[2][idx] +=
+                dt * ((Conf::dim > 1 ? cherenkov_factor *
+                                           (-diff<1>(b[0], idx, stagger[0],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[1])
+                                     : 0.0f) -
+                      e2[2][idx] * sigma_1);
+
+            result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha;
+          }
+        }
+      },
+      result.get_ptrs(), e1.get_ptrs(), e2.get_ptrs(), b.get_ptrs(), b.stagger_vec(),
+      j.get_ptrs(), damping);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
+
+template <typename Conf>
+void
+compute_b_update_explicit_pml_cu(vector_field<Conf> &result,
+                                 vector_field<Conf> &b1, vector_field<Conf> &b2,
+                                 const vector_field<Conf> &e,
+                                 typename Conf::value_t dt, int n_pml,
+                                 const vec_t<bool, Conf::dim * 2> &damping) {
+  using value_t = typename Conf::value_t;
+  kernel_launch(
+      [dt, n_pml] __device__(auto result, auto b1, auto b2, auto e, auto stagger,
+                             auto damping) {
+        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        auto ext = grid.extent();
+        for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
+          auto pos = get_pos(idx, ext);
+          if (grid.is_in_bound(pos)) {
+            // First compute the pml coefficients
+            value_t sigma_0 = 0.0f, sigma_1 = 0.0f, sigma_2 = 0.0f;
+            if (damping[0] && pos[0] < n_pml + grid.guard[0]) {
+              value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
+            } else if (damping[1] &&
+                       pos[0] >= grid.guard[0] + grid.N[0] - n_pml) {
+              value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
+                          grid.delta[0];
+              sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
+            }
+            if (Conf::dim > 1 && damping[2] && pos[1] < n_pml + grid.guard[1]) {
+              value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
+            } else if (Conf::dim > 1 && damping[3] &&
+                       pos[1] >= grid.guard[1] + grid.N[1] - n_pml) {
+              value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
+                          grid.delta[1];
+              sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
+            }
+            if (Conf::dim > 2 && damping[4] && pos[2] < n_pml + grid.guard[2]) {
+              value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
+            } else if (Conf::dim > 2 && damping[5] &&
+                       pos[2] >= grid.guard[2] + grid.N[2] - n_pml) {
+              value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
+                          grid.delta[2];
+              sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
+            }
+
+            // evolve B0
+            b1[0][idx] +=
+                dt * (-(Conf::dim > 1 ? cherenkov_factor *
+                                           diff<1>(e[2], idx, stagger[2],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[1]
+                                     : 0.0f) -
+                      b1[0][idx] * sigma_1);
+
+            b2[0][idx] +=
+                dt * (-(Conf::dim > 2 ? cherenkov_factor *
+                                           (-diff<2>(e[1], idx, stagger[1],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[2])
+                                     : 0.0f) -
+                      b2[0][idx] * sigma_2);
+
+            result[0][idx] = b1[0][idx] + b2[0][idx];
+
+            // evolve B1
+            b1[1][idx] +=
+                dt * (-(Conf::dim > 2 ? cherenkov_factor *
+                                           diff<2>(e[0], idx, stagger[0],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[2]
+                                     : 0.0f) -
+                      b1[1][idx] * sigma_2);
+
+            b2[1][idx] +=
+                dt * (-(Conf::dim > 0 ? cherenkov_factor *
+                                           (-diff<0>(e[2], idx, stagger[2],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[0])
+                                     : 0.0f) -
+                      b2[1][idx] * sigma_0);
+
+            result[1][idx] = b1[1][idx] + b2[1][idx];
+
+            // evolve B2
+            b1[2][idx] +=
+                dt * (-(Conf::dim > 0 ? cherenkov_factor *
+                                           diff<0>(e[1], idx, stagger[1],
+                                                   order_tag<diff_order>{}) *
+                                           grid.inv_delta[0]
+                                     : 0.0f) -
+                      b1[2][idx] * sigma_0);
+
+            b2[2][idx] +=
+                dt * (-(Conf::dim > 1 ? cherenkov_factor *
+                                           (-diff<1>(e[0], idx, stagger[0],
+                                                     order_tag<diff_order>{}) *
+                                            grid.inv_delta[1])
+                                     : 0.0f) -
+                      b2[2][idx] * sigma_1);
+
+            result[2][idx] = b1[2][idx] + b2[2][idx];
+          }
+        }
+      },
+      result.get_ptrs(), b1.get_ptrs(), b2.get_ptrs(), e.get_ptrs(), e.stagger_vec(),
+      damping);
+  CudaSafeCall(cudaDeviceSynchronize());
+  CudaCheckError();
+}
 
 template <typename Conf>
 void
@@ -55,7 +306,8 @@ compute_e_update_explicit_cu(vector_field<Conf> &result,
           if (grid.is_in_bound(pos)) {
             result[0][idx] =
                 e[0][idx] + dt * (cherenkov_factor *
-                                      fd<Conf>::curl0(b, idx, stagger, grid) -
+                                      fd<Conf>::curl0(b, idx, stagger, grid)
+                                      -
                                   j[0][idx]);
 
             result[1][idx] =
@@ -298,17 +550,28 @@ clean_field(vector_field<Conf> &f) {
 
 template <typename Conf>
 void
-field_solver_cu<Conf>::init_impl_tmp_fields() {
-  this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
-      this->m_grid, field_type::face_centered, MemType::device_only);
-  // this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
-  //     this->m_grid, field_type::edge_centered, MemType::device_only);
-  this->m_bnew = std::make_unique<vector_field<Conf>>(
-      this->m_grid, field_type::face_centered, MemType::device_only);
-  // this->m_enew = std::make_unique<vector_field<Conf>>(
-  //     this->m_grid, field_type::edge_centered, MemType::device_only);
-  this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
-      this->m_grid, field_type::face_centered, MemType::device_only);
+field_solver_cu<Conf>::init_tmp_fields() {
+  if (this->m_use_implicit) {
+    this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::edge_centered, MemType::device_only);
+    this->m_bnew = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_enew = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::edge_centered, MemType::device_only);
+    this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, MemType::device_only);
+  } else {
+    this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, MemType::device_only);
+    this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, MemType::device_only);
+    this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::edge_centered, MemType::device_only);
+    this->m_tmp_e2 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::edge_centered, MemType::device_only);
+  }
 }
 
 template <typename Conf>
@@ -321,22 +584,27 @@ template <typename Conf>
 void
 field_solver_cu<Conf>::update_explicit(double dt, double time) {
   Logger::print_detail("Running explicit Cartesian solver!");
+  vec_t<bool, Conf::dim * 2> damping(this->m_damping);
   // dt *= 1.025;
   if (time < TINY) {
-    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
-                                 0.5f * dt);
+    compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1), *(this->m_tmp_e2), *(this->B), *(this->J),
+                                 0.5f * dt, this->m_pml_length, damping);
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   }
 
   if (this->m_update_b) {
-    compute_b_update_explicit_cu(*(this->B), *(this->B), *(this->E), dt);
+    // compute_b_update_explicit_cu(*(this->B), *(this->B), *(this->E), dt);
+    compute_b_update_explicit_pml_cu(*(this->B), *(this->m_tmp_b1), *(this->m_tmp_b2), *(this->E),
+                                 dt, this->m_pml_length, damping);
     // Communicate the new B values to guard cells
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
 
   if (this->m_update_e) {
-    compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
-                                 dt);
+    compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1), *(this->m_tmp_e2), *(this->B), *(this->J),
+                                 dt, this->m_pml_length, damping);
+    // compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
+    //                              dt);
     // Communicate the new E values to guard cells
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   }

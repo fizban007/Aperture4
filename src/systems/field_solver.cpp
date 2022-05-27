@@ -36,16 +36,13 @@ compute_e_update_explicit(vector_field<Conf>& result,
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos)) {
       result[0][idx] +=
-          dt *
-          (fd<Conf>::curl0(b, idx, b.stagger_vec(), grid) - j[0][idx]);
+          dt * (fd<Conf>::curl0(b, idx, b.stagger_vec(), grid) - j[0][idx]);
 
       result[1][idx] +=
-          dt *
-          (fd<Conf>::curl1(b, idx, b.stagger_vec(), grid) - j[1][idx]);
+          dt * (fd<Conf>::curl1(b, idx, b.stagger_vec(), grid) - j[1][idx]);
 
       result[2][idx] +=
-          dt *
-          (fd<Conf>::curl2(b, idx, b.stagger_vec(), grid) - j[2][idx]);
+          dt * (fd<Conf>::curl2(b, idx, b.stagger_vec(), grid) - j[2][idx]);
     }
   }
 }
@@ -59,14 +56,11 @@ compute_b_update_explicit(vector_field<Conf>& result,
   for (auto idx : result[0].indices()) {
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos)) {
-      result[0][idx] +=
-          dt * fd<Conf>::curl0(e, idx, e.stagger_vec(), grid);
+      result[0][idx] += dt * fd<Conf>::curl0(e, idx, e.stagger_vec(), grid);
 
-      result[1][idx] +=
-          dt * fd<Conf>::curl1(e, idx, e.stagger_vec(), grid);
+      result[1][idx] += dt * fd<Conf>::curl1(e, idx, e.stagger_vec(), grid);
 
-      result[2][idx] +=
-          dt * fd<Conf>::curl2(e, idx, e.stagger_vec(), grid);
+      result[2][idx] += dt * fd<Conf>::curl2(e, idx, e.stagger_vec(), grid);
     }
   }
 }
@@ -95,23 +89,43 @@ field_solver<Conf>::init() {
   if (m_use_implicit) {
     sim_env().params().get_value("implicit_beta", m_beta);
     m_alpha = 1.0 - m_beta;
-    this->init_impl_tmp_fields();
   }
+  this->init_tmp_fields();
   sim_env().params().get_value("fld_output_interval", m_data_interval);
 
   sim_env().params().get_value("update_e", m_update_e);
   sim_env().params().get_value("update_b", m_update_b);
+
+  sim_env().params().get_value("pml_length", m_pml_length);
+  sim_env().params().get_array("damping_boundary", m_damping);
+  // for (int i = 0; i < Conf::dim * 2; i++) {
+  //   if (m_damping[i] == true) {
+  //     m_pml[i] = std::make_unique<pml_data<Conf>>((BoundaryPos)i, m_pml_length,
+  //                                                 m_grid, m_comm);
+  //   }
+  // }
 }
 
 template <typename Conf>
 void
-field_solver<Conf>::init_impl_tmp_fields() {
-  m_tmp_b1 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
-  m_tmp_b2 =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
-  m_bnew =
-      std::make_unique<vector_field<Conf>>(this->m_grid, MemType::host_only);
+field_solver<Conf>::init_tmp_fields() {
+  if (m_use_implicit) {
+    m_tmp_b1 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    m_tmp_b2 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    m_bnew =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+  } else {
+    m_tmp_b1 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    m_tmp_b2 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    m_tmp_e1 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
+    m_tmp_e2 =
+        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
+  }
 }
 
 template <typename Conf>
@@ -129,24 +143,24 @@ field_solver<Conf>::register_data_impl(MemType type) {
   Btotal = sim_env().register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, type);
 
-  E = sim_env().register_data<vector_field<Conf>>("Edelta", m_grid,
-                                              field_type::edge_centered, type);
+  E = sim_env().register_data<vector_field<Conf>>(
+      "Edelta", m_grid, field_type::edge_centered, type);
   E->skip_output(true);
   E->include_in_snapshot(true);
-  E0 = sim_env().register_data<vector_field<Conf>>("E0", m_grid,
-                                               field_type::edge_centered, type);
+  E0 = sim_env().register_data<vector_field<Conf>>(
+      "E0", m_grid, field_type::edge_centered, type);
   E0->skip_output(true);
   E0->include_in_snapshot(true);
-  B = sim_env().register_data<vector_field<Conf>>("Bdelta", m_grid,
-                                              field_type::face_centered, type);
+  B = sim_env().register_data<vector_field<Conf>>(
+      "Bdelta", m_grid, field_type::face_centered, type);
   B->skip_output(true);
   B->include_in_snapshot(true);
-  B0 = sim_env().register_data<vector_field<Conf>>("B0", m_grid,
-                                               field_type::face_centered, type);
+  B0 = sim_env().register_data<vector_field<Conf>>(
+      "B0", m_grid, field_type::face_centered, type);
   B0->skip_output(true);
   B0->include_in_snapshot(true);
-  J = sim_env().register_data<vector_field<Conf>>("J", m_grid,
-                                              field_type::edge_centered, type);
+  J = sim_env().register_data<vector_field<Conf>>(
+      "J", m_grid, field_type::edge_centered, type);
   divB = sim_env().register_data<scalar_field<Conf>>(
       "divB", m_grid, field_type::cell_centered, type);
   divE = sim_env().register_data<scalar_field<Conf>>(

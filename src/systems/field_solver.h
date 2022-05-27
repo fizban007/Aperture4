@@ -22,6 +22,7 @@
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
+// #include "systems/helpers/pml_data.hpp"
 #include "systems/grid.h"
 #include "utils/nonown_ptr.hpp"
 #include <memory>
@@ -64,12 +65,17 @@ class field_solver : public system_t {
   int m_data_interval = 100;
   bool m_update_e = true;
   bool m_update_b = true;
+  bool m_damping[Conf::dim * 2] = {};
+  int m_pml_length = 16;
 
   // These are temporary fields used in the semi-implicit update
   std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
   std::unique_ptr<vector_field<Conf>> m_tmp_e1, m_tmp_e2, m_enew;
 
-  virtual void init_impl_tmp_fields();
+  // PML data structures
+  // std::unique_ptr<pml_data<Conf>> m_pml[Conf::dim * 2];
+
+  virtual void init_tmp_fields();
 
   void register_data_impl(MemType type);
 };
@@ -91,7 +97,7 @@ class field_solver_cu : public field_solver<Conf> {
   void update_semi_implicit_old(double dt, double alpha, double theta, double time);
 
  protected:
-  virtual void init_impl_tmp_fields() override;
+  virtual void init_tmp_fields() override;
 };
 
 }

@@ -98,6 +98,11 @@ field_solver<Conf>::init() {
 
   sim_env().params().get_value("pml_length", m_pml_length);
   sim_env().params().get_array("damping_boundary", m_damping);
+  for (int i = 0; i < Conf::dim * 2; i++) {
+    if (m_comm != nullptr && m_comm->domain_info().is_boundary[i] != true) {
+      m_damping[i] = false;
+    }
+  }
   // for (int i = 0; i < Conf::dim * 2; i++) {
   //   if (m_damping[i] == true) {
   //     m_pml[i] = std::make_unique<pml_data<Conf>>((BoundaryPos)i, m_pml_length,

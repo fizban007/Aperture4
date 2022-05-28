@@ -21,4 +21,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "IC_single.cu")
   target_link_libraries(IC_single Aperture)
   add_dependencies(problems IC_single)
+
+  add_executable(pml_test
+    "pml_test.cu")
+  target_link_libraries(pml_test Aperture)
+  add_dependencies(problems pml_test)
 endif()

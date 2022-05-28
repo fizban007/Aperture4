@@ -40,6 +40,7 @@ using fd = finite_diff<Conf::dim, diff_order>;
 
 // constexpr float cherenkov_factor = 1.025f;
 constexpr float cherenkov_factor = 1.0f;
+constexpr int n_pml_addon = 1;
 
 // This is the profile of the pml conductivity
 template <typename Float>
@@ -47,7 +48,7 @@ HD_INLINE
 Float pml_sigma(Float x, Float dx, int n_pml) {
   // x is the distance into the pml, dx is the cell size, and n_pml is the
   // number of pml cells
-  return 4.0f * square(x / dx / n_pml) / dx;
+  return 2.0f * square(x / dx / (n_pml + n_pml_addon)) / dx;
 }
 
 // This is the profile of current damping in the pml, c.f. Lehe et al (2022)
@@ -56,7 +57,7 @@ HD_INLINE
 Float pml_alpha(Float x, Float dx, int n_pml) {
   // x is the distance into the pml, dx is the cell size, and n_pml is the
   // number of pml cells
-  return math::exp(-4.0f * cube(x) / (3.0f * n_pml * cube(dx)));
+  return math::exp(-2.0f * cube(x) / (3.0f * square(n_pml + n_pml_addon) * cube(dx)));
 }
 
 template <typename Conf>
@@ -80,35 +81,44 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
             value_t sigma_0 = 0.0f, sigma_1 = 0.0f, sigma_2 = 0.0f;
             value_t alpha = 1.0f;
             if (damping[0] && pos[0] < n_pml + grid.guard[0]) {
-              value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              // value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              value_t x = grid.pos(0, n_pml + grid.guard[0] - pos[0], true);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
               alpha *= pml_alpha(x, grid.delta[0], n_pml);
             } else if (damping[1] &&
                        pos[0] >= grid.guard[0] + grid.N[0] - n_pml) {
-              value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
-                          grid.delta[0];
+              // value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
+              //             grid.delta[0];
+              value_t x = grid.pos(0, pos[0] - (grid.guard[0] + grid.N[0] - n_pml),
+                                   true);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
               alpha *= pml_alpha(x, grid.delta[0], n_pml);
             }
             if (Conf::dim > 1 && damping[2] && pos[1] < n_pml + grid.guard[1]) {
-              value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              // value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              value_t y = grid.pos(1, n_pml + grid.guard[1] - pos[1], true);
               sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
               alpha *= pml_alpha(y, grid.delta[1], n_pml);
             } else if (Conf::dim > 1 && damping[3] &&
                        pos[1] >= grid.guard[1] + grid.N[1] - n_pml) {
-              value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
-                          grid.delta[1];
+              // value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
+              //             grid.delta[1];
+              value_t y = grid.pos(1, pos[1] - (grid.guard[1] + grid.N[1] - n_pml),
+                                   true);
               sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
               alpha *= pml_alpha(y, grid.delta[1], n_pml);
             }
             if (Conf::dim > 2 && damping[4] && pos[2] < n_pml + grid.guard[2]) {
-              value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              // value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              value_t z = grid.pos(2, n_pml + grid.guard[2] - pos[2], true);
               sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
               alpha *= pml_alpha(z, grid.delta[2], n_pml);
             } else if (Conf::dim > 2 && damping[5] &&
                        pos[2] >= grid.guard[2] + grid.N[2] - n_pml) {
-              value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
-                          grid.delta[2];
+              // value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
+              //             grid.delta[2];
+              value_t z = grid.pos(2, pos[2] - (grid.guard[2] + grid.N[2] - n_pml),
+                                   true);
               sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
               alpha *= pml_alpha(z, grid.delta[2], n_pml);
             }
@@ -197,30 +207,36 @@ compute_b_update_explicit_pml_cu(vector_field<Conf> &result,
             // First compute the pml coefficients
             value_t sigma_0 = 0.0f, sigma_1 = 0.0f, sigma_2 = 0.0f;
             if (damping[0] && pos[0] < n_pml + grid.guard[0]) {
-              value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              // value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
+              value_t x = grid.pos(0, n_pml + grid.guard[0] - pos[0], false);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
             } else if (damping[1] &&
                        pos[0] >= grid.guard[0] + grid.N[0] - n_pml) {
-              value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
-                          grid.delta[0];
+              // value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
+              //             grid.delta[0];
+              value_t x = grid.pos(0, pos[0] - (grid.guard[0] + grid.N[0] - n_pml), false);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
             }
             if (Conf::dim > 1 && damping[2] && pos[1] < n_pml + grid.guard[1]) {
-              value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              // value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
+              value_t y = grid.pos(1, n_pml + grid.guard[1] - pos[1], false);
               sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
             } else if (Conf::dim > 1 && damping[3] &&
                        pos[1] >= grid.guard[1] + grid.N[1] - n_pml) {
-              value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
-                          grid.delta[1];
+              // value_t y = (pos[1] - (grid.guard[1] + grid.N[1] - n_pml)) *
+              //             grid.delta[1];
+              value_t y = grid.pos(1, pos[1] - (grid.guard[1] + grid.N[1] - n_pml), false);
               sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
             }
             if (Conf::dim > 2 && damping[4] && pos[2] < n_pml + grid.guard[2]) {
-              value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              // value_t z = (n_pml + grid.guard[2] - pos[2]) * grid.delta[2];
+              value_t z = grid.pos(2, n_pml + grid.guard[2] - pos[2], false);
               sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
             } else if (Conf::dim > 2 && damping[5] &&
                        pos[2] >= grid.guard[2] + grid.N[2] - n_pml) {
-              value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
-                          grid.delta[2];
+              // value_t z = (pos[2] - (grid.guard[2] + grid.N[2] - n_pml)) *
+              //             grid.delta[2];
+              value_t z = grid.pos(2, pos[2] - (grid.guard[2] + grid.N[2] - n_pml), false);
               sigma_2 = pml_sigma(z, grid.delta[2], n_pml);
             }
 

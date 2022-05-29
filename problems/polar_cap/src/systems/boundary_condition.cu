@@ -36,10 +36,12 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid,
   sim_env().params().get_value("Bp", m_Bp);
   sim_env().params().get_value("Rpc", m_Rpc);
   sim_env().params().get_value("R_star", m_Rstar);
+  sim_env().params().get_value("N_inject", m_Ninject);
 
-  Logger::print_debug("Boundary condition Bp is {}", m_Bp);
-  // injector =
-  //     sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  if (m_Ninject > 0) {
+    injector =
+        sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  }
 }
 
 template <typename Conf> void boundary_condition<Conf>::init() {
@@ -57,7 +59,7 @@ template <typename Conf> void boundary_condition<Conf>::init() {
 template <typename Conf>
 void boundary_condition<Conf>::update(double dt, uint32_t step) {
   apply_rotating_boundary();
-  inject_plasma();
+  inject_plasma(step);
 }
 
 template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary() {
@@ -89,11 +91,11 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
             value_t z = grid.pos(2, pos[2], false);
 
             // Rotating conductor
-            if (pos[2] <= grid.guard[2] + 1) {
+            if (pos[2] <= grid.guard[2]) {
               value_t r = math::sqrt(x * x + y * y);
               value_t r_frac = r / Rpc;
               value_t smooth_prof =
-                  0.5f * (1.0f - tanh((r_frac - 1.0f) / 0.1f));
+                  0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.15f));
               // value_t smooth_prof = (r_frac > 1.0f ? 0.0f : 1.0f);
               value_t E0 = -b0[2][idx] * omega * r * smooth_prof;
               value_t Br = math::sqrt(square(b0[0][idx]) + square(b0[1][idx]));
@@ -107,7 +109,7 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
             // z += Rstar;
             // value_t r = math::sqrt(x*x + y*y + z*z);
             // value_t r_max = r / (1.0f - square(z / r));
-            // if (r_max / Rstar < 0.8 / omega) {
+            // if (r_max / Rstar < 1.0 / omega) {
             //   e[0][idx] = 0.0f;
             //   e[1][idx] = 0.0f;
             //   e[2][idx] = 0.0f;
@@ -121,51 +123,57 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
 
 }
 
-template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
-  // int inj_length = m_grid.guard[2];
-  // auto num = ptc->number();
+template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) {
+  if (m_Ninject == 0) return;
+
+  int inj_length = m_grid.guard[2];
+  int n_inject = m_Ninject;
+  value_t Bp = m_Bp;
+  value_t Rpc = m_Rpc;
+  value_t Rstar = m_Rstar;
+  // dimensionless rotation omega = (r_pc/R_*)^2 c/R_*
+  value_t omega = square(Rpc / Rstar);
+  auto num = ptc->number();
 
   // auto ext_inj = extent_t<3>(m_grid.reduced_dim(0),
   //                            m_grid.reduced_dim(1),
   //                            inj_length);
-  // injector->inject(
-  //     [rho_e_ptr, rho_p_ptr, inj_length, upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-  //       if (pos[1] < inj_length + grid.guard[1] ||
-  //           pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-  //         auto idx = Conf::idx(pos, ext);
-  //         return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 3.0f / upstream_n;
-  //       }
-  //       // else if (pos[1] >= grid.dims[1] - grid.guard[1] - inj_length) {
-  //       //   index_t<2> pos_inj(pos[0] - grid.guard[0], pos[1] - grid.dims[1] +
-  //       //                                                  grid.guard[1] +
-  //       //                                                  inj_length);
-  //       //   auto idx = Conf::idx(pos_inj, ext_inj);
-  //       //   return dens_e2[idx] + dens_p2[idx] < 2.0f - 4.0f / upstream_n;
-  //       // }
-  //       return false;
-  //     },
-  //     [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-  //     [upstream_kT] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-  //                              PtcType type) {
-  //       vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
+  if (step % 2 == 0) {
+    injector->inject(
+        [inj_length, Rpc] __device__(auto &pos, auto &grid, auto &ext) {
+          if (pos[2] == inj_length) {
+            value_t x = grid.pos(0, pos[0], false);
+            value_t y = grid.pos(1, pos[1], false);
+            value_t r = math::sqrt(x * x + y * y);
 
-  //       auto p1 = u_d[0];
-  //       auto p2 = u_d[1];
-  //       auto p3 = u_d[2];
-  //       return vec_t<value_t, 3>(p1, p2, p3);
-  //       // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
-  //       // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
-  //       // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
-  //       // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
-  //       // // value_t beta = p1 / gamma;
-  //       // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
-  //       // return vec_t<value_t, 3>(p1, p2, p3);
-  //     },
-  //     // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-  //     [upstream_n] __device__(auto& x_global) {
-  //       return 1.0 / upstream_n;
-  //     });
+            if (r < Rpc) {
+              return true;
+            }
+          }
+          return false;
+        },
+        [n_inject] __device__(auto &pos, auto &grid, auto &ext) {
+          return 2 * n_inject;
+        },
+        [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+                      PtcType type) {
+          // vec_t<value_t, 3> u_d =
+          // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
+          // auto p1 = u_d[0];
+          // auto p2 = u_d[1];
+          // auto p3 = u_d[2];
+          // return vec_t<value_t, 3>(0.0f, 0.0f, 0.0f);
+          return rng.maxwell_juttner_3d(0.1f);
+        },
+        // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+        [n_inject, Bp, omega, Rpc] __device__(auto &x_global) {
+          value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]));
+          value_t r_frac = r / Rpc;
+          value_t smooth_prof = 0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.2f));
+          return 2.0f * Bp * omega * smooth_prof / n_inject;
+        });
+  }
 }
 
 // Only instantiate this for 3D, otherwise lower boundary doesn't make sense

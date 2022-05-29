@@ -14,4 +14,8 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(vacuum_test polar_cap_3d)
   add_dependencies(problems vacuum_test)
 
+  add_executable(ptc_test "ptc_test.cu")
+  target_link_libraries(ptc_test polar_cap_3d)
+  add_dependencies(problems ptc_test)
+
 endif()

@@ -45,7 +45,7 @@ class boundary_condition : public system_t {
   void update(double dt, uint32_t step) override;
 
   void apply_rotating_boundary();
-  void inject_plasma();
+  void inject_plasma(int step);
 
  protected:
   const grid_t<Conf>& m_grid;
@@ -53,6 +53,7 @@ class boundary_condition : public system_t {
   value_t m_Bp = 1.0e3;
   value_t m_Rpc = 1.0;
   value_t m_Rstar = 10.0;
+  int m_Ninject = 0;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<particle_data_t> ptc;

@@ -39,19 +39,27 @@ polar_cap_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
 
   value_t Bp = sim_env().params().get_as<double>("Bp", 1.0e3);
   value_t Rpc = sim_env().params().get_as<double>("Rpc", 1.0e-1);
-  value_t R_star = 1.0;
+  value_t R_star = sim_env().params().get_as<double>("R_star", 10.0);
 
-  // Note: z should start at 1.0, which accounts for the stellar radius R_star
-  B0.set_values(0, [Bp, Rpc](auto x, auto y, auto z) {
-    value_t r = x * x + y * y + z * z;
+  B0.set_values(0, [Bp, R_star](auto x, auto y, auto z) {
+    z = z / R_star + 1.0;
+    x /= R_star;
+    y /= R_star;
+    value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * x * z / (r * r * r * r * r);
   });
-  B0.set_values(1, [Bp, Rpc](auto x, auto y, auto z) {
-    value_t r = x * x + y * y + z * z;
+  B0.set_values(1, [Bp, R_star](auto x, auto y, auto z) {
+    z = z / R_star + 1.0;
+    x /= R_star;
+    y /= R_star;
+    value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * y * z / (r * r * r * r * r);
   });
-  B0.set_values(2, [Bp, Rpc](auto x, auto y, auto z) {
-    value_t r = x * x + y * y + z * z;
+  B0.set_values(2, [Bp, R_star](auto x, auto y, auto z) {
+    z = z / R_star + 1.0;
+    x /= R_star;
+    y /= R_star;
+    value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * z * z / (r * r * r * r * r) - Bp / (r * r * r);
   });
 

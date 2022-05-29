@@ -48,7 +48,7 @@ HD_INLINE
 Float pml_sigma(Float x, Float dx, int n_pml) {
   // x is the distance into the pml, dx is the cell size, and n_pml is the
   // number of pml cells
-  return 0.5f * square(x / dx / (n_pml + n_pml_addon)) / dx;
+  return 2.0f * square(x / dx / (n_pml + n_pml_addon)) / dx;
 }
 
 // This is the profile of current damping in the pml, c.f. Lehe et al (2022)
@@ -57,7 +57,7 @@ HD_INLINE
 Float pml_alpha(Float x, Float dx, int n_pml) {
   // x is the distance into the pml, dx is the cell size, and n_pml is the
   // number of pml cells
-  return math::exp(-0.5f * cube(math::abs(x)) / (3.0f * square(n_pml + n_pml_addon) * cube(dx)));
+  return math::exp(-2.0f * cube(math::abs(x)) / (3.0f * square(n_pml + n_pml_addon) * cube(dx)));
 }
 
 template <typename Conf>

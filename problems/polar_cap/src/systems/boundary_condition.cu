@@ -95,7 +95,7 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
               value_t smooth_prof =
                   0.5f * (1.0f - tanh((r_frac - 1.0f) / 0.1f));
               // value_t smooth_prof = (r_frac > 1.0f ? 0.0f : 1.0f);
-              value_t E0 = b0[2][idx] * omega * r * smooth_prof;
+              value_t E0 = -b0[2][idx] * omega * r * smooth_prof;
               value_t Br = math::sqrt(square(b0[0][idx]) + square(b0[1][idx]));
 
               e[0][idx] = E0 * x / r;

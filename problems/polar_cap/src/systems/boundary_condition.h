@@ -24,6 +24,7 @@
 // #include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
+#include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include "systems/policies.h"
 #include "systems/ptc_injector_new.h"
@@ -38,32 +39,28 @@ class boundary_condition : public system_t {
   using value_t = typename Conf::value_t;
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(const grid_t<Conf>& grid);
+  boundary_condition(const grid_t<Conf>& grid, const domain_comm<Conf>* comm = nullptr);
 
   void init() override;
   void update(double dt, uint32_t step) override;
 
-  void damp_fields();
+  void apply_rotating_boundary();
   void inject_plasma();
 
  protected:
   const grid_t<Conf>& m_grid;
-  int m_inj_length = 16;
-  int m_damping_length = 64;
-  int m_upstream_n = 1;
-  float m_upstream_kT = 1.0e-2f;
-  float m_damping_coef = 1.0f;
-  float m_Bp = 10.0f;
-  value_t m_Bg = 0.0f;
+  const domain_comm<Conf>* m_comm;
+  value_t m_Bp = 1.0e3;
+  value_t m_Rpc = 1.0;
+  value_t m_Rstar = 10.0;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
-  nonown_ptr<scalar_field<Conf>> rho_e, rho_p;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<rng_states_t> rng_states;
   nonown_ptr<ptc_injector<Conf, exec_policy_cuda>> injector;
   // curand_states_t *rand_states;
 
-  std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;
+  // std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;
   buffer<typename Conf::ndptr_t> m_prev_E, m_prev_B;
 
 };

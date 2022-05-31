@@ -1,0 +1,65 @@
+num_species = 2
+
+ion_mass = 1.0
+
+max_ptc_num = 10_000
+max_ph_num = 1_000
+ptc_buffer_size = 10_000
+
+dt = 1.0e-2
+
+q_e = 1000.0
+
+use_implicit = false
+
+Bp = 1000.0
+
+Rpc = 1.0
+
+R_star = 5.0
+
+current_smoothing = 1
+
+sync_cooling_coef = 1.0
+
+### Simulation life time
+max_steps = 1000
+
+fld_output_interval = 50
+
+ptc_output_interval = 500
+
+snapshot_interval = 0 # disable snapshots
+
+sort_interval = 23
+
+### Grid parameters
+# Number of grid points in each direction, excluding guard cells. This should be
+# a multiple of at least 32.
+N = [128, 128, 128]
+
+nodes = [2, 2, 1]
+
+# Number of guard cells on each end. Effective number of cells per dimension
+# will be N + 2*guard. Minimum 2 is required!
+guard = [2, 2, 2]
+
+# Lower limit of the coordinate
+lower = [-2.0, -2.0, 0.0]
+
+# Size of the box in each dimension
+size = [4.0, 4.0, 4.0]
+
+# Whether boundaries are periodic
+periodic_boundary = [false, false, false]
+
+# Whether to use PML damping
+damping_boundary = [true, true, true, true, false, true]
+
+# Length of the PML layer
+pml_length = 8
+
+# Field output downsample factor
+downsample = 2
+
+## output_dir = "/home/alex/storage/Data/Aperture4/quasi_1d/"

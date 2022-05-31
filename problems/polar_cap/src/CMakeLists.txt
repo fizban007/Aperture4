@@ -18,4 +18,8 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(ptc_test polar_cap_3d)
   add_dependencies(problems ptc_test)
 
+  add_executable(radiation_test "radiation_test.cu")
+  target_link_libraries(radiation_test polar_cap_3d)
+  add_dependencies(problems radiation_test)
+
 endif()

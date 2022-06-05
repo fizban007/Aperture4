@@ -139,6 +139,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
   //                            m_grid.reduced_dim(1),
   //                            inj_length);
   if (step % 2 == 0) {
+  // if (step < 1) {
     injector->inject(
         [inj_length, Rpc] __device__(auto &pos, auto &grid, auto &ext) {
           if (pos[2] == inj_length) {
@@ -160,11 +161,11 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
           // vec_t<value_t, 3> u_d =
           // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
-          // auto p1 = u_d[0];
-          // auto p2 = u_d[1];
-          // auto p3 = u_d[2];
-          // return vec_t<value_t, 3>(0.0f, 0.0f, 0.0f);
-          return rng.maxwell_juttner_3d(0.1f);
+          auto p1 = rng.gaussian(0.1f);
+          auto p2 = 0.0f;
+          auto p3 = rng.gaussian(0.1f);
+          return vec_t<value_t, 3>(p1, p2, p3);
+          // return rng.maxwell_juttner_3d(0.1f);
         },
         // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
         [n_inject, Bp, omega, Rpc] __device__(auto &x_global) {

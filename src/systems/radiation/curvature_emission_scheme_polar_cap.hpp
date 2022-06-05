@@ -75,7 +75,7 @@ struct curvature_emission_scheme_polar_cap {
     // initialize the spectrum related parameters
     sim_env().params().get_value("B_Q", m_BQ);
     sim_env().params().get_value("r_e", m_re);
-    sim_env().params().get_value("r_pc", m_rpc);
+    sim_env().params().get_value("Rpc", m_rpc);
 
     // initialize synchro-curvature radiation module
     auto sync_module =
@@ -164,7 +164,7 @@ struct curvature_emission_scheme_polar_cap {
                                   value_t dt) {
     auto interp = interp_t<1, Conf::dim>{};
     // Get the magnetic field vector at the particle location
-    auto cell = ptc.cell[tid];
+    auto cell = ph.cell[tid];
     auto idx = Conf::idx(cell, ext);
     auto x = vec_t<value_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto p = vec_t<value_t, 3>(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
@@ -183,6 +183,7 @@ struct curvature_emission_scheme_polar_cap {
 
     if (eph * sinth > 2.0f) {
       value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, eph, sinth) * dt;
+      printf("pair prob is %f, sinth is %f\n", prob, sinth);
       value_t u = rng.uniform<value_t>();
       if (u < prob) {
         // Actually produce the electron-positron pair
@@ -190,15 +191,27 @@ struct curvature_emission_scheme_polar_cap {
         size_t offset_e = offset;
         size_t offset_p = offset + 1;
 
-        value_t ratio = math::sqrt(0.25f - 1.0f / square(eph));
+        value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
+        // Immediately cool to zero magnetic moment and reduce Lorentz factor as
+        // needed
+        value_t gamma = 0.5f * eph;
+        if (sinth > TINY && gamma > 1.0f / sinth) {
+          gamma = 1.0f / sinth;
+          p_ptc = math::sqrt(gamma * gamma - 1.0f);
+        }
+
         ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
         ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
         ptc.x3[offset_e] = ptc.x3[offset_p] = x[2];
 
-        ptc.p1[offset_e] = ptc.p1[offset_p] = ratio * p[0];
-        ptc.p2[offset_e] = ptc.p2[offset_p] = ratio * p[1];
-        ptc.p3[offset_e] = ptc.p3[offset_p] = ratio * p[2];
-        ptc.E[offset_e] = ptc.E[offset_p] = 0.5f * eph;
+        // Particle momentum is along B, direction is inherited from initial
+        // photon direction
+        value_t sign = sgn(p.dot(B));
+        ptc.p1[offset_e] = ptc.p1[offset_p] = sign * p_ptc / B_mag * B[0];
+        ptc.p2[offset_e] = ptc.p2[offset_p] = sign * p_ptc / B_mag * B[1];
+        ptc.p3[offset_e] = ptc.p3[offset_p] = sign * p_ptc / B_mag * B[2];
+        ptc.E[offset_e] = ptc.E[offset_p] = gamma;
+        ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
 
         ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
         ptc.cell[offset_e] = ptc.cell[offset_p] = cell;

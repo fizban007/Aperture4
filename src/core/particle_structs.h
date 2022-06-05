@@ -78,6 +78,7 @@ DEF_PARTICLE_STRUCT(ptc,
                     (Aperture::Scalar, p3, 0.0)
                     (Aperture::Scalar, E, 0.0)
                     (Aperture::Scalar, weight, 0.0)
+                    (Aperture::Scalar, aux1, 0.0)
                     (uint32_t, cell, empty_cell)
                     (uint64_t, id, 0)
                     (uint32_t, flag, 0));

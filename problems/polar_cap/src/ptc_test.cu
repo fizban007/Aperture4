@@ -24,7 +24,18 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
+#include "systems/policies/ptc_physics_policy_empty.hpp"
+#include "systems/policies.h"
+#include "systems/ptc_updater_base_impl.hpp"
+
+namespace Aperture {
+
+template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+
+}
 
 using namespace Aperture;
 
@@ -51,7 +62,7 @@ main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
 
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
@@ -60,7 +71,7 @@ main(int argc, char *argv[]) {
   env.init();
 
   vector_field<Conf> *B0;
-  env.get_data("B", &B0);
+  env.get_data("B0", &B0);
   value_t Bp = sim_env().params().get_as<double>("Bp", 1.0e3);
   value_t Rpc = sim_env().params().get_as<double>("Rpc", 1.0);
   value_t R_star = sim_env().params().get_as<double>("R_star", 10.0);

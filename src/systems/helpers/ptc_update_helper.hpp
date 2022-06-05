@@ -44,6 +44,7 @@ struct ptc_context {
   UIntType sp;
   FloatType q;
   FloatType m;
+  FloatType aux1;
 
   vec_t<FloatType, 3> E;
   vec_t<FloatType, 3> B;

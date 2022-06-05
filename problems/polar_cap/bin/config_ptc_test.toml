@@ -8,11 +8,11 @@ ptc_buffer_size = 1_000_000
 
 dt = 1.0e-2
 
-q_e = 5.0
+q_e = 1.0
 
 use_implicit = false
 
-Bp = 1000.0
+Bp = 1.0e5
 
 Rpc = 1.0
 

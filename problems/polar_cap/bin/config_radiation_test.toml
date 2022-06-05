@@ -11,13 +11,13 @@ ptc_buffer_size = 10_000
 
 dt = 1.0e-2
 
-q_e = 5.0
+q_e = 1.0
 
 use_implicit = false
 
 Bp = 1.0e3
 
-BQ = 1.0e4
+B_Q = 1.0e4
 
 Rpc = 1.0
 
@@ -30,9 +30,9 @@ sync_cooling_coef = 1.0
 N_inject = 7
 
 ### Simulation life time
-max_steps = 1000
+max_steps = 100
 
-fld_output_interval = 50
+fld_output_interval = 10
 
 ptc_output_interval = 500
 

@@ -277,6 +277,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           context.q = charges[context.sp];
           context.m = masses[context.sp];
           context.rng = &rng;
+          context.aux1 = ptc.aux1[n]; // Auxiliary variable, can be used for
+                                      // different quantities
 
           // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
           // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));

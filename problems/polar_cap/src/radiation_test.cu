@@ -69,9 +69,9 @@ main(int argc, char *argv[]) {
 
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
-  // auto rad = env.register_system<
-  //     radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
-  //                        curvature_emission_scheme_polar_cap>>(grid, &comm);
+  auto rad = env.register_system<
+      radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
+                         curvature_emission_scheme_polar_cap>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   // auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   // auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);

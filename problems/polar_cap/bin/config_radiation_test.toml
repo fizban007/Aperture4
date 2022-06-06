@@ -15,9 +15,9 @@ q_e = 1.0
 
 use_implicit = false
 
-Bp = 1.0e3
+Bp = 1.0e4
 
-B_Q = 1.0e4
+B_Q = 1.0e5
 
 Rpc = 1.0
 
@@ -30,7 +30,7 @@ sync_cooling_coef = 1.0
 N_inject = 7
 
 ### Simulation life time
-max_steps = 100
+max_steps = 300
 
 fld_output_interval = 10
 

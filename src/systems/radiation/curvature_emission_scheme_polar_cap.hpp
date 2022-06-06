@@ -25,6 +25,7 @@
 #include "data/phase_space.hpp"
 #include "framework/environment.h"
 #include "systems/grid.h"
+#include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/physics/sync_emission_helper.hpp"
 #include "systems/sync_curv_emission.h"
 #include "utils/interpolation.hpp"
@@ -67,6 +68,7 @@ struct curvature_emission_scheme_polar_cap {
   value_t m_re = 1.0e-4;   // r_e determines the overall curvature loss rate
   value_t m_rpc = 1.0e-2;  // r_pc is the polar cap radius
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
+  vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
   curvature_emission_scheme_polar_cap(const grid_t<Conf> &grid)
       : m_grid(grid) {}
@@ -83,17 +85,24 @@ struct curvature_emission_scheme_polar_cap {
     m_sync_module = sync_module->get_helper();
 
     // Get data pointers of B field
-    nonown_ptr<vector_field<Conf>> B;
+    nonown_ptr<vector_field<Conf>> B, E;
     sim_env().get_data("B", B);
+    sim_env().get_data("E", E);
 
 #ifdef CUDA_ENABLED
     m_B[0] = B->at(0).dev_ndptr_const();
     m_B[1] = B->at(1).dev_ndptr_const();
     m_B[2] = B->at(2).dev_ndptr_const();
+    m_E[0] = E->at(0).dev_ndptr_const();
+    m_E[1] = E->at(1).dev_ndptr_const();
+    m_E[2] = E->at(2).dev_ndptr_const();
 #else
     m_B[0] = B->at(0).host_ndptr_const();
     m_B[1] = B->at(1).host_ndptr_const();
     m_B[2] = B->at(2).host_ndptr_const();
+    m_E[0] = E->at(0).host_ndptr_const();
+    m_E[1] = E->at(1).host_ndptr_const();
+    m_E[2] = E->at(2).host_ndptr_const();
 #endif
   }
 
@@ -102,21 +111,38 @@ struct curvature_emission_scheme_polar_cap {
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
                                  unsigned long long int *ph_pos, rng_t &rng,
                                  value_t dt) {
-    value_t gamma = ptc.E[tid];
-    value_t p1 = ptc.p1[tid];
-    value_t p2 = ptc.p2[tid];
-    value_t p3 = ptc.p3[tid];
     auto flag = ptc.flag[tid];
-
     if (check_flag(flag, PtcFlag::ignore_radiation)) {
       return 0;
     }
 
-    // Compute the radius of curvature using particle location
+    value_t gamma = ptc.E[tid];
+    value_t p_par = ptc.p1[tid]; // Note that this only works for the gca pusher lite
+    value_t mu = ptc.p2[tid];
+    vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
+
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);
+    vec_t<value_t, 3> B, E;
+    auto interp = interp_t<1, Conf::dim>{};
+    B[0] = interp(rel_x, m_B[0], idx, ext, stagger_t(0b001));
+    B[1] = interp(rel_x, m_B[1], idx, ext, stagger_t(0b010));
+    B[2] = interp(rel_x, m_B[2], idx, ext, stagger_t(0b100));
+    E[0] = interp(rel_x, m_E[0], idx, ext, stagger_t(0b110));
+    E[1] = interp(rel_x, m_E[1], idx, ext, stagger_t(0b101));
+    E[2] = interp(rel_x, m_E[2], idx, ext, stagger_t(0b011));
+    value_t B_mag = math::sqrt(B.dot(B));
+
+    vec_t<value_t, 3> vE = coord_policy_cartesian_gca_lite<Conf>::f_v_E(E, B);
+    value_t kappa = 1.0f / math::sqrt(1.0f - vE.dot(vE));
+
+    // Find the "true" momentum of the particle
+    value_t p1 = (p_par * B[0] / B_mag / gamma + vE[0]) * gamma;
+    value_t p2 = (p_par * B[1] / B_mag / gamma + vE[1]) * gamma;
+    value_t p3 = (p_par * B[2] / B_mag / gamma + vE[2]) * gamma;
+
+    // Compute the radius of curvature using particle location
     auto pos = get_pos(idx, ext);
-    vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
     // x_global gives the cartesian coordinate of the particle
     auto x_global = grid.pos_global(pos, rel_x);
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -127,17 +153,16 @@ struct curvature_emission_scheme_polar_cap {
 
     // TODO: Refine criterion for photon to potentially convert to pair
     if (eph > 2.1f) {
-      value_t pi = std::sqrt(gamma * gamma - 1.0f);
+      value_t pi = std::sqrt(p1*p1 + p2*p2 + p3*p3);
 
       // Energy loss over the time interval dt
       value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) * dt;
       // Do not allow gamma to go below 1
       dE = std::min(dE, gamma - 1.01f);
+      value_t Ef = gamma - dE;
+      value_t u_par_new = math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
-      value_t pf = std::sqrt(square(gamma - dE) - 1.0f);
-      ptc.p1[tid] = p1 * pf / pi;
-      ptc.p2[tid] = p2 * pf / pi;
-      ptc.p3[tid] = p3 * pf / pi;
+      ptc.p1[tid] = u_par_new;
       ptc.E[tid] = gamma - dE;
 
       size_t offset = ph_num + atomic_add(ph_pos, 1);
@@ -162,7 +187,6 @@ struct curvature_emission_scheme_polar_cap {
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
                                   unsigned long long int *ptc_pos, rng_t &rng,
                                   value_t dt) {
-    auto interp = interp_t<1, Conf::dim>{};
     // Get the magnetic field vector at the particle location
     auto cell = ph.cell[tid];
     auto idx = Conf::idx(cell, ext);
@@ -170,6 +194,7 @@ struct curvature_emission_scheme_polar_cap {
     auto p = vec_t<value_t, 3>(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
 
     vec_t<value_t, 3> B;
+    auto interp = interp_t<1, Conf::dim>{};
     B[0] = interp(x, m_B[0], idx, ext, stagger_t(0b001));
     B[1] = interp(x, m_B[1], idx, ext, stagger_t(0b010));
     B[2] = interp(x, m_B[2], idx, ext, stagger_t(0b100));
@@ -207,9 +232,9 @@ struct curvature_emission_scheme_polar_cap {
         // Particle momentum is along B, direction is inherited from initial
         // photon direction
         value_t sign = sgn(p.dot(B));
-        ptc.p1[offset_e] = ptc.p1[offset_p] = sign * p_ptc / B_mag * B[0];
-        ptc.p2[offset_e] = ptc.p2[offset_p] = sign * p_ptc / B_mag * B[1];
-        ptc.p3[offset_e] = ptc.p3[offset_p] = sign * p_ptc / B_mag * B[2];
+        ptc.p1[offset_e] = ptc.p1[offset_p] = sign * p_ptc; // This is u_par in the gca_lite
+        ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;
+        ptc.p3[offset_e] = ptc.p3[offset_p] = 0.0f;
         ptc.E[offset_e] = ptc.E[offset_p] = gamma;
         ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
 

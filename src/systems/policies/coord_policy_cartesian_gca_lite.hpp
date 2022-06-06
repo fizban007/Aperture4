@@ -51,8 +51,8 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
 #endif
   }
 
-  HD_INLINE vec_t<value_t, 3> f_v_E(const vec_t<value_t, 3>& E,
-                                    const vec_t<value_t, 3>& B) const {
+  HD_INLINE static vec_t<value_t, 3> f_v_E(const vec_t<value_t, 3>& E,
+                                           const vec_t<value_t, 3>& B) {
     vec_t<value_t, 3> w_E;
     value_t EB_sqr = E.dot(E) + B.dot(B);
     // w_E[0] = (E[1] * B[2] - E[2] * B[1]) / EB_sqr;
@@ -64,15 +64,15 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     return w_E;
   }
 
-  HD_INLINE value_t f_kappa(const vec_t<value_t, 3>& E,
-                            const vec_t<value_t, 3>& B) const {
+  HD_INLINE static value_t f_kappa(const vec_t<value_t, 3>& E,
+                                   const vec_t<value_t, 3>& B) {
     auto vE = f_v_E(E, B);
     return 1.0f / math::sqrt(1.0f - vE.dot(vE));
   }
 
-  HD_INLINE value_t f_Gamma(value_t u_par, value_t mu,
-                            const vec_t<value_t, 3>& E,
-                            const vec_t<value_t, 3>& B) const {
+  HD_INLINE static value_t f_Gamma(value_t u_par, value_t mu,
+                                   const vec_t<value_t, 3>& E,
+                                   const vec_t<value_t, 3>& B) {
     auto k = f_kappa(E, B);
     auto B_mag = math::sqrt(B.dot(B));
     // Note that here mu is defined as specific mu, or mu divided by mass of the
@@ -83,10 +83,10 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
   // This computes (\mathbf{v} \cdot\div)\mathbf{b}, the change of the
   // unit vector b along the direction of v
   template <typename FieldType>
-  HOST_DEVICE vec_t<value_t, 3> vec_div_b(
+  HOST_DEVICE static vec_t<value_t, 3> vec_div_b(
       const vec_t<value_t, 3>& v, const FieldType& B, vec_t<value_t, 3> rel_x,
       index_t<Conf::dim> pos, const Grid<Conf::dim, value_t>& grid,
-      const vec_t<uint32_t, Conf::dim>& ext, value_t dt) const {
+      const vec_t<uint32_t, Conf::dim>& ext, value_t dt) {
     constexpr value_t h = 0.05f;
     vec_t<value_t, 3> vb, result;
 

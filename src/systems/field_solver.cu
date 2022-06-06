@@ -23,7 +23,6 @@
 #include "framework/config.h"
 #include "systems/helpers/field_solver_helper_cu.hpp"
 #include "systems/helpers/finite_diff_helper.hpp"
-#include "systems/helpers/pml_data.hpp"
 #include "utils/double_buffer.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"

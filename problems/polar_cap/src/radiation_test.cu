@@ -80,6 +80,7 @@ main(int argc, char *argv[]) {
   env.init();
 
   vector_field<Conf> *B0, *E0;
+  // env.get_data("B0", &B0);
   env.get_data("B", &B0);
   env.get_data("E", &E0);
   value_t Bp = sim_env().params().get_as<double>("Bp", 1.0e3);
@@ -107,7 +108,7 @@ main(int argc, char *argv[]) {
     value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * z * z / (r * r * r * r * r) - Bp / (r * r * r);
   });
-  Bp *= -0.1;
+  Bp *= -0.01;
   E0->set_values(0, [Bp, R_star](auto x, auto y, auto z) {
     z = z / R_star + 1.0;
     x /= R_star;

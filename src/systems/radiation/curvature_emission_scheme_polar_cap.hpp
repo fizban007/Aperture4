@@ -54,8 +54,10 @@ dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
 
 HOST_DEVICE Scalar
 magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth) {
-  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_*
-  return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_0
+  // return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+  Scalar chi = 0.5f * eph * b * sinth;
+  return chi > 0.12;
 }
 
 template <typename Conf>
@@ -132,6 +134,12 @@ struct curvature_emission_scheme_polar_cap {
 
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);
+    // Compute the radius of curvature using particle location
+    auto pos = get_pos(idx, ext);
+    // x_global gives the cartesian coordinate of the particle. We renormalize
+    // it to units of R_star
+    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
+
     vec_t<value_t, 3> B, E;
     auto interp = interp_t<1, Conf::dim>{};
     B[0] = interp(rel_x, m_B[0], idx, ext, stagger_t(0b001));
@@ -150,11 +158,6 @@ struct curvature_emission_scheme_polar_cap {
     value_t p2 = (p_par * B[1] / B_mag / gamma + vE[1]) * gamma;
     value_t p3 = (p_par * B[2] / B_mag / gamma + vE[2]) * gamma;
 
-    // Compute the radius of curvature using particle location
-    auto pos = get_pos(idx, ext);
-    // x_global gives the cartesian coordinate of the particle. We renormalize
-    // it to units of R_star
-    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
                                                     x_global[2]) * (m_Rstar / m_rpc);
@@ -163,20 +166,24 @@ struct curvature_emission_scheme_polar_cap {
     value_t e_c = m_e0 * cube(gamma) / Rc;
     value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
 
+    // Energy loss over the time interval dt.
+    // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) *
+    // dt;
+    value_t dE = m_e0 * m_nc / square(Rc) * square(square(gamma)) * dt;
+    // Do not allow gamma to go below 1
+    dE = std::min(dE, gamma - 1.01f);
+    value_t Ef = gamma - dE;
+    value_t u_par_new =
+        math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+
+    ptc.p1[tid] = u_par_new;
+    ptc.E[tid] = gamma - dE;
+
+    printf("Current particle energy is %f\n", gamma - dE);
+
     // TODO: Refine criterion for photon to potentially convert to pair
     if (eph > 2.1f) {
       value_t pi = std::sqrt(p1*p1 + p2*p2 + p3*p3);
-
-      // Energy loss over the time interval dt.
-      // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) * dt;
-      value_t dE = m_e0 * m_nc / square(Rc) * square(square(gamma)) * dt;
-      // Do not allow gamma to go below 1
-      dE = std::min(dE, gamma - 1.01f);
-      value_t Ef = gamma - dE;
-      value_t u_par_new = math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
-
-      ptc.p1[tid] = u_par_new;
-      ptc.E[tid] = gamma - dE;
 
       size_t offset = ph_num + atomic_add(ph_pos, 1);
       ph.x1[offset] = ptc.x1[tid];
@@ -206,6 +213,13 @@ struct curvature_emission_scheme_polar_cap {
     auto idx = Conf::idx(cell, ext);
     auto x = vec_t<value_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto p = vec_t<value_t, 3>(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
+    auto pos = get_pos(idx, ext);
+    // x_global gives the cartesian coordinate of the photon.
+    auto x_global = grid.pos_global(pos, x);
+
+    if (x_global[3] < 0.02) {
+      return 0;
+    }
 
     vec_t<value_t, 3> B;
     auto interp = interp_t<1, Conf::dim>{};
@@ -222,8 +236,9 @@ struct curvature_emission_scheme_polar_cap {
 
     if (eph * sinth > 2.0f) {
       // Note here that eph is multiplied by zeta. This is rescaling parameter in action
-      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
-      printf("pair prob is %f, sinth is %f\n", prob, sinth);
+      // value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
+      // printf("pair prob is %f, sinth is %f, Eph is %f, chi is %f\n", prob, sinth, eph, 0.5 * B_mag/m_BQ * m_zeta * eph * sinth);
+      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth);
       value_t u = rng.uniform<value_t>();
       if (u < prob) {
         // Actually produce the electron-positron pair

@@ -64,9 +64,13 @@ struct curvature_emission_scheme_polar_cap {
 
   const grid_t<Conf> &m_grid;
   sync_emission_helper_t m_sync_module;
-  value_t m_BQ = 1.0e3;    // B_Q determines the spectrum
-  value_t m_re = 1.0e-4;   // r_e determines the overall curvature loss rate
-  value_t m_rpc = 1.0e-2;  // r_pc is the polar cap radius
+  value_t m_BQ = 1.0e7;    // B_Q determines the spectrum
+  value_t m_e0 = 1.0e-6;
+  value_t m_nc = 1.0;
+  value_t m_re = 3.0 * m_e0 * m_nc / 2.0;   // r_e determines the overall curvature loss rate
+  value_t m_zeta = 7.0;
+  value_t m_rpc = 1.0;  // r_pc is the polar cap radius
+  value_t m_Rstar = 10.0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
@@ -76,8 +80,13 @@ struct curvature_emission_scheme_polar_cap {
   void init() {
     // initialize the spectrum related parameters
     sim_env().params().get_value("B_Q", m_BQ);
-    sim_env().params().get_value("r_e", m_re);
+    sim_env().params().get_value("e0", m_e0);
+    sim_env().params().get_value("nc", m_nc);
+    sim_env().params().get_value("zeta", m_zeta);
     sim_env().params().get_value("Rpc", m_rpc);
+    sim_env().params().get_value("R_star", m_Rstar);
+
+    m_re = 3.0 * m_e0 * m_nc / 2.0;
 
     // initialize synchro-curvature radiation module
     auto sync_module =
@@ -143,20 +152,24 @@ struct curvature_emission_scheme_polar_cap {
 
     // Compute the radius of curvature using particle location
     auto pos = get_pos(idx, ext);
-    // x_global gives the cartesian coordinate of the particle
-    auto x_global = grid.pos_global(pos, rel_x);
+    // x_global gives the cartesian coordinate of the particle. We renormalize
+    // it to units of R_star
+    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
+    // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
-                                                    x_global[2]);
+                                                    x_global[2]) * (m_Rstar / m_rpc);
 
-    // Draw photon energy
-    value_t eph = m_sync_module.gen_curv_photon(gamma, Rc, m_BQ, rng);
+    // Draw photon energy. e0 is our rescaling parameter in action
+    value_t e_c = m_e0 * cube(gamma) / Rc;
+    value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
 
     // TODO: Refine criterion for photon to potentially convert to pair
     if (eph > 2.1f) {
       value_t pi = std::sqrt(p1*p1 + p2*p2 + p3*p3);
 
-      // Energy loss over the time interval dt
-      value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) * dt;
+      // Energy loss over the time interval dt.
+      // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) * dt;
+      value_t dE = m_e0 * m_nc / square(Rc) * square(square(gamma)) * dt;
       // Do not allow gamma to go below 1
       dE = std::min(dE, gamma - 1.01f);
       value_t Ef = gamma - dE;
@@ -178,6 +191,7 @@ struct curvature_emission_scheme_polar_cap {
 
       return offset;
     }
+    // TODO: tally the untracked photons
 
     return 0;
   }
@@ -207,7 +221,8 @@ struct curvature_emission_scheme_polar_cap {
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
 
     if (eph * sinth > 2.0f) {
-      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, eph, sinth) * dt;
+      // Note here that eph is multiplied by zeta. This is rescaling parameter in action
+      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
       printf("pair prob is %f, sinth is %f\n", prob, sinth);
       value_t u = rng.uniform<value_t>();
       if (u < prob) {
@@ -235,7 +250,10 @@ struct curvature_emission_scheme_polar_cap {
         ptc.p1[offset_e] = ptc.p1[offset_p] = sign * p_ptc; // This is u_par in the gca_lite
         ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;
         ptc.p3[offset_e] = ptc.p3[offset_p] = 0.0f;
-        ptc.E[offset_e] = ptc.E[offset_p] = gamma;
+        ptc.E[offset_e] = ptc.E[offset_p] = gamma; // Note that this may not be
+                                                   // the correct gamma. However
+                                                   // it is no big deal since it
+                                                   // will be updated next time step
         ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
 
         ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];

@@ -53,9 +53,10 @@ dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
 }
 
 HOST_DEVICE Scalar
-magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth) {
-  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_*
-  return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth, Scalar Rpc_over_Rstar) {
+  // The coefficient is 0.23 * \alpha_f * R_pc / \labmdabar_c, seems no reason to rescale
+  // return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+  return 4.35e13 * Rpc_over_Rstar * b * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
 }
 
 template <typename Conf>
@@ -66,7 +67,9 @@ struct curvature_emission_scheme_polar_cap {
   sync_emission_helper_t m_sync_module;
   value_t m_BQ = 1.0e3;    // B_Q determines the spectrum
   value_t m_re = 1.0e-4;   // r_e determines the overall curvature loss rate
-  value_t m_rpc = 1.0e-2;  // r_pc is the polar cap radius
+  value_t m_rpc = 1.0;  // r_pc is the polar cap radius
+  value_t m_R_star = 10.0; // R_star is the stellar radius
+  value_t m_zeta = 10.0; // Enhance factor for pair production rate
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
@@ -78,6 +81,8 @@ struct curvature_emission_scheme_polar_cap {
     sim_env().params().get_value("B_Q", m_BQ);
     sim_env().params().get_value("r_e", m_re);
     sim_env().params().get_value("Rpc", m_rpc);
+    sim_env().params().get_value("R_star", m_R_star);
+    sim_env().params().get_value("zeta", m_zeta);
 
     // initialize synchro-curvature radiation module
     auto sync_module =
@@ -207,7 +212,7 @@ struct curvature_emission_scheme_polar_cap {
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
 
     if (eph * sinth > 2.0f) {
-      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, eph, sinth) * dt;
+      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth, m_rpc/m_R_star) * dt;
       printf("pair prob is %f, sinth is %f\n", prob, sinth);
       value_t u = rng.uniform<value_t>();
       if (u < prob) {

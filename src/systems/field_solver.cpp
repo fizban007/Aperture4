@@ -109,6 +109,10 @@ field_solver<Conf>::init() {
   //                                                 m_grid, m_comm);
   //   }
   // }
+  this->Etotal->copy_from(*(this->E0));
+  this->Etotal->add_by(*(this->E));
+  this->Btotal->copy_from(*(this->B0));
+  this->Btotal->add_by(*(this->B));
 }
 
 template <typename Conf>

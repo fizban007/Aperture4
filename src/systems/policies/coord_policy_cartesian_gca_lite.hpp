@@ -60,8 +60,12 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     // w_E[2] = (E[0] * B[1] - E[1] * B[0]) / EB_sqr;
     w_E = cross(E, B) / EB_sqr;
     value_t w2 = w_E.dot(w_E);
-    w_E *= (1.0f - math::sqrt(1.0f - 4.0f * w2)) * 0.5f / w2;
-    return w_E;
+    if (w2 < TINY) {
+      return w_E;
+    } else {
+      w_E *= (1.0f - math::sqrt(1.0f - 4.0f * w2)) * 0.5f / w2;
+      return w_E;
+    }
   }
 
   HD_INLINE static value_t f_kappa(const vec_t<value_t, 3>& E,
@@ -126,16 +130,23 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     value_t u_par = context.p[0];
     value_t mu = context.p[1];
 
+    // printf("u_par is %f, mu is %f\n", u_par, mu);
+
     vec_t<value_t, 3> vE = f_v_E(context.E, context.B);
+    // printf("vE is (%f, %f, %f)\n", vE[0], vE[1], vE[2]);
 
     value_t B_mag = math::sqrt(context.B.dot(context.B));
     vec_t<value_t, 3> b = context.B / B_mag;
     value_t E_par = context.E.dot(b);
 
+    // printf("E_par is %f, B_mag is %f\n", E_par, B_mag);
+
     value_t u_par_new = u_par + context.q * dt * E_par / context.m;
     value_t Gamma_new = f_Gamma(u_par_new, mu, context.E, context.B);
     // Need to update this because we are going to use this in the iteration
     context.gamma = Gamma_new;
+
+    // printf("u_par_new is %f, Gamma_new is %f\n", u_par_new, Gamma_new);
 
     auto x_global = grid.pos_global(pos, context.x);
     auto x_iter = x_global;

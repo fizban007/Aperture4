@@ -47,15 +47,17 @@ HOST_DEVICE Scalar
 dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
   Scalar r_cyl = math::sqrt(x * x + y * y);
   Scalar z_r = z + 1.0f;  // R* is our unit
-  Scalar th = atan2(z_r, r_cyl);
+  Scalar th = atan2(r_cyl, z_r);
   Scalar r = math::sqrt(z_r * z_r + r_cyl * r_cyl);
   return dipole_curv_radius(r, th);
 }
 
 HOST_DEVICE Scalar
 magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth) {
-  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_*
+  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_0
   return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+  // Scalar chi = 0.5f * eph * b * sinth;
+  // return chi > 0.12;
 }
 
 template <typename Conf>
@@ -132,6 +134,12 @@ struct curvature_emission_scheme_polar_cap {
 
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);
+    // Compute the radius of curvature using particle location
+    auto pos = get_pos(idx, ext);
+    // x_global gives the cartesian coordinate of the particle. We renormalize
+    // it to units of R_star
+    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
+
     vec_t<value_t, 3> B, E;
     auto interp = interp_t<1, Conf::dim>{};
     B[0] = interp(rel_x, m_B[0], idx, ext, stagger_t(0b001));
@@ -146,52 +154,70 @@ struct curvature_emission_scheme_polar_cap {
     value_t kappa = 1.0f / math::sqrt(1.0f - vE.dot(vE));
 
     // Find the "true" momentum of the particle
-    value_t p1 = (p_par * B[0] / B_mag / gamma + vE[0]) * gamma;
-    value_t p2 = (p_par * B[1] / B_mag / gamma + vE[1]) * gamma;
-    value_t p3 = (p_par * B[2] / B_mag / gamma + vE[2]) * gamma;
+    // value_t p1 = (p_par * B[0] / B_mag / gamma + vE[0]) * gamma;
+    // value_t p2 = (p_par * B[1] / B_mag / gamma + vE[1]) * gamma;
+    // value_t p3 = (p_par * B[2] / B_mag / gamma + vE[2]) * gamma;
+    value_t p1 = p_par * B[0] / B_mag;
+    value_t p2 = p_par * B[1] / B_mag;
+    value_t p3 = p_par * B[2] / B_mag;
+    value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
 
-    // Compute the radius of curvature using particle location
-    auto pos = get_pos(idx, ext);
-    // x_global gives the cartesian coordinate of the particle. We renormalize
-    // it to units of R_star
-    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
                                                     x_global[2]) * (m_Rstar / m_rpc);
 
-    // Draw photon energy. e0 is our rescaling parameter in action
-    value_t e_c = m_e0 * cube(gamma) / Rc;
-    value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
+    // printf("x_global[2] is %f, Rc is %f\n", x_global[2], Rc);
 
-    // TODO: Refine criterion for photon to potentially convert to pair
-    if (eph > 2.1f) {
-      value_t pi = std::sqrt(p1*p1 + p2*p2 + p3*p3);
+    // Expected number of emitted photon over the time interval dt
+    value_t dn = m_nc * gamma / Rc;
+    value_t u = rng.uniform<value_t>();
+    if (u < dn) {
+      // Draw photon energy. e0 is our rescaling parameter in action
+      value_t e_c = m_e0 * cube(gamma) / Rc;
+      value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
 
       // Energy loss over the time interval dt.
-      // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) * dt;
-      value_t dE = m_e0 * m_nc / square(Rc) * square(square(gamma)) * dt;
+      // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) *
+      // dt;
+      // value_t dE = m_e0 * m_nc / square(Rc) * square(square(gamma)) * dt;
+
+      // printf("e_c is %f, eph is %f\n", e_c, eph);
+
       // Do not allow gamma to go below 1
-      dE = std::min(dE, gamma - 1.01f);
-      value_t Ef = gamma - dE;
-      value_t u_par_new = math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+      // dE = std::min(dE, gamma - 1.01f);
+      value_t Ef = gamma - eph;
+      value_t u_par_new =
+          math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
-      ptc.E[tid] = gamma - dE;
+      ptc.E[tid] = Ef;
 
-      size_t offset = ph_num + atomic_add(ph_pos, 1);
-      ph.x1[offset] = ptc.x1[tid];
-      ph.x2[offset] = ptc.x2[tid];
-      ph.x3[offset] = ptc.x3[tid];
-      ph.p1[offset] = eph * p1 / pi;
-      ph.p2[offset] = eph * p2 / pi;
-      ph.p3[offset] = eph * p3 / pi;
-      ph.E[offset] = eph;
-      ph.weight[offset] = ptc.weight[tid] * dE / eph;
-      ph.cell[offset] = ptc.cell[tid];
+      // printf("Current particle energy is %f, emitted eph of %f\n", Ef, eph);
 
-      return offset;
+      // TODO: Refine criterion for photon to potentially convert to pair
+      // if (eph > 2.1f) {
+      value_t sinth_max = grid.sizes[2] / Rc;
+      value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
+      // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
+      if (chi_max > 0.08f) {
+        value_t pi = std::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
+
+        size_t offset = ph_num + atomic_add(ph_pos, 1);
+        ph.x1[offset] = ptc.x1[tid];
+        ph.x2[offset] = ptc.x2[tid];
+        ph.x3[offset] = ptc.x3[tid];
+        ph.p1[offset] = eph * p1 / pi;
+        ph.p2[offset] = eph * p2 / pi;
+        ph.p3[offset] = eph * p3 / pi;
+        ph.E[offset] = eph;
+        ph.weight[offset] = ptc.weight[tid];
+        ph.cell[offset] = ptc.cell[tid];
+        ph.path_left[offset] = 0.0f;
+
+        return offset;
+      }
+      // TODO: tally the untracked photons
     }
-    // TODO: tally the untracked photons
 
     return 0;
   }
@@ -206,6 +232,14 @@ struct curvature_emission_scheme_polar_cap {
     auto idx = Conf::idx(cell, ext);
     auto x = vec_t<value_t, 3>(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto p = vec_t<value_t, 3>(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
+    auto pos = get_pos(idx, ext);
+
+    // x_global gives the cartesian coordinate of the photon.
+    auto x_global = grid.pos_global(pos, x);
+
+    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+      return 0;
+    }
 
     vec_t<value_t, 3> B;
     auto interp = interp_t<1, Conf::dim>{};
@@ -219,52 +253,54 @@ struct curvature_emission_scheme_polar_cap {
     value_t eph = ph.E[tid];
     auto pxB = cross(p, B);
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
+    // Note here that eph is multiplied by zeta. This is rescaling parameter in action
+    value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
+    value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
+    // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f\n", sinth, ph.path_left[tid], eph, prob,
+    //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta);
 
-    if (eph * sinth > 2.0f) {
-      // Note here that eph is multiplied by zeta. This is rescaling parameter in action
-      value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
-      printf("pair prob is %f, sinth is %f\n", prob, sinth);
-      value_t u = rng.uniform<value_t>();
-      if (u < prob) {
-        // Actually produce the electron-positron pair
-        size_t offset = ptc_num + atomic_add(ptc_pos, 2);
-        size_t offset_e = offset;
-        size_t offset_p = offset + 1;
+    value_t u = rng.uniform<value_t>();
+    if (u < prob && chi > 0.1) {
+      // Actually produce the electron-positron pair
+      size_t offset = ptc_num + atomic_add(ptc_pos, 2);
+      size_t offset_e = offset;
+      size_t offset_p = offset + 1;
 
-        value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
-        // Immediately cool to zero magnetic moment and reduce Lorentz factor as
-        // needed
-        value_t gamma = 0.5f * eph;
-        if (sinth > TINY && gamma > 1.0f / sinth) {
-          gamma = 1.0f / sinth;
-          p_ptc = math::sqrt(gamma * gamma - 1.0f);
-        }
-
-        ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
-        ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
-        ptc.x3[offset_e] = ptc.x3[offset_p] = x[2];
-
-        // Particle momentum is along B, direction is inherited from initial
-        // photon direction
-        value_t sign = sgn(p.dot(B));
-        ptc.p1[offset_e] = ptc.p1[offset_p] = sign * p_ptc; // This is u_par in the gca_lite
-        ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;
-        ptc.p3[offset_e] = ptc.p3[offset_p] = 0.0f;
-        ptc.E[offset_e] = ptc.E[offset_p] = gamma; // Note that this may not be
-                                                   // the correct gamma. However
-                                                   // it is no big deal since it
-                                                   // will be updated next time step
-        ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
-
-        ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
-        ptc.cell[offset_e] = ptc.cell[offset_p] = cell;
-        ptc.flag[offset_e] =
-            set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::electron);
-        ptc.flag[offset_p] =
-            set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::positron);
-
-        return offset;
+      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
+      // Immediately cool to zero magnetic moment and reduce Lorentz factor as
+      // needed
+      value_t gamma = 0.5f * eph;
+      if (sinth > TINY && gamma > 1.0f / sinth) {
+        gamma = 1.0f / sinth;
+        p_ptc = math::sqrt(gamma * gamma - 1.0f);
       }
+
+      ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
+      ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
+      ptc.x3[offset_e] = ptc.x3[offset_p] = x[2];
+
+      // Particle momentum is along B, direction is inherited from initial
+      // photon direction
+      value_t sign = sgn(p.dot(B));
+      ptc.p1[offset_e] = ptc.p1[offset_p] =
+          sign * p_ptc;  // This is u_par in the gca_lite
+      ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;
+      ptc.p3[offset_e] = ptc.p3[offset_p] = 0.0f;
+      ptc.E[offset_e] = ptc.E[offset_p] =
+          gamma;  // Note that this may not be
+                  // the correct gamma. However
+                  // it is no big deal since it
+                  // will be updated next time step
+      ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
+
+      ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
+      ptc.cell[offset_e] = ptc.cell[offset_p] = cell;
+      ptc.flag[offset_e] =
+          set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::electron);
+      ptc.flag[offset_p] =
+          set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::positron);
+
+      return offset;
     }
 
     return 0;

@@ -44,7 +44,7 @@ class boundary_condition : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
-  void apply_rotating_boundary();
+  void apply_rotating_boundary(double time);
   void inject_plasma(int step);
 
  protected:

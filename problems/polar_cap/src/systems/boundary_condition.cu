@@ -58,17 +58,19 @@ template <typename Conf> void boundary_condition<Conf>::init() {
 
 template <typename Conf>
 void boundary_condition<Conf>::update(double dt, uint32_t step) {
-  apply_rotating_boundary();
+  apply_rotating_boundary(dt * step);
   inject_plasma(step);
 }
 
-template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary() {
+template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(double time) {
   typedef typename Conf::idx_t idx_t;
   value_t Bp = m_Bp;
   value_t Rpc = m_Rpc;
   value_t Rstar = m_Rstar;
   // dimensionless rotation omega = (r_pc/R_*)^2 c/R_*
   value_t omega = square(Rpc / Rstar);
+  value_t prof_t = (time < 1.0 ? time : 1.0);
+  omega *= prof_t;
 
   bool is_bottom = true;
   // 4 is the lower z boundary
@@ -91,7 +93,7 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
             value_t z = grid.pos(2, pos[2], false);
 
             // Rotating conductor
-            if (pos[2] <= grid.guard[2]) {
+            if (pos[2] <= grid.guard[2] + 1) {
               value_t r = math::sqrt(x * x + y * y);
               value_t r_frac = r / Rpc;
               value_t smooth_prof =
@@ -102,7 +104,9 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
 
               e[0][idx] = E0 * x / r;
               e[1][idx] = E0 * y / r;
-              // e[2][idx] = Br * omega * r * smooth_prof;
+              if (pos[2] <= grid.guard[2]) {
+                e[2][idx] = Br * omega * r * smooth_prof;
+              }
             }
 
             // Closed zone
@@ -135,10 +139,13 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
   value_t omega = square(Rpc / Rstar);
   auto num = ptc->number();
 
-  // auto ext_inj = extent_t<3>(m_grid.reduced_dim(0),
-  //                            m_grid.reduced_dim(1),
-  //                            inj_length);
-  if (step % 2 == 0) {
+  bool is_bottom = true;
+  // 4 is the lower z boundary
+  if (m_comm != nullptr && m_comm->domain_info().is_boundary[4] != true) {
+    is_bottom = false;
+  }
+
+  if (is_bottom && step % 10 == 0) {
   // if (step < 1) {
     injector->inject(
         [inj_length, Rpc] __device__(auto &pos, auto &grid, auto &ext) {
@@ -147,7 +154,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
             value_t y = grid.pos(1, pos[1], false);
             value_t r = math::sqrt(x * x + y * y);
 
-            if (r < Rpc) {
+            if (r < 1.0f * Rpc) {
               return true;
             }
           }
@@ -163,7 +170,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
 
           auto p1 = rng.gaussian(0.1f);
           auto p2 = 0.0f;
-          auto p3 = rng.gaussian(0.1f);
+          auto p3 = 0.0f;
           return vec_t<value_t, 3>(p1, p2, p3);
           // return rng.maxwell_juttner_3d(0.1f);
         },
@@ -173,6 +180,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step) 
           value_t r_frac = r / Rpc;
           value_t smooth_prof = 0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.2f));
           return 2.0f * Bp * omega * smooth_prof / n_inject;
+          // return 2.0f * Bp * omega / n_inject;
         });
   }
 }

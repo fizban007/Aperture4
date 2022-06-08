@@ -67,13 +67,12 @@ class radiative_transfer : public system_t {
   nonown_ptr<rng_states_t> rng_states;
 
   // parameters for this module
-  bool m_emit_photons = true;
-  bool m_produce_pairs = true;
   uint32_t m_data_interval = 1;
   uint32_t m_sort_interval = 20;
   int m_ph_per_scatter = 1;
   float m_tracked_fraction = 0.01;
   uint64_t m_track_rank = 0;
+
 };
 
 }

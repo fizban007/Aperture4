@@ -2,41 +2,37 @@ num_species = 2
 
 ion_mass = 1.0
 
-max_ptc_num = 150_000_000
-ptc_segment_size = 10_000_000
-max_ph_num = 50_000_000
-ph_segment_size = 10_000_000
+max_ptc_num = 200_000
+ptc_segment_size = 100_000
+max_ph_num = 100_000
+ph_segment_size = 100_000
 
 ptc_buffer_size = 10_000
 
-dt = 7.0e-3
+dt = 1.0e-2
 
 q_e = 1.0
 
 use_implicit = false
 
-Bp = 1.0e5
+Bp = 1.0e4
 
-B_Q = 1.0e6
+B_Q = 1.0e5
 
 Rpc = 1.0
 
-R_star = 7.75
+R_star = 5.0
 
 current_smoothing = 1
 
-e0 = 1.0e-4
+sync_cooling_coef = 1.0
 
-nc = 0.1
-
-zeta = 10
-
-N_inject = 10
+N_inject = 7
 
 ### Simulation life time
-max_steps = 1000
+max_steps = 300
 
-fld_output_interval = 50
+fld_output_interval = 10
 
 ptc_output_interval = 500
 
@@ -47,7 +43,7 @@ sort_interval = 23
 ### Grid parameters
 # Number of grid points in each direction, excluding guard cells. This should be
 # a multiple of at least 32.
-N = [256, 256, 384]
+N = [128, 128, 128]
 
 nodes = [2, 2, 1]
 
@@ -59,7 +55,7 @@ guard = [2, 2, 2]
 lower = [-2.0, -2.0, 0.0]
 
 # Size of the box in each dimension
-size = [4.0, 4.0, 6.0]
+size = [4.0, 4.0, 4.0]
 
 # Whether boundaries are periodic
 periodic_boundary = [false, false, false]
@@ -73,4 +69,4 @@ pml_length = 8
 # Field output downsample factor
 downsample = 2
 
-output_dir = "/home/alex/nvme/Data/Polar Cap/data/"
+## output_dir = "/home/alex/storage/Data/Aperture4/quasi_1d/"

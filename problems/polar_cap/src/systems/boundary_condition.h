@@ -45,7 +45,7 @@ class boundary_condition : public system_t {
   void update(double dt, uint32_t step) override;
 
   void apply_rotating_boundary(double time);
-  void inject_plasma(int step);
+  void inject_plasma(int step, double time);
 
  protected:
   const grid_t<Conf>& m_grid;
@@ -53,6 +53,7 @@ class boundary_condition : public system_t {
   value_t m_Bp = 1.0e3;
   value_t m_Rpc = 1.0;
   value_t m_Rstar = 10.0;
+  value_t m_qe = 1.0;
   int m_Ninject = 0;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
@@ -63,7 +64,7 @@ class boundary_condition : public system_t {
 
   // std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;
   buffer<typename Conf::ndptr_t> m_prev_E, m_prev_B;
-
+  vec_t<typename Conf::ndptr_t, 3> m_E_ptr;
 };
 
 }

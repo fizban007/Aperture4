@@ -177,7 +177,7 @@ struct Grid {
     rel_x = global_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      idx[i] = int((global_x[i] - lower[i]) / delta[i]);
+      idx[i] = int(floor((global_x[i] - lower[i]) / delta[i]));
       rel_x[i] = (global_x[i] - lower[i] - idx[i] * delta[i]) * inv_delta[i];
       idx[i] += guard[i];
     }

@@ -30,14 +30,15 @@
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies.h"
 #include "systems/ptc_updater_base_impl.hpp"
-#include "systems/radiation/curvature_emission_scheme_polar_cap.hpp"
+#include "systems/radiation/curvature_emission_scheme_gca_lite.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 
 namespace Aperture {
 
 template class radiative_transfer<Config<3>, exec_policy_cuda,
                                   coord_policy_cartesian,
-                                  curvature_emission_scheme_polar_cap>;
+                                  // curvature_emission_scheme_polar_cap>;
+                                  curvature_emission_scheme_gca_lite>;
 
 template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
 
@@ -70,9 +71,11 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
+      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
-                         curvature_emission_scheme_polar_cap>>(grid, &comm);
+                         // curvature_emission_scheme_polar_cap>>(grid, &comm);
+                         curvature_emission_scheme_gca_lite>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
@@ -133,11 +136,11 @@ main(int argc, char *argv[]) {
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
 
-  ptc->append_dev({0.0f, 0.0f, 0.0f}, {100.0f, 0.0f, 0.0f},
-                  grid.dims[0] * 2 / 5 + grid.dims[1] / 2 * grid.dims[0] + 2 * grid.dims[0] * grid.dims[1],
-                  1.0f, set_ptc_type_flag(0, PtcType::electron));
-  cudaDeviceSynchronize();
-  Logger::print_info("finished initializing a single particle");
+  // ptc->append_dev({0.0f, 0.0f, 0.0f}, {100.0f, 0.0f, 0.0f},
+  //                 grid.dims[0] * 2 / 5 + grid.dims[1] / 2 * grid.dims[0] + 2 * grid.dims[0] * grid.dims[1],
+  //                 1.0f, set_ptc_type_flag(0, PtcType::electron));
+  // cudaDeviceSynchronize();
+  // Logger::print_info("finished initializing a single particle");
 
   env.run();
 

@@ -76,18 +76,19 @@ class boundary_condition : public system_t {
     // if (m_omega_t * time < 5000.0)
     value_t phase = time * m_omega_t;
     value_t length = num_wavelengths;
-    value_t smooth_width = 0.1;
+    value_t smooth_width = 0.2;
     if (phase < length) {
       value_t prof = 1.0;
-      value_t arg = phase / length;
+      value_t arg = 2.0 * phase / length;
       // omega = 2.0 * M_PI * m_omega_t * m_E0 * sin(2.0 * M_PI * phase);
-      if (arg < smooth_width) {
-        prof = square(math::sin(arg * M_PI / (smooth_width * 2.0f)));
-      } else if (arg > 1.0 - smooth_width) {
-        prof = square(math::sin((arg - 1.0f + smooth_width) * M_PI /
-                                    (smooth_width * 2.0f) +
-                                0.5f * M_PI));
-      }
+      // if (arg < smooth_width) {
+      //   prof = square(math::sin(arg * M_PI / (smooth_width * 2.0f)));
+      // } else if (arg > 1.0 - smooth_width) {
+      //   prof = square(math::sin((arg - 1.0f + smooth_width) * M_PI /
+      //                               (smooth_width * 2.0f) +
+      //                           0.5f * M_PI));
+      // }
+      prof = 0.5f * (1.0f - tanh((math::abs(arg - 1.0f) - 0.6f) / 0.1f)) - 3.35e-4;
       omega = prof * m_E0 * sin(2.0 * M_PI * phase);
     } else {
       omega = 0.0;
@@ -196,11 +197,7 @@ main(int argc, char *argv[]) {
       },
       [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                PtcType type) {
-        auto p = rng.maxwell_juttner_3d(kT_upstream);
-        return p;
-        // return vec_t<value_t, 3>(rng.gaussian(kT_upstream),
-        //                          rng.gaussian(kT_upstream),
-        //                          rng.gaussian(kT_upstream));
+        return rng.maxwell_juttner_3d(kT_upstream);
       },
       // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
       [rho_bg, n_upstream, q_e, lowers] __device__(auto &x_global) {

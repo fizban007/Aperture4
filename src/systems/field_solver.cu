@@ -126,62 +126,83 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
             }
 
             // evolve E0
-            e1[0][idx] +=
-                dt * ((Conf::dim > 1 ? cherenkov_factor *
-                                           diff<1>(b[2], idx, stagger[2],
-                                                   order_tag<diff_order>{}) *
-                                           grid.inv_delta[1]
-                                     : 0.0f) -
-                      e1[0][idx] * sigma_1);
-
-            e2[0][idx] +=
-                dt * ((Conf::dim > 2 ? cherenkov_factor *
-                                           (-diff<2>(b[1], idx, stagger[1],
+            if (sigma_1 > 0.0f || sigma_2 > 0.0f) {
+              e1[0][idx] +=
+                  dt * ((Conf::dim > 1 ? cherenkov_factor *
+                                             diff<1>(b[2], idx, stagger[2],
                                                      order_tag<diff_order>{}) *
-                                            grid.inv_delta[2])
-                                     : 0.0f) -
-                      e2[0][idx] * sigma_2);
+                                             grid.inv_delta[1]
+                                       : 0.0f) -
+                        e1[0][idx] * sigma_1);
 
-            result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha;
+              e2[0][idx] +=
+                  dt *
+                  ((Conf::dim > 2 ? cherenkov_factor *
+                                        (-diff<2>(b[1], idx, stagger[1],
+                                                  order_tag<diff_order>{}) *
+                                         grid.inv_delta[2])
+                                  : 0.0f) -
+                   e2[0][idx] * sigma_2);
+
+              result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha;
+            } else {
+              result[0][idx] += dt * (cherenkov_factor *
+                                      fd<Conf>::curl0(b, idx, stagger, grid) -
+                                  j[0][idx]);
+            }
 
             // evolve E1
-            e1[1][idx] +=
-                dt * ((Conf::dim > 2 ? cherenkov_factor *
-                                           diff<2>(b[0], idx, stagger[0],
-                                                   order_tag<diff_order>{}) *
-                                           grid.inv_delta[2]
-                                     : 0.0f) -
-                      e1[1][idx] * sigma_2);
-
-            e2[1][idx] +=
-                dt * ((Conf::dim > 0 ? cherenkov_factor *
-                                           (-diff<0>(b[2], idx, stagger[2],
+            if (sigma_2 > 0.0f || sigma_0 > 0.0f) {
+              e1[1][idx] +=
+                  dt * ((Conf::dim > 2 ? cherenkov_factor *
+                                             diff<2>(b[0], idx, stagger[0],
                                                      order_tag<diff_order>{}) *
-                                            grid.inv_delta[0])
-                                     : 0.0f) -
-                      e2[1][idx] * sigma_0);
+                                             grid.inv_delta[2]
+                                       : 0.0f) -
+                        e1[1][idx] * sigma_2);
 
-            result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
+              e2[1][idx] +=
+                  dt *
+                  ((Conf::dim > 0 ? cherenkov_factor *
+                                        (-diff<0>(b[2], idx, stagger[2],
+                                                  order_tag<diff_order>{}) *
+                                         grid.inv_delta[0])
+                                  : 0.0f) -
+                   e2[1][idx] * sigma_0);
+
+              result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
+            } else {
+            result[1][idx] += dt * (cherenkov_factor *
+                                      fd<Conf>::curl1(b, idx, stagger, grid) -
+                                  j[1][idx]);
+            }
 
             // evolve E2
-            e1[2][idx] +=
-                dt * ((Conf::dim > 0 ? cherenkov_factor *
-                                           diff<0>(b[1], idx, stagger[1],
-                                                   order_tag<diff_order>{}) *
-                                           grid.inv_delta[0]
-                                     : 0.0f) -
-                      e1[2][idx] * sigma_0);
-
-            e2[2][idx] +=
-                dt * ((Conf::dim > 1 ? cherenkov_factor *
-                                           (-diff<1>(b[0], idx, stagger[0],
+            if (sigma_0 > 0.0f || sigma_1 > 0.0f) {
+              e1[2][idx] +=
+                  dt * ((Conf::dim > 0 ? cherenkov_factor *
+                                             diff<0>(b[1], idx, stagger[1],
                                                      order_tag<diff_order>{}) *
-                                            grid.inv_delta[1])
-                                     : 0.0f) -
-                      e2[2][idx] * sigma_1);
+                                             grid.inv_delta[0]
+                                       : 0.0f) -
+                        e1[2][idx] * sigma_0);
 
-            result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha;
+              e2[2][idx] +=
+                  dt *
+                  ((Conf::dim > 1 ? cherenkov_factor *
+                                        (-diff<1>(b[0], idx, stagger[0],
+                                                  order_tag<diff_order>{}) *
+                                         grid.inv_delta[1])
+                                  : 0.0f) -
+                   e2[2][idx] * sigma_1);
 
+              result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha;
+            } else {
+              result[2][idx] +=
+                  dt *
+                  (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
+                   j[2][idx]);
+            }
           }
         }
       },
@@ -250,62 +271,79 @@ compute_b_update_explicit_pml_cu(vector_field<Conf> &result,
             }
 
             // evolve B0
-            b1[0][idx] +=
-                dt * (-(Conf::dim > 1 ? cherenkov_factor *
-                                           diff<1>(e[2], idx, stagger[2],
+            if (sigma_1 > 0.0f || sigma_2 > 0.0f) {
+              b1[0][idx] +=
+                  dt * (-(Conf::dim > 1 ? cherenkov_factor *
+                                              diff<1>(e[2], idx, stagger[2],
+                                                      order_tag<diff_order>{}) *
+                                              grid.inv_delta[1]
+                                        : 0.0f) -
+                        b1[0][idx] * sigma_1);
+
+              b2[0][idx] +=
+                  dt *
+                  (-(Conf::dim > 2 ? cherenkov_factor *
+                                         (-diff<2>(e[1], idx, stagger[1],
                                                    order_tag<diff_order>{}) *
-                                           grid.inv_delta[1]
-                                     : 0.0f) -
-                      b1[0][idx] * sigma_1);
+                                          grid.inv_delta[2])
+                                   : 0.0f) -
+                   b2[0][idx] * sigma_2);
 
-            b2[0][idx] +=
-                dt * (-(Conf::dim > 2 ? cherenkov_factor *
-                                           (-diff<2>(e[1], idx, stagger[1],
-                                                     order_tag<diff_order>{}) *
-                                            grid.inv_delta[2])
-                                     : 0.0f) -
-                      b2[0][idx] * sigma_2);
-
-            result[0][idx] = b1[0][idx] + b2[0][idx];
+              result[0][idx] = b1[0][idx] + b2[0][idx];
+            } else {
+              result[0][idx] += -dt * cherenkov_factor *
+                                fd<Conf>::curl0(e, idx, stagger, grid);
+            }
 
             // evolve B1
-            b1[1][idx] +=
-                dt * (-(Conf::dim > 2 ? cherenkov_factor *
-                                           diff<2>(e[0], idx, stagger[0],
+            if (sigma_2 > 0.0f || sigma_0 > 0.0f) {
+              b1[1][idx] +=
+                  dt * (-(Conf::dim > 2 ? cherenkov_factor *
+                                              diff<2>(e[0], idx, stagger[0],
+                                                      order_tag<diff_order>{}) *
+                                              grid.inv_delta[2]
+                                        : 0.0f) -
+                        b1[1][idx] * sigma_2);
+
+              b2[1][idx] +=
+                  dt *
+                  (-(Conf::dim > 0 ? cherenkov_factor *
+                                         (-diff<0>(e[2], idx, stagger[2],
                                                    order_tag<diff_order>{}) *
-                                           grid.inv_delta[2]
-                                     : 0.0f) -
-                      b1[1][idx] * sigma_2);
+                                          grid.inv_delta[0])
+                                   : 0.0f) -
+                   b2[1][idx] * sigma_0);
 
-            b2[1][idx] +=
-                dt * (-(Conf::dim > 0 ? cherenkov_factor *
-                                           (-diff<0>(e[2], idx, stagger[2],
-                                                     order_tag<diff_order>{}) *
-                                            grid.inv_delta[0])
-                                     : 0.0f) -
-                      b2[1][idx] * sigma_0);
-
-            result[1][idx] = b1[1][idx] + b2[1][idx];
+              result[1][idx] = b1[1][idx] + b2[1][idx];
+            } else {
+              result[1][idx] += -dt * cherenkov_factor *
+                                fd<Conf>::curl1(e, idx, stagger, grid);
+            }
 
             // evolve B2
-            b1[2][idx] +=
-                dt * (-(Conf::dim > 0 ? cherenkov_factor *
-                                           diff<0>(e[1], idx, stagger[1],
+            if (sigma_0 > 0.0f || sigma_1 > 0.0f) {
+              b1[2][idx] +=
+                  dt * (-(Conf::dim > 0 ? cherenkov_factor *
+                                              diff<0>(e[1], idx, stagger[1],
+                                                      order_tag<diff_order>{}) *
+                                              grid.inv_delta[0]
+                                        : 0.0f) -
+                        b1[2][idx] * sigma_0);
+
+              b2[2][idx] +=
+                  dt *
+                  (-(Conf::dim > 1 ? cherenkov_factor *
+                                         (-diff<1>(e[0], idx, stagger[0],
                                                    order_tag<diff_order>{}) *
-                                           grid.inv_delta[0]
-                                     : 0.0f) -
-                      b1[2][idx] * sigma_0);
+                                          grid.inv_delta[1])
+                                   : 0.0f) -
+                   b2[2][idx] * sigma_1);
 
-            b2[2][idx] +=
-                dt * (-(Conf::dim > 1 ? cherenkov_factor *
-                                           (-diff<1>(e[0], idx, stagger[0],
-                                                     order_tag<diff_order>{}) *
-                                            grid.inv_delta[1])
-                                     : 0.0f) -
-                      b2[2][idx] * sigma_1);
-
-            result[2][idx] = b1[2][idx] + b2[2][idx];
-
+              result[2][idx] = b1[2][idx] + b2[2][idx];
+            } else {
+              result[2][idx] += -dt * cherenkov_factor *
+                                fd<Conf>::curl2(e, idx, stagger, grid);
+            }
           }
         }
       },

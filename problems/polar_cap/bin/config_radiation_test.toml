@@ -1,15 +1,17 @@
+log_level = 0
+
 num_species = 2
 
 ion_mass = 1.0
 
-max_ptc_num = 200_000
-ptc_segment_size = 100_000
-max_ph_num = 100_000
-ph_segment_size = 100_000
+max_ptc_num = 150_000_000
+ptc_segment_size = 10_000_000
+max_ph_num = 150_000_000
+ph_segment_size = 10_000_000
 
 ptc_buffer_size = 10_000
 
-dt = 1.0e-2
+dt = 7.0e-3
 
 q_e = 1.0
 
@@ -21,18 +23,27 @@ B_Q = 1.0e5
 
 Rpc = 1.0
 
-R_star = 5.0
+R_star = 5.48
+#R_star = 10.0
 
 current_smoothing = 1
 
-sync_cooling_coef = 1.0
+e0 = 1.0e-3
 
-N_inject = 7
+nc = 0.1
+
+zeta = 30.0
+
+N_inject = 0
+
+emit_photons = false
+
+produce_pairs = true
 
 ### Simulation life time
-max_steps = 300
+max_steps = 5001
 
-fld_output_interval = 10
+fld_output_interval = 100
 
 ptc_output_interval = 500
 
@@ -43,7 +54,7 @@ sort_interval = 23
 ### Grid parameters
 # Number of grid points in each direction, excluding guard cells. This should be
 # a multiple of at least 32.
-N = [128, 128, 128]
+N = [256, 256, 256]
 
 nodes = [2, 2, 1]
 
@@ -52,10 +63,10 @@ nodes = [2, 2, 1]
 guard = [2, 2, 2]
 
 # Lower limit of the coordinate
-lower = [-2.0, -2.0, 0.0]
+lower = [-2.5, -2.5, 0.0]
 
 # Size of the box in each dimension
-size = [4.0, 4.0, 4.0]
+size = [5.0, 5.0, 5.0]
 
 # Whether boundaries are periodic
 periodic_boundary = [false, false, false]
@@ -64,9 +75,9 @@ periodic_boundary = [false, false, false]
 damping_boundary = [true, true, true, true, false, true]
 
 # Length of the PML layer
-pml_length = 8
+pml_length = 12
 
 # Field output downsample factor
 downsample = 2
 
-## output_dir = "/home/alex/storage/Data/Aperture4/quasi_1d/"
+output_dir = "/home/alex/nvme/Data/Polar Cap/data/"

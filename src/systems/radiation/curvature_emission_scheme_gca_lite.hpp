@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CURVATURE_EMISSION_SCHEME_POLAR_CAP_H_
-#define _CURVATURE_EMISSION_SCHEME_POLAR_CAP_H_
+#ifndef _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_
+#define _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -53,14 +53,15 @@ dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
 }
 
 HOST_DEVICE Scalar
-magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth, Scalar Rpc_over_Rstar) {
-  // The coefficient is 0.23 * \alpha_f * R_pc / \labmdabar_c, seems no reason to rescale
-  // return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
-  return 4.35e13 * Rpc_over_Rstar * b * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth) {
+  // The coefficient is 0.23 * \alpha_f / \labmdabar_c * R_0
+  return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+  // Scalar chi = 0.5f * eph * b * sinth;
+  // return chi > 0.12;
 }
 
 template <typename Conf>
-struct curvature_emission_scheme_polar_cap {
+struct curvature_emission_scheme_gca_lite {
   using value_t = typename Conf::value_t;
 
   const grid_t<Conf> &m_grid;
@@ -76,7 +77,7 @@ struct curvature_emission_scheme_polar_cap {
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
-  curvature_emission_scheme_polar_cap(const grid_t<Conf> &grid)
+  curvature_emission_scheme_gca_lite(const grid_t<Conf> &grid)
       : m_grid(grid) {}
 
   void init() {
@@ -129,9 +130,8 @@ struct curvature_emission_scheme_polar_cap {
     }
 
     value_t gamma = ptc.E[tid];
-    value_t p1 = ptc.p1[tid];
-    value_t p2 = ptc.p2[tid];
-    value_t p3 = ptc.p3[tid];
+    value_t p_par = ptc.p1[tid]; // Note that this only works for the gca pusher lite
+    value_t mu = ptc.p2[tid];
     vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
 
     auto cell = ptc.cell[tid];
@@ -152,6 +152,16 @@ struct curvature_emission_scheme_polar_cap {
     E[2] = interp(rel_x, m_E[2], idx, ext, stagger_t(0b011));
     value_t B_mag = math::sqrt(B.dot(B));
 
+    vec_t<value_t, 3> vE = coord_policy_cartesian_gca_lite<Conf>::f_v_E(E, B);
+    value_t kappa = 1.0f / math::sqrt(1.0f - vE.dot(vE));
+
+    // Find the "true" momentum of the particle
+    value_t p1 = (p_par * B[0] / B_mag / gamma + vE[0]) * gamma;
+    value_t p2 = (p_par * B[1] / B_mag / gamma + vE[1]) * gamma;
+    value_t p3 = (p_par * B[2] / B_mag / gamma + vE[2]) * gamma;
+    // value_t p1 = p_par * B[0] / B_mag;
+    // value_t p2 = p_par * B[1] / B_mag;
+    // value_t p3 = p_par * B[2] / B_mag;
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
@@ -181,12 +191,10 @@ struct curvature_emission_scheme_polar_cap {
       // Do not allow gamma to go below 1
       // dE = std::min(dE, gamma - 1.01f);
       value_t Ef = gamma - eph;
-      value_t p_new =
-          math::sqrt(square(Ef) - 1.0f);
+      value_t u_par_new =
+          math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
-      ptc.p1[tid] = p_new * p1 / p;
-      ptc.p2[tid] = p_new * p2 / p;
-      ptc.p3[tid] = p_new * p3 / p;
+      ptc.p1[tid] = u_par_new;
       ptc.E[tid] = Ef;
 
       // printf("Current particle energy is %f, emitted eph of %f\n", Ef, eph);
@@ -197,8 +205,6 @@ struct curvature_emission_scheme_polar_cap {
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       if (chi_max > 0.05f && eph > 2.01f) {
-        // value_t pi = std::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
-
         size_t offset = ph_num + atomic_add(ph_pos, 1);
         ph.x1[offset] = ptc.x1[tid];
         ph.x2[offset] = ptc.x2[tid];
@@ -238,8 +244,8 @@ struct curvature_emission_scheme_polar_cap {
                            square(x_global[2] + m_Rstar / m_rpc));
     value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-        || r_max / m_Rstar < 1.2f / m_omega) {
+    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+        // || r_max / m_Rstar < 1.1f / m_omega) {
         // || p[2] < 0.0f) {
       return 0;
     }
@@ -264,7 +270,6 @@ struct curvature_emission_scheme_polar_cap {
 
     value_t u = rng.uniform<value_t>();
     if (u < prob && eph * sinth * m_zeta > 2.01f) {
-    // if (u < prob && eph * sinth > 2.01f) {
     // if (u < prob) {
       // Actually produce the electron-positron pair
       size_t offset = ptc_num + atomic_add(ptc_pos, 2);
@@ -288,10 +293,15 @@ struct curvature_emission_scheme_polar_cap {
       // Particle momentum is along B, direction is inherited from initial
       // photon direction
       value_t sign = sgn(p.dot(B));
-      ptc.p1[offset_e] = ptc.p1[offset_p] = p_ptc * sign * B[0] / B_mag;
-      ptc.p2[offset_e] = ptc.p2[offset_p] = p_ptc * sign * B[1] / B_mag;
-      ptc.p3[offset_e] = ptc.p3[offset_p] = p_ptc * sign * B[2] / B_mag;
-      ptc.E[offset_e] = ptc.E[offset_p] = gamma;
+      ptc.p1[offset_e] = ptc.p1[offset_p] =
+          sign * p_ptc;  // This is u_par in the gca_lite
+      ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;
+      ptc.p3[offset_e] = ptc.p3[offset_p] = 0.0f;
+      ptc.E[offset_e] = ptc.E[offset_p] =
+          gamma;  // Note that this may not be
+                  // the correct gamma. However
+                  // it is no big deal since it
+                  // will be updated next time step
       ptc.aux1[offset_e] = ptc.aux1[offset_p] = 0.0f;
 
       ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
@@ -310,4 +320,4 @@ struct curvature_emission_scheme_polar_cap {
 
 }  // namespace Aperture
 
-#endif  // _CURVATURE_EMISSION_SCHEME_POLAR_CAP_H_
+#endif  // _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_

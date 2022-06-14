@@ -52,6 +52,8 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::init() {
   sim_env().params().get_value("sort_interval", m_sort_interval);
   sim_env().params().get_value("ph_per_scatter", m_ph_per_scatter);
   sim_env().params().get_value("tracked_fraction", m_tracked_fraction);
+  sim_env().params().get_value("emit_photons", m_emit_photons);
+  sim_env().params().get_value("produce_pairs", m_produce_pairs);
 
   sim_env().get_data("particles", ptc);
   sim_env().get_data("rng_states", rng_states);
@@ -95,8 +97,12 @@ template <class Conf, template <class> class ExecPolicy,
 void
 radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
     double dt, uint32_t step) {
-  emit_photons(dt);
-  create_pairs(dt);
+  if (m_emit_photons) {
+    emit_photons(dt);
+  }
+  if (m_produce_pairs) {
+    create_pairs(dt);
+  }
 }
 
 template <class Conf, template <class> class ExecPolicy,

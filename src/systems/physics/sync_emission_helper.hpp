@@ -60,6 +60,24 @@ struct sync_emission_helper_t {
   }
 
   template <typename Rng>
+  HOST_DEVICE value_t gen_curv_photon(value_t e_c, value_t gamma, Rng& rng) const {
+    value_t l, h, b;
+    value_t u = rng.template uniform<value_t>();
+
+    auto m = upper_bound(u, ptr_lookup, nx);
+
+    if (m > 0) {
+      l = ptr_lookup[m - 1];
+      h = ptr_lookup[m];
+      b = (u - l) / (h - l) + m - 1;
+    } else {
+      b = 0;
+    }
+    value_t x = math::exp(logx_min + b * dlogx);
+    return std::min(x * e_c, gamma - 1.001f);
+  }
+
+  template <typename Rng>
   HOST_DEVICE value_t gen_sync_photon(value_t gamma, value_t accel_perp, value_t BQ,
                                       Rng& rng) const {
     return gen_curv_photon(gamma, gamma / accel_perp, BQ, rng);

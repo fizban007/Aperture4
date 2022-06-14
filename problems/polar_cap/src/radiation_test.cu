@@ -30,6 +30,7 @@
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies.h"
 #include "systems/ptc_updater_base_impl.hpp"
+// #include "systems/radiation/curvature_emission_scheme_polar_cap.hpp"
 #include "systems/radiation/curvature_emission_scheme_gca_lite.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 
@@ -74,8 +75,8 @@ main(int argc, char *argv[]) {
       // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
-                         // curvature_emission_scheme_polar_cap>>(grid, &comm);
                          curvature_emission_scheme_gca_lite>>(grid, &comm);
+                         // curvature_emission_scheme_polar_cap>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);

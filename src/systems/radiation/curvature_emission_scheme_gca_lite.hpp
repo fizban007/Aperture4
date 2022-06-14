@@ -244,9 +244,9 @@ struct curvature_emission_scheme_gca_lite {
                            square(x_global[2] + m_Rstar / m_rpc));
     value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-    if (x_global[2] <= (grid.guard[2] + 4) * grid.delta[2]
-        || r_max / m_Rstar < 1.1f / m_omega
-        || p[2] < 0.0f) {
+    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+        // || r_max / m_Rstar < 1.1f / m_omega) {
+        // || p[2] < 0.0f) {
       return 0;
     }
 

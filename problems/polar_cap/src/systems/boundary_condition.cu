@@ -170,7 +170,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
 
   auto num = ptc->number();
   auto max_num = ptc->size();
-  value_t inj_weight = 0.6f;
+  value_t inj_weight = 1.0f;
 
   if (is_bottom && step % 2 == 0 && time >= 0.0) {
     kernel_launch([n_inject, E_ptr, qe, num, max_num, inj_length, inj_weight, Rpc]
@@ -186,9 +186,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
             value_t coordy = grid.pos(1, pos[1], false);
             value_t r = math::sqrt(coordx * coordx + coordy * coordy);
 
-            if (r > 1.0f * Rpc) {
-              continue;
-            }
+            // if (r > 1.0f * Rpc) {
+            //   continue;
+            // }
             auto idx = Conf::idx(pos, ext);
             // if (pos[0] < grid.guard[0] || pos[0] >= grid.guard[0] + grid.N[0])
             //   continue;

@@ -16,25 +16,24 @@
 
 #include <gtest/gtest.h>
 
-#include <gsl/gsl_util> // for narrow, finally, narrow_cast, narrowing_e...
-
 #include <algorithm>   // for move
+#include <complex>
+#include <cstddef>     // for std::ptrdiff_t
 #include <functional>  // for reference_wrapper, _Bind_helper<>::type
+#include <gsl/narrow>  // for narrow, narrowing_error
+#include <gsl/util>    // finally, narrow_cast
 #include <limits>      // for numeric_limits
 #include <stdint.h>    // for uint32_t, int32_t
 #include <type_traits> // for is_same
-#include <cstddef>     // for std::ptrdiff_t
 
 using namespace gsl;
 
 namespace
 {
-static constexpr char deathstring[] = "Expected Death";
 void f(int& i) { i += 1; }
 static int j = 0;
 void g() { j += 1; }
-}
-
+} // namespace
 
 TEST(utils_tests, sanity_check_for_gsl_index_typedef)
 {
@@ -71,6 +70,28 @@ TEST(utils_tests, finally_lambda_move)
     EXPECT_TRUE(i == 1);
 }
 
+TEST(utils_tests, finally_const_lvalue_lambda)
+{
+    int i = 0;
+    {
+        const auto const_lvalue_lambda = [&]() { f(i); };
+        auto _ = finally(const_lvalue_lambda);
+        EXPECT_TRUE(i == 0);
+    }
+    EXPECT_TRUE(i == 1);
+}
+
+TEST(utils_tests, finally_mutable_lvalue_lambda)
+{
+    int i = 0;
+    {
+        auto mutable_lvalue_lambda = [&]() { f(i); };
+        auto _ = finally(mutable_lvalue_lambda);
+        EXPECT_TRUE(i == 0);
+    }
+    EXPECT_TRUE(i == 1);
+}
+
 TEST(utils_tests, finally_function_with_bind)
 {
     int i = 0;
@@ -102,19 +123,15 @@ TEST(utils_tests, narrow_cast)
     EXPECT_TRUE(uc == 44);
 }
 
+#ifndef GSL_KERNEL_MODE
 TEST(utils_tests, narrow)
 {
-    std::set_terminate([] {
-        std::cerr << "Expected Death. narrow";
-        std::abort();
-    });
-
     int n = 120;
     const char c = narrow<char>(n);
     EXPECT_TRUE(c == 120);
 
     n = 300;
-    EXPECT_DEATH(narrow<char>(n), deathstring);
+    EXPECT_THROW(narrow<char>(n), narrowing_error);
 
     const auto int32_max = std::numeric_limits<int32_t>::max();
     const auto int32_min = std::numeric_limits<int32_t>::min();
@@ -123,14 +140,16 @@ TEST(utils_tests, narrow)
     EXPECT_TRUE(narrow<uint32_t>(int32_t(1)) == 1);
     EXPECT_TRUE(narrow<uint32_t>(int32_max) == static_cast<uint32_t>(int32_max));
 
-    EXPECT_DEATH(narrow<uint32_t>(int32_t(-1)), deathstring);
-    EXPECT_DEATH(narrow<uint32_t>(int32_min), deathstring);
+    EXPECT_THROW(narrow<uint32_t>(int32_t(-1)), narrowing_error);
+    EXPECT_THROW(narrow<uint32_t>(int32_min), narrowing_error);
 
     n = -42;
-    EXPECT_DEATH(narrow<unsigned>(n), deathstring);
+    EXPECT_THROW(narrow<unsigned>(n), narrowing_error);
 
-#if GSL_CONSTEXPR_NARROW
-    static_assert(narrow<char>(120) == 120, "Fix GSL_CONSTEXPR_NARROW");
-#endif
+    EXPECT_TRUE(
+        narrow<std::complex<float>>(std::complex<double>(4, 2)) == std::complex<float>(4, 2));
+    EXPECT_THROW(narrow<std::complex<float>>(std::complex<double>(4.2)), narrowing_error);
 
+    EXPECT_TRUE(narrow<int>(float(1)) == 1);
 }
+#endif // GSL_KERNEL_MODE

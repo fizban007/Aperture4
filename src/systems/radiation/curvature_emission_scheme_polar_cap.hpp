@@ -257,7 +257,7 @@ struct curvature_emission_scheme_polar_cap {
     auto pxB = cross(p, B);
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
     // Note here that eph is multiplied by zeta. This is rescaling parameter in action
-    value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
+    value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth, m_rpc / m_Rstar) * dt;
     value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
     // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f\n", sinth, ph.path_left[tid], eph, prob,
     //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta);

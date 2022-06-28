@@ -39,6 +39,7 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid,
   sim_env().params().get_value("R_star", m_Rstar);
   sim_env().params().get_value("N_inject", m_Ninject);
   sim_env().params().get_value("q_e", m_qe);
+  sim_env().params().get_value("inj_weight", m_inj_weight);
 
   if (m_Ninject > 0) {
     injector =
@@ -152,7 +153,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
   // if (time > 1.5) return;
 
   // int inj_length = m_grid.guard[2] + 10;
-  int inj_length = m_grid.guard[2];
+  int inj_length = m_grid.guard[2] + 1;
   int n_inject = m_Ninject;
   value_t Bp = m_Bp;
   value_t Rpc = m_Rpc;
@@ -170,9 +171,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
 
   auto num = ptc->number();
   auto max_num = ptc->size();
-  value_t inj_weight = 1.0f;
+  value_t inj_weight = m_inj_weight;
 
-  if (is_bottom && step % 2 == 0 && time >= 0.0) {
+  if (is_bottom && step % 1 == 0 && time >= 0.0) {
     kernel_launch([n_inject, E_ptr, qe, num, max_num, inj_length, inj_weight, Rpc]
                   __device__ (auto ptc, auto states) {
           auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();

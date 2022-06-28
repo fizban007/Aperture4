@@ -38,7 +38,7 @@ polar_cap_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
   using value_t = typename Conf::value_t;
 
   value_t Bp = sim_env().params().get_as<double>("Bp", 1.0e3);
-  value_t Rpc = sim_env().params().get_as<double>("Rpc", 1.0e-1);
+  value_t Rpc = sim_env().params().get_as<double>("Rpc", 1.0);
   value_t R_star = sim_env().params().get_as<double>("R_star", 10.0);
 
   B0.set_values(0, [Bp, R_star](auto x, auto y, auto z) {

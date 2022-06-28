@@ -269,8 +269,8 @@ struct curvature_emission_scheme_gca_lite {
     //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta);
 
     value_t u = rng.uniform<value_t>();
-    if (u < prob && eph * sinth * m_zeta > 2.01f) {
-    // if (u < prob) {
+    // if (u < prob && eph * sinth * m_zeta > 2.01f) {
+    if (u < prob) {
       // Actually produce the electron-positron pair
       size_t offset = ptc_num + atomic_add(ptc_pos, 2);
       size_t offset_e = offset;

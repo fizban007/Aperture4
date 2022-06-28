@@ -172,9 +172,10 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
 
               result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
             } else {
-            result[1][idx] += dt * (cherenkov_factor *
-                                      fd<Conf>::curl1(b, idx, stagger, grid) -
-                                  j[1][idx]);
+              result[1][idx] +=
+                  dt *
+                  (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
+                   j[1][idx]);
             }
 
             // evolve E2

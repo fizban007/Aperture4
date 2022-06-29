@@ -134,6 +134,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[1]
                                        : 0.0f) -
                         e1[0][idx] * sigma_1);
+              // if (sigma_1 > 0.0f) {
+              //   e1[0][idx] -= (sigma_2 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[0][idx];
+              // }
 
               e2[0][idx] +=
                   dt *
@@ -143,12 +146,16 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[2])
                                   : 0.0f) -
                    e2[0][idx] * sigma_2);
+              // if (sigma_2 > 0.0f) {
+              //   e2[0][idx] -= (sigma_1 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[0][idx];
+              // }
 
-              result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha;
+              result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f);
+              // result[0][idx] = e1[0][idx] + e2[0][idx];
             } else {
               result[0][idx] += dt * (cherenkov_factor *
                                       fd<Conf>::curl0(b, idx, stagger, grid) -
-                                  j[0][idx]);
+                                  j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f));
             }
 
             // evolve E1
@@ -160,6 +167,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[2]
                                        : 0.0f) -
                         e1[1][idx] * sigma_2);
+              // if (sigma_2 > 0.0f) {
+              //   e1[1][idx] -= (sigma_0 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[1][idx];
+              // }
 
               e2[1][idx] +=
                   dt *
@@ -169,13 +179,17 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[0])
                                   : 0.0f) -
                    e2[1][idx] * sigma_0);
+              // if (sigma_0 > 0.0f) {
+              //   e2[1][idx] -= (sigma_2 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[1][idx];
+              // }
 
-              result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
+              result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f);
+              // result[1][idx] = e1[1][idx] + e2[1][idx];
             } else {
               result[1][idx] +=
                   dt *
                   (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
-                   j[1][idx]);
+                   j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f));
             }
 
             // evolve E2
@@ -187,6 +201,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[0]
                                        : 0.0f) -
                         e1[2][idx] * sigma_0);
+              // if (sigma_0 > 0.0f) {
+              //   e1[2][idx] -= (sigma_1 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[2][idx];
+              // }
 
               e2[2][idx] +=
                   dt *
@@ -196,13 +213,17 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[1])
                                   : 0.0f) -
                    e2[2][idx] * sigma_1);
+              // if (sigma_1 > 0.0f) {
+              //   e2[2][idx] -= (sigma_0 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[2][idx];
+              // }
 
-              result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha;
+              result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f);
+              // result[2][idx] = e1[2][idx] + e2[2][idx];
             } else {
               result[2][idx] +=
                   dt *
                   (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
-                   j[2][idx]);
+                   j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f));
             }
           }
         }

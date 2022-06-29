@@ -1,0 +1,59 @@
+debug_level = 2
+
+num_species = 2
+
+ion_mass = 1.0
+
+max_ptc_num = 100_000
+max_ph_num = 1_000
+ptc_buffer_size = 1_000
+ptc_segment_size = 10_000
+
+dt = 2.5e-3
+
+q_e = 100.0
+
+use_implicit = false
+
+implicit_beta = 0.55
+
+current_smoothing = 1
+
+### Simulation life time
+max_steps = 550
+
+fld_output_interval = 20
+
+ptc_output_interval = 500
+
+snapshot_interval = 0 # disable snapshots
+
+sort_interval = 23
+
+### Grid parameters
+# Number of grid points in each direction, excluding guard cells. This should be
+# a multiple of at least 32.
+N = [128, 128, 128]
+
+# Number of guard cells on each end. Effective number of cells per dimension
+# will be N + 2*guard. Minimum 2 is required!
+guard = [2, 2, 2]
+
+# Lower limit of the coordinate
+lower = [0.0, 0.0, 0.0]
+
+# Size of the box in each dimension
+size = [1.0, 1.0, 1.0]
+
+# Whether boundaries are periodic
+periodic_boundary = [false, false, false]
+
+# Whether to use PML damping
+damping_boundary = [true, true, true, true, true, true]
+
+# Length of the PML layer
+pml_length = 6
+
+# Field output downsample factor
+downsample = 1
+

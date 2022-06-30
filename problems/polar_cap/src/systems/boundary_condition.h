@@ -56,6 +56,8 @@ class boundary_condition : public system_t {
   value_t m_qe = 1.0;
   int m_Ninject = 0;
   value_t m_inj_weight = 1.0f;
+  int m_pml_length = 10;
+  bool m_is_gca = true;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<particle_data_t> ptc;

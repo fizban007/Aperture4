@@ -177,9 +177,9 @@ struct curvature_emission_scheme_gca_lite {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
-      if (eph > gamma - 1.01f) {
-        eph = gamma - 1.01f;
-      }
+      // if (eph > gamma - 1.01f) {
+      //   eph = gamma - 1.01f;
+      // }
 
       // Energy loss over the time interval dt.
       // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) *
@@ -191,11 +191,21 @@ struct curvature_emission_scheme_gca_lite {
       // Do not allow gamma to go below 1
       // dE = std::min(dE, gamma - 1.01f);
       value_t Ef = gamma - eph;
+      // Need Ef larger than kappa so that u_par_new is not nan
+      if (Ef <= kappa) {
+        // Try to reduce eph
+        Ef = kappa;
+        eph = gamma - kappa;
+      }
+
       value_t u_par_new =
           math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
       ptc.E[tid] = Ef;
+      if (eph < 0.0f) {
+        return 0;
+      }
 
       // printf("Current particle energy is %f, emitted eph of %f\n", Ef, eph);
 
@@ -272,9 +282,8 @@ struct curvature_emission_scheme_gca_lite {
     // if (u < prob && eph * sinth * m_zeta > 2.01f) {
     if (u < prob) {
       // Actually produce the electron-positron pair
-      size_t offset = ptc_num + atomic_add(ptc_pos, 2);
-      size_t offset_e = offset;
-      size_t offset_p = offset + 1;
+      size_t offset_e = ptc_num + atomic_add(ptc_pos, 2);
+      size_t offset_p = offset_e + 1;
 
       value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
       // Immediately cool to zero magnetic moment and reduce Lorentz factor as
@@ -311,7 +320,7 @@ struct curvature_emission_scheme_gca_lite {
       ptc.flag[offset_p] =
           set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::positron);
 
-      return offset;
+      return offset_e;
     }
 
     return 0;

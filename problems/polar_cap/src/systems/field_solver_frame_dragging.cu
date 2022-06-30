@@ -51,7 +51,7 @@ void
 field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
   Logger::print_detail("Running explicit Cartesian solver with frame dragging!");
   using value_t = typename Conf::value_t;
-  value_t beta0 = m_beta0;
+  value_t beta0 = -m_beta0;
   value_t Rpc = m_Rpc;
   value_t Rstar = m_Rstar;
   value_t Rstar_over_RLC = square(Rpc / Rstar);
@@ -69,7 +69,7 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
           value_t ys = grid.pos(1, pos[1], true);
           value_t z = grid.pos(2, pos[2], false) + Rstar / Rpc;
           value_t zs = grid.pos(2, pos[2], true) + Rstar / Rpc;
-          value_t r, sinth, beta;
+          value_t r, beta;
 
           // Normally beta would have an additional factor of sinth, and r would
           // have a factor of sinth too, but they cancel each other, so we omit
@@ -77,19 +77,18 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
 
           // E[0] is staggered in y, z, but not in x
           r = math::sqrt(ys*ys + zs*zs + x*x);
-          // sinth = math::sqrt(1.0f - square(zs / r));
           beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
           e_out[0][idx] = e[0][idx] + beta * (x / r * b0[2][idx]);
 
           // E[1] is staggered in x, z, but not in y
           r = math::sqrt(y*y + zs*zs + xs*xs);
-          // sinth = math::sqrt(1.0f - square(zs / r));
-          e_out[1][idx] = e[1][idx] + beta * (-y / r * b0[2][idx]);
+          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
+          e_out[1][idx] = e[1][idx] + beta * (y / r * b0[2][idx]);
 
           // E[1] is staggered in x, y, but not in z
           r = math::sqrt(ys*ys + z*z + xs*xs);
-          // sinth = math::sqrt(1.0f - square(z / r));
-          e_out[2][idx] = e[2][idx] + beta * (-y / r * b0[1][idx] - x / r * b0[0][idx]);
+          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
+          e_out[2][idx] = e[2][idx] + beta * (-ys / r * b0[1][idx] - xs / r * b0[0][idx]);
         }
       },
       this->E->get_const_ptrs(), this->B0->get_const_ptrs(), this->m_enew->get_ptrs());

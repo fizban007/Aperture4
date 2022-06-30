@@ -11,6 +11,10 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(sim_polar_cap polar_cap_3d)
   add_dependencies(problems sim_polar_cap)
 
+  add_executable(sim_polar_cap_boris "main_boris.cu")
+  target_link_libraries(sim_polar_cap_boris polar_cap_3d)
+  add_dependencies(problems sim_polar_cap_boris)
+
   add_executable(vacuum_test "vacuum_test.cu")
   target_link_libraries(vacuum_test polar_cap_3d)
   add_dependencies(problems vacuum_test)

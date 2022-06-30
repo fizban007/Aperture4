@@ -28,7 +28,14 @@ namespace Aperture {
 namespace detail {
 
 template <typename T>
-struct range_iter_base : std::iterator<std::input_iterator_tag, T> {
+// struct range_iter_base : std::iterator<std::input_iterator_tag, T> {
+struct range_iter_base {
+  using iterator_category = std::input_iterator_tag;
+  using value_type = T;
+  using difference_type = int;
+  using pointer = T*;
+  using reference = T&;
+
   HD_INLINE
   range_iter_base(T current) : current(current) {}
 

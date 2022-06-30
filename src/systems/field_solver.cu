@@ -81,23 +81,23 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
             value_t alpha = 1.0f;
             if (damping[0] && pos[0] < n_pml + grid.guard[0]) {
               // value_t x = (n_pml + grid.guard[0] - pos[0]) * grid.delta[0];
-              value_t x = grid.pos(0, n_pml + grid.guard[0], true)
-                  - grid.pos(0, pos[0], true);
+              value_t x = grid.pos(0, n_pml + grid.guard[0], true) -
+                          grid.pos(0, pos[0], true);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
               alpha *= pml_alpha(x, grid.delta[0], n_pml);
             } else if (damping[1] &&
                        pos[0] >= grid.guard[0] + grid.N[0] - n_pml) {
               // value_t x = (pos[0] - (grid.guard[0] + grid.N[0] - n_pml)) *
               //             grid.delta[0];
-              value_t x = grid.pos(0, pos[0], true)
-                  - grid.pos(0, grid.N[0] + grid.guard[0] - n_pml, true);
+              value_t x = grid.pos(0, pos[0], true) -
+                          grid.pos(0, grid.N[0] + grid.guard[0] - n_pml, true);
               sigma_0 = pml_sigma(x, grid.delta[0], n_pml);
               alpha *= pml_alpha(x, grid.delta[0], n_pml);
             }
             if (Conf::dim > 1 && damping[2] && pos[1] < n_pml + grid.guard[1]) {
               // value_t y = (n_pml + grid.guard[1] - pos[1]) * grid.delta[1];
-              value_t y = grid.pos(1, n_pml + grid.guard[1], true)
-                  - grid.pos(1, pos[1], true);
+              value_t y = grid.pos(1, n_pml + grid.guard[1], true) -
+                          grid.pos(1, pos[1], true);
               sigma_1 = pml_sigma(y, grid.delta[1], n_pml);
               alpha *= pml_alpha(y, grid.delta[1], n_pml);
             } else if (Conf::dim > 1 && damping[3] &&
@@ -134,6 +134,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[1]
                                        : 0.0f) -
                         e1[0][idx] * sigma_1);
+              // if (sigma_1 > 0.0f) {
+              //   e1[0][idx] -= (sigma_2 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[0][idx];
+              // }
 
               e2[0][idx] +=
                   dt *
@@ -143,12 +146,16 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[2])
                                   : 0.0f) -
                    e2[0][idx] * sigma_2);
+              // if (sigma_2 > 0.0f) {
+              //   e2[0][idx] -= (sigma_1 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[0][idx];
+              // }
 
-              result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha;
+              result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f);
+              // result[0][idx] = e1[0][idx] + e2[0][idx];
             } else {
               result[0][idx] += dt * (cherenkov_factor *
                                       fd<Conf>::curl0(b, idx, stagger, grid) -
-                                  j[0][idx]);
+                                  j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f));
             }
 
             // evolve E1
@@ -160,6 +167,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[2]
                                        : 0.0f) -
                         e1[1][idx] * sigma_2);
+              // if (sigma_2 > 0.0f) {
+              //   e1[1][idx] -= (sigma_0 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[1][idx];
+              // }
 
               e2[1][idx] +=
                   dt *
@@ -169,12 +179,17 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[0])
                                   : 0.0f) -
                    e2[1][idx] * sigma_0);
+              // if (sigma_0 > 0.0f) {
+              //   e2[1][idx] -= (sigma_2 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[1][idx];
+              // }
 
-              result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha;
+              result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f);
+              // result[1][idx] = e1[1][idx] + e2[1][idx];
             } else {
-            result[1][idx] += dt * (cherenkov_factor *
-                                      fd<Conf>::curl1(b, idx, stagger, grid) -
-                                  j[1][idx]);
+              result[1][idx] +=
+                  dt *
+                  (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
+                   j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f));
             }
 
             // evolve E2
@@ -186,6 +201,9 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                              grid.inv_delta[0]
                                        : 0.0f) -
                         e1[2][idx] * sigma_0);
+              // if (sigma_0 > 0.0f) {
+              //   e1[2][idx] -= (sigma_1 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[2][idx];
+              // }
 
               e2[2][idx] +=
                   dt *
@@ -195,13 +213,17 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
                                          grid.inv_delta[1])
                                   : 0.0f) -
                    e2[2][idx] * sigma_1);
+              // if (sigma_1 > 0.0f) {
+              //   e2[2][idx] -= (sigma_0 > 0.0f ? 0.5f : 1.0f) * dt * alpha * j[2][idx];
+              // }
 
-              result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha;
+              result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f);
+              // result[2][idx] = e1[2][idx] + e2[2][idx];
             } else {
               result[2][idx] +=
                   dt *
                   (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
-                   j[2][idx]);
+                   j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f));
             }
           }
         }
@@ -649,33 +671,37 @@ field_solver_cu<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-field_solver_cu<Conf>::update_explicit(double dt, double time) {
-  Logger::print_detail("Running explicit Cartesian solver!");
+field_solver_cu<Conf>::compute_e_update_pml(vector_field<Conf>& E, const vector_field<Conf>& B,
+                                            const vector_field<Conf>& J, double dt) {
   vec_t<bool, Conf::dim * 2> damping(this->m_damping);
-  // dt *= 1.025;
-  // if (time < TINY) {
-  //   compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1), *(this->m_tmp_e2), *(this->B), *(this->J),
-  //                                0.5f * dt, this->m_pml_length, damping);
-  //   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
-  // }
-
-  if (this->m_update_b) {
-    // compute_b_update_explicit_cu(*(this->B), *(this->B), *(this->E), dt);
-    compute_b_update_explicit_pml_cu(*(this->B), *(this->m_tmp_b1), *(this->m_tmp_b2), *(this->E),
-                                 dt, this->m_pml_length, damping);
-    // Communicate the new B values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-  }
 
   if (this->m_update_e) {
-    compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1), *(this->m_tmp_e2), *(this->B), *(this->J),
+    compute_e_update_explicit_pml_cu(E, *(this->m_tmp_e1), *(this->m_tmp_e2), B, J,
                                  dt, this->m_pml_length, damping);
     // compute_e_update_explicit_cu(*(this->E), *(this->E), *(this->B), *(this->J),
     //                              dt);
     // Communicate the new E values to guard cells
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(E);
   }
+}
 
+template <typename Conf>
+void
+field_solver_cu<Conf>::compute_b_update_pml(vector_field<Conf>& B, const vector_field<Conf>& E, double dt) {
+  vec_t<bool, Conf::dim * 2> damping(this->m_damping);
+
+  if (this->m_update_b) {
+    // compute_b_update_explicit_cu(*(this->B), *(this->B), *(this->E), dt);
+    compute_b_update_explicit_pml_cu(B, *(this->m_tmp_b1), *(this->m_tmp_b2), E,
+                                 dt, this->m_pml_length, damping);
+    // Communicate the new B values to guard cells
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(B);
+  }
+}
+
+template <typename Conf>
+void
+field_solver_cu<Conf>::compute_divs_e_b() {
   if (this->m_comm != nullptr) {
     vec_t<bool, Conf::dim * 2> is_boundary(
         this->m_comm->domain_info().is_boundary);
@@ -689,8 +715,25 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
                     is_boundary);
   }
 
+}
+
+template <typename Conf>
+void
+field_solver_cu<Conf>::update_explicit(double dt, double time) {
+  Logger::print_detail("Running explicit Cartesian solver!");
+  // dt *= 1.025;
+  // if (time < TINY) {
+  //   compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1), *(this->m_tmp_e2), *(this->B), *(this->J),
+  //                                0.5f * dt, this->m_pml_length, damping);
+  //   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
+  // }
+
+  compute_b_update_pml(*(this->B), *(this->E), dt);
+  compute_e_update_pml(*(this->E), *(this->B), *(this->J), dt);
+
   auto step = sim_env().get_step();
   if (step % this->m_data_interval == 0) {
+    compute_divs_e_b();
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     // auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
     compute_flux(*(this->flux), *(this->Btotal), this->m_grid);

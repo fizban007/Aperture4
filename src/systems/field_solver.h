@@ -48,7 +48,8 @@ class field_solver : public system_t {
   virtual void register_data_components() override;
 
   virtual void update_explicit(double dt, double time);
-  virtual void update_semi_implicit(double dt, double alpha, double beta, double time);
+  virtual void update_semi_implicit(double dt, double alpha, double beta,
+                                    double time);
 
  protected:
   const grid_t<Conf>& m_grid;
@@ -93,13 +94,20 @@ class field_solver_cu : public field_solver<Conf> {
   virtual void register_data_components() override;
 
   virtual void update_explicit(double dt, double time) override;
-  virtual void update_semi_implicit(double dt, double alpha, double theta, double time) override;
-  void update_semi_implicit_old(double dt, double alpha, double theta, double time);
+  virtual void update_semi_implicit(double dt, double alpha, double theta,
+                                    double time) override;
+  void update_semi_implicit_old(double dt, double alpha, double theta,
+                                double time);
 
  protected:
   virtual void init_tmp_fields() override;
+  void compute_e_update_pml(vector_field<Conf>& E, const vector_field<Conf>& B,
+                            const vector_field<Conf>& J, double dt);
+  void compute_b_update_pml(vector_field<Conf>& B, const vector_field<Conf>& E,
+                            double dt);
+  void compute_divs_e_b();
 };
 
-}
+}  // namespace Aperture
 
 #endif  // _FIELD_SOLVER_H_

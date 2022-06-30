@@ -22,7 +22,7 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+#include "systems/field_solver_frame_dragging.h"
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/exec_policy_cuda.hpp"
@@ -59,10 +59,9 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   grid_t<Conf> grid(comm);
 
-  auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
+  auto solver = env.register_system<field_solver_frame_dragging<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
-      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid, comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);

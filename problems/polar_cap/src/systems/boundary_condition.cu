@@ -21,6 +21,7 @@
 #include "systems/grid.h"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_updater_base.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -40,6 +41,7 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid,
   sim_env().params().get_value("N_inject", m_Ninject);
   sim_env().params().get_value("q_e", m_qe);
   sim_env().params().get_value("inj_weight", m_inj_weight);
+  sim_env().params().get_value("pml_length", m_pml_length);
 
   if (m_Ninject > 0) {
     injector =
@@ -59,6 +61,11 @@ template <typename Conf> void boundary_condition<Conf>::init() {
   // sim_env().get_data("Rho_p", rho_p);
   for (int i = 0; i < 3; i++) {
     m_E_ptr[i] = E->dev_ndptr(i);
+  }
+
+  auto pusher = sim_env().get_system("ptc_updater");
+  if (dynamic_cast<ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>*>(pusher.get()) != nullptr) {
+    m_is_gca = false;
   }
 }
 
@@ -134,10 +141,13 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
             // z += Rstar;
             // value_t r = math::sqrt(x*x + y*y + z*z);
             // value_t r_max = r / (1.0f - square(z / r));
+            // value_t r_frac = Rstar / r_max / omega;
+            // value_t smooth_prof =
+            //       0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.2f));
             // if (r_max / Rstar < 1.0 / omega) {
-            //   e[0][idx] = 0.0f;
-            //   e[1][idx] = 0.0f;
-            //   e[2][idx] = 0.0f;
+            //   e[0][idx] *= smooth_prof;
+            //   e[1][idx] *= smooth_prof;
+            //   e[2][idx] *= smooth_prof;
             // }
           }
         },
@@ -172,9 +182,10 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
   auto num = ptc->number();
   auto max_num = ptc->size();
   value_t inj_weight = m_inj_weight;
+  bool is_gca = m_is_gca;
 
   if (is_bottom && step % 1 == 0 && time >= 0.0) {
-    kernel_launch([n_inject, E_ptr, qe, num, max_num, inj_length, inj_weight, Rpc]
+    kernel_launch([n_inject, E_ptr, qe, num, max_num, inj_length, inj_weight, Rpc, is_gca]
                   __device__ (auto ptc, auto states) {
           auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
@@ -187,9 +198,9 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
             value_t coordy = grid.pos(1, pos[1], false);
             value_t r = math::sqrt(coordx * coordx + coordy * coordy);
 
-            // if (r > 1.0f * Rpc) {
-            //   continue;
-            // }
+            if (r > 1.7f * Rpc) {
+              continue;
+            }
             auto idx = Conf::idx(pos, ext);
             // if (pos[0] < grid.guard[0] || pos[0] >= grid.guard[0] + grid.N[0])
             //   continue;
@@ -231,55 +242,6 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
     CudaSafeCall(cudaDeviceSynchronize());
     ptc->add_num(2 * n_inject * m_grid.dims[0] * m_grid.dims[1]);
   }
-  // if (step < 1) {
-    // injector->inject(
-    //     [inj_length, Rpc] __device__(auto &pos, auto &grid, auto &ext) {
-    //       if (pos[2] == inj_length) {
-    //         value_t x = grid.pos(0, pos[0], false);
-    //         value_t y = grid.pos(1, pos[1], false);
-    //         value_t r = math::sqrt(x * x + y * y);
-
-    //         if (r < 1.0f * Rpc) {
-    //           return true;
-    //         }
-    //       }
-    //       return false;
-    //     },
-    //     [n_inject] __device__(auto &pos, auto &grid, auto &ext) {
-    //       return 2 * n_inject;
-    //     },
-    //     [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-    //                   PtcType type) {
-    //       // vec_t<value_t, 3> u_d =
-    //       // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
-
-    //       auto p1 = rng.gaussian(1.0f);
-    //       // auto p1 = 0.0f;
-    //       // if (type == PtcType::positron)
-    //       //   p1 = -1.0f;
-    //       auto p2 = 0.0f;
-    //       auto p3 = 0.0f;
-    //       return vec_t<value_t, 3>(p1, p2, p3);
-    //       // return rng.maxwell_juttner_3d(0.1f);
-    //     },
-    //     // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-    //     [n_inject, Bp, omega, Rpc, E_ptr, qe] __device__(auto &x_global) {
-    //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-    //       auto ext = grid.extent();
-    //       index_t<3> pos;
-    //       vec_t<value_t, 3> x;
-    //       grid.from_global(x_global, pos, x);
-    //       auto idx = Conf::idx(pos, ext);
-
-    //       auto interp = interp_t<1, Conf::dim>{};
-    //       auto Ez = interp(x, E_ptr[2], idx, ext, stagger_t(0b011));
-    //       return Ez / n_inject / qe;
-    //       // value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]));
-    //       // value_t r_frac = r / Rpc;
-    //       // value_t smooth_prof = 0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.2f));
-    //       // return 2.0f * Bp * omega * smooth_prof / n_inject;
-    //       // return 2.0f * Bp * omega / n_inject;
-    //     });
 }
 
 // Only instantiate this for 3D, otherwise lower boundary doesn't make sense

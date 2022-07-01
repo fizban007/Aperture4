@@ -22,7 +22,6 @@
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "utils/logger.h"
-#include "utils/mpi_helper.h"
 #include "utils/timer.h"
 
 #if defined(OPEN_MPI) && OPEN_MPI
@@ -942,28 +941,28 @@ domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
   MPI_Helper::handle_mpi_error(status, m_rank);
 }
 
-template <typename Conf>
-template <typename T>
-void
-domain_comm<Conf>::gather_to_root(buffer<T> &buf) const {
-  buffer<T> tmp_buf(buf.size(), buf.mem_type());
-  // #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
-  //   auto result =
-  //       MPI_Reduce(buf.dev_ptr(), tmp_buf.dev_ptr(), buf.size(),
-  //                  MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
-  //                  MPI_COMM_WORLD);
-  // #else
-  buf.copy_to_host();
-  auto result =
-      MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
-                 MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, MPI_COMM_WORLD);
-  // buf.copy_to_device();
-  // #endif
-  if (is_root()) {
-    buf.host_copy_from(tmp_buf, buf.size());
-    // buf.copy_to_host();
-  }
-}
+// template <typename Conf>
+// template <typename T>
+// void
+// domain_comm<Conf>::gather_to_root(buffer<T> &buf) const {
+//   buffer<T> tmp_buf(buf.size(), buf.mem_type());
+//   // #if CUDA_ENABLED && (MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
+//   //   auto result =
+//   //       MPI_Reduce(buf.dev_ptr(), tmp_buf.dev_ptr(), buf.size(),
+//   //                  MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
+//   //                  MPI_COMM_WORLD);
+//   // #else
+//   buf.copy_to_host();
+//   auto result =
+//       MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
+//                  MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, MPI_COMM_WORLD);
+//   // buf.copy_to_device();
+//   // #endif
+//   if (is_root()) {
+//     buf.host_copy_from(tmp_buf, buf.size());
+//     // buf.copy_to_host();
+//   }
+// }
 
 template <typename Conf>
 std::vector<buffer<single_ptc_t>> &
@@ -992,31 +991,31 @@ domain_comm<Conf>::ptc_buffer_ptrs(const photons_t &ph) const {
 // Explicitly instantiate some of the configurations that may occur
 // template class domain_comm<Config<1>>;
 INSTANTIATE_WITH_CONFIG(domain_comm);
-template void domain_comm<Config<1, float>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<1, float>>::gather_to_root(
-    buffer<double> &buf) const;
-template void domain_comm<Config<1, double>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<1, double>>::gather_to_root(
-    buffer<double> &buf) const;
-// template class domain_comm<Config<2>>;
-template void domain_comm<Config<2, float>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<2, float>>::gather_to_root(
-    buffer<double> &buf) const;
-template void domain_comm<Config<2, double>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<2, double>>::gather_to_root(
-    buffer<double> &buf) const;
-// template class domain_comm<Config<3>>;
-template void domain_comm<Config<3, float>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<3, float>>::gather_to_root(
-    buffer<double> &buf) const;
-template void domain_comm<Config<3, double>>::gather_to_root(
-    buffer<float> &buf) const;
-template void domain_comm<Config<3, double>>::gather_to_root(
-    buffer<double> &buf) const;
+// template void domain_comm<Config<1, float>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<1, float>>::gather_to_root(
+//     buffer<double> &buf) const;
+// template void domain_comm<Config<1, double>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<1, double>>::gather_to_root(
+//     buffer<double> &buf) const;
+// // template class domain_comm<Config<2>>;
+// template void domain_comm<Config<2, float>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<2, float>>::gather_to_root(
+//     buffer<double> &buf) const;
+// template void domain_comm<Config<2, double>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<2, double>>::gather_to_root(
+//     buffer<double> &buf) const;
+// // template class domain_comm<Config<3>>;
+// template void domain_comm<Config<3, float>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<3, float>>::gather_to_root(
+//     buffer<double> &buf) const;
+// template void domain_comm<Config<3, double>>::gather_to_root(
+//     buffer<float> &buf) const;
+// template void domain_comm<Config<3, double>>::gather_to_root(
+//     buffer<double> &buf) const;
 
 }  // namespace Aperture

@@ -19,6 +19,7 @@
 #define _RADIATIVE_TRANSFER_H_
 
 #include "data/fields.h"
+#include "data/multi_array_data.hpp"
 #include "data/particle_data.h"
 #include "data/rng_states.h"
 #include "framework/system.h"
@@ -65,6 +66,7 @@ class radiative_transfer : public system_t {
   // data components managed by other systems
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<rng_states_t> rng_states;
+  nonown_ptr<multi_array_data<uint32_t, Conf::dim>> ph_number;
 
   // parameters for this module
   bool m_emit_photons = true;

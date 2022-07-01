@@ -24,6 +24,7 @@
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/ptc_updater_base.h"
 #include "utils/interpolation.hpp"
+#include "utils/range.hpp"
 #include "utils/timer.h"
 #include "utils/type_traits.hpp"
 
@@ -153,6 +154,16 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   rng_states = sim_env().register_data<rng_states_t>("rng_states", seed);
   rng_states->skip_output(true);
   rng_states->include_in_snapshot(true);
+
+  extent_t<Conf::dim> domain_ext;
+  domain_ext.set(1);
+  if (m_comm != nullptr) {
+    for (int i = 0; i < Conf::dim; i++) {
+      domain_ext[i] = m_comm->domain_info().mpi_dims[i];
+    }
+  }
+  ptc_number = sim_env().register_data<multi_array_data<uint32_t, Conf::dim>>(
+      "ptc_number", domain_ext, MemType::host_only);
 }
 
 CREATE_MEMBER_FUNC_CALL(update);
@@ -230,6 +241,22 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     sort_particles();
   }
   // Logger::print_detail("Finished sorting");
+
+  // Tally particle number of this rank and store it in ptc_number
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    extent_t<Conf::dim> domain_ext = ptc_number->extent();
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      auto pos = get_pos(idx, domain_ext);
+      auto mpi_coord = index_t<Conf::dim>(m_comm->domain_info().mpi_coord);
+      if (mpi_coord == pos) {
+        ptc_number->at(pos) = ptc->number();
+      } else {
+        ptc_number->at(pos) = 0;
+      }
+    }
+  } else {
+    (*ptc_number)[0] = ptc->number();
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy,

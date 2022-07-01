@@ -89,6 +89,16 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
       ExecPolicy<Conf>::data_mem_type());
   photon_produced->reset_after_output(true);
   pair_produced->reset_after_output(true);
+
+  extent_t<Conf::dim> domain_ext;
+  domain_ext.set(1);
+  if (m_comm != nullptr) {
+    for (int i = 0; i < Conf::dim; i++) {
+      domain_ext[i] = m_comm->domain_info().mpi_dims[i];
+    }
+  }
+  ph_number = sim_env().register_data<multi_array_data<uint32_t, Conf::dim>>(
+      "ph_number", domain_ext, MemType::host_only);
 }
 
 template <class Conf, template <class> class ExecPolicy,
@@ -102,6 +112,22 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
   }
   if (m_produce_pairs) {
     create_pairs(dt);
+  }
+
+  // Tally photon number of this rank and store it in ph_number
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    extent_t<Conf::dim> domain_ext = ph_number->extent();
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      auto pos = get_pos(idx, domain_ext);
+      auto mpi_coord = index_t<Conf::dim>(m_comm->domain_info().mpi_coord);
+      if (mpi_coord == pos) {
+        ph_number->at(pos) = ph->number();
+      } else {
+        ph_number->at(pos) = 0;
+      }
+    }
+  } else {
+    (*ph_number)[0] = ph->number();
   }
 }
 

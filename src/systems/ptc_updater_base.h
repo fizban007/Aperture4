@@ -21,6 +21,7 @@
 #include "core/multi_array.hpp"
 #include "data/data_array.hpp"
 #include "data/fields.h"
+#include "data/multi_array_data.hpp"
 #include "data/particle_data.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
@@ -72,6 +73,7 @@ class ptc_updater_new : public system_t {
   data_array<scalar_field<Conf>> Rho;
   nonown_ptr<scalar_field<Conf>> rho_ph;
   nonown_ptr<rng_states_t> rng_states;
+  nonown_ptr<multi_array_data<uint32_t, Conf::dim>> ptc_number;
 
   // This is a temporary array for filtering the current
   typename Conf::multi_array_t m_tmpj;

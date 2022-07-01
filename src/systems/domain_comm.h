@@ -23,6 +23,7 @@
 #include "core/particles.h"
 #include "data/fields.h"
 #include "framework/system.h"
+#include "utils/mpi_helper.h"
 #include <mpi.h>
 #include <vector>
 
@@ -61,7 +62,16 @@ class domain_comm : public system_t {
                             uint64_t& offset) const;
 
   template <typename T>
-  void gather_to_root(buffer<T>& buf) const;
+  void gather_to_root(buffer<T>& buf) const {
+    buffer<T> tmp_buf(buf.size(), buf.mem_type());
+    buf.copy_to_host();
+    auto result = MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
+                             MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
+                             MPI_COMM_WORLD);
+    if (is_root()) {
+      buf.host_copy_from(tmp_buf, buf.size());
+    }
+  }
 
   const domain_info_t<Conf::dim>& domain_info() const { return m_domain_info; }
 

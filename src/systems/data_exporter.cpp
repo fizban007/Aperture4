@@ -144,6 +144,9 @@ data_exporter<Conf>::write_data(data_t* data, const std::string &name, H5File &d
   } else if (auto* ptr = dynamic_cast<multi_array_data<float, 3>*>(data)) {
     Logger::print_detail("Writing 3D array {}", name);
     write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<multi_array_data<uint32_t, 3>*>(data)) {
+    Logger::print_detail("Writing 3D array {}", name);
+    write(*ptr, name, datafile, false);
   } else {
     Logger::print_detail("Data exporter doesn't know how to write {}",
                          name);

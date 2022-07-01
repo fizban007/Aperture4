@@ -246,12 +246,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   if (m_comm != nullptr && m_comm->size() > 1) {
     extent_t<Conf::dim> domain_ext = ptc_number->extent();
     for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
-      auto pos = get_pos(idx, domain_ext);
-      auto mpi_coord = index_t<Conf::dim>(m_comm->domain_info().mpi_coord);
+      index_t<Conf::dim> pos = get_pos(idx, domain_ext);
+      index_t<Conf::dim> mpi_coord(m_comm->domain_info().mpi_coord);
       if (mpi_coord == pos) {
-        ptc_number->at(pos) = ptc->number();
+        (*ptc_number)[idx] = ptc->number();
       } else {
-        ptc_number->at(pos) = 0;
+        (*ptc_number)[idx] = 0;
       }
     }
   } else {
@@ -478,9 +478,13 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   ptc->sort_by_cell(m_grid.extent().size());
   Logger::print_info("Sorting complete, there are {} particles in the pool",
                      ptc->number());
+  Logger::print_debug_all("There are {} particles in the pool",
+                     ptc->number());
   if (ph != nullptr) {
     ph->sort_by_cell(m_grid.extent().size());
     Logger::print_info("Sorting complete, there are {} photons in the pool",
+                       ph->number());
+    Logger::print_debug_all("There are {} photons in the pool",
                        ph->number());
   }
 }

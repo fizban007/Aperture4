@@ -118,12 +118,12 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
   if (m_comm != nullptr && m_comm->size() > 1) {
     extent_t<Conf::dim> domain_ext = ph_number->extent();
     for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
-      auto pos = get_pos(idx, domain_ext);
-      auto mpi_coord = index_t<Conf::dim>(m_comm->domain_info().mpi_coord);
+      index_t<Conf::dim> pos = get_pos(idx, domain_ext);
+      index_t<Conf::dim> mpi_coord(m_comm->domain_info().mpi_coord);
       if (mpi_coord == pos) {
-        ph_number->at(pos) = ph->number();
+        (*ph_number)[idx] = ph->number();
       } else {
-        ph_number->at(pos) = 0;
+        (*ph_number)[idx] = 0;
       }
     }
   } else {

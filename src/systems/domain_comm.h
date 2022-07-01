@@ -63,11 +63,11 @@ class domain_comm : public system_t {
 
   template <typename T>
   void gather_to_root(buffer<T>& buf) const {
-    buffer<T> tmp_buf(buf.size(), buf.mem_type());
+    buffer<T> tmp_buf(buf.size(), MemType::host_only);
     buf.copy_to_host();
     auto result = MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
                              MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
-                             MPI_COMM_WORLD);
+                             m_cart);
     if (is_root()) {
       buf.host_copy_from(tmp_buf, buf.size());
     }

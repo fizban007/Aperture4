@@ -65,9 +65,14 @@ H5File::write(const multi_array<T, Dim, Idx_t>& array,
   if (m_is_parallel) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (rank != 0) H5Sselect_none(dataspace_id);
+    if (rank != 0) {
+      H5Sselect_none(dataspace_id);
+    } else {
+      H5Sselect_all(dataspace_id);
+    }
   }
-  auto status = H5Dwrite(dataset_id, h5datatype<T>(), H5S_ALL, H5S_ALL,
+  // auto status = H5Dwrite(dataset_id, h5datatype<T>(), H5S_ALL, H5S_ALL,
+  auto status = H5Dwrite(dataset_id, h5datatype<T>(), dataspace_id, dataspace_id,
                          H5P_DEFAULT, array.host_ptr());
   H5Dclose(dataset_id);
   H5Sclose(dataspace_id);

@@ -718,11 +718,21 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
     } else {
       data.copy_to_host();
     }
+    // if (is_root()) {
+    //   extent_t<Rank> domain_ext = data.extent();
+    //   Logger::print_info("{}", data[2]);
+    //   for (auto idx : range(default_idx_t(0, domain_ext),
+    //                         default_idx_t(domain_ext.size(), domain_ext))) {
+    //     index_t<Rank> pos = get_pos(idx, domain_ext);
+    //     Logger::print_info("Coord ({}, {}, {}) has number {}",
+    //                        pos[0], pos[1], pos[2], data[idx]);
+    //   }
+    // }
     // gather_to_root only touches host memory, so we can directly use it to
     // write output
-    if (is_root()) {
-      datafile.write(static_cast<multi_array<T, Rank>&>(data), name);
-    }
+    // if (is_root()) {
+    datafile.write(static_cast<multi_array<T, Rank>&>(data), name);
+    // }
   }
 }
 

@@ -47,7 +47,7 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
     // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   }
   // Default log level is debug
-  Logger::init(rank, LogLevel::debug);
+  Logger::init(rank, LogLevel::info);
 
   reset(argc, argv);
 }

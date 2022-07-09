@@ -172,7 +172,13 @@ struct range_proxy {
 template <typename U, typename T>
 HD_INLINE range_proxy<T>
 range(U begin, T end) {
-  return {(T)begin, end};
+  return {static_cast<T>(begin), end};
+}
+
+template <typename T>
+HD_INLINE range_proxy<T>
+range(T end) {
+  return {static_cast<T>(0), end};
 }
 
 // namespace traits {

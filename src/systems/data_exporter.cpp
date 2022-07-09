@@ -713,8 +713,10 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
                            bool snapshot) {
   if (!snapshot) {
     if (m_comm != nullptr && m_comm->size() > 1) {
-      // gather_to_root automatically takes care of copying to host
-      m_comm->gather_to_root(static_cast<buffer<T>&>(data));
+      if (data.gather_to_root) {
+        // gather_to_root automatically takes care of copying to host
+        m_comm->gather_to_root(static_cast<buffer<T>&>(data));
+      }
     } else {
       data.copy_to_host();
     }

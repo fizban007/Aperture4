@@ -164,6 +164,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   }
   ptc_number = sim_env().register_data<multi_array_data<uint32_t, Conf::dim>>(
       "ptc_number", domain_ext, MemType::host_only);
+  ptc_number->gather_to_root = false;
 }
 
 CREATE_MEMBER_FUNC_CALL(update);
@@ -229,6 +230,11 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     if (m_comm != nullptr) {
       m_comm->send_particles(*ph, m_grid);
     }
+    if (step % m_rho_interval == 0) {
+      m_comm->send_add_guard_cells(*rho_ph);
+      m_comm->send_guard_cells(*rho_ph);
+    }
+
   }
 
   // Clear guard cells
@@ -243,6 +249,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // Logger::print_detail("Finished sorting");
 
   // Tally particle number of this rank and store it in ptc_number
+  size_t total_num = 0, max_num = 0;
   if (m_comm != nullptr && m_comm->size() > 1) {
     extent_t<Conf::dim> domain_ext = ptc_number->extent();
     for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
@@ -254,9 +261,18 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
         (*ptc_number)[idx] = 0;
       }
     }
+    m_comm->gather_to_root(*ptc_number);
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      if ((*ptc_number)[idx] > max_num) {
+        max_num = (*ptc_number)[idx];
+      }
+      total_num += (*ptc_number)[idx];
+    }
   } else {
-    (*ptc_number)[0] = ptc->number();
+    total_num = max_num = (*ptc_number)[0] = ptc->number();
   }
+  Logger::print_info("Total ptc number: {}, max ptc number on a rank: {}",
+                     total_num, max_num);
 }
 
 template <typename Conf, template <class> class ExecPolicy,

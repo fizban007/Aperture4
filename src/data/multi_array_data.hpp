@@ -33,6 +33,7 @@ template <typename T, int Rank>
 class multi_array_data : public data_t, public multi_array<T, Rank> {
  public:
   using multi_array<T, Rank>::multi_array;
+  bool gather_to_root = true;
 
   void init() override {
     this->assign(0.0);

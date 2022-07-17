@@ -248,31 +248,10 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   }
   // Logger::print_detail("Finished sorting");
 
-  // Tally particle number of this rank and store it in ptc_number
-  size_t total_num = 0, max_num = 0;
-  if (m_comm != nullptr && m_comm->size() > 1) {
-    extent_t<Conf::dim> domain_ext = ptc_number->extent();
-    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
-      index_t<Conf::dim> pos = get_pos(idx, domain_ext);
-      index_t<Conf::dim> mpi_coord(m_comm->domain_info().mpi_coord);
-      if (mpi_coord == pos) {
-        (*ptc_number)[idx] = ptc->number();
-      } else {
-        (*ptc_number)[idx] = 0;
-      }
-    }
-    m_comm->gather_to_root(*ptc_number);
-    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
-      if ((*ptc_number)[idx] > max_num) {
-        max_num = (*ptc_number)[idx];
-      }
-      total_num += (*ptc_number)[idx];
-    }
-  } else {
-    total_num = max_num = (*ptc_number)[0] = ptc->number();
+  tally_ptc_number(*ptc);
+  if (ph != nullptr) {
+    tally_ptc_number(*ph);
   }
-  Logger::print_info("Total ptc number: {}, max ptc number on a rank: {}",
-                     total_num, max_num);
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -502,6 +481,45 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                        ph->number());
     Logger::print_debug_all("There are {} photons in the pool",
                        ph->number());
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy,
+          template <class> class CoordPolicy,
+          template <class> class PhysicsPolicy>
+template <typename PtcType>
+void
+ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
+                PhysicsPolicy>::tally_ptc_number(particles_base<PtcType>& ptc) {
+  // Tally particle number of this rank and store it in ptc_number
+  size_t total_num = 0, max_num = 0;
+  if (m_comm != nullptr && m_comm->size() > 1) {
+    extent_t<Conf::dim> domain_ext = ptc_number->extent();
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      index_t<Conf::dim> pos = get_pos(idx, domain_ext);
+      index_t<Conf::dim> mpi_coord(m_comm->domain_info().mpi_coord);
+      if (mpi_coord == pos) {
+        (*ptc_number)[idx] = ptc.number();
+      } else {
+        (*ptc_number)[idx] = 0;
+      }
+    }
+    m_comm->gather_to_root(*ptc_number);
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      if ((*ptc_number)[idx] > max_num) {
+        max_num = (*ptc_number)[idx];
+      }
+      total_num += (*ptc_number)[idx];
+    }
+  } else {
+    total_num = max_num = (*ptc_number)[0] = ptc.number();
+  }
+  if (std::is_same<PtcType, ptc_buffer>::value) {
+    Logger::print_info("Total ptc number: {}, max ptc number on a rank: {}",
+                       total_num, max_num);
+  } else if (std::is_same<PtcType, ph_buffer>::value) {
+    Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
+                       total_num, max_num);
   }
 }
 

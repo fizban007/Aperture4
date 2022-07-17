@@ -54,6 +54,8 @@ class ptc_updater_new : public system_t {
   void update_photons(value_t dt, uint32_t step);
   void clear_guard_cells();
   void sort_particles();
+  template <typename PtcType>
+  void tally_ptc_number(particles_base<PtcType>& ptc);
   void fill_multiplicity(int mult, value_t weight = 1.0, value_t dp = 0.0);
   void filter_current(int num_times, uint32_t step);
 

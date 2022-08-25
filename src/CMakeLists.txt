@@ -27,27 +27,23 @@ set(Aperture_src
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   list(APPEND Aperture_src
     "core/buffer_impl.cu"
-    #"core/cached_allocator.cu"
     "core/constant_mem.cu"
     "core/particles.cu"
     "core/detail/multi_array_helpers.cu"
-    "data/curand_states.cu"
     "data/rng_states.cu"
     # "systems/ffe_solver_EZ.cu"
     "systems/field_solver.cu"
     "systems/field_solver_sph.cu"
     "systems/field_solver_polar.cu"
     "systems/field_solver_gr_ks.cu"
-    "systems/legacy/ptc_updater_old.cu"
-    "systems/legacy/ptc_updater_old_sph.cu"
-    "systems/legacy/ptc_updater_old_gr_ks.cu"
+    # "systems/legacy/ptc_updater_old.cu"
+    # "systems/legacy/ptc_updater_old_sph.cu"
+    # "systems/legacy/ptc_updater_old_gr_ks.cu"
     # "systems/ptc_injector.cu"
-    # "systems/ph_freepath_dev.cu"
     #"systems/domain_comm_async.cpp"
     "systems/compute_lorentz_factor.cu"
     "systems/gather_momentum_space.cu"
     "systems/ptc_updater_base.cu"
-    # "systems/radiative_transfer_new.cu"
     "systems/radiative_transfer.cu"
     )
 else()
@@ -69,6 +65,8 @@ target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
 endif()
+
+
 
 # add_executable(aperture "main.cpp")
 # target_link_libraries(aperture Aperture)

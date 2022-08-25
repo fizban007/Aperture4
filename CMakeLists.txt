@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(Aperture LANGUAGES C CXX CUDA)
+project(Aperture LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -7,13 +7,14 @@ endif()
 
 message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
-option(use_cuda "Include the GPU part of the code" OFF)
+option(use_cuda "Include the Cuda part of the code" OFF)
 option(use_double "Use double precision" OFF)
+option(use_hip "Include the HIP part of the code" OFF)
 option(build_docs "Build the doxygen documentation" OFF)
-option(build_tests "Build the test suite" OFF)
+option(build_tests "Build the test suite" ON)
 option(lib_only "Only build the core Aperture library" ON)
 
-  cmake_policy(SET CMP0074 NEW)
+cmake_policy(SET CMP0074 NEW)
 if(POLICY CMP0076)
   cmake_policy(SET CMP0076 NEW)
 endif()
@@ -112,6 +113,18 @@ if(use_cuda)
                  PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
   endif()
 endif()
+
+if(use_hip)
+  # Search for rocm in common locations
+  list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+  # Find hip
+  find_package(hip REQUIRED)
+  add_definitions(-DHIP_ENABLED)
+  find_package(rocthrust)
+  find_package(rocrand)
+  find_package(rocsparse)
+endif()
+
 
 if(use_double)
   add_definitions(-DUSE_DOUBLE)

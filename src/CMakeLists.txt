@@ -25,10 +25,10 @@ set(Aperture_src
   )
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  list(APPEND Aperture_src
-    "core/buffer_impl.cu"
-    "core/constant_mem.cu"
-    "core/particles.cu"
+  set(Aperture_cuda_src
+    "core/buffer_impl.hip.cpp"
+    "core/constant_mem.hip.cpp"
+    "core/particles.hip.cpp"
     "core/detail/multi_array_helpers.cu"
     "data/rng_states.cu"
     # "systems/ffe_solver_EZ.cu"
@@ -46,6 +46,11 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/ptc_updater_base.cu"
     "systems/radiative_transfer.cu"
     )
+  set_source_files_properties(${Aperture_cuda_src} PROPERTIES LANGUAGE CUDA)
+  list(APPEND Aperture_src
+    ${Aperture_cuda_src})
+elseif(use_hip)
+  list(APPEND )
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"

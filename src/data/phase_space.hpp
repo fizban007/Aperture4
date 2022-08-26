@@ -95,7 +95,7 @@ struct host_adapter<phase_space<Conf, Dim>> {
 };
 
 template <typename Conf, int Dim>
-struct cuda_adapter<phase_space<Conf, Dim>> {
+struct gpu_adapter<phase_space<Conf, Dim>> {
   typedef ndptr<float, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> type;
   typedef ndptr_const<float, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>>
       const_type;

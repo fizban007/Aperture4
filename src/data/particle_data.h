@@ -62,7 +62,7 @@ struct host_adapter<photon_data_t> {
 #ifdef CUDA_ENABLED
 
 template <>
-struct cuda_adapter<particle_data_t> {
+struct gpu_adapter<particle_data_t> {
   typedef ptc_ptrs type;
   typedef ptc_ptrs const_type;
 
@@ -72,7 +72,7 @@ struct cuda_adapter<particle_data_t> {
 };
 
 template <>
-struct cuda_adapter<photon_data_t> {
+struct gpu_adapter<photon_data_t> {
   typedef ph_ptrs type;
   typedef ph_ptrs const_type;
 

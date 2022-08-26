@@ -282,11 +282,11 @@ generic_kernel(Func f, Args... args) {
 //   f(args...);
 // }
 
-// template <typename Func, typename... Args>
-// gpuError_t
-// configure_grid(kernel_exec_policy& policy, Func f, Args... args) {
-//   GpuSafeCall(configure_grid(policy, generic_kernel<Func, Args...>));
-// }
+template <typename Func, typename... Args>
+void
+configure_grid(kernel_exec_policy& policy, Func f, Args... args) {
+  GpuSafeCall(configure_grid(policy, generic_kernel<Func, Args...>));
+}
 
 // template <typename... Args>
 // gpuError_t
@@ -320,7 +320,7 @@ kernel_launch(Func f, Args... args) {
 
 template <typename Func, typename... Args>
 void
-kernel_launch(kernel_exec_policy &policy, Func f, Args... args) {
+kernel_launch(const kernel_exec_policy &policy, Func f, Args... args) {
   kernel_exec_policy p = policy;
   GpuSafeCall(configure_grid(p, generic_kernel<Func, Args...>));
   std::cout << "gridSize: " << p.get_grid_size()

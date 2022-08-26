@@ -15,13 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/gpu_translation_layer.h"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
 #include "multi_array_helpers.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
-#include <cuda_runtime_api.h>
 
 namespace Aperture {
 
@@ -30,7 +30,7 @@ void
 resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
              const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
              stagger_t st_src, stagger_t st_dst, int downsample,
-             const cudaStream_t* stream) {
+             const gpuStream_t* stream) {
   auto ext = to.extent();
   auto ext_src = from.extent();
   auto resample_kernel = [downsample, ext, ext_src] __device__(
@@ -71,14 +71,14 @@ resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
   if (stream != nullptr) p.set_stream(*stream);
   kernel_launch(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
                 offset_src, offset_dst, st_src, st_dst);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename T, int Rank>
 void
 add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
         const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-        const extent_t<Rank>& ext, T scale, const cudaStream_t* stream) {
+        const extent_t<Rank>& ext, T scale, const gpuStream_t* stream) {
   // auto add_kernel = [ext, scale] __device__(auto dst_ptr, auto src_ptr,
   //                                           auto dst_pos, auto src_pos,
   //                                           auto dst_ext, auto src_ext) {
@@ -97,7 +97,7 @@ add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   // kernel_launch(p, add_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
   // dst_pos,
   //               src_pos, dst.extent(), src.extent());
-  // CudaSafeCall(cudaDeviceSynchronize());
+  // GpuSafeCall(gpuDeviceSynchronize());
   if (stream != nullptr) {
     select_dev(dst, dst_pos, ext).with_stream(*stream) +=
         select_dev(scale * src, src_pos, ext);
@@ -110,7 +110,7 @@ template <typename T, int Rank>
 void
 copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-         const extent_t<Rank>& ext, const cudaStream_t* stream) {
+         const extent_t<Rank>& ext, const gpuStream_t* stream) {
   // auto copy_kernel = [ext] __device__(auto dst_ptr, auto src_ptr, auto
   // dst_pos,
   //                                     auto src_pos, auto dst_ext,
@@ -131,7 +131,7 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   // kernel_launch(p, copy_kernel, dst.dev_ndptr(), src.dev_ndptr_const(),
   // dst_pos,
   //               src_pos, dst.extent(), src.extent());
-  // CudaSafeCall(cudaDeviceSynchronize());
+  // GpuSafeCall(gpuDeviceSynchronize());
   if (stream != nullptr) {
     select_dev(dst, dst_pos, ext).with_stream(*stream) =
         select_dev(src, src_pos, ext);
@@ -145,7 +145,7 @@ copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
       const multi_array<type1, dim>& from, multi_array<type2, dim>& to, \
       const index_t<dim>& offset, const index_t<dim>& offset_dst,       \
       stagger_t st_src, stagger_t st_dst, int downsample,               \
-      const cudaStream_t* stream)
+      const gpuStream_t* stream)
 
 #define INSTANTIATE_RESAMPLE_DEV(type1, type2)   \
   INSTANTIATE_RESAMPLE_DEV_DIM(type1, type2, 1); \
@@ -160,7 +160,7 @@ INSTANTIATE_RESAMPLE_DEV(double, float);
   template void add_dev(                                              \
       multi_array<type, dim>& dst, const multi_array<type, dim>& src, \
       const index_t<dim>& dst_pos, const index_t<dim>& src_pos,       \
-      const extent_t<dim>& ext, type scale, const cudaStream_t* stream)
+      const extent_t<dim>& ext, type scale, const gpuStream_t* stream)
 
 INSTANTIATE_ADD_DEV(float, 1);
 INSTANTIATE_ADD_DEV(float, 2);
@@ -173,7 +173,7 @@ INSTANTIATE_ADD_DEV(double, 3);
   template void copy_dev(                                             \
       multi_array<type, dim>& dst, const multi_array<type, dim>& src, \
       const index_t<dim>& dst_pos, const index_t<dim>& src_pos,       \
-      const extent_t<dim>& ext, const cudaStream_t* stream)
+      const extent_t<dim>& ext, const gpuStream_t* stream)
 
 INSTANTIATE_COPY_DEV(float, 1);
 INSTANTIATE_COPY_DEV(float, 2);

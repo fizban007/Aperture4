@@ -239,7 +239,7 @@ struct host_adapter<field_t<N, Conf>> {
 #ifdef CUDA_ENABLED
 
 template <typename Conf>
-struct cuda_adapter<field_t<1, Conf>> {
+struct gpu_adapter<field_t<1, Conf>> {
   typedef typename Conf::ndptr_t type;
   typedef typename Conf::ndptr_const_t const_type;
 
@@ -252,7 +252,7 @@ struct cuda_adapter<field_t<1, Conf>> {
 };
 
 template <int N, typename Conf>
-struct cuda_adapter<field_t<N, Conf>> {
+struct gpu_adapter<field_t<N, Conf>> {
   typedef vec_t<typename Conf::ndptr_t, N> type;
   typedef vec_t<typename Conf::ndptr_const_t, N> const_type;
 

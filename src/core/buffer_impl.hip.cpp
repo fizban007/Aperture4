@@ -16,7 +16,9 @@
  */
 
 #include "buffer_impl.hpp"
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
+
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
@@ -28,7 +30,7 @@ void
 ptr_assign_dev(T* array, size_t start, size_t end, const T& value) {
   auto ptr = thrust::device_pointer_cast(array);
   thrust::fill(ptr + start, ptr + end, value);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename T>
@@ -38,7 +40,7 @@ ptr_copy_dev(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos) {
   auto dst_ptr = thrust::device_pointer_cast(dst);
   thrust::copy(src_ptr + src_pos, src_ptr + src_pos + num,
                dst_ptr + dst_pos);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 

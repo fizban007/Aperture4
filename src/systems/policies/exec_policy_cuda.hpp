@@ -38,7 +38,7 @@ class exec_policy_cuda {
 
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
-    kernel_launch(f, adapt_cuda(args)...);
+    kernel_launch(f, adapt_gpu(args)...);
     CudaCheckError();
   }
 

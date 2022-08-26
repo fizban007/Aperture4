@@ -30,6 +30,7 @@
 #endif
 
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+#define GPU_ENABLED
 #include <cstdlib>
 #if defined(HIP_ENABLED)
 #include <hip/hip_runtime.h>
@@ -48,8 +49,17 @@ using gpuFuncAttributes = hipFuncAttributes;
 #define gpuFuncGetAttributes(attrib, f) hipFuncGetAttributes(attrib, f)
 
 // Memory management Functions
+#define gpuMalloc(ptr, size) hipMalloc(ptr, size)
 #define gpuMallocManaged(ptr, size) hipMallocManaged(ptr, size)
 #define gpuFree(ptr) hipFree(ptr)
+#define gpuMemcpy(dst, src, size, kind) hipMemcpy(dst, src, size, kind)
+#define gpuMemcpyAsync(dst, src, size, kind, stream) \
+  hipMemcpyAsync(dst, src, size, kind, stream)
+#define gpuMemcpyToSymbol(dst, src, size) hipMemcpyToSymbol(dst, src, size)
+
+#define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define gpuMemcpyHostToDevice hipMemcpyHostToDevice
+#define gpuMemcpyDeviceToDevice hipMemcpyDeviceToDevice
 
 #elif defined(CUDA_ENABLED)
 #include <cuda_runtime.h>
@@ -67,8 +77,17 @@ using gpuFuncAttributes = cudaFuncAttributes;
 #define gpuFuncGetAttributes(attrib, f) cudaFuncGetAttributes(attrib, f)
 
 // Memory management Functions
+#define gpuMalloc(ptr, size) cudaMalloc(ptr, size)
 #define gpuMallocManaged(ptr, size) cudaMallocManaged(ptr, size)
 #define gpuFree(ptr) cudaFree(ptr)
+#define gpuMemcpy(dst, src, size, kind) cudaMemcpy(dst, src, size, kind)
+#define gpuMemcpyAsync(dst, src, size, kind, stream) \
+  cudaMemcpyAsync(dst, src, size, kind, stream)
+#define gpuMemcpyToSymbol(dst, src, size) cudaMemcpyToSymbol(dst, src, size)
+
+#define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
+#define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
+#define gpuMemcpyDeviceToDevice cudaMemcpyDeviceToDevice
 
 #endif
 #endif

@@ -23,7 +23,7 @@
 namespace Aperture {
 
 template <typename T>
-struct cuda_adapter {
+struct gpu_adapter {
   typedef T type;
   typedef T const_type;
 
@@ -45,27 +45,27 @@ struct host_adapter {
 };
 
 template <typename T>
-inline typename cuda_adapter<T>::type
-adapt_cuda(nonown_ptr<T>& t) {
-  return cuda_adapter<T>::apply(*t);
+inline typename gpu_adapter<T>::type
+adapt_gpu(nonown_ptr<T>& t) {
+  return gpu_adapter<T>::apply(*t);
 }
 
 template <typename T>
-inline typename cuda_adapter<T>::type
-adapt_cuda(T& t) {
-  return cuda_adapter<T>::apply(t);
+inline typename gpu_adapter<T>::type
+adapt_gpu(T& t) {
+  return gpu_adapter<T>::apply(t);
 }
 
 template <typename T>
-inline typename cuda_adapter<T>::const_type
-adapt_cuda(const nonown_ptr<T>& t) {
-  return cuda_adapter<T>::apply(*t);
+inline typename gpu_adapter<T>::const_type
+adapt_gpu(const nonown_ptr<T>& t) {
+  return gpu_adapter<T>::apply(*t);
 }
 
 template <typename T>
-inline typename cuda_adapter<T>::const_type
-adapt_cuda(const T& t) {
-  return cuda_adapter<T>::apply(t);
+inline typename gpu_adapter<T>::const_type
+adapt_gpu(const T& t) {
+  return gpu_adapter<T>::apply(t);
 }
 
 template <typename T>

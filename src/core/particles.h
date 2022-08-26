@@ -68,8 +68,8 @@ class particles_base : public BufferType {
 
   void copy_to_host(bool all = true);
   void copy_to_device(bool all = true);
-  void copy_to_host(cudaStream_t stream, bool all = true);
-  void copy_to_device(cudaStream_t stream, bool all = true);
+  void copy_to_host(gpuStream_t stream, bool all = true);
+  void copy_to_device(gpuStream_t stream, bool all = true);
 
   // template <typename Conf>
   // void copy_to_comm_buffers(std::vector<self_type>& buffers,
@@ -140,10 +140,10 @@ struct host_adapter<particles_base<BufferType>> {
   }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename BufferType>
-struct cuda_adapter<particles_base<BufferType>> {
+struct gpu_adapter<particles_base<BufferType>> {
   typedef typename BufferType::ptrs_type type;
   typedef typename BufferType::ptrs_type const_type;
 

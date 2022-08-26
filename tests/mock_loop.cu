@@ -29,14 +29,14 @@
 using namespace Aperture;
 
 template <>
-struct cuda_adapter<int> {
+struct gpu_adapter<int> {
   typedef float type;
 
   static inline type apply(int n) { return type(n) + 10.0f; }
 };
 
 template <>
-struct cuda_adapter<int*> {
+struct gpu_adapter<int*> {
   typedef float type;
 
   static inline type apply(const int* n) { return type(*n) + 8.0f; }

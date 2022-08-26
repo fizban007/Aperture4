@@ -29,15 +29,16 @@ rng_states_t::rng_states_t(uint64_t seed) {
 
 void
 rng_states_t::init() {
+  kernel_exec_policy p{block_num, thread_num};
   kernel_launch(
-      {block_num, thread_num},
+      p,
       [] __device__(auto states, auto seed) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
         curand_init(seed, id, 0, &states[id]);
       },
       m_states.dev_ptr(), m_initial_seed);
-  CudaCheckError();
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 }

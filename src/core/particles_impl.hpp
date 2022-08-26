@@ -229,7 +229,7 @@ particles_base<BufferType>::copy_to_host(bool all) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_host(cudaStream_t stream, bool all) {
+particles_base<BufferType>::copy_to_host(gpuStream_t stream, bool all) {
   auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device)
     visit_struct::for_each(*static_cast<base_type*>(this),
@@ -252,7 +252,7 @@ particles_base<BufferType>::copy_to_device(bool all) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::copy_to_device(cudaStream_t stream, bool all) {
+particles_base<BufferType>::copy_to_device(gpuStream_t stream, bool all) {
   auto num = (all ? m_size : m_number);
   if (m_mem_type == MemType::host_device)
     visit_struct::for_each(*static_cast<base_type*>(this),

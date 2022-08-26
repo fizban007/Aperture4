@@ -18,8 +18,8 @@
 #ifndef __KERNEL_HELPER_H_
 #define __KERNEL_HELPER_H_
 
-#include "core/gpu_translation_layer.h"
 #include "core/gpu_error_check.h"
+#include "core/gpu_translation_layer.h"
 #include "utils/logger.h"
 #include "utils/util_functions.h"
 
@@ -27,9 +27,9 @@
 #include <cuda_occupancy.h>
 #endif
 
+#include <iostream>
 #include <map>
 #include <mutex>
-#include <iostream>
 
 // All of these kernel helprs are taken from hemi:
 // https://github.com/harrism/hemi.git
@@ -55,8 +55,7 @@ class kernel_exec_policy {
         m_shared_mem_bytes(0),
         m_stream((gpuStream_t)0) {}
 
-  kernel_exec_policy(int gridSize, int blockSize)
-      : m_state(0), m_stream(0) {
+  kernel_exec_policy(int gridSize, int blockSize) : m_state(0), m_stream(0) {
     set_grid_size(gridSize);
     set_block_size(blockSize);
     set_shared_mem_bytes(0);
@@ -70,7 +69,7 @@ class kernel_exec_policy {
   }
 
   kernel_exec_policy(int gridSize, int blockSize, size_t sharedMemBytes,
-              gpuStream_t stream)
+                     gpuStream_t stream)
       : m_state(0) {
     set_grid_size(gridSize);
     set_block_size(blockSize);
@@ -151,8 +150,7 @@ class dev_property_cache {
 #ifdef CUDA_ENABLED
 inline size_t
 available_shared_bytes_per_block(size_t sharedMemPerMultiprocessor,
-                                 size_t sharedSizeBytesStatic,
-                                 int blocksPerSM,
+                                 size_t sharedSizeBytesStatic, int blocksPerSM,
                                  int smemAllocationUnit) {
   size_t bytes = __occRoundUp(sharedMemPerMultiprocessor / blocksPerSM,
                               smemAllocationUnit) -
@@ -183,7 +181,8 @@ configure_grid(kernel_exec_policy &p, KernelFunc k) {
   }
 
   gpuFuncAttributes attribs;
-  gpuError_t status = gpuFuncGetAttributes(&attribs, reinterpret_cast<const void*>(k));
+  gpuError_t status =
+      gpuFuncGetAttributes(&attribs, reinterpret_cast<const void *>(k));
   // gpuError_t status = gpuFuncGetAttributes(&attribs, k);
   if (status != gpuSuccess) return status;
 
@@ -215,11 +214,9 @@ configure_grid(kernel_exec_policy &p, KernelFunc k) {
     cudaOccError occErr = cudaOccMaxActiveBlocksPerMultiprocessor(
         &result, &occProp, &occAttrib, &occState, p.get_block_size(),
         p.get_shared_mem_bytes());
-    if (occErr != CUDA_OCC_SUCCESS)
-      return cudaErrorInvalidConfiguration;
+    if (occErr != CUDA_OCC_SUCCESS) return cudaErrorInvalidConfiguration;
     p.set_grid_size(result.activeBlocksPerMultiprocessor * numSMs);
-    if (p.get_grid_size() < numSMs)
-      return cudaErrorInvalidConfiguration;
+    if (p.get_grid_size() < numSMs) return cudaErrorInvalidConfiguration;
   }
 
   // if ((configState & kernel_exec_policy::SharedMem) == 0) {
@@ -227,8 +224,7 @@ configure_grid(kernel_exec_policy &p, KernelFunc k) {
     int smemGranularity = 0;
     cudaOccError occErr =
         cudaOccSMemAllocationGranularity(&smemGranularity, &occProp);
-    if (occErr != CUDA_OCC_SUCCESS)
-      return cudaErrorInvalidConfiguration;
+    if (occErr != CUDA_OCC_SUCCESS) return cudaErrorInvalidConfiguration;
     size_t sbytes = available_shared_bytes_per_block(
         props->sharedMemPerBlock, attribs.sharedSizeBytes,
         __occDivideRoundUp(p.get_grid_size(), numSMs), smemGranularity);
@@ -249,7 +245,8 @@ configure_grid(kernel_exec_policy &p, KernelFunc k) {
     p.set_grid_size(gridSize);
   }
 
-//   if (!check_flag(configState, kernel_exec_policy::config_state::SharedMem)) {
+//   if (!check_flag(configState, kernel_exec_policy::config_state::SharedMem))
+//   {
 //     int smemGranularity = 0;
 //     cudaOccError occErr =
 //         cudaOccSMemAllocationGranularity(&smemGranularity, &occProp);
@@ -326,13 +323,13 @@ void
 kernel_launch(kernel_exec_policy &policy, Func f, Args... args) {
   kernel_exec_policy p = policy;
   GpuSafeCall(configure_grid(p, generic_kernel<Func, Args...>));
-  std::cout << "gridSize: " << p.get_grid_size() << ", blockSize: " << p.get_block_size()
-            << ", sharedMem: " << p.get_shared_mem_bytes() << ", stream: " <<
-             (size_t)p.get_stream() << std::endl;
+  std::cout << "gridSize: " << p.get_grid_size()
+            << ", blockSize: " << p.get_block_size()
+            << ", sharedMem: " << p.get_shared_mem_bytes()
+            << ", stream: " << (size_t)p.get_stream() << std::endl;
 #ifdef __CUDACC__
   generic_kernel<<<p.get_grid_size(), p.get_block_size(),
-                   p.get_shared_mem_bytes(), p.get_stream()>>>(f,
-                                                               args...);
+                   p.get_shared_mem_bytes(), p.get_stream()>>>(f, args...);
 #else
   hipLaunchKernelGGL(generic_kernel, dim3(p.get_grid_size()),
                      dim3(p.get_block_size()), p.get_shared_mem_bytes(),

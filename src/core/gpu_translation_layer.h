@@ -47,6 +47,10 @@ using gpuFuncAttributes = hipFuncAttributes;
 #define gpuGetDeviceProperties(prop, id) hipGetDeviceProperties(prop, id)
 #define gpuFuncGetAttributes(attrib, f) hipFuncGetAttributes(attrib, f)
 
+// Memory management Functions
+#define gpuMallocManaged(ptr, size) hipMallocManaged(ptr, size)
+#define gpuFree(ptr) hipFree(ptr)
+
 #elif defined(CUDA_ENABLED)
 #include <cuda_runtime.h>
 using gpuError_t = cudaError;
@@ -61,6 +65,10 @@ using gpuFuncAttributes = cudaFuncAttributes;
 #define gpuGetDevice(devId) cudaGetDevice(devId)
 #define gpuGetDeviceProperties(prop, id) cudaGetDeviceProperties(prop, id)
 #define gpuFuncGetAttributes(attrib, f) cudaFuncGetAttributes(attrib, f)
+
+// Memory management Functions
+#define gpuMallocManaged(ptr, size) cudaMallocManaged(ptr, size)
+#define gpuFree(ptr) cudaFree(ptr)
 
 #endif
 #endif

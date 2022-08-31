@@ -39,7 +39,7 @@ class exec_policy_cuda {
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
     kernel_launch(f, adapt_gpu(args)...);
-    CudaCheckError();
+    GpuCheckError();
   }
 
   template <typename Func, typename Idx, typename... Args>
@@ -50,7 +50,7 @@ class exec_policy_cuda {
     }
   }
 
-  static void sync() { CudaSafeCall(cudaDeviceSynchronize()); }
+  static void sync() { GpuSafeCall(gpuDeviceSynchronize()); }
 
   static __device__ const Grid<Conf::dim, typename Conf::value_t>& grid() {
     return dev_grid<Conf::dim, typename Conf::value_t>();

@@ -59,7 +59,7 @@ struct host_adapter<photon_data_t> {
   }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <>
 struct gpu_adapter<particle_data_t> {

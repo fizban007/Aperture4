@@ -236,7 +236,7 @@ struct host_adapter<field_t<N, Conf>> {
   }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename Conf>
 struct gpu_adapter<field_t<1, Conf>> {

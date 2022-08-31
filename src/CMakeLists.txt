@@ -41,7 +41,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     # "systems/ptc_injector.cu"
     #"systems/domain_comm_async.cpp"
     "systems/compute_lorentz_factor.hip.cpp"
-    "systems/gather_momentum_space.cu"
+    "systems/gather_momentum_space.hip.cpp"
     "systems/ptc_updater_base.cu"
     "systems/radiative_transfer.cu"
     )
@@ -60,7 +60,7 @@ elseif(use_hip)
     "systems/field_solver_polar.hip.cpp"
     "systems/field_solver_gr_ks.hip.cpp"
     "systems/compute_lorentz_factor.hip.cpp"
-    # "systems/gather_momentum_space.cu"
+    "systems/gather_momentum_space.hip.cpp"
     # "systems/ptc_updater_base.cu"
     # "systems/radiative_transfer.cu"
     )

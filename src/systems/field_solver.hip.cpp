@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
 #include "core/math.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
@@ -230,8 +231,8 @@ compute_e_update_explicit_pml_cu(vector_field<Conf> &result,
       },
       result.get_ptrs(), e1.get_ptrs(), e2.get_ptrs(), b.get_ptrs(), b.stagger_vec(),
       j.get_ptrs(), damping);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -371,8 +372,8 @@ compute_b_update_explicit_pml_cu(vector_field<Conf> &result,
       },
       result.get_ptrs(), b1.get_ptrs(), b2.get_ptrs(), e.get_ptrs(), e.stagger_vec(),
       damping);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -409,8 +410,8 @@ compute_e_update_explicit_cu(vector_field<Conf> &result,
       },
       result.get_ptrs(), e.get_ptrs(), b.get_ptrs(), b.stagger_vec(),
       j.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -442,8 +443,8 @@ compute_b_update_explicit_cu(vector_field<Conf> &result,
         }
       },
       result.get_ptrs(), b.get_ptrs(), e.get_ptrs(), e.stagger_vec());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -470,8 +471,8 @@ compute_double_curl(vector_field<Conf> &result, const vector_field<Conf> &b,
         }
       },
       result.get_ptrs(), b.get_ptrs(), b.stagger_vec());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -505,8 +506,8 @@ compute_implicit_rhs(vector_field<Conf> &result, const vector_field<Conf> &e,
         }
       },
       result.get_ptrs(), e.get_ptrs(), j.get_ptrs(), e.stagger_vec());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -541,8 +542,8 @@ compute_divs_cu(scalar_field<Conf> &divE, scalar_field<Conf> &divB,
       },
       divE.dev_ndptr(), divB.dev_ndptr(), e.get_ptrs(), b.get_ptrs(),
       e.stagger_vec(), b.stagger_vec(), is_boundary);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -571,8 +572,8 @@ compute_flux<Config<2>>(scalar_field<Config<2>> &flux,
         }
       },
       flux.dev_ndptr(), b.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
   // }
 }
 
@@ -607,8 +608,8 @@ compute_EB_sqr(scalar_field<Conf> &E_sqr, scalar_field<Conf> &B_sqr, const vecto
         }
       },
       E_sqr.dev_ndptr(), B_sqr.dev_ndptr(), E.get_ptrs(), B.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -627,8 +628,8 @@ clean_field(vector_field<Conf> &f) {
         }
       },
       f.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 }  // namespace
@@ -739,7 +740,7 @@ field_solver_cu<Conf>::update_explicit(double dt, double time) {
     compute_flux(*(this->flux), *(this->Btotal), this->m_grid);
     compute_EB_sqr(*(this->E_sqr), *(this->B_sqr), *(this->Etotal), *(this->Btotal));
   }
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -871,7 +872,7 @@ field_solver_cu<Conf>::update_semi_implicit_old(double dt, double alpha,
                     is_boundary);
   }
 
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 INSTANTIATE_WITH_CONFIG(field_solver_cu);

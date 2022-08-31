@@ -17,14 +17,32 @@
 
 #include "data/rng_states.h"
 #include "utils/kernel_helper.hpp"
+#include <hip/hip_runtime.h>
 
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
-  m_states.set_memtype(MemType::host_device);
-  m_states.resize(size_t(block_num * thread_num));
-
+  m_size = size_t(block_num * thread_num);
+  GpuSafeCall(gpuMalloc(&m_states, sizeof(rand_state) * m_size));
   m_initial_seed = seed;
+  m_states_host = new char[sizeof(rand_state) * m_size];
+}
+
+rng_states_t::~rng_states_t() {
+  GpuSafeCall(gpuFree(m_states));
+  delete[] m_states_host;
+}
+
+void
+rng_states_t::copy_to_host() {
+  GpuSafeCall(gpuMemcpy(m_states_host, m_states, m_size * sizeof(rand_state),
+                        gpuMemcpyDeviceToHost));
+}
+
+void
+rng_states_t::copy_to_device() {
+  GpuSafeCall(gpuMemcpy(m_states, m_states_host, m_size * sizeof(rand_state),
+                        gpuMemcpyHostToDevice));
 }
 
 void
@@ -34,11 +52,15 @@ rng_states_t::init() {
       p,
       [] __device__(auto states, auto seed) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
+#if defined(CUDA_ENABLED)
         curand_init(seed, id, 0, &states[id]);
+#elif defined(HIP_ENABLED)
+        rocrand_init(seed, id, 0, &states[id]);
+#endif
       },
-      m_states.dev_ptr(), m_initial_seed);
+      m_states, m_initial_seed);
   GpuCheckError();
   GpuSafeCall(gpuDeviceSynchronize());
 }
 
-}
+}  // namespace Aperture

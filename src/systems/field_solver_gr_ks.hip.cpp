@@ -57,8 +57,8 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
         }
       },
       D.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -92,8 +92,8 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
         }
       },
       B.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -123,8 +123,8 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
         }
       },
       D.get_ptrs(), B.get_ptrs(), grid.get_grid_ptrs(), grid.a);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -149,8 +149,8 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
         }
       },
       flux.dev_ndptr(), b.get_ptrs(), grid.a, grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -225,7 +225,7 @@ damping_boundary(vector_field<Conf> &E, vector_field<Conf> &B,
         }
       },
       E.get_ptrs(), B.get_ptrs(), E0.get_ptrs(), B0.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 }  // namespace
@@ -575,7 +575,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_prev_B.get_const_ptrs(), m_prev_D.get_const_ptrs(),
                 m_prev_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(m_new_B);
     this->m_comm->send_guard_cells(m_new_D);
@@ -589,7 +589,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_prev_B.get_const_ptrs(), m_new_D.get_const_ptrs(),
                 m_new_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(*(this->B));
     this->m_comm->send_guard_cells(*(this->E));
@@ -603,7 +603,7 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_prev_B.get_const_ptrs(), this->E->get_const_ptrs(),
                 this->B->get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(m_new_B);
     this->m_comm->send_guard_cells(m_new_D);
@@ -617,13 +617,13 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
                 m_prev_B.get_const_ptrs(), m_new_D.get_const_ptrs(),
                 m_new_B.get_const_ptrs(), this->J->get_const_ptrs(),
                 m_ks_grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(*(this->B));
     this->m_comm->send_guard_cells(*(this->E));
   }
 
-  CudaCheckError();
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -646,7 +646,7 @@ field_solver_gr_ks_cu<Conf>::update(double dt, uint32_t step) {
     compute_flux(*flux, *(this->Btotal), m_ks_grid);
   }
 
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template class field_solver_gr_ks_cu<Config<2, float>>;

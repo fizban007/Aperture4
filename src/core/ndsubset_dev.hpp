@@ -27,7 +27,7 @@
 
 namespace Aperture {
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename Indexable, typename Idx_t>
 class ndsubset_dev_const_t {
@@ -93,8 +93,8 @@ class ndsubset_dev_t {
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel,
         m_array, subset.m_array, m_begin, subset.m_begin, m_ext);
-    CudaSafeCall(cudaDeviceSynchronize());
-    CudaCheckError();
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
   }
 
   template <typename OtherIndexable, typename Op>
@@ -115,8 +115,8 @@ class ndsubset_dev_t {
     configure_grid(p, kernel, m_array, other, m_begin, m_ext, op);
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel, m_array, other, m_begin, m_ext, op);
-    CudaSafeCall(cudaDeviceSynchronize());
-    CudaCheckError();
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
   }
 
   template <typename Op>
@@ -136,8 +136,8 @@ class ndsubset_dev_t {
     configure_grid(p, kernel, m_array, m_begin, m_ext);
     if (m_stream != 0) { p.set_stream(m_stream); }
     kernel_launch(p, kernel, m_array, m_begin, m_ext);
-    CudaSafeCall(cudaDeviceSynchronize());
-    CudaCheckError();
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
   }
 
   self_type& operator=(const self_type& other) = delete;
@@ -227,7 +227,7 @@ class ndsubset_dev_t {
     return *this;
   }
 
-  self_type& with_stream(cudaStream_t stream) {
+  self_type& with_stream(gpuStream_t stream) {
     m_stream = stream;
     return *this;
   }
@@ -236,7 +236,7 @@ class ndsubset_dev_t {
   Indexable m_array;
   index_t<Idx_t::dim> m_begin;
   extent_t<Idx_t::dim> m_ext;
-  cudaStream_t m_stream = 0;
+  gpuStream_t m_stream = 0;
   // extent_t<Idx_t::dim> m_parent_ext;
 };
 

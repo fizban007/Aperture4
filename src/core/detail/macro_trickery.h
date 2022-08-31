@@ -18,7 +18,7 @@
 #ifndef _MACRO_TRICKERY_H_
 #define _MACRO_TRICKERY_H_
 
-#include "core/cuda_control.h"
+// #include "core/cuda_control.h"
 #include "visit_struct/visit_struct.hpp"
 #include "visit_struct/visit_struct_intrusive.hpp"
 #include <boost/preprocessor/cat.hpp>

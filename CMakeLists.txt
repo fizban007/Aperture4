@@ -13,6 +13,7 @@ option(use_hip "Include the HIP part of the code" OFF)
 option(build_docs "Build the doxygen documentation" OFF)
 option(build_tests "Build the test suite" ON)
 option(lib_only "Only build the core Aperture library" ON)
+option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 
 cmake_policy(SET CMP0074 NEW)
 if(POLICY CMP0076)
@@ -35,6 +36,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
 set(CXX_EXTRA_FLAGS "-DNO_WARN_X86_INTRINSICS")
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
   set(CMAKE_CXX_FLAGS_RELEASE
       "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div ${CXX_EXTRA_FLAGS}")
@@ -45,15 +47,21 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
+if(use_libcpp)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+endif()
+
 # Find required packages
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
 find_package(Boost COMPONENTS system filesystem REQUIRED)
 find_package(OpenMP)
 if (OPENMP_FOUND)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+  message(${OpenMP_CXX_FLAGS})
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
 # Set include directories
@@ -114,18 +122,6 @@ if(use_cuda)
   endif()
 endif()
 
-if(use_hip)
-  # Search for rocm in common locations
-  list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
-  # Find hip
-  find_package(hip REQUIRED)
-  add_definitions(-DHIP_ENABLED)
-  find_package(rocthrust)
-  find_package(rocrand)
-  find_package(rocsparse)
-endif()
-
-
 if(use_double)
   add_definitions(-DUSE_DOUBLE)
 endif()
@@ -137,6 +133,48 @@ endif()
 add_subdirectory(deps/fmt)
 add_subdirectory(deps/catch)
 link_libraries(stdc++fs)
+
+if(use_hip)
+  # Search for rocm in common locations
+  # list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+  # Find hip
+  # find_package(hip REQUIRED CONFIG)
+  # find_package(hip MODULE REQUIRED)
+  message("Checking hip support")
+  include(CheckLanguage)
+  check_language(HIP)
+  if (CMAKE_HIP_COMPILER)
+    enable_language(HIP)
+    set(CMAKE_HIP_STANDARD 17)
+    add_definitions(-DHIP_ENABLED)
+    message(
+      "Enabling HIP, include path is ${HSA_HEADER}"
+    )
+    include_directories(${HSA_HEADER})
+    # find_package(HIP)
+    # find_package(hip)
+    find_package(rocthrust)
+    find_package(rocrand)
+    find_package(rocsparse)
+    find_package(hipcub)
+    if(use_libcpp)
+      set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -stdlib=libc++ -fgpu-rdc --hip-link")
+    endif()
+
+    if(NOT DEFINED ENV{HIP_PLATFORM})
+      set(ENV{HIP_PLATFORM} "amd")
+    endif()
+
+    if($ENV{HIP_PLATFORM} STREQUAL "amd")
+      message("Using amd platform")
+      add_definitions(-D__HIP_PLATFORM_AMD__)
+    elseif($ENV{HIP_PLATFORM} STREQUAL "nvidia")
+      message("Using nvidia platform")
+      add_definitions(-D__HIP_PLATFORM_NVIDIA__)
+    endif()
+  endif()
+endif()
+
 add_subdirectory(src)
 add_subdirectory(problems)
 

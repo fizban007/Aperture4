@@ -26,13 +26,20 @@
 
 #ifdef CUDA_ENABLED
 #include <curand_kernel.h>
+#elif HIP_ENABLED
+#include <rocrand/rocrand_kernel.h>
 #endif
 
 namespace Aperture {
 
-#if defined(CUDA_ENABLED) && defined(__CUDACC__)
+#if (defined(CUDA_ENABLED) && defined(__CUDACC__)) || \
+    (defined(HIP_ENABLED) && defined(__HIPCC__))
 
+#ifdef CUDA_ENABLED
 typedef curandState rand_state;
+#elif HIP_ENABLED
+typedef rocrand_state_xorwow rand_state;
+#endif
 
 struct rng_t {
   __device__ rng_t(rand_state* state) {
@@ -129,25 +136,41 @@ struct rng_t {
 template <>
 __device__ __forceinline__ float
 rng_t::uniform() {
+#ifdef CUDA_ENABLED
   return curand_uniform(&m_local_state);
+#elif HIP_ENABLED
+  return rocrand_uniform(&m_local_state);
+#endif
 }
 
 template <>
 __device__ __forceinline__ double
 rng_t::uniform() {
+#ifdef CUDA_ENABLED
   return curand_uniform_double(&m_local_state);
+#elif HIP_ENABLED
+  return rocrand_uniform_double(&m_local_state);
+#endif
 }
 
 template <>
 __device__ __forceinline__ float
 rng_t::gaussian(float sigma) {
+#ifdef CUDA_ENABLED
   return curand_normal(&m_local_state) * sigma;
+#elif HIP_ENABLED
+  return rocrand_normal(&m_local_state) * sigma;
+#endif
 }
 
 template <>
 __device__ __forceinline__ double
 rng_t::gaussian(double sigma) {
+#ifdef CUDA_ENABLED
   return curand_normal_double(&m_local_state) * sigma;
+#elif HIP_ENABLED
+  return rocrand_normal_double(&m_local_state) * sigma;
+#endif
 }
 
 #else

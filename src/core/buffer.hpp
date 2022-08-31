@@ -29,11 +29,7 @@
 #include <initializer_list>
 #include <type_traits>
 
-#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
-#include <thrust/copy.h>
-#include <thrust/device_ptr.h>
-#include <thrust/fill.h>
-#else
+#if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
 typedef int gpuStream_t;
 #endif
 

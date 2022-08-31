@@ -22,8 +22,25 @@
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
-  m_states.resize(1);
-  m_states[0] = rand_state(seed);
+  m_states = new rand_state;
+  *m_states = rand_state(seed);
+
+  m_states_host = new char[sizeof(rand_state)];
+}
+
+rng_states_t::~rng_states_t() {
+  delete m_states;
+  delete[] m_states_host;
+}
+
+void
+rng_states_t::copy_to_host() {
+  memcpy(m_states_host, m_states, sizeof(rand_state));
+}
+
+void
+rng_states_t::copy_to_device() {
+  memcpy(m_states, m_states_host, sizeof(rand_state));
 }
 
 void

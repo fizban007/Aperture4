@@ -29,7 +29,7 @@ struct Grid;
 
 struct sim_params;
 
-#if defined(__CUDACC__)
+// #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
 
 extern __constant__ uint32_t morton2dLUT_dev[256];
 extern __constant__ uint32_t morton3dLUT_dev[256];
@@ -50,41 +50,48 @@ extern __device__ uint32_t dev_ptc_id;
 extern __device__ uint32_t dev_ph_id;
 
 template <int Rank, typename value_t>
-__device__ __forceinline__ const Grid<Rank, value_t>& dev_grid();
+// FORCE_INLINE __device__ const Grid<Rank, value_t>& dev_grid();
+__device__ const Grid<Rank, value_t>& dev_grid();
 
 template <>
-__device__ __forceinline__ const Grid<1, float>&
+// FORCE_INLINE __device__ const Grid<1, float>&
+__device__ const Grid<1, float>&
 dev_grid<1, float>() {
   return dev_grid_1d_float;
 }
 template <>
-__device__ __forceinline__ const Grid<2, float>&
+// FORCE_INLINE __device__ const Grid<2, float>&
+__device__ const Grid<2, float>&
 dev_grid<2, float>() {
   return dev_grid_2d_float;
 }
 template <>
-__device__ __forceinline__ const Grid<3, float>&
+// FORCE_INLINE __device__ const Grid<3, float>&
+__device__ const Grid<3, float>&
 dev_grid<3, float>() {
   return dev_grid_3d_float;
 }
 
 template <>
-__device__ __forceinline__ const Grid<1, double>&
+// FORCE_INLINE __device__ const Grid<1, double>&
+__device__ const Grid<1, double>&
 dev_grid<1, double>() {
   return dev_grid_1d_double;
 }
 template <>
-__device__ __forceinline__ const Grid<2, double>&
+// FORCE_INLINE __device__ const Grid<2, double>&
+__device__ const Grid<2, double>&
 dev_grid<2, double>() {
   return dev_grid_2d_double;
 }
 template <>
-__device__ __forceinline__ const Grid<3, double>&
+// FORCE_INLINE __device__ const Grid<3, double>&
+__device__ const Grid<3, double>&
 dev_grid<3, double>() {
   return dev_grid_3d_double;
 }
 
-#endif
+// #endif
 
 }  // namespace Aperture
 

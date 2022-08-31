@@ -35,6 +35,9 @@
 #if defined(HIP_ENABLED)
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
+
+// #define FORCE_INLINE [[clang::always_inline]]
+
 using gpuError_t = hipError_t;
 using gpuStream_t = hipStream_t;
 using gpuDeviceProp_t = hipDeviceProp_t;
@@ -63,6 +66,9 @@ using gpuFuncAttributes = hipFuncAttributes;
 
 #elif defined(CUDA_ENABLED)
 #include <cuda_runtime.h>
+
+// #define FORCE_INLINE __forceinline__
+
 using gpuError_t = cudaError;
 using gpuStream_t = cudaStream_t;
 using gpuDeviceProp_t = cudaDeviceProp;

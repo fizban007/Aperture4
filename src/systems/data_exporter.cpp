@@ -773,7 +773,9 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
 template <typename Conf>
 void
 data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
-                          H5File& datafile, bool snapshot) {}
+                          H5File& datafile, bool snapshot) {
+  data.copy_to_host();
+}
 
 template <typename Conf>
 void

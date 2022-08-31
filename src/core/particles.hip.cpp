@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "core/cached_allocator.hpp"
+// #include "core/cached_allocator.hpp"
 #include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
@@ -270,7 +270,7 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
     m_number =
         last_segment * m_sort_segment_size + m_segment_nums[last_segment];
 
-    gpuDeviceSynchronize();
+    GpuSafeCall(gpuDeviceSynchronize());
     GpuCheckError();
   }
 }

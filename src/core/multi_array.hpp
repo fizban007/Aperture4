@@ -205,7 +205,8 @@ class multi_array : public buffer<T> {
 
     // HD_INLINE const value_t& operator[](const idx_t& idx) const {
     HD_INLINE value_t operator[](const idx_t& idx) const {
-#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+// #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+#if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];
@@ -246,7 +247,8 @@ class multi_array : public buffer<T> {
     HOST_DEVICE ~ref_t() {}
 
     HD_INLINE value_t& operator[](const idx_t& idx) {
-#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+// #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+#if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];

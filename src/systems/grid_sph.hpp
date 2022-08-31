@@ -46,7 +46,7 @@ class grid_sph_t : public grid_curv_t<Conf> {
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
 
   // Coordinate for output position
-  inline vec_t<float, 2> cart_coord(
+  vec_t<float, 2> cart_coord(
       const index_t<2> &pos) const {
     vec_t<float, 2> result;
     for (int i = 0; i < 2; i++) {
@@ -59,7 +59,7 @@ class grid_sph_t : public grid_curv_t<Conf> {
     return result;
   }
 
-  inline vec_t<float, 3> cart_coord(
+  vec_t<float, 3> cart_coord(
       const index_t<3> &pos) const {
     vec_t<float, 3> result;
     for (int i = 0; i < 3; i++) {

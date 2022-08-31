@@ -109,7 +109,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
         }
       },
       result.get_ptrs(), b.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -155,7 +155,7 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
         }
       },
       result.get_ptrs(), e.get_ptrs(), j.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -228,7 +228,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
         }
       },
       result.get_ptrs(), b.get_ptrs(), j.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -274,7 +274,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
         }
       },
       result.get_ptrs(), e.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -311,7 +311,7 @@ axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
         }
       },
       e.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -348,7 +348,7 @@ axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
         }
       },
       b.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -377,7 +377,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
         }
       },
       e.get_ptrs(), b.get_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 template <typename Conf>
@@ -427,8 +427,8 @@ compute_divs_cu(scalar_field<Conf>& divE, scalar_field<Conf>& divB,
       },
       divE.dev_ndptr(), divB.dev_ndptr(), e.get_ptrs(), b.get_ptrs(),
       grid.get_grid_ptrs(), boundary);
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>
@@ -451,8 +451,8 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
         }
       },
       flux.dev_ndptr(), b.get_ptrs(), grid.get_grid_ptrs());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 }

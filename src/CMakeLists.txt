@@ -17,7 +17,6 @@ set(Aperture_src
   "systems/grid_ks.cpp"
   "systems/field_solver.cpp"
   "systems/legacy/ptc_updater_old.cpp"
-  # "systems/ptc_injector.cpp"
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
   "systems/inverse_compton.cpp"
@@ -29,19 +28,19 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "core/buffer_impl.hip.cpp"
     "core/constant_mem.hip.cpp"
     "core/particles.hip.cpp"
-    "core/detail/multi_array_helpers.cu"
-    "data/rng_states.cu"
+    "core/detail/multi_array_helpers.hip.cpp"
+    "data/rng_states.hip.cpp"
     # "systems/ffe_solver_EZ.cu"
-    "systems/field_solver.cu"
-    "systems/field_solver_sph.cu"
-    "systems/field_solver_polar.cu"
-    "systems/field_solver_gr_ks.cu"
+    "systems/field_solver.hip.cpp"
+    "systems/field_solver_sph.hip.cpp"
+    "systems/field_solver_polar.hip.cpp"
+    "systems/field_solver_gr_ks.hip.cpp"
     # "systems/legacy/ptc_updater_old.cu"
     # "systems/legacy/ptc_updater_old_sph.cu"
     # "systems/legacy/ptc_updater_old_gr_ks.cu"
     # "systems/ptc_injector.cu"
     #"systems/domain_comm_async.cpp"
-    "systems/compute_lorentz_factor.cu"
+    "systems/compute_lorentz_factor.hip.cpp"
     "systems/gather_momentum_space.cu"
     "systems/ptc_updater_base.cu"
     "systems/radiative_transfer.cu"
@@ -50,7 +49,24 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   list(APPEND Aperture_src
     ${Aperture_cuda_src})
 elseif(use_hip)
-  list(APPEND )
+  set(Aperture_hip_src
+    "core/buffer_impl.hip.cpp"
+    "core/constant_mem.hip.cpp"
+    "core/particles.hip.cpp"
+    "core/detail/multi_array_helpers.hip.cpp"
+    "data/rng_states.hip.cpp"
+    "systems/field_solver.hip.cpp"
+    "systems/field_solver_sph.hip.cpp"
+    "systems/field_solver_polar.hip.cpp"
+    "systems/field_solver_gr_ks.hip.cpp"
+    "systems/compute_lorentz_factor.hip.cpp"
+    # "systems/gather_momentum_space.cu"
+    # "systems/ptc_updater_base.cu"
+    # "systems/radiative_transfer.cu"
+    )
+  set_source_files_properties(${Aperture_hip_src} PROPERTIES LANGUAGE HIP)
+  list(APPEND Aperture_src
+    ${Aperture_hip_src})
 else()
   list(APPEND Aperture_src
     "core/particles.cpp"

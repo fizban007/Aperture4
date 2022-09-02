@@ -34,13 +34,15 @@ class rng_states_t : public data_t {
 
   void init() override;
 
-  rand_state* states() { return m_states; }
-  const rand_state* states() const { return m_states; }
-  char* host_states() { return m_states_host; }
-  const char* host_states() const { return m_states_host; }
+  buffer<rand_state>& states() { return m_states; }
+  const buffer<rand_state>& states() const { return m_states; }
 
-  void copy_to_device();
-  void copy_to_host();
+  void copy_to_device() {
+    m_states.copy_to_device();
+  }
+  void copy_to_host() {
+    m_states.copy_to_host();
+  }
 
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   static constexpr int block_num = 512;
@@ -50,8 +52,7 @@ class rng_states_t : public data_t {
  private:
   uint64_t m_initial_seed;
   size_t m_size;
-  rand_state* m_states;
-  char* m_states_host;
+  buffer<rand_state> m_states;
 };
 
 template<>
@@ -59,7 +60,7 @@ struct host_adapter<rng_states_t> {
   typedef rand_state* type;
 
   static inline type apply(rng_states_t& s) {
-    return s.states();
+    return s.states().host_ptr();
   }
 };
 
@@ -70,7 +71,7 @@ struct gpu_adapter<rng_states_t> {
   typedef rand_state* type;
 
   static inline type apply(rng_states_t& s) {
-    return s.states();
+    return s.states().dev_ptr();
   }
 };
 

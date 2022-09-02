@@ -17,48 +17,40 @@
 
 #include "data/rng_states.h"
 #include "utils/kernel_helper.hpp"
-#include <hip/hip_runtime.h>
+// #include <hip/hip_runtime.h>
 
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
   m_size = size_t(block_num * thread_num);
-  GpuSafeCall(gpuMalloc(&m_states, sizeof(rand_state) * m_size));
   m_initial_seed = seed;
-  m_states_host = new char[sizeof(rand_state) * m_size];
+  // GpuSafeCall(gpuMalloc(&m_states, sizeof(rand_state) * m_size));
+  // m_states_host = new char[sizeof(rand_state) * m_size];
+  m_states.set_memtype(MemType::host_device);
+  m_states.resize(m_size);
 }
 
-rng_states_t::~rng_states_t() {
-  GpuSafeCall(gpuFree(m_states));
-  delete[] m_states_host;
-}
-
-void
-rng_states_t::copy_to_host() {
-  GpuSafeCall(gpuMemcpy(m_states_host, m_states, m_size * sizeof(rand_state),
-                        gpuMemcpyDeviceToHost));
-}
-
-void
-rng_states_t::copy_to_device() {
-  GpuSafeCall(gpuMemcpy(m_states, m_states_host, m_size * sizeof(rand_state),
-                        gpuMemcpyHostToDevice));
-}
+rng_states_t::~rng_states_t() {}
 
 void
 rng_states_t::init() {
-  kernel_exec_policy p{block_num, thread_num};
+  // kernel_exec_policy p{block_num, thread_num};
   kernel_launch(
-      p,
+      {block_num, thread_num},
       [] __device__(auto states, auto seed) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
-#if defined(CUDA_ENABLED)
-        curand_init(seed, id, 0, &states[id]);
-#elif defined(HIP_ENABLED)
-        rocrand_init(seed, id, 0, &states[id]);
-#endif
+// #if defined(CUDA_ENABLED)
+//         curand_init(seed, id, 0, &states[id]);
+// #elif defined(HIP_ENABLED)
+//         rocrand_init(seed, id, 0, &states[id]);
+// #endif
+        states[id].init(seed);
+        // Advance the state by 2^128 * id times
+        for (uint64_t i = 0; i < id; i++) {
+          states[id].jump();
+        }
       },
-      m_states, m_initial_seed);
+      m_states.dev_ptr(), m_initial_seed);
   GpuCheckError();
   GpuSafeCall(gpuDeviceSynchronize());
 }

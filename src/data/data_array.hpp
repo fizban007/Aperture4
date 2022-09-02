@@ -28,7 +28,7 @@ namespace Aperture {
 template <typename T>
 class data_array {
  public:
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   typedef typename gpu_adapter<T>::type adapted_type;
 #else
   typedef typename host_adapter<T>::type adapted_type;
@@ -48,7 +48,7 @@ class data_array {
 
   void set(int i, const nonown_ptr<T> &p) {
     m_data[i] = p;
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     m_ptrs[i] = gpu_adapter<T>::apply(*p);
 #else
     m_ptrs[i] = host_adapter<T>::apply(*p);
@@ -57,7 +57,7 @@ class data_array {
 
   void copy_to_device() {
     for (int i = 0; i < m_data.size(); i++) {
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
       m_ptrs[i] = gpu_adapter<T>::apply(*m_data[i]);
 #else
       m_ptrs[i] = host_adapter<T>::apply(*m_data[i]);
@@ -91,7 +91,7 @@ struct host_adapter<data_array<T>> {
   static inline type apply(data_array<T> &array) { return array.host_ptrs(); }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename T>
 struct gpu_adapter<data_array<T>> {

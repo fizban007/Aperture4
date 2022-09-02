@@ -58,7 +58,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
   buffer<double> buf(N, MemType::host_device);
 
   REQUIRE(buf.host_allocated() == true);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   REQUIRE(buf.dev_allocated() == true);
 #endif
 
@@ -66,7 +66,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
   ptr[300] = 3.0;
   REQUIRE(ptr[300] == 3.0);
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   // Test coping to device and back
   buf.copy_to_device();
   ptr[300] = 6.0;
@@ -79,7 +79,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
     auto buf1 = std::move(buf);
 
     REQUIRE(buf.host_allocated() == false);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     REQUIRE(buf.dev_allocated() == false);
 #endif
     REQUIRE(buf.host_ptr() == nullptr);
@@ -91,7 +91,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
 
     REQUIRE(buf1.host_allocated() == false);
     REQUIRE(buf1.host_ptr() == nullptr);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     REQUIRE(buf1.dev_ptr() == nullptr);
 #endif
     REQUIRE(buf2.size() == N);
@@ -104,7 +104,7 @@ TEST_CASE("Managed buffer", "[buffer]") {
   buffer<double> buf(N, MemType::device_managed);
 
   REQUIRE(buf.host_allocated() == false);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   REQUIRE(buf.dev_allocated() == true);
 
   for (int i = 0; i < buf.size(); i++) {
@@ -116,7 +116,7 @@ TEST_CASE("Managed buffer", "[buffer]") {
 #endif
 }
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
 TEST_CASE("Device only buffer", "[buffer]") {
   uint32_t N = 1000;
 
@@ -145,7 +145,7 @@ TEST_CASE("Assign and copy buffer", "[buffer]") {
     }
   }
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   SECTION("Host and device") {
     buffer<float> buf(N, MemType::host_device);
     buf.assign(5.0f);

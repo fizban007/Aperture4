@@ -28,7 +28,7 @@
 #include <type_traits>
 #include <variant>
 
-#if __GNUC__ >= 8
+#if __GNUC__ >= 8 || defined(__clang__)
 namespace fs = std::filesystem;
 #else
 namespace fs = boost::filesystem;

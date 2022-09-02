@@ -75,7 +75,7 @@ class momentum_space : public data_t {
   }
 
   void init() override {
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     e_p1.assign_dev(0.0f);
     e_p2.assign_dev(0.0f);
     e_p3.assign_dev(0.0f);
@@ -87,7 +87,7 @@ class momentum_space : public data_t {
     e_E.assign(0.0f);
 #endif
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     p_p1.assign_dev(0.0f);
     p_p2.assign_dev(0.0f);
     p_p3.assign_dev(0.0f);

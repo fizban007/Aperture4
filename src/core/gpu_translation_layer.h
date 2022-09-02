@@ -50,6 +50,8 @@ using gpuFuncAttributes = hipFuncAttributes;
 #define gpuGetDevice(devId) hipGetDevice(devId)
 #define gpuGetDeviceProperties(prop, id) hipGetDeviceProperties(prop, id)
 #define gpuFuncGetAttributes(attrib, f) hipFuncGetAttributes(attrib, f)
+#define gpuGetDeviceCount(num) hipGetDeviceCount(num)
+#define gpuSetDevice(id) hipSetDevice(id)
 
 // Memory management Functions
 #define gpuMalloc(ptr, size) hipMalloc(ptr, size)
@@ -59,6 +61,7 @@ using gpuFuncAttributes = hipFuncAttributes;
 #define gpuMemcpyAsync(dst, src, size, kind, stream) \
   hipMemcpyAsync(dst, src, size, kind, stream)
 #define gpuMemcpyToSymbol(dst, src, size) hipMemcpyToSymbol(dst, src, size)
+#define gpuMemGetInfo(free, total) hipMemGetInfo(free, total)
 
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
@@ -81,6 +84,8 @@ using gpuFuncAttributes = cudaFuncAttributes;
 #define gpuGetDevice(devId) cudaGetDevice(devId)
 #define gpuGetDeviceProperties(prop, id) cudaGetDeviceProperties(prop, id)
 #define gpuFuncGetAttributes(attrib, f) cudaFuncGetAttributes(attrib, f)
+#define gpuGetDeviceCount(num) cudaGetDeviceCount(num)
+#define gpuSetDevice(id) cudaSetDevice(id)
 
 // Memory management Functions
 #define gpuMalloc(ptr, size) cudaMalloc(ptr, size)
@@ -90,6 +95,7 @@ using gpuFuncAttributes = cudaFuncAttributes;
 #define gpuMemcpyAsync(dst, src, size, kind, stream) \
   cudaMemcpyAsync(dst, src, size, kind, stream)
 #define gpuMemcpyToSymbol(dst, src, size) cudaMemcpyToSymbol(dst, src, size)
+#define gpuMemGetInfo(free, total) cudaMemGetInfo(free, total)
 
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice

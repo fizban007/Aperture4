@@ -44,11 +44,12 @@ rng_states_t::init() {
 // #elif defined(HIP_ENABLED)
 //         rocrand_init(seed, id, 0, &states[id]);
 // #endif
-        states[id].init(seed);
+        states[id].init(seed + id);
+        states[id].jump();
         // Advance the state by 2^128 * id times
-        for (uint64_t i = 0; i < id; i++) {
-          states[id].jump();
-        }
+        // for (uint64_t i = 0; i < id; i++) {
+        //   states[id].jump();
+        // }
       },
       m_states.dev_ptr(), m_initial_seed);
   GpuCheckError();

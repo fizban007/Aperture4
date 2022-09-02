@@ -67,7 +67,7 @@ class phase_space : public data_t {
   }
 
   void init() override {
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     data.assign_dev(0.0f);
 #else
     data.assign(0.0f);

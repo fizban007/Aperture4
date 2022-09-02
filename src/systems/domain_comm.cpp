@@ -136,11 +136,11 @@ domain_comm<Conf>::setup_domain() {
     if (right < 0) m_domain_info.is_boundary[2 * n + 1] = true;
   }
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   // Poll the system to detect how many GPUs are on the node, set the
   // GPU corresponding to the rank
   int n_devices;
-  CudaSafeCall(cudaGetDeviceCount(&n_devices));
+  GpuSafeCall(gpuGetDeviceCount(&n_devices));
   if (n_devices <= 0) {
     std::cerr << "No usable Cuda device found!!" << std::endl;
     exit(1);
@@ -150,7 +150,7 @@ domain_comm<Conf>::setup_domain() {
   // TODO: This way of finding device id may not be reliable
   int dev_id = m_rank % n_devices;
   // std::cout << "Rank " << m_rank << " is on device #" << dev_id << std::endl;
-  cudaSetDevice(dev_id);
+  GpuSafeCall(gpuSetDevice(dev_id));
   init_dev_rank(m_rank);
 #endif
 }

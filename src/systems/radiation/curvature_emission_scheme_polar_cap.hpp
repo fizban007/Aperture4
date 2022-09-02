@@ -101,7 +101,7 @@ struct curvature_emission_scheme_polar_cap {
     sim_env().get_data("B", B);
     sim_env().get_data("E", E);
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     m_B[0] = B->at(0).dev_ndptr_const();
     m_B[1] = B->at(1).dev_ndptr_const();
     m_B[2] = B->at(2).dev_ndptr_const();

@@ -18,6 +18,7 @@
 #ifndef _GATHER_MOMENTUM_SPACE_IMPL_H_
 #define _GATHER_MOMENTUM_SPACE_IMPL_H_
 
+#include "core/gpu_translation_layer.h"
 #include "core/math.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
@@ -25,6 +26,13 @@
 #include "gather_momentum_space.h"
 #include "utils/interpolation.hpp"
 #include "utils/util_functions.h"
+
+// #if defined(__HIPCC__)
+// #pragma message "HIPCC defined!"
+// #endif
+// #if defined(__HIP_DEVICE_COMPILE__)
+// #pragma message "HIP_DEVICE_COMPILE defined!"
+// #endif
 
 namespace Aperture {
 

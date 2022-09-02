@@ -116,7 +116,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
         if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
       },
       g3);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
@@ -135,10 +135,12 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
-    printf("N is %ux%ux%u\n", dev_grid<3, float>().reduced_dim(0),
-           dev_grid<3, float>().reduced_dim(1), dev_grid<3, float>().reduced_dim(1));
+    auto& grid = dev_grid<3, float>();
+    // printf("N is %ux%ux%u\n", grid.reduced_dim(0),
+    //        dev_grid<3, float>().reduced_dim(1),
+    //        dev_grid<3, float>().reduced_dim(1));
   });
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
 TEST_CASE("Grid with different indexing schemes", "[grid][index]") {

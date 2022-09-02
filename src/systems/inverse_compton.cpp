@@ -108,7 +108,7 @@ inverse_compton_t::get_ic_module() {
   ic_scatter_t result;
   result.dNde = m_dNde.cref();
   result.dNde_thomson = m_dNde_thomson.cref();
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   result.ic_rate = m_ic_rate.dev_ptr();
   result.gg_rate = m_gg_rate.dev_ptr();
 #else

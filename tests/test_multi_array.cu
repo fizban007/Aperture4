@@ -35,7 +35,7 @@
 
 using namespace Aperture;
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
 
 TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   uint32_t N1 = 100, N2 = 300;
@@ -51,7 +51,7 @@ TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
         }
       },
       array.dev_ndptr(), 3.0f, ext);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 
   array.copy_to_host();
 
@@ -82,7 +82,7 @@ TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
         }
       },
       array.dev_ndptr(), ext);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 
   for (auto idx : array.indices()) {
     // auto pos = idx.get_pos();
@@ -169,7 +169,7 @@ TEST_CASE("Performance of different indexing schemes",
     }
   };
 
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
   Logger::print_info(
       "Measuring interpolation speed with different indexing schemes on "
       "Device");
@@ -178,14 +178,14 @@ TEST_CASE("Performance of different indexing schemes",
   kernel_launch(interp_kernel, v1.dev_ndptr_const(), result1.dev_ptr(),
                 xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(), cells1.dev_ptr(),
                 ext);
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("normal indexing", "us");
 
   timer::stamp();
   kernel_launch(interp_kernel, v2.dev_ndptr_const(), result2.dev_ptr(),
                 xs.dev_ptr(), ys.dev_ptr(), zs.dev_ptr(), cells2.dev_ptr(),
                 ext);
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("morton indexing", "us");
 
   result1.copy_to_host();
@@ -226,8 +226,8 @@ TEST_CASE("Add ndptr on device", "[multi_array][exp_template]") {
         }
       },
       v1.dev_ndptr_const(), v2.dev_ndptr_const(), v3.dev_ndptr());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 
   v3.copy_to_host();
   for (auto idx : v3.indices()) {
@@ -298,7 +298,7 @@ TEST_CASE("Performance of expression template",
   v1.assign_dev(3.0f);
   Logger::print_info("Measuring performance of expression templates");
 
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
 
   timer::stamp();
   kernel_launch(
@@ -309,7 +309,7 @@ TEST_CASE("Performance of expression template",
         }
       },
       v1.dev_ndptr());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("Evaluation using Kernel Launch", "us");
 
   v1.copy_to_host();
@@ -339,7 +339,7 @@ TEST_CASE("Performance of expression template",
 
   timer::stamp();
   select_dev(v3) += v1.cref();
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("Copy using expression template", "us");
   v3.copy_to_host();
 
@@ -360,7 +360,7 @@ TEST_CASE("Testing resample", "[multi_array]") {
         p[idx] = pos[0] + pos[1];
       }
     }, array.dev_ndptr());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 
   Logger::print_info("array[3, 2] is {}", array[idx_t(index(3, 2), ext)]);
 
@@ -370,7 +370,7 @@ TEST_CASE("Testing resample", "[multi_array]") {
 
   auto offset = index(0, 0);
   resample_dev(array, arr2, offset, offset, stagger_t(0b000), stagger_t(0b000), downsample);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 
   REQUIRE(arr2.dev_ptr()[0] == 48.0f / 16.0f);
   REQUIRE(arr2.dev_ptr()[1] == (88.0f + 24.0f) / 16.0f);

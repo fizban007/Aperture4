@@ -25,11 +25,11 @@
 #include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
 
-#ifdef CUDA_ENABLED
-#include <curand_kernel.h>
-#elif HIP_ENABLED
-#include <rocrand/rocrand_kernel.h>
-#endif
+// #ifdef CUDA_ENABLED
+// #include <curand_kernel.h>
+// #elif HIP_ENABLED
+// #include <rocrand/rocrand_kernel.h>
+// #endif
 
 namespace Aperture {
 

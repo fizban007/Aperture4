@@ -141,9 +141,9 @@ sim_environment_impl::init() {
     c->init();
   }
 
-#if CUDA_ENABLED
+#ifdef GPU_ENABLED
   size_t free_mem, total_mem;
-  cudaMemGetInfo( &free_mem, &total_mem );
+  GpuSafeCall(gpuMemGetInfo( &free_mem, &total_mem ));
   Logger::print_info("GPU memory: free={:.3f}GiB/{:.3f}GiB", free_mem/1.0e9, total_mem/1.0e9);
 #endif
   // m_system_time.assign(m_data_order.size(), 0.0f);

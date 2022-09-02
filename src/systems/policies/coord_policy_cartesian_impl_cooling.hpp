@@ -34,6 +34,7 @@ class coord_policy_cartesian_impl_cooling
  public:
   using value_t = typename Conf::value_t;
   using vec3 = vec_t<value_t, 3>;
+  using base_class = coord_policy_cartesian<Conf>;
   using coord_policy_cartesian<Conf>::coord_policy_cartesian;
 
   void init() {
@@ -152,10 +153,10 @@ class coord_policy_cartesian_impl_cooling
         auto aL_perp =
             cross(aL, context.p) / p;
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
-        auto eph =
+        value_t eph =
             m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
         if (eph > math::exp(m_lim_lower)) {
-          value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
+          value_t log_eph = clamp(math::log(std::max(eph, math::exp(m_lim_lower))),
                                   m_lim_lower, m_lim_upper);
           auto ext_out = grid.extent_less() / m_downsample;
           auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
@@ -184,7 +185,7 @@ class coord_policy_cartesian_impl_cooling
       }
     }
 
-    move_ptc(grid, context, pos, dt);
+    base_class::move_ptc(grid, context, pos, dt);
   }
 
   HD_INLINE vec3 rhs_x(const vec3& u, value_t dt) const {
@@ -230,8 +231,8 @@ class coord_policy_cartesian_impl_cooling
   mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;
   value_t m_BQ = 1e5;
-  float m_lim_lower = 1.0e-6;
-  float m_lim_upper = 1.0e2;
+  value_t m_lim_lower = 1.0e-6;
+  value_t m_lim_upper = 1.0e2;
   int m_downsample = 16;
   int m_ph_nth = 32;
   int m_ph_nphi = 64;

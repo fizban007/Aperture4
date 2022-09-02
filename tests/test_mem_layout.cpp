@@ -16,6 +16,7 @@
  */
 
 #include "catch.hpp"
+#undef __HIPCC__
 #include "core/multi_array.hpp"
 #include "core/random.h"
 #include "data/rng_states.h"

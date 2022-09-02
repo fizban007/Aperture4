@@ -39,7 +39,7 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
     scalar_field<Conf> f(grid, MemType::host_only);
     REQUIRE(f[0].mem_type() == MemType::host_only);
     REQUIRE(f[0].host_allocated() == true);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     REQUIRE(f[0].dev_allocated() == false);
 #endif
   }
@@ -48,7 +48,7 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
     vector_field<Conf> f(grid, MemType::device_managed);
     REQUIRE(f[0].host_allocated() == false);
     REQUIRE(f[0].mem_type() == MemType::device_managed);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     REQUIRE(f[1].dev_allocated() == true);
     REQUIRE(f[2].host_ptr() != nullptr);
 #endif
@@ -58,7 +58,7 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
     vector_field<Conf> f(grid, MemType::host_device);
     REQUIRE(f[0].mem_type() == MemType::host_device);
     REQUIRE(f[0].host_allocated() == true);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     REQUIRE(f[1].dev_allocated() == true);
 #endif
   }

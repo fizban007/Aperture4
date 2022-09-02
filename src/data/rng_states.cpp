@@ -17,7 +17,7 @@
 
 #include "rng_states.h"
 
-#ifndef CUDA_ENABLED
+// #ifndef CUDA_ENABLED
 
 namespace Aperture {
 
@@ -35,4 +35,4 @@ rng_states_t::init() {
 
 }
 
-#endif
+// #endif

@@ -22,7 +22,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
-#if __GNUC__ >= 8
+#if __GNUC__ >= 8 || defined(__clang__)
 #include <filesystem>
 #else
 #define USE_BOOST_FILESYSTEM

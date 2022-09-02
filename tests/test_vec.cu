@@ -36,7 +36,7 @@ TEST_CASE("constructing vec_t", "[vec]") {
   REQUIRE(v[1] == 32);
 
   knl_print_vec_t<<<1, 1>>>(v);
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
 
   // Default construction gives zero
   auto u = vec_t<uint32_t, 3>{};

@@ -34,7 +34,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     sim_env().get_data("E", E);
     nonown_ptr<vector_field<Conf>> B;
     sim_env().get_data("B", B);
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     m_E[0] = E->at(0).dev_ndptr_const();
     m_E[1] = E->at(1).dev_ndptr_const();
     m_E[2] = E->at(2).dev_ndptr_const();

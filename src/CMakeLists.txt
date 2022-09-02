@@ -22,34 +22,10 @@ set(Aperture_src
   "systems/inverse_compton.cpp"
   "systems/sync_curv_emission.cpp"
   )
+set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  set(Aperture_cuda_src
-    "core/buffer_impl.hip.cpp"
-    "core/constant_mem.hip.cpp"
-    "core/particles.hip.cpp"
-    "core/detail/multi_array_helpers.hip.cpp"
-    "data/rng_states.hip.cpp"
-    # "systems/ffe_solver_EZ.cu"
-    "systems/field_solver.hip.cpp"
-    "systems/field_solver_sph.hip.cpp"
-    "systems/field_solver_polar.hip.cpp"
-    "systems/field_solver_gr_ks.hip.cpp"
-    # "systems/legacy/ptc_updater_old.cu"
-    # "systems/legacy/ptc_updater_old_sph.cu"
-    # "systems/legacy/ptc_updater_old_gr_ks.cu"
-    # "systems/ptc_injector.cu"
-    #"systems/domain_comm_async.cpp"
-    "systems/compute_lorentz_factor.hip.cpp"
-    "systems/gather_momentum_space.hip.cpp"
-    "systems/ptc_updater_base.cu"
-    "systems/radiative_transfer.cu"
-    )
-  set_source_files_properties(${Aperture_cuda_src} PROPERTIES LANGUAGE CUDA)
-  list(APPEND Aperture_src
-    ${Aperture_cuda_src})
-elseif(use_hip)
-  set(Aperture_hip_src
+  set(Aperture_dev_src
     "core/buffer_impl.hip.cpp"
     "core/constant_mem.hip.cpp"
     "core/particles.hip.cpp"
@@ -61,14 +37,30 @@ elseif(use_hip)
     "systems/field_solver_gr_ks.hip.cpp"
     "systems/compute_lorentz_factor.hip.cpp"
     "systems/gather_momentum_space.hip.cpp"
-    # "systems/ptc_updater_base.cu"
+    "systems/ptc_updater_base.hip.cpp"
     # "systems/radiative_transfer.cu"
     )
-  set_source_files_properties(${Aperture_hip_src} PROPERTIES LANGUAGE HIP)
-  list(APPEND Aperture_src
-    ${Aperture_hip_src})
+  set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
+elseif(use_hip)
+  set(Aperture_dev_src
+    "core/buffer_impl.hip.cpp"
+    "core/constant_mem.hip.cpp"
+    "core/particles.hip.cpp"
+    "core/detail/multi_array_helpers.hip.cpp"
+    "data/rng_states.hip.cpp"
+    "systems/field_solver.hip.cpp"
+    "systems/field_solver_sph.hip.cpp"
+    "systems/field_solver_polar.hip.cpp"
+    "systems/field_solver_gr_ks.hip.cpp"
+    "systems/compute_lorentz_factor.hip.cpp"
+    "systems/gather_momentum_space.hip.cpp"
+    "systems/ptc_updater_base.hip.cpp"
+    # "systems/radiative_transfer.cu"
+    )
+  set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
 else()
-  list(APPEND Aperture_src
+  # list(APPEND Aperture_src
+  set(Aperture_dev_src
     "core/particles.cpp"
     "data/rng_states.cpp"
     "systems/ptc_updater_base.cpp"
@@ -83,10 +75,17 @@ add_library(Aperture STATIC ${Aperture_src})
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
   ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
+add_library(Aperture_dev STATIC ${Aperture_dev_src})
+target_link_libraries(Aperture_dev Aperture)
+
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+  target_link_libraries(Aperture_dev ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
 endif()
 
+if (use_hip AND CMAKE_HIP_COMPILER)
+  # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
+  target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust)
+endif()
 
 
 # add_executable(aperture "main.cpp")

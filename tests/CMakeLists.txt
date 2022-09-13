@@ -52,6 +52,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_executable(test_mpi2d "test_mpi2d.cpp")
   target_link_libraries(test_mpi2d Aperture)
 
+  add_executable(test_mpi3d "test_mpi3d.cpp")
+  target_link_libraries(test_mpi3d Aperture)
+
   add_executable(perf_ptc_update "perf_ptc_update.cpp")
   target_link_libraries(perf_ptc_update Aperture)
 

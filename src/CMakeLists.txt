@@ -38,7 +38,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/compute_lorentz_factor.hip.cpp"
     "systems/gather_momentum_space.hip.cpp"
     "systems/ptc_updater_base.hip.cpp"
-    # "systems/radiative_transfer.cu"
+    "systems/radiative_transfer.hip.cpp"
     )
   set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
 elseif(use_hip)
@@ -55,7 +55,7 @@ elseif(use_hip)
     "systems/compute_lorentz_factor.hip.cpp"
     "systems/gather_momentum_space.hip.cpp"
     "systems/ptc_updater_base.hip.cpp"
-    # "systems/radiative_transfer.cu"
+    "systems/radiative_transfer.hip.cpp"
     )
   set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
 else()

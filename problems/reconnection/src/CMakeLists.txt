@@ -1,11 +1,23 @@
-if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_library(reconnection
+if ((use_cuda AND CMAKE_CUDA_COMPILER) OR (use_hip AND CMAKE_HIP_COMPILER))
+  set(reconnection_src
     "initial_condition.cu"
     "systems/boundary_condition.cu"
     )
-  target_link_libraries(reconnection Aperture)
+  if (use_hip)
+    set_source_files_properties(${reconnection_src} PROPERTIES LANGUAGE HIP)
+  endif()
+  add_library(reconnection ${reconnection_src})
+  target_link_libraries(reconnection Aperture_dev)
   add_dependencies(problems reconnection)
 
+  if (use_hip)
+    set_source_files_properties(
+      "main_IC.cu"
+      "main_IC_3D.cu"
+      "no_cooling.cu"
+      "sync_cooling_test.cu"
+      PROPERTIES LANGUAGE HIP)
+  endif()
   add_executable(single_cs "main.cpp")
   target_link_libraries(single_cs reconnection)
   add_dependencies(problems single_cs)
@@ -31,6 +43,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   # add_dependencies(problems upstream_cooling)
 
   add_executable(sync_cooling_test_2d "sync_cooling_test.cu")
-  target_link_libraries(sync_cooling_test_2d Aperture)
+  target_link_libraries(sync_cooling_test_2d Aperture_dev)
   add_dependencies(problems sync_cooling_test_2d)
 endif()

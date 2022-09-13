@@ -727,8 +727,7 @@ TEST_CASE("Expression templates with constants",
   // auto v2 = ex.select(index(0, 0), extent(20, 10)).to_multi_array();
 
   for (auto idx : v.indices()) {
-    // REQUIRE((v + 3.0f)[idx] == 8.0f);
-    // REQUIRE(ex[idx] == -4.0f);
+    REQUIRE((v + 3.0f)[idx] == 8.0f);
     REQUIRE(ex[idx] == -4.0f);
   }
 }

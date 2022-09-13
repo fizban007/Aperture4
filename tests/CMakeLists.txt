@@ -31,7 +31,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_cusparse.cu"
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
-    # "test_const_mem.hip.cpp"
     )
   set_source_files_properties(${test_cuda_src} PROPERTIES LANGUAGE CUDA)
   target_sources(tests_dev PUBLIC
@@ -45,9 +44,11 @@ elseif(use_hip)
     "test_math.cu"
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
-    # "test_const_mem.hip.cpp"
     )
-  set_source_files_properties(${test_hip_src} PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(${test_hip_src} PROPERTIES
+    LANGUAGE HIP
+    # COMPILE_FLAGS "-save-temps"
+    )
   target_sources(tests_dev PUBLIC
     ${test_hip_src})
 else()
@@ -66,15 +67,6 @@ add_custom_target(
   DEPENDS tests tests_dev
   WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 add_dependencies(check run_tests)
-
-# set(test_const_mem_src "test_const_mem.hip.cpp")
-# if (use_cuda AND CMAKE_CUDA_COMPILER)
-#   set_source_files_properties(${test_const_mem_src} PROPERTIES LANGUAGE CUDA)
-# elseif(use_hip AND CMAKE_HIP_COMPILER)
-#   set_source_files_properties(${test_const_mem_src} PROPERTIES LANGUAGE HIP)
-# endif()
-# add_executable(test_const_mem ${test_const_mem_src})
-# target_link_libraries(test_const_mem Aperture_dev)
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # add_executable(test_summit_mpi "test_summit_mpi.cu")

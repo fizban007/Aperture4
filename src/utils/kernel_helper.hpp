@@ -323,10 +323,10 @@ void
 kernel_launch(const kernel_exec_policy &policy, Func f, Args... args) {
   kernel_exec_policy p = policy;
   GpuSafeCall(configure_grid(p, generic_kernel<Func, Args...>));
-  std::cout << "gridSize: " << p.get_grid_size()
-            << ", blockSize: " << p.get_block_size()
-            << ", sharedMem: " << p.get_shared_mem_bytes()
-            << ", stream: " << (size_t)p.get_stream() << std::endl;
+  // std::cout << "gridSize: " << p.get_grid_size()
+  //           << ", blockSize: " << p.get_block_size()
+  //           << ", sharedMem: " << p.get_shared_mem_bytes()
+  //           << ", stream: " << (size_t)p.get_stream() << std::endl;
 #ifdef __CUDACC__
   generic_kernel<<<p.get_grid_size(), p.get_block_size(),
                    p.get_shared_mem_bytes(), p.get_stream()>>>(f, args...);

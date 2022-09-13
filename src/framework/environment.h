@@ -66,6 +66,7 @@ class sim_environment_impl {
   double dt;
   double time;
   float step_time = 0.0f;
+  int m_rank = 0;
   uint32_t step;
   uint32_t max_steps;
   uint32_t perf_interval;
@@ -323,6 +324,7 @@ class sim_environment_impl {
   }
 
   bool use_mpi() const { return m_use_mpi; }
+  int get_rank() const { return m_rank; }
   uint32_t get_step() const { return step; }
   uint32_t get_max_steps() const { return max_steps; }
   double get_time() const { return time; }

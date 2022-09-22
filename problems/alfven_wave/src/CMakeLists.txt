@@ -5,6 +5,6 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     # "systems/ptc_injector_mult.cu"
     )
   set_target_properties(alfven_wave PROPERTIES OUTPUT_NAME "aperture")
-  target_link_libraries(alfven_wave Aperture)
+  target_link_libraries(alfven_wave Aperture Aperture_dev)
   add_dependencies(problems alfven_wave)
 endif()

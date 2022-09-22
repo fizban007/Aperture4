@@ -3,26 +3,26 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "single_stream.cu"
     "initial_condition.cu"
     )
-  target_link_libraries(single_stream Aperture)
+  target_link_libraries(single_stream Aperture Aperture_dev)
   add_dependencies(problems single_stream)
 
   add_executable(phase_space_test
     "phase_space.cu")
-  target_link_libraries(phase_space_test Aperture)
+  target_link_libraries(phase_space_test Aperture Aperture_dev)
   add_dependencies(problems phase_space_test)
 
   add_executable(IC_test
     "IC_test.cu")
-  target_link_libraries(IC_test Aperture)
+  target_link_libraries(IC_test Aperture Aperture_dev)
   add_dependencies(problems IC_test)
 
   add_executable(IC_single
     "IC_single.cu")
-  target_link_libraries(IC_single Aperture)
+  target_link_libraries(IC_single Aperture Aperture_dev)
   add_dependencies(problems IC_single)
 
   add_executable(pml_test
     "pml_test.cu")
-  target_link_libraries(pml_test Aperture)
+  target_link_libraries(pml_test Aperture Aperture_dev)
   add_dependencies(problems pml_test)
 endif()

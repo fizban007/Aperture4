@@ -2,7 +2,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   add_library(scaling
     "initial_condition.cu"
     )
-  target_link_libraries(scaling Aperture)
+  target_link_libraries(scaling Aperture Aperture_dev)
   add_dependencies(problems scaling)
 
   add_executable(scaling_2d "scaling_2d.cpp")

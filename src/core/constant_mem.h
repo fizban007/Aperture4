@@ -95,7 +95,7 @@ struct dev_grid_helper<3, double> {
 
 template <int Rank, typename value_t>
 // FORCE_INLINE __device__ const Grid<Rank, value_t>& dev_grid();
-__device__ const Grid<Rank, value_t>& dev_grid() {
+__device__ __forceinline__ const Grid<Rank, value_t>& dev_grid() {
   return *detail::dev_grid_helper<Rank, value_t>::dev_grid;
 }
 

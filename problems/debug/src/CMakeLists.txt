@@ -1,11 +1,12 @@
 file(GLOB debug_src_files *.cu *.hip.cpp)
+message(${debug_src_files})
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   set_source_files_properties(
-    debug_src_files
+    ${debug_src_files}
     PROPERTIES LANGUAGE CUDA)
 elseif (use_hip AND CMAKE_HIP_COMPILER)
   set_source_files_properties(
-    debug_src_files
+    ${debug_src_files}
     PROPERTIES LANGUAGE HIP)
 endif()
 

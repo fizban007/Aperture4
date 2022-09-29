@@ -177,9 +177,9 @@ struct curvature_emission_scheme_gca_lite {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
-      // if (eph > gamma - 1.01f) {
-      //   eph = gamma - 1.01f;
-      // }
+      if (eph > p_par - 0.01f) {
+        eph = p_par - 0.01f;
+      }
 
       // Energy loss over the time interval dt.
       // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) *

@@ -25,7 +25,7 @@ sync_cooling_coef = 1.0
 N_inject = 7
 
 ### Simulation life time
-max_steps = 1000
+max_steps = 1
 
 fld_output_interval = 50
 
@@ -62,6 +62,6 @@ damping_boundary = [true, true, true, true, false, true]
 pml_length = 8
 
 # Field output downsample factor
-downsample = 2
+downsample = 1
 
-## output_dir = "/home/alex/storage/Data/Aperture4/quasi_1d/"
+output_dir = "/home/alex/nvme/Data/Polar Cap/data/"

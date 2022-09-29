@@ -4,12 +4,12 @@ num_species = 2
 
 ion_mass = 1.0
 
-max_ptc_num = 150_000_000
+max_ptc_num = 100_000_000
 ptc_segment_size = 10_000_000
-max_ph_num = 150_000_000
+max_ph_num = 100_000_000
 ph_segment_size = 10_000_000
-
-ptc_buffer_size = 10_000
+ptc_buffer_size = 1_000_000
+ph_buffer_size = 1_000_000
 
 dt = 7.0e-3
 
@@ -34,9 +34,9 @@ nc = 0.1
 
 zeta = 30.0
 
-N_inject = 0
+N_inject = 1
 
-emit_photons = false
+emit_photons = true
 
 produce_pairs = true
 
@@ -54,7 +54,7 @@ sort_interval = 23
 ### Grid parameters
 # Number of grid points in each direction, excluding guard cells. This should be
 # a multiple of at least 32.
-N = [256, 256, 256]
+N = [192, 192, 256]
 
 nodes = [2, 2, 1]
 

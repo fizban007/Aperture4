@@ -95,7 +95,7 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
         },
         this->ptc->dev_ptrs(), this->m_gamma_ptrs.dev_ptr(),
         this->m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
-    CudaCheckError();
+    GpuCheckError();
 
     int num_species = this->m_num_species;
     kernel_launch(
@@ -119,8 +119,8 @@ compute_lorentz_factor_cu<Conf>::update(double dt, uint32_t step) {
           }
         },
         m_gamma_ptrs.dev_ptr(), m_avgp_ptrs.dev_ptr(), m_nums_ptrs.dev_ptr());
-    CudaSafeCall(cudaDeviceSynchronize());
-    CudaCheckError();
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
   }
 }
 

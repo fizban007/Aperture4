@@ -18,7 +18,8 @@
 #ifndef __RANGE_HPP_
 #define __RANGE_HPP_
 
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
 #include "utils/type_traits.hpp"
 #include <iterator>
 #include <type_traits>
@@ -221,7 +222,8 @@ indices(std::initializer_list<T>&& cont) {
 template<typename T, typename U>
 using step_range = typename range_proxy<T>::template step_range_proxy<U>;
 
-#ifdef __CUDACC__
+// #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+#if defined(__CUDACC__) || defined(__HIPCC__)
 
 template <typename U, typename T>
 __device__ __forceinline__

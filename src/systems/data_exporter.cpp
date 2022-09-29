@@ -22,7 +22,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
-#if __GNUC__ >= 8
+#if __GNUC__ >= 8 || __clang_major__ >= 7
 #include <filesystem>
 #else
 #define USE_BOOST_FILESYSTEM
@@ -773,7 +773,9 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
 template <typename Conf>
 void
 data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
-                          H5File& datafile, bool snapshot) {}
+                          H5File& datafile, bool snapshot) {
+  data.copy_to_host();
+}
 
 template <typename Conf>
 void

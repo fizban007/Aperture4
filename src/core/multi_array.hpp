@@ -205,7 +205,8 @@ class multi_array : public buffer<T> {
 
     // HD_INLINE const value_t& operator[](const idx_t& idx) const {
     HD_INLINE value_t operator[](const idx_t& idx) const {
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+// #if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];
@@ -246,7 +247,8 @@ class multi_array : public buffer<T> {
     HOST_DEVICE ~ref_t() {}
 
     HD_INLINE value_t& operator[](const idx_t& idx) {
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+// #if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];
@@ -299,10 +301,10 @@ struct host_adapter<multi_array<T, Rank, Idx_t>> {
   }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename T, int Rank, typename Idx_t>
-struct cuda_adapter<multi_array<T, Rank, Idx_t>> {
+struct gpu_adapter<multi_array<T, Rank, Idx_t>> {
   typedef ndptr<T, Rank, Idx_t> type;
   typedef ndptr_const<T, Rank, Idx_t> const_type;
 

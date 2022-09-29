@@ -28,6 +28,8 @@ TEST_CASE("Uniform random numbers", "[rng]") {
   rng_states_t states;
   states.init();
 
+  Logger::print_info("Init success!");
+
   int N = 1000000;
   int M = 20;
   buffer<float> hist(M);
@@ -42,7 +44,7 @@ TEST_CASE("Uniform random numbers", "[rng]") {
         atomicAdd(&hist[clamp(int(u * M), 0, M - 1)], 1.0f / N);
       }
     }, states.states().dev_ptr(), hist.dev_ptr());
-  cudaDeviceSynchronize();
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("Generating 1M random numbers", "ms");
   hist.copy_to_host();
   for (int m = 0; m < M; m++) {

@@ -20,7 +20,7 @@
 
 #include "cuda_control.h"
 #include "typedefs_and_constants.h"
-#include "utils/index.hpp"
+// #include "utils/index.hpp"
 #include "utils/stagger.h"
 #include "utils/vec.hpp"
 #include <type_traits>
@@ -185,18 +185,19 @@ struct Grid {
 
   ///  Find the zone the cell belongs to (for communication purposes)
   HD_INLINE int find_zone(const index_t<Dim>& pos) const {
-    auto z = index_t<Dim>{};
-    auto ext = extent_t<Dim>{};
+    int stride = 1;
+    int linear = 0;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      z[i] = (pos[i] >= guard[i]) + (pos[i] >= (dims[i] - guard[i]));
-      ext[i] = 3;
+      // z[i] = (pos[i] >= guard[i]) + (pos[i] >= (dims[i] - guard[i]));
+      linear += ((pos[i] >= guard[i]) + (pos[i] >= (dims[i] - guard[i]))) * stride;
+      stride *= 3;
     }
-    ext.get_strides();
+    // ext.get_strides();
 
     // For now we always use col major for zone index
-    idx_col_major_t<Dim> idx(z, ext);
-    return idx.linear;
+    // idx_col_major_t<Dim> idx(z, ext);
+    return linear;
   }
 
   HD_INLINE bool is_in_bound(const index_t<Dim>& idx) const {

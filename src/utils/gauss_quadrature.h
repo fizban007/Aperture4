@@ -19,7 +19,8 @@
 
 namespace Aperture {
 
-#if defined(CUDA_ENABLED) && defined(__CUDACC__)
+#if (defined(CUDA_ENABLED) && defined(__CUDACC__)) || \
+    (defined(HIP_ENABLED) && defined(__HIP_DEVICE_COMPILE__))
 
 extern __constant__ double dev_gauss_xs[5];
 extern __constant__ double dev_gauss_ws[5];

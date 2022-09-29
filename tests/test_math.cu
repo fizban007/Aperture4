@@ -28,7 +28,7 @@ TEST_CASE("Checking double precision math functions", "[math]") {
   kernel_launch({1, 1}, [] __device__(double* x) {
       x[1] = math::sin(x[0]);
     }, x.dev_ptr());
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
 
   REQUIRE(x[1] == std::sin(x[0]));
   REQUIRE(math::abs(x[0]) == std::abs(x[0]));

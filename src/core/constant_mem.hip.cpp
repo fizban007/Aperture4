@@ -17,7 +17,8 @@
 
 #include "constant_mem.h"
 #include "constant_mem_func.h"
-#include "cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
 #include "utils/morton.h"
 
 namespace Aperture {
@@ -47,74 +48,74 @@ __device__ uint32_t dev_ph_id = 0;
 void
 init_morton(const uint32_t m2dLUT[256], const uint32_t m3dLUT[256]) {
   const uint32_t* p_2d = &m2dLUT[0];
-  CudaSafeCall(cudaMemcpyToSymbol(morton2dLUT_dev, (void*)p_2d,
-                                  sizeof(morton2dLUT_dev)));
+  GpuSafeCall(gpuMemcpyToSymbol(morton2dLUT_dev, (void*)p_2d,
+                                sizeof(morton2dLUT_dev)));
   const uint32_t* p_3d = &m3dLUT[0];
-  CudaSafeCall(cudaMemcpyToSymbol(morton3dLUT_dev, (void*)p_3d,
-                                  sizeof(morton3dLUT_dev)));
+  GpuSafeCall(gpuMemcpyToSymbol(morton3dLUT_dev, (void*)p_3d,
+                                sizeof(morton3dLUT_dev)));
 }
 
 void
 init_dev_rank(int rank) {
   uint64_t r = rank;
   r <<= 32;
-  CudaSafeCall(cudaMemcpyToSymbol(dev_rank, (void*)&r, sizeof(uint64_t)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_rank, (void*)&r, sizeof(uint64_t)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<1, float>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_1d_float, &grid, sizeof(Grid<1, float>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_1d_float, &grid, sizeof(Grid<1, float>)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<1, double>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_1d_double, &grid, sizeof(Grid<1, double>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_1d_double, &grid, sizeof(Grid<1, double>)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<2, float>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d_float, &grid, sizeof(Grid<2, float>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_2d_float, &grid, sizeof(Grid<2, float>)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<2, double>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d_double, &grid, sizeof(Grid<2, double>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_2d_double, &grid, sizeof(Grid<2, double>)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<3, float>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d_float, &grid, sizeof(Grid<3, float>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_3d_float, &grid, sizeof(Grid<3, float>)));
 }
 
 template <>
 void
 init_dev_grid(const Grid<3, double>& grid) {
-  CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d_double, &grid, sizeof(Grid<3, double>)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_grid_3d_double, &grid, sizeof(Grid<3, double>)));
 }
 
 // template <>
 // void
 // init_dev_grid(const Grid<2>& grid) {
-//   CudaSafeCall(cudaMemcpyToSymbol(dev_grid_2d, &grid, sizeof(Grid<2>)));
+//   GpuSafeCall(gpuMemcpyToSymbol(dev_grid_2d, &grid, sizeof(Grid<2>)));
 // }
 
 // template <>
 // void
 // init_dev_grid(const Grid<3>& grid) {
-//   CudaSafeCall(cudaMemcpyToSymbol(dev_grid_3d, &grid, sizeof(Grid<3>)));
+//   GpuSafeCall(gpuMemcpyToSymbol(dev_grid_3d, &grid, sizeof(Grid<3>)));
 // }
 
 void
 init_dev_charge_mass(const float charge[max_ptc_types],
                      const float mass[max_ptc_types]) {
-  CudaSafeCall(
-      cudaMemcpyToSymbol(dev_charges, (void*)charge, sizeof(dev_charges)));
-  CudaSafeCall(cudaMemcpyToSymbol(dev_masses, (void*)mass, sizeof(dev_masses)));
+  GpuSafeCall(
+      gpuMemcpyToSymbol(dev_charges, (void*)charge, sizeof(dev_charges)));
+  GpuSafeCall(gpuMemcpyToSymbol(dev_masses, (void*)mass, sizeof(dev_masses)));
 }
 
 }  // namespace Aperture

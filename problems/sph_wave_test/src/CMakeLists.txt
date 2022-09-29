@@ -3,7 +3,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "initial_condition.cu"
     "systems/boundary_condition.cu"
     )
-  target_link_libraries(sph_wave_test Aperture)
+  target_link_libraries(sph_wave_test Aperture Aperture_dev)
   # set_target_properties(sph_wave_test PROPERTIES OUTPUT_NAME "aperture")
 
   add_executable(sph_wave_plasma "sph_wave_plasma.cpp")

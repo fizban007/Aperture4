@@ -4,7 +4,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "initial_condition.cu"
     # "systems/radiation/gr_inverse_compton.cu"
     )
-  target_link_libraries(gr_2d_kerr_schild Aperture)
+  target_link_libraries(gr_2d_kerr_schild Aperture Aperture_dev)
 
   add_executable(grpic "main.cpp")
   set_target_properties(grpic PROPERTIES OUTPUT_NAME "aperture")

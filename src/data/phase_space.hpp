@@ -67,7 +67,7 @@ class phase_space : public data_t {
   }
 
   void init() override {
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     data.assign_dev(0.0f);
 #else
     data.assign(0.0f);
@@ -95,7 +95,7 @@ struct host_adapter<phase_space<Conf, Dim>> {
 };
 
 template <typename Conf, int Dim>
-struct cuda_adapter<phase_space<Conf, Dim>> {
+struct gpu_adapter<phase_space<Conf, Dim>> {
   typedef ndptr<float, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> type;
   typedef ndptr_const<float, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>>
       const_type;

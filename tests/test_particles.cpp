@@ -21,7 +21,7 @@
 
 using namespace Aperture;
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
 constexpr MemType mem_type = MemType::host_device;
 #else
 constexpr MemType mem_type = MemType::host_only;
@@ -101,7 +101,7 @@ TEST_CASE("Assigning between particle array and single particle", "[particles]")
   REQUIRE(ptc_buffer[1].cell == 10);
 }
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
 TEST_CASE("Particle pointers", "[particles]") {
   particles_t ptc(100, MemType::host_device);
   auto ptrs = ptc.get_dev_ptrs();
@@ -124,7 +124,7 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   ptc.cell.emplace(0, {34, 24, 14, empty_cell, 4, 90, 12, 35, 9, 50, 42, empty_cell, empty_cell, 70, 99});
   ptc.set_num(15);
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   ptc.copy_to_device();
   ptc.sort_by_cell_dev(100);
   ptc.copy_to_host();

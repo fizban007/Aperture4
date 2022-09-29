@@ -44,7 +44,7 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
   grid_t<Conf>& operator=(const grid_t<Conf>& grid) = default;
 
   // Coordinate for output position
-  inline virtual vec_t<float, Conf::dim> cart_coord(
+  virtual vec_t<float, Conf::dim> cart_coord(
       const index_t<Conf::dim>& pos) const {
     vec_t<float, Conf::dim> result;
     for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);

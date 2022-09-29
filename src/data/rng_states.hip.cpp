@@ -16,28 +16,48 @@
  */
 
 #include "data/rng_states.h"
+#include "framework/environment.h"
 #include "utils/kernel_helper.hpp"
+// #include <hip/hip_runtime.h>
 
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
-  m_states.set_memtype(MemType::host_device);
-  m_states.resize(size_t(block_num * thread_num));
-
+  m_size = size_t(block_num * thread_num);
   m_initial_seed = seed;
+  // GpuSafeCall(gpuMalloc(&m_states, sizeof(rand_state) * m_size));
+  // m_states_host = new char[sizeof(rand_state) * m_size];
+  m_states.set_memtype(MemType::host_device);
+  m_states.resize(m_size);
 }
+
+rng_states_t::~rng_states_t() {}
 
 void
 rng_states_t::init() {
+  // kernel_exec_policy p{block_num, thread_num};
+  int rank = sim_env().get_rank();
+  uint32_t size = m_size;
+
   kernel_launch(
       {block_num, thread_num},
-      [] __device__(auto states, auto seed) {
+      [rank, size] __device__(auto states, auto seed) {
         int id = threadIdx.x + blockIdx.x * blockDim.x;
-        curand_init(seed, id, 0, &states[id]);
+// #if defined(CUDA_ENABLED)
+//         curand_init(seed, id, 0, &states[id]);
+// #elif defined(HIP_ENABLED)
+//         rocrand_init(seed, id, 0, &states[id]);
+// #endif
+        states[id].init(seed + id + rank * size);
+        states[id].jump();
+        // Advance the state by 2^128 * id times
+        // for (uint64_t i = 0; i < id; i++) {
+        //   states[id].jump();
+        // }
       },
       m_states.dev_ptr(), m_initial_seed);
-  CudaCheckError();
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
 }
 
-}
+}  // namespace Aperture

@@ -101,7 +101,7 @@ struct curvature_emission_scheme_polar_cap {
     sim_env().get_data("B", B);
     sim_env().get_data("E", E);
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
     m_B[0] = B->at(0).dev_ndptr_const();
     m_B[1] = B->at(1).dev_ndptr_const();
     m_B[2] = B->at(2).dev_ndptr_const();
@@ -196,6 +196,15 @@ struct curvature_emission_scheme_polar_cap {
       value_t sinth_max = grid.sizes[2] / Rc;
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
+      value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
+                             square(x_global[2] + m_Rstar / m_rpc));
+      value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
+      // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
+      if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+          || r_max / m_Rstar < 1.2f / m_omega) {
+          // || p[2] < 0.0f) {
+        return 0;
+      }
       if (chi_max > 0.05f && eph > 2.01f) {
         // value_t pi = std::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
 

@@ -143,7 +143,7 @@ grid_polar_t<Conf>::compute_coef() {
                       (this->delta[0] * this->delta[1]);
   }
 
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   for (int i = 0; i < 3; i++) {
     this->m_le[i].copy_to_device();
     this->m_lb[i].copy_to_device();

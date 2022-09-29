@@ -4,7 +4,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "systems/boundary_condition.cu"
     "systems/field_solver_frame_dragging.cu"
     )
-  target_link_libraries(polar_cap_3d Aperture)
+  target_link_libraries(polar_cap_3d Aperture Aperture_dev)
   add_dependencies(problems polar_cap_3d)
 
   add_executable(sim_polar_cap "main.cu")

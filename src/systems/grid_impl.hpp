@@ -82,7 +82,7 @@ grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
   }
 
   // Copy the grid parameters to gpu
-#ifdef CUDA_ENABLED
+#ifdef GPU_ENABLED
   init_dev_grid<Conf::dim, typename Conf::value_t>(*this);
 #endif
 }

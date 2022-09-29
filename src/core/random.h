@@ -18,21 +18,148 @@
 #ifndef __RANDOM_H_
 #define __RANDOM_H_
 
+#include "core/gpu_translation_layer.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/environment.h"
 #include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
 
-#ifdef CUDA_ENABLED
-#include <curand_kernel.h>
-#endif
+// #ifdef CUDA_ENABLED
+// #include <curand_kernel.h>
+// #elif HIP_ENABLED
+// #include <rocrand/rocrand_kernel.h>
+// #endif
 
 namespace Aperture {
 
-#if defined(CUDA_ENABLED) && defined(__CUDACC__)
+struct rand_state;
 
-typedef curandState rand_state;
+namespace detail {
+
+constexpr HD_INLINE uint64_t
+rotl(const uint64_t x, int k) {
+  return (x << k) | (x >> (64 - k));
+}
+
+constexpr HD_INLINE uint64_t
+split_mix_64(uint64_t x) {
+  uint64_t z = (x += 0x9e3779b97f4a7c15);
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+  return z ^ (z >> 31);
+}
+
+}  // namespace detail
+
+struct rand_state {
+  uint64_t s[4] = {};
+
+  HOST_DEVICE rand_state() {}
+
+  HOST_DEVICE rand_state(uint64_t seed[4]) {
+    for (int i = 0; i < 4; i++) s[i] = seed[i];
+  }
+
+  HOST_DEVICE void init(uint64_t seed = default_random_seed) {
+    s[0] = detail::split_mix_64(seed);
+    s[1] = detail::split_mix_64(s[0]);
+    s[2] = detail::split_mix_64(s[1]);
+    s[3] = detail::split_mix_64(s[2]);
+  }
+
+  /*  Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)
+
+  To the extent possible under law, the author has dedicated all copyright
+  and related and neighboring rights to this software to the public domain
+  worldwide. This software is distributed without any warranty.
+
+  See <http://creativecommons.org/publicdomain/zero/1.0/>. */
+  HOST_DEVICE uint64_t next() {
+    const uint64_t result = s[0] + s[3];
+
+    const uint64_t t = s[1] << 17;
+
+    s[2] ^= s[0];
+    s[3] ^= s[1];
+    s[1] ^= s[2];
+    s[0] ^= s[3];
+
+    s[2] ^= t;
+
+    s[3] = detail::rotl(s[3], 45);
+
+    return result;
+  }
+
+  /* This is the jump function for the generator. It is equivalent
+     to 2^128 calls to next(); it can be used to generate 2^128
+     non-overlapping subsequences for parallel computations. */
+  HOST_DEVICE void jump(void) {
+    static const uint64_t JUMP[] = {0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
+                                    0xa9582618e03fc9aa, 0x39abdc4529b1661c};
+
+    uint64_t s0 = 0;
+    uint64_t s1 = 0;
+    uint64_t s2 = 0;
+    uint64_t s3 = 0;
+    for (int i = 0; i < sizeof JUMP / sizeof *JUMP; i++)
+      for (int b = 0; b < 64; b++) {
+        if (JUMP[i] & UINT64_C(1) << b) {
+          s0 ^= s[0];
+          s1 ^= s[1];
+          s2 ^= s[2];
+          s3 ^= s[3];
+        }
+        next();
+      }
+
+    s[0] = s0;
+    s[1] = s1;
+    s[2] = s2;
+    s[3] = s3;
+  }
+
+  /* This is the long-jump function for the generator. It is equivalent to
+     2^192 calls to next(); it can be used to generate 2^64 starting points,
+     from each of which jump() will generate 2^64 non-overlapping
+     subsequences for parallel distributed computations. */
+
+  void long_jump(void) {
+    static const uint64_t LONG_JUMP[] = {0x76e15d3efefdcbbf, 0xc5004e441c522fb3,
+                                         0x77710069854ee241,
+                                         0x39109bb02acbe635};
+
+    uint64_t s0 = 0;
+    uint64_t s1 = 0;
+    uint64_t s2 = 0;
+    uint64_t s3 = 0;
+    for (int i = 0; i < sizeof LONG_JUMP / sizeof *LONG_JUMP; i++)
+      for (int b = 0; b < 64; b++) {
+        if (LONG_JUMP[i] & UINT64_C(1) << b) {
+          s0 ^= s[0];
+          s1 ^= s[1];
+          s2 ^= s[2];
+          s3 ^= s[3];
+        }
+        next();
+      }
+
+    s[0] = s0;
+    s[1] = s1;
+    s[2] = s2;
+    s[3] = s3;
+  }
+};
+
+#if (defined(CUDA_ENABLED) && defined(__CUDACC__)) || \
+  (defined(HIP_ENABLED) && defined(__HIPCC__))
+
+// #ifdef CUDA_ENABLED
+// typedef curandState rand_state;
+// #elif HIP_ENABLED
+// typedef rocrand_state_xorwow rand_state;
+// #endif
 
 struct rng_t {
   __device__ rng_t(rand_state* state) {
@@ -46,16 +173,19 @@ struct rng_t {
 
   // Generates a device random number between 0.0 and 1.0
   template <typename Float>
-  __device__ __forceinline__ Float uniform();
+  __device__ __forceinline__ Float uniform() {
+    uint64_t n = m_local_state.next();
+    return n / 18446744073709551616.0;
+  }
 
   template <typename Float>
-  __device__ __forceinline__ Float gaussian(Float sigma);
-  // __device__ __forceinline__ Float gaussian(Float sigma) {
-  //   auto u1 = uniform<Float>();
-  //   auto u2 = uniform<Float>();
-  //   return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
-  //          sigma;
-  // }
+  // __device__ __forceinline__ Float gaussian(Float sigma);
+  __device__ __forceinline__ Float gaussian(Float sigma) {
+    auto u1 = uniform<Float>();
+    auto u2 = uniform<Float>();
+    return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
+           sigma;
+  }
 
   template <typename Float>
   __device__ __forceinline__ int poisson(Float lambda) {
@@ -126,96 +256,56 @@ struct rng_t {
   rand_state m_local_state;
 };
 
-template <>
-__device__ __forceinline__ float
-rng_t::uniform() {
-  return curand_uniform(&m_local_state);
-}
+// template <>
+// __device__ __forceinline__ float
+// rng_t::uniform() {
+// #ifdef CUDA_ENABLED
+//   return curand_uniform(&m_local_state);
+// #elif HIP_ENABLED
+//   return rocrand_uniform(&m_local_state);
+// #endif
+// }
 
-template <>
-__device__ __forceinline__ double
-rng_t::uniform() {
-  return curand_uniform_double(&m_local_state);
-}
+// template <>
+// __device__ __forceinline__ double
+// rng_t::uniform() {
+// #ifdef CUDA_ENABLED
+//   return curand_uniform_double(&m_local_state);
+// #elif HIP_ENABLED
+//   return rocrand_uniform_double(&m_local_state);
+// #endif
+// }
 
-template <>
-__device__ __forceinline__ float
-rng_t::gaussian(float sigma) {
-  return curand_normal(&m_local_state) * sigma;
-}
+// template <>
+// __device__ __forceinline__ float
+// rng_t::gaussian(float sigma) {
+// #ifdef CUDA_ENABLED
+//   return curand_normal(&m_local_state) * sigma;
+// #elif HIP_ENABLED
+//   return rocrand_normal(&m_local_state) * sigma;
+// #endif
+// }
 
-template <>
-__device__ __forceinline__ double
-rng_t::gaussian(double sigma) {
-  return curand_normal_double(&m_local_state) * sigma;
-}
+// template <>
+// __device__ __forceinline__ double
+// rng_t::gaussian(double sigma) {
+// #ifdef CUDA_ENABLED
+//   return curand_normal_double(&m_local_state) * sigma;
+// #elif HIP_ENABLED
+//   return rocrand_normal_double(&m_local_state) * sigma;
+// #endif
+// }
 
 #else
-
-namespace detail {
-
-constexpr inline uint64_t
-rotl(const uint64_t x, int k) {
-  return (x << k) | (x >> (64 - k));
-}
-
-constexpr inline uint64_t
-split_mix_64(uint64_t x) {
-  uint64_t z = (x += 0x9e3779b97f4a7c15);
-  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-  z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-  return z ^ (z >> 31);
-}
-
-}  // namespace detail
-
-struct rand_state {
-  uint64_t s[4] = {};
-
-  rand_state(uint64_t seed = default_random_seed) {
-    s[0] = detail::split_mix_64(seed);
-    s[1] = detail::split_mix_64(s[0]);
-    s[2] = detail::split_mix_64(s[1]);
-    s[3] = detail::split_mix_64(s[2]);
-  }
-
-  rand_state(uint64_t seed[4]) {
-    for (int i = 0; i < 4; i++) s[i] = seed[i];
-  }
-};
 
 struct rng_t {
   rand_state& m_state;
 
   rng_t(rand_state* state) : m_state(*state) {}
 
-  /*  Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)
-
-  To the extent possible under law, the author has dedicated all copyright
-  and related and neighboring rights to this software to the public domain
-  worldwide. This software is distributed without any warranty.
-
-  See <http://creativecommons.org/publicdomain/zero/1.0/>. */
-  uint64_t xoshiro256plus() {
-    const uint64_t result = m_state.s[0] + m_state.s[3];
-
-    const uint64_t t = m_state.s[1] << 17;
-
-    m_state.s[2] ^= m_state.s[0];
-    m_state.s[3] ^= m_state.s[1];
-    m_state.s[1] ^= m_state.s[2];
-    m_state.s[0] ^= m_state.s[3];
-
-    m_state.s[2] ^= t;
-
-    m_state.s[3] = detail::rotl(m_state.s[3], 45);
-
-    return result;
-  }
-
   template <typename Float>
   inline Float uniform() {
-    uint64_t n = xoshiro256plus();
+    uint64_t n = m_state.next();
     return n / 18446744073709551616.0;
   }
 

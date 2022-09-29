@@ -31,23 +31,22 @@ sim_environment_impl::sim_environment_impl(bool use_mpi)
 sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
                                            bool use_mpi) {
   m_use_mpi = use_mpi;
-  int rank = 0;
 
   if (m_use_mpi) {
-  //   int is_initialized = 0;
-  //   MPI_Initialized(&is_initialized);
+    int is_initialized = 0;
+    MPI_Initialized(&is_initialized);
 
-  //   if (!is_initialized) {
-  //     if (argc == nullptr && argv == nullptr) {
-  //       MPI_Init(NULL, NULL);
-  //     } else {
-  //       MPI_Init(argc, argv);
-  //     }
-  //   }
-    // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (!is_initialized) {
+      if (argc == nullptr && argv == nullptr) {
+        MPI_Init(NULL, NULL);
+      } else {
+        MPI_Init(argc, argv);
+      }
+    }
+    MPI_Comm_rank(MPI_COMM_WORLD, &m_rank);
   }
   // Default log level is debug
-  Logger::init(rank, LogLevel::info);
+  Logger::init(m_rank, LogLevel::info);
 
   reset(argc, argv);
 }
@@ -55,6 +54,10 @@ sim_environment_impl::sim_environment_impl(int* argc, char*** argv,
 sim_environment_impl::~sim_environment_impl() {
   // MPI_Barrier(MPI_COMM_WORLD);
   // end();
+  int is_finalized = 0;
+  MPI_Finalized(&is_finalized);
+
+  if (!is_finalized) MPI_Finalize();
 }
 
 void
@@ -141,9 +144,9 @@ sim_environment_impl::init() {
     c->init();
   }
 
-#if CUDA_ENABLED
+#ifdef GPU_ENABLED
   size_t free_mem, total_mem;
-  cudaMemGetInfo( &free_mem, &total_mem );
+  GpuSafeCall(gpuMemGetInfo( &free_mem, &total_mem ));
   Logger::print_info("GPU memory: free={:.3f}GiB/{:.3f}GiB", free_mem/1.0e9, total_mem/1.0e9);
 #endif
   // m_system_time.assign(m_data_order.size(), 0.0f);

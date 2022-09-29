@@ -19,7 +19,8 @@
 #define __BUFFER_H_
 
 #include "buffer_impl.hpp"
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
 #include "core/data_adapter.h"
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
@@ -28,12 +29,8 @@
 #include <initializer_list>
 #include <type_traits>
 
-#ifdef CUDA_ENABLED
-#include <thrust/copy.h>
-#include <thrust/device_ptr.h>
-#include <thrust/fill.h>
-#else
-typedef int cudaStream_t;
+#if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
+typedef int gpuStream_t;
 #endif
 
 namespace Aperture {
@@ -59,13 +56,13 @@ class buffer {
       m_data_h = new T[size];
       m_host_allocated = true;
     }
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
     if (m_type != MemType::host_only) {
       if (m_type == MemType::device_managed) {
-        CudaSafeCall(cudaMallocManaged(&m_data_d, size * sizeof(T)));
+        GpuSafeCall(gpuMallocManaged(&m_data_d, size * sizeof(T)));
         m_data_h = m_data_d;
       } else {
-        CudaSafeCall(cudaMalloc(&m_data_d, size * sizeof(T)));
+        GpuSafeCall(gpuMalloc(&m_data_d, size * sizeof(T)));
       }
       m_dev_allocated = true;
     }
@@ -80,9 +77,9 @@ class buffer {
       m_data_h = nullptr;
       m_host_allocated = false;
     }
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
     if (m_dev_allocated) {
-      CudaSafeCall(cudaFree(m_data_d));
+      GpuSafeCall(gpuFree(m_data_d));
       m_data_d = nullptr;
       m_dev_allocated = false;
     }
@@ -327,9 +324,9 @@ class buffer {
   void copy_to_host(size_t start, size_t amount) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
-#ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpy(m_data_h + start, m_data_d + start,
-                              amount * sizeof(T), cudaMemcpyDeviceToHost));
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      GpuSafeCall(gpuMemcpy(m_data_h + start, m_data_d + start,
+                            amount * sizeof(T), gpuMemcpyDeviceToHost));
 #endif
     }
   }
@@ -340,13 +337,13 @@ class buffer {
   /// Copy from device to host, on a given stream. This will not block host code
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
-  void copy_to_host(size_t start, size_t amount, cudaStream_t stream) {
+  void copy_to_host(size_t start, size_t amount, gpuStream_t stream) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
-#ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpyAsync(m_data_h + start, m_data_d + start,
-                                   amount * sizeof(T), cudaMemcpyDeviceToHost,
-                                   stream));
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      GpuSafeCall(gpuMemcpyAsync(m_data_h + start, m_data_d + start,
+                                 amount * sizeof(T), gpuMemcpyDeviceToHost,
+                                 stream));
 #endif
     }
   }
@@ -354,15 +351,15 @@ class buffer {
   /// Copy from device to host, on a given stream. This will not block host code
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
-  void copy_to_host(cudaStream_t stream) { copy_to_host(0, m_size, stream); }
+  void copy_to_host(gpuStream_t stream) { copy_to_host(0, m_size, stream); }
 
   /// Copy from host to device. This will block host code execution.
   void copy_to_device(size_t start, size_t amount) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
-#ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpy(m_data_d + start, m_data_h + start,
-                              amount * sizeof(T), cudaMemcpyHostToDevice));
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      GpuSafeCall(gpuMemcpy(m_data_d + start, m_data_h + start,
+                              amount * sizeof(T), gpuMemcpyHostToDevice));
 #endif
     }
   }
@@ -373,12 +370,12 @@ class buffer {
   /// Copy from host to device, on a given stream. This will not block host code
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
-  void copy_to_device(size_t start, size_t amount, cudaStream_t stream) {
+  void copy_to_device(size_t start, size_t amount, gpuStream_t stream) {
     // Only copy if there buffer is allocated on both dev and host
     if (m_type == MemType::host_device) {
-#ifdef CUDA_ENABLED
-      CudaSafeCall(cudaMemcpyAsync(m_data_d + start, m_data_h + start,
-                                   amount * sizeof(T), cudaMemcpyHostToDevice,
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      GpuSafeCall(gpuMemcpyAsync(m_data_d + start, m_data_h + start,
+                                   amount * sizeof(T), gpuMemcpyHostToDevice,
                                    stream));
 #endif
     }
@@ -387,7 +384,7 @@ class buffer {
   /// Copy from host to device, on a given stream. This will not block host code
   /// execution. To ensure data copy is complete, synchronize the stream
   /// manually.
-  void copy_to_device(cudaStream_t stream) {
+  void copy_to_device(gpuStream_t stream) {
     copy_to_device(0, m_size, stream);
   }
 };
@@ -401,10 +398,10 @@ struct host_adapter<buffer<T>> {
   static inline type apply(buffer<T>& b) { return b.host_ptr(); }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <typename T>
-struct cuda_adapter<buffer<T>> {
+struct gpu_adapter<buffer<T>> {
   typedef T* type;
   typedef const T* const_type;
 

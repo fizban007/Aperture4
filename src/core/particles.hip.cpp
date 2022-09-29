@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "core/cached_allocator.hpp"
+// #include "core/cached_allocator.hpp"
 #include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
@@ -92,8 +92,8 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
         }
       },
       cells, buffer_num.dev_ptr(), index);
-  // CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  // GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf, typename PtcPtrs, typename SinglePtc>
@@ -150,8 +150,8 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
         }
       },
       ptc_data, index, ptc_buffers.dev_ptr());
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename BufferType>
@@ -183,7 +183,7 @@ particles_base<BufferType>::rearrange_arrays(const std::string& skip,
             reinterpret_cast<x_type>(m_tmp_data.dev_ptr()));
         thrust::gather(ptr_index, ptr_index + num, x_ptr, tmp_ptr);
         thrust::copy_n(tmp_ptr, num, x_ptr);
-        CudaCheckError();
+        GpuCheckError();
       });
 }
 
@@ -270,8 +270,8 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
     m_number =
         last_segment * m_sort_segment_size + m_segment_nums[last_segment];
 
-    cudaDeviceSynchronize();
-    CudaCheckError();
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
   }
 }
 
@@ -297,7 +297,7 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
         ptrs.flag[pos] = flag;
       },
       m_dev_ptrs, m_number);
-  CudaSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   m_number += 1;
 }
 
@@ -352,7 +352,7 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
 //     //   buffers[7].copy_to_host();
 //     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
 //     // }
-//     // CudaSafeCall(cudaDeviceSynchronize());
+//     // GpuSafeCall(gpuDeviceSynchronize());
 //     // timer::show_duration_since_stamp("Copy to buffer", "ms",
 //     // "copy_to_buffer");
 //   }
@@ -408,7 +408,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
     //   buffers[7].copy_to_host();
     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
     // }
-    // CudaSafeCall(cudaDeviceSynchronize());
+    // GpuSafeCall(gpuDeviceSynchronize());
     // timer::show_duration_since_stamp("Copy to buffer", "ms",
     // "copy_to_buffer");
   }
@@ -426,7 +426,7 @@ particles_base<BufferType>::copy_from_buffer(const buffer<single_type> &buf,
             assign_ptc(ptc, dst_idx + n, buf[n]);
         }
         }, m_dev_ptrs, buf.dev_ptr());
-    // CudaSafeCall(cudaDeviceSynchronize());
+    // GpuSafeCall(gpuDeviceSynchronize());
   }
   if (dst_idx + num > m_number)
     m_number = dst_idx + num;

@@ -24,7 +24,7 @@
 
 namespace Aperture {
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 constexpr MemType default_mem_type = MemType::host_device;
 #else
 constexpr MemType default_mem_type = MemType::host_only;

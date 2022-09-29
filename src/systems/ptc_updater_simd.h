@@ -27,9 +27,10 @@ template <typename Conf, template <class> class CoordPolicy,
 class ptc_updater_simd : public ptc_updater_new<Conf, exec_policy_openmp,
                                                 CoordPolicy, PhysicsPolicy> {
  public:
-  typedef ptc_updater_new<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>
-      base_class;
+  // typedef ptc_updater_new<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>
+  //     base_class;
   typedef typename Conf::value_t value_t;
+  using base_class = ptc_updater_new<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>;
   static std::string name() { return "ptc_updater"; }
 
   using base_class::ptc_updater_new;

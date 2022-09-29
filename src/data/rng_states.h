@@ -19,7 +19,8 @@
 #define __RNG_STATES_H_
 
 #include "core/buffer.hpp"
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+#include "core/gpu_error_check.h"
 #include "core/data_adapter.h"
 #include "core/random.h"
 #include "framework/data.h"
@@ -29,19 +30,28 @@ namespace Aperture {
 class rng_states_t : public data_t {
  public:
   rng_states_t(uint64_t seed = default_random_seed);
+  ~rng_states_t();
 
   void init() override;
 
   buffer<rand_state>& states() { return m_states; }
   const buffer<rand_state>& states() const { return m_states; }
 
-#ifdef CUDA_ENABLED
+  void copy_to_device() {
+    m_states.copy_to_device();
+  }
+  void copy_to_host() {
+    m_states.copy_to_host();
+  }
+
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   static constexpr int block_num = 512;
   static constexpr int thread_num = 1024;
 #endif
 
  private:
   uint64_t m_initial_seed;
+  size_t m_size;
   buffer<rand_state> m_states;
 };
 
@@ -54,10 +64,10 @@ struct host_adapter<rng_states_t> {
   }
 };
 
-#ifdef CUDA_ENABLED
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <>
-struct cuda_adapter<rng_states_t> {
+struct gpu_adapter<rng_states_t> {
   typedef rand_state* type;
 
   static inline type apply(rng_states_t& s) {

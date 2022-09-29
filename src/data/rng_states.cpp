@@ -17,18 +17,22 @@
 
 #include "rng_states.h"
 
-#ifndef CUDA_ENABLED
+// #ifndef CUDA_ENABLED
 
 namespace Aperture {
 
 rng_states_t::rng_states_t(uint64_t seed) {
+  m_states.set_memtype(MemType::host_only);
   m_states.resize(1);
-  m_states[0] = rand_state(seed);
 }
+
+rng_states_t::~rng_states_t() {}
 
 void
-rng_states_t::init() {}
+rng_states_t::init() {
+  m_states[0].jump();
+}
 
 }
 
-#endif
+// #endif

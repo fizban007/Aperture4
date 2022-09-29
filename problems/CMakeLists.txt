@@ -2,7 +2,6 @@ if(lib_only)
   add_custom_target(problems)
 else()
   add_custom_target(problems ALL)
-endif()
 
 add_subdirectory(gr_2d_kerr_schild)
 # add_subdirectory(pulsar)
@@ -19,3 +18,5 @@ add_subdirectory(scaling)
 # add_subdirectory(vacuum_sph_wave_test)
 add_subdirectory(sph_wave_test)
 add_subdirectory(wave_scattering)
+
+endif()

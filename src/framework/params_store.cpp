@@ -17,7 +17,7 @@
 
 #include "params_store.h"
 #include "cpptoml.h"
-#if __GNUC__ >= 8
+#if __GNUC__ >= 8 || __clang_major__ >= 7
 #include <filesystem>
 #else
 #include <boost/filesystem.hpp>
@@ -28,7 +28,7 @@
 #include <type_traits>
 #include <variant>
 
-#if __GNUC__ >= 8
+#if __GNUC__ >= 8 || __clang_major__ >= 7
 namespace fs = std::filesystem;
 #else
 namespace fs = boost::filesystem;

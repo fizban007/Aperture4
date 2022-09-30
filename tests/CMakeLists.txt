@@ -102,7 +102,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
   # target_link_libraries(test_cyclotron_cooling Aperture_dev)
 
   add_executable(test_gca_pusher "test_gca_pusher.cu")
-  target_link_libraries(test_gca_pusher Aperture)
+  target_link_libraries(test_gca_pusher Aperture Aperture_dev)
 
 else()
   # add_executable(perf_ptc_update_cpu "perf_ptc_update_cpu.cpp")

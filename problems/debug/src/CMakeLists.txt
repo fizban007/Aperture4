@@ -38,6 +38,6 @@ target_link_libraries(pml_test Aperture Aperture_dev)
 add_dependencies(problems pml_test)
 
 add_executable(gca_test
-  "test_gca.hip.cpp")
+  "test_gca.cpp")
 target_link_libraries(gca_test Aperture Aperture_dev)
 add_dependencies(problems gca_test)

@@ -21,7 +21,8 @@
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
 #include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+// #include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_host.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -29,7 +30,7 @@
 
 namespace Aperture {
 
-template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+template class ptc_updater_new<Config<3>, exec_policy_host, coord_policy_cartesian_gca_lite>;
 
 }
 
@@ -44,7 +45,7 @@ int main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
 
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid, comm);
+      ptc_updater_new<Conf, exec_policy_host, coord_policy_cartesian_gca_lite>>(grid, comm);
   // auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   vector_field<Conf> *B, *E;
@@ -79,8 +80,20 @@ int main(int argc, char *argv[]) {
     value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * z * z / (r * r * r * r * r) - Bp / (r * r * r);
   });
+  value_t E0 = -0.1 * Bp;
+  E->set_values(2, [E0, R_star](auto x, auto y, auto z) {
+    z = z + 1.0;
+    return E0 / z / z;
+  });
 
-  env.run();
+  ptc->append_dev({0.0, 0.0, 0.0}, {100.0, 0.0, 0.0},
+                  grid.dims[0] / 2 + 10 + (grid.dims[1] / 2) * grid.dims[0]
+                  + (grid.guard[2] + 1) * grid.dims[0] * grid.dims[1], 1.0,
+                  gen_ptc_type_flag(PtcType::electron));
+
+  for (int i = 0; i < env.get_max_steps(); i++) {
+    env.update();
+  }
 
   return 0;
 }

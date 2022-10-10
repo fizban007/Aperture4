@@ -22,7 +22,8 @@
 using namespace Aperture;
 
 #ifdef GPU_ENABLED
-constexpr MemType mem_type = MemType::host_device;
+// constexpr MemType mem_type = MemType::host_device;
+constexpr MemType mem_type = MemType::device_managed;
 #else
 constexpr MemType mem_type = MemType::host_only;
 #endif

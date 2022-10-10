@@ -47,7 +47,7 @@ template void ptr_copy(uint64_t*, uint64_t*, size_t, size_t, size_t);
 template void ptr_copy(float*, float*, size_t, size_t, size_t);
 template void ptr_copy(double*, double*, size_t, size_t, size_t);
 
-#if !defined(CUDA_ENABLED) || !defined(HIP_ENABLED)
+#if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
 template <typename T>
 void
 ptr_assign_dev(T* array, size_t start, size_t end, const T& value) {}

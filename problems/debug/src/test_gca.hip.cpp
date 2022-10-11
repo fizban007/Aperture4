@@ -27,11 +27,16 @@
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
+#include "systems/radiation/curvature_emission_scheme_gca_lite.hpp"
+#include "systems/radiative_transfer_impl.hpp"
 #include "utils/hdf_wrapper.h"
 #include <vector>
 
 namespace Aperture {
 
+template class radiative_transfer<Config<3>, exec_policy_cuda,
+                                  coord_policy_cartesian,
+                                  curvature_emission_scheme_gca_lite>;
 template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
 
 }
@@ -47,9 +52,13 @@ int main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
 
   auto ptc_data = env.register_data<particle_data_t>("particles", 1000000, MemType::device_managed);
+  auto ph_data = env.register_data<photon_data_t>("photons", 1000000, MemType::device_managed);
 
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid, comm);
+  auto rad = env.register_system<
+      radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
+                         curvature_emission_scheme_gca_lite>>(grid, &comm);
   // auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
@@ -63,7 +72,7 @@ int main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
 
   // Set initial condition
-  value_t Bp = 10000.0;
+  value_t Bp = env.params().get_as("Bp", 1.0e4);
   value_t R_star = 10.0;
   auto B1_func = [Bp, R_star](auto x, auto y, auto z) {
     z = z / R_star + 1.0;
@@ -90,7 +99,8 @@ int main(int argc, char *argv[]) {
   B->set_values(0, B1_func);
   B->set_values(1, B2_func);
   B->set_values(2, B3_func);
-  value_t E0 = -0.3 * Bp;
+  value_t E_frac = env.params().get_as("E_frac", 0.1);
+  value_t E0 = E_frac * Bp;
   E->set_values(2, [E0, R_star](auto x, auto y, auto z) {
     z = z + 1.0;
     return E0 / z / z;
@@ -100,14 +110,12 @@ int main(int argc, char *argv[]) {
   vec_t<value_t, 3> rel_x;
   index_t<3> pos;
   uint32_t cell;
-  auto ext = grid.extent();
-  grid.from_global(ptc_global_x, pos, rel_x);
-  cell = Conf::idx(pos, ext).linear;
+  grid.from_x_global(ptc_global_x, rel_x, cell);
 
-  value_t ptc_p_parallel = 1000.0;
+  value_t ptc_p_parallel = env.params().get_as("p0", 100.0);
 
   ptc->append_dev({0.0, 0.0, 0.0}, {ptc_p_parallel, 0.0, 0.0}, cell,
-                  1.0, gen_ptc_type_flag(PtcType::electron));
+                  1.0, gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[0] << std::endl;
   std::vector<value_t> x(env.get_max_steps());
@@ -119,9 +127,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < env.get_max_steps(); i++) {
     std::cout << "at step " << i << std::endl;
     env.update();
-    typename Conf::idx_t idx(ptc->cell[0], ext);
-    auto pos = get_pos(idx, ext);
-    x_global = grid.pos_global(pos, {ptc->x1[0], ptc->x2[0], ptc->x3[0]});
+    x_global = grid.x_global({ptc->x1[0], ptc->x2[0], ptc->x3[0]}, ptc->cell[0]);
     x[i] = x_global[0];
     y[i] = x_global[1];
     z[i] = x_global[2];

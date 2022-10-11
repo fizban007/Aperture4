@@ -86,6 +86,8 @@ grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
 #if defined(GPU_ENABLED)
   init_dev_grid<Conf::dim, typename Conf::value_t>(*this);
 #endif
+
+  m_ext = this->extent();
 }
 
 template <typename Conf>

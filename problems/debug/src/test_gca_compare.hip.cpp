@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     return E0 / z / z;
   });
 
-  auto ptc_global_x = vec_t<value_t, 3>(0.3, 0.3, 0.01);
+  auto ptc_global_x = vec_t<value_t, 3>(0.4, 0.4, 0.01);
   vec_t<value_t, 3> rel_x;
   uint32_t cell;
   grid.from_x_global(ptc_global_x, rel_x, cell);
@@ -144,6 +144,7 @@ int main(int argc, char *argv[]) {
   file.write(y.data(), y.size(), "y");
   file.write(z.data(), z.size(), "z");
   file.write(gamma.data(), gamma.size(), "gamma");
+  file.write(ph_data->E.dev_ptr(), ph_data->number(), "Eph");
   file.close();
 
   return 0;

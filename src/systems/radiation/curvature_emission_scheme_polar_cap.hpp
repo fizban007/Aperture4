@@ -153,6 +153,7 @@ struct curvature_emission_scheme_polar_cap {
     value_t B_mag = math::sqrt(B.dot(B));
 
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
+    printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -196,15 +197,15 @@ struct curvature_emission_scheme_polar_cap {
       value_t sinth_max = grid.sizes[2] / Rc;
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
-      value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
-                             square(x_global[2] + m_Rstar / m_rpc));
-      value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
-      // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-      if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-          || r_max / m_Rstar < 1.2f / m_omega) {
-          // || p[2] < 0.0f) {
-        return 0;
-      }
+      // value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
+      //                        square(x_global[2] + m_Rstar / m_rpc));
+      // value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
+      // // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
+      // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+      //     || r_max / m_Rstar < 1.2f / m_omega) {
+      //     // || p[2] < 0.0f) {
+      //   return 0;
+      // }
       if (chi_max > 0.05f && eph > 2.01f) {
         // value_t pi = std::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
 
@@ -247,8 +248,9 @@ struct curvature_emission_scheme_polar_cap {
                            square(x_global[2] + m_Rstar / m_rpc));
     value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-        || r_max / m_Rstar < 1.2f / m_omega) {
+    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+    // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+        // || r_max / m_Rstar < 1.2f / m_omega) {
         // || p[2] < 0.0f) {
       return 0;
     }

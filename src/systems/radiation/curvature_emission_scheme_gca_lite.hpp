@@ -163,6 +163,7 @@ struct curvature_emission_scheme_gca_lite {
     // value_t p2 = p_par * B[1] / B_mag;
     // value_t p3 = p_par * B[2] / B_mag;
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
+    printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -177,9 +178,12 @@ struct curvature_emission_scheme_gca_lite {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
-      if (eph > p_par - 0.01f) {
-        eph = p_par - 0.01f;
+      if (eph < 0.0f) {
+        return 0;
       }
+      // if (eph > p_par - 0.01f) {
+      //   eph = p_par - 0.01f;
+      // }
 
       // Energy loss over the time interval dt.
       // value_t dE = 2.0f / 3.0f * m_re / square(Rc) * square(square(gamma)) *
@@ -188,24 +192,24 @@ struct curvature_emission_scheme_gca_lite {
 
       // printf("e_c is %f, eph is %f\n", e_c, eph);
 
-      // Do not allow gamma to go below 1
-      // dE = std::min(dE, gamma - 1.01f);
-      value_t Ef = gamma - eph;
-      // Need Ef larger than kappa so that u_par_new is not nan
-      if (Ef <= kappa) {
-        // Try to reduce eph
-        Ef = kappa;
-        eph = gamma - kappa;
-      }
+      // New particle p_parallel
+      value_t p_ph_par = eph * (p1 * B[0] + p2 * B[1] + p3 * B[2]) / p / B_mag;
+      value_t u_par_new = p_par - p_ph_par;
 
-      value_t u_par_new =
-          math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+      // // Compute new particle energy and p_parallel
+      // value_t Ef = gamma - eph;
+      // // Need Ef larger than kappa so that u_par_new is not nan
+      // if (Ef <= kappa) {
+      //   // Try to reduce eph
+      //   Ef = kappa;
+      //   eph = gamma - kappa;
+      // }
+
+      // value_t u_par_new =
+      //     math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
-      ptc.E[tid] = Ef;
-      if (eph < 0.0f) {
-        return 0;
-      }
+      // ptc.E[tid] = Ef;
 
       // printf("Current particle energy is %f, emitted eph of %f\n", Ef, eph);
 
@@ -255,7 +259,8 @@ struct curvature_emission_scheme_gca_lite {
     value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
     if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
-        // || r_max / m_Rstar < 1.1f / m_omega) {
+    // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+        // || r_max / m_Rstar < 1.2f / m_omega) {
         // || p[2] < 0.0f) {
       return 0;
     }
@@ -285,7 +290,8 @@ struct curvature_emission_scheme_gca_lite {
       size_t offset_e = ptc_num + atomic_add(ptc_pos, 2);
       size_t offset_p = offset_e + 1;
 
-      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
+      // value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
+      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(p.dot(B)) / B_mag;
       // Immediately cool to zero magnetic moment and reduce Lorentz factor as
       // needed
       value_t gamma = 0.5f * eph;

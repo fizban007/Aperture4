@@ -163,7 +163,7 @@ struct curvature_emission_scheme_gca_lite {
     // value_t p2 = p_par * B[1] / B_mag;
     // value_t p3 = p_par * B[2] / B_mag;
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
-    printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
+    // printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -178,6 +178,9 @@ struct curvature_emission_scheme_gca_lite {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
+      if (eph > gamma - 1.01f) {
+        eph = gamma - 1.01f;
+      }
       if (eph < 0.0f) {
         return 0;
       }
@@ -192,21 +195,21 @@ struct curvature_emission_scheme_gca_lite {
 
       // printf("e_c is %f, eph is %f\n", e_c, eph);
 
-      // New particle p_parallel
-      value_t p_ph_par = eph * (p1 * B[0] + p2 * B[1] + p3 * B[2]) / p / B_mag;
-      value_t u_par_new = p_par - p_ph_par;
+      // // New particle p_parallel
+      // value_t p_ph_par = eph * (p1 * B[0] + p2 * B[1] + p3 * B[2]) / p / B_mag;
+      // value_t u_par_new = p_par - p_ph_par;
 
-      // // Compute new particle energy and p_parallel
-      // value_t Ef = gamma - eph;
-      // // Need Ef larger than kappa so that u_par_new is not nan
-      // if (Ef <= kappa) {
-      //   // Try to reduce eph
-      //   Ef = kappa;
-      //   eph = gamma - kappa;
-      // }
+      // Compute new particle energy and p_parallel
+      value_t Ef = gamma - eph;
+      // Need Ef larger than kappa so that u_par_new is not nan
+      if (Ef <= kappa) {
+        // Try to reduce eph
+        Ef = kappa;
+        eph = gamma - kappa;
+      }
 
-      // value_t u_par_new =
-      //     math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+      value_t u_par_new =
+          math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
       // ptc.E[tid] = Ef;
@@ -215,7 +218,8 @@ struct curvature_emission_scheme_gca_lite {
 
       // TODO: Refine criterion for photon to potentially convert to pair
       // if (eph > 2.1f) {
-      value_t sinth_max = grid.sizes[2] / Rc;
+      // value_t sinth_max = grid.sizes[2] / Rc;
+      value_t sinth_max = 4.0f / Rc; // FIXME: 2.0f is out of blue
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       if (chi_max > 0.05f && eph > 2.01f) {

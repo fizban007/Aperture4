@@ -153,7 +153,7 @@ struct curvature_emission_scheme_polar_cap {
     value_t B_mag = math::sqrt(B.dot(B));
 
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
-    printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
+    // printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -170,6 +170,9 @@ struct curvature_emission_scheme_polar_cap {
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
       if (eph > gamma - 1.01f) {
         eph = gamma - 1.01f;
+      }
+      if (eph < 0.0f) {
+        return 0;
       }
 
       // Energy loss over the time interval dt.
@@ -194,7 +197,7 @@ struct curvature_emission_scheme_polar_cap {
 
       // TODO: Refine criterion for photon to potentially convert to pair
       // if (eph > 2.1f) {
-      value_t sinth_max = grid.sizes[2] / Rc;
+      value_t sinth_max = 4.0f / Rc; // FIXME: 2.0f is out of blue
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       // value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +

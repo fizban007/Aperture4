@@ -188,9 +188,9 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     for (int i = Conf::dim; i < 3; i++) {
       context.new_x[i] = x_iter[i];
     }
-    printf("old_x (%f, %f, %f), new_x (%f, %f, %f), gamma is %f\n",
-           context.x[0], context.x[1], context.x[2], context.new_x[0],
-           context.new_x[1], context.new_x[2], context.gamma);
+    // printf("old_x (%f, %f, %f), new_x (%f, %f, %f), gamma is %f\n",
+    //        context.x[0], context.x[1], context.x[2], context.new_x[0],
+    //        context.new_x[1], context.new_x[2], context.gamma);
     pos = pos_iter;
     context.p[0] = u_par_new;
     context.p[1] = mu;

@@ -77,29 +77,32 @@ main(int argc, char *argv[]) {
   value_t Rpc = sim_env().params().get_as<double>("Rpc", 1.0);
   value_t R_star = sim_env().params().get_as<double>("R_star", 10.0);
 
-  // Set initial dipole field
-  env.get_data("B0", &B0);
-  B0->set_values(0, [Bp, R_star](auto x, auto y, auto z) {
+  auto B1_func = [Bp, R_star](auto x, auto y, auto z) {
     z = z / R_star + 1.0;
     x /= R_star;
     y /= R_star;
     value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * x * z / (r * r * r * r * r);
-  });
-  B0->set_values(1, [Bp, R_star](auto x, auto y, auto z) {
+  };
+  auto B2_func = [Bp, R_star](auto x, auto y, auto z) {
     z = z / R_star + 1.0;
     x /= R_star;
     y /= R_star;
     value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * y * z / (r * r * r * r * r);
-  });
-  B0->set_values(2, [Bp, R_star](auto x, auto y, auto z) {
+  };
+  auto B3_func = [Bp, R_star](auto x, auto y, auto z) {
     z = z / R_star + 1.0;
     x /= R_star;
     y /= R_star;
     value_t r = math::sqrt(x * x + y * y + z * z);
     return 3.0f * Bp * z * z / (r * r * r * r * r) - Bp / (r * r * r);
-  });
+  };
+  // Set initial dipole field
+  env.get_data("B0", &B0);
+  B0->set_values(0, B1_func);
+  B0->set_values(1, B2_func);
+  B0->set_values(2, B3_func);
 
   particle_data_t *ptc;
   rng_states_t *states;

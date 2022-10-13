@@ -20,8 +20,8 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
-#include "systems/ptc_updater_base.h"
 #include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_updater_base.h"
 // #include "systems/policies/exec_policy_host.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
@@ -38,13 +38,15 @@ namespace Aperture {
 template class radiative_transfer<Config<3>, exec_policy_cuda,
                                   coord_policy_cartesian,
                                   curvature_emission_scheme_polar_cap>;
-template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+template class ptc_updater_new<Config<3>, exec_policy_cuda,
+                               coord_policy_cartesian_gca_lite>;
 
-}
+}  // namespace Aperture
 
 using namespace Aperture;
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   typedef Config<3> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
   typedef typename Conf::value_t value_t;
@@ -52,12 +54,18 @@ int main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   grid_t<Conf> grid;
 
-  auto ptc_data = env.register_data<particle_data_t>("particles", 1000000, MemType::device_managed);
-  auto ph_data = env.register_data<photon_data_t>("photons", 1000000, MemType::device_managed);
+  auto ptc_data = env.register_data<particle_data_t>(
+      "particles", env.params().get_as("max_ptc_num", 1000000l),
+      MemType::device_managed);
+  auto ph_data = env.register_data<photon_data_t>(
+      "photons", env.params().get_as("max_ph_num", 1000000l),
+      MemType::device_managed);
 
   auto pusher = env.register_system<
-      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid, comm);
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
+      // ptc_updater_new<Conf, exec_policy_cuda,
+      // coord_policy_cartesian_gca_lite>>(grid, comm);
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+                                                                       comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_polar_cap>>(grid, &comm);
@@ -114,13 +122,14 @@ int main(int argc, char *argv[]) {
   grid.from_x_global(ptc_global_x, rel_x, cell);
 
   value_t ptc_p_parallel = env.params().get_as("p0", 100.0);
-  vec_t<value_t, 3> ptc_p(B1_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]),
-                          B2_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]),
-                          B3_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]));
+  vec_t<value_t, 3> ptc_p(
+      B1_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]),
+      B2_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]),
+      B3_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]));
   ptc_p *= ptc_p_parallel / math::sqrt(ptc_p.dot(ptc_p));
 
-  ptc->append_dev({0.0, 0.0, 0.0}, ptc_p, cell,
-                  1.0, gen_ptc_type_flag(PtcType::positron));
+  ptc->append_dev({0.0, 0.0, 0.0}, ptc_p, cell, 1.0,
+                  gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[2] << std::endl;
   std::vector<value_t> x(env.get_max_steps());
@@ -129,14 +138,22 @@ int main(int argc, char *argv[]) {
   std::vector<value_t> gamma(env.get_max_steps());
   vec_t<value_t, 3> x_global;
 
+#ifdef GPU_ENABLED
+    size_t free_mem, total_mem;
+    GpuSafeCall(gpuMemGetInfo(&free_mem, &total_mem));
+    Logger::print_info("GPU memory: free={:.3f}GiB/{:.3f}GiB", free_mem / 1.0e9,
+                       total_mem / 1.0e9);
+#endif
   for (int i = 0; i < env.get_max_steps(); i++) {
     std::cout << "at step " << i << std::endl;
     env.update();
-    x_global = grid.x_global({ptc->x1[0], ptc->x2[0], ptc->x3[0]}, ptc->cell[0]);
+    x_global =
+        grid.x_global({ptc->x1[0], ptc->x2[0], ptc->x3[0]}, ptc->cell[0]);
     x[i] = x_global[0];
     y[i] = x_global[1];
     z[i] = x_global[2];
     gamma[i] = ptc->E[0];
+
   }
 
   auto file = hdf_create("test_gca_compare.h5");
@@ -145,6 +162,7 @@ int main(int argc, char *argv[]) {
   file.write(z.data(), z.size(), "z");
   file.write(gamma.data(), gamma.size(), "gamma");
   file.write(ph_data->E.dev_ptr(), ph_data->number(), "Eph");
+  file.write(ptc_data->E.dev_ptr(), ptc_data->number(), "Eptc");
   file.close();
 
   return 0;

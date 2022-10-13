@@ -115,15 +115,17 @@ main(int argc, char *argv[]) {
     return E0 / z / z;
   });
 
-  auto ptc_global_x = vec_t<value_t, 3>(0.4, 0.4, 0.01);
+  auto ptc_global_x = vec_t<value_t, 3>(1.0, 0.0, 0.01);
   vec_t<value_t, 3> rel_x;
   index_t<3> pos;
   uint32_t cell;
   grid.from_x_global(ptc_global_x, rel_x, cell);
+  Logger::print_info("cell is {}, {}, {}", cell / (grid.dims[0] * grid.dims[1]),
+                     (cell / grid.dims[0]) % grid.dims[1], cell % grid.dims[0]);
 
   value_t ptc_p_parallel = env.params().get_as("p0", 100.0);
 
-  ptc->append_dev({0.0, 0.0, 0.0}, {ptc_p_parallel, 0.0, 0.0}, cell, 1.0,
+  ptc->append_dev(rel_x, {ptc_p_parallel, 0.0, 0.0}, cell, 1.0,
                   gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[0] << std::endl;

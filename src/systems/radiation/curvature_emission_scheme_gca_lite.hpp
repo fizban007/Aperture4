@@ -219,8 +219,17 @@ struct curvature_emission_scheme_gca_lite {
       // TODO: Refine criterion for photon to potentially convert to pair
       // if (eph > 2.1f) {
       // value_t sinth_max = grid.sizes[2] / Rc;
-      value_t sinth_max = 4.0f / Rc; // FIXME: 2.0f is out of blue
+      value_t sinth_max = 2.0f / Rc; // FIXME: 2.0f is out of blue
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
+      value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
+                            square(x_global[2] + 1.0f));
+      value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
+      // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
+      // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
+      if (r_max < 1.0f / m_omega) {
+        // || p[2] < 0.0f) {
+        return 0;
+      }
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       if (chi_max > 0.05f && eph > 2.01f) {
         size_t offset = ph_num + atomic_add(ph_pos, 1);

@@ -54,7 +54,7 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
 
   // Convert local coordinate position to global one
   vec_t<value_t, 3> x_global(const vec_t<value_t, 3>& rel_x,
-                                     uint32_t cell) {
+                             uint32_t cell) {
     index_t<Conf::dim> pos = get_pos(Conf::idx(cell, m_ext), m_ext);
     return this->pos_global(pos, rel_x);
   }

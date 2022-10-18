@@ -74,6 +74,7 @@ struct curvature_emission_scheme_gca_lite {
   value_t m_rpc = 1.0;  // r_pc is the polar cap radius
   value_t m_Rstar = 10.0;
   value_t m_omega;
+  value_t m_gamma_thr = 10.0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
@@ -88,6 +89,7 @@ struct curvature_emission_scheme_gca_lite {
     sim_env().params().get_value("zeta", m_zeta);
     sim_env().params().get_value("Rpc", m_rpc);
     sim_env().params().get_value("R_star", m_Rstar);
+    sim_env().params().get_value("gamma_thr", m_gamma_thr);
 
     m_re = 3.0 * m_e0 * m_nc / 2.0;
     m_omega = square(m_rpc / m_Rstar);
@@ -131,6 +133,11 @@ struct curvature_emission_scheme_gca_lite {
 
     value_t gamma = ptc.E[tid];
     value_t p_par = ptc.p1[tid]; // Note that this only works for the gca pusher lite
+
+    if (gamma < m_gamma_thr) {
+      return 0;
+    }
+
     value_t mu = ptc.p2[tid];
     vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
 
@@ -174,6 +181,8 @@ struct curvature_emission_scheme_gca_lite {
     // Expected number of emitted photon over the time interval dt
     value_t dn = m_nc * gamma / Rc;
     value_t u = rng.uniform<value_t>();
+    // printf("Rc is %f, gamma is %f, u/dn is %f/%f\n",
+    //        Rc, gamma, u, dn);
     if (u < dn) {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
@@ -209,10 +218,10 @@ struct curvature_emission_scheme_gca_lite {
       }
 
       value_t u_par_new =
-          math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+          sgn(p_par) * math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
-      // ptc.E[tid] = Ef;
+      ptc.E[tid] = Ef;
 
       // printf("Current particle energy is %f, emitted eph of %f\n", Ef, eph);
 
@@ -226,10 +235,11 @@ struct curvature_emission_scheme_gca_lite {
       value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
       // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
       // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
-      if (r_max < 1.0f / m_omega) {
+      if (r_max < 0.8f / m_omega) {
         // || p[2] < 0.0f) {
         return 0;
       }
+      // printf("photon energy is %f\n", eph);
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       if (chi_max > 0.05f && eph > 2.01f) {
         size_t offset = ph_num + atomic_add(ph_pos, 1);
@@ -289,12 +299,11 @@ struct curvature_emission_scheme_gca_lite {
     value_t B_mag = math::sqrt(B.dot(B));
     value_t eph = ph.E[tid];
     auto pxB = cross(p, B);
+    auto pdotB = p.dot(B);
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
     // Note here that eph is multiplied by zeta. This is rescaling parameter in action
     value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth) * dt;
     value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
-    // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f\n", sinth, ph.path_left[tid], eph, prob,
-    //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta);
 
     value_t u = rng.uniform<value_t>();
     // if (u < prob && eph * sinth * m_zeta > 2.01f) {
@@ -304,15 +313,17 @@ struct curvature_emission_scheme_gca_lite {
       size_t offset_p = offset_e + 1;
 
       // value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
-      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(p.dot(B)) / B_mag;
+      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(pdotB) / B_mag;
+      // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f, p_ptc is %f\n", sinth, ph.path_left[tid], eph, prob,
+      //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta, p_ptc);
       // Immediately cool to zero magnetic moment and reduce Lorentz factor as
       // needed
       value_t gamma = 0.5f * eph;
-      if (sinth > TINY && gamma > 1.0f / sinth) {
-        gamma = 1.0f / sinth;
-        if (gamma < 1.01f) gamma = 1.01;
-        p_ptc = math::sqrt(gamma * gamma - 1.0f);
-      }
+      // if (sinth > TINY && gamma > 1.0f / sinth) {
+      //   gamma = 1.0f / sinth;
+      //   if (gamma < 1.01f) gamma = 1.01;
+      //   p_ptc = math::sqrt(gamma * gamma - 1.0f);
+      // }
 
       ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
       ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
@@ -320,7 +331,7 @@ struct curvature_emission_scheme_gca_lite {
 
       // Particle momentum is along B, direction is inherited from initial
       // photon direction
-      value_t sign = sgn(p.dot(B));
+      value_t sign = sgn(pdotB);
       ptc.p1[offset_e] = ptc.p1[offset_p] =
           sign * p_ptc;  // This is u_par in the gca_lite
       ptc.p2[offset_e] = ptc.p2[offset_p] = 0.0f;

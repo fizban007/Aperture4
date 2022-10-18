@@ -68,7 +68,7 @@ main(int argc, char *argv[]) {
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);
-  // auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 
@@ -115,7 +115,7 @@ main(int argc, char *argv[]) {
     return E0 / z / z;
   });
 
-  auto ptc_global_x = vec_t<value_t, 3>(1.0, 0.0, 0.01);
+  auto ptc_global_x = vec_t<value_t, 3>(0.4, 0.4, 1.01);
   vec_t<value_t, 3> rel_x;
   index_t<3> pos;
   uint32_t cell;
@@ -123,10 +123,10 @@ main(int argc, char *argv[]) {
   Logger::print_info("cell is {}, {}, {}", cell / (grid.dims[0] * grid.dims[1]),
                      (cell / grid.dims[0]) % grid.dims[1], cell % grid.dims[0]);
 
-  value_t ptc_p_parallel = env.params().get_as("p0", 100.0);
+  value_t ptc_p_parallel = env.params().get_as("p0", 1.0);
 
   ptc->append_dev(rel_x, {ptc_p_parallel, 0.0, 0.0}, cell, 1.0,
-                  gen_ptc_type_flag(PtcType::positron));
+                  gen_ptc_type_flag(PtcType::electron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[0] << std::endl;
   std::vector<value_t> x(env.get_max_steps());
@@ -150,7 +150,7 @@ main(int argc, char *argv[]) {
     y[i] = x_global[1];
     z[i] = x_global[2];
     gamma[i] = ptc->E[0];
-
+    Logger::print_info("Current pos ({}, {}, {}), gamma {}", x[i], y[i], z[i], gamma[i]);
   }
 
   auto file = hdf_create("test_gca.h5");
@@ -158,7 +158,7 @@ main(int argc, char *argv[]) {
   file.write(y.data(), y.size(), "y");
   file.write(z.data(), z.size(), "z");
   file.write(gamma.data(), gamma.size(), "gamma");
-  file.write(ph_data->E.dev_ptr(), ph_data->number(), "Eph");
+  // file.write(ph_data->E.dev_ptr(), ph_data->number(), "Eph");
   file.write(ptc_data->E.dev_ptr(), ptc_data->number(), "Eptc");
   file.close();
 

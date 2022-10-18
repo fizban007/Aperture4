@@ -80,7 +80,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     auto k = 1.0f / math::sqrt(std::max(1.0f - vE.dot(vE), TINY));
     // Note that here mu is defined as specific mu, or mu divided by mass of the
     // particle
-    return k * math::sqrt(1.0f + (u_par * u_par + 2.0f * mu * k * B_mag));
+    return k * math::sqrt(1.0f + u_par * u_par + 2.0f * mu * k * B_mag);
   }
 
   // This computes (\mathbf{v} \cdot\div)\mathbf{b}, the change of the
@@ -145,7 +145,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     // Need to update this because we are going to use this in the iteration
     context.gamma = Gamma_new;
 
-    // printf("u_par_new is %f, Gamma_new is %f\n", u_par_new, Gamma_new);
+    // printf("u_par_new is %f, Gamma_new is %f, E_par is %f\n", u_par_new, Gamma_new, E_par);
 
     auto x_global = grid.pos_global(pos, context.x);
     auto x_iter = x_global;
@@ -161,7 +161,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
       vec_t<value_t, 3> vE_iter = f_v_E(E_iter, B_iter);
 
       vec_t<value_t, 3> dx = 0.5f * dt * u_par_new *
-                                 (context.B / (Gamma_new * B_mag) +
+                                 (b / Gamma_new +
                                   B_iter / (context.gamma * B_mag_iter)) +
                              0.5f * dt * (vE + vE_iter);
       x_iter = x_global + dx;

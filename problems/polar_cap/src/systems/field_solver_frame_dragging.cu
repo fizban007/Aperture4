@@ -85,7 +85,7 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
           beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
           e_out[1][idx] = e[1][idx] + beta * (y / r * b0[2][idx]);
 
-          // E[1] is staggered in x, y, but not in z
+          // E[2] is staggered in x, y, but not in z
           r = math::sqrt(ys*ys + z*z + xs*xs);
           beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
           e_out[2][idx] = e[2][idx] + beta * (-ys / r * b0[1][idx] - xs / r * b0[0][idx]);

@@ -92,7 +92,7 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
     is_bottom = false;
   }
 
-  int boundary_cell = m_grid.guard[2];
+  int boundary_cell = m_grid.guard[2] + 1;
   // Apply rotation boundary condition on lower Z boundary and remove E.B in the
   // closed zone
   if (is_bottom) {
@@ -129,6 +129,10 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
               // b[0][idx] = 0.0;
               // b[1][idx] = 0.0;
               b[2][idx] = 0.0;
+              value_t rxy = math::sqrt(x * x + ys * ys);
+              r_frac = rxy / Rpc;
+              smooth_prof =
+                  0.5f * (1.0f - tanh((r_frac - 1.1f) / 0.2f));
               if (pos[2] < boundary_cell) {
                 value_t Br = math::sqrt(square(b0[0][idx]) + square(b0[1][idx]));
                 e[2][idx] = Br * omega * math::sqrt(xs*xs + ys*ys) * smooth_prof;

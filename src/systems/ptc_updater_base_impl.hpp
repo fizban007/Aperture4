@@ -250,9 +250,9 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   Logger::print_detail("Finished sorting");
 
   tally_ptc_number(*ptc);
-  if (ph != nullptr) {
-    tally_ptc_number(*ph);
-  }
+  // if (ph != nullptr) {
+    // tally_ptc_number(*ph);
+  // }
 }
 
 template <typename Conf, template <class> class ExecPolicy,

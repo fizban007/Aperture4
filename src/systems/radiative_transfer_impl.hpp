@@ -99,6 +99,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   }
   ph_number = sim_env().register_data<multi_array_data<uint32_t, Conf::dim>>(
       "ph_number", domain_ext, MemType::host_only);
+  ph_number->gather_to_root = false;
 }
 
 template <class Conf, template <class> class ExecPolicy,

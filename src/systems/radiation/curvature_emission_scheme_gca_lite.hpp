@@ -76,6 +76,7 @@ struct curvature_emission_scheme_gca_lite {
   value_t m_omega;
   value_t m_gamma_thr = 10.0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
+  vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
   curvature_emission_scheme_gca_lite(const grid_t<Conf> &grid)
@@ -100,14 +101,18 @@ struct curvature_emission_scheme_gca_lite {
     m_sync_module = sync_module->get_helper();
 
     // Get data pointers of B field
-    nonown_ptr<vector_field<Conf>> B, E;
+    nonown_ptr<vector_field<Conf>> B, E, B0;
     sim_env().get_data("B", B);
+    sim_env().get_data("B0", B0);
     sim_env().get_data("E", E);
 
 #ifdef GPU_ENABLED
     m_B[0] = B->at(0).dev_ndptr_const();
     m_B[1] = B->at(1).dev_ndptr_const();
     m_B[2] = B->at(2).dev_ndptr_const();
+    m_B0[0] = B0->at(0).dev_ndptr_const();
+    m_B0[1] = B0->at(1).dev_ndptr_const();
+    m_B0[2] = B0->at(2).dev_ndptr_const();
     m_E[0] = E->at(0).dev_ndptr_const();
     m_E[1] = E->at(1).dev_ndptr_const();
     m_E[2] = E->at(2).dev_ndptr_const();
@@ -115,6 +120,9 @@ struct curvature_emission_scheme_gca_lite {
     m_B[0] = B->at(0).host_ndptr_const();
     m_B[1] = B->at(1).host_ndptr_const();
     m_B[2] = B->at(2).host_ndptr_const();
+    m_B0[0] = B0->at(0).host_ndptr_const();
+    m_B0[1] = B0->at(1).host_ndptr_const();
+    m_B0[2] = B0->at(2).host_ndptr_const();
     m_E[0] = E->at(0).host_ndptr_const();
     m_E[1] = E->at(1).host_ndptr_const();
     m_E[2] = E->at(2).host_ndptr_const();
@@ -290,9 +298,9 @@ struct curvature_emission_scheme_gca_lite {
 
     vec_t<value_t, 3> B;
     auto interp = interp_t<1, Conf::dim>{};
-    B[0] = interp(x, m_B[0], idx, ext, stagger_t(0b001));
-    B[1] = interp(x, m_B[1], idx, ext, stagger_t(0b010));
-    B[2] = interp(x, m_B[2], idx, ext, stagger_t(0b100));
+    B[0] = interp(x, m_B0[0], idx, ext, stagger_t(0b001));
+    B[1] = interp(x, m_B0[1], idx, ext, stagger_t(0b010));
+    B[2] = interp(x, m_B0[2], idx, ext, stagger_t(0b100));
 
     // Compute the angle between photon and B field and compute the quantum parameter chi
     // value_t chi = quantum_chi(p, B, m_BQ);

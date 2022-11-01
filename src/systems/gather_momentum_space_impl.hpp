@@ -150,6 +150,8 @@ void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             // auto p2 = clamp(ptc.p2[n], lower[1], upper[1]);
             // auto p3 = clamp(ptc.p3[n], lower[2], upper[2]);
             // auto E = clamp(ptc.E[n], lower[3], upper[3]);
+
+            ////// Compute pitch angle here
             auto p1 = ptc.p1[n];
             auto p2 = ptc.p2[n];
             auto p3 = ptc.p3[n];
@@ -162,6 +164,7 @@ void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
             float mu = (B1 * p1 + B2 * p2 + B3 * p3) /
                        (p * math::sqrt(B1 * B1 + B2 * B2 + B3 * B3));
+            ///////////////////////////////////////
 
             p1 = (log_scale ? symlog(p1) : p1);
             p2 = (log_scale ? symlog(p2) : p2);

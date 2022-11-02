@@ -243,7 +243,7 @@ struct curvature_emission_scheme_gca_lite {
       value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
       // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
       // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
-      if (r_max < 0.8f / m_omega) {
+      if (r_max < 1.1f / m_omega) {
         // || p[2] < 0.0f) {
         return 0;
       }
@@ -283,24 +283,31 @@ struct curvature_emission_scheme_gca_lite {
     auto pos = get_pos(idx, ext);
 
     // x_global gives the cartesian coordinate of the photon.
-    auto x_global = grid.pos_global(pos, x);
+    auto x_global = grid.pos_global(pos, x) * (m_rpc / m_Rstar);
 
     value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
-                           square(x_global[2] + m_Rstar / m_rpc));
-    value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
+                          square(x_global[2] + 1.0f));
+    value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
+    if (r_max < 1.1f / m_omega) {
+      return 0;
+    }
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+    if (x_global[2] * m_Rstar / m_rpc <= (grid.guard[2] + 1) * grid.delta[2]) {
+    // if (x_global[2] * m_Rstar / m_rpc <= (grid.guard[2] + 1) * grid.delta[2] ||
+    //     x_global[2] * m_Rstar / m_rpc > 3.0f) {
     // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
         // || r_max / m_Rstar < 1.2f / m_omega) {
         // || p[2] < 0.0f) {
       return 0;
     }
 
+    // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
+    // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
     vec_t<value_t, 3> B;
     auto interp = interp_t<1, Conf::dim>{};
-    B[0] = interp(x, m_B0[0], idx, ext, stagger_t(0b001));
-    B[1] = interp(x, m_B0[1], idx, ext, stagger_t(0b010));
-    B[2] = interp(x, m_B0[2], idx, ext, stagger_t(0b100));
+    B[0] = interp(x, m_B[0], idx, ext, stagger_t(0b001));
+    B[1] = interp(x, m_B[1], idx, ext, stagger_t(0b010));
+    B[2] = interp(x, m_B[2], idx, ext, stagger_t(0b100));
 
     // Compute the angle between photon and B field and compute the quantum parameter chi
     // value_t chi = quantum_chi(p, B, m_BQ);

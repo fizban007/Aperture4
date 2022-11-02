@@ -22,6 +22,15 @@
 #include "systems/helpers/finite_diff_helper.hpp"
 #include "utils/kernel_helper.hpp"
 
+namespace {
+
+HOST_DEVICE float smooth_prof(float r_frac) {  
+  return 0.5f * (1.0f - tanh((r_frac - 2.0f) / 0.2f));
+  // return 1.0f;
+}
+
+}
+
 namespace Aperture {
 
 template <typename Conf>
@@ -69,7 +78,7 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
           value_t ys = grid.pos(1, pos[1], true);
           value_t z = grid.pos(2, pos[2], false) + Rstar / Rpc;
           value_t zs = grid.pos(2, pos[2], true) + Rstar / Rpc;
-          value_t r, beta;
+          value_t r, beta, r_cyl;
 
           // Normally beta would have an additional factor of sinth, and r would
           // have a factor of sinth too, but they cancel each other, so we omit
@@ -77,17 +86,20 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
 
           // E[0] is staggered in y, z, but not in x
           r = math::sqrt(ys*ys + zs*zs + x*x);
-          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
+          r_cyl = math::sqrt(x*x + ys*ys);
+          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC * smooth_prof(r_cyl / Rpc);
           e_out[0][idx] = e[0][idx] + beta * (x / r * b0[2][idx]);
 
           // E[1] is staggered in x, z, but not in y
           r = math::sqrt(y*y + zs*zs + xs*xs);
-          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
+          r_cyl = math::sqrt(xs*xs + y*y);
+          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC * smooth_prof(r_cyl / Rpc);
           e_out[1][idx] = e[1][idx] + beta * (y / r * b0[2][idx]);
 
           // E[2] is staggered in x, y, but not in z
           r = math::sqrt(ys*ys + z*z + xs*xs);
-          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC;
+          r_cyl = math::sqrt(xs*xs + ys*ys);
+          beta = beta0 / square(r * Rpc / Rstar) * Rstar_over_RLC * smooth_prof(r_cyl / Rpc);
           e_out[2][idx] = e[2][idx] + beta * (-ys / r * b0[1][idx] - xs / r * b0[0][idx]);
         }
       },

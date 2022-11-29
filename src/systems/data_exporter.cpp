@@ -112,7 +112,8 @@ data_exporter<Conf>::register_data_components() {
 
 template <typename Conf>
 void
-data_exporter<Conf>::write_data(data_t* data, const std::string &name, H5File &datafile, bool snapshot) {
+data_exporter<Conf>::write_data(data_t* data, const std::string& name,
+                                H5File& datafile, bool snapshot) {
   using value_t = typename Conf::value_t;
   if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
     Logger::print_detail("Writing vector field {}", name);
@@ -148,8 +149,7 @@ data_exporter<Conf>::write_data(data_t* data, const std::string &name, H5File &d
     Logger::print_detail("Writing 3D array {}", name);
     write(*ptr, name, datafile, false);
   } else {
-    Logger::print_detail("Data exporter doesn't know how to write {}",
-                         name);
+    Logger::print_detail("Data exporter doesn't know how to write {}", name);
   }
 }
 
@@ -230,15 +230,16 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
   // Loop over the data map again to find special output cases
   for (auto& it : sim_env().data_map()) {
-    // m_special_output_interval == 0 means it follows the standard output interval rule
+    // m_special_output_interval == 0 means it follows the standard output
+    // interval rule
     if (it.second->m_special_output_interval == 0) continue;
 
     if (step % it.second->m_special_output_interval == 0) {
       // Specifically write output file for this data component
 
       auto data = it.second.get();
-      std::string filename =
-          fmt::format("{}data_{}.{:05d}.h5", m_output_dir, it.first, data->m_special_output_num);
+      std::string filename = fmt::format("{}data_{}.{:05d}.h5", m_output_dir,
+                                         it.first, data->m_special_output_num);
       auto create_mode = H5CreateMode::trunc_parallel;
       if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
       H5File datafile = hdf_create(filename, create_mode);
@@ -512,7 +513,7 @@ data_exporter<Conf>::write_multi_array_helper(
     const multi_array<float, Conf::dim, typename Conf::idx_t>& array,
     const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
     H5File& file) {
-  if (m_comm != nullptr && m_comm->size() > 1) {
+  if (is_multi_rank()) {
     file.write_parallel(array, global_ext, offsets, array.extent(),
                         index_t<Conf::dim>{}, name);
   } else {
@@ -562,7 +563,7 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
       compute_snapshot_ext_offset(ext_total, ext, pos_src, pos_dst);
 
       data[i].copy_to_host();
-      if (m_comm != nullptr && m_comm->size() > 1) {
+      if (is_multi_rank()) {
         datafile.write_parallel(data[i], ext_total, pos_dst, ext, pos_src,
                                 namestr);
       } else {
@@ -575,7 +576,35 @@ data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
 template <typename Conf>
 void
 data_exporter<Conf>::write(rng_states_t& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {}
+                           H5File& datafile, bool snapshot) {
+  // No point writing rng states for regular data output
+  if (!snapshot) {
+    return;
+  }
+  int n_ranks = 1;
+  int rank = 0;
+  if (is_multi_rank()) {
+    n_ranks = m_comm->size();
+    rank = m_comm->rank();
+  }
+  // The number 4 is due to our rand_state having 4 uint64_t numbers as state
+  // variables
+  size_t len_total = data.size() * 4 * n_ranks;
+  size_t len = data.size() * 4;
+  size_t pos_src = 0;
+  size_t pos_dst = data.size() * 4 * rank;
+
+  data.copy_to_host();
+  // Writing everything as a 1D plain array
+  if (is_multi_rank()) {
+    datafile.write_parallel(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
+                            data.size() * 4, len_total,
+                            pos_dst, len, pos_src, name);
+  } else {
+    datafile.write(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
+                   data.size() * 4, name);
+  }
+}
 
 template <typename Conf>
 void
@@ -592,16 +621,18 @@ data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
   index_t<Conf::dim + 1> idx_src(0);
   index_t<Conf::dim + 1> idx_dst(0);
   // FIXME: This again assumes a uniform grid, which is no good in the long term
-  if (m_comm != nullptr && m_comm->size() > 1) {
+  if (is_multi_rank()) {
     for (int i = 0; i < Conf::dim + 1; i++) {
       if (i > 0)
         idx_dst[i] = m_comm->domain_info().mpi_coord[i - 1] * ext[i];
       else
         idx_dst[i] = 0;
     }
-    // Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {}, {}, {}",
+    // Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {},
+    // {}, {}",
     //                    idx_dst[0], idx_dst[1], idx_dst[2], idx_dst[3],
-    //                    ext_total[0], ext_total[1], ext_total[2], ext_total[3]);
+    //                    ext_total[0], ext_total[1], ext_total[2],
+    //                    ext_total[3]);
 
     datafile.write_parallel(data.e_p1, ext_total, idx_dst, ext, idx_src,
                             name + "_p1_e");
@@ -671,7 +702,7 @@ data_exporter<Conf>::write(phase_space<Conf, N>& data, const std::string& name,
   index_t<Conf::dim + N> idx_src(0);
   index_t<Conf::dim + N> idx_dst(0);
   // FIXME: This again assumes a uniform grid, which is no good in the long term
-  if (m_comm != nullptr && m_comm->size() > 1) {
+  if (is_multi_rank()) {
     for (int i = 0; i < Conf::dim + N; i++) {
       if (i < N) {
         idx_dst[i] = 0;
@@ -679,12 +710,13 @@ data_exporter<Conf>::write(phase_space<Conf, N>& data, const std::string& name,
         idx_dst[i] = m_comm->domain_info().mpi_coord[i - N] * ext[i];
       }
     }
-    // Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {}, {}, {}",
+    // Logger::print_info_all("idx_dst is {}, {}, {}, {}; ext_total is {}, {},
+    // {}, {}",
     //                    idx_dst[0], idx_dst[1], idx_dst[2], idx_dst[3],
-    //                    ext_total[0], ext_total[1], ext_total[2], ext_total[3]);
+    //                    ext_total[0], ext_total[1], ext_total[2],
+    //                    ext_total[3]);
 
-    datafile.write_parallel(data.data, ext_total, idx_dst, ext, idx_src,
-                            name);
+    datafile.write_parallel(data.data, ext_total, idx_dst, ext, idx_src, name);
   } else {
     datafile.write(data.data, name);
   }
@@ -695,7 +727,7 @@ template <typename T>
 void
 data_exporter<Conf>::write(scalar_data<T>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
-  if (m_comm != nullptr && m_comm->size() > 1 && data.do_gather()) {
+  if (is_multi_rank() && data.do_gather()) {
     m_comm->gather_to_root(data.data());
   } else {
     data.copy_to_host();
@@ -712,7 +744,7 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
                            const std::string& name, H5File& datafile,
                            bool snapshot) {
   if (!snapshot) {
-    if (m_comm != nullptr && m_comm->size() > 1) {
+    if (is_multi_rank()) {
       if (data.gather_to_root) {
         // gather_to_root automatically takes care of copying to host
         m_comm->gather_to_root(static_cast<buffer<T>&>(data));
@@ -757,7 +789,7 @@ data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
       index_t<Conf::dim> pos_src, pos_dst;
       compute_snapshot_ext_offset(ext_total, ext, pos_dst, pos_src);
 
-      if (m_comm != nullptr && m_comm->size() > 1) {
+      if (is_multi_rank()) {
         datafile.read_subset(data[i], namestr, pos_src, ext, pos_dst);
       } else {
         auto array =
@@ -774,6 +806,31 @@ template <typename Conf>
 void
 data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
                           H5File& datafile, bool snapshot) {
+  // No point reading rng states for regular data output
+  if (!snapshot) {
+    return;
+  }
+  int n_ranks = 1;
+  int rank = 0;
+  if (is_multi_rank()) {
+    n_ranks = m_comm->size();
+    rank = m_comm->rank();
+  }
+  // The number 4 is due to our rand_state having 4 uint64_t numbers as state
+  // variables
+  size_t len_total = data.size() * 4 * n_ranks;
+  size_t len = data.size() * 4;
+  size_t pos_src = data.size() * 4 * rank;
+  size_t pos_dst = 0;
+
+  if (is_multi_rank()) {
+    datafile.read_subset(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
+                            data.size() * 4, name, pos_src, len,
+                            pos_dst);
+  } else {
+    datafile.write(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
+                   data.size() * 4, name);
+  }
   data.copy_to_host();
 }
 

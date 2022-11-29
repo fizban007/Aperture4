@@ -84,6 +84,9 @@ class data_exporter : public system_t {
     else
       return true;
   }
+  bool is_multi_rank() const {
+    return m_comm != nullptr && m_comm->size() > 1;
+  }
 
   void write(particle_data_t& data, const std::string& name, H5File& datafile,
              bool snapshot = false);

@@ -49,6 +49,8 @@ class rng_states_t : public data_t {
   static constexpr int thread_num = 1024;
 #endif
 
+  size_t size() { return m_size; }
+
  private:
   uint64_t m_initial_seed;
   size_t m_size;

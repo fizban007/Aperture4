@@ -114,6 +114,29 @@ main(int argc, char *argv[]) {
     z = z + 1.0;
     return E0 / z / z;
   });
+  // value_t E0 = Bp * 0.1;
+  // E->set_values(0, [E0, R_star](auto x, auto y, auto z) {
+  //   z = z / R_star + 1.0;
+  //   x /= R_star;
+  //   y /= R_star;
+  //   value_t r = math::sqrt(x * x + y * y + z * z);
+  //   return 3.0f * E0 * x * z / (r * r * r * r * r);
+  // });
+  // E->set_values(1, [E0, R_star](auto x, auto y, auto z) {
+  //   z = z / R_star + 1.0;
+  //   x /= R_star;
+  //   y /= R_star;
+  //   value_t r = math::sqrt(x * x + y * y + z * z);
+  //   return 3.0f * E0 * y * z / (r * r * r * r * r);
+  // });
+  E->set_values(2, [E0, R_star](auto x, auto y, auto z) {
+    z = z / R_star + 1.0;
+    // x /= R_star;
+    // y /= R_star;
+    // value_t r = math::sqrt(x * x + y * y + z * z);
+    // return 3.0f * E0 * z * z / (r * r * r * r * r) - E0 / (r * r * r);
+    return E0 / pow(z - 1.0, 2.0);
+  });
 
   auto ptc_global_x = vec_t<value_t, 3>(0.4, 0.4, 1.01);
   vec_t<value_t, 3> rel_x;

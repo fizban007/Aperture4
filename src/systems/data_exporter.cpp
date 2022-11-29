@@ -22,6 +22,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
+#include "utils/for_each_dual.hpp"
 #if __GNUC__ >= 8 || __clang_major__ >= 7
 #include <filesystem>
 #else
@@ -541,6 +542,62 @@ data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
 }
 
 template <typename Conf>
+template <typename PtcData>
+void
+data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile) {
+  auto& ptc_buffer = tmp_ptc_data;
+  size_t number = data.number();
+  size_t total = number;
+  size_t offset = 0;
+  bool multi_rank = is_multi_rank();
+  if (multi_rank) {
+    m_comm->get_total_num_offset(number, total, offset);
+  }
+  visit_struct::for_each(
+      data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total,
+                        offset, multi_rank](const char* entry, auto u) {
+        // Copy to the temporary ptc buffer
+        ptr_copy_dev(reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
+                     0, 0);
+        ptc_buffer.copy_to_host();
+        typedef typename std::remove_reference_t<decltype(*u)> data_type;
+        // typedef decltype(*u) data_type;
+        if (multi_rank) {
+          datafile.write_parallel(
+              reinterpret_cast<const data_type*>(ptc_buffer.host_ptr()), number,
+              total, offset, number, 0, name + "_" + entry);
+        } else {
+          datafile.write(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
+                         number, name + "_" + entry);
+        }
+      });
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write(particle_data_t& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  if (!snapshot) {
+    // TODO: If not snapshot, then sample only the particles that are tracked
+    return;
+  } else {
+    write_ptc_snapshot(data, name, datafile);
+  }
+}
+
+template <typename Conf>
+void
+data_exporter<Conf>::write(photon_data_t& data, const std::string& name,
+                           H5File& datafile, bool snapshot) {
+  if (!snapshot) {
+    // TODO: If not snapshot, then sample only the photons that are tracked
+    return;
+  } else {
+    write_ptc_snapshot(data, name, datafile);
+  }
+}
+
+template <typename Conf>
 template <int N>
 void
 data_exporter<Conf>::write(field_t<N, Conf>& data, const std::string& name,
@@ -597,9 +654,9 @@ data_exporter<Conf>::write(rng_states_t& data, const std::string& name,
   data.copy_to_host();
   // Writing everything as a 1D plain array
   if (is_multi_rank()) {
-    datafile.write_parallel(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
-                            data.size() * 4, len_total,
-                            pos_dst, len, pos_src, name);
+    datafile.write_parallel(
+        reinterpret_cast<uint64_t*>(data.states().host_ptr()), data.size() * 4,
+        len_total, pos_dst, len, pos_src, name);
   } else {
     datafile.write(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
                    data.size() * 4, name);
@@ -610,6 +667,11 @@ template <typename Conf>
 void
 data_exporter<Conf>::write(momentum_space<Conf>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
+  // No point including this in the snapshot
+  if (snapshot) {
+    return;
+  }
+
   data.copy_to_host();
 
   // First figure out the extent and offset of each node
@@ -679,6 +741,11 @@ template <int N>
 void
 data_exporter<Conf>::write(phase_space<Conf, N>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
+  // Should not include this in the snapshot either
+  if (snapshot) {
+    return;
+  }
+
   data.copy_to_host();
 
   // First figure out the extent and offset of each node
@@ -727,6 +794,7 @@ template <typename T>
 void
 data_exporter<Conf>::write(scalar_data<T>& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
+  // The same behavior for snapshot or not
   if (is_multi_rank() && data.do_gather()) {
     m_comm->gather_to_root(data.data());
   } else {
@@ -743,6 +811,7 @@ void
 data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
                            const std::string& name, H5File& datafile,
                            bool snapshot) {
+  // This makes most sense when not doing snapshot
   if (!snapshot) {
     if (is_multi_rank()) {
       if (data.gather_to_root) {
@@ -762,11 +831,17 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
     //                        pos[0], pos[1], pos[2], data[idx]);
     //   }
     // }
+
     // gather_to_root only touches host memory, so we can directly use it to
     // write output
-    // if (is_root()) {
     datafile.write(static_cast<multi_array<T, Rank>&>(data), name);
-    // }
+  } else {
+    int ranks = 1;
+    if (is_multi_rank()) {
+      ranks = m_comm->size();
+    }
+    extent_t<Rank + 1> ext_total, ext;
+    index_t<Rank + 1> pos_src, pos_dst;
   }
 }
 
@@ -775,7 +850,7 @@ template <int N>
 void
 data_exporter<Conf>::read(field_t<N, Conf>& data, const std::string& name,
                           H5File& datafile, bool snapshot) {
-  // Loop over all components, downsample them, then write them to the file
+  // Loop over all components, reading them from file
   for (int i = 0; i < N; i++) {
     std::string namestr;
     if (N == 1) {
@@ -825,8 +900,7 @@ data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
 
   if (is_multi_rank()) {
     datafile.read_subset(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
-                            data.size() * 4, name, pos_src, len,
-                            pos_dst);
+                         data.size() * 4, name, pos_src, len, pos_dst);
   } else {
     datafile.write(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
                    data.size() * 4, name);

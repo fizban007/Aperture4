@@ -74,6 +74,7 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
         // else if (Conf::dim == 1)
         //   zone_offset = 12;
         int zone_offset = get_zone_offset<Conf::dim>();
+        int bitshift_width = (sizeof(size_t) * 8 - 5);
         for (auto n : grid_stride_range(0, num)) {
           uint32_t cell = cells[n + offset];
           if (cell == empty_cell) continue;
@@ -86,13 +87,12 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
           // Zone is less than 32, so we can use 5 bits to represent this. The
           // rest of the bits go to encode the index of this particle in that
           // zone.
-          int bitshift_width = (sizeof(size_t) * 8 - 5);
           index[n] = ((zone & 0b11111) << bitshift_width) + pos;
           // printf("pos is %lu, index is %lu, zone is %lu\n", pos, index[n], zone);
         }
       },
       cells, buffer_num.dev_ptr(), index);
-  // GpuSafeCall(gpuDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   GpuCheckError();
 }
 

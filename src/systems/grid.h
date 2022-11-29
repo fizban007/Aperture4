@@ -31,9 +31,10 @@ class domain_comm;
 template <typename Conf>
 class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
  public:
+  using value_t = typename Conf::value_t;
   static std::string name() { return "grid"; }
 
-  typedef Grid<Conf::dim, typename Conf::value_t> base_type;
+  typedef Grid<Conf::dim, value_t> base_type;
 
   grid_t();
   grid_t(const domain_comm<Conf>& comm);
@@ -51,26 +52,45 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
     return result;
   }
 
+  // Convert local coordinate position to global one
+  vec_t<value_t, 3> x_global(const vec_t<value_t, 3>& rel_x,
+                             uint32_t cell) {
+    index_t<Conf::dim> pos = get_pos(Conf::idx(cell, m_ext), m_ext);
+    return this->pos_global(pos, rel_x);
+  }
+
+  // Convert global coordinate position to local one
+  void from_x_global(const vec_t<value_t, 3>& global_x,
+                     vec_t<value_t, 3>& rel_x,
+                     uint32_t& cell) {
+    index_t<Conf::dim> pos;
+    this->from_global(global_x, pos, rel_x);
+    cell = Conf::idx(pos, m_ext).linear;
+  }
+
   inline typename Conf::idx_t get_idx(const index_t<Conf::dim>& pos) const {
-    return typename Conf::idx_t(pos, this->extent());
+    return typename Conf::idx_t(pos, m_ext);
   }
 
   template <typename... Args>
   inline typename Conf::idx_t get_idx(Args... args) const {
-    return typename Conf::idx_t(index_t<Conf::dim>(args...), this->extent());
+    return typename Conf::idx_t(index_t<Conf::dim>(args...), m_ext);
   }
 
   inline typename Conf::idx_t idx_at(uint32_t lin) const {
-    return typename Conf::idx_t(lin, this->extent());
+    return typename Conf::idx_t(lin, m_ext);
   }
 
   inline typename Conf::idx_t begin() const { return idx_at(0); }
 
   inline typename Conf::idx_t end() const {
-    return idx_at(this->extent().size());
+    return idx_at(m_ext.size());
   }
 
-  inline size_t size() const { return this->extent().size(); }
+  inline size_t size() const { return m_ext.size(); }
+
+ protected:
+  extent_t<Conf::dim> m_ext;
 };
 
 }  // namespace Aperture

@@ -211,6 +211,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // timer::stamp();
   filter_current(m_filter_times, step);
   // timer::show_duration_since_stamp("filter_current", "ms");
+  Logger::print_detail("Finished filtering current");
 
   // Send particles
   // timer::stamp();
@@ -220,7 +221,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   ExecPolicy<Conf>::sync();
   // timer::show_duration_since_stamp("send_particles", "ms");
 
-  // Logger::print_detail("Finished sending particles");
+  Logger::print_detail("Finished sending particles");
 
   // Also move photons if the data component exists
   if (ph != nullptr) {
@@ -240,18 +241,18 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // Clear guard cells
   clear_guard_cells();
 
-  // Logger::print_detail("Finished clearing guard cells");
+  Logger::print_detail("Finished clearing guard cells");
 
   // sort at the given interval. Turn off sorting if m_sort_interval is 0
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
   }
-  // Logger::print_detail("Finished sorting");
+  Logger::print_detail("Finished sorting");
 
   tally_ptc_number(*ptc);
-  if (ph != nullptr) {
-    tally_ptc_number(*ph);
-  }
+  // if (ph != nullptr) {
+    // tally_ptc_number(*ph);
+  // }
 }
 
 template <typename Conf, template <class> class ExecPolicy,

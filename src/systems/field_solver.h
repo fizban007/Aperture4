@@ -60,7 +60,7 @@ class field_solver : public system_t {
   nonown_ptr<vector_field<Conf>> E, B, Etotal, Btotal, E0, B0, J;
   nonown_ptr<scalar_field<Conf>> divE, divB, EdotB, flux, E_sqr, B_sqr;
 
-  bool m_use_implicit = true;
+  bool m_use_implicit = false;
   double m_alpha = 0.45;
   double m_beta = 0.55;
   int m_data_interval = 100;

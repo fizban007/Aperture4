@@ -99,6 +99,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   }
   ph_number = sim_env().register_data<multi_array_data<uint32_t, Conf::dim>>(
       "ph_number", domain_ext, MemType::host_only);
+  ph_number->gather_to_root = false;
 }
 
 template <class Conf, template <class> class ExecPolicy,
@@ -115,6 +116,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
   }
 
   // Tally photon number of this rank and store it in ph_number
+  size_t total_num = 0, max_num = 0;
   if (m_comm != nullptr && m_comm->size() > 1) {
     extent_t<Conf::dim> domain_ext = ph_number->extent();
     for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
@@ -126,9 +128,18 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
         (*ph_number)[idx] = 0;
       }
     }
+    m_comm->gather_to_root(*ph_number);
+    for (auto idx : range(Conf::begin(domain_ext), Conf::end(domain_ext))) {
+      if ((*ph_number)[idx] > max_num) {
+        max_num = (*ph_number)[idx];
+      }
+      total_num += (*ph_number)[idx];
+    }
   } else {
-    (*ph_number)[0] = ph->number();
+    total_num = max_num = (*ph_number)[0] = ph->number();
   }
+  Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
+                     total_num, max_num);
 }
 
 template <class Conf, template <class> class ExecPolicy,

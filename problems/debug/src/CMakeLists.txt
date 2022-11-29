@@ -41,3 +41,8 @@ add_executable(gca_test
   "test_gca.hip.cpp")
 target_link_libraries(gca_test Aperture Aperture_dev)
 add_dependencies(problems gca_test)
+
+add_executable(gca_test_compare
+  "test_gca_compare.hip.cpp")
+target_link_libraries(gca_test_compare Aperture Aperture_dev)
+add_dependencies(problems gca_test_compare)

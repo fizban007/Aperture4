@@ -73,6 +73,7 @@ struct curvature_emission_scheme_polar_cap {
   value_t m_rpc = 1.0;  // r_pc is the polar cap radius
   value_t m_Rstar = 10.0;
   value_t m_omega;
+  value_t m_gamma_thr = 10.0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
@@ -87,6 +88,7 @@ struct curvature_emission_scheme_polar_cap {
     sim_env().params().get_value("zeta", m_zeta);
     sim_env().params().get_value("Rpc", m_rpc);
     sim_env().params().get_value("R_star", m_Rstar);
+    sim_env().params().get_value("gamma_thr", m_gamma_thr);
 
     m_re = 3.0 * m_e0 * m_nc / 2.0;
     m_omega = square(m_rpc / m_Rstar);
@@ -134,6 +136,10 @@ struct curvature_emission_scheme_polar_cap {
     value_t p3 = ptc.p3[tid];
     vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
 
+    if (gamma < m_gamma_thr) {
+      return 0;
+    }
+
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);
     // Compute the radius of curvature using particle location
@@ -153,6 +159,8 @@ struct curvature_emission_scheme_polar_cap {
     value_t B_mag = math::sqrt(B.dot(B));
 
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
+    // value_t pdotB = p1 * B[0] + p2 * B[1] + p3 * B[2];
+    // printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
@@ -163,12 +171,17 @@ struct curvature_emission_scheme_polar_cap {
     // Expected number of emitted photon over the time interval dt
     value_t dn = m_nc * gamma / Rc;
     value_t u = rng.uniform<value_t>();
+    // printf("Rc is %f, gamma is %f, u/dn is %f/%f\n",
+    //        Rc, gamma, u, dn);
     if (u < dn) {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
       value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
       if (eph > gamma - 1.01f) {
         eph = gamma - 1.01f;
+      }
+      if (eph < 0.0f) {
+        return 0;
       }
 
       // Energy loss over the time interval dt.
@@ -193,18 +206,20 @@ struct curvature_emission_scheme_polar_cap {
 
       // TODO: Refine criterion for photon to potentially convert to pair
       // if (eph > 2.1f) {
-      value_t sinth_max = grid.sizes[2] / Rc;
+      value_t sinth_max = 2.0f / Rc; // FIXME: 2.0f is out of blue
       value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
       // printf("sinth_max is %f, chi_max is %f\n", sinth_max, chi_max);
       value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
-                             square(x_global[2] + m_Rstar / m_rpc));
-      value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
+                             square(x_global[2] + 1.0f));
+      value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
       // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-      if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-          || r_max / m_Rstar < 1.2f / m_omega) {
+      // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+      //     || r_max / m_Rstar < 1.2f / m_omega) {
+      if (r_max < 0.9f / m_omega) {
           // || p[2] < 0.0f) {
         return 0;
       }
+      // printf("photon energy is %f\n", eph);
       if (chi_max > 0.05f && eph > 2.01f) {
         // value_t pi = std::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
 
@@ -247,8 +262,9 @@ struct curvature_emission_scheme_polar_cap {
                            square(x_global[2] + m_Rstar / m_rpc));
     value_t r_max = r / (1.0f - square((x_global[2] + m_Rstar / m_rpc) / r));
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
-    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-        || r_max / m_Rstar < 1.2f / m_omega) {
+    if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]) {
+    // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+        // || r_max / m_Rstar < 1.2f / m_omega) {
         // || p[2] < 0.0f) {
       return 0;
     }
@@ -264,31 +280,33 @@ struct curvature_emission_scheme_polar_cap {
     value_t B_mag = math::sqrt(B.dot(B));
     value_t eph = ph.E[tid];
     auto pxB = cross(p, B);
+    auto pdotB = p.dot(B);
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
     // Note here that eph is multiplied by zeta. This is rescaling parameter in action
     value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth, m_rpc / m_Rstar) * dt;
     value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
-    // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f\n", sinth, ph.path_left[tid], eph, prob,
-    //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta);
 
     value_t u = rng.uniform<value_t>();
-    if (u < prob && eph * sinth * m_zeta > 2.01f) {
+    // if (u < prob && eph * sinth * m_zeta > 2.01f) {
     // if (u < prob && eph * sinth > 2.01f) {
-    // if (u < prob) {
+    if (u < prob) {
       // Actually produce the electron-positron pair
       size_t offset = ptc_num + atomic_add(ptc_pos, 2);
       size_t offset_e = offset;
       size_t offset_p = offset + 1;
 
-      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
+      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(pdotB) / B_mag;
+      // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f, p_ptc is %f\n", sinth, ph.path_left[tid], eph, prob,
+      //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta, p_ptc);
       // Immediately cool to zero magnetic moment and reduce Lorentz factor as
       // needed
-      value_t gamma = 0.5f * eph;
-      if (sinth > TINY && gamma > 1.0f / sinth) {
-        gamma = 1.0f / sinth;
-        if (gamma < 1.01f) gamma = 1.01;
-        p_ptc = math::sqrt(gamma * gamma - 1.0f);
-      }
+      // value_t gamma = 0.5f * eph;
+      value_t gamma = math::sqrt(1.0f + p_ptc * p_ptc);
+      // if (sinth > TINY && gamma > 1.0f / sinth) {
+      //   gamma = 1.0f / sinth;
+      //   if (gamma < 1.01f) gamma = 1.01;
+      //   p_ptc = math::sqrt(gamma * gamma - 1.0f);
+      // }
 
       ptc.x1[offset_e] = ptc.x1[offset_p] = x[0];
       ptc.x2[offset_e] = ptc.x2[offset_p] = x[1];
@@ -296,7 +314,7 @@ struct curvature_emission_scheme_polar_cap {
 
       // Particle momentum is along B, direction is inherited from initial
       // photon direction
-      value_t sign = sgn(p.dot(B));
+      value_t sign = sgn(pdotB);
       ptc.p1[offset_e] = ptc.p1[offset_p] = p_ptc * sign * B[0] / B_mag;
       ptc.p2[offset_e] = ptc.p2[offset_p] = p_ptc * sign * B[1] / B_mag;
       ptc.p3[offset_e] = ptc.p3[offset_p] = p_ptc * sign * B[2] / B_mag;

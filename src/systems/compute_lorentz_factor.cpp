@@ -38,7 +38,7 @@ compute_lorentz_factor<Conf>::register_data_impl(MemType type) {
         std::string("num_") + ptc_type_name(n), m_grid,
         field_type::cell_centered, type);
     avg_p[n] = sim_env().register_data<vector_field<Conf>>(
-        std::string("avg_p_") + ptc_type_name(n), m_grid,
+        std::string("avg_") + ptc_type_name(n) + std::string("_p"), m_grid,
         field_type::cell_centered, type);
   }
 }

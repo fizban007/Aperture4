@@ -82,9 +82,12 @@ grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
   }
 
   // Copy the grid parameters to gpu
-#ifdef GPU_ENABLED
+// #if defined(GPU_ENABLED) && (defined(__CUDACC__) || defined(__HIPCC__))
+#if defined(GPU_ENABLED)
   init_dev_grid<Conf::dim, typename Conf::value_t>(*this);
 #endif
+
+  m_ext = this->extent();
 }
 
 template <typename Conf>

@@ -17,7 +17,7 @@ use_implicit = false
 
 implicit_beta = 0.55
 
-current_smoothing = 1
+current_smoothing = 3
 
 ### Simulation life time
 max_steps = 550
@@ -52,7 +52,7 @@ periodic_boundary = [false, false, false]
 damping_boundary = [true, true, true, true, true, true]
 
 # Length of the PML layer
-pml_length = 6
+pml_length = 10
 
 # Field output downsample factor
 downsample = 1

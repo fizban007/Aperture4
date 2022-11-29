@@ -103,6 +103,15 @@ class Config {
     return idx_t(n, ext);
   }
 
+  /// Make an idx object from a linear position and an extent.
+  /**
+   * \param n    The linear index in memory
+   * \param ext  The n-dimensional extent
+   */
+  static HD_INLINE idx_t idx(uint32_t n, const extent_t<Dim>& ext) {
+    return idx_t(size_t(n), ext);
+  }
+
   /// Make an idx object from an n-dimensional position and an extent.
   /**
    * \param pos  The n-dimensional position

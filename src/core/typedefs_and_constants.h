@@ -38,12 +38,14 @@ constexpr int default_interp_order = 1;
 typedef float Scalar;
 // typedef float Mom_t;
 // typedef float Pos_t;
-constexpr float TINY = eps_float;
+// constexpr float TINY = eps_float;
+#define TINY 1.0e-8f
 #else
 typedef double Scalar;
 // typedef double Mom_t;
 // typedef double Pos_t;
-constexpr double TINY = eps_double;
+// constexpr double TINY = eps_double;
+#define TINY 1.0e-14
 #endif
 
 constexpr uint64_t default_random_seed = 0x3141592653589793;

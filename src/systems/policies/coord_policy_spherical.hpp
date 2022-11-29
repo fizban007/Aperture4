@@ -80,32 +80,32 @@ class coord_policy_spherical {
     vec_t<value_t, 3> x_global_old(grid.template pos<0>(pos[0], context.x[0]),
                                    grid.template pos<1>(pos[1], context.x[1]),
                                    grid.template pos<2>(pos[2], context.x[2]));
-    vec_t<value_t, 3> x_global_sph(x1(x_global_old[0]), x2(x_global_old[1]),
-                                   x3(x_global_old[2]));
+    // vec_t<value_t, 3> x_global_sph(x1(x_global_old[0]), x2(x_global_old[1]),
+    //                                x3(x_global_old[2]));
 
     // Global position in cartesian coord
-    vec_t<value_t, 3> x_global_cart;
-    value_t sth = math::sin(x_global_sph[1]);
-    x_global_cart[0] = x_global_sph[0] * sth * math::cos(x_global_sph[2]);
-    x_global_cart[1] = x_global_sph[0] * sth * math::sin(x_global_sph[2]);
-    x_global_cart[2] = x_global_sph[0] * math::cos(x_global_sph[1]);
+    vec_t<value_t, 3> x_global_cart = grid_sph_t<Conf>::coord_to_cart(x_global_old);
+    // value_t sth = math::sin(x_global_sph[1]);
+    // x_global_cart[0] = x_global_sph[0] * sth * math::cos(x_global_sph[2]);
+    // x_global_cart[1] = x_global_sph[0] * sth * math::sin(x_global_sph[2]);
+    // x_global_cart[2] = x_global_sph[0] * math::cos(x_global_sph[1]);
 
     // Transform momentum vector to cartesian
-    sph2cart(context.p, x_global_sph);
+    grid_sph_t<Conf>::vec_to_cart(context.p, x_global_old);
 
     // Move in Cartesian coordinates
     x_global_cart += context.p * (dt / context.gamma);
 
     // Compute the new spherical location
-    vec_t<value_t, 3> x_global_sph_new;
-    x_global_sph_new[0] = math::sqrt(x_global_cart.dot(x_global_cart));
-    x_global_sph_new[2] = math::atan2(x_global_cart[1], x_global_cart[0]);
-    x_global_sph_new[1] = math::acos(x_global_cart[2] / x_global_sph_new[0]);
+    vec_t<value_t, 3> x_global_sph_new = grid_sph_t<Conf>::coord_from_cart(x_global_cart);
+    // x_global_sph_new[0] = math::sqrt(x_global_cart.dot(x_global_cart));
+    // x_global_sph_new[2] = math::atan2(x_global_cart[1], x_global_cart[0]);
+    // x_global_sph_new[1] = math::acos(x_global_cart[2] / x_global_sph_new[0]);
 
     // Transform the momentum vector to spherical at the new location
-    cart2sph(context.p, x_global_sph_new);
-    x_global_sph_new[0] = grid_sph_t<Conf>::from_radius(x_global_sph_new[0]);
-    x_global_sph_new[1] = grid_sph_t<Conf>::from_theta(x_global_sph_new[1]);
+    grid_sph_t<Conf>::vec_from_cart(context.p, x_global_sph_new);
+    // x_global_sph_new[0] = grid_sph_t<Conf>::from_radius(x_global_sph_new[0]);
+    // x_global_sph_new[1] = grid_sph_t<Conf>::from_theta(x_global_sph_new[1]);
 
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {

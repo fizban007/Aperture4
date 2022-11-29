@@ -74,6 +74,60 @@ class grid_sph_t : public grid_curv_t<Conf> {
     return result;
   }
 
+  template <typename FloatT>
+  static HD_INLINE vec_t<FloatT, 3> coord_from_cart(const vec_t<FloatT, 3> &x_cart) {
+    vec_t<FloatT, 3> result;
+    result[0] = math::sqrt(x_cart.dot(x_cart));
+    result[2] = math::atan2(x_cart[1], x_cart[0]);
+    result[1] = math::acos(x_cart[2] / result[0]);
+    result[0] = from_radius(result[0]);
+    result[1] = from_theta(result[1]);
+    return result;
+  }
+
+  template <typename FloatT>
+  static HD_INLINE vec_t<FloatT, 3> coord_to_cart(const vec_t<FloatT, 3> &x_sph) {
+    vec_t<FloatT, 3> result;
+    FloatT r = x_sph[0];
+    FloatT th = x_sph[1];
+    FloatT sth = math::sin(th);
+    result[0] = r * sth * math::cos(x_sph[2]);
+    result[1] = r * sth * math::sin(x_sph[2]);
+    result[2] = r * math::cos(th);
+    return result;
+  }
+
+  template <typename FloatT>
+  static HD_INLINE void vec_from_cart(FloatT &v1, FloatT &v2, FloatT &v3, FloatT x1,
+                                      FloatT x2, FloatT x3) {
+    FloatT v1n = v1, v2n = v2, v3n = v3;
+    FloatT c2 = math::cos(theta(x2)), s2 = math::sin(theta(x2)),
+        c3 = math::cos(x3), s3 = math::sin(x3);
+    v1 = v1n * s2 * c3 + v2n * s2 * s3 + v3n * c2;
+    v2 = v1n * c2 * c3 + v2n * c2 * s3 - v3n * s2;
+    v3 = -v1n * s3 + v2n * c3;
+  }
+
+  template <typename FloatT>
+  static HD_INLINE void vec_from_cart(vec_t<FloatT, 3> &v, const vec_t<FloatT, 3> &x) {
+    return vec_from_cart(v[0], v[1], v[2], x[0], x[1], x[2]);
+  }
+
+  template <typename FloatT>
+  static HD_INLINE void vec_to_cart(FloatT &v1, FloatT &v2, FloatT &v3, FloatT x1,
+                                    FloatT x2, FloatT x3) {
+    FloatT v1n = v1, v2n = v2, v3n = v3;
+    FloatT c2 = math::cos(theta(x2)), s2 = math::sin(theta(x2)),
+        c3 = math::cos(x3), s3 = math::sin(x3);
+    v1 = v1n * s2 * c3 + v2n * c2 * c3 - v3n * s3;
+    v2 = v1n * s2 * s3 + v2n * c2 * s3 + v3n * c3;
+    v3 = v1n * c2 - v2n * s2;
+  }
+
+  template <typename FloatT>
+  static HD_INLINE void vec_to_cart(vec_t<FloatT, 3> &v, const vec_t<FloatT, 3> &x) {
+    return vec_to_cart(v[0], v[1], v[2], x[0], x[1], x[2]);
+  }
   // inline vec_t<float, Conf::dim> cart_coord(
   //     const index_t<Conf::dim> &pos) const override {
   //   vec_t<float, Conf::dim> result;

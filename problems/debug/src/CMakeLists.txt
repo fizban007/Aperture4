@@ -23,7 +23,7 @@ target_link_libraries(phase_space_test Aperture Aperture_dev)
 add_dependencies(problems phase_space_test)
 
 add_executable(IC_test
-  "IC_test.cu")
+  "IC_test.hip.cpp")
 target_link_libraries(IC_test Aperture Aperture_dev)
 add_dependencies(problems IC_test)
 

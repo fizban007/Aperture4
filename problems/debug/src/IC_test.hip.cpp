@@ -61,7 +61,7 @@ main(int argc, char *argv[]) {
   Logger::print_info("initializing a single particle");
   ptc->append({0.0f, 0.0f, 0.0f}, {1000.0f, 0.0f, 0.0f}, 4 + 4 * 36, 1.0f,
               set_ptc_type_flag(0, PtcType::electron));
-  cudaDeviceSynchronize();
+  gpuDeviceSynchronize();
   Logger::print_info("finished initializing a single particle");
 
   std::vector<double> gammas(env.get_max_steps() / 10);

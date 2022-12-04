@@ -114,6 +114,9 @@ else()
 
 endif()
 
+add_executable(test_exporter_snapshot "test_exporter_snapshot.cpp")
+target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
+
 # add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
 # target_link_libraries(test_exporter_mpi Aperture_dev)
 

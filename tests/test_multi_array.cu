@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
@@ -87,7 +87,7 @@ TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
   for (auto idx : array.indices()) {
     // auto pos = idx.get_pos();
     auto pos = get_pos(idx, ext);
-    REQUIRE(array[idx] == Approx((float)pos[0] * pos[1]));
+    REQUIRE(array[idx] == Catch::Approx((float)pos[0] * pos[1]));
   }
 }
 

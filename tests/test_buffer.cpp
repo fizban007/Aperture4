@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "core/buffer.hpp"
 #include "utils/range.hpp"
 
@@ -30,7 +31,7 @@ TEST_CASE("Host only buffer", "[buffer]") {
     buf[i] = i;
   }
   for (int i = 0; i < buf.size(); i++) {
-    REQUIRE(buf[i] == Approx(i));
+    REQUIRE(buf[i] == Catch::Approx(i));
   }
 
   SECTION("Move assignment and constructor") {
@@ -47,7 +48,7 @@ TEST_CASE("Host only buffer", "[buffer]") {
     REQUIRE(buf2.size() == N);
 
     for (int i = 0; i < buf2.size(); i++) {
-      REQUIRE(buf2[i] == Approx(i));
+      REQUIRE(buf2[i] == Catch::Approx(i));
     }
   }
 }
@@ -111,7 +112,7 @@ TEST_CASE("Managed buffer", "[buffer]") {
     buf[i] = i;
   }
   for (int i = 0; i < buf.size(); i++) {
-    REQUIRE(buf[i] == Approx(i));
+    REQUIRE(buf[i] == Catch::Approx(i));
   }
 #endif
 }

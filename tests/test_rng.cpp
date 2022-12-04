@@ -16,7 +16,7 @@
  */
 
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "core/random.h"
 #include "utils/timer.h"
 #include <vector>

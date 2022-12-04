@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "framework/config.h"
 #include "utils/type_traits.hpp"
 #include "utils/indexable.hpp"

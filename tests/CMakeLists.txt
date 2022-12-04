@@ -1,7 +1,7 @@
 add_custom_target(check)
 
-add_executable(tests "test.cpp")
-target_sources(tests PUBLIC
+# add_executable(tests "test.cpp")
+add_executable(tests
   "test_util_functions.cpp"
   "test_buffer.cpp"
   "test_particles.cpp"
@@ -17,9 +17,9 @@ target_sources(tests PUBLIC
   "test_mem_layout.cpp"
   "test_lorentz.cpp"
   )
-target_link_libraries(tests Aperture_dev)
+target_link_libraries(tests Aperture_dev Catch2::Catch2WithMain)
 
-add_executable(tests_dev "test.cpp")
+# add_executable(tests_dev "test.cpp")
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # target_sources(tests PUBLIC
   set(test_cuda_src
@@ -33,7 +33,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     # "compare_new_pusher_sph.cpp"
     )
   set_source_files_properties(${test_cuda_src} PROPERTIES LANGUAGE CUDA)
-  target_sources(tests_dev PUBLIC
+  add_executable(tests_dev
     ${test_cuda_src})
 elseif(use_hip)
   set(test_hip_src
@@ -49,7 +49,8 @@ elseif(use_hip)
     LANGUAGE HIP
     # COMPILE_FLAGS "-save-temps"
     )
-  target_sources(tests_dev PUBLIC
+  # target_sources(tests_dev PUBLIC
+  add_executable(tests_dev
     ${test_hip_src})
 else()
   target_sources(tests_dev PUBLIC
@@ -59,7 +60,7 @@ else()
     )
 endif()
 
-target_link_libraries(tests_dev Aperture_dev)
+target_link_libraries(tests_dev Aperture_dev Catch2::Catch2WithMain)
 
 add_custom_target(
   run_tests

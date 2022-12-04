@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "utils/singleton_holder.h"
 #include "systems/policies/exec_policy_host.hpp"
 

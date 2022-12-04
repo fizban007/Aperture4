@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "systems/physics/lorentz_transform.hpp"
 #include "utils/logger.h"
 
@@ -29,7 +30,7 @@ TEST_CASE("Lorentz Transform", "[physics]") {
 
   vec_t<double, 4> u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, v);
   Logger::print_info("u0 is {}, u1 is {}", u_prime[0], u_prime[1]);
-  REQUIRE(u_prime[1] / u_prime[0] == Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
+  REQUIRE(u_prime[1] / u_prime[0] == Catch::Approx((u_orig[0] - v[0]) / (1.0 - u_orig[0] * v[0])));
 
   u_prime = lorentz_transform_vector(gamma_u, u_orig * gamma_u, {0.0, 0.0, 0.0});
   REQUIRE(u_prime[0] == gamma_u);
@@ -38,5 +39,5 @@ TEST_CASE("Lorentz Transform", "[physics]") {
 
   u_orig = vec_t<double, 3>(0.0, 0.0, 0.0);
   u_prime = lorentz_transform_vector(1.0, u_orig, v);
-  REQUIRE(u_prime[1] / u_prime[0] == Approx(-v[0]));
+  REQUIRE(u_prime[1] / u_prime[0] == Catch::Approx(-v[0]));
 }

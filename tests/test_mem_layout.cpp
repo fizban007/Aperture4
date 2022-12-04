@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #undef __HIPCC__
 #include "core/multi_array.hpp"
 #include "core/random.h"
@@ -99,6 +99,6 @@ TEST_CASE("Memory layout performance wrt 3D interpolation", "[.interp]") {
   timer::show_duration_since_stamp("zorder indexing", "ms");
 
   for (uint64_t i = 0; i < N; i++) {
-    REQUIRE(result_col[i] == Approx(result_z[i]));
+    REQUIRE(result_col[i] == Catch::Approx(result_z[i]));
   }
 }

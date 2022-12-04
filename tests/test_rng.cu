@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "core/random.h"
 #include "data/rng_states.h"
 #include "utils/kernel_helper.hpp"

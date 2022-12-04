@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "framework/params_store.h"
 // #include "visit_struct/visit_struct_intrusive.hpp"
 #include "visit_struct/visit_struct.hpp"

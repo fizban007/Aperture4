@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/gauss_quadrature.h"
 
@@ -28,7 +29,7 @@ TEST_CASE("Simple test of the Gauss quadrature routine", "[numerical]") {
     return Metric_KS::sqrt_gamma(a, x, theta);
   }, 0.9, 0.95);
 
-  REQUIRE(v1 == Approx(0.0761187329413635));
+  REQUIRE(v1 == Catch::Approx(0.0761187329413635));
 
   double v2 = gauss_quad([] (double x) {
     double a = 0.9;
@@ -36,7 +37,7 @@ TEST_CASE("Simple test of the Gauss quadrature routine", "[numerical]") {
     return Metric_KS::ag_13(a, r, x);
   }, 1.4, 1.5);
 
-  REQUIRE(v2 == Approx(-0.158252699121388));
+  REQUIRE(v2 == Catch::Approx(-0.158252699121388));
 
   double v3 = gauss_quad([] (double x) {
     double a = 0.9;
@@ -44,5 +45,5 @@ TEST_CASE("Simple test of the Gauss quadrature routine", "[numerical]") {
     return Metric_KS::ag_33(a, r, x);
   }, 1.4, 1.5);
 
-  REQUIRE(v3 == Approx(0.18560086426904));
+  REQUIRE(v3 == Catch::Approx(0.18560086426904));
 }

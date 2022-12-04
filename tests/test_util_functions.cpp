@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "utils/logger.h"
 #include "utils/util_functions.h"
 #include "utils/binary_search.h"

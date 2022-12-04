@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "core/multi_array.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/logger.h"
@@ -88,7 +89,7 @@ TEST_CASE("Simple test case using cusparse to solve a tri-diagonal",
   for (auto idx : rhs.indices()) {
     auto pos = get_pos(idx, ext);
     if (pos[0] > 1 && pos[0] < N1 - 1) {
-      CHECK(1.0f * rhs[idx] - 0.3f * rhs[idx.dec_x()] - 0.5f * rhs[idx.inc_x()] == Approx(compare[idx]));
+      CHECK(1.0f * rhs[idx] - 0.3f * rhs[idx.dec_x()] - 0.5f * rhs[idx.inc_x()] == Catch::Approx(compare[idx]));
     }
   }
 

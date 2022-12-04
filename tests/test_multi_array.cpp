@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "core/multi_array.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset.hpp"
@@ -565,7 +566,8 @@ TEST_CASE("Performance of laplacian on CPU, 3d",
 
   for (auto idx : u1.indices()) {
     auto pos = idx.get_pos();
-    REQUIRE(u1(pos[0], pos[1], pos[2]) == Approx(u2(pos[0], pos[1], pos[2])));
+    // REQUIRE(u1(pos[0], pos[1], pos[2]) == Approx(u2(pos[0], pos[1], pos[2])));
+    REQUIRE_THAT(u1(pos[0], pos[1], pos[2]), Catch::Matchers::WithinULP(u2(pos[0], pos[1], pos[2]), 1));
   }
 }
 
@@ -659,7 +661,7 @@ TEST_CASE("Performance of laplacian on CPU, 2d",
 
   for (auto idx : u1.indices()) {
     auto pos = idx.get_pos();
-    CHECK(u1(pos[0], pos[1]) == Approx(u2(pos[0], pos[1])));
+    CHECK(u1(pos[0], pos[1]) == Catch::Approx(u2(pos[0], pos[1])));
   }
 }
 

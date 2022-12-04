@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "core/grid.hpp"
 #include "core/constant_mem.h"
 #include "framework/config.h"
@@ -41,9 +41,9 @@ TEST_CASE("Using grid", "[grid]") {
 
     REQUIRE(g1.reduced_dim<0>() == 8);
     REQUIRE(g1.pos<0>(2, true) == 0.0f);
-    REQUIRE(g1.pos<0>(6, 0.7f) == Approx(4.7f * g1.delta[0]));
+    REQUIRE(g1.pos<0>(6, 0.7f) == Catch::Approx(4.7f * g1.delta[0]));
     REQUIRE(g1.pos<1>(6, 11.6f) == 11.6f);
-    REQUIRE(g1.pos(0, 6, 0.6f) == Approx(4.6f * g1.delta[0]));
+    REQUIRE(g1.pos(0, 6, 0.6f) == Catch::Approx(4.6f * g1.delta[0]));
     REQUIRE(g1.pos(1, 6, 11.6f) == 11.6f);
 
     REQUIRE(g1.is_in_bound(8) == true);
@@ -66,7 +66,7 @@ TEST_CASE("Using grid", "[grid]") {
 
     REQUIRE(g2.reduced_dim<1>() == 8);
     REQUIRE(g2.pos<1>(2, true) == 0.0f);
-    REQUIRE(g2.pos<1>(6, 0.7f) == Approx(4.7f * g2.delta[1]));
+    REQUIRE(g2.pos<1>(6, 0.7f) == Catch::Approx(4.7f * g2.delta[1]));
     REQUIRE(g2.pos<2>(6, 11.6f) == 11.6f);
 
     bool b = g2.is_in_bound(index(4, 8));
@@ -82,8 +82,8 @@ TEST_CASE("Using grid", "[grid]") {
     REQUIRE(z == 8);
 
     auto pos_g = g2.pos_global(index(3, 5), vec<float>(0.4, 0.7, 0.0));
-    REQUIRE(pos_g[0] == Approx(1.4f * g2.delta[0]));
-    REQUIRE(pos_g[1] == Approx(3.7f * g2.delta[1]));
+    REQUIRE(pos_g[0] == Catch::Approx(1.4f * g2.delta[0]));
+    REQUIRE(pos_g[1] == Catch::Approx(3.7f * g2.delta[1]));
 
     index_t<2> idx;
     vec_t<float, 3> x;
@@ -91,9 +91,9 @@ TEST_CASE("Using grid", "[grid]") {
                    idx, x);
     REQUIRE(idx[0] == 8);
     REQUIRE(idx[1] == 5);
-    REQUIRE(x[0] == Approx(0.4f));
-    REQUIRE(x[1] == Approx(0.2f));
-    REQUIRE(x[2] == Approx(3.0f));
+    REQUIRE(x[0] == Catch::Approx(0.4f));
+    REQUIRE(x[1] == Catch::Approx(0.2f));
+    REQUIRE(x[2] == Catch::Approx(3.0f));
   }
 }
 

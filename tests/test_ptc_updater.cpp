@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/legacy/ptc_updater_old.h"
@@ -48,7 +48,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   vector_field<Conf>* B;
   env.get_data("B", &B);
   (*B)[2].assign(10000.0);
-  REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
+  REQUIRE((*B)[2](20, 34) == Catch::Approx(10000.0f));
 
   ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0), vec_t<Scalar, 3>(0.0, 1000.0, 0.0),
               grid->get_idx(20, 34).linear, 0);

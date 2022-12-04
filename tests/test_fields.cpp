@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "core/detail/multi_array_helpers.h"
 #include "core/grid.hpp"
 #include "data/fields.h"
@@ -102,7 +102,8 @@ TEST_CASE("setting initial value from a function", "[fields]") {
     double x1 = g2.pos<0>(pos[0], 0);
     double x2 = g2.pos<1>(pos[1], 0);
     double x3 = 0.0;
-    REQUIRE(vf[0][idx] == Approx(x1 * x1 + x2 + x3 * x3 * x3));
+    // REQUIRE(vf[0][idx] == Approx(x1 * x1 + x2 + x3 * x3 * x3));
+    REQUIRE_THAT(vf[0][idx], Catch::Matchers::WithinULP(x1 * x1 + x2 + x3 * x3 * x3, 1));
   }
 }
 
@@ -131,7 +132,8 @@ TEST_CASE("Resampling field 1D", "[fields]") {
            f3.stagger());
   for (int i = grid.guard[0]; i < grid.dims[0] - grid.guard[0]; i++) {
     // Logger::print_debug("f3 {}, f2 {}", f3[0][i], f2[0][i]);
-    REQUIRE(f3[0][i] == Approx(f2[0][i]));
+    // REQUIRE(f3[0][i] == Approx(f2[0][i]));
+    REQUIRE_THAT(f3[0][i], Catch::Matchers::WithinULP(f2[0][i], 1));
   }
 }
 
@@ -149,7 +151,8 @@ TEST_CASE("Resampling field 2D", "[fields]") {
   // }
   REQUIRE(grid.dims[0] == 36);
   REQUIRE(grid.dims[1] == 36);
-  REQUIRE(grid.sizes[1] == Approx(1.0));
+  // REQUIRE(grid.sizes[1] == Approx(1.0));
+  REQUIRE_THAT(grid.sizes[1], Catch::Matchers::WithinULP(1.0, 1));
 
   vector_field<Conf> f(grid, field_type::cell_centered, MemType::host_only);
   vector_field<Conf> f2(grid, field_type::vert_centered, MemType::host_only);
@@ -166,6 +169,7 @@ TEST_CASE("Resampling field 2D", "[fields]") {
     // auto pos = idx.get_pos();
     auto pos = idx.get_pos();
     if (grid.is_in_bound(pos))
-      CHECK(f3[1][idx] == Approx(f2[1][idx]));
+      // CHECK(f3[1][idx] == Approx(f2[1][idx]));
+      CHECK_THAT(f3[1][idx], Catch::Matchers::WithinULP(f2[1][idx], 1));
   }
 }

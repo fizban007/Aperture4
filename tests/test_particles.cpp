@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
+#include <catch2/catch_approx.hpp>
 #include "core/particles.h"
 #include "utils/util_functions.h"
 
@@ -135,9 +136,9 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   for (int i = 0; i < N; i++) {
     Logger::print_info("cell[{}] is {}", i, ptc.cell[i]);
   }
-  REQUIRE(ptc.x1[0] == Approx(0.3f));
-  REQUIRE(ptc.x1[1] == Approx(0.2f));
-  REQUIRE(ptc.x1[2] == Approx(0.1f));
+  REQUIRE(ptc.x1[0] == Catch::Approx(0.3f));
+  REQUIRE(ptc.x1[1] == Catch::Approx(0.2f));
+  REQUIRE(ptc.x1[2] == Catch::Approx(0.1f));
   REQUIRE(ptc.cell[0] == 14);
   REQUIRE(ptc.cell[1] == 24);
   REQUIRE(ptc.cell[2] == 34);

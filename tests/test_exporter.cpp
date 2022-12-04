@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 #include "data/momentum_space.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
@@ -60,8 +60,8 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
     auto x2 = f.read_multi_array<float, 2>("x2");
     for (auto idx : x1.indices()) {
       auto pos = idx.get_pos();
-      REQUIRE(x1[idx] == Approx(grid.template pos<0>(pos[0] * 4 + 2, false)));
-      REQUIRE(x2[idx] == Approx(grid.template pos<1>(pos[1] * 4 + 2, false)));
+      REQUIRE(x1[idx] == Catch::Approx(grid.template pos<0>(pos[0] * 4 + 2, false)));
+      REQUIRE(x2[idx] == Catch::Approx(grid.template pos<1>(pos[1] * 4 + 2, false)));
     }
   }
 }

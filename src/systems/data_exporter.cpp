@@ -931,7 +931,12 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
         m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
       ext[n] += m_grid.guard[n];
     }
+    ext_total[n] += 2 * m_grid.guard[n];
   }
+  Logger::print_info_all("ext_total: {}x{}x{}", ext_total[0], ext_total[1], ext_total[2]);
+  Logger::print_info_all("ext: {}x{}x{}", ext[0], ext[1], ext[2]);
+  Logger::print_info_all("pos_file: {}x{}x{}", pos_file[0], pos_file[1], pos_file[2]);
+  Logger::print_info_all("pos_array: {}x{}x{}", pos_array[0], pos_array[1], pos_array[2]);
   ext.get_strides();
   ext_total.get_strides();
 }

@@ -103,7 +103,7 @@ TEST_CASE("setting initial value from a function", "[fields]") {
     double x2 = g2.pos<1>(pos[1], 0);
     double x3 = 0.0;
     // REQUIRE(vf[0][idx] == Approx(x1 * x1 + x2 + x3 * x3 * x3));
-    REQUIRE_THAT(vf[0][idx], Catch::Matchers::WithinULP(x1 * x1 + x2 + x3 * x3 * x3, 1));
+    REQUIRE_THAT(vf[0][idx], Catch::Matchers::WithinRel(x1 * x1 + x2 + x3 * x3 * x3, 1.0e-5));
   }
 }
 

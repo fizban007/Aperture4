@@ -18,6 +18,7 @@
 #include "catch2/catch_all.hpp"
 #include "data/particle_data.h"
 #include "data/fields.h"
+#include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
@@ -37,31 +38,58 @@ main(int argc, char* argv[]) {
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
   env.params().add<int64_t>("downsample", 2);
 
-  env.init();
-
   domain_comm<Conf> comm;
   grid_t<Conf> grid(comm);
-  scalar_field<Conf> fs(grid, MemType::device_managed);
-  vector_field<Conf> fv(grid, MemType::device_managed);
-  fs.set_values(0, [](auto x1, auto x2, auto x3) { return 3.0f; });
-  fv.set_values(0, [](auto x1, auto x2, auto x3) {
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  // scalar_field<Conf> fs(grid, MemType::device_managed);
+  auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, MemType::device_managed);
+  fs->include_in_snapshot(true);
+  // vector_field<Conf> fv(grid, MemType::device_managed);
+  auto fv = env.register_data<vector_field<Conf>>("vector", grid, MemType::device_managed);
+  fv->include_in_snapshot(true);
+  auto ptc = env.register_data<particle_data_t>("ptc", 1000, MemType::device_managed);
+  ptc->include_in_snapshot(true);
+  auto states = env.register_data<rng_states_t>("rng_states");
+  states->include_in_snapshot(true);
+
+  env.init();
+
+  fs->set_values(0, [](auto x1, auto x2, auto x3) { return 3.0f; });
+  fv->set_values(0, [](auto x1, auto x2, auto x3) {
     return 1.0f;
   });
-  fv.set_values(1, [](auto x1, auto x2, auto x3) {
+  fv->set_values(1, [](auto x1, auto x2, auto x3) {
     return 2.0f;
   });
-  fv.set_values(2, [](auto x1, auto x2, auto x3) {
+  fv->set_values(2, [](auto x1, auto x2, auto x3) {
     return 3.0f;
   });
-  data_exporter<Conf> exporter(grid, &comm);
-  exporter.init();
 
-  auto outfile = hdf_create("Data/snapshot_mpi.h5", H5CreateMode::trunc_parallel);
-  Logger::print_info("writing scalar field");
-  exporter.write(fs, "scalar", outfile, true);
+  // particle_data_t ptc(1000, MemType::device_managed);
+  for (int i = 0; i < 100; i++) {
+    ptc->append({0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
+                32 + 32 * 68 + 64 * 68 * 68);
+  }
 
-  Logger::print_info("writing vector field");
-  exporter.write(fv, "vector", outfile, true);
+  // rng_states_t states;
+  // states->init();
+
+  // data_exporter<Conf> exporter(grid, &comm);
+  // exporter.init();
+
+  exporter->write_snapshot("Data/snapshot_mpi.h5", 0, 0.0);
+  // auto outfile = hdf_create("Data/snapshot_mpi.h5", H5CreateMode::trunc_parallel);
+  // Logger::print_info("writing scalar field");
+  // exporter.write(fs, "scalar", outfile, true);
+
+  // Logger::print_info("writing vector field");
+  // exporter.write(fv, "vector", outfile, true);
+
+  // Logger::print_info("writing particles");
+  // exporter.write(ptc, "ptc", outfile, true);
+
+  // Logger::print_info("writing rng_states");
+  // exporter.write(states, "rng_states", outfile, true);
 
   return 0;
 }

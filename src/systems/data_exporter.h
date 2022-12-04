@@ -169,6 +169,8 @@ class data_exporter : public system_t {
                           index_t<Conf::dim>& offsets) const;
   template <typename PtcData>
   void write_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile);
+  template <typename PtcData>
+  void read_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile);
   void write_multi_array_helper(
       const std::string& name,
       const multi_array<float, Conf::dim, typename Conf::idx_t>& array,

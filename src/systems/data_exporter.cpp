@@ -285,6 +285,32 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
       write(*ptr, it.first, snapfile, true);
     } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
+    } else if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
+      write(*ptr, it.first, snapfile, true);
+      // Also write particle numbers of each rank
+      size_t ptc_num = ptr->number();
+      int num_ranks = 1;
+      int rank = 0;
+      if (is_multi_rank()) {
+        num_ranks = m_comm->size();
+        rank = m_comm->rank();
+      }
+      snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0,
+                              "ptc_num");
+    } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
+      write(*ptr, it.first, snapfile, true);
+      // Also write photon numbers of each rank
+      size_t ph_num = ptr->number();
+      int num_ranks = 1;
+      int rank = 0;
+      if (is_multi_rank()) {
+        num_ranks = m_comm->size();
+        rank = m_comm->rank();
+      }
+      snapfile.write_parallel(&ph_num, 1, num_ranks, rank, 1, 0,
+                              "ph_num");
+    } else if (auto* ptr = dynamic_cast<rng_states_t*>(data)) {
+      write(*ptr, it.first, snapfile, true);
     }
   }
 
@@ -571,6 +597,13 @@ data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name, 
                          number, name + "_" + entry);
         }
       });
+}
+
+template <typename Conf>
+template <typename PtcData>
+void
+data_exporter<Conf>::read_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile) {
+  
 }
 
 template <typename Conf>
@@ -914,6 +947,8 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
                                                  extent_t<Conf::dim>& ext,
                                                  index_t<Conf::dim>& pos_array,
                                                  index_t<Conf::dim>& pos_file) {
+  // Figure out the total ext and individual ext, and individual offsets for
+  // snaphsot output
   ext_total = m_global_ext * m_downsample;
   ext = m_grid.extent_less();
   pos_file = m_grid.offsets();
@@ -933,10 +968,10 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
     }
     ext_total[n] += 2 * m_grid.guard[n];
   }
-  Logger::print_info_all("ext_total: {}x{}x{}", ext_total[0], ext_total[1], ext_total[2]);
-  Logger::print_info_all("ext: {}x{}x{}", ext[0], ext[1], ext[2]);
-  Logger::print_info_all("pos_file: {}x{}x{}", pos_file[0], pos_file[1], pos_file[2]);
-  Logger::print_info_all("pos_array: {}x{}x{}", pos_array[0], pos_array[1], pos_array[2]);
+  // Logger::print_info_all("ext_total: {}x{}x{}", ext_total[0], ext_total[1], ext_total[2]);
+  // Logger::print_info_all("ext: {}x{}x{}", ext[0], ext[1], ext[2]);
+  // Logger::print_info_all("pos_file: {}x{}x{}", pos_file[0], pos_file[1], pos_file[2]);
+  // Logger::print_info_all("pos_array: {}x{}x{}", pos_array[0], pos_array[1], pos_array[2]);
   ext.get_strides();
   ext_total.get_strides();
 }

@@ -927,7 +927,7 @@ domain_comm<Conf>::send_particles(particles_t &ptc,
 
 template <typename Conf>
 void
-domain_comm<Conf>::get_total_num_offset(uint64_t &num, uint64_t &total,
+domain_comm<Conf>::get_total_num_offset(const uint64_t &num, uint64_t &total,
                                         uint64_t &offset) const {
   // Carry out an MPI scan to get the total number and local offset,
   // used for particle output into a file

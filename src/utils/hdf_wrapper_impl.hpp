@@ -280,6 +280,35 @@ H5File::read_vector(const std::string& name) {
   return result;
 }
 
+template <typename T>
+void
+H5File::read_array(buffer<T> &result, const std::string &name) {
+  auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
+  auto dataspace = H5Dget_space(dataset); /* dataspace handle */
+  int dim = H5Sget_simple_extent_ndims(dataspace);
+  std::vector<hsize_t> dims(dim);
+  H5Sget_simple_extent_dims(dataspace, dims.data(), NULL);
+  size_t total_dim = 1;
+  for (int i = 0; i < dim; i++) {
+    total_dim *= dims[i];
+  }
+
+  H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
+          result.host_ptr());
+  result.copy_to_device();
+
+  H5Dclose(dataset);
+  H5Sclose(dataspace);
+}
+
+template <typename T>
+buffer<T>
+H5File::read_array(const std::string &name) {
+  buffer<T> result;
+  read_array(result, name);
+  return result;
+}
+
 template <typename T, int Dim>
 void
 H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
@@ -322,6 +351,7 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
   auto status = H5Dread(dataset, h5datatype<T>(), memspace, dataspace, plist_id,
                         array.host_ptr());
+  array.copy_to_device();
 
   H5Dclose(dataset);
   H5Sclose(dataspace);

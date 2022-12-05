@@ -81,6 +81,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   rho_ph = sim_env().template register_data<scalar_field<Conf>>(
       "Rho_ph", this->m_grid, field_type::vert_centered,
       ExecPolicy<Conf>::data_mem_type());
+  rho_ph->include_in_snapshot(true);
   photon_produced = sim_env().template register_data<scalar_field<Conf>>(
       "photon_produced", this->m_grid, field_type::vert_centered,
       ExecPolicy<Conf>::data_mem_type());

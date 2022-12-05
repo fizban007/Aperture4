@@ -70,8 +70,9 @@ class field_solver : public system_t {
   int m_pml_length = 16;
 
   // These are temporary fields used in the semi-implicit update
-  std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
-  std::unique_ptr<vector_field<Conf>> m_tmp_e1, m_tmp_e2, m_enew;
+  std::unique_ptr<vector_field<Conf>> m_bnew;
+  std::unique_ptr<vector_field<Conf>> m_enew;
+  nonown_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_tmp_e1, m_tmp_e2;
 
   // PML data structures
   // std::unique_ptr<pml_data<Conf>> m_pml[Conf::dim * 2];

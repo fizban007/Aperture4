@@ -671,29 +671,29 @@ template <typename Conf>
 void
 field_solver_cu<Conf>::init_tmp_fields() {
   if (this->m_use_implicit) {
-    this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::face_centered, MemType::device_only);
     // this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
     //     this->m_grid, field_type::edge_centered, MemType::device_only);
     this->m_bnew = std::make_unique<vector_field<Conf>>(
         this->m_grid, field_type::face_centered, MemType::device_only);
     // this->m_enew = std::make_unique<vector_field<Conf>>(
     //     this->m_grid, field_type::edge_centered, MemType::device_only);
-    this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::face_centered, MemType::device_only);
   } else {
-    this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::face_centered, MemType::device_only);
-    this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::face_centered, MemType::device_only);
-    this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::edge_centered, MemType::device_only);
-    this->m_tmp_e2 = std::make_unique<vector_field<Conf>>(
-        this->m_grid, field_type::edge_centered, MemType::device_only);
-    this->m_tmp_b1->init();
-    this->m_tmp_b2->init();
-    this->m_tmp_e1->init();
-    this->m_tmp_e2->init();
+    // this->m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::face_centered, MemType::device_only);
+    // this->m_tmp_e1 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::edge_centered, MemType::device_only);
+    // this->m_tmp_e2 = std::make_unique<vector_field<Conf>>(
+    //     this->m_grid, field_type::edge_centered, MemType::device_only);
+    // this->m_tmp_b1->init();
+    // this->m_tmp_b2->init();
+    // this->m_tmp_e1->init();
+    // this->m_tmp_e2->init();
   }
 }
 

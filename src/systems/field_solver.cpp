@@ -119,21 +119,21 @@ template <typename Conf>
 void
 field_solver<Conf>::init_tmp_fields() {
   if (m_use_implicit) {
-    m_tmp_b1 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
-    m_tmp_b2 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    // m_tmp_b1 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    // m_tmp_b2 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
     m_bnew =
         std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
   } else {
-    m_tmp_b1 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
-    m_tmp_b2 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
-    m_tmp_e1 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
-    m_tmp_e2 =
-        std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
+    // m_tmp_b1 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    // m_tmp_b2 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::face_centered, MemType::host_only);
+    // m_tmp_e1 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
+    // m_tmp_e2 =
+    //     std::make_unique<vector_field<Conf>>(this->m_grid, field_type::edge_centered, MemType::host_only);
   }
 }
 
@@ -182,6 +182,20 @@ field_solver<Conf>::register_data_impl(MemType type) {
       "flux", m_grid, field_type::vert_centered, type);
   // EdotB = sim_env().register_data<scalar_field<Conf>>("EdotB", m_grid,
   //                                                 field_type::vert_centered);
+  m_tmp_b1 = sim_env().register_data<vector_field<Conf>>(
+    "tmp_b1", m_grid, field_type::face_centered, type);
+  m_tmp_b2 = sim_env().register_data<vector_field<Conf>>(
+    "tmp_b2", m_grid, field_type::face_centered, type);
+  m_tmp_e1 = sim_env().register_data<vector_field<Conf>>(
+    "tmp_e1", m_grid, field_type::vert_centered, type);
+  m_tmp_e2 = sim_env().register_data<vector_field<Conf>>(
+    "tmp_e2", m_grid, field_type::vert_centered, type);
+  if (!m_use_implicit) {
+    m_tmp_b1->include_in_snapshot(true);
+    m_tmp_b2->include_in_snapshot(true);
+    m_tmp_e1->include_in_snapshot(true);
+    m_tmp_e2->include_in_snapshot(true);
+  }
 }
 
 template <typename Conf>

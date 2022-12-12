@@ -366,6 +366,7 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
       if (is_multi_rank()) {
         m_comm->get_total_num_offset(ptc_num, total, offset);
       }
+      read_ptc_snapshot(*ptr, it.first, snapfile, ptc_num, total, offset);
     }
   }
 

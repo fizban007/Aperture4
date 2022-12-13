@@ -28,7 +28,15 @@ using namespace Aperture;
 int
 main(int argc, char* argv[]) {
   auto& env = sim_env();
+  int result = Catch::Session().run(argc, argv);
+  // REQUIRE(time == Catch::Approx(0.0));
+
+  return result;
+}
+
+TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   using Conf = Config<3>;
+  auto& env = sim_env();
 
   env.params().add("log_level", (int64_t)LogLevel::detail);
   env.params().add("N", std::vector<int64_t>({64, 64, 128}));
@@ -40,7 +48,6 @@ main(int argc, char* argv[]) {
 
   domain_comm<Conf> comm;
   grid_t<Conf> grid(comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
   // scalar_field<Conf> fs(grid, MemType::device_managed);
   auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, MemType::device_managed);
   fs->include_in_snapshot(true);
@@ -51,6 +58,7 @@ main(int argc, char* argv[]) {
   ptc->include_in_snapshot(true);
   auto states = env.register_data<rng_states_t>("rng_states");
   states->include_in_snapshot(true);
+  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
 
@@ -68,28 +76,33 @@ main(int argc, char* argv[]) {
   // particle_data_t ptc(1000, MemType::device_managed);
   for (int i = 0; i < 100; i++) {
     ptc->append({0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
-                32 + 32 * 68 + 64 * 68 * 68);
+                16 + 16 * 36 + 32 * 36 * 36);
   }
 
-  // rng_states_t states;
-  // states->init();
-
-  // data_exporter<Conf> exporter(grid, &comm);
-  // exporter.init();
-
   exporter->write_snapshot("Data/snapshot_mpi.h5", 0, 0.0);
-  // auto outfile = hdf_create("Data/snapshot_mpi.h5", H5CreateMode::trunc_parallel);
-  // Logger::print_info("writing scalar field");
-  // exporter.write(fs, "scalar", outfile, true);
+  ptc->init();
+  fs->init();
+  fv->init();
+  for (int i = 0; i < 100; i++) {
+    REQUIRE(ptc->cell[i] == empty_cell);
+  }
 
-  // Logger::print_info("writing vector field");
-  // exporter.write(fv, "vector", outfile, true);
+  uint32_t step = 1;
+  double time = 1.0;
+  exporter->load_snapshot("Data/snapshot_mpi.h5", step, time);
 
-  // Logger::print_info("writing particles");
-  // exporter.write(ptc, "ptc", outfile, true);
+  Logger::print_info_all("number is {}", ptc->number());
+  CHECK(step == 0);
+  CHECK(time == 0.0);
 
-  // Logger::print_info("writing rng_states");
-  // exporter.write(states, "rng_states", outfile, true);
+  REQUIRE(ptc->number() == 100);
+  for (int i = 0; i < 100; i++) {
+    REQUIRE(ptc->x1[i] == Catch::Approx(0.1));
+    REQUIRE(ptc->x2[i] == Catch::Approx(0.2));
+    REQUIRE(ptc->x3[i] == Catch::Approx(0.3));
 
-  return 0;
+    REQUIRE(ptc->cell[i] == 
+                  16 + 16 * 36 + 32 * 36 * 36);
+  }
+  // TODO: add checking of rng_states
 }

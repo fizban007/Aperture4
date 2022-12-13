@@ -82,6 +82,8 @@ class H5File {
   template <typename T>
   void read_array(buffer<T>& result, const std::string& name);
   template <typename T>
+  void read_array(T* result, size_t size, const std::string& name);
+  template <typename T>
   std::vector<T> read_vector(const std::string& name);
   template <typename T>
   T read_scalar(const std::string& name);

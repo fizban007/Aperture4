@@ -362,10 +362,14 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
       int rank = 0;
       if (is_multi_rank()) { rank = m_comm->rank(); }
       snapfile.read_subset(&ptc_num, 1, "ptc_num", rank, 1, 0);
+      Logger::print_info_all("rank {} has ptc_num {}", rank, ptc_num);
       uint64_t total = ptc_num, offset = 0;
       if (is_multi_rank()) {
         m_comm->get_total_num_offset(ptc_num, total, offset);
       }
+      read_ptc_snapshot(*ptr, it.first, snapfile, ptc_num, total, offset);
+    } else if (auto* ptr = dynamic_cast<rng_states_t*>(data)) {
+      read(*ptr, it.first, snapfile, true);
     }
   }
 
@@ -619,15 +623,17 @@ data_exporter<Conf>::read_ptc_snapshot(PtcData& data, const std::string& name, H
       data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total,
                         offset, multi_rank](const char* entry, auto u) {
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
+        Logger::print_info("reading {}", entry);
         if (multi_rank) {
           datafile.read_subset(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
                                number, name + "_" + entry, offset, number, 0);
-          ptc_buffer.copy_to_device();
-          ptr_copy_dev(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number,
-                       0, 0);
         } else {
-          datafile.read_array(u, name + "_" + entry);
+          datafile.read_array(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
+                              number, name + "_" + entry);
         }
+        ptc_buffer.copy_to_device();
+        ptr_copy_dev(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number,
+                      0, 0);
       });
 }
 
@@ -960,8 +966,8 @@ data_exporter<Conf>::read(rng_states_t& data, const std::string& name,
     datafile.read_subset(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
                          data.size() * 4, name, pos_src, len, pos_dst);
   } else {
-    datafile.write(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
-                   data.size() * 4, name);
+    datafile.read_array(reinterpret_cast<uint64_t*>(data.states().host_ptr()),
+                        data.size() * 4, name);
   }
   data.copy_to_host();
 }

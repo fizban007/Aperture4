@@ -282,7 +282,7 @@ H5File::read_vector(const std::string& name) {
 
 template <typename T>
 void
-H5File::read_array(buffer<T> &result, const std::string &name) {
+H5File::read_array(T* result, size_t size, const std::string &name) {
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
   int dim = H5Sget_simple_extent_ndims(dataspace);
@@ -294,11 +294,18 @@ H5File::read_array(buffer<T> &result, const std::string &name) {
   }
 
   H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
-          result.host_ptr());
-  result.copy_to_device();
+          result);
+  // result.copy_to_device();
 
   H5Dclose(dataset);
   H5Sclose(dataspace);
+}
+
+template <typename T>
+void
+H5File::read_array(buffer<T> &result, const std::string &name) {
+  read_array(result.host_ptr(), result.size(), name);
+  result.copy_to_device();
 }
 
 template <typename T>

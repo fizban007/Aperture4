@@ -87,6 +87,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
     REQUIRE(ptc->cell[i] == empty_cell);
   }
 
+
   uint32_t step = 1;
   double time = 1.0;
   exporter->load_snapshot("Data/snapshot_mpi.h5", step, time);

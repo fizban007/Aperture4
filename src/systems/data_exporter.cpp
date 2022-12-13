@@ -295,8 +295,7 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
         num_ranks = m_comm->size();
         rank = m_comm->rank();
       }
-      snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0,
-                              "ptc_num");
+      snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0, "ptc_num");
     } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
       write(*ptr, it.first, snapfile, true);
       // Also write photon numbers of each rank
@@ -307,8 +306,7 @@ data_exporter<Conf>::write_snapshot(const std::string& filename, uint32_t step,
         num_ranks = m_comm->size();
         rank = m_comm->rank();
       }
-      snapfile.write_parallel(&ph_num, 1, num_ranks, rank, 1, 0,
-                              "ph_num");
+      snapfile.write_parallel(&ph_num, 1, num_ranks, rank, 1, 0, "ph_num");
     } else if (auto* ptr = dynamic_cast<rng_states_t*>(data)) {
       write(*ptr, it.first, snapfile, true);
     }
@@ -360,7 +358,9 @@ data_exporter<Conf>::load_snapshot(const std::string& filename, uint32_t& step,
     } else if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
       size_t ptc_num;
       int rank = 0;
-      if (is_multi_rank()) { rank = m_comm->rank(); }
+      if (is_multi_rank()) {
+        rank = m_comm->rank();
+      }
       snapfile.read_subset(&ptc_num, 1, "ptc_num", rank, 1, 0);
       Logger::print_info_all("rank {} has ptc_num {}", rank, ptc_num);
       uint64_t total = ptc_num, offset = 0;
@@ -583,7 +583,17 @@ data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
 template <typename Conf>
 template <typename PtcData>
 void
-data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile) {
+data_exporter<Conf>::write_ptc_output(PtcData& data, const std::string& name,
+                                      H5File& datafile) {
+
+}
+
+
+template <typename Conf>
+template <typename PtcData>
+void
+data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name,
+                                        H5File& datafile) {
   auto& ptc_buffer = tmp_ptc_data;
   size_t number = data.number();
   size_t total = number;
@@ -593,8 +603,8 @@ data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name, 
     m_comm->get_total_num_offset(number, total, offset);
   }
   visit_struct::for_each(
-      data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total,
-                        offset, multi_rank](const char* entry, auto u) {
+      data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total, offset,
+                        multi_rank](const char* entry, auto u) {
         // Copy to the temporary ptc buffer
         ptr_copy_dev(reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
                      0, 0);
@@ -615,26 +625,27 @@ data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name, 
 template <typename Conf>
 template <typename PtcData>
 void
-data_exporter<Conf>::read_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile, size_t number,
+data_exporter<Conf>::read_ptc_snapshot(PtcData& data, const std::string& name,
+                                       H5File& datafile, size_t number,
                                        size_t total, size_t offset) {
   auto& ptc_buffer = tmp_ptc_data;
   bool multi_rank = is_multi_rank();
-  visit_struct::for_each(
-      data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total,
-                        offset, multi_rank](const char* entry, auto u) {
-        typedef typename std::remove_reference_t<decltype(*u)> data_type;
-        Logger::print_info("reading {}", entry);
-        if (multi_rank) {
-          datafile.read_subset(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
-                               number, name + "_" + entry, offset, number, 0);
-        } else {
-          datafile.read_array(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
-                              number, name + "_" + entry);
-        }
-        ptc_buffer.copy_to_device();
-        ptr_copy_dev(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number,
-                      0, 0);
-      });
+  visit_struct::for_each(data.dev_ptrs(), [&ptc_buffer, &name, &datafile,
+                                           number, total, offset, multi_rank](
+                                              const char* entry, auto u) {
+    typedef typename std::remove_reference_t<decltype(*u)> data_type;
+    Logger::print_info("reading {}", entry);
+    if (multi_rank) {
+      datafile.read_subset(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
+                           number, name + "_" + entry, offset, number, 0);
+    } else {
+      datafile.read_array(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
+                          number, name + "_" + entry);
+    }
+    ptc_buffer.copy_to_device();
+    ptr_copy_dev(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number, 0,
+                 0);
+  });
 }
 
 template <typename Conf>
@@ -643,7 +654,7 @@ data_exporter<Conf>::write(particle_data_t& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
   if (!snapshot) {
     // TODO: If not snapshot, then sample only the particles that are tracked
-    return;
+    write_ptc_output(data, name, datafile);
   } else {
     write_ptc_snapshot(data, name, datafile);
   }
@@ -655,7 +666,7 @@ data_exporter<Conf>::write(photon_data_t& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
   if (!snapshot) {
     // TODO: If not snapshot, then sample only the photons that are tracked
-    return;
+    write_ptc_output(data, name, datafile);
   } else {
     write_ptc_snapshot(data, name, datafile);
   }
@@ -999,10 +1010,11 @@ data_exporter<Conf>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
     }
     ext_total[n] += 2 * m_grid.guard[n];
   }
-  // Logger::print_info_all("ext_total: {}x{}x{}", ext_total[0], ext_total[1], ext_total[2]);
-  // Logger::print_info_all("ext: {}x{}x{}", ext[0], ext[1], ext[2]);
-  // Logger::print_info_all("pos_file: {}x{}x{}", pos_file[0], pos_file[1], pos_file[2]);
-  // Logger::print_info_all("pos_array: {}x{}x{}", pos_array[0], pos_array[1], pos_array[2]);
+  // Logger::print_info_all("ext_total: {}x{}x{}", ext_total[0], ext_total[1],
+  // ext_total[2]); Logger::print_info_all("ext: {}x{}x{}", ext[0], ext[1],
+  // ext[2]); Logger::print_info_all("pos_file: {}x{}x{}", pos_file[0],
+  // pos_file[1], pos_file[2]); Logger::print_info_all("pos_array: {}x{}x{}",
+  // pos_array[0], pos_array[1], pos_array[2]);
   ext.get_strides();
   ext_total.get_strides();
 }

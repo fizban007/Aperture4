@@ -170,6 +170,8 @@ class data_exporter : public system_t {
   template <typename PtcData>
   void write_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile);
   template <typename PtcData>
+  void write_ptc_output(PtcData& data, const std::string& name, H5File& datafile);
+  template <typename PtcData>
   void read_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile, size_t number,
                                        size_t total, size_t offset);
   void write_multi_array_helper(

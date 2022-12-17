@@ -32,7 +32,7 @@ template <typename T>
 HD_INLINE T
 atomic_add(T* addr, type_identity_t<T> value) {
 // atomic_add(T* addr, T value) {
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
   auto result = atomicAdd(addr, value);
   return result;
 #else

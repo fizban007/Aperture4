@@ -24,39 +24,26 @@ set(Aperture_src
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 
+set(Aperture_dev_src
+  "core/buffer_impl.hip.cpp"
+  "core/constant_mem.hip.cpp"
+  "core/particles.hip.cpp"
+  "core/detail/multi_array_helpers.hip.cpp"
+  "data/rng_states.hip.cpp"
+  "data/tracked_ptc.hip.cpp"
+  "systems/field_solver.hip.cpp"
+  "systems/field_solver_sph.hip.cpp"
+  "systems/field_solver_polar.hip.cpp"
+  "systems/field_solver_gr_ks.hip.cpp"
+  "systems/compute_lorentz_factor.hip.cpp"
+  "systems/gather_momentum_space.hip.cpp"
+  "systems/gather_tracked_ptc.hip.cpp"
+  "systems/ptc_updater_base.hip.cpp"
+  "systems/radiative_transfer.hip.cpp"
+  )
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  set(Aperture_dev_src
-    "core/buffer_impl.hip.cpp"
-    "core/constant_mem.hip.cpp"
-    "core/particles.hip.cpp"
-    "core/detail/multi_array_helpers.hip.cpp"
-    "data/rng_states.hip.cpp"
-    "systems/field_solver.hip.cpp"
-    "systems/field_solver_sph.hip.cpp"
-    "systems/field_solver_polar.hip.cpp"
-    "systems/field_solver_gr_ks.hip.cpp"
-    "systems/compute_lorentz_factor.hip.cpp"
-    "systems/gather_momentum_space.hip.cpp"
-    "systems/ptc_updater_base.hip.cpp"
-    "systems/radiative_transfer.hip.cpp"
-    )
   set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
 elseif(use_hip)
-  set(Aperture_dev_src
-    "core/buffer_impl.hip.cpp"
-    "core/constant_mem.hip.cpp"
-    "core/particles.hip.cpp"
-    "core/detail/multi_array_helpers.hip.cpp"
-    "data/rng_states.hip.cpp"
-    "systems/field_solver.hip.cpp"
-    "systems/field_solver_sph.hip.cpp"
-    "systems/field_solver_polar.hip.cpp"
-    "systems/field_solver_gr_ks.hip.cpp"
-    "systems/compute_lorentz_factor.hip.cpp"
-    "systems/gather_momentum_space.hip.cpp"
-    "systems/ptc_updater_base.hip.cpp"
-    "systems/radiative_transfer.hip.cpp"
-    )
   set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
 else()
   # list(APPEND Aperture_src

@@ -25,6 +25,7 @@
 #include "data/rng_states.h"
 #include "data/scalar_data.hpp"
 #include "data/particle_data.h"
+#include "data/tracked_ptc.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
@@ -111,6 +112,9 @@ class data_exporter : public system_t {
   template <typename T>
   void write(scalar_data<T>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
+  template <typename BufferType>
+  void write(tracked_ptc<BufferType>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
   void read(particle_data_t& data, const std::string& name, H5File& datafile,
             bool snapshot = false);
   void read(photon_data_t& data, const std::string& name, H5File& datafile,
@@ -138,7 +142,7 @@ class data_exporter : public system_t {
   std::string m_dim_str;
   std::string m_xmf_buffer;
 
-  /// tmp_ptc_data stores temporary tracked particles
+  /// tmp_ptc_data stores temporary particle outputs
   buffer<double> tmp_ptc_data;
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;

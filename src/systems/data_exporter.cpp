@@ -583,15 +583,6 @@ data_exporter<Conf>::write_xmf_field_entry(std::string& buffer, int num,
 template <typename Conf>
 template <typename PtcData>
 void
-data_exporter<Conf>::write_ptc_output(PtcData& data, const std::string& name,
-                                      H5File& datafile) {
-
-}
-
-
-template <typename Conf>
-template <typename PtcData>
-void
 data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name,
                                         H5File& datafile) {
   auto& ptc_buffer = tmp_ptc_data;
@@ -652,10 +643,7 @@ template <typename Conf>
 void
 data_exporter<Conf>::write(particle_data_t& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
-  if (!snapshot) {
-    // TODO: If not snapshot, then sample only the particles that are tracked
-    write_ptc_output(data, name, datafile);
-  } else {
+  if (snapshot) {
     write_ptc_snapshot(data, name, datafile);
   }
 }
@@ -664,10 +652,7 @@ template <typename Conf>
 void
 data_exporter<Conf>::write(photon_data_t& data, const std::string& name,
                            H5File& datafile, bool snapshot) {
-  if (!snapshot) {
-    // TODO: If not snapshot, then sample only the photons that are tracked
-    write_ptc_output(data, name, datafile);
-  } else {
+  if (snapshot) {
     write_ptc_snapshot(data, name, datafile);
   }
 }
@@ -917,6 +902,55 @@ data_exporter<Conf>::write(multi_array_data<T, Rank>& data,
     }
     extent_t<Rank + 1> ext_total, ext;
     index_t<Rank + 1> pos_src, pos_dst;
+  }
+}
+
+template <typename Conf>
+template <typename BufferType>
+void
+data_exporter<Conf>::write(tracked_ptc<BufferType>& data,
+                           const std::string& name, H5File& datafile,
+                           bool snapshot) {
+  // No need to specifically write tracked_ptc into snapshot
+  if (!snapshot) {
+    size_t number = data.number();
+    size_t total = number;
+    size_t offset = 0;
+    bool multi_rank = is_multi_rank();
+    if (multi_rank) {
+      m_comm->get_total_num_offset(number, total, offset);
+      datafile.write_parallel(data.x1.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_x1");
+      datafile.write_parallel(data.x2.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_x2");
+      datafile.write_parallel(data.x3.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_x3");
+      datafile.write_parallel(data.p1.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_p1");
+      datafile.write_parallel(data.p2.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_p2");
+      datafile.write_parallel(data.p3.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_p3");
+      datafile.write_parallel(data.E.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_E");
+      datafile.write_parallel(data.flag.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_flag");
+      datafile.write_parallel(data.weight.host_ptr(), data.size(), total,
+                              offset, number, 0, name + "_weight");
+      datafile.write_parallel(data.id.host_ptr(), data.size(), total, offset,
+                              number, 0, name + "_id");
+    } else {
+      datafile.write(data.x1.host_ptr(), number, name + "_x1");
+      datafile.write(data.x2.host_ptr(), number, name + "_x2");
+      datafile.write(data.x3.host_ptr(), number, name + "_x3");
+      datafile.write(data.p1.host_ptr(), number, name + "_p1");
+      datafile.write(data.p2.host_ptr(), number, name + "_p2");
+      datafile.write(data.p3.host_ptr(), number, name + "_p3");
+      datafile.write(data.E.host_ptr(), number, name + "_E");
+      datafile.write(data.flag.host_ptr(), number, name + "_flag");
+      datafile.write(data.weight.host_ptr(), number, name + "_weight");
+      datafile.write(data.id.host_ptr(), number, name + "_id");
+    }
   }
 }
 

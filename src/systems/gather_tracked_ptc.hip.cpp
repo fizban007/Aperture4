@@ -22,7 +22,16 @@
 namespace Aperture {
 
 template class gather_tracked_ptc<Config<1>, exec_policy_cuda>;
+template void gather_tracked_ptc<Config<1>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<1>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+
 template class gather_tracked_ptc<Config<2>, exec_policy_cuda>;
+template void gather_tracked_ptc<Config<2>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<2>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+
 template class gather_tracked_ptc<Config<3>, exec_policy_cuda>;
+template void gather_tracked_ptc<Config<3>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<3>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+
 
 }

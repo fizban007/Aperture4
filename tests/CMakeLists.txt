@@ -114,7 +114,13 @@ else()
 
 endif()
 
-add_executable(test_exporter_snapshot "test_exporter_snapshot.cpp")
+if (use_cuda AND CMAKE_CUDA_COMPILER)
+  set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE CUDA)
+elseif(use_hip)
+  set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE HIP)
+endif()
+
+add_executable(test_exporter_snapshot "test_exporter_snapshot.hip.cpp")
 target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
 
 # add_executable(test_exporter_mpi "test_exporter_mpi.cpp")

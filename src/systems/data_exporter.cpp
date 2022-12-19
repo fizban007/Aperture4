@@ -215,15 +215,23 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
 
   if (step % m_ptc_output_interval == 0) {
     // Output tracked particles!
+    std::string filename =
+        fmt::format("{}ptc.{:05d}.h5", m_output_dir, m_ptc_num);
+    auto create_mode = H5CreateMode::trunc_parallel;
+    if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
+    H5File datafile = hdf_create(filename, create_mode);
+
+    datafile.write(step, "step");
+    datafile.write(time, "time");
 
     for (auto& it : sim_env().data_map()) {
       auto data = it.second.get();
-      if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
+      if (auto* ptr = dynamic_cast<tracked_particles_t*>(data)) {
         Logger::print_detail("Writing tracked particles");
-        // TODO: Add tracked particles
-      } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
+        write(*ptr, name, datafile, false);
+      } else if (auto* ptr = dynamic_cast<tracked_photons_t*>(data)) {
         Logger::print_detail("Writing tracked photons");
-        // TODO: Add tracked photons
+        write(*ptr, name, datafile, false);
       }
     }
     m_ptc_num += 1;

@@ -43,8 +43,12 @@ class gather_tracked_ptc : public system_t {
   void gather_tracked_ptc_index(const particles_base<BufferType>& ptc);
 
   template <typename T, typename Func>
-  void gather_tracked_attr(buffer<T>& data, const buffer<uint32_t>& tracked_map,
-                           size_t tracked_num, Func data_func);
+  void gather_tracked_ptc_attr(buffer<T>& data, const buffer<uint32_t>& tracked_map,
+                               size_t tracked_num, Func data_func);
+
+  template <typename T, typename Func>
+  void gather_tracked_ph_attr(buffer<T>& data, const buffer<uint32_t>& tracked_map,
+                              size_t tracked_num, Func data_func);
 
  private:
   const grid_t<Conf>& m_grid;

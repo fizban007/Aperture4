@@ -39,6 +39,9 @@ class gather_tracked_ptc : public system_t {
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
 
+  template <typename BufferType>
+  void gather_tracked_ptc_index(const particles_base<BufferType>& ptc);
+
   template <typename T, typename Func>
   void gather_tracked_attr(buffer<T>& data, const buffer<uint32_t>& tracked_map,
                            size_t tracked_num, Func data_func);
@@ -52,6 +55,9 @@ class gather_tracked_ptc : public system_t {
   nonown_ptr<vector_field<Conf>> E, B;
 
   uint32_t m_ptc_output_interval;
+  size_t m_max_tracked = 0;
+  buffer<uint32_t> m_tracked_num;
+  buffer<uint32_t> m_tracked_map;
 };
 
 }  // namespace Aperture

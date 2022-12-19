@@ -301,35 +301,35 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
   m_number += 1;
 }
 
-template <typename BufferType>
-void
-particles_base<BufferType>::gather_tracked_ptc_map(size_t max_tracked) {
-  size_t number = m_number;
-  max_tracked = std::min(m_max_tracked_num, max_tracked);
+// template <typename BufferType>
+// void
+// particles_base<BufferType>::gather_tracked_ptc_map(size_t max_tracked) {
+//   size_t number = m_number;
+//   max_tracked = std::min(m_max_tracked_num, max_tracked);
 
-  kernel_launch(
-      [number, max_tracked] LAMBDA(auto flags, auto cells, auto tracked_map,
-                                   auto tracked_num) {
-        for (auto n : grid_stride_range(0, number)) {
-          if (check_flag(flags[n], PtcFlag::tracked) &&
-              cells[n] != empty_cell) {
-            uint32_t nt = atomic_add(&tracked_num[0], 1);
-            if (nt < max_tracked) {
-              tracked_map[nt] = n;
-            }
-          }
-        }
-      },
-      this->flag.dev_ptr(), this->cell.dev_ptr(), m_tracked_map.dev_ptr(),
-      m_tracked_num.dev_ptr());
-  GpuSafeCall(gpuDeviceSynchronize());
+//   kernel_launch(
+//       [number, max_tracked] LAMBDA(auto flags, auto cells, auto tracked_map,
+//                                    auto tracked_num) {
+//         for (auto n : grid_stride_range(0, number)) {
+//           if (check_flag(flags[n], PtcFlag::tracked) &&
+//               cells[n] != empty_cell) {
+//             uint32_t nt = atomic_add(&tracked_num[0], 1);
+//             if (nt < max_tracked) {
+//               tracked_map[nt] = n;
+//             }
+//           }
+//         }
+//       },
+//       this->flag.dev_ptr(), this->cell.dev_ptr(), m_tracked_map.dev_ptr(),
+//       m_tracked_num.dev_ptr());
+//   GpuSafeCall(gpuDeviceSynchronize());
 
-  m_tracked_num.copy_to_host();
-  if (m_tracked_num[0] > max_tracked) {
-    m_tracked_num[0] = max_tracked;
-    m_tracked_num.copy_to_device();
-  }
-}
+//   m_tracked_num.copy_to_host();
+//   if (m_tracked_num[0] > max_tracked) {
+//     m_tracked_num[0] = max_tracked;
+//     m_tracked_num.copy_to_device();
+//   }
+// }
 
 // template <typename BufferType>
 // template <typename Conf>

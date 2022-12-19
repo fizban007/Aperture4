@@ -117,15 +117,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
   int segment_size = 10000000;
   sim_env().params().get_value("ptc_segment_size", segment_size);
-  size_t max_tracked_num = 10000;
-  sim_env().params().get_value("max_tracked_num", max_tracked_num);
 
   ptc = sim_env().register_data<particle_data_t>(
       "particles", max_ptc_num, ExecPolicy<Conf>::tmp_mem_type());
   ptc->include_in_snapshot(true);
   if (segment_size > max_ptc_num) segment_size = max_ptc_num;
   ptc->set_segment_size(segment_size);
-  ptc->set_max_tracked_num(max_tracked_num);
 
   E = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered,

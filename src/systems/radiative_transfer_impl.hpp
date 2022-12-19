@@ -71,15 +71,12 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   sim_env().params().get_value("max_ph_num", max_ph_num);
   int segment_size = 10000;
   sim_env().params().get_value("ph_segment_size", segment_size);
-  size_t max_tracked_num = 10000;
-  sim_env().params().get_value("max_tracked_num", max_tracked_num);
 
   ph = sim_env().template register_data<photon_data_t>(
       "photons", max_ph_num, ExecPolicy<Conf>::data_mem_type());
   ph->include_in_snapshot(true);
   if (segment_size > max_ph_num) segment_size = max_ph_num;
   ph->set_segment_size(segment_size);
-  ph->set_max_tracked_num(max_tracked_num);
 
   rho_ph = sim_env().template register_data<scalar_field<Conf>>(
       "Rho_ph", this->m_grid, field_type::vert_centered,

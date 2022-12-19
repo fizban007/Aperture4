@@ -30,18 +30,22 @@ gather_tracked_ptc<Conf, ExecPolicy>::register_data_components() {}
 template <typename Conf, template <class> class ExecPolicy>
 void
 gather_tracked_ptc<Conf, ExecPolicy>::init() {
-  int64_t max_tracked_num = 100000;
-  sim_env().params().get_value("max_tracked_num", max_tracked_num);
+  sim_env().params().get_value("max_tracked_num", m_max_tracked);
+
+  m_tracked_map.set_memtype(ExecPolicy<Conf>::data_mem_type());
+  m_tracked_map.resize(m_max_tracked);
+  m_tracked_num.set_memtype(ExecPolicy<Conf>::data_mem_type());
+  m_tracked_num.resize(1);
 
   sim_env().get_data("particles", ptc);
   if (ptc != nullptr) {
     tracked_ptc = sim_env().register_data<tracked_particles_t>("tracked_ptc",
-                                                               max_tracked_num);
+                                                               m_max_tracked);
   }
   sim_env().get_data("photons", ph);
   if (ph != nullptr) {
     tracked_ph = sim_env().register_data<tracked_photons_t>("tracked_ph",
-                                                            max_tracked_num);
+                                                            m_max_tracked);
   }
 
   sim_env().get_data("E", E);
@@ -68,17 +72,48 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_attr(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
+template <typename BufferType>
+void
+gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_index(const particles_base<BufferType> &ptc) {
+  size_t number = ptc.number();
+  size_t max_tracked = m_max_tracked;
+
+  kernel_launch(
+      [number, max_tracked] LAMBDA(auto flags, auto cells, auto tracked_map,
+                                   auto tracked_num) {
+        for (auto n : grid_stride_range(0, number)) {
+          if (check_flag(flags[n], PtcFlag::tracked) &&
+              cells[n] != empty_cell) {
+            uint32_t nt = atomic_add(&tracked_num[0], 1);
+            if (nt < max_tracked) {
+              tracked_map[nt] = n;
+            }
+          }
+        }
+      },
+      ptc.flag.dev_ptr(), ptc.cell.dev_ptr(), m_tracked_map.dev_ptr(),
+      m_tracked_num.dev_ptr());
+  GpuSafeCall(gpuDeviceSynchronize());
+
+  m_tracked_num.copy_to_host();
+  if (m_tracked_num[0] > max_tracked) {
+    m_tracked_num[0] = max_tracked;
+    m_tracked_num.copy_to_device();
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
 void
 gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
-  if (m_ptc_output_interval == 0) return;
+  if (m_ptc_output_interval == 0 || m_max_tracked == 0) return;
 
   if (step % m_ptc_output_interval == 0) {
     auto ext = m_grid.extent();
     if (ptc != nullptr) {
-      ptc->gather_tracked_ptc_map(tracked_ptc->size());
-      size_t tracked_num = ptc->tracked_num()[0];
+      gather_tracked_ptc_index(*ptc);
+      size_t tracked_num = m_tracked_num[0];
       tracked_ptc->set_number(tracked_num);
-      auto& tracked_map = ptc->tracked_map();
+      auto& tracked_map = m_tracked_map;
 
       // Get positions
       gather_tracked_attr(
@@ -152,10 +187,10 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       tracked_ptc->id.copy_to_host();
     }
     if (ph != nullptr) {
-      ph->gather_tracked_ptc_map(tracked_ph->size());
-      size_t tracked_num = ph->tracked_num()[0];
+      gather_tracked_ptc_index(*ph);
+      size_t tracked_num = m_tracked_num[0];
       tracked_ph->set_number(tracked_num);
-      auto& tracked_map = ph->tracked_map();
+      auto& tracked_map = m_tracked_map;
 
       // Get positions
       gather_tracked_attr(

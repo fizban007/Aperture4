@@ -83,7 +83,7 @@ class particles_base : public BufferType {
                             const grid_t<Conf>& grid);
   void copy_from_buffer(const buffer<single_type>& buf, int num, size_t dst_idx);
 
-  void gather_tracked_ptc_map(size_t max_tracked);
+  // void gather_tracked_ptc_map(size_t max_tracked);
   // void gather_tracked_ptc_attr(const std::string& attr_name, buffer<double>& result);
 
   // void get_tracked_ptc(tracked_ptc<BufferType>& tracked);
@@ -99,17 +99,17 @@ class particles_base : public BufferType {
   void set_segment_size(size_t s) {
     m_sort_segment_size = s;
   }
-  void set_max_tracked_num(size_t n) {
-    m_max_tracked_num = n;
-  }
+  // void set_max_tracked_num(size_t n) {
+  //   m_max_tracked_num = n;
+  // }
 
   void add_num(size_t num) { set_num(m_number + num); }
 
   typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
   buffer<uint32_t>& ptc_id() { return m_ptc_id; }
-  const buffer<int>& tracked_num() { return m_tracked_num; }
-  buffer<uint32_t>& tracked_map() { return m_tracked_map; }
+  // const buffer<int>& tracked_num() { return m_tracked_num; }
+  // buffer<uint32_t>& tracked_map() { return m_tracked_map; }
 
  private:
   size_t m_size = 0;
@@ -126,10 +126,10 @@ class particles_base : public BufferType {
   // Temporary data for sorting particles on host
   std::vector<size_t> m_partition;
   // Map for tracked particles
-  buffer<uint32_t> m_tracked_map;
-  buffer<int> m_tracked_num;  // Current number of tracked particles, using int
+  // buffer<uint32_t> m_tracked_map;
+  // buffer<int> m_tracked_num;  // Current number of tracked particles, using int
                               // because need to do atomicAdd
-  size_t m_max_tracked_num = 0;
+  // size_t m_max_tracked_num = 0;
 
   typename BufferType::ptrs_type m_host_ptrs;
   typename BufferType::ptrs_type m_dev_ptrs;

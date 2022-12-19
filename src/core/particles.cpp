@@ -46,9 +46,9 @@ particles_base<BufferType>::copy_to_comm_buffers(
     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
     buffer<int>& buf_nums, const grid_t<Conf>& grid) {}
 
-template <typename BufferType>
-void
-particles_base<BufferType>::gather_tracked_ptc_map(size_t max_tracked) {}
+// template <typename BufferType>
+// void
+// particles_base<BufferType>::gather_tracked_ptc_map(size_t max_tracked) {}
 
 // // Explicit instantiation
 // template class particles_base<ptc_buffer>;

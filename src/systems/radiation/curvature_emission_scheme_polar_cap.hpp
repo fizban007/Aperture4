@@ -146,7 +146,7 @@ struct curvature_emission_scheme_polar_cap {
     auto pos = get_pos(idx, ext);
     // x_global gives the cartesian coordinate of the particle. We renormalize
     // it to units of R_star
-    auto x_global = grid.pos_global(pos, rel_x) * (m_rpc / m_Rstar);
+    auto x_global = grid.coord_global(pos, rel_x) * (m_rpc / m_Rstar);
 
     vec_t<value_t, 3> B, E;
     auto interp = interp_t<1, Conf::dim>{};
@@ -256,7 +256,7 @@ struct curvature_emission_scheme_polar_cap {
     auto pos = get_pos(idx, ext);
 
     // x_global gives the cartesian coordinate of the photon.
-    auto x_global = grid.pos_global(pos, x);
+    auto x_global = grid.coord_global(pos, x);
 
     value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
                            square(x_global[2] + m_Rstar / m_rpc));

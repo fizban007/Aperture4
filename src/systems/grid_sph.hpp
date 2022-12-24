@@ -50,10 +50,10 @@ class grid_sph_t : public grid_curv_t<Conf> {
       const index_t<2> &pos) const {
     vec_t<float, 2> result;
     for (int i = 0; i < 2; i++) {
-      result[i] = this->pos(i, pos[i], false);
+      result[i] = this->coord(i, pos[i], false);
     }
-    float r = radius(this->pos(0, pos[0], false));
-    float th = theta(this->pos(1, pos[1], false));
+    float r = radius(this->coord(0, pos[0], false));
+    float th = theta(this->coord(1, pos[1], false));
     result[0] = r * math::sin(th);
     result[1] = r * math::cos(th);
     return result;
@@ -63,11 +63,11 @@ class grid_sph_t : public grid_curv_t<Conf> {
       const index_t<3> &pos) const {
     vec_t<float, 3> result;
     for (int i = 0; i < 3; i++) {
-      result[i] = this->pos(i, pos[i], false);
+      result[i] = this->coord(i, pos[i], false);
     }
-    float r = radius(this->pos(0, pos[0], false));
-    float th = theta(this->pos(1, pos[1], false));
-    float ph = this->pos(2, pos[2], false);
+    float r = radius(this->coord(0, pos[0], false));
+    float th = theta(this->coord(1, pos[1], false));
+    float ph = this->coord(2, pos[2], false);
     result[0] = r * math::cos(ph) * math::sin(th);
     result[1] = r * math::sin(ph) * math::sin(th);
     result[2] = r * math::cos(th);
@@ -131,9 +131,9 @@ class grid_sph_t : public grid_curv_t<Conf> {
   // inline vec_t<float, Conf::dim> cart_coord(
   //     const index_t<Conf::dim> &pos) const override {
   //   vec_t<float, Conf::dim> result;
-  //   for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
-  //   float r = radius(this->pos(0, pos[0], false));
-  //   float th = theta(this->pos(1, pos[1], false));
+  //   for (int i = 0; i < Conf::dim; i++) result[i] = this->coord(i, pos[i], false);
+  //   float r = radius(this->coord(0, pos[0], false));
+  //   float th = theta(this->coord(1, pos[1], false));
   //   result[0] = r * math::sin(th);
   //   result[1] = r * math::cos(th);
   //   return result;
@@ -200,15 +200,15 @@ grid_sph_t<Conf>::compute_coef() {
   for (auto idx : range(Conf::begin(ext), Conf::end(ext))) {
     auto pos = get_pos(idx, ext);
 
-    double r = radius(this->template pos<0>(pos[0], false));
-    double r_minus = radius(this->template pos<0>(pos[0] - 1, false));
-    double rs = radius(this->template pos<0>(pos[0], true));
-    double rs_plus = radius(this->template pos<0>(pos[0] + 1, true));
+    double r = radius(this->template coord<0>(pos[0], false));
+    double r_minus = radius(this->template coord<0>(pos[0] - 1, false));
+    double rs = radius(this->template coord<0>(pos[0], true));
+    double rs_plus = radius(this->template coord<0>(pos[0] + 1, true));
 
-    double th = theta(this->template pos<1>(pos[1], false));
-    double th_minus = theta(this->template pos<1>(pos[1] - 1, false));
-    double ths = theta(this->template pos<1>(pos[1], true));
-    double ths_plus = theta(this->template pos<1>(pos[1] + 1, true));
+    double th = theta(this->template coord<1>(pos[1], false));
+    double th_minus = theta(this->template coord<1>(pos[1] - 1, false));
+    double ths = theta(this->template coord<1>(pos[1], true));
+    double ths_plus = theta(this->template coord<1>(pos[1] + 1, true));
 
     // Note: Nothing depends on phi, so staggering in phi does not matter
 

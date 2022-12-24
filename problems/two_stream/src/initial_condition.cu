@@ -75,8 +75,8 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
               ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
 
-              Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
-              Scalar y = grid.template pos<1>(pos[1], ptc.x2[offset]);
+              Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
+              Scalar y = grid.template coord<1>(pos[1], ptc.x2[offset]);
 
               // ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
               // Scalar u = rng();
@@ -103,7 +103,7 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
 
               ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
 
-              // Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+              // Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                    PtcType::electron);
               ptc.flag[offset + 1] = set_ptc_type_flag(

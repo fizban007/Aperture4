@@ -42,7 +42,7 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true))) <
+          if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_0, true))) <
               0.1f * grid.delta[1]) {
             // At the theta = 0 axis
 
@@ -54,8 +54,8 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
             // D[0][idx.dec_y()] = D[0][idx];
             // D[0][idx] = 0.0f;
           }
-          // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
+          // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+          if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_pi, true)) -
                   M_PI) < 0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -82,7 +82,7 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           for (int n1_0 = grid.guard[1]; n1_0 >= 0; n1_0--) {
-            if (grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true)) <
+            if (grid_ks_t<Conf>::theta(grid.template coord<1>(n1_0, true)) <
                 0.1f * grid.delta[1]) {
               // At the theta = 0 axis
 
@@ -96,8 +96,8 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
           }
           for (int n1_pi = grid.dims[1] - grid.guard[1];
                n1_pi <= grid.dims[1] - 1; n1_pi++) {
-            // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-            if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
+            // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+            if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_pi, true)) -
                     M_PI) < 0.1f * grid.delta[1]) {
               // At the theta = pi axis
               auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -197,13 +197,13 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
           D[0][idx.dec_x()] = D[0][idx];
 
           value_t r =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
           value_t r_p =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
           value_t th_s =
-              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+              grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
           value_t th =
-              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+              grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
           if (th_s < TINY) th_s = 0.01f * grid.delta[1];
 
           auto sth = math::sin(th_s);
@@ -256,9 +256,9 @@ inner_boundary(vector_field<Conf> &D, vector_field<Conf> &B,
           // }
 
           // Then solve for Bph and Dth
-          r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
           value_t r_m =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] - 1, false));
           sth = math::sin(th);
           cth = math::cos(th);
 
@@ -329,15 +329,15 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
       [ext] __device__(auto flux, auto b, auto a, auto grid_ptrs) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(n0, true));
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
 
           for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
                n1++) {
-            Scalar th = grid_ks_t<Conf>::theta(grid.template pos<1>(n1, false));
+            Scalar th = grid_ks_t<Conf>::theta(grid.template coord<1>(n1, false));
             Scalar th_p =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(n1 + 1, true));
+                grid_ks_t<Conf>::theta(grid.template coord<1>(n1 + 1, true));
             Scalar th_m =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(n1, true));
+                grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
             auto dth = th_p - th_m;
 
             auto pos = index_t<Conf::dim>(n0, n1);
@@ -502,19 +502,19 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
             value_t r_sm =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t r_spp = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] + 1, false));
+                grid.template coord<0>(pos[0] + 1, false));
             value_t r_smm = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] - 1, false));
+                grid.template coord<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
-            value_t th = grid.template pos<1>(pos[1], true);
+            value_t th = grid.template coord<1>(pos[1], true);
             // if (math::abs(th) < TINY) th = sgn(th) * 1.0e-4;
             if (math::abs(th) < TINY)
               // th = (th < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
@@ -664,21 +664,21 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
             value_t r_sm =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t r_spp = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] + 1, false));
+                grid.template coord<0>(pos[0] + 1, false));
             value_t r_smm = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] - 1, false));
+                grid.template coord<0>(pos[0] - 1, false));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
-            value_t th = grid.template pos<1>(pos[1], false);
-            value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
-            value_t th_sm = grid.template pos<1>(pos[1], true);
+            value_t th = grid.template coord<1>(pos[1], false);
+            value_t th_sp = grid.template coord<1>(pos[1] + 1, true);
+            value_t th_sm = grid.template coord<1>(pos[1], true);
             value_t dth = th_sp - th_sm;
             if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
 
@@ -785,15 +785,15 @@ field_solver_gr_ks_cu<Conf>::update_Br(vector_field<Conf> &B,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sm = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] - 1, false));
+                grid.template coord<0>(pos[0] - 1, false));
 
-            value_t th = grid.template pos<1>(pos[1], false);
-            value_t th_sp = grid.template pos<1>(pos[1] + 1, true);
-            value_t th_sm = grid.template pos<1>(pos[1], true);
+            value_t th = grid.template coord<1>(pos[1], false);
+            value_t th_sp = grid.template coord<1>(pos[1] + 1, true);
+            value_t th_sm = grid.template coord<1>(pos[1], true);
             // value_t dth = th_sp - th_sm;
             if (th_sm < TINY) th_sm = 0.01f * grid.delta[1];
 
@@ -875,19 +875,19 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sm = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] - 1, false));
+                grid.template coord<0>(pos[0] - 1, false));
             value_t r_spp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
             value_t r_smm =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] - 1, true));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
-            value_t th = grid.template pos<1>(pos[1], false);
+            value_t th = grid.template coord<1>(pos[1], false);
 
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
@@ -1024,21 +1024,21 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sm = grid_ks_t<Conf>::radius(
-                grid.template pos<0>(pos[0] - 1, false));
+                grid.template coord<0>(pos[0] - 1, false));
             value_t r_spp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
             value_t r_smm =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] - 1, true));
             value_t dr = r_sp - r_sm;
             // value_t dr = grid.delta[0];
 
-            value_t th = grid.template pos<1>(pos[1], true);
-            value_t th_sp = grid.template pos<1>(pos[1], false);
-            value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
+            value_t th = grid.template coord<1>(pos[1], true);
+            value_t th_sp = grid.template coord<1>(pos[1], false);
+            value_t th_sm = grid.template coord<1>(pos[1] - 1, false);
             // value_t dth = th_sp - th_sm;
             if (th < TINY) th = 0.01f * grid.delta[1];
 
@@ -1163,15 +1163,15 @@ field_solver_gr_ks_cu<Conf>::update_Dr(vector_field<Conf> &D,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
             value_t r_sp =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
             value_t r_sm =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
 
-            value_t th = grid.template pos<1>(pos[1], true);
-            value_t th_sp = grid.template pos<1>(pos[1], false);
-            value_t th_sm = grid.template pos<1>(pos[1] - 1, false);
+            value_t th = grid.template coord<1>(pos[1], true);
+            value_t th_sp = grid.template coord<1>(pos[1], false);
+            value_t th_sm = grid.template coord<1>(pos[1] - 1, false);
             value_t dth = th_sp - th_sm;
             bool is_axis = false;
             if (th < TINY) {

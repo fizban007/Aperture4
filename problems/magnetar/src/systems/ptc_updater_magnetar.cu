@@ -72,7 +72,7 @@ struct pusher_impl_magnetar {
     Scalar p1 = ptc.p1[n], p2 = ptc.p2[n], p3 = ptc.p3[n];
     Scalar gamma = ptc.E[n];
     Scalar r =
-        grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0], ptc.x1[n]));
+        grid_sph_t<Conf>::radius(grid.template coord<0>(pos[0], ptc.x1[n]));
 
     pusher(p1, p2, p3, gamma, EB.E1, EB.E2, EB.E3, EB.B1, EB.B2, EB.B3,
            qdt_over_2m, dt);
@@ -165,7 +165,7 @@ struct pusher_impl_magnetar {
           // Compute the theta of the photon outgoing direction
           if (ph1 > 0.0f) {
             Scalar theta = grid_sph_t<Conf>::theta(
-                grid.template pos<1>(pos[1], ptc.x2[n]));
+                grid.template coord<1>(pos[1], ptc.x2[n]));
             Scalar cth_p = ph1 * math::cos(theta) - ph2 * math::sin(theta);
             Eph = math::log(math::abs(Eph)) / math::log(10.0f);
             if (Eph > 2.0f) Eph = 2.0f;

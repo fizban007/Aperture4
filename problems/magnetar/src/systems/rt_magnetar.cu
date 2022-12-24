@@ -142,7 +142,7 @@ struct rt_magnetar_impl_t {
     auto p2 = ph.p2[tid];
     auto p3 = ph.p3[tid];
     auto Eph = ph.E[tid];
-    value_t theta = grid_sph_t<Conf>::theta(grid.template pos<1>(pos[1], x[1]));
+    value_t theta = grid_sph_t<Conf>::theta(grid.template coord<1>(pos[1], x[1]));
     // Do not care about photons in the first and last theta cell
     if (theta < grid.delta[1] || theta > M_PI - grid.delta[1]) {
       ph.cell[tid] = empty_cell;

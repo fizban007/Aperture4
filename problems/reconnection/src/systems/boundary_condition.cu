@@ -201,7 +201,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   auto inj_size = inj_length * m_grid.delta[1];
   injector->inject(
       [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(auto &pos, auto &grid, auto &ext) {
-        auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
+        auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
 
         if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size && is_boundary[3]) ||
             (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {

@@ -94,7 +94,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
     // Current sheet particles
   injector->inject(
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         if (math::abs(y) < cs_y) {
           return true;

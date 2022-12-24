@@ -207,7 +207,7 @@ initial_condition_wave(vector_field<Conf> &B,
       },
       [Lbox, wave, Bbg_func] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                   PtcType type) {
-        auto x_global = grid.pos_global(pos, {0.5f, 0.5f, 0.0f});
+        auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
         value_t B = Bbg_func(Lbox, x_global[0]) + wave.Bz(0.0, x_global[0]);
         value_t v_d = B * wave.Ey(0.0, x_global[0]) / (B * B);
         // value_t v_d = 0.0f;

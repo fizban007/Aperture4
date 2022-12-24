@@ -75,7 +75,7 @@ class grid_ks_t : public grid_t<Conf> {
   inline vec_t<float, Conf::dim> cart_coord(
       const index_t<Conf::dim>& pos) const override {
     vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
+    for (int i = 0; i < Conf::dim; i++) result[i] = this->coord(i, pos[i], false);
     float r = radius(result[0]);
     float th = theta(result[1]);
     result[0] = r * math::sin(th);

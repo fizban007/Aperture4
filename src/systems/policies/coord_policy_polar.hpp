@@ -77,9 +77,9 @@ class coord_policy_polar {
                           PtcContext& context, index_t<Conf::dim>& pos,
                           value_t dt) const {
     // Global position in polar coord
-    vec_t<value_t, 3> x_global_old(grid.template pos<0>(pos[0], context.x[0]),
-                                   grid.template pos<1>(pos[1], context.x[1]),
-                                   grid.template pos<2>(pos[2], context.x[2]));
+    vec_t<value_t, 3> x_global_old(grid.template coord<0>(pos[0], context.x[0]),
+                                   grid.template coord<1>(pos[1], context.x[1]),
+                                   grid.template coord<2>(pos[2], context.x[2]));
     vec_t<value_t, 3> x_global_pol(x1(x_global_old[0]), x2(x_global_old[1]),
                                    x3(x_global_old[2]));
 
@@ -155,7 +155,7 @@ class coord_policy_polar {
                 //   j[2][idx] /= grid_ptrs.dV[idx];
                 // else if (Conf::dim == 3)
                 typename Conf::value_t theta =
-                    grid.template pos<1>(pos[1], true);
+                    grid.template coord<1>(pos[1], true);
                 j[2][idx] *= w / grid_ptrs.Ae[2][idx];
 
                 for (int n = 0; n < num_species; n++) {

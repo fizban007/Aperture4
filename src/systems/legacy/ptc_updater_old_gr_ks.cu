@@ -123,7 +123,7 @@ process_j_rho(vector_field<Conf>& j,
             rho[n][idx] /= grid_ptrs.Ad[2][idx]; // A_phi is effectively dV
           }
           // }
-          typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
+          typename Conf::value_t theta = grid.template coord<1>(pos[1], true);
           if (theta < 0.1 * grid.delta[1] ||
               math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
             j[2][idx] = 0.0f;
@@ -217,7 +217,7 @@ ptc_updater_gr_ks_cu<Conf>::update_particles(value_t dt, uint32_t step) {
         vec_t<value_t, 3> u(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
         // value_t u0 = ptc.E[n];
 
-        vec_t<value_t, 3> x_global = grid.pos_global(pos, x);
+        vec_t<value_t, 3> x_global = grid.coord_global(pos, x);
         x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
         x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
 

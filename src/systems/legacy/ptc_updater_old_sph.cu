@@ -48,7 +48,7 @@ process_j_rho(vector_field<Conf>& j,
           for (int n = 0; n < num_species; n++) {
             rho[n][idx] /= gp.dV[idx];
           }
-          typename Conf::value_t theta = grid.template pos<1>(pos[1], true);
+          typename Conf::value_t theta = grid.template coord<1>(pos[1], true);
           if (math::abs(theta) < 0.1 * grid.delta[1]) {
             // j[1][idx] = 0.0;
             j[2][idx] = 0.0;
@@ -194,10 +194,10 @@ ptc_updater_old_sph_cu<Conf>::move_deposit_2d(value_t dt, uint32_t step) {
         vec_t<value_t, 3> v(ptc.p1[n], ptc.p2[n], ptc.p3[n]);
         value_t gamma = ptc.E[n];
 
-        value_t r1 = grid.template pos<0>(pos[0], x[0]);
+        value_t r1 = grid.template coord<0>(pos[0], x[0]);
         // value_t exp_r1 = std::exp(r1);
         value_t radius = grid_sph_t<Conf>::radius(r1);
-        value_t r2 = grid.template pos<1>(pos[1], x[1]);
+        value_t r2 = grid.template coord<1>(pos[1], x[1]);
         value_t theta = grid_sph_t<Conf>::theta(r2);
 
         // printf("Particle p1: %f, p2: %f, p3: %f, gamma: %f\n", v1, v2, v3,
@@ -384,7 +384,7 @@ ptc_updater_old_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
             v3 = v3 / E;
 
             // Compute the actual movement
-            value_t r1 = grid.template pos<0>(pos[0], x1);
+            value_t r1 = grid.template coord<0>(pos[0], x1);
             value_t radius = grid_sph_t<Conf>::radius(r1);
 
             // Censor photons already outside the conversion radius
@@ -393,7 +393,7 @@ ptc_updater_old_sph_cu<Conf>::move_photons_2d(value_t dt, uint32_t step) {
               continue;
             }
 
-            value_t r2 = grid.template pos<1>(pos[1], x2);
+            value_t r2 = grid.template coord<1>(pos[1], x2);
             value_t theta = grid_sph_t<Conf>::theta(r2);
             value_t x = radius * math::sin(theta) * math::cos(x3);
             value_t y = radius * math::sin(theta) * math::sin(x3);
@@ -525,7 +525,7 @@ ptc_updater_old_sph_cu<Conf>::fill_multiplicity(int mult, value_t weight) {
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
               ptc.x3[offset] = ptc.x3[offset + 1] = rng();
               value_t theta = grid_sph_t<Conf>::theta(
-                  grid.template pos<1>(pos[1], ptc.x2[offset]));
+                  grid.template coord<1>(pos[1], ptc.x2[offset]));
               ptc.p1[offset] = ptc.p1[offset + 1] = 0.0;
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0;
               ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;

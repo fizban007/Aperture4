@@ -160,7 +160,7 @@ class coord_policy_gr_ks_sph {
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t> &grid,
                             const extent_t<Conf::dim> &ext, PtcContext &context,
                             index_t<Conf::dim> &pos, value_t dt) const {
-    vec_t<value_t, 3> x_global = grid.pos_global(pos, context.x);
+    vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
 
@@ -229,7 +229,7 @@ class coord_policy_gr_ks_sph {
   HD_INLINE void update_ph(const Grid<Conf::dim, value_t> &grid,
                            ph_context<Conf::dim, value_t> &context,
                            index_t<Conf::dim> &pos, value_t dt) const {
-    vec_t<value_t, 3> x_global = grid.pos_global(pos, context.x);
+    vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
 
@@ -263,7 +263,7 @@ class coord_policy_gr_ks_sph {
                 }
                 // }
                 typename Conf::value_t theta =
-                    grid.template pos<1>(pos[1], true);
+                    grid.template coord<1>(pos[1], true);
                 if (theta < 0.1 * grid.delta[1] ||
                     math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
                   j[2][idx] = 0.0f;

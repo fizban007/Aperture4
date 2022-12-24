@@ -49,10 +49,10 @@ class grid_polar_t : public grid_curv_t<Conf> {
       const index_t<2> &pos) const {
     vec_t<float, 2> result;
     for (int i = 0; i < 2; i++) {
-      result[i] = this->pos(i, pos[i], false);
+      result[i] = this->coord(i, pos[i], false);
     }
-    float r = radius(this->pos(0, pos[0], false));
-    float th = theta(this->pos(1, pos[1], false));
+    float r = radius(this->coord(0, pos[0], false));
+    float th = theta(this->coord(1, pos[1], false));
     result[0] = r * math::cos(th);
     result[1] = r * math::sin(th);
     return result;
@@ -104,15 +104,15 @@ grid_polar_t<Conf>::compute_coef() {
   for (auto idx : range(Conf::begin(ext), Conf::end(ext))) {
     auto pos = get_pos(idx, ext);
 
-    double r = radius(this->template pos<0>(pos[0], false));
-    double r_minus = radius(this->template pos<0>(pos[0] - 1, false));
-    double rs = radius(this->template pos<0>(pos[0], true));
-    double rs_plus = radius(this->template pos<0>(pos[0] + 1, true));
+    double r = radius(this->template coord<0>(pos[0], false));
+    double r_minus = radius(this->template coord<0>(pos[0] - 1, false));
+    double rs = radius(this->template coord<0>(pos[0], true));
+    double rs_plus = radius(this->template coord<0>(pos[0] + 1, true));
 
-    double th = theta(this->template pos<1>(pos[1], false));
-    double th_minus = theta(this->template pos<1>(pos[1] - 1, false));
-    double ths = theta(this->template pos<1>(pos[1], true));
-    double ths_plus = theta(this->template pos<1>(pos[1] + 1, true));
+    double th = theta(this->template coord<1>(pos[1], false));
+    double th_minus = theta(this->template coord<1>(pos[1] - 1, false));
+    double ths = theta(this->template coord<1>(pos[1], true));
+    double ths_plus = theta(this->template coord<1>(pos[1] + 1, true));
 
     // Note: Nothing depends on z, so staggering in z does not matter
 

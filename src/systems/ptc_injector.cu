@@ -107,7 +107,7 @@ namespace Aperture {
 //             sigma[idx] = s;
 
 //             value_t r =
-//                 grid_sph_t<Conf>::radius(grid.template pos<0>(pos[0],
+//                 grid_sph_t<Conf>::radius(grid.template coord<0>(pos[0],
 //                 false));
 //             // if (pos[0] == 5 && pos[1] == 256)
 //             //   printf("B_sqr is %f, s is %f\n", B_sqr, s);
@@ -201,9 +201,9 @@ inject_pairs(const multi_array<int, Conf::dim> &num_per_cell,
             if (f == nullptr) {
               ptc.weight[offset] = ptc.weight[offset + 1] = weight;
             } else {
-              Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
-              Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
-              Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
+              Scalar x1 = grid.template coord<0>(pos[0], ptc.x1[offset]);
+              Scalar x2 = grid.template coord<1>(pos[1], ptc.x2[offset]);
+              Scalar x3 = grid.template coord<2>(pos[2], ptc.x3[offset]);
               ptc.weight[offset] = ptc.weight[offset + 1] =
                   weight * (*f)(x1, x2, x3);
             }

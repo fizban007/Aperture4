@@ -20,6 +20,7 @@
 #include "data/fields.h"
 #include "data/rng_states.h"
 #include "framework/config.h"
+#include "framework/data.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
 #include "systems/gather_tracked_ptc.h"
@@ -113,4 +114,8 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
                   16 + 16 * 36 + 32 * 36 * 36);
   }
   // TODO: add checking of rng_states
+}
+
+TEST_CASE("Writing tracked particles") {
+
 }

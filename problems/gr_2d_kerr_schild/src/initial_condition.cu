@@ -39,12 +39,12 @@ void initial_nonrotating_vacuum_wald(vector_field<Conf> &B0,
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
-          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
           auto r_s =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-          auto th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
           auto th_s =
-              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+              grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
           if (math::abs(th_s) < TINY)
             th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
 
@@ -90,12 +90,12 @@ void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
-          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
           auto r_s =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-          auto th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
           auto th_s =
-              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+              grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
           B[0][idx] = gr_wald_solution_B(a, r_s, th, Bp, 0);
           B[1][idx] = gr_wald_solution_B(a, r, th_s, Bp, 1);
@@ -124,12 +124,12 @@ void initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
-          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
           auto r_s =
-              grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
-          auto th = grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+              grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
           auto th_s =
-              grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+              grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
           if (math::abs(th_s) < TINY)
             th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
 

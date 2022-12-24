@@ -20,8 +20,8 @@
 
 namespace Aperture {
 
-struct ExecCPU {};
-struct ExecGPU {};
+struct ExecHost {};
+struct ExecDev {};
 
 }
 

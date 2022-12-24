@@ -607,7 +607,7 @@ data_exporter<Conf>::write_ptc_snapshot(PtcData& data, const std::string& name,
                         multi_rank](const char* entry, auto u) {
         // Copy to the temporary ptc buffer
         ptr_copy(reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
-                 0, 0, ExecGPU{});
+                 0, 0, ExecDev{});
         ptc_buffer.copy_to_host();
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
         // typedef decltype(*u) data_type;
@@ -644,7 +644,7 @@ data_exporter<Conf>::read_ptc_snapshot(PtcData& data, const std::string& name,
     }
     ptc_buffer.copy_to_device();
     ptr_copy(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number, 0,
-             0, ExecGPU{});
+             0, ExecDev{});
   });
 }
 

@@ -39,18 +39,18 @@ namespace Aperture {
 // Free helper functions that assigns or copies an array
 
 template <typename T>
-void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecCPU);
+void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecHost);
 
 template <typename T>
-void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecGPU);
-
-template <typename T>
-void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
-              ExecCPU);
+void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecDev);
 
 template <typename T>
 void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
-              ExecGPU);
+              ExecHost);
+
+template <typename T>
+void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
+              ExecDev);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// A class for linear buffers that manages resources both on the host
@@ -168,7 +168,7 @@ class buffer {
     end = std::min(m_size, end);
     start = std::min(start, end);
     if (m_host_allocated) {
-      ptr_assign(m_data_h, start, end, value, ExecCPU{});
+      ptr_assign(m_data_h, start, end, value, ExecHost{});
     }
   }
 
@@ -177,7 +177,7 @@ class buffer {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_dev_allocated) ptr_assign(m_data_d, start, end, value, ExecGPU{});
+    if (m_dev_allocated) ptr_assign(m_data_d, start, end, value, ExecDev{});
   }
 
   /// Assign a single value to part of the buffer. Calls the host or device
@@ -233,7 +233,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_host_allocated && other.m_host_allocated) {
-      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos, ExecCPU{});
+      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos, ExecHost{});
     }
   }
 
@@ -253,7 +253,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_dev_allocated && other.m_dev_allocated) {
-      ptr_copy(other.m_data_d, m_data_d, num, src_pos, dst_pos, ExecGPU{});
+      ptr_copy(other.m_data_d, m_data_d, num, src_pos, dst_pos, ExecDev{});
     }
   }
 

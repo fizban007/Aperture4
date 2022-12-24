@@ -33,7 +33,7 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_cuda {
  public:
-  using exec_tag = ExecGPU;
+  using exec_tag = ExecDev;
 
   static void set_grid(const grid_t<Conf>& grid) {
     // init_dev_grid<Conf::dim, typename Conf::value_t>(grid);

@@ -27,7 +27,7 @@ namespace Aperture {
 
 template <typename T>
 void
-ptr_assign(T* array, size_t start, size_t end, const T& value, ExecGPU) {
+ptr_assign(T* array, size_t start, size_t end, const T& value, ExecDev) {
   auto ptr = thrust::device_pointer_cast(array);
   thrust::fill(ptr + start, ptr + end, value);
   GpuSafeCall(gpuDeviceSynchronize());
@@ -35,7 +35,7 @@ ptr_assign(T* array, size_t start, size_t end, const T& value, ExecGPU) {
 
 template <typename T>
 void
-ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos, ExecGPU) {
+ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos, ExecDev) {
   auto src_ptr = thrust::device_pointer_cast(src);
   auto dst_ptr = thrust::device_pointer_cast(dst);
   thrust::copy(src_ptr + src_pos, src_ptr + src_pos + num,
@@ -44,18 +44,18 @@ ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos, ExecGPU) {
 }
 
 
-template void ptr_assign(int*, size_t, size_t, const int&, ExecGPU);
-template void ptr_assign(long*, size_t, size_t, const long&, ExecGPU);
-template void ptr_assign(uint32_t*, size_t, size_t, const uint32_t&, ExecGPU);
-template void ptr_assign(uint64_t*, size_t, size_t, const uint64_t&, ExecGPU);
-template void ptr_assign(float*, size_t, size_t, const float&, ExecGPU);
-template void ptr_assign(double*, size_t, size_t, const double&, ExecGPU);
+template void ptr_assign(int*, size_t, size_t, const int&, ExecDev);
+template void ptr_assign(long*, size_t, size_t, const long&, ExecDev);
+template void ptr_assign(uint32_t*, size_t, size_t, const uint32_t&, ExecDev);
+template void ptr_assign(uint64_t*, size_t, size_t, const uint64_t&, ExecDev);
+template void ptr_assign(float*, size_t, size_t, const float&, ExecDev);
+template void ptr_assign(double*, size_t, size_t, const double&, ExecDev);
 
-template void ptr_copy(int*, int*, size_t, size_t, size_t, ExecGPU);
-template void ptr_copy(long*, long*, size_t, size_t, size_t, ExecGPU);
-template void ptr_copy(uint32_t*, uint32_t*, size_t, size_t, size_t, ExecGPU);
-template void ptr_copy(uint64_t*, uint64_t*, size_t, size_t, size_t, ExecGPU);
-template void ptr_copy(float*, float*, size_t, size_t, size_t, ExecGPU);
-template void ptr_copy(double*, double*, size_t, size_t, size_t, ExecGPU);
+template void ptr_copy(int*, int*, size_t, size_t, size_t, ExecDev);
+template void ptr_copy(long*, long*, size_t, size_t, size_t, ExecDev);
+template void ptr_copy(uint32_t*, uint32_t*, size_t, size_t, size_t, ExecDev);
+template void ptr_copy(uint64_t*, uint64_t*, size_t, size_t, size_t, ExecDev);
+template void ptr_copy(float*, float*, size_t, size_t, size_t, ExecDev);
+template void ptr_copy(double*, double*, size_t, size_t, size_t, ExecDev);
 
 }

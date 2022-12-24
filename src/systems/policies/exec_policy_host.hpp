@@ -32,7 +32,7 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_host {
  public:
-  using exec_tag = ExecCPU;
+  using exec_tag = ExecHost;
 
   static void set_grid(const grid_t<Conf>& grid) {
     m_grid = &grid;

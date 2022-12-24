@@ -27,6 +27,7 @@
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
 #include "systems/ptc_updater_base.h"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include "utils/util_functions.h"
 
 using namespace std;
@@ -57,7 +58,7 @@ main(int argc, char *argv[]) {
   // auto pusher = env.register_system<
   //     ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid, comm);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 

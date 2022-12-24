@@ -39,7 +39,7 @@ class boundary_condition : public system_t {
 
   vector_field<Conf> *E, *B, *E0, *B0;
   particle_data_t *ptc;
-  rng_states_t *rng_states;
+  rng_states_t<ExecDev> *rng_states;
 
   buffer<float> m_surface_n;
 

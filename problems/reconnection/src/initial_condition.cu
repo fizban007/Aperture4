@@ -37,7 +37,7 @@ namespace Aperture {
 template <typename Conf>
 void
 harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                     rng_states_t &states) {
+                     rng_states_t<ExecDev> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
@@ -142,7 +142,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 template <typename Conf>
 void
 boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                     rng_states_t &states) {
+                     rng_states_t<ExecDev> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
@@ -258,7 +258,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 template <typename Conf>
 void
 double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                            rng_states_t &states) {
+                            rng_states_t<ExecDev> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
@@ -378,18 +378,18 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               particle_data_t &ptc,
-                                              rng_states_t &states);
+                                              rng_states_t<ExecDev> &states);
 
 template void boosted_harris_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               particle_data_t &ptc,
-                                              rng_states_t &states);
+                                              rng_states_t<ExecDev> &states);
 
 template void double_harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                                      particle_data_t &ptc,
-                                                     rng_states_t &states);
+                                                     rng_states_t<ExecDev> &states);
 
 template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                      particle_data_t &ptc,
-                                                     rng_states_t &states);
+                                                     rng_states_t<ExecDev> &states);
 
 }  // namespace Aperture

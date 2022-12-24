@@ -18,9 +18,9 @@ add_library(reconnection ${reconnection_src})
 target_link_libraries(reconnection Aperture_dev)
 add_dependencies(problems reconnection)
 
-add_executable(single_cs "main.cpp")
-target_link_libraries(single_cs reconnection)
-add_dependencies(problems single_cs)
+# add_executable(single_cs "main.cpp")
+# target_link_libraries(single_cs reconnection)
+# add_dependencies(problems single_cs)
 
 add_executable(IC_cooling "main_IC.cu")
 target_link_libraries(IC_cooling reconnection)

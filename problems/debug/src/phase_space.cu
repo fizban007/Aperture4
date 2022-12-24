@@ -23,6 +23,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_injector_cuda.hpp"
 #include "systems/ptc_updater_base.h"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include <iostream>
 
 using namespace Aperture;
@@ -41,12 +42,12 @@ main(int argc, char *argv[]) {
       grid, comm);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 
   particle_data_t *ptc;
-  rng_states_t *states;
+  rng_states_t<ExecDev> *states;
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 

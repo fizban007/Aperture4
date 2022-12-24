@@ -21,10 +21,10 @@
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/momentum_space.hpp"
+#include "data/particle_data.h"
 #include "data/phase_space.hpp"
 #include "data/rng_states.h"
 #include "data/scalar_data.hpp"
-#include "data/particle_data.h"
 #include "data/tracked_ptc.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
@@ -42,9 +42,10 @@ class particle_data_t;
 template <typename T, int Rank>
 class multi_array_data;
 
-template <typename Conf>
+template <typename Conf, template <class> class ExecPolicy>
 class data_exporter : public system_t {
  public:
+  using exec_tag = typename ExecPolicy<Conf>::exec_tag;
   // data_exporter(sim_environment& env, const grid_t<Conf>& grid,
   data_exporter(const grid_t<Conf>& grid,
                 const domain_comm<Conf>* comm = nullptr);
@@ -86,9 +87,7 @@ class data_exporter : public system_t {
     else
       return true;
   }
-  bool is_multi_rank() const {
-    return m_comm != nullptr && m_comm->size() > 1;
-  }
+  bool is_multi_rank() const { return m_comm != nullptr && m_comm->size() > 1; }
 
   void write(particle_data_t& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
@@ -97,21 +96,22 @@ class data_exporter : public system_t {
   template <int N>
   void write(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
              bool snapshot = false);
-  void write(momentum_space<Conf>& data, const std::string& name, H5File& datafile,
-             bool snapshot = false);
+  void write(momentum_space<Conf>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
   template <int N>
-  void write(phase_space<Conf, N>& data, const std::string& name, H5File& datafile,
-             bool snapshot = false);
-  // void write(curand_states_t& data, const std::string& name, H5File& datafile,
+  void write(phase_space<Conf, N>& data, const std::string& name,
+             H5File& datafile, bool snapshot = false);
+  // void write(curand_states_t& data, const std::string& name, H5File&
+  // datafile,
   //            bool snapshot = false);
-  void write(rng_states_t& data, const std::string& name, H5File& datafile,
-             bool snapshot = false);
+  void write(rng_states_t<exec_tag>& data,
+             const std::string& name, H5File& datafile, bool snapshot = false);
   template <typename T, int Rank>
   void write(multi_array_data<T, Rank>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
   template <typename T>
-  void write(scalar_data<T>& data, const std::string& name,
-             H5File& datafile, bool snapshot = false);
+  void write(scalar_data<T>& data, const std::string& name, H5File& datafile,
+             bool snapshot = false);
   template <typename BufferType>
   void write(tracked_ptc<BufferType>& data, const std::string& name,
              H5File& datafile, bool snapshot = false);
@@ -122,16 +122,16 @@ class data_exporter : public system_t {
   template <int N>
   void read(field_t<N, Conf>& data, const std::string& name, H5File& datafile,
             bool snapshot = false);
-  void read(rng_states_t& data, const std::string& name, H5File& datafile,
-             bool snapshot = false);
+  void read(rng_states_t<exec_tag>& data,
+            const std::string& name, H5File& datafile, bool snapshot = false);
   // void read(curand_states_t& data, const std::string& name, H5File& datafile,
   //           bool snapshot = false);
   template <typename T, int Rank>
   void read(multi_array_data<T, Rank>& data, const std::string& name,
             H5File& datafile, bool snapshot = false);
   template <typename T>
-  void read(scalar_data<T>& data, const std::string& name,
-            H5File& datafile, bool snapshot = false);
+  void read(scalar_data<T>& data, const std::string& name, H5File& datafile,
+            bool snapshot = false);
 
  private:
   const grid_t<Conf>& m_grid;
@@ -168,16 +168,18 @@ class data_exporter : public system_t {
                                    index_t<Conf::dim>& pos_array,
                                    index_t<Conf::dim>& pos_file);
   void compute_ext_offset(const extent_t<Conf::dim>& ext_total,
-                          const extent_t<Conf::dim>& ext,
-                          int downsample,
+                          const extent_t<Conf::dim>& ext, int downsample,
                           index_t<Conf::dim>& offsets) const;
   template <typename PtcData>
-  void write_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile);
+  void write_ptc_snapshot(PtcData& data, const std::string& name,
+                          H5File& datafile);
   template <typename PtcData>
-  void write_ptc_output(PtcData& data, const std::string& name, H5File& datafile);
+  void write_ptc_output(PtcData& data, const std::string& name,
+                        H5File& datafile);
   template <typename PtcData>
-  void read_ptc_snapshot(PtcData& data, const std::string& name, H5File& datafile, size_t number,
-                                       size_t total, size_t offset);
+  void read_ptc_snapshot(PtcData& data, const std::string& name,
+                         H5File& datafile, size_t number, size_t total,
+                         size_t offset);
   void write_multi_array_helper(
       const std::string& name,
       const multi_array<float, Conf::dim, typename Conf::idx_t>& array,

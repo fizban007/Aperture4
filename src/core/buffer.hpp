@@ -18,7 +18,6 @@
 #ifndef __BUFFER_H_
 #define __BUFFER_H_
 
-#include "buffer_impl.hpp"
 #include "core/gpu_translation_layer.h"
 #include "core/gpu_error_check.h"
 #include "core/data_adapter.h"

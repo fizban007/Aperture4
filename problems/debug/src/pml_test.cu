@@ -23,6 +23,8 @@
 #include "systems/data_exporter.h"
 #include "systems/field_solver.h"
 #include "systems/ptc_updater_base.h"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/coord_policy_cartesian.hpp"
 
 using namespace Aperture;
 
@@ -49,7 +51,7 @@ main(int argc, char *argv[]) {
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
 
   env.init();
 

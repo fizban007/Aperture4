@@ -50,7 +50,7 @@ class bh_injector : public system_t {
   multi_array<int, Conf::dim> m_cum_num_per_cell;
 
   // curand_states_t* m_rand_states;
-  nonown_ptr<rng_states_t> m_rng_states;
+  nonown_ptr<rng_states_t<ExecDev>> m_rng_states;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<vector_field<Conf>> B, D;
   // std::vector<const scalar_field<Conf>*> Rho;

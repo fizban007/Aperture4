@@ -47,7 +47,7 @@ main(int argc, char* argv[]) {
   auto pusher = env.register_system<ptc_updater_new<
       Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_sync_cooling>>(
       *grid, comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(*grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid, &comm);
 
   env.init();
 

@@ -27,6 +27,7 @@
 
 namespace Aperture {
 
+template <typename ExecTag>
 class rng_states_t : public data_t {
  public:
   rng_states_t(uint64_t seed = default_random_seed);
@@ -44,10 +45,10 @@ class rng_states_t : public data_t {
     m_states.copy_to_host();
   }
 
-#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+// #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   static constexpr int block_num = 512;
   static constexpr int thread_num = 1024;
-#endif
+// #endif
 
   size_t size() { return m_size; }
 
@@ -58,10 +59,10 @@ class rng_states_t : public data_t {
 };
 
 template<>
-struct host_adapter<rng_states_t> {
+struct host_adapter<rng_states_t<ExecHost>> {
   typedef rand_state* type;
 
-  static inline type apply(rng_states_t& s) {
+  static inline type apply(rng_states_t<ExecHost>& s) {
     return s.states().host_ptr();
   }
 };
@@ -69,10 +70,10 @@ struct host_adapter<rng_states_t> {
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <>
-struct gpu_adapter<rng_states_t> {
+struct gpu_adapter<rng_states_t<ExecDev>> {
   typedef rand_state* type;
 
-  static inline type apply(rng_states_t& s) {
+  static inline type apply(rng_states_t<ExecDev>& s) {
     return s.states().dev_ptr();
   }
 };

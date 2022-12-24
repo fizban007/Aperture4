@@ -6,8 +6,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     )
   target_link_libraries(gr_2d_kerr_schild Aperture Aperture_dev)
 
-  add_executable(grpic "main.cpp")
-  set_target_properties(grpic PROPERTIES OUTPUT_NAME "aperture")
+  add_executable(grpic "main.hip.cpp")
+  set_target_properties(grpic PROPERTIES
+    OUTPUT_NAME "aperture")
   target_link_libraries(grpic gr_2d_kerr_schild)
   add_dependencies(problems grpic)
 

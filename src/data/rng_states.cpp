@@ -21,15 +21,18 @@
 
 namespace Aperture {
 
-rng_states_t::rng_states_t(uint64_t seed) {
+template <>
+rng_states_t<ExecHost>::rng_states_t(uint64_t seed) {
   m_states.set_memtype(MemType::host_only);
   m_states.resize(1);
 }
 
-rng_states_t::~rng_states_t() {}
+template <>
+rng_states_t<ExecHost>::~rng_states_t() {}
 
+template <>
 void
-rng_states_t::init() {
+rng_states_t<ExecHost>::init() {
   m_states[0].jump();
 }
 

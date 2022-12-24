@@ -6,6 +6,7 @@ set(Aperture_src
   "framework/environment.cpp"
   "framework/params_store.cpp"
   "data/fields.cpp"
+  "data/rng_states.cpp"
   "core/buffer_impl.cpp"
   "core/detail/multi_array_helpers.cpp"
   "data/particle_data.cpp"
@@ -31,6 +32,7 @@ set(Aperture_dev_src
   "core/detail/multi_array_helpers.hip.cpp"
   "data/rng_states.hip.cpp"
   "data/tracked_ptc.hip.cpp"
+  "systems/data_exporter.hip.cpp"
   "systems/field_solver.hip.cpp"
   "systems/field_solver_sph.hip.cpp"
   "systems/field_solver_polar.hip.cpp"
@@ -49,7 +51,6 @@ else()
   # list(APPEND Aperture_src
   set(Aperture_dev_src
     "core/particles.cpp"
-    "data/rng_states.cpp"
     "systems/ptc_updater_base.cpp"
     "systems/ptc_updater_simd.cpp"
     "systems/radiative_transfer.cpp"

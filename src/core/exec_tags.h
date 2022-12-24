@@ -21,7 +21,10 @@
 namespace Aperture {
 
 struct ExecHost {};
-struct ExecDev {};
+
+struct ExecDev {
+  int stream = 0;
+};
 
 }
 

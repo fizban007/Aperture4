@@ -52,7 +52,7 @@ main(int argc, char *argv[]) {
   ic.compute_coefficients(spec, spec.emin(), spec.emax());
   auto ic_module = ic.get_ic_module();
 
-  rng_states_t rng_states;
+  rng_states_t<ExecDev> rng_states;
   rng_states.init();
   int N = 1000000;
   value_t gamma = 1000.0;

@@ -42,11 +42,11 @@ namespace Aperture {
 
 template <typename Conf>
 void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                          rng_states_t &states);
+                          rng_states_t<ExecDev> &states);
 
 template <typename Conf>
 void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                                 rng_states_t &states);
+                                 rng_states_t<ExecDev> &states);
 
 }  // namespace Aperture
 
@@ -71,13 +71,13 @@ main(int argc, char *argv[]) {
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
-  rng_states_t *states;
+  rng_states_t<ExecDev> *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);

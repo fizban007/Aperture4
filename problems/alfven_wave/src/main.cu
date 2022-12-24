@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
   // auto injector =
   //     env.register_system<ptc_injector_mult<Conf>>(*grid);
   auto bc = env.register_system<boundary_condition<Conf>>(*grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(*grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid);
 
   env.init();
 

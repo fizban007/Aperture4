@@ -69,13 +69,13 @@ main(int argc, char *argv[]) {
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_polar_cap>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 
   vector_field<Conf> *B, *E;
   particle_data_t *ptc;
-  rng_states_t *states;
+  rng_states_t<ExecDev> *states;
 
   env.get_data("B", &B);
   env.get_data("E", &E);

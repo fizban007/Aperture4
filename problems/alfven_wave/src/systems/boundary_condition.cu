@@ -58,7 +58,7 @@ struct wpert_sph_t {
 
 template <typename Conf>
 void
-inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
+inject_particles(particle_data_t& ptc, rng_states_t<ExecDev>& rng_states,
                  buffer<float>& surface_n, int num_per_cell,
                  typename Conf::value_t weight,
                  const grid_curv_t<Conf>& grid,

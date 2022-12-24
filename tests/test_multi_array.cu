@@ -329,7 +329,7 @@ TEST_CASE("Performance of expression template",
   v3.assign_dev(0.0f);
 
   timer::stamp();
-  add_dev(v2, v1, index(0, 0, 0), index(0, 0, 0), ext);
+  add(ExecDev{}, v2, v1, index(0, 0, 0), index(0, 0, 0), ext);
   timer::show_duration_since_stamp("Copy using copy_dev", "us");
   v2.copy_to_host();
 
@@ -369,7 +369,7 @@ TEST_CASE("Testing resample", "[multi_array]") {
   auto arr2 = make_multi_array<float>(ext2, MemType::device_managed);
 
   auto offset = index(0, 0);
-  resample_dev(array, arr2, offset, offset, stagger_t(0b000), stagger_t(0b000), downsample);
+  resample(ExecDev{}, array, arr2, offset, offset, stagger_t(0b000), stagger_t(0b000), downsample);
   GpuSafeCall(gpuDeviceSynchronize());
 
   REQUIRE(arr2.dev_ptr()[0] == 48.0f / 16.0f);

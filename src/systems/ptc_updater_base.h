@@ -23,15 +23,18 @@
 #include "data/fields.h"
 #include "data/multi_array_data.hpp"
 #include "data/particle_data.h"
+#include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
-#include "systems/policies.h"
+// #include "systems/policies.h"
+#include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
-class rng_states_t;
+// template <typename ExecTag>
+// class rng_states_t;
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
@@ -74,7 +77,7 @@ class ptc_updater_new : public system_t {
   nonown_ptr<vector_field<Conf>> E, B, J;
   data_array<scalar_field<Conf>> Rho;
   nonown_ptr<scalar_field<Conf>> rho_ph;
-  nonown_ptr<rng_states_t> rng_states;
+  nonown_ptr<rng_states_t<typename ExecPolicy<Conf>::exec_tag>> rng_states;
   nonown_ptr<multi_array_data<uint32_t, Conf::dim>> ptc_number;
 
   // This is a temporary array for filtering the current

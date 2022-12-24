@@ -149,13 +149,16 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
             sim_env().register_data<scalar_field<Conf>>(
                 std::string("Rho_") + ptc_type_name(i), m_grid,
                 field_type::vert_centered, ExecPolicy<Conf>::data_mem_type()));
-    Rho[i]->include_in_snapshot(true);            
+    Rho[i]->include_in_snapshot(true);
   }
   Rho.copy_to_device();
 
   size_t seed = default_random_seed;
   sim_env().params().get_value("random_seed", seed);
-  rng_states = sim_env().register_data<rng_states_t>("rng_states", seed);
+  rng_states =
+      sim_env()
+          .register_data<rng_states_t<typename ExecPolicy<Conf>::exec_tag>>(
+              "rng_states", seed);
   rng_states->skip_output(true);
   rng_states->include_in_snapshot(true);
 
@@ -239,7 +242,6 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
       m_comm->send_add_guard_cells(*rho_ph);
       m_comm->send_guard_cells(*rho_ph);
     }
-
   }
 
   // Clear guard cells
@@ -255,7 +257,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
 
   tally_ptc_number(*ptc);
   // if (ph != nullptr) {
-    // tally_ptc_number(*ph);
+  // tally_ptc_number(*ph);
   // }
 }
 
@@ -281,7 +283,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   // Main particle update loop
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
-       phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho, auto states) {
+       phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho,
+                           auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t rng(states);
@@ -304,8 +307,8 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           context.q = charges[context.sp];
           context.m = masses[context.sp];
           context.rng = &rng;
-          context.aux1 = ptc.aux1[n]; // Auxiliary variable, can be used for
-                                      // different quantities
+          context.aux1 = ptc.aux1[n];  // Auxiliary variable, can be used for
+                                       // different quantities
 
           // context.E[0] = interp(E[0], context.x, idx, stagger_t(0b110));
           // context.E[1] = interp(E[1], context.x, idx, stagger_t(0b101));
@@ -478,14 +481,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   ptc->sort_by_cell(m_grid.extent().size());
   Logger::print_info("Sorting complete, there are {} particles in the pool",
                      ptc->number());
-  Logger::print_debug_all("There are {} particles in the pool",
-                     ptc->number());
+  Logger::print_debug_all("There are {} particles in the pool", ptc->number());
   if (ph != nullptr) {
     ph->sort_by_cell(m_grid.extent().size());
     Logger::print_info("Sorting complete, there are {} photons in the pool",
                        ph->number());
-    Logger::print_debug_all("There are {} photons in the pool",
-                       ph->number());
+    Logger::print_debug_all("There are {} photons in the pool", ph->number());
   }
 }
 
@@ -494,8 +495,8 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class PhysicsPolicy>
 template <typename PtcType>
 void
-ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
-                PhysicsPolicy>::tally_ptc_number(particles_base<PtcType>& ptc) {
+ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::tally_ptc_number(
+    particles_base<PtcType> &ptc) {
   // Tally particle number of this rank and store it in ptc_number
   size_t total_num = 0, max_num = 0;
   if (m_comm != nullptr && m_comm->size() > 1) {

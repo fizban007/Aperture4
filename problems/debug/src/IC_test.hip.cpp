@@ -51,7 +51,7 @@ main(int argc, char *argv[]) {
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 

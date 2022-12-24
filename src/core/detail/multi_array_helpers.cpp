@@ -22,7 +22,7 @@ namespace Aperture {
 
 template <typename T, typename U, int Rank>
 void
-resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
+resample(ExecHost, const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
          const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
          stagger_t st_src, stagger_t st_dst, int downsample) {
   auto interp = lerp<Rank>{};
@@ -45,7 +45,7 @@ resample(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
 
 template <typename T, int Rank>
 void
-add(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+add(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
     const extent_t<Rank>& ext, T scale) {
   for (auto n : range(0, ext.size())) {
@@ -58,7 +58,7 @@ add(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 
 template <typename T, int Rank>
 void
-copy(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+copy(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
      const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
      const extent_t<Rank>& ext) {
   for (auto n : range(0, ext.size())) {
@@ -70,7 +70,7 @@ copy(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 }
 
 #define INSTANTIATE_RESAMPLE_DIM(type1, type2, dim)                     \
-  template void resample(const multi_array<type1, dim>&,                \
+  template void resample(ExecHost, const multi_array<type1, dim>&,                \
                          multi_array<type2, dim>&, const index_t<dim>&, \
                          const index_t<dim>&, stagger_t, stagger_t, int)
 
@@ -84,7 +84,7 @@ INSTANTIATE_RESAMPLE(float, double);
 INSTANTIATE_RESAMPLE(double, float);
 
 #define INSTANTIATE_ADD(type, dim)                                            \
-  template void add(multi_array<type, dim>& dst,                              \
+  template void add(ExecHost, multi_array<type, dim>& dst,                              \
                     const multi_array<type, dim>& src,                        \
                     const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                     const extent_t<dim>& ext, type scale)
@@ -97,7 +97,7 @@ INSTANTIATE_ADD(double, 2);
 INSTANTIATE_ADD(double, 3);
 
 #define INSTANTIATE_COPY(type, dim)                                            \
-  template void copy(multi_array<type, dim>& dst,                              \
+  template void copy(ExecHost, multi_array<type, dim>& dst,                              \
                      const multi_array<type, dim>& src,                        \
                      const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                      const extent_t<dim>& ext)
@@ -109,114 +109,114 @@ INSTANTIATE_COPY(double, 1);
 INSTANTIATE_COPY(double, 2);
 INSTANTIATE_COPY(double, 3);
 
-#if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
-template <typename T, int Rank>
-void
-add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
-        const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-        const extent_t<Rank>& ext, T scale, const gpuStream_t* stream) {}
+// #if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
+// template <typename T, int Rank>
+// void
+// add_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+//         const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
+//         const extent_t<Rank>& ext, T scale, const gpuStream_t* stream) {}
 
-template <typename T, typename U, int Rank>
-void
-resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
-             const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
-             stagger_t st_src, stagger_t st_dst, int downsample,
-             const gpuStream_t* stream) {}
+// template <typename T, typename U, int Rank>
+// void
+// resample_dev(const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
+//              const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
+//              stagger_t st_src, stagger_t st_dst, int downsample,
+//              const gpuStream_t* stream) {}
 
-template <typename T, int Rank>
-void
-copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
-         const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
-         const extent_t<Rank>& ext, const gpuStream_t* stream) {}
+// template <typename T, int Rank>
+// void
+// copy_dev(multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+//          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
+//          const extent_t<Rank>& ext, const gpuStream_t* stream) {}
 
-template void resample_dev(const multi_array<float, 1>&, multi_array<float, 1>&,
-                           const index_t<1>&, const index_t<1>&, stagger_t,
-                           stagger_t, int, const gpuStream_t* stream);
-template void resample_dev(const multi_array<float, 2>&, multi_array<float, 2>&,
-                           const index_t<2>&, const index_t<2>&, stagger_t,
-                           stagger_t, int, const gpuStream_t* stream);
-template void resample_dev(const multi_array<float, 3>&, multi_array<float, 3>&,
-                           const index_t<3>&, const index_t<3>&, stagger_t,
-                           stagger_t, int, const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 1>&,
-                           multi_array<float, 1>&, const index_t<1>&,
-                           const index_t<1>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 2>&,
-                           multi_array<float, 2>&, const index_t<2>&,
-                           const index_t<2>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 3>&,
-                           multi_array<float, 3>&, const index_t<3>&,
-                           const index_t<3>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 1>&,
-                           multi_array<double, 1>&, const index_t<1>&,
-                           const index_t<1>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 2>&,
-                           multi_array<double, 2>&, const index_t<2>&,
-                           const index_t<2>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
-template void resample_dev(const multi_array<double, 3>&,
-                           multi_array<double, 3>&, const index_t<3>&,
-                           const index_t<3>&, stagger_t, stagger_t, int,
-                           const gpuStream_t* stream);
+// template void resample_dev(const multi_array<float, 1>&, multi_array<float, 1>&,
+//                            const index_t<1>&, const index_t<1>&, stagger_t,
+//                            stagger_t, int, const gpuStream_t* stream);
+// template void resample_dev(const multi_array<float, 2>&, multi_array<float, 2>&,
+//                            const index_t<2>&, const index_t<2>&, stagger_t,
+//                            stagger_t, int, const gpuStream_t* stream);
+// template void resample_dev(const multi_array<float, 3>&, multi_array<float, 3>&,
+//                            const index_t<3>&, const index_t<3>&, stagger_t,
+//                            stagger_t, int, const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 1>&,
+//                            multi_array<float, 1>&, const index_t<1>&,
+//                            const index_t<1>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 2>&,
+//                            multi_array<float, 2>&, const index_t<2>&,
+//                            const index_t<2>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 3>&,
+//                            multi_array<float, 3>&, const index_t<3>&,
+//                            const index_t<3>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 1>&,
+//                            multi_array<double, 1>&, const index_t<1>&,
+//                            const index_t<1>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 2>&,
+//                            multi_array<double, 2>&, const index_t<2>&,
+//                            const index_t<2>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
+// template void resample_dev(const multi_array<double, 3>&,
+//                            multi_array<double, 3>&, const index_t<3>&,
+//                            const index_t<3>&, stagger_t, stagger_t, int,
+//                            const gpuStream_t* stream);
 
-template void add_dev(multi_array<float, 1>& dst,
-                      const multi_array<float, 1>& src,
-                      const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, float scale,
-                      const gpuStream_t* stream);
-template void add_dev(multi_array<float, 2>& dst,
-                      const multi_array<float, 2>& src,
-                      const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, float scale,
-                      const gpuStream_t* stream);
-template void add_dev(multi_array<float, 3>& dst,
-                      const multi_array<float, 3>& src,
-                      const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, float scale,
-                      const gpuStream_t* stream);
-template void add_dev(multi_array<double, 1>& dst,
-                      const multi_array<double, 1>& src,
-                      const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                      const extent_t<1>& ext, double scale,
-                      const gpuStream_t* stream);
-template void add_dev(multi_array<double, 2>& dst,
-                      const multi_array<double, 2>& src,
-                      const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                      const extent_t<2>& ext, double scale,
-                      const gpuStream_t* stream);
-template void add_dev(multi_array<double, 3>& dst,
-                      const multi_array<double, 3>& src,
-                      const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                      const extent_t<3>& ext, double scale,
-                      const gpuStream_t* stream);
+// template void add_dev(multi_array<float, 1>& dst,
+//                       const multi_array<float, 1>& src,
+//                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
+//                       const extent_t<1>& ext, float scale,
+//                       const gpuStream_t* stream);
+// template void add_dev(multi_array<float, 2>& dst,
+//                       const multi_array<float, 2>& src,
+//                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
+//                       const extent_t<2>& ext, float scale,
+//                       const gpuStream_t* stream);
+// template void add_dev(multi_array<float, 3>& dst,
+//                       const multi_array<float, 3>& src,
+//                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
+//                       const extent_t<3>& ext, float scale,
+//                       const gpuStream_t* stream);
+// template void add_dev(multi_array<double, 1>& dst,
+//                       const multi_array<double, 1>& src,
+//                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
+//                       const extent_t<1>& ext, double scale,
+//                       const gpuStream_t* stream);
+// template void add_dev(multi_array<double, 2>& dst,
+//                       const multi_array<double, 2>& src,
+//                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
+//                       const extent_t<2>& ext, double scale,
+//                       const gpuStream_t* stream);
+// template void add_dev(multi_array<double, 3>& dst,
+//                       const multi_array<double, 3>& src,
+//                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
+//                       const extent_t<3>& ext, double scale,
+//                       const gpuStream_t* stream);
 
-template void copy_dev(multi_array<float, 1>& dst,
-                       const multi_array<float, 1>& src,
-                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext, const gpuStream_t* stream);
-template void copy_dev(multi_array<float, 2>& dst,
-                       const multi_array<float, 2>& src,
-                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext, const gpuStream_t* stream);
-template void copy_dev(multi_array<float, 3>& dst,
-                       const multi_array<float, 3>& src,
-                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext, const gpuStream_t* stream);
-template void copy_dev(multi_array<double, 1>& dst,
-                       const multi_array<double, 1>& src,
-                       const index_t<1>& dst_pos, const index_t<1>& src_pos,
-                       const extent_t<1>& ext, const gpuStream_t* stream);
-template void copy_dev(multi_array<double, 2>& dst,
-                       const multi_array<double, 2>& src,
-                       const index_t<2>& dst_pos, const index_t<2>& src_pos,
-                       const extent_t<2>& ext, const gpuStream_t* stream);
-template void copy_dev(multi_array<double, 3>& dst,
-                       const multi_array<double, 3>& src,
-                       const index_t<3>& dst_pos, const index_t<3>& src_pos,
-                       const extent_t<3>& ext, const gpuStream_t* stream);
-#endif
+// template void copy_dev(multi_array<float, 1>& dst,
+//                        const multi_array<float, 1>& src,
+//                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
+//                        const extent_t<1>& ext, const gpuStream_t* stream);
+// template void copy_dev(multi_array<float, 2>& dst,
+//                        const multi_array<float, 2>& src,
+//                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
+//                        const extent_t<2>& ext, const gpuStream_t* stream);
+// template void copy_dev(multi_array<float, 3>& dst,
+//                        const multi_array<float, 3>& src,
+//                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
+//                        const extent_t<3>& ext, const gpuStream_t* stream);
+// template void copy_dev(multi_array<double, 1>& dst,
+//                        const multi_array<double, 1>& src,
+//                        const index_t<1>& dst_pos, const index_t<1>& src_pos,
+//                        const extent_t<1>& ext, const gpuStream_t* stream);
+// template void copy_dev(multi_array<double, 2>& dst,
+//                        const multi_array<double, 2>& src,
+//                        const index_t<2>& dst_pos, const index_t<2>& src_pos,
+//                        const extent_t<2>& ext, const gpuStream_t* stream);
+// template void copy_dev(multi_array<double, 3>& dst,
+//                        const multi_array<double, 3>& src,
+//                        const index_t<3>& dst_pos, const index_t<3>& src_pos,
+//                        const extent_t<3>& ext, const gpuStream_t* stream);
+// #endif
 }  // namespace Aperture

@@ -24,6 +24,7 @@
 #include "systems/data_exporter.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_updater_base.h"
+#include "systems/policies/exec_policy_cuda.hpp"
 #include "initial_condition.h"
 // #include "systems/ptc_injector.h"
 #include <iostream>
@@ -51,7 +52,7 @@ main(int argc, char *argv[]) {
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
 
   env.init();
 

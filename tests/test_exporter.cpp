@@ -20,6 +20,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
+#include "systems/policies/exec_policy_host.hpp"
 
 using namespace Aperture;
 
@@ -50,7 +51,7 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
     env.params().add<int64_t>("downsample", 4);
 
     grid_t<Conf> grid;
-    data_exporter<Conf> exporter(grid);
+    data_exporter<Conf, exec_policy_host> exporter(grid);
 
     exporter.init();
     exporter.write_grid();
@@ -79,7 +80,7 @@ TEST_CASE("Writing momentum space", "[data_output]") {
     env.params().add<int64_t>("downsample", 1);
 
     grid_t<Conf> grid;
-    data_exporter<Conf> exporter(grid);
+    data_exporter<Conf, exec_policy_host> exporter(grid);
     int num_bins[4] = {32, 32, 32, 32};
     float lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     float uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};

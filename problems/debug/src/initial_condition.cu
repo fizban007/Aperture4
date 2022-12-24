@@ -32,7 +32,7 @@ namespace Aperture {
 template <typename Conf>
 void
 initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
-                                particle_data_t &ptc, rng_states_t &states) {
+                                particle_data_t &ptc, rng_states_t<ExecDev> &states) {
   using value_t = typename Conf::value_t;
   Scalar Bp = sim_env().params().get_as<double>("Bp", 5000.0);
   Scalar q_e = sim_env().params().get_as<double>("q_e", 1.0);
@@ -72,6 +72,6 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
 template void initial_condition_single_stream(vector_field<Config<2>> &B,
                                               vector_field<Config<2>> &E,
                                               particle_data_t &ptc,
-                                              rng_states_t &states);
+                                              rng_states_t<ExecDev> &states);
 
 }  // namespace Aperture

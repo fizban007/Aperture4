@@ -229,17 +229,17 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
 
   if (dest == m_rank && origin == m_rank) {
     if (array.mem_type() == MemType::host_only) {
-      copy(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+      copy(ExecHost{}, array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
     } else {
-      copy_dev(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+      copy(ExecDev{}, array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
     }
   } else {
     // timer::stamp();
     if (array.mem_type() == MemType::host_only) {
-      copy(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+      copy(ExecHost{}, m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
            m_send_buffers[dim].extent());
     } else {
-      copy_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+      copy(ExecDev{}, m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
                m_send_buffers[dim].extent());
     }
     // timer::show_duration_since_stamp("copy guard cells", "ms");
@@ -269,7 +269,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
 
     if (origin != MPI_PROC_NULL) {
       if (array.mem_type() == MemType::host_only) {
-        copy(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+        copy(ExecHost{}, array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
              m_recv_buffers[dim].extent());
       } else {
 #if CUDA_ENABLED &&                                              \
@@ -277,7 +277,7 @@ domain_comm<Conf>::send_array_guard_cells_single_dir(
      !MPIX_CUDA_AWARE_SUPPORT)
         m_recv_buffers[dim].copy_to_device();
 #endif
-        copy_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+        copy(ExecDev{}, array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
                  m_recv_buffers[dim].extent());
       }
     }
@@ -309,16 +309,16 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
 
   if (dest == m_rank && origin == m_rank) {
     if (array.mem_type() == MemType::host_only) {
-      add(array, array, recv_idx, send_idx, m_recv_buffers[dim].extent());
+      add(ExecHost{}, array, array, recv_idx, send_idx, m_recv_buffers[dim].extent());
     } else {
-      add_dev(array, array, recv_idx, send_idx, m_recv_buffers[dim].extent());
+      add(ExecDev{}, array, array, recv_idx, send_idx, m_recv_buffers[dim].extent());
     }
   } else {
     if (array.mem_type() == MemType::host_only) {
-      copy(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+      copy(ExecHost{}, m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
            m_send_buffers[dim].extent());
     } else {
-      copy_dev(m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
+      copy(ExecDev{}, m_send_buffers[dim], array, index_t<Conf::dim>{}, send_idx,
                m_send_buffers[dim].extent());
     }
 
@@ -346,7 +346,7 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
     if (origin != MPI_PROC_NULL) {
       // Index recv_idx(0, 0, 0);
       if (array.mem_type() == MemType::host_only) {
-        add(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+        add(ExecHost{}, array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
             m_recv_buffers[dim].extent());
       } else {
 #if CUDA_ENABLED &&                                              \
@@ -354,7 +354,7 @@ domain_comm<Conf>::send_add_array_guard_cells_single_dir(
      !MPIX_CUDA_AWARE_SUPPORT)
         m_recv_buffers[dim].copy_to_device();
 #endif
-        add_dev(array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
+        add(ExecDev{}, array, m_recv_buffers[dim], recv_idx, index_t<Conf::dim>{},
                 m_recv_buffers[dim].extent());
       }
     }
@@ -387,9 +387,9 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
     for (int n = 0; n < 3; n++) {
       auto& array = field[n];
       if (array.mem_type() == MemType::host_only) {
-        copy(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+        copy(ExecHost{}, array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
       } else {
-        copy_dev(array, array, recv_idx, send_idx,
+        copy(ExecDev{}, array, array, recv_idx, send_idx,
                  m_send_buffers[dim].extent());
       }
     }
@@ -401,10 +401,10 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
       index_t<Conf::dim> vec_buf_idx{};
       vec_buf_idx[Conf::dim - 1] = n * m_send_buffers[dim].extent()[Conf::dim - 1];
       if (array.mem_type() == MemType::host_only) {
-        copy(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+        copy(ExecHost{}, m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
              m_send_buffers[dim].extent());
       } else {
-        copy_dev(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+        copy(ExecDev{}, m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
                  m_send_buffers[dim].extent());
       }
     }
@@ -433,7 +433,7 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
         vec_buf_idx[Conf::dim - 1] =
             n * m_recv_buffers[dim].extent()[Conf::dim - 1];
         if (array.mem_type() == MemType::host_only) {
-          copy(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+          copy(ExecHost{}, array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
                m_recv_buffers[dim].extent());
         } else {
 #if CUDA_ENABLED &&                                              \
@@ -441,7 +441,7 @@ domain_comm<Conf>::send_vector_field_guard_cells_single_dir(
      !MPIX_CUDA_AWARE_SUPPORT)
           m_recv_vec_buffers[dim].copy_to_device();
 #endif
-          copy_dev(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+          copy(ExecDev{}, array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
                    m_recv_buffers[dim].extent());
         }
       }
@@ -475,9 +475,9 @@ domain_comm<Conf>::send_add_vector_field_guard_cells_single_dir(
     for (int n = 0; n < 3; n++) {
       auto& array = field[n];
       if (array.mem_type() == MemType::host_only) {
-        add(array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
+        add(ExecHost{}, array, array, recv_idx, send_idx, m_send_buffers[dim].extent());
       } else {
-        add_dev(array, array, recv_idx, send_idx,
+        add(ExecDev{}, array, array, recv_idx, send_idx,
                  m_send_buffers[dim].extent());
       }
     }
@@ -488,10 +488,10 @@ domain_comm<Conf>::send_add_vector_field_guard_cells_single_dir(
       index_t<Conf::dim> vec_buf_idx{};
       vec_buf_idx[Conf::dim - 1] = n * m_send_buffers[dim].extent()[Conf::dim - 1];
       if (array.mem_type() == MemType::host_only) {
-        copy(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+        copy(ExecHost{}, m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
              m_send_buffers[dim].extent());
       } else {
-        copy_dev(m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
+        copy(ExecDev{}, m_send_vec_buffers[dim], array, vec_buf_idx, send_idx,
                  m_send_buffers[dim].extent());
       }
     }
@@ -520,7 +520,7 @@ domain_comm<Conf>::send_add_vector_field_guard_cells_single_dir(
         vec_buf_idx[Conf::dim - 1] =
             n * m_send_buffers[dim].extent()[Conf::dim - 1];
         if (array.mem_type() == MemType::host_only) {
-          add(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+          add(ExecHost{}, array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
                m_recv_buffers[dim].extent());
         } else {
 #if CUDA_ENABLED &&                                              \
@@ -528,7 +528,7 @@ domain_comm<Conf>::send_add_vector_field_guard_cells_single_dir(
      !MPIX_CUDA_AWARE_SUPPORT)
           m_recv_vec_buffers[dim].copy_to_device();
 #endif
-          add_dev(array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
+          add(ExecDev{}, array, m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
                   m_recv_buffers[dim].extent());
         }
       }

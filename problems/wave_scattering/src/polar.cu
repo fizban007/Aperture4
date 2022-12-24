@@ -161,7 +161,7 @@ main(int argc, char *argv[]) {
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto solver = env.register_system<field_solver_polar_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 

@@ -128,7 +128,7 @@ TEST_CASE("Resampling field 1D", "[fields]") {
     return x1 + 2.0 * x2 + 3.0 * x3;
   });
   scalar_field<Conf> f3(grid, field_type::cell_centered, MemType::host_only);
-  resample(f[0], f3[0], grid.guards(), grid.guards(), f.stagger(),
+  resample(ExecHost{}, f[0], f3[0], grid.guards(), grid.guards(), f.stagger(),
            f3.stagger());
   for (int i = grid.guard[0]; i < grid.dims[0] - grid.guard[0]; i++) {
     // Logger::print_debug("f3 {}, f2 {}", f3[0][i], f2[0][i]);
@@ -163,7 +163,7 @@ TEST_CASE("Resampling field 2D", "[fields]") {
     return x1 + 2.0 * x2 + 3.0 * x3;
   });
   vector_field<Conf> f3(grid, field_type::vert_centered, MemType::host_only);
-  resample(f[1], f3[1], grid.guards(), grid.guards(), f.stagger(),
+  resample(ExecHost{}, f[1], f3[1], grid.guards(), grid.guards(), f.stagger(),
            f3.stagger());
   for (auto idx : f3[1].indices()) {
     // auto pos = idx.get_pos();

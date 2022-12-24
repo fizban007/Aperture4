@@ -78,7 +78,7 @@ inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
 
           auto idx = typename Conf::idx_t(c, ext);
           auto pos = get_pos(idx, ext);
-          Scalar th = grid.pos<1>(pos[1], false);
+          Scalar th = grid.coord<1>(pos[1], false);
           // if (pos[0] == grid.guard[0] && th > th1 - 0.1 && th < th2 + 0.1) {
           if (pos[0] == grid.guard[0]) {
             auto flag = ptc.flag[n];
@@ -111,7 +111,7 @@ inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
           size_t offset = ptc_num + n1 * num_inj * 2;
           auto pos = index_t<Conf::dim>(inj_n0, n1);
           auto idx = typename Conf::idx_t(pos, ext);
-          Scalar theta = grid.template pos<1>(n1, false);
+          Scalar theta = grid.template coord<1>(n1, false);
           if (theta > th2 + 0.1f || theta < th1 - 0.1f)
             continue;
 
@@ -120,7 +120,7 @@ inject_particles(particle_data_t& ptc, rng_states_t& rng_states,
           //   continue;
           for (int i = 0; i < num_inj; i++) {
             auto x2 = rng.uniform<float>();
-            theta = grid.template pos<1>(n1, x2);
+            theta = grid.template coord<1>(n1, x2);
             auto p = 0.1 * rng.uniform<float>();
             ptc.x1[offset + i * 2] = ptc.x1[offset + i * 2 + 1] = 0.5f;
             ptc.x2[offset + i * 2] = ptc.x2[offset + i * 2 + 1] = x2;
@@ -190,15 +190,15 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         auto ext = grid.extent();
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           value_t theta =
-              grid_sph_t<Conf>::theta(grid.template pos<1>(n1, false));
+              grid_sph_t<Conf>::theta(grid.template coord<1>(n1, false));
           value_t theta_s =
-              grid_sph_t<Conf>::theta(grid.template pos<1>(n1, true));
+              grid_sph_t<Conf>::theta(grid.template coord<1>(n1, true));
 
           // For quantities that are not continuous across the surface
           for (int n0 = 0; n0 < grid.guard[0]; n0++) {
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t r =
-                grid_sph_t<Conf>::radius(grid.template pos<0>(n0, false));
+                grid_sph_t<Conf>::radius(grid.template coord<0>(n0, false));
             value_t omega = wpert(time, r, theta_s);
             // printf("omega is %f\n", omega);
             e[0][idx] = omega * sin(theta_s) * r * b0[1][idx];
@@ -209,7 +209,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t r_s =
-                grid_sph_t<Conf>::radius(grid.template pos<0>(n0, true));
+                grid_sph_t<Conf>::radius(grid.template coord<0>(n0, true));
             value_t omega = wpert(time, r_s, theta);
             b[0][idx] = 0.0;
             e[1][idx] = -omega * sin(theta) * r_s * b0[0][idx];

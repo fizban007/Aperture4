@@ -40,11 +40,11 @@ TEST_CASE("Using grid", "[grid]") {
     g1.inv_delta[0] = 1.0 / g1.delta[0];
 
     REQUIRE(g1.reduced_dim<0>() == 8);
-    REQUIRE(g1.pos<0>(2, true) == 0.0f);
-    REQUIRE(g1.pos<0>(6, 0.7f) == Catch::Approx(4.7f * g1.delta[0]));
-    REQUIRE(g1.pos<1>(6, 11.6f) == 11.6f);
-    REQUIRE(g1.pos(0, 6, 0.6f) == Catch::Approx(4.6f * g1.delta[0]));
-    REQUIRE(g1.pos(1, 6, 11.6f) == 11.6f);
+    REQUIRE(g1.coord<0>(2, true) == 0.0f);
+    REQUIRE(g1.coord<0>(6, 0.7f) == Catch::Approx(4.7f * g1.delta[0]));
+    REQUIRE(g1.coord<1>(6, 11.6f) == 11.6f);
+    REQUIRE(g1.coord(0, 6, 0.6f) == Catch::Approx(4.6f * g1.delta[0]));
+    REQUIRE(g1.coord(1, 6, 11.6f) == 11.6f);
 
     REQUIRE(g1.is_in_bound(8) == true);
     REQUIRE(g1.is_in_bound(10) == false);
@@ -65,9 +65,9 @@ TEST_CASE("Using grid", "[grid]") {
     }
 
     REQUIRE(g2.reduced_dim<1>() == 8);
-    REQUIRE(g2.pos<1>(2, true) == 0.0f);
-    REQUIRE(g2.pos<1>(6, 0.7f) == Catch::Approx(4.7f * g2.delta[1]));
-    REQUIRE(g2.pos<2>(6, 11.6f) == 11.6f);
+    REQUIRE(g2.coord<1>(2, true) == 0.0f);
+    REQUIRE(g2.coord<1>(6, 0.7f) == Catch::Approx(4.7f * g2.delta[1]));
+    REQUIRE(g2.coord<2>(6, 11.6f) == 11.6f);
 
     bool b = g2.is_in_bound(index(4, 8));
     REQUIRE(b == true);
@@ -81,9 +81,9 @@ TEST_CASE("Using grid", "[grid]") {
     z = g2.find_zone(index(11, 11));
     REQUIRE(z == 8);
 
-    auto pos_g = g2.pos_global(index(3, 5), vec<float>(0.4, 0.7, 0.0));
-    REQUIRE(pos_g[0] == Catch::Approx(1.4f * g2.delta[0]));
-    REQUIRE(pos_g[1] == Catch::Approx(3.7f * g2.delta[1]));
+    auto coord_g = g2.coord_global(index(3, 5), vec<float>(0.4, 0.7, 0.0));
+    REQUIRE(coord_g[0] == Catch::Approx(1.4f * g2.delta[0]));
+    REQUIRE(coord_g[1] == Catch::Approx(3.7f * g2.delta[1]));
 
     index_t<2> idx;
     vec_t<float, 3> x;
@@ -113,7 +113,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
   kernel_launch(
       kernel_exec_policy(1, 1),
       [] __device__(Grid<3, float> g) {
-        if (g.is_in_bound(6, 6, 6)) printf("pos is %f\n", g.pos<2>(6, 0.7f));
+        if (g.is_in_bound(6, 6, 6)) printf("coord is %f\n", g.coord<2>(6, 0.7f));
       },
       g3);
   GpuSafeCall(gpuDeviceSynchronize());

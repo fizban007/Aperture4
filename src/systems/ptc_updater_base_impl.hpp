@@ -558,11 +558,11 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                   ptc.x3[offset] = ptc.x3[offset + 1] =
                       rng.template uniform<value_t>();
                   value_t x1 = CoordPolicy<Conf>::x1(
-                      grid.template pos<0>(pos[0], ptc.x1[offset]));
+                      grid.template coord<0>(pos[0], ptc.x1[offset]));
                   value_t x2 = CoordPolicy<Conf>::x2(
-                      grid.template pos<1>(pos[1], ptc.x2[offset]));
+                      grid.template coord<1>(pos[1], ptc.x2[offset]));
                   value_t x3 = CoordPolicy<Conf>::x3(
-                      grid.template pos<2>(pos[2], ptc.x3[offset]));
+                      grid.template coord<2>(pos[2], ptc.x3[offset]));
 
                   auto p = rng.maxwell_juttner_3d(kT);
                   ptc.p1[offset] = p[0];

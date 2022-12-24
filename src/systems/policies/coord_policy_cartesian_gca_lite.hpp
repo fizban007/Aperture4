@@ -94,7 +94,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     vec_t<value_t, 3> vb, result;
 
     auto dv = v * (h * dt) / math::sqrt(v.dot(v));
-    auto x_global = grid.pos_global(pos, rel_x);
+    auto x_global = grid.coord_global(pos, rel_x);
     grid.from_global(x_global + dv, pos, rel_x);
 
     auto idx = Conf::idx(pos, ext);
@@ -147,7 +147,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
 
     // printf("u_par_new is %f, Gamma_new is %f, E_par is %f\n", u_par_new, Gamma_new, E_par);
 
-    auto x_global = grid.pos_global(pos, context.x);
+    auto x_global = grid.coord_global(pos, context.x);
     auto x_iter = x_global;
     auto pos_iter = pos;
     auto interp = interp_t<1, Conf::dim>{};

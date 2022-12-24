@@ -122,7 +122,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<0>(pos, ptc.x1[n]);
+            return grid.coord<0>(pos, ptc.x1[n]);
           });
       tracked_ptc->x1.copy_to_host();
       gather_tracked_attr(
@@ -131,7 +131,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<1>(pos, ptc.x2[n]);
+            return grid.coord<1>(pos, ptc.x2[n]);
           });
       tracked_ptc->x2.copy_to_host();
       gather_tracked_attr(
@@ -140,7 +140,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<2>(pos, ptc.x3[n]);
+            return grid.coord<2>(pos, ptc.x3[n]);
           });
       tracked_ptc->x3.copy_to_host();
       gather_tracked_attr(
@@ -199,7 +199,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ph.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<0>(pos, ph.x1[n]);
+            return grid.coord<0>(pos, ph.x1[n]);
           });
       tracked_ph->x1.copy_to_host();
       gather_tracked_attr(
@@ -208,7 +208,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ph.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<1>(pos, ph.x2[n]);
+            return grid.coord<1>(pos, ph.x2[n]);
           });
       tracked_ph->x2.copy_to_host();
       gather_tracked_attr(
@@ -217,7 +217,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ph.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.pos<2>(pos, ph.x3[n]);
+            return grid.coord<2>(pos, ph.x3[n]);
           });
       tracked_ph->x3.copy_to_host();
       gather_tracked_attr(

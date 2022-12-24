@@ -141,7 +141,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
                 ptc.p3[offset_p] = p[2];
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                auto x_global = grid.pos_global(pos, x);
+                auto x_global = grid.coord_global(pos, x);
                 ptc.weight[offset_e] = f_weight(x_global);
                 ptc.weight[offset_p] = f_weight(x_global);
                 ptc.flag[offset_e] = set_ptc_type_flag(flag, PtcType::electron);

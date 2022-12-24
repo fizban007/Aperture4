@@ -60,8 +60,8 @@ TEST_CASE("Writing a grid to file", "[data_output]") {
     auto x2 = f.read_multi_array<float, 2>("x2");
     for (auto idx : x1.indices()) {
       auto pos = idx.get_pos();
-      REQUIRE(x1[idx] == Catch::Approx(grid.template pos<0>(pos[0] * 4 + 2, false)));
-      REQUIRE(x2[idx] == Catch::Approx(grid.template pos<1>(pos[1] * 4 + 2, false)));
+      REQUIRE(x1[idx] == Catch::Approx(grid.template coord<0>(pos[0] * 4 + 2, false)));
+      REQUIRE(x2[idx] == Catch::Approx(grid.template coord<1>(pos[1] * 4 + 2, false)));
     }
   }
 }

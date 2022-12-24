@@ -93,7 +93,7 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
     vec_t<value_t, 3> vb, result;
 
     auto dv = v * (h * dt) / math::sqrt(v.dot(v));
-    auto x_global = grid.pos_global(pos, rel_x);
+    auto x_global = grid.coord_global(pos, rel_x);
     grid.from_global(x_global + dv, pos, rel_x);
 
 

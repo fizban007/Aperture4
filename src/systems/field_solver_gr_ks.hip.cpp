@@ -39,7 +39,7 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
         auto ext = grid.extent();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true))) <
+          if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_0, true))) <
               0.1f * grid.delta[1]) {
             // At the theta = 0 axis
             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
@@ -47,7 +47,7 @@ axis_boundary_e(vector_field<Conf> &D, const grid_ks_t<Conf> &grid) {
             D[1][idx.dec_y()] = D[1][idx];  // Mirror Eth
           }
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
+          if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_pi, true)) -
                   M_PI) < 0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -72,7 +72,7 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           // for (int n1_0 = grid.guard[1]; n1_0 >= 0; n1_0--) {
           int n1_0 = grid.guard[1];
-          if (grid_ks_t<Conf>::theta(grid.template pos<1>(n1_0, true)) <
+          if (grid_ks_t<Conf>::theta(grid.template coord<1>(n1_0, true)) <
               0.1f * grid.delta[1]) {
             // At the theta = 0 axis
             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
@@ -81,7 +81,7 @@ axis_boundary_b(vector_field<Conf> &B, const grid_ks_t<Conf> &grid) {
             B[0][idx.dec_y()] = B[0][idx];  // Mirror Br
           }
           int n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid_ks_t<Conf>::theta(grid.template pos<1>(n1_pi, true)) -
+          if (abs(grid_ks_t<Conf>::theta(grid.template coord<1>(n1_pi, true)) -
                   M_PI) < 0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -137,7 +137,7 @@ compute_flux(scalar_field<Conf> &flux, const vector_field<Conf> &b,
       [ext] __device__(auto flux, auto b, auto a, auto grid_ptrs) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-          auto r = grid_ks_t<Conf>::radius(grid.template pos<0>(n0, true));
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
 
           for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
                n1++) {
@@ -285,18 +285,18 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
       if (grid.is_in_bound(pos)) {
         // First construct the auxiliary fields E and H
         // value_t r =
-        //     grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+        //     grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
         value_t r_sp =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] + 1, true));
+            grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] + 1, true));
         value_t r_sm =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+            grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
 
         // value_t th =
-        //     grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+        //     grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
         value_t th_sp =
-            grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] + 1, true));
+            grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1] + 1, true));
         value_t th_sm =
-            grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+            grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
         value_t sth = math::sin(th_sm);
         value_t cth = math::cos(th_sm);
@@ -414,18 +414,18 @@ field_solver_gr_ks_cu<Conf>::iterate_predictor(double dt) {
       if (grid.is_in_bound(pos)) {
         // First construct the auxiliary fields E and H
         // value_t r =
-        //     grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+        //     grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
         value_t r_p =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], false));
+            grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
         value_t r_m =
-            grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0] - 1, false));
+            grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0] - 1, false));
 
         // value_t th =
-        //     grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+        //     grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
         value_t th_p =
-            grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], false));
+            grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
         value_t th_m =
-            grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1] - 1, false));
+            grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1] - 1, false));
 
         value_t sth = math::sin(th_p);
         value_t cth = math::cos(th_p);

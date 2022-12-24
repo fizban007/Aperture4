@@ -102,14 +102,14 @@ class boundary_condition : public system_t {
             auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
             for (auto n1 : grid_stride_range(0, grid.dims[1])) {
               value_t theta =
-                  grid_polar_t<Conf>::theta(grid.template pos<1>(n1, false));
+                  grid_polar_t<Conf>::theta(grid.template coord<1>(n1, false));
               value_t theta_s =
-                  grid_polar_t<Conf>::theta(grid.template pos<1>(n1, true));
+                  grid_polar_t<Conf>::theta(grid.template coord<1>(n1, true));
 
               // For quantities that are not continuous across the surface
               for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
                 auto idx = idx_t(index_t<2>(n0, n1), ext);
-                // value_t r = grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
+                // value_t r = grid_polar_t<Conf>::radius(grid.template coord<0>(n0, false));
                 e[0][idx] = 0.0;
                 // b[1][idx] = Bp - omega * Bp;
                 b[1][idx] = omega * Bp;
@@ -119,9 +119,9 @@ class boundary_condition : public system_t {
               for (int n0 = grid.guard[0]; n0 < grid.guard[0] + 1; n0++) {
                 auto idx = idx_t(index_t<2>(n0, n1), ext);
                 value_t r =
-                    grid_polar_t<Conf>::radius(grid.template pos<0>(n0, false));
+                    grid_polar_t<Conf>::radius(grid.template coord<0>(n0, false));
                 value_t r_s =
-                    grid_polar_t<Conf>::radius(grid.template pos<0>(n0, true));
+                    grid_polar_t<Conf>::radius(grid.template coord<0>(n0, true));
                 b[0][idx] = 0.0;
                 e[1][idx] = 0.0;
                 // if (theta_s > 0.7 && theta_s < 1.2)

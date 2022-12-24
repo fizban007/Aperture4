@@ -250,7 +250,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
 //         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
 //           auto n1_0 = grid.guard[1];
 //           auto n1_pi = grid.dims[1] - grid.guard[1];
-//           if (abs(grid.template pos<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+//           if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
 //             // At the theta = 0 axis
 
 //             // Set E_phi and B_theta to zero
@@ -260,8 +260,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
 //             e[1][idx.dec_y()] = e[1][idx];
 //             // e[0][idx] = 0.0f;
 //           }
-//           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-//           if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
+//           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+//           if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
 //               0.1f * grid.delta[1]) {
 //             // At the theta = pi axis
 //             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -287,7 +287,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
 //         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
 //           auto n1_0 = grid.guard[1];
 //           auto n1_pi = grid.dims[1] - grid.guard[1];
-//           if (abs(grid.template pos<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+//           if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
 //             // At the theta = 0 axis
 
 //             // Set E_phi and B_theta to zero
@@ -297,8 +297,8 @@ compute_b_update_explicit(vector_field<Conf>& result,
 //             // b[2][idx.dec_y()] = 0.0;
 //             b[0][idx.dec_y()] = b[0][idx];
 //           }
-//           // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-//           if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
+//           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+//           if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
 //               0.1f * grid.delta[1]) {
 //             // At the theta = pi axis
 //             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);

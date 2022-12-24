@@ -187,8 +187,8 @@ compute_ptc_per_cell(alfven_wave_solution<typename Conf::value_t> &wave,
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
             num_per_cell[idx] = 2 * mult;
-            Scalar x = grid.template pos<0>(pos, 0.0f);
-            Scalar y = grid.template pos<1>(pos, 0.0f);
+            Scalar x = grid.template coord<0>(pos, 0.0f);
+            Scalar y = grid.template coord<1>(pos, 0.0f);
             auto wave_arg = wave.wave_arg(0.0f, x, y);
 
             if (wave_arg > 0.0f && wave_arg < 2.0f * M_PI * wave.length) {
@@ -288,7 +288,7 @@ initial_condition_wave(vector_field<Conf> &B,
               ptc.x3[offset] = 0.0f;
 
               ptc.cell[offset] = cell;
-              Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+              Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
 
               if (i < mult * 2) {
                 // if (x < 0.4 * grid.sizes[0]) {
@@ -308,8 +308,8 @@ initial_condition_wave(vector_field<Conf> &B,
                       ((i % 2 == 0) ? PtcType::electron : PtcType::positron));
                 }
               } else {
-                Scalar x = grid.template pos<0>(pos, 0.0f);
-                Scalar y = grid.template pos<1>(pos, 0.0f);
+                Scalar x = grid.template coord<0>(pos, 0.0f);
+                Scalar y = grid.template coord<1>(pos, 0.0f);
                 // auto width_arg = wave.width_arg(x, y);
                 auto wave_arg = wave.wave_arg(0.0f, x, y);
                 auto rho = wave.Rho(0.0f, x, y);
@@ -420,7 +420,7 @@ initial_condition_wave(vector_field<Conf> &B,
 
               // ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
 
-              // // Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+              // // Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
               // ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
               //                                      PtcType::electron);
               // ptc.flag[offset + 1] = set_ptc_type_flag(

@@ -114,7 +114,7 @@ inject_particles(particle_data_t& ptc, curand_states_t& rand_states,
              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
           size_t offset = ptc_num + n1 * num_inj * 2;
           auto pos = index_t<Conf::dim>(inj_n0, n1);
-          auto cell_x2 = grid.template pos<1>(n1, false);
+          auto cell_x2 = grid.template coord<1>(n1, false);
           if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
           auto idx = typename Conf::idx_t(pos, ext);
           if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
@@ -228,13 +228,13 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   //       auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
   //       auto ext = grid.extent();
   //       for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-  //         value_t y = grid.template pos<1>(n1, false);
-  //         value_t y_s = grid.template pos<1>(n1, true);
+  //         value_t y = grid.template coord<1>(n1, false);
+  //         value_t y_s = grid.template coord<1>(n1, true);
 
   //         // For quantities that are not continuous across the surface
   //         for (int n0 = 0; n0 < grid.guard[0]; n0++) {
   //           auto idx = idx_t(index_t<2>(n0, n1), ext);
-  //           value_t x = grid.template pos<0>(n0, false);
+  //           value_t x = grid.template coord<0>(n0, false);
   //           value_t omega = wpert(time, x, y_s);
   //           // printf("omega is %f\n", omega);
   //           e[0][idx] = omega * b0[1][idx];
@@ -244,7 +244,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   //         // For quantities that are continuous across the surface
   //         for (int n0 = 0; n0 < grid.guard[0] + 1; n0++) {
   //           auto idx = idx_t(index_t<2>(n0, n1), ext);
-  //           value_t x_s = grid.template pos<0>(n0, true);
+  //           value_t x_s = grid.template coord<0>(n0, true);
   //           value_t omega = wpert(time, x_s, y);
   //           b[0][idx] = 0.0;
   //           e[1][idx] = -omega * b0[0][idx];
@@ -265,12 +265,12 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
         auto ext_damping = extent(damping_length, grid.dims[1]);
         for (auto n1 : grid_stride_range(0, grid.dims[1])) {
           // auto n0_start = grid.dims[0] - damping_length;
-          // auto xh = grid.template pos<0>(n0_start, true);
+          // auto xh = grid.template coord<0>(n0_start, true);
           // for (int n0 = n0_start; n0 < grid.dims[0]; n0++) {
           //   auto idx = idx_t(index(n0, n1), ext);
           //   auto idx_damping = idx_t(index(n0 - n0_start, n1), ext_damping);
-          //   auto x = grid.template pos<0>(n0, false);
-          //   auto x_s = grid.template pos<0>(n0, true);
+          //   auto x = grid.template coord<0>(n0, false);
+          //   auto x_s = grid.template coord<0>(n0, true);
           //   auto sig = pml_sigma(x, xh, pmllen, sigpml);
           //   if (sig > TINY) {
           //     auto exp_sig = math::exp(-sig);
@@ -365,7 +365,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
           auto idx = Conf::idx(cell, ext);
           auto pos = idx.get_pos();
 
-          auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
+          auto x = grid.template coord<0>(pos[0], ptc.x1[n]);
           if (x < x_damp) {
             ptc.p1[n] *= ptc_damping_factor;
             ptc.p2[n] *= ptc_damping_factor;

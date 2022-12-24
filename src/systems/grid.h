@@ -48,7 +48,7 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
   virtual vec_t<float, Conf::dim> cart_coord(
       const index_t<Conf::dim>& pos) const {
     vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++) result[i] = this->pos(i, pos[i], false);
+    for (int i = 0; i < Conf::dim; i++) result[i] = this->coord(i, pos[i], false);
     return result;
   }
 
@@ -56,7 +56,7 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
   vec_t<value_t, 3> x_global(const vec_t<value_t, 3>& rel_x,
                              uint32_t cell) {
     index_t<Conf::dim> pos = get_pos(Conf::idx(cell, m_ext), m_ext);
-    return this->pos_global(pos, rel_x);
+    return this->coord_global(pos, rel_x);
   }
 
   // Convert global coordinate position to local one

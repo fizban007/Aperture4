@@ -105,7 +105,7 @@ inject_pairs(const multi_array<int, Conf::dim>& num_per_cell,
             ptc.x1[offset] = ptc.x1[offset + 1] = rng();
             ptc.x2[offset] = ptc.x2[offset + 1] = rng();
             ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
-            Scalar th = grid.template pos<1>(pos[1], ptc.x2[offset]);
+            Scalar th = grid.template coord<1>(pos[1], ptc.x2[offset]);
             ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
             ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
             ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;

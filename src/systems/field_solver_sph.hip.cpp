@@ -90,7 +90,7 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                      gp.Ae[2][idx_px]) /
                 gp.Ab[1][idx];
             // Take care of axis boundary
-            Scalar theta = grid.template pos<1>(pos[1], true);
+            Scalar theta = grid.template coord<1>(pos[1], true);
             if (abs(theta) < 0.1 * grid.delta[1]) {
               result[1][idx] = 0.0f;
             }
@@ -141,7 +141,7 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                               gp.Ab[1][idx];
 
             // Take care of axis boundary
-            Scalar theta = grid.template pos<1>(pos[1], true);
+            Scalar theta = grid.template coord<1>(pos[1], true);
             if (abs(theta) < 0.1 * grid.delta[1]) {
               result[1][idx] = 0.0f;
             }
@@ -187,7 +187,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
                                         gp.Ae[2][idx] -
                                     j[2][idx]);
             // Take care of axis boundary, setting E_phi to zero
-            Scalar theta = grid.template pos<1>(pos[1], true);
+            Scalar theta = grid.template coord<1>(pos[1], true);
             if (abs(theta) < 0.1f * grid.delta[1]) {
               result[2][idx] = 0.0f;
             }
@@ -219,7 +219,7 @@ compute_e_update_explicit(vector_field<Conf>& result,
             // }
           }
           // extra work for the theta = pi axis
-          auto theta = grid.template pos<1>(pos[1], true);
+          auto theta = grid.template coord<1>(pos[1], true);
           if (std::abs(theta - M_PI) < 0.1f * grid.delta[1]) {
             auto idx_my = idx.dec_y();
             result[0][idx] +=
@@ -253,7 +253,7 @@ compute_b_update_explicit(vector_field<Conf>& result,
             auto idx_px = idx.inc_x();
             result[1][idx] -= dt * circ1(e, gp.le, idx, idx_px) / gp.Ab[1][idx];
             // Take care of axis boundary
-            Scalar theta = grid.template pos<1>(pos[1], true);
+            Scalar theta = grid.template coord<1>(pos[1], true);
             if (abs(theta) < 0.1f * grid.delta[1]) {
               result[1][idx] = 0.0f;
             }
@@ -288,7 +288,7 @@ axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid.template pos<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
             // At the theta = 0 axis
 
             // Set E_phi and B_theta to zero
@@ -298,8 +298,8 @@ axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
             e[1][idx.dec_y()] = e[1][idx];
             // e[0][idx] = 0.0f;
           }
-          // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-          if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
+          // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
               0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
@@ -325,7 +325,7 @@ axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid.template pos<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
             // At the theta = 0 axis
 
             // Set E_phi and B_theta to zero
@@ -335,8 +335,8 @@ axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
             // b[2][idx.dec_y()] = 0.0;
             b[0][idx.dec_y()] = b[0][idx];
           }
-          // printf("boundary pi at %f\n", grid.template pos<1>(n1_pi, true));
-          if (abs(grid.template pos<1>(n1_pi, true) - M_PI) <
+          // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
               0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);

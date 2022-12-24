@@ -40,7 +40,7 @@ class ptc_physics_policy_gravity_sph {
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
                             PtcContext& context, const vec_t<IntT, Conf::dim>& pos,
                             value_t dt) const {
-    auto x1 = grid.pos(0, pos[0], context.x[0]);
+    auto x1 = grid.coord(0, pos[0], context.x[0]);
     x1 = grid_sph_t<Conf>::radius(x1);
     context.p[0] -= m_g * dt / square(x1);
     context.gamma = sqrt(1.0f + context.p.dot(context.p));

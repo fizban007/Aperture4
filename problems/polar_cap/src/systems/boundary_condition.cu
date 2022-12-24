@@ -103,11 +103,11 @@ template <typename Conf> void boundary_condition<Conf>::apply_rotating_boundary(
           for (auto idx : grid_stride_range(Conf::begin(ext),
                                             Conf::end(ext))) {
             auto pos = get_pos(idx, ext);
-            value_t x = grid.pos(0, pos[0], false);
-            value_t xs = grid.pos(0, pos[0], true);
-            value_t y = grid.pos(1, pos[1], false);
-            value_t ys = grid.pos(1, pos[1], true);
-            value_t z = grid.pos(2, pos[2], false);
+            value_t x = grid.coord(0, pos[0], false);
+            value_t xs = grid.coord(0, pos[0], true);
+            value_t y = grid.coord(1, pos[1], false);
+            value_t ys = grid.coord(1, pos[1], true);
+            value_t z = grid.coord(2, pos[2], false);
 
             // Rotating conductor
             if (pos[2] <= boundary_cell) {
@@ -198,8 +198,8 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
 
           for (auto n : grid_stride_range(0, ext[0] * ext[1])) {
             index_t<3> pos(n % ext[0], n / ext[0], inj_length);
-            value_t coordx = grid.pos(0, pos[0], false);
-            value_t coordy = grid.pos(1, pos[1], false);
+            value_t coordx = grid.coord(0, pos[0], false);
+            value_t coordy = grid.coord(1, pos[1], false);
             value_t r = math::sqrt(coordx * coordx + coordy * coordy);
 
             if (r > 1.7f * Rpc) {

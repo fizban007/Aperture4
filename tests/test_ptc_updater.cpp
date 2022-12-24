@@ -50,8 +50,9 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   (*B)[2].assign(10000.0);
   REQUIRE((*B)[2](20, 34) == Catch::Approx(10000.0f));
 
-  ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0), vec_t<Scalar, 3>(0.0, 1000.0, 0.0),
-              grid->get_idx(20, 34).linear, 0);
+  ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+              vec_t<Scalar, 3>(0.0, 1000.0, 0.0), grid->get_idx(20, 34).linear,
+              0);
   ptc->weight[0] = 1.0;
 
   double dt = 0.001;
@@ -62,10 +63,11 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   SECTION("Boris push") {
     pusher->use_pusher(Pusher::boris);
     for (uint32_t i = 0; i < N; i++) {
-      auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
-                                  vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
-      x1[i] = pos[0];
-      x2[i] = pos[1];
+      auto coord =
+          grid->coord_global(grid->idx_at(ptc->cell[0]).get_pos(),
+                             vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
+      x1[i] = coord[0];
+      x2[i] = coord[1];
 
       pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
@@ -73,17 +75,19 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
     std::ofstream output("pusher_boris_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", "
+             << ptc->E[0] << std::endl;
     }
   }
 
   SECTION("Vay push") {
     pusher->use_pusher(Pusher::vay);
     for (uint32_t i = 0; i < N; i++) {
-      auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
-                                  vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
-      x1[i] = pos[0];
-      x2[i] = pos[1];
+      auto coord =
+          grid->coord_global(grid->idx_at(ptc->cell[0]).get_pos(),
+                             vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
+      x1[i] = coord[0];
+      x2[i] = coord[1];
 
       pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
@@ -91,17 +95,19 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
     std::ofstream output("pusher_vay_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", "
+             << ptc->E[0] << std::endl;
     }
   }
 
   SECTION("Higuera push") {
     pusher->use_pusher(Pusher::higuera);
     for (uint32_t i = 0; i < N; i++) {
-      auto pos = grid->pos_global(grid->idx_at(ptc->cell[0]).get_pos(),
-                                  vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
-      x1[i] = pos[0];
-      x2[i] = pos[1];
+      auto coord =
+          grid->coord_global(grid->idx_at(ptc->cell[0]).get_pos(),
+                           vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
+      x1[i] = coord[0];
+      x2[i] = coord[1];
 
       pusher->push_default(dt);
       pusher->move_and_deposit(dt, i);
@@ -109,7 +115,8 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
 
     std::ofstream output("pusher_higuera_result.csv");
     for (uint32_t i = 0; i < N; i++) {
-      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", " << ptc->E[0] << std::endl;
+      output << std::setprecision(12) << x1[i] << ", " << x2[i] << ", "
+             << ptc->E[0] << std::endl;
     }
   }
 }

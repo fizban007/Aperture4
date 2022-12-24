@@ -59,7 +59,7 @@ struct fixed_photon_path {
     // auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
     // auto idx = typename Conf::idx_t(c, grid.extent());
     // auto pos = idx.get_pos();
-    // value_t theta = grid.pos<1>(pos[0], ptc.x2[tid]);
+    // value_t theta = grid.coord<1>(pos[0], ptc.x2[tid]);
     // value_t lph = min(10.0f, (1.0f / std::sin(theta) - 1.0f) * photon_path);
     // If photon energy is too low, do not track it, but still
     // subtract its energy as done above

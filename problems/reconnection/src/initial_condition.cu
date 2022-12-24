@@ -84,7 +84,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // Initialize particles
       [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
                                            rng_t &rng, PtcType type) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t Bx = tanh(y / delta);
         value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_3d(kT_upstream);
@@ -102,7 +102,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   injector->inject(
       // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         if (math::abs(y) < cs_y) {
           return true;
@@ -211,7 +211,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   injector->inject(
       // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         if (math::abs(y) < cs_y) {
           return true;
@@ -317,7 +317,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       //   return rng.maxwell_juttner_3d(kT_upstream);
       [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
                                            rng_t &rng, PtcType type) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t Bx = tanh(y / delta);
         value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_3d(kT_upstream);
@@ -333,7 +333,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // Current sheet particles
   injector->inject(
       [delta, ysize] __device__(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         value_t y1 = 0.25 * ysize;
         value_t y2 = -0.25 * ysize;
@@ -347,7 +347,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
-        value_t y = grid.template pos<1>(pos, 0.5f);
+        value_t y = grid.template coord<1>(pos, 0.5f);
         value_t sign = (y < 0 ? 1.0f : -1.0f);
         if (type == PtcType::positron) sign *= -1.0f;
 
@@ -359,7 +359,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &pos, auto &grid,
       // auto &ext) {
       [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &x_global) {
-        // auto y = grid.pos(1, pos[1], 0.5f);
+        // auto y = grid.coord(1, pos[1], 0.5f);
         auto y = x_global[1];
         value_t j = 0.0;
         if (y < 0.0f) {

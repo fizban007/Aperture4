@@ -154,7 +154,7 @@ struct alfven_wave_solution {
 //               ptc.p3[offset] = ptc.p3[offset + 1] = 0.0;
 //               ptc.E[offset] = ptc.E[offset + 1] = 1.0;
 //               ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
-//               Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+//               Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
 //               ptc.weight[offset] = ptc.weight[offset + 1] = cube(
 //                   math::abs(0.5f * grid.sizes[0] - x) * 2.0f / grid.sizes[0]);
 //               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
@@ -215,8 +215,8 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
               ptc.x2[offset] = ptc.x2[offset + 1] = rng();
               ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
 
-              Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
-              Scalar y = grid.template pos<1>(pos[1], ptc.x2[offset]);
+              Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
+              Scalar y = grid.template coord<1>(pos[1], ptc.x2[offset]);
               auto width_arg = wave.width_arg(x, y);
               auto wave_arg = wave.wave_arg(0.0f, x, y);
 
@@ -286,7 +286,7 @@ initial_condition_wave(sim_environment &env, vector_field<Conf> &B,
 
               ptc.cell[offset] = ptc.cell[offset + 1] = idx.linear;
 
-              // Scalar x = grid.template pos<0>(pos[0], ptc.x1[offset]);
+              // Scalar x = grid.template coord<0>(pos[0], ptc.x1[offset]);
               ptc.flag[offset] = set_ptc_type_flag(flag_or(PtcFlag::primary),
                                                    PtcType::electron);
               ptc.flag[offset + 1] = set_ptc_type_flag(

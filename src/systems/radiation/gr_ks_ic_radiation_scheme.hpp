@@ -67,7 +67,7 @@ struct gr_ks_ic_radiation_scheme {
     auto idx = Conf::idx(ptc.cell[tid], ext);
     auto pos = get_pos(idx, ext);
 
-    vec_t<value_t, 3> x_global = grid.pos_global(pos, x);
+    vec_t<value_t, 3> x_global = grid.coord_global(pos, x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
     value_t sth = math::sin(x_global[1]);
@@ -174,7 +174,7 @@ struct gr_ks_ic_radiation_scheme {
     auto idx = Conf::idx(ph.cell[tid], ext);
     auto pos = get_pos(idx, ext);
 
-    vec_t<value_t, 3> x_global = grid.pos_global(pos, x);
+    vec_t<value_t, 3> x_global = grid.coord_global(pos, x);
     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
     value_t sth = math::sin(x_global[1]);

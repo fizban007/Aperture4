@@ -68,7 +68,7 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
             value_t B3 = interp(B[2], x, idx, stagger_t(0b100));
             value_t Bmag = math::sqrt(B1 * B1 + B2 * B2 + B3 * B3);
 
-            // value_t theta = grid.template pos<1>(pos[1], ptc.x2[offset]);
+            // value_t theta = grid.template coord<1>(pos[1], ptc.x2[offset]);
             // value_t cth = math::cos(theta);
             // value_t mag = math::sqrt(3.0f * cth * cth + 1.0f);
             value_t p = p0;
@@ -88,9 +88,9 @@ inject_pairs_along_B(const multi_array<int, Conf::dim> &num_per_cell,
             if (f == nullptr) {
               ptc.weight[offset] = ptc.weight[offset + 1] = weight;
             } else {
-              Scalar x1 = grid.template pos<0>(pos[0], ptc.x1[offset]);
-              Scalar x2 = grid.template pos<1>(pos[1], ptc.x2[offset]);
-              Scalar x3 = grid.template pos<2>(pos[2], ptc.x3[offset]);
+              Scalar x1 = grid.template coord<0>(pos[0], ptc.x1[offset]);
+              Scalar x2 = grid.template coord<1>(pos[1], ptc.x2[offset]);
+              Scalar x3 = grid.template coord<2>(pos[2], ptc.x3[offset]);
               ptc.weight[offset] = ptc.weight[offset + 1] =
                   weight * (*f)(x1, x2, x3);
             }

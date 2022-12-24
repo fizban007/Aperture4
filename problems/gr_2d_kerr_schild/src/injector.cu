@@ -86,9 +86,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
 
           if (grid.is_in_bound(pos)) {
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t th =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
             // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.0f ||
             //     th < 0.5f * M_PI - 0.3f || th > 0.5f * M_PI + 0.3f)
@@ -168,9 +168,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
             value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
             value_t r =
-                grid_ks_t<Conf>::radius(grid.template pos<0>(pos[0], true));
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
             value_t th =
-                grid_ks_t<Conf>::theta(grid.template pos<1>(pos[1], true));
+                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
             value_t sth = math::sin(th);
             value_t cth = math::cos(th);
 
@@ -185,7 +185,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
               ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
               // ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
               // ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
-              th = grid.template pos<1>(pos[1], ptc.x2[offset]);
+              th = grid.template coord<1>(pos[1], ptc.x2[offset]);
               ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
               ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
               ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;

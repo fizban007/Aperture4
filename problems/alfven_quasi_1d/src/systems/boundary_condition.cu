@@ -114,7 +114,7 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
 //              grid_stride_range(grid.guard[1], grid.dims[1] - grid.guard[1])) {
 //           size_t offset = ptc_num + n1 * num_inj * 2;
 //           auto pos = index_t<Conf::dim>(inj_n0, n1);
-//           auto cell_x2 = grid.template pos<1>(n1, false);
+//           auto cell_x2 = grid.template coord<1>(n1, false);
 //           if (cell_x2 < 0.2 || cell_x2 > 4.8) continue;
 //           auto idx = typename Conf::idx_t(pos, ext);
 //           if (std::min(surface_ne[pos[1]], surface_np[pos[1]]) >
@@ -290,7 +290,7 @@ boundary_condition<Conf>::update(double dt, uint32_t step) {
   //         auto idx = Conf::idx(cell, ext);
   //         auto pos = idx.get_pos();
 
-  //         auto x = grid.template pos<0>(pos[0], ptc.x1[n]);
+  //         auto x = grid.template coord<0>(pos[0], ptc.x1[n]);
   //         if (x < x_damp) {
   //           ptc.p1[n] *= ptc_damping_factor;
   //           ptc.p2[n] *= ptc_damping_factor;

@@ -72,12 +72,12 @@ field_solver_frame_dragging<Conf>::update_explicit(double dt, double time) {
 
         for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
-          value_t x = grid.pos(0, pos[0], false);
-          value_t xs = grid.pos(0, pos[0], true);
-          value_t y = grid.pos(1, pos[1], false);
-          value_t ys = grid.pos(1, pos[1], true);
-          value_t z = grid.pos(2, pos[2], false) + Rstar / Rpc;
-          value_t zs = grid.pos(2, pos[2], true) + Rstar / Rpc;
+          value_t x = grid.coord(0, pos[0], false);
+          value_t xs = grid.coord(0, pos[0], true);
+          value_t y = grid.coord(1, pos[1], false);
+          value_t ys = grid.coord(1, pos[1], true);
+          value_t z = grid.coord(2, pos[2], false) + Rstar / Rpc;
+          value_t zs = grid.coord(2, pos[2], true) + Rstar / Rpc;
           value_t r, beta, r_cyl;
 
           // Normally beta would have an additional factor of sinth, and r would

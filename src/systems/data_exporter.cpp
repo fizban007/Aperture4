@@ -228,10 +228,10 @@ data_exporter<Conf>::update(double dt, uint32_t step) {
       auto data = it.second.get();
       if (auto* ptr = dynamic_cast<tracked_particles_t*>(data)) {
         Logger::print_detail("Writing tracked particles");
-        write(*ptr, name, datafile, false);
+        write(*ptr, it.first, datafile, false);
       } else if (auto* ptr = dynamic_cast<tracked_photons_t*>(data)) {
         Logger::print_detail("Writing tracked photons");
-        write(*ptr, name, datafile, false);
+        write(*ptr, it.first, datafile, false);
       }
     }
     m_ptc_num += 1;

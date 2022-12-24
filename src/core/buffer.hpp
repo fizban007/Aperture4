@@ -23,6 +23,7 @@
 #include "core/gpu_error_check.h"
 #include "core/data_adapter.h"
 #include "core/enum_types.h"
+#include "core/exec_tags.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/logger.h"
 #include <cstdlib>
@@ -34,6 +35,22 @@ typedef int gpuStream_t;
 #endif
 
 namespace Aperture {
+
+// Free helper functions that assigns or copies an array
+
+template <typename T>
+void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecCPU);
+
+template <typename T>
+void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecGPU);
+
+template <typename T>
+void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
+              ExecCPU);
+
+template <typename T>
+void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
+              ExecGPU);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// A class for linear buffers that manages resources both on the host
@@ -151,7 +168,7 @@ class buffer {
     end = std::min(m_size, end);
     start = std::min(start, end);
     if (m_host_allocated) {
-      ptr_assign(m_data_h, start, end, value);
+      ptr_assign(m_data_h, start, end, value, ExecCPU{});
     }
   }
 
@@ -160,7 +177,7 @@ class buffer {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_dev_allocated) ptr_assign_dev(m_data_d, start, end, value);
+    if (m_dev_allocated) ptr_assign(m_data_d, start, end, value, ExecGPU{});
   }
 
   /// Assign a single value to part of the buffer. Calls the host or device
@@ -216,7 +233,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_host_allocated && other.m_host_allocated) {
-      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos);
+      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos, ExecCPU{});
     }
   }
 
@@ -236,7 +253,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_dev_allocated && other.m_dev_allocated) {
-      ptr_copy_dev(other.m_data_d, m_data_d, num, src_pos, dst_pos);
+      ptr_copy(other.m_data_d, m_data_d, num, src_pos, dst_pos, ExecGPU{});
     }
   }
 

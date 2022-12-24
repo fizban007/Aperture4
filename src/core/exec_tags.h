@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2022 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,25 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BUFFER_IMPL_H_
-#define __BUFFER_IMPL_H_
-
-#include <cstdlib>
+#ifndef _EXEC_TAGS_H_
+#define _EXEC_TAGS_H_
 
 namespace Aperture {
 
-template <typename T>
-void ptr_assign(T* array, size_t start, size_t end, const T& value);
-
-template <typename T>
-void ptr_assign_dev(T* array, size_t start, size_t end, const T& value);
-
-template <typename T>
-void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos);
-
-template <typename T>
-void ptr_copy_dev(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos);
+struct ExecCPU {};
+struct ExecGPU {};
 
 }
 
-#endif // __BUFFER_IMPL_H_
+
+#endif  // _EXEC_TAGS_H_

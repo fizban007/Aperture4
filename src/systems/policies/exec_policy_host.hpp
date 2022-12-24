@@ -18,6 +18,7 @@
 #ifndef __EXEC_POLICY_HOST_H_
 #define __EXEC_POLICY_HOST_H_
 
+#include "core/exec_tags.h"
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/particle_data.h"
@@ -31,6 +32,8 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_host {
  public:
+  using exec_tag = ExecCPU;
+
   static void set_grid(const grid_t<Conf>& grid) {
     m_grid = &grid;
   }

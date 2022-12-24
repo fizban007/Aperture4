@@ -21,6 +21,7 @@
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
 #include "core/cuda_control.h"
+#include "core/exec_tags.h"
 #include "core/data_adapter.h"
 #include "systems/grid.h"
 #include "utils/kernel_helper.hpp"
@@ -32,6 +33,8 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_cuda {
  public:
+  using exec_tag = ExecGPU;
+
   static void set_grid(const grid_t<Conf>& grid) {
     // init_dev_grid<Conf::dim, typename Conf::value_t>(grid);
   }

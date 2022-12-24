@@ -23,6 +23,8 @@
 #include "framework/data.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
+#include "systems/gather_tracked_ptc.h"
+#include "systems/policies/exec_policy_cuda.hpp"
 
 using namespace Aperture;
 
@@ -45,6 +47,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({1.0, 1.0, 2.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
+  env.params().add("max_tracked_num", 100l);
   env.params().add<int64_t>("downsample", 2);
 
   domain_comm<Conf> comm;
@@ -55,11 +58,14 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   // vector_field<Conf> fv(grid, MemType::device_managed);
   auto fv = env.register_data<vector_field<Conf>>("vector", grid, MemType::device_managed);
   fv->include_in_snapshot(true);
-  auto ptc = env.register_data<particle_data_t>("ptc", 1000, MemType::device_managed);
+  auto E = env.register_data<vector_field<Conf>>("E", grid, MemType::device_managed);
+  auto B = env.register_data<vector_field<Conf>>("B", grid, MemType::device_managed);
+  auto ptc = env.register_data<particle_data_t>("particles", 1000, MemType::device_managed);
   ptc->include_in_snapshot(true);
   auto states = env.register_data<rng_states_t>("rng_states");
   states->include_in_snapshot(true);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
+  auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_cuda>>(grid);
 
   env.init();
 
@@ -77,17 +83,18 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   // particle_data_t ptc(1000, MemType::device_managed);
   for (int i = 0; i < 100; i++) {
     ptc->append({0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
-                16 + 16 * 36 + 32 * 36 * 36);
+                16 + 16 * 36 + 32 * 36 * 36, 1.0, flag_or(PtcFlag::tracked));
   }
 
   exporter->write_snapshot("Data/snapshot_mpi.h5", 0, 0.0);
+  tracker->update(0.0, 0);
+  exporter->update(0.0, 0);
   ptc->init();
   fs->init();
   fv->init();
   for (int i = 0; i < 100; i++) {
     REQUIRE(ptc->cell[i] == empty_cell);
   }
-
 
   uint32_t step = 1;
   double time = 1.0;

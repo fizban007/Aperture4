@@ -56,7 +56,11 @@ class exec_policy_cuda {
   static void sync() { GpuSafeCall(gpuDeviceSynchronize()); }
 
   static __device__ const Grid<Conf::dim, typename Conf::value_t>& grid() {
+#if defined(__CUDACC__) || defined(__HIPCC__)
     return dev_grid<Conf::dim, typename Conf::value_t>();
+#else
+    return Grid<Conf::dim, typename Conf::value_t>{};
+#endif 
   }
 
   static MemType data_mem_type() { return MemType::host_device; }

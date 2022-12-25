@@ -114,7 +114,7 @@ template <typename Conf>
 void
 initial_condition_bg(vector_field<Conf> &B,
                      vector_field<Conf> &E, vector_field<Conf> &B0,
-                     particle_data_t &ptc, rng_states_t<ExecDev> &states) {
+                     particle_data_t &ptc, rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   value_t th_bg = sim_env().params().get_as<double>("theta_bg", M_PI * 0.5);
   value_t Bbg = sim_env().params().get_as<double>("Bbg", 1.0);
@@ -154,7 +154,7 @@ template <typename Conf>
 void
 initial_condition_wave(vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
-                       particle_data_t &ptc, rng_states_t<ExecDev> &states) {
+                       particle_data_t &ptc, rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   value_t th_bg = sim_env().params().get_as<double>("theta_bg", M_PI * 0.5);
   value_t sinth = math::sin(th_bg);
@@ -226,7 +226,7 @@ template <typename Conf>
 void
 initial_condition_single_ptc(vector_field<Conf> &B, vector_field<Conf> &E,
                              vector_field<Conf> &B0, particle_data_t &ptc,
-                             rng_states_t<ExecDev> &states, int mult, Scalar weight) {
+                             rng_states_t<exec_tags::device> &states, int mult, Scalar weight) {
   using value_t = typename Conf::value_t;
   value_t weight_enhance_factor = 1.0f;
   value_t sinth = sim_env().params().get_as<double>("theta_bg", 0.0);
@@ -250,7 +250,7 @@ initial_condition_single_ptc(vector_field<Conf> &B, vector_field<Conf> &E,
   auto num = ptc.number();
 
   // TODO: figure out a good position for the test particle
-  // ptc.append_dev({0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, uint32_t cell)
+  // ptc.append(exec_tags::device{}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, uint32_t cell)
 
   Logger::print_info("After initial condition, there are {} particles", ptc.number());
 }
@@ -259,14 +259,14 @@ initial_condition_single_ptc(vector_field<Conf> &B, vector_field<Conf> &E,
 template void initial_condition_bg<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, rng_states_t<ExecDev> &states);
+    particle_data_t &ptc, rng_states_t<exec_tags::device> &states);
 template void initial_condition_wave<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, rng_states_t<ExecDev> &states);
+    particle_data_t &ptc, rng_states_t<exec_tags::device> &states);
 template void initial_condition_single_ptc<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, rng_states_t<ExecDev> &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t<exec_tags::device> &states, int mult, Scalar weight);
 
 }  // namespace Aperture

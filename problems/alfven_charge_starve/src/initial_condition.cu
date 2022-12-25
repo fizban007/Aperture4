@@ -127,7 +127,7 @@ struct alfven_wave_solution {
 //     return Bp * math::sqrt(1.0 - muB);
 //   });
 //   // pusher->fill_multiplicity(mult, weight);
-//   // ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 100.0f, 0.0f}, 200 + 258 *
+//   // ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 100.0f, 0.0f}, 200 + 258 *
 //   // grid->dims[0],
 //   //                 100.0, set_ptc_type_flag(0, PtcType::positron));
 

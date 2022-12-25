@@ -123,7 +123,7 @@ main(int argc, char *argv[]) {
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
 
-  ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
                   48 + 64 * grid.dims[0] + 2 * grid.dims[0] * grid.dims[1],
                   1.0f, set_ptc_type_flag(0, PtcType::electron));
   cudaDeviceSynchronize();

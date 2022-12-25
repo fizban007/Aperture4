@@ -59,10 +59,10 @@ class rng_states_t : public data_t {
 };
 
 template<>
-struct host_adapter<rng_states_t<ExecHost>> {
+struct host_adapter<rng_states_t<exec_tags::host>> {
   typedef rand_state* type;
 
-  static inline type apply(rng_states_t<ExecHost>& s) {
+  static inline type apply(rng_states_t<exec_tags::host>& s) {
     return s.states().host_ptr();
   }
 };
@@ -70,10 +70,10 @@ struct host_adapter<rng_states_t<ExecHost>> {
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
 
 template <>
-struct gpu_adapter<rng_states_t<ExecDev>> {
+struct gpu_adapter<rng_states_t<exec_tags::device>> {
   typedef rand_state* type;
 
-  static inline type apply(rng_states_t<ExecDev>& s) {
+  static inline type apply(rng_states_t<exec_tags::device>& s) {
     return s.states().dev_ptr();
   }
 };

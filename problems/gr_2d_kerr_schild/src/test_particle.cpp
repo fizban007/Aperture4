@@ -26,9 +26,9 @@
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
-#include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_updater_base.h"
 #include "utils/util_functions.h"
 
 using namespace std;
@@ -47,7 +47,7 @@ main(int argc, char *argv[]) {
   typedef Config<2, Scalar> Conf;
   using value_t = Conf::value_t;
 
-  auto& env = sim_environment::instance(&argc, &argv, false);
+  auto &env = sim_environment::instance(&argc, &argv, false);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
   env.params().add("Bp", 2.0);
@@ -64,7 +64,8 @@ main(int argc, char *argv[]) {
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid);
   // auto injector =
   //     env.register_system<bh_injector<Conf>>(env, grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
 
   env.init();
 
@@ -85,11 +86,11 @@ main(int argc, char *argv[]) {
   typename Conf::idx_t idx(pos, ext);
 
   for (int i = 0; i < 1; i++) {
-    ptc->append_dev(x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
-                    set_ptc_type_flag(0, PtcType::positron));
-    // ptc->append_dev(x, {0.0, 0.0, 0.0}, idx.linear, 1000.0,
+    ptc->append(exec_tags::device{}, x, {0.57367008, 0.0, 1.565}, idx.linear,
+                1000.0, set_ptc_type_flag(0, PtcType::positron));
+    // ptc->append(exec_tags::device{}, x, {0.0, 0.0, 0.0}, idx.linear, 1000.0,
     //                 set_ptc_type_flag(0, PtcType::positron));
-    // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+    // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
   }
   CudaSafeCall(cudaDeviceSynchronize());
 

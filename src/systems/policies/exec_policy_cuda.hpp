@@ -33,7 +33,7 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_cuda {
  public:
-  using exec_tag = ExecDev;
+  using exec_tag = exec_tags::device;
 
   static void set_grid(const grid_t<Conf>& grid) {
     // init_dev_grid<Conf::dim, typename Conf::value_t>(grid);
@@ -41,7 +41,7 @@ class exec_policy_cuda {
 
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
-    kernel_launch(f, adapt_gpu(args)...);
+    kernel_launch(f, adapt(exec_tags::device{}, args)...);
     GpuCheckError();
   }
 

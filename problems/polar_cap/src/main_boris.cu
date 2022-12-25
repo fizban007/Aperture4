@@ -105,7 +105,7 @@ main(int argc, char *argv[]) {
   B0->set_values(2, B3_func);
 
   particle_data_t *ptc;
-  rng_states_t<ExecDev> *states;
+  rng_states_t<exec_tags::device> *states;
 
   env.run();
   return 0;

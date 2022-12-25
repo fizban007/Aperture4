@@ -34,7 +34,7 @@ set_initial_condition(const grid_sph_t<Conf>& grid) {
 
   particle_data_t* ptc;
   vector_field<Conf>*B0, *B;
-  rng_states_t<ExecDev>* states;
+  rng_states_t<exec_tags::device>* states;
   sim_env().get_data("particles", &ptc);
   sim_env().get_data("B0", &B0);
   sim_env().get_data("B", &B);

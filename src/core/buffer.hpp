@@ -38,18 +38,16 @@ namespace Aperture {
 // Free helper functions that assigns or copies an array
 
 template <typename T>
-void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecHost);
+void ptr_assign(exec_tags::host, T* array, size_t start, size_t end, const T& value);
 
 template <typename T>
-void ptr_assign(T* array, size_t start, size_t end, const T& value, ExecDev);
+void ptr_assign(exec_tags::device, T* array, size_t start, size_t end, const T& value);
 
 template <typename T>
-void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
-              ExecHost);
+void ptr_copy(exec_tags::host, T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos);
 
 template <typename T>
-void ptr_copy(T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos,
-              ExecDev);
+void ptr_copy(exec_tags::device, T* src, T* dst, size_t num, size_t src_pos, size_t dst_pos);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// A class for linear buffers that manages resources both on the host
@@ -167,7 +165,7 @@ class buffer {
     end = std::min(m_size, end);
     start = std::min(start, end);
     if (m_host_allocated) {
-      ptr_assign(m_data_h, start, end, value, ExecHost{});
+      ptr_assign(exec_tags::host{}, m_data_h, start, end, value);
     }
   }
 
@@ -176,7 +174,17 @@ class buffer {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
-    if (m_dev_allocated) ptr_assign(m_data_d, start, end, value, ExecDev{});
+    if (m_dev_allocated) ptr_assign(exec_tags::device{}, m_data_d, start, end, value);
+  }
+
+  /// Assign a single value to part of the buffer, host version
+  void assign(exec_tags::host, size_t start, size_t end, const T& value) {
+    assign_host(start, end, value);
+  }
+
+  /// Assign a single value to part of the buffer, device version
+  void assign(exec_tags::device, size_t start, size_t end, const T& value) {
+    assign_dev(start, end, value);
   }
 
   /// Assign a single value to part of the buffer. Calls the host or device
@@ -198,6 +206,12 @@ class buffer {
 
   /// Assign a value to the whole buffer. Device version
   void assign_dev(const T& value) { assign_dev(0, m_size, value); }
+
+  /// Assign a value to the whole buffer. Host version
+  void assign(exec_tags::host, const T& value) { assign_host(0, m_size, value); }
+
+  /// Assign a value to the whole buffer. Host version
+  void assign(exec_tags::device, const T& value) { assign_dev(0, m_size, value); }
 
   ///  Copy a part from another buffer. Will do the copy on the host or device
   ///  side depending on the memory location. If the buffer is `host_only`, then
@@ -232,7 +246,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_host_allocated && other.m_host_allocated) {
-      ptr_copy(other.m_data_h, m_data_h, num, src_pos, dst_pos, ExecHost{});
+      ptr_copy(exec_tags::host{}, other.m_data_h, m_data_h, num, src_pos, dst_pos);
     }
   }
 
@@ -252,7 +266,7 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_dev_allocated && other.m_dev_allocated) {
-      ptr_copy(other.m_data_d, m_data_d, num, src_pos, dst_pos, ExecDev{});
+      ptr_copy(exec_tags::device{}, other.m_data_d, m_data_d, num, src_pos, dst_pos);
     }
   }
 

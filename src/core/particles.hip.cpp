@@ -189,7 +189,7 @@ particles_base<BufferType>::rearrange_arrays(const std::string& skip,
 
 template <typename BufferType>
 void
-particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
+particles_base<BufferType>::sort_by_cell(exec_tags::device, size_t max_cell) {
   if (m_number > 0) {
     // Lazy resize the tmp arrays
     resize_tmp_arrays();
@@ -277,9 +277,9 @@ particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
-                                       const vec_t<Scalar, 3>& p, uint32_t cell,
-                                       Scalar weight, uint32_t flag) {
+particles_base<BufferType>::append(exec_tags::device, const vec_t<Scalar, 3>& x,
+                                   const vec_t<Scalar, 3>& p, uint32_t cell,
+                                   Scalar weight, uint32_t flag) {
   if (m_number == m_size) return;
   kernel_launch(
       {1, 1},
@@ -300,93 +300,6 @@ particles_base<BufferType>::append_dev(const vec_t<Scalar, 3>& x,
   GpuSafeCall(gpuDeviceSynchronize());
   m_number += 1;
 }
-
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::gather_tracked_ptc_map(size_t max_tracked) {
-//   size_t number = m_number;
-//   max_tracked = std::min(m_max_tracked_num, max_tracked);
-
-//   kernel_launch(
-//       [number, max_tracked] LAMBDA(auto flags, auto cells, auto tracked_map,
-//                                    auto tracked_num) {
-//         for (auto n : grid_stride_range(0, number)) {
-//           if (check_flag(flags[n], PtcFlag::tracked) &&
-//               cells[n] != empty_cell) {
-//             uint32_t nt = atomic_add(&tracked_num[0], 1);
-//             if (nt < max_tracked) {
-//               tracked_map[nt] = n;
-//             }
-//           }
-//         }
-//       },
-//       this->flag.dev_ptr(), this->cell.dev_ptr(), m_tracked_map.dev_ptr(),
-//       m_tracked_num.dev_ptr());
-//   GpuSafeCall(gpuDeviceSynchronize());
-
-//   m_tracked_num.copy_to_host();
-//   if (m_tracked_num[0] > max_tracked) {
-//     m_tracked_num[0] = max_tracked;
-//     m_tracked_num.copy_to_device();
-//   }
-// }
-
-// template <typename BufferType>
-// template <typename Conf>
-// void
-// particles_base<BufferType>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Conf>& grid) {
-//   if (m_number > 0) {
-//     // timer::stamp("compute_buffer");
-//     // Lazy resize the tmp arrays
-//     resize_tmp_arrays();
-//     m_zone_buffer_num.assign_dev(0);
-
-//     for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
-//       size_t offset = n * m_sort_segment_size;
-//       // Logger::print_debug("offset is {}, n is {}", offset, n);
-
-//       m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
-//       auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
-//       compute_target_buffers<Conf>(this->cell.dev_ptr(), offset,
-//                                    m_sort_segment_size, m_zone_buffer_num,
-//                                    m_index.dev_ptr());
-
-//       copy_component_to_buffer<Conf>(m_dev_ptrs, offset, m_sort_segment_size,
-//                                      m_index.dev_ptr(), buf_ptrs);
-//     }
-
-//     m_zone_buffer_num.copy_to_host();
-//     // timer::show_duration_since_stamp("Computing target buffers", "ms",
-//     // "compute_buffer");
-
-//     int zone_offset = 0;
-//     if (buffers.size() == 9)
-//       zone_offset = 9;
-//     else if (buffers.size() == 3)
-//       zone_offset = 12;
-//     for (unsigned int i = 0; i < buffers.size(); i++) {
-//       // Logger::print_debug("zone {} buffer has {} ptc", i + zone_offset,
-//       //                     m_zone_buffer_num[i + zone_offset]);
-//       if (i + zone_offset == 13) continue;
-//       buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
-//     }
-//     // timer::stamp("copy_to_buffer");
-//     // for (unsigned int i = 0; i < buffers.size(); i++) {
-//     //   if (buffers[i].number() > 0) {
-//     //     buffers[i].copy_to_host();
-//     //   }
-//     // }
-//     // if (buffers[7].number() > 0) {
-//     //   buffers[7].copy_to_host();
-//     //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
-//     // }
-//     // GpuSafeCall(gpuDeviceSynchronize());
-//     // timer::show_duration_since_stamp("Copy to buffer", "ms",
-//     // "copy_to_buffer");
-//   }
-// }
 
 template <typename BufferType>
 template <typename Conf>

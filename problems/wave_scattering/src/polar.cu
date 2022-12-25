@@ -179,7 +179,7 @@ main(int argc, char *argv[]) {
 
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
-  // ptc->append_dev({0.5f, 0.5f, 0.0f}, {0.0f, 10.0f, 0.0f}, 100, 1.0);
+  // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {0.0f, 10.0f, 0.0f}, 100, 1.0);
 
   auto injector =
       sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);

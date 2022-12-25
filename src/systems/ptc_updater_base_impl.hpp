@@ -478,12 +478,12 @@ template <typename Conf, template <class> class ExecPolicy,
 void
 ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
                 PhysicsPolicy>::sort_particles() {
-  ptc->sort_by_cell(m_grid.extent().size());
+  ptc->sort_by_cell(typename ExecPolicy<Conf>::exec_tag{}, m_grid.extent().size());
   Logger::print_info("Sorting complete, there are {} particles in the pool",
                      ptc->number());
   Logger::print_debug_all("There are {} particles in the pool", ptc->number());
   if (ph != nullptr) {
-    ph->sort_by_cell(m_grid.extent().size());
+    ph->sort_by_cell(typename ExecPolicy<Conf>::exec_tag{}, m_grid.extent().size());
     Logger::print_info("Sorting complete, there are {} photons in the pool",
                        ph->number());
     Logger::print_debug_all("There are {} photons in the pool", ph->number());
@@ -591,7 +591,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
   ExecPolicy<Conf>::sync();
   ptc->set_num(ptc->number() + 2 * mult * m_grid.extent().size());
 
-  ptc->sort_by_cell(m_grid.extent().size());
+  ptc->sort_by_cell(typename ExecPolicy<Conf>::exec_tag{}, m_grid.extent().size());
 }
 
 template <typename Conf, template <class> class ExecPolicy,

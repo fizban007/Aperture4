@@ -61,7 +61,7 @@ class boundary_condition : public system_t {
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<particle_data_t> ptc;
-  nonown_ptr<rng_states_t<ExecDev>> rng_states;
+  nonown_ptr<rng_states_t<exec_tags::device>> rng_states;
   nonown_ptr<ptc_injector<Conf, exec_policy_cuda>> injector;
   // curand_states_t *rand_states;
 

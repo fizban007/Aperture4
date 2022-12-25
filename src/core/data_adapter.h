@@ -18,6 +18,7 @@
 #ifndef __DATA_ADAPTER_H_
 #define __DATA_ADAPTER_H_
 
+#include "core/exec_tags.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
@@ -46,49 +47,49 @@ struct host_adapter {
 
 template <typename T>
 inline typename gpu_adapter<T>::type
-adapt_gpu(nonown_ptr<T>& t) {
+adapt(exec_tags::device, nonown_ptr<T>& t) {
   return gpu_adapter<T>::apply(*t);
 }
 
 template <typename T>
 inline typename gpu_adapter<T>::type
-adapt_gpu(T& t) {
+adapt(exec_tags::device, T& t) {
   return gpu_adapter<T>::apply(t);
 }
 
 template <typename T>
 inline typename gpu_adapter<T>::const_type
-adapt_gpu(const nonown_ptr<T>& t) {
+adapt(exec_tags::device, const nonown_ptr<T>& t) {
   return gpu_adapter<T>::apply(*t);
 }
 
 template <typename T>
 inline typename gpu_adapter<T>::const_type
-adapt_gpu(const T& t) {
+adapt(exec_tags::device, const T& t) {
   return gpu_adapter<T>::apply(t);
 }
 
 template <typename T>
 inline typename host_adapter<T>::type
-adapt_host(nonown_ptr<T>& t) {
+adapt(exec_tags::host, nonown_ptr<T>& t) {
   return host_adapter<T>::apply(*t);
 }
 
 template <typename T>
 inline typename host_adapter<T>::type
-adapt_host(T& t) {
+adapt(exec_tags::host, T& t) {
   return host_adapter<T>::apply(t);
 }
 
 template <typename T>
 inline typename host_adapter<T>::const_type
-adapt_host(const nonown_ptr<T>& t) {
+adapt(exec_tags::host, const nonown_ptr<T>& t) {
   return host_adapter<T>::apply(*t);
 }
 
 template <typename T>
 inline typename host_adapter<T>::const_type
-adapt_host(const T& t) {
+adapt(exec_tags::host, const T& t) {
   return host_adapter<T>::apply(t);
 }
 

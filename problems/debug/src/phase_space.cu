@@ -47,7 +47,7 @@ main(int argc, char *argv[]) {
   env.init();
 
   particle_data_t *ptc;
-  rng_states_t<ExecDev> *states;
+  rng_states_t<exec_tags::device> *states;
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 

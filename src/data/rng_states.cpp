@@ -22,17 +22,17 @@
 namespace Aperture {
 
 template <>
-rng_states_t<ExecHost>::rng_states_t(uint64_t seed) {
+rng_states_t<exec_tags::host>::rng_states_t(uint64_t seed) {
   m_states.set_memtype(MemType::host_only);
   m_states.resize(1);
 }
 
 template <>
-rng_states_t<ExecHost>::~rng_states_t() {}
+rng_states_t<exec_tags::host>::~rng_states_t() {}
 
 template <>
 void
-rng_states_t<ExecHost>::init() {
+rng_states_t<exec_tags::host>::init() {
   m_states[0].jump();
 }
 

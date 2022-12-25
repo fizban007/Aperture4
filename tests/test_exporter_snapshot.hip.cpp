@@ -62,7 +62,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   auto B = env.register_data<vector_field<Conf>>("B", grid, MemType::device_managed);
   auto ptc = env.register_data<particle_data_t>("particles", 1000, MemType::device_managed);
   ptc->include_in_snapshot(true);
-  auto states = env.register_data<rng_states_t<ExecDev>>("rng_states");
+  auto states = env.register_data<rng_states_t<exec_tags::device>>("rng_states");
   states->include_in_snapshot(true);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
   auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_cuda>>(grid);
@@ -82,7 +82,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
 
   // particle_data_t ptc(1000, MemType::device_managed);
   for (int i = 0; i < 100; i++) {
-    ptc->append({0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
+    ptc->append(exec_tags::host{}, {0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
                 16 + 16 * 36 + 32 * 36 * 36, 1.0, flag_or(PtcFlag::tracked));
   }
 

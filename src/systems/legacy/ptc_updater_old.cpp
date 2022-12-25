@@ -496,8 +496,8 @@ ptc_updater_old<Conf>::clear_guard_cells() {
 template <typename Conf>
 void
 ptc_updater_old<Conf>::sort_particles() {
-  ptc->sort_by_cell_host(m_grid.extent().size());
-  if (ph != nullptr) ph->sort_by_cell_host(m_grid.extent().size());
+  ptc->sort_by_cell(exec_tags::host{}, m_grid.extent().size());
+  if (ph != nullptr) ph->sort_by_cell(exec_tags::host{}, m_grid.extent().size());
 }
 
 template <typename Conf>

@@ -35,17 +35,17 @@ using namespace Aperture;
 namespace Aperture {
 template <typename Conf>
 void set_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
-                           rng_states_t<ExecDev> &states, int mult, Scalar weight);
+                           rng_states_t<exec_tags::device> &states, int mult, Scalar weight);
 
 template <typename Conf>
 void initial_condition_wave(vector_field<Conf> &B, vector_field<Conf> &E,
                             vector_field<Conf> &B0, particle_data_t &ptc,
-                            rng_states_t<ExecDev> &states, int mult, Scalar weight);
+                            rng_states_t<exec_tags::device> &states, int mult, Scalar weight);
 
 template <typename Conf>
 void initial_condition_standing_alfven(
     vector_field<Conf> &B, vector_field<Conf> &E, vector_field<Conf> &B0,
-    particle_data_t &ptc, rng_states_t<ExecDev> &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t<exec_tags::device> &states, int mult, Scalar weight);
 
 }  // namespace Aperture
 
@@ -78,7 +78,7 @@ main(int argc, char *argv[]) {
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
   // curand_states_t *states;
-  rng_states_t<ExecDev> *states;
+  rng_states_t<exec_tags::device> *states;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);

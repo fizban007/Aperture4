@@ -87,7 +87,7 @@ main(int argc, char *argv[]) {
 
   // int N = 1000;
   // for (int n = 0; n < N; n++) {
-  //   ptc->append_dev({0.5f, 0.5f, 0.5f}, {p0, 0.0f, 0.0f},
+  //   ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.5f}, {p0, 0.0f, 0.0f},
   //                   grid.dims[0] / 2 +
   //                       (grid.dims[1] / 2) * grid.dims[0],
   //                   1.0f, set_ptc_type_flag(0, PtcType::electron));

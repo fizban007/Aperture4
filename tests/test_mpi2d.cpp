@@ -51,14 +51,14 @@ main(int argc, char* argv[]) {
   int N1 = grid->dims[0];
   ptc.set_num(18);
   if (comm->rank() == 0) {
-    ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
-    ptc.append_dev({0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
-    ph.append_dev({0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
+    ph.append(exec_tags::device{}, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
   }
   Logger::print_debug_all("initially Rank {} has {} particles:", comm->rank(),
                           ptc.number());

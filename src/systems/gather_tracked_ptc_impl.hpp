@@ -71,6 +71,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_attr(
           });
         },
         data, tracked_map, ptc, E, B);
+    data.copy_to_host();
   }
 }
 
@@ -89,6 +90,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ph_attr(
           });
         },
         data, tracked_map, ph, E, B);
+    data.copy_to_host();
   }
 }
 
@@ -151,7 +153,6 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<0>(pos, ptc.x1[n]);
           });
-      tracked_ptc->x1.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->x2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
@@ -160,7 +161,6 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<1>(pos, ptc.x2[n]);
           });
-      tracked_ptc->x2.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->x3, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
@@ -169,49 +169,41 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<2>(pos, ptc.x3[n]);
           });
-      tracked_ptc->x3.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->p1, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.p1[n];
           });
-      tracked_ptc->p1.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->p2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.p2[n];
           });
-      tracked_ptc->p2.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->p3, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.p3[n];
           });
-      tracked_ptc->p3.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->E, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.E[n];
           });
-      tracked_ptc->E.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->weight, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.weight[n];
           });
-      tracked_ptc->weight.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->flag, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.flag[n];
           });
-      tracked_ptc->flag.copy_to_host();
       gather_tracked_ptc_attr(
           tracked_ptc->id, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
             return ptc.id[n];
           });
-      tracked_ptc->id.copy_to_host();
     }
     if (ph != nullptr) {
       gather_tracked_ptc_index(*ph);
@@ -228,7 +220,6 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<0>(pos, ph.x1[n]);
           });
-      tracked_ph->x1.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->x2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
@@ -237,7 +228,6 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<1>(pos, ph.x2[n]);
           });
-      tracked_ph->x2.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->x3, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
@@ -246,49 +236,41 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.coord<2>(pos, ph.x3[n]);
           });
-      tracked_ph->x3.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->p1, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.p1[n];
           });
-      tracked_ph->p1.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->p2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.p2[n];
           });
-      tracked_ph->p2.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->p3, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.p3[n];
           });
-      tracked_ph->p3.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->E, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.E[n];
           });
-      tracked_ph->E.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->weight, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.weight[n];
           });
-      tracked_ph->weight.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->flag, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.flag[n];
           });
-      tracked_ph->flag.copy_to_host();
       gather_tracked_ph_attr(
           tracked_ph->id, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
             return ph.id[n];
           });
-      tracked_ph->id.copy_to_host();
     }
   }
 }

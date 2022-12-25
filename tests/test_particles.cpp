@@ -128,7 +128,7 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
 
 #ifdef GPU_ENABLED
   ptc.copy_to_device();
-  ptc.sort_by_cell_dev(100);
+  ptc.sort_by_cell(exec_tags::device{}, 100);
   ptc.copy_to_host();
 #else
   ptc.sort_by_cell_host(100);

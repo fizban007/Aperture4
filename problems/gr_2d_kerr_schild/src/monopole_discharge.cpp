@@ -94,9 +94,9 @@ int main(int argc, char *argv[]) {
   // typename Conf::idx_t idx(pos, ext);
 
   // for (int i = 0; i < 1; i++) {
-  //   ptc->append_dev({0.5, 0.5, 0.0}, {2000.0, 0.0, 1000.0}, 200 + grid.dims[0] * 400, 1000.0,
+  //   ptc->append(exec_tags::device{}, {0.5, 0.5, 0.0}, {2000.0, 0.0, 1000.0}, 200 + grid.dims[0] * 400, 1000.0,
   //                   set_ptc_type_flag(0, PtcType::positron));
-  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
   // }
   // CudaSafeCall(cudaDeviceSynchronize());
 
@@ -105,10 +105,10 @@ int main(int argc, char *argv[]) {
   // typename Conf::idx_t idx(pos, ext);
 
   // for (int i = 0; i < 1; i++) {
-  //   ptc->append_dev({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, idx.linear,
+  //   ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, idx.linear,
   //   1000.0,
   //                   set_ptc_type_flag(0, PtcType::positron));
-  //   // ptc->append_dev({0.5f, 0.5f, 0.0f}, , uint32_t cell)
+  //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
   // }
   // CudaSafeCall(cudaDeviceSynchronize());
 

@@ -563,9 +563,9 @@ ptc_updater_old_cu<Conf>::clear_guard_cells() {
 template <typename Conf>
 void
 ptc_updater_old_cu<Conf>::sort_particles() {
-  this->ptc->sort_by_cell_dev(this->m_grid.extent().size());
+  this->ptc->sort_by_cell(exec_tags::device{}, this->m_grid.extent().size());
   if (this->ph != nullptr) {
-    this->ph->sort_by_cell_dev(this->m_grid.extent().size());
+    this->ph->sort_by_cell(exec_tags::device{}, this->m_grid.extent().size());
   }
 }
 

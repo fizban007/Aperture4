@@ -20,13 +20,16 @@
 
 namespace Aperture {
 
-struct ExecHost {};
+namespace exec_tags {
 
-struct ExecDev {
+struct host {};
+
+struct device {
   int stream = 0;
 };
 
-}
+}  // namespace exec_tag
 
+}  // namespace Aperture
 
 #endif  // _EXEC_TAGS_H_

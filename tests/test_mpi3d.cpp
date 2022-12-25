@@ -53,19 +53,19 @@ main(int argc, char* argv[]) {
   int N3 = grid->dims[2];
   if (comm->rank() == 0) {
     // This particle should go up one z rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 5 + 7 * N1 + 12 * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 5 + 7 * N1 + 12 * N1 * N2);
     // This particle should go down one z rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, 4 + 8 * N1 + 1 * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, 4 + 8 * N1 + 1 * N1 * N2);
     // This particle should go up one y rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {3.0, 0.0, 0.0}, 4 + (N2 - 2) * N1 + 5 * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {3.0, 0.0, 0.0}, 4 + (N2 - 2) * N1 + 5 * N1 * N2);
     // This particle should go down one y rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {4.0, 0.0, 0.0}, 5 + 1 * N1 + 5 * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {4.0, 0.0, 0.0}, 5 + 1 * N1 + 5 * N1 * N2);
 
     // Corners
     // This particle should go up one z rank and one x rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {5.0, 0.0, 0.0}, (N1 - 1) + 8 * N1 + (N3 - 1) * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {5.0, 0.0, 0.0}, (N1 - 1) + 8 * N1 + (N3 - 1) * N1 * N2);
     // This particle should go up one z rank, one x rank, and go down one y rank
-    ptc.append_dev({0.5, 0.5, 0.5}, {6.0, 0.0, 0.0}, (N1 - 1) + 1 * N1 + (N3 - 1) * N1 * N2);
+    ptc.append(exec_tags::device{}, {0.5, 0.5, 0.5}, {6.0, 0.0, 0.0}, (N1 - 1) + 1 * N1 + (N3 - 1) * N1 * N2);
   }
   ptc.sort_by_cell(grid->size());
   if (ptc.number() > 0) {

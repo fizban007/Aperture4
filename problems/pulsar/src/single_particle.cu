@@ -85,7 +85,7 @@ main(int argc, char *argv[]) {
   // Add a single particle to the magnetosphere
   Scalar p0 = -100.0f;
   for (int i = 0; i < 1; i++) {
-    ptc->append_dev({0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 800 + 500 * grid.dims[0],
+    ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 800 + 500 * grid.dims[0],
                     100.0);
   }
 

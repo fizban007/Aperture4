@@ -23,7 +23,7 @@
 namespace Aperture {
 
 template <>
-rng_states_t<ExecDev>::rng_states_t(uint64_t seed) {
+rng_states_t<exec_tags::device>::rng_states_t(uint64_t seed) {
   m_size = size_t(block_num * thread_num);
   m_initial_seed = seed;
   // GpuSafeCall(gpuMalloc(&m_states, sizeof(rand_state) * m_size));
@@ -33,11 +33,11 @@ rng_states_t<ExecDev>::rng_states_t(uint64_t seed) {
 }
 
 template <>
-rng_states_t<ExecDev>::~rng_states_t() {}
+rng_states_t<exec_tags::device>::~rng_states_t() {}
 
 template <>
 void
-rng_states_t<ExecDev>::init() {
+rng_states_t<exec_tags::device>::init() {
   // kernel_exec_policy p{block_num, thread_num};
   int rank = sim_env().get_rank();
   uint32_t size = m_size;

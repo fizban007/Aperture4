@@ -19,6 +19,7 @@
 #define __PARTICLES_H_
 
 #include "core/buffer.hpp"
+#include "core/exec_tags.h"
 // #include "data/tracked_ptc.h"
 #include "particle_structs.h"
 #include "systems/grid.h"
@@ -57,15 +58,17 @@ class particles_base : public BufferType {
 
   void init() { erase(0, m_size); }
 
-  void sort_by_cell(size_t max_cell);
-  void sort_by_cell_host(size_t max_cell);
-  void sort_by_cell_dev(size_t max_cell);
+  // void sort_by_cell(size_t max_cell);
+  void sort_by_cell(exec_tags::device, size_t max_cell);
+  void sort_by_cell(exec_tags::host, size_t max_cell);
+  // void sort_by_cell_host(size_t max_cell);
+  // void sort_by_cell_dev(size_t max_cell);
 
-  void append(const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+  void append(exec_tags::host, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
               uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  void append_dev(const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
-                  uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
+  void append(exec_tags::device, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+              uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
   void copy_to_host(bool all = true);
   void copy_to_device(bool all = true);
@@ -83,11 +86,6 @@ class particles_base : public BufferType {
                             const grid_t<Conf>& grid);
   void copy_from_buffer(const buffer<single_type>& buf, int num, size_t dst_idx);
 
-  // void gather_tracked_ptc_map(size_t max_tracked);
-  // void gather_tracked_ptc_attr(const std::string& attr_name, buffer<double>& result);
-
-  // void get_tracked_ptc(tracked_ptc<BufferType>& tracked);
-
   size_t size() const { return m_size; }
   size_t number() const { return m_number; }
 
@@ -99,17 +97,12 @@ class particles_base : public BufferType {
   void set_segment_size(size_t s) {
     m_sort_segment_size = s;
   }
-  // void set_max_tracked_num(size_t n) {
-  //   m_max_tracked_num = n;
-  // }
 
   void add_num(size_t num) { set_num(m_number + num); }
 
   typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
   buffer<uint32_t>& ptc_id() { return m_ptc_id; }
-  // const buffer<int>& tracked_num() { return m_tracked_num; }
-  // buffer<uint32_t>& tracked_map() { return m_tracked_map; }
 
  private:
   size_t m_size = 0;
@@ -136,7 +129,7 @@ class particles_base : public BufferType {
 
   void resize_tmp_arrays();
   void rearrange_arrays(const std::string& skip, size_t offset, size_t num);
-  void rearrange_arrays_host();
+  void rearrange_arrays(exec_tags::host);
   void swap(size_t pos, single_type& p);
 };
 

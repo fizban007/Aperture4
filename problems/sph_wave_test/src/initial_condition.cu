@@ -32,7 +32,7 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid) {
   using value_t = typename Conf::value_t;
 
   vector_field<Conf> *B0, *B;
-  rng_states_t<ExecDev>* states;
+  rng_states_t<exec_tags::device>* states;
   sim_env().get_data("B0", &B0);
   sim_env().get_data("B", &B);
   // sim_env().get_data("rng_states", &states);

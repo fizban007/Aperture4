@@ -55,7 +55,7 @@ TEST_CASE("Comparing two spherical pushers", "[ptc_updater]") {
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+  ptc->append(exec_tags::device{}, vec_t<Scalar, 3>(0.0, 0.0, 0.0),
                   vec_t<Scalar, 3>(0.0, 100.0, 0.0),
                   grid->get_idx(20, 34).linear, 0);
 
@@ -104,7 +104,7 @@ TEST_CASE("Comparing two spherical pushers", "[ptc_updater]") {
 
   // REQUIRE((*B)[2](20, 34) == Approx(10000.0f));
 
-  ptc->append_dev(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+  ptc->append(exec_tags::device{}, vec_t<Scalar, 3>(0.0, 0.0, 0.0),
                   vec_t<Scalar, 3>(0.0, 100.0, 0.0),
                   grid->get_idx(20, 34).linear, 0);
 

@@ -214,7 +214,7 @@ template <typename Conf>
 void
 initial_condition_wave(vector_field<Conf> &B,
                        vector_field<Conf> &E, vector_field<Conf> &B0,
-                       particle_data_t &ptc, rng_states_t<ExecDev> &states, int mult,
+                       particle_data_t &ptc, rng_states_t<exec_tags::device> &states, int mult,
                        Scalar weight) {
   Scalar weight_enhance_factor = 1.0f;
   Scalar sinth = sim_env().params().get_as<double>("muB", 0.1);
@@ -438,6 +438,6 @@ initial_condition_wave(vector_field<Conf> &B,
 template void initial_condition_wave<Config<2>>(
     vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, rng_states_t<ExecDev> &states, int mult, Scalar weight);
+    particle_data_t &ptc, rng_states_t<exec_tags::device> &states, int mult, Scalar weight);
 
 }  // namespace Aperture

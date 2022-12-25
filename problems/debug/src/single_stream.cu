@@ -41,7 +41,7 @@ namespace Aperture {
 template <typename Conf>
 void initial_condition_single_stream(vector_field<Conf> &B,
                                      vector_field<Conf> &E,
-                                     particle_data_t &ptc, rng_states_t<ExecDev> &states);
+                                     particle_data_t &ptc, rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture
 
@@ -77,7 +77,7 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
-  rng_states_t<ExecDev> *states;
+  rng_states_t<exec_tags::device> *states;
   // env.get_data("B0", &B0);
   env.get_data("B", &Bdelta);
   env.get_data("E", &Edelta);

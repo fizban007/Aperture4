@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
 
   // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
   // initial_condition_wave(env, *Bdelta, *Edelta, *B0, *ptc, *states, 10, 1.0);
-  ptc->append_dev({0.5f, 0.5f, 0.5f}, {0.1f, 1.0f, 0.0f},
+  ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.5f}, {0.1f, 1.0f, 0.0f},
                   grid.dims[0] / 2 +
                       (grid.dims[1] - grid.guard[1] - 100) * grid.dims[0],
                   1.0f, set_ptc_type_flag(0, PtcType::electron));

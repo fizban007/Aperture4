@@ -22,7 +22,7 @@ namespace Aperture {
 
 template <typename T, typename U, int Rank>
 void
-resample(ExecHost, const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
+resample(exec_tags::host, const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
          const index_t<Rank>& offset_src, const index_t<Rank>& offset_dst,
          stagger_t st_src, stagger_t st_dst, int downsample) {
   auto interp = lerp<Rank>{};
@@ -45,7 +45,7 @@ resample(ExecHost, const multi_array<T, Rank>& from, multi_array<U, Rank>& to,
 
 template <typename T, int Rank>
 void
-add(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+add(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
     const extent_t<Rank>& ext, T scale) {
   for (auto n : range(0, ext.size())) {
@@ -58,7 +58,7 @@ add(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 
 template <typename T, int Rank>
 void
-copy(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
      const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
      const extent_t<Rank>& ext) {
   for (auto n : range(0, ext.size())) {
@@ -70,7 +70,7 @@ copy(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
 }
 
 #define INSTANTIATE_RESAMPLE_DIM(type1, type2, dim)                     \
-  template void resample(ExecHost, const multi_array<type1, dim>&,                \
+  template void resample(exec_tags::host, const multi_array<type1, dim>&,                \
                          multi_array<type2, dim>&, const index_t<dim>&, \
                          const index_t<dim>&, stagger_t, stagger_t, int)
 
@@ -84,7 +84,7 @@ INSTANTIATE_RESAMPLE(float, double);
 INSTANTIATE_RESAMPLE(double, float);
 
 #define INSTANTIATE_ADD(type, dim)                                            \
-  template void add(ExecHost, multi_array<type, dim>& dst,                              \
+  template void add(exec_tags::host, multi_array<type, dim>& dst,                              \
                     const multi_array<type, dim>& src,                        \
                     const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                     const extent_t<dim>& ext, type scale)
@@ -97,7 +97,7 @@ INSTANTIATE_ADD(double, 2);
 INSTANTIATE_ADD(double, 3);
 
 #define INSTANTIATE_COPY(type, dim)                                            \
-  template void copy(ExecHost, multi_array<type, dim>& dst,                              \
+  template void copy(exec_tags::host, multi_array<type, dim>& dst,                              \
                      const multi_array<type, dim>& src,                        \
                      const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                      const extent_t<dim>& ext)

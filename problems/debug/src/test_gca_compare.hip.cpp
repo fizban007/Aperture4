@@ -75,7 +75,7 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B, *E;
   particle_data_t *ptc;
-  rng_states_t<ExecDev> *states;
+  rng_states_t<exec_tags::device> *states;
 
   env.get_data("B", &B);
   env.get_data("E", &E);
@@ -130,7 +130,7 @@ main(int argc, char *argv[]) {
       B3_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]));
   ptc_p *= ptc_p_parallel / math::sqrt(ptc_p.dot(ptc_p));
 
-  ptc->append_dev(rel_x, ptc_p, cell, 1.0,
+  ptc->append(exec_tags::device{}, rel_x, ptc_p, cell, 1.0,
                   gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[2] << std::endl;

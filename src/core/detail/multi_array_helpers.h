@@ -30,36 +30,36 @@ typedef int gpuStream_t;
 namespace Aperture {
 
 template <typename T, typename U, int Rank>
-void resample(ExecHost, const multi_array<T, Rank>& from,
+void resample(exec_tags::host, const multi_array<T, Rank>& from,
               multi_array<U, Rank>& to, const index_t<Rank>& offset_src,
               const index_t<Rank>& offest_dst, stagger_t st_src,
               stagger_t st_dst, int downsample = 1);
 
 template <typename T, typename U, int Rank>
-void resample(ExecDev, const multi_array<T, Rank>& from,
+void resample(exec_tags::device, const multi_array<T, Rank>& from,
               multi_array<U, Rank>& to, const index_t<Rank>& offset_src,
               const index_t<Rank>& offset_dst, stagger_t st_src,
               stagger_t st_dst, int downsample = 1,
               const gpuStream_t* stream = nullptr);
 
 template <typename T, int Rank>
-void add(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+void add(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
          const extent_t<Rank>& ext, T scale = 1.0);
 
 template <typename T, int Rank>
-void add(ExecDev, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+void add(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
          const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
          const extent_t<Rank>& ext, T scale = 1.0,
          const gpuStream_t* stream = nullptr);
 
 template <typename T, int Rank>
-void copy(ExecHost, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+void copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
           const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
           const extent_t<Rank>& ext);
 
 template <typename T, int Rank>
-void copy(ExecDev, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+void copy(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
           const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
           const extent_t<Rank>& ext, const gpuStream_t* stream = nullptr);
 

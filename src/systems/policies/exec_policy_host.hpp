@@ -32,7 +32,7 @@ namespace Aperture {
 template <typename Conf>
 class exec_policy_host {
  public:
-  using exec_tag = ExecHost;
+  using exec_tag = exec_tags::host;
 
   static void set_grid(const grid_t<Conf>& grid) {
     m_grid = &grid;
@@ -40,7 +40,7 @@ class exec_policy_host {
 
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
-    f(adapt_host(args)...);
+    f(adapt(exec_tags::host{}, args)...);
   }
 
   template <typename Func, typename Idx, typename... Args>

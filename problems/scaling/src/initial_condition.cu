@@ -36,7 +36,7 @@ namespace Aperture {
 template <typename Conf>
 void
 harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
-                     rng_states_t<ExecDev> &states) {
+                     rng_states_t<exec_tags::device> &states) {
   Logger::print_info_all("Setting initial condition");
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
@@ -133,10 +133,10 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               particle_data_t &ptc,
-                                              rng_states_t<ExecDev> &states);
+                                              rng_states_t<exec_tags::device> &states);
 
 template void harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                               particle_data_t &ptc,
-                                              rng_states_t<ExecDev> &states);
+                                              rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture

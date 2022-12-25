@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
 
   Logger::print_info("initializing a single particle");
-  ptc->append({0.0f, 0.0f, 0.0f}, {1000.0f, 0.0f, 0.0f}, 4 + 4 * 36, 1.0f,
+  ptc->append(exec_tags::host{}, {0.0f, 0.0f, 0.0f}, {1000.0f, 0.0f, 0.0f}, 4 + 4 * 36, 1.0f,
               set_ptc_type_flag(0, PtcType::electron));
   gpuDeviceSynchronize();
   Logger::print_info("finished initializing a single particle");

@@ -21,6 +21,9 @@ set(Aperture_src
   "systems/compute_lorentz_factor.cpp"
   "systems/gather_momentum_space.cpp"
   "systems/inverse_compton.cpp"
+  "systems/ptc_updater_base.cpp"
+  # "systems/ptc_updater_simd.cpp"
+  "systems/radiative_transfer.cpp"
   "systems/sync_curv_emission.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
@@ -51,9 +54,7 @@ else()
   # list(APPEND Aperture_src
   set(Aperture_dev_src
     "core/particles.cpp"
-    "systems/ptc_updater_base.cpp"
-    "systems/ptc_updater_simd.cpp"
-    "systems/radiative_transfer.cpp"
+    # "systems/ptc_updater_simd.cpp"
     # "systems/ffe_solver_EZ.cpp"
     )
 endif()

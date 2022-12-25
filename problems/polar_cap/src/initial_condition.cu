@@ -34,7 +34,7 @@ namespace Aperture {
 template <typename Conf>
 void
 polar_cap_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
-                            rng_states_t<ExecDev> &states) {
+                            rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
 
   value_t Bp = sim_env().params().get_as<double>("Bp", 1.0e3);
@@ -67,6 +67,6 @@ polar_cap_initial_condition(vector_field<Conf> &B0, particle_data_t &ptc,
 }
 
 template void polar_cap_initial_condition<Config<3>>(
-    vector_field<Config<3>> &B0, particle_data_t &ptc, rng_states_t<ExecDev> &states);
+    vector_field<Config<3>> &B0, particle_data_t &ptc, rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture

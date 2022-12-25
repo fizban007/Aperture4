@@ -159,7 +159,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
  private:
   const Grid<Conf::dim, value_t>& m_grid;
   nonown_ptr<particle_data_t> ptc;
-  nonown_ptr<rng_states_t<ExecDev>> rng_states;
+  nonown_ptr<rng_states_t<exec_tags::device>> rng_states;
 
   multi_array<int, Conf::dim> m_num_per_cell, m_cum_num_per_cell;
 };

@@ -25,7 +25,7 @@
 using namespace Aperture;
 
 TEST_CASE("Uniform random numbers", "[rng]") {
-  rng_states_t<ExecDev> states;
+  rng_states_t<exec_tags::device> states;
   states.init();
 
   Logger::print_info("Init success!");

@@ -106,7 +106,7 @@ particles_base<BufferType>::swap(size_t pos, single_type& p) {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::rearrange_arrays_host() {
+particles_base<BufferType>::rearrange_arrays(exec_tags::host) {
   typename BufferType::single_type p_tmp;
   for (size_t i = 0; i < m_number; i++) {
     // -1 means LLONG_MAX for unsigned long int
@@ -131,7 +131,7 @@ particles_base<BufferType>::rearrange_arrays_host() {
 
 template <typename BufferType>
 void
-particles_base<BufferType>::append(const vec_t<Scalar, 3>& x,
+particles_base<BufferType>::append(exec_tags::host, const vec_t<Scalar, 3>& x,
                                    const vec_t<Scalar, 3>& p, uint32_t cell,
                                    Scalar weight, uint32_t flag) {
   if (m_number == m_size) return;
@@ -148,18 +148,18 @@ particles_base<BufferType>::append(const vec_t<Scalar, 3>& x,
   m_number += 1;
 }
 
-template <typename BufferType>
-void
-particles_base<BufferType>::sort_by_cell(size_t max_cell) {
-  if (m_mem_type == MemType::host_only)
-    sort_by_cell_host(max_cell);
-  else
-    sort_by_cell_dev(max_cell);
-}
+// template <typename BufferType>
+// void
+// particles_base<BufferType>::sort_by_cell(size_t max_cell) {
+//   if (m_mem_type == MemType::host_only)
+//     sort_by_cell(exec_tags::host{}, max_cell);
+//   else
+//     sort_by_cell(exec_tags::device{}, max_cell);
+// }
 
 template <typename BufferType>
 void
-particles_base<BufferType>::sort_by_cell_host(size_t num_cells) {
+particles_base<BufferType>::sort_by_cell(exec_tags::host, size_t num_cells) {
   if (m_number > 0) {
     // Compute the number of cells and resize the partition array if
     // needed
@@ -205,7 +205,7 @@ particles_base<BufferType>::sort_by_cell_host(size_t num_cells) {
 
     // Rearrange the particles to reflect the partition
     // timer::show_duration_since_stamp("partition", "ms");
-    rearrange_arrays_host();
+    rearrange_arrays(exec_tags::host{});
 
     // num_cells is where the empty particles start, so we record this as
     // the new particle number

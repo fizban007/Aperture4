@@ -50,7 +50,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
   (*B)[2].assign(10000.0);
   REQUIRE((*B)[2](20, 34) == Catch::Approx(10000.0f));
 
-  ptc->append(vec_t<Scalar, 3>(0.0, 0.0, 0.0),
+  ptc->append(exec_tags::host{}, vec_t<Scalar, 3>(0.0, 0.0, 0.0),
               vec_t<Scalar, 3>(0.0, 1000.0, 0.0), grid->get_idx(20, 34).linear,
               0);
   ptc->weight[0] = 1.0;
@@ -105,7 +105,7 @@ TEST_CASE("Particle push in a uniform B field", "[pusher][.]") {
     for (uint32_t i = 0; i < N; i++) {
       auto coord =
           grid->coord_global(grid->idx_at(ptc->cell[0]).get_pos(),
-                           vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
+                             vec_t<Scalar, 3>(ptc->x1[0], ptc->x2[0], 0.0));
       x1[i] = coord[0];
       x2[i] = coord[1];
 

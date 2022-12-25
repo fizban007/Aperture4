@@ -62,7 +62,7 @@ main(int argc, char* argv[]) {
       return Bp;
     });
 
-  ptc->append_dev({0.5f, 0.5f, 0.5f}, {10.0f, 10.0f, 0.0f},
+  ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.5f}, {10.0f, 10.0f, 0.0f},
                   grid->dims[0] / 2 + (grid->dims[1] / 2) * grid->dims[0], 1.0f,
                   set_ptc_type_flag(0, PtcType::electron));
 

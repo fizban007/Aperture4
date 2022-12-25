@@ -92,10 +92,10 @@ void
 field_t<N, Conf>::add_by(const field_t<N, Conf> &other, typename Conf::value_t scale) {
   for (int i = 0; i < N; i++) {
     if (m_memtype == MemType::host_only)
-      add(ExecHost{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
+      add(exec_tags::host{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
           m_grid->extent());
     else
-      add(ExecDev{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
+      add(exec_tags::device{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
               m_grid->extent());
   }
 }

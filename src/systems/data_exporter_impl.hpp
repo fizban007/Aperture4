@@ -60,7 +60,8 @@ data_exporter<Conf, ExecPolicy>::data_exporter(const grid_t<Conf>& grid,
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
   sim_env().params().get_value("max_ph_num", max_ph_num);
 
-  tmp_ptc_data.set_memtype(MemType::host_device);
+  // tmp_ptc_data.set_memtype(MemType::host_device);
+  tmp_ptc_data.set_memtype(ExecPolicy<Conf>::data_mem_type());
   tmp_ptc_data.resize(std::max(max_ptc_num, max_ph_num));
 
   // Obtain the output grid
@@ -117,7 +118,7 @@ data_exporter<Conf, ExecPolicy>::register_data_components() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write_data(data_t* data, const std::string& name,
+data_exporter<Conf, ExecPolicy>::write_field_data(data_t* data, const std::string& name,
                                 H5File& datafile, bool snapshot) {
   using value_t = typename Conf::value_t;
   if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
@@ -190,7 +191,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
       // Logger::print_info("Working on {}", it.first);
       auto data = it.second.get();
-      write_data(data, it.first, datafile, false);
+      write_field_data(data, it.first, datafile, false);
 
       if (data->reset_after_output()) {
         data->init();
@@ -260,7 +261,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       datafile.write(step, "step");
       datafile.write(time, "time");
 
-      write_data(data, it.first, datafile, false);
+      write_field_data(data, it.first, datafile, false);
 
       if (data->reset_after_output()) {
         data->init();
@@ -538,14 +539,17 @@ data_exporter<Conf, ExecPolicy>::write_grid_multiarray(
     const std::string& name, const typename Conf::multi_array_t& array,
     stagger_t stagger, H5File& file) {
   // if (m_downsample != 1) {
-  if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-    resample(ExecDev{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-                 stagger, m_output_stagger, m_downsample);
-    tmp_grid_data.copy_to_host();
-  } else {
-    resample(ExecHost{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
-             stagger, m_output_stagger, m_downsample);
-  }
+  // if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
+  //   resample(exec_tags::device{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+  //                stagger, m_output_stagger, m_downsample);
+  //   tmp_grid_data.copy_to_host();
+  // } else {
+  //   resample(exec_tags::host{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+  //            stagger, m_output_stagger, m_downsample);
+  // }
+  resample(exec_tag{}, array, tmp_grid_data, m_grid.guards(),
+           index_t<Conf::dim>{}, stagger, m_output_stagger, m_downsample);
+  tmp_grid_data.copy_to_host();
   // } else {
   //   tmp_grid_data.copy_from(array);
   //   tmp_grid_data.copy_to_host();
@@ -607,11 +611,12 @@ data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data, const std::st
   }
   // TODO: figure out whether to use dev_ptr or host_ptr
   visit_struct::for_each(
-      data.dev_ptrs(), [&ptc_buffer, &name, &datafile, number, total, offset,
+      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total, offset,
                         multi_rank](const char* entry, auto u) {
         // Copy to the temporary ptc buffer
-        ptr_copy(reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
-                 0, 0, ExecDev{});
+        // ptr_copy(exec_tags::device{}, reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
+        ptr_copy(exec_tag{}, reinterpret_cast<double*>(u), adapt(exec_tag{}, ptc_buffer), number,
+                 0, 0);
         ptc_buffer.copy_to_host();
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
         // typedef decltype(*u) data_type;
@@ -634,7 +639,8 @@ data_exporter<Conf, ExecPolicy>::read_ptc_snapshot(PtcData& data, const std::str
                                        size_t total, size_t offset) {
   auto& ptc_buffer = tmp_ptc_data;
   bool multi_rank = is_multi_rank();
-  visit_struct::for_each(data.dev_ptrs(), [&ptc_buffer, &name, &datafile,
+  // visit_struct::for_each(data.dev_ptrs(), [&ptc_buffer, &name, &datafile,
+  visit_struct::for_each(adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile,
                                            number, total, offset, multi_rank](
                                               const char* entry, auto u) {
     typedef typename std::remove_reference_t<decltype(*u)> data_type;
@@ -647,8 +653,9 @@ data_exporter<Conf, ExecPolicy>::read_ptc_snapshot(PtcData& data, const std::str
                           number, name + "_" + entry);
     }
     ptc_buffer.copy_to_device();
-    ptr_copy(ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number, 0,
-             0, ExecDev{});
+    // ptr_copy(exec_tags::device{}, ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number, 0,
+    ptr_copy(exec_tags::device{}, adapt(exec_tag{}, ptc_buffer), reinterpret_cast<double*>(u), number, 0,
+             0);
   });
 }
 

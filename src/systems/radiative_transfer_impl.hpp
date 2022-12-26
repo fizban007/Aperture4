@@ -171,7 +171,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
                   auto states, auto rad_policy) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        rng_t rng(states);
+        rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
 
         ExecPolicy<Conf>::loop(0, ptc_num, [&] LAMBDA(auto n) {
           auto cell = ptc.cell[n];
@@ -186,7 +186,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
           if (sp == (int)PtcType::ion) return;
 
           size_t ph_offset = rad_policy.emit_photon(grid, ext, ptc, n, ph,
-                                                    ph_num, ph_pos, rng, dt);
+                                                    ph_num, ph_pos, rng.m_local_state, dt);
 
           if (ph_offset != 0) {
             auto w = ptc.weight[n];
@@ -195,7 +195,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
 
             for (int i = 0; i < ph_per_scatter; i++) {
               // Set the photon to be tracked according to the given ratio
-              float u = rng.uniform<float>();
+              float u = rng.template uniform<float>();
               if (u < tracked_fraction) {
                 ph.flag[ph_offset + i] = flag_or(PhFlag::tracked);
                 ph.id[ph_offset + i] = track_rank + atomic_add(ph_id, 1);
@@ -242,7 +242,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
           auto states, auto rad_policy) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        rng_t rng(states);
+        rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
 
         ExecPolicy<Conf>::loop(0, ph_num, [&] LAMBDA(auto n) {
           auto cell = ph.cell[n];
@@ -254,7 +254,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
           if (!grid.is_in_bound(pos)) return;
 
           size_t ptc_offset = rad_policy.produce_pair(
-              grid, ext, ph, n, ptc, ptc_num, ptc_pos, rng, dt);
+              grid, ext, ph, n, ptc, ptc_num, ptc_pos, rng.m_local_state, dt);
 
           // if (rad_policy.check_produce_pair(ph, n, rng)) {
           if (ptc_offset != 0) {
@@ -266,7 +266,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
             ph.cell[n] = empty_cell;
 
             // Set the photon to be tracked according to the given ratio
-            float u = rng.uniform<float>();
+            float u = rng.template uniform<float>();
             if (u < tracked_fraction) {
               set_flag(ptc.flag[ptc_offset], PtcFlag::tracked);
               set_flag(ptc.flag[ptc_offset + 1], PtcFlag::tracked);

@@ -280,6 +280,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
     Rho[i]->init();
   }
 
+  // timer::stamp("ptc");
   // Main particle update loop
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
@@ -287,7 +288,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
                            auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        rng_t rng(states);
+        rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
         // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
         auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(begin, end, [&] LAMBDA(auto n) {
@@ -306,7 +307,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           context.weight = charges[context.sp] * ptc.weight[n];
           context.q = charges[context.sp];
           context.m = masses[context.sp];
-          context.rng = &rng;
+          context.local_state = &rng.m_local_state;
           context.aux1 = ptc.aux1[n];  // Auxiliary variable, can be used for
                                        // different quantities
 
@@ -354,9 +355,12 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
       },
       *ptc, *E, *B, *J, Rho, *rng_states);
   ExecPolicy<Conf>::sync();
+  // timer::show_duration_since_stamp("ptc update loop", "ms", "ptc");
 
+  // timer::stamp("process");
   coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt,
                                                         deposit_rho);
+  // timer::show_duration_since_stamp("ptc update process J rho", "ms", "process");
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -544,7 +548,7 @@ ptc_updater_new<Conf, ExecPolicy, CoordPolicy,
       [num, mult, weight, kT] LAMBDA(auto ptc, auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        rng_t rng(states);
+        rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
         ExecPolicy<Conf>::loop(
             // 0, ext.size(),
             Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {

@@ -37,7 +37,7 @@ TEST_CASE("Uniform random numbers", "[rng]") {
 
   timer::stamp();
   kernel_launch([N, M] __device__ (auto states, auto hist) {
-      rng_t rng(states);
+      rng_t<exec_tags::device> rng(states);
       for (auto n : grid_stride_range(0, N)) {
         auto u = rng.uniform<float>();
         // if (n % 10000 == 0) printf("%d, %f\n", n, u);

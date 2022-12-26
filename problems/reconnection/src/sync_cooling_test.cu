@@ -41,7 +41,7 @@ main(int argc, char* argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
 
   auto grid = env.register_system<grid_t<Conf>>(comm);
   auto pusher = env.register_system<ptc_updater_new<
@@ -62,9 +62,9 @@ main(int argc, char* argv[]) {
       return Bp;
     });
 
-  ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.5f}, {10.0f, 10.0f, 0.0f},
-                  grid->dims[0] / 2 + (grid->dims[1] / 2) * grid->dims[0], 1.0f,
-                  set_ptc_type_flag(0, PtcType::electron));
+  ptc_append(exec_tags::device{}, *ptc, {0.5f, 0.5f, 0.5f}, {10.0f, 10.0f, 0.0f},
+             grid->dims[0] / 2 + (grid->dims[1] / 2) * grid->dims[0], 1.0f,
+             set_ptc_type_flag(0, PtcType::electron));
 
   env.run();
 

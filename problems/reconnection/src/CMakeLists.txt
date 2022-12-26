@@ -9,7 +9,8 @@ elseif (use_hip AND CMAKE_HIP_COMPILER)
     PROPERTIES LANGUAGE HIP)
 endif()
 
-# if ((use_cuda AND CMAKE_CUDA_COMPILER) OR (use_hip AND CMAKE_HIP_COMPILER))
+# if (use_cuda OR use_hip)
+if ((use_cuda AND CMAKE_CUDA_COMPILER) OR (use_hip AND CMAKE_HIP_COMPILER))
 set(reconnection_src
   "initial_condition.cu"
   "systems/boundary_condition.cu"
@@ -45,4 +46,4 @@ add_dependencies(problems double_cs)
 add_executable(sync_cooling_test_2d "sync_cooling_test.cu")
 target_link_libraries(sync_cooling_test_2d Aperture Aperture_dev)
 add_dependencies(problems sync_cooling_test_2d)
-# endif()
+endif()

@@ -31,7 +31,7 @@ namespace Aperture {
 template <typename Conf>
 struct photon_pair_creation {
   HOST_DEVICE void produce_pair(ph_ptrs& ph, size_t tid, ptc_ptrs& ptc,
-                                size_t offset, rng_t& rng) const {
+                                size_t offset, rand_state& state) const {
     using value_t = typename Conf::value_t;
     value_t p1 = ph.p1[tid];
     value_t p2 = ph.p2[tid];

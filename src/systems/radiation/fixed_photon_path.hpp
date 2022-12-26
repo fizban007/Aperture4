@@ -37,7 +37,7 @@ struct fixed_photon_path {
   }
 
   HOST_DEVICE void emit_photon(ptc_ptrs& ptc, size_t tid, ph_ptrs& ph,
-                               size_t offset, rng_t& rng) {
+                               size_t offset, rand_state& state) {
     using value_t = typename Conf::value_t;
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
@@ -46,7 +46,7 @@ struct fixed_photon_path {
     value_t gamma = ptc.E[tid];
     value_t pi = std::sqrt(gamma * gamma - 1.0f);
 
-    value_t u = rng.uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
     value_t Eph = 2.5f + u * (E_s - 1.0f) * 2.0f;
     value_t pf = std::sqrt(square(gamma - Eph) - 1.0f);
 
@@ -67,7 +67,7 @@ struct fixed_photon_path {
     // if (theta < 0.005f || theta > M_PI - 0.005f) return;
 
     value_t lph = photon_path;
-    u = rng.uniform<value_t>();
+    u = rng_uniform<value_t>(state);
     // Add the new photo
     value_t path = lph * (0.9f + 0.2f * u);
     // printf("Eph is %f, path is %f\n", Eph, path);
@@ -83,7 +83,7 @@ struct fixed_photon_path {
     ph.cell[offset] = ptc.cell[tid];
   }
 
-  HD_INLINE bool check_produce_pair(ph_ptrs& ph, size_t tid, rng_t& rng) {
+  HD_INLINE bool check_produce_pair(ph_ptrs& ph, size_t tid, rand_state& state) {
     return ph.path_left[tid] < 0.0f;
   }
 };

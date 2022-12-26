@@ -28,8 +28,8 @@
 
 namespace Aperture {
 
-HOST_DEVICE Scalar pml_sigma(Scalar x, Scalar xh, Scalar pmlscale,
-                             Scalar sig0) {
+HOST_DEVICE Scalar
+pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
   if (x > xh)
     return sig0 * square((x - xh) / pmlscale);
   else
@@ -37,7 +37,8 @@ HOST_DEVICE Scalar pml_sigma(Scalar x, Scalar xh, Scalar pmlscale,
 }
 
 template <typename Conf>
-boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid, const domain_comm<Conf>* comm)
+boundary_condition<Conf>::boundary_condition(
+    const grid_t<Conf> &grid, const domain_comm<Conf, exec_policy_cuda> *comm)
     : m_grid(grid), m_comm(comm) {
   using multi_array_t = typename Conf::multi_array_t;
 
@@ -97,7 +98,9 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid, const dom
       sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
 }
 
-template <typename Conf> void boundary_condition<Conf>::init() {
+template <typename Conf>
+void
+boundary_condition<Conf>::init() {
   sim_env().get_data("Edelta", E);
   sim_env().get_data("E0", E0);
   sim_env().get_data("Bdelta", B);
@@ -110,12 +113,15 @@ template <typename Conf> void boundary_condition<Conf>::init() {
 }
 
 template <typename Conf>
-void boundary_condition<Conf>::update(double dt, uint32_t step) {
+void
+boundary_condition<Conf>::update(double dt, uint32_t step) {
   damp_fields();
   inject_plasma();
 }
 
-template <typename Conf> void boundary_condition<Conf>::damp_fields() {
+template <typename Conf>
+void
+boundary_condition<Conf>::damp_fields() {
   typedef typename Conf::idx_t idx_t;
   value_t Bp = m_Bp;
   value_t Bg = m_Bg;
@@ -131,7 +137,7 @@ template <typename Conf> void boundary_condition<Conf>::damp_fields() {
   // Apply damping boundary condition on both Y boundaries
   kernel_launch(
       [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
-                      auto damping_length, auto damping_coef) {
+                                       auto damping_length, auto damping_coef) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         // auto ext_damping = extent(damping_length, grid.dims[0]);
@@ -175,7 +181,9 @@ template <typename Conf> void boundary_condition<Conf>::damp_fields() {
   CudaCheckError();
 }
 
-template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
+template <typename Conf>
+void
+boundary_condition<Conf>::inject_plasma() {
   // m_dens_e1->assign_dev(0.0f);
   // m_dens_p1->assign_dev(0.0f);
   // m_dens_e2->assign_dev(0.0f);
@@ -200,10 +208,12 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
   auto inj_size = inj_length * m_grid.delta[1];
   injector->inject(
-      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(auto &pos, auto &grid, auto &ext) {
+      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(
+          auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
 
-        if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size && is_boundary[3]) ||
+        if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size &&
+             is_boundary[3]) ||
             (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
           auto idx = Conf::idx(pos, ext);
           return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 3.0f / upstream_n;
@@ -211,9 +221,10 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
         return false;
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-      [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
-                               PtcType type) {
-        // vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
+      [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+                                           rand_state &state, PtcType type) {
+        // vec_t<value_t, 3> u_d =
+        // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
         // auto p1 = u_d[0];
         // auto p2 = u_d[1];
@@ -222,21 +233,19 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
         // // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
         // value_t gamma = math::sqrt(1.0f + p.dot(p));
         // // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
-        // vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p, {boost_beta, 0.0, 0.0});
-        // return p_prime.template subset<1, 4>();
-        return rng.maxwell_juttner_3d(upstream_kT);
+        // vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p,
+        // {boost_beta, 0.0, 0.0}); return p_prime.template subset<1, 4>();
+        return rng_maxwell_juttner_3d(state, upstream_kT);
         // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
         // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
         // // value_t beta = p1 / gamma;
-        // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta), 0.0f, 0.0f);
-        // return vec_t<value_t, 3>(p1, p2, p3);
+        // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta),
+        // 0.0f, 0.0f); return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-      [upstream_n] __device__(auto& x_global) {
-        return 1.0 / upstream_n;
-      });
+      [upstream_n] __device__(auto &x_global) { return 1.0 / upstream_n; });
 
   // buffer<int> offset(1, MemType::host_device);
   // offset[0] = num;
@@ -333,4 +342,4 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma() {
 
 template class boundary_condition<Config<2>>;
 
-} // namespace Aperture
+}  // namespace Aperture

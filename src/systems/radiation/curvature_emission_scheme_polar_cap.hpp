@@ -123,7 +123,7 @@ struct curvature_emission_scheme_polar_cap {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rng_t &rng,
+                                 unsigned long long int *ph_pos, rand_state &state,
                                  value_t dt) {
     auto flag = ptc.flag[tid];
     if (check_flag(flag, PtcFlag::ignore_radiation)) {
@@ -170,13 +170,13 @@ struct curvature_emission_scheme_polar_cap {
 
     // Expected number of emitted photon over the time interval dt
     value_t dn = m_nc * gamma / Rc;
-    value_t u = rng.uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
     // printf("Rc is %f, gamma is %f, u/dn is %f/%f\n",
     //        Rc, gamma, u, dn);
     if (u < dn) {
       // Draw photon energy. e0 is our rescaling parameter in action
       value_t e_c = m_e0 * cube(gamma) / Rc;
-      value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, rng);
+      value_t eph = m_sync_module.gen_curv_photon(e_c, gamma, state);
       if (eph > gamma - 1.01f) {
         eph = gamma - 1.01f;
       }
@@ -246,7 +246,7 @@ struct curvature_emission_scheme_polar_cap {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rng_t &rng,
+                                  unsigned long long int *ptc_pos, rand_state &state,
                                   value_t dt) {
     // Get the magnetic field vector at the particle location
     auto cell = ph.cell[tid];
@@ -286,7 +286,7 @@ struct curvature_emission_scheme_polar_cap {
     value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth, m_rpc / m_Rstar) * dt;
     value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
 
-    value_t u = rng.uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
     // if (u < prob && eph * sinth * m_zeta > 2.01f) {
     // if (u < prob && eph * sinth > 2.01f) {
     if (u < prob) {

@@ -193,7 +193,7 @@ template <typename Conf> void boundary_condition<Conf>::inject_plasma(int step, 
                   __device__ (auto ptc, auto states) {
           auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
           auto ext = grid.extent();
-          rng_t rng(states);
+          rng_t<exec_tags::device> rng(states);
           auto interp = interp_t<1, Conf::dim>{};
 
           for (auto n : grid_stride_range(0, ext[0] * ext[1])) {

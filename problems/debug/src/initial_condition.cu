@@ -58,7 +58,7 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
       // Number injected
       [n] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n; },
       // Initialize particles
-      [p0] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [p0] __device__(auto &pos, auto &grid, auto &ext, rand_state &state,
                       PtcType type) {
         if (type == PtcType::electron)
           return vec_t<value_t, 3>(p0, 0.0, 0.0);

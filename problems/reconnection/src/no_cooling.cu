@@ -22,10 +22,10 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+#include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/ptc_updater_base.h"
 #include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_updater_base.h"
 #include <iostream>
 
 using namespace std;
@@ -48,16 +48,19 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf> comm;
-  auto& grid = *(env.register_system<grid_t<Conf>>(comm));
-  auto pusher = env.register_system<ptc_updater_new<
-      Conf, exec_policy_cuda, coord_policy_cartesian>>(
-      grid, comm);
+  domain_comm<Conf, exec_policy_cuda> comm;
+  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto pusher = env.register_system<
+      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+                                                                       comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
-  auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+                                                                    &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 
@@ -75,8 +78,8 @@ main(int argc, char *argv[]) {
 
   size_t free_mem, total_mem;
   cudaMemGetInfo(&free_mem, &total_mem);
-  Logger::print_info("GPU memory: free = {} GiB, total = {} GiB", free_mem / 1.0e9,
-                     total_mem / 1.0e9);
+  Logger::print_info("GPU memory: free = {} GiB, total = {} GiB",
+                     free_mem / 1.0e9, total_mem / 1.0e9);
   env.run();
   return 0;
 }

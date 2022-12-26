@@ -76,7 +76,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
-        rng_t rng(states);
+        rng_t<exec_tags::device> rng(states);
 
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
         // {
@@ -155,7 +155,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
         auto ext = grid.extent();
         auto interp = lerp<Conf::dim>{};
 
-        rng_t rng(states);
+        rng_t<exec_tags::device> rng(states);
 
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = typename Conf::idx_t(cell, ext);

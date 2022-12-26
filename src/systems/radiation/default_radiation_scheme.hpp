@@ -55,7 +55,7 @@ struct default_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t>& grid,
                                  const extent_t<Conf::dim>& ext, ptc_ptrs& ptc,
                                  size_t tid, ph_ptrs& ph, size_t ph_num,
-                                 unsigned long long int* ph_pos, rng_t& rng, value_t dt) {
+                                 unsigned long long int* ph_pos, rand_state& state, value_t dt) {
     value_t gamma = ptc.E[tid];
     if (gamma < gamma_thr) {
       return 0;  // 0 means no photon is produced
@@ -81,7 +81,7 @@ struct default_radiation_scheme {
     // Add the new photo
     // printf("Eph is %f, path is %f\n", Eph, path);
     for (int i = 0; i < ph_per_scatter; i++) {
-      value_t u = rng.uniform<value_t>();
+      value_t u = rng_uniform<value_t>(state);
       value_t path = lph * (0.9f + 0.2f * u);
       ph.x1[offset + i] = ptc.x1[tid];
       ph.x2[offset + i] = ptc.x2[tid];
@@ -100,7 +100,7 @@ struct default_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t>& grid,
                                   const extent_t<Conf::dim>& ext, ph_ptrs& ph,
                                   size_t tid, ptc_ptrs& ptc, size_t ptc_num,
-                                  unsigned long long int* ptc_pos, rng_t& rng, value_t dt) {
+                                  unsigned long long int* ptc_pos, rand_state& state, value_t dt) {
     value_t path_left = ph.path_left[tid];
     if (path_left > 0.0f) {
       return 0;  // 0 means no pairs are produced

@@ -132,7 +132,7 @@ struct IC_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rng_t &rng,
+                                 unsigned long long int *ph_pos, rand_state &state,
                                  value_t dt) {
     using idx_t = default_idx_t<Conf::dim + 1>;
     value_t gamma = ptc.E[tid];
@@ -180,12 +180,12 @@ struct IC_radiation_scheme {
 
     value_t lambda = m_ic_module.ic_scatter_rate(gamma) * dt;
     // printf("ic_prob is %f\n", ic_prob);
-    int num_scattering = rng.poisson(lambda);
+    int num_scattering = rng_poisson(state, lambda);
 
     // printf("num_scattering is %f, e_ph / gamma is %f\n", weight, e_ph /
     // gamma);
     for (int i = 0; i < num_scattering; i++) {
-      value_t e_ph = m_ic_module.gen_photon_e(gamma, rng) * gamma;
+      value_t e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
       if (e_ph <= 0.0) {
         e_ph = 0.0;
@@ -237,7 +237,7 @@ struct IC_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rng_t &rng,
+                                  unsigned long long int *ptc_pos, rand_state &state,
                                   value_t dt) {
     return 0;
   }

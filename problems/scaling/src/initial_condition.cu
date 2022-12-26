@@ -79,7 +79,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
-      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
                                PtcType type) {
         auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
         auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);
@@ -103,7 +103,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         }
       },
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng.maxwell_juttner_drifting(kT_cs, beta_d);
         value_t gamma_d = math::sqrt(1.0f + u_d.dot(u_d));

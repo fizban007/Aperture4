@@ -27,7 +27,8 @@ using namespace Aperture;
 
 TEST_CASE("Uniform random numbers", "[rng]") {
   rand_state state;
-  rng_t rng(&state);
+  state.init();
+  rng_t<exec_tags::host> rng(&state);
 
   int N = 1000000;
   int M = 20;
@@ -38,7 +39,7 @@ TEST_CASE("Uniform random numbers", "[rng]") {
     double u = rng.uniform<double>();
     hist[clamp(int(u * M), 0, M - 1)] += 1.0 / N;
   }
-  timer::show_duration_since_stamp("Generating 1M random numbers", "ms");
+  timer::show_duration_since_stamp("Generating 1M random numbers on host", "ms");
   for (int m = 0; m < M; m++) {
     std::cout << hist[m] << std::endl;
     hist[m] = 0.0;

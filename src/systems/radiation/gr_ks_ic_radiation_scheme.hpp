@@ -60,7 +60,7 @@ struct gr_ks_ic_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rng_t &rng,
+                                 unsigned long long int *ph_pos, rand_state &state,
                                  value_t dt) {
     // First obtain the global position of the particle
     vec_t<value_t, 3> x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
@@ -109,7 +109,7 @@ struct gr_ks_ic_radiation_scheme {
     // printf("gamma is %f, ic_prob is %f, e_ph is %f\n", gamma, ic_prob, e_ph);
     // printf("gamma is %f, ic_prob is %f\n", gamma, ic_prob);
 
-    value_t rand = rng.uniform<value_t>();
+    value_t rand = rng_uniform<value_t>(state);
     if (rand >= ic_prob) {
       // no photon emitted
       return 0;
@@ -119,7 +119,7 @@ struct gr_ks_ic_radiation_scheme {
     // rand = rng.uniform<value_t>();
     // e_ph is a number between 0 and 1, the fraction of the photon energy with
     // respect to the electron energy
-    value_t e_ph = m_ic_module.gen_photon_e(gamma, rng);
+    value_t e_ph = m_ic_module.gen_photon_e(gamma, state);
     // printf("emitting photon with energy e_ph %f\n", e_ph);
     if (e_ph * u0 < 100.01f) {
       ptc.p1[tid] *= (1.0f - e_ph);
@@ -167,7 +167,7 @@ struct gr_ks_ic_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rng_t &rng,
+                                  unsigned long long int *ptc_pos, rand_state &state,
                                   value_t dt) {
     // First obtain the global position of the photon
     vec_t<value_t, 3> x(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
@@ -217,7 +217,7 @@ struct gr_ks_ic_radiation_scheme {
          2.0f * r * sqrt_rho2 / (sqrt_delta * sqrt_sigma) * delta_x1;
     value_t gg_prob = m_ic_module.gg_scatter_rate(math::abs(zamo_u_0)) * dt;
 
-    if (rng.uniform<value_t>() >= gg_prob) {
+    if (rng_uniform<value_t>(state) >= gg_prob) {
       return 0;  // Does not produce a pair
     }
 

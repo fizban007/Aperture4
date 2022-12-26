@@ -21,6 +21,7 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "core/multi_array.hpp"
+#include "core/random.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/binary_search.h"
 #include "utils/util_functions.h"
@@ -58,15 +59,15 @@ struct ic_scatter_t {
   }
 
   // u is a generated random number between 0 and 1
-  template <typename Rng>
-  HOST_DEVICE value_t gen_photon_e(value_t gamma, Rng& rng) const {
+  // template <typename Rng>
+  HOST_DEVICE value_t gen_photon_e(value_t gamma, rand_state& state) const {
     int n_gamma = find_n_gamma(gamma);
     value_t l, h;
-    value_t u = rng.template uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
     int b = array_upper_bound(u, n_gamma, dNde, l, h);
     // TODO: This is an arbitrary division
     if (b < 1 || gamma < 2.0) {
-      u = rng.template uniform<value_t>();
+      u = rng_uniform<value_t>(state);
       b = array_upper_bound(u, n_gamma, dNde_thomson, l, h);
       value_t bb = (u - l) / (h - l) + b - 1;
 

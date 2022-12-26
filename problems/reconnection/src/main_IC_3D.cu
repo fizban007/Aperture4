@@ -22,7 +22,7 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+#include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater_new<
       Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
@@ -70,7 +70,7 @@ main(int argc, char *argv[]) {
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
-  auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
+  auto solver = env.register_system<field_solver<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();

@@ -104,7 +104,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
                                auto cum_num_per_cell, auto f_dist, auto f_weight) {
           auto& grid = policy::grid();
           auto ext = grid.extent();
-          rng_t rng(states);
+          rng_t<exec_tags::device> rng(states);
 
           for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext))) {
             auto pos = get_pos(idx, ext);
@@ -129,13 +129,13 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
                 ptc.x3[offset_e] = x[2];
                 ptc.x3[offset_p] = x[2];
 
-                auto p = f_dist(pos, grid, ext, rng, PtcType::electron);
+                auto p = f_dist(pos, grid, ext, rng.m_local_state, PtcType::electron);
                 ptc.p1[offset_e] = p[0];
                 ptc.p2[offset_e] = p[1];
                 ptc.p3[offset_e] = p[2];
                 ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                p = f_dist(pos, grid, ext, rng, PtcType::positron);
+                p = f_dist(pos, grid, ext, rng.m_local_state, PtcType::positron);
                 ptc.p1[offset_p] = p[0];
                 ptc.p2[offset_p] = p[1];
                 ptc.p3[offset_p] = p[2];

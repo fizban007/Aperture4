@@ -48,7 +48,8 @@ struct ptc_context {
 
   vec_t<FloatType, 3> E;
   vec_t<FloatType, 3> B;
-  rng_t *rng;
+  // rng_t *rng;
+  rand_state* local_state;
 };
 
 template <int Dim, typename value_t> struct ph_context {

@@ -76,7 +76,7 @@ void init_upstream(vector_field<Conf> &E,
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
-      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
                                PtcType type) {
         auto p1 = rng.gaussian<value_t>(2.0f * kT_upstream);
         auto p2 = rng.gaussian<value_t>(2.0f * kT_upstream);

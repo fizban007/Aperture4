@@ -45,7 +45,7 @@ TEST_CASE("Memory layout performance wrt 3D interpolation", "[.interp]") {
   std::vector<double> z2(N);
 
   rand_state state;
-  rng_t rng(&state);
+  rng_t<exec_tags::host> rng(&state);
 
   for (uint64_t i = 0; i < N; i++) {
     cells[i] = i / ppc;

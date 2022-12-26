@@ -33,7 +33,7 @@ struct threshold_emission {
   }
 
   HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, size_t tid,
-                                     rng_t& rng) const {
+                                     rand_state& state) const {
     return ptc.E[tid] > gamma_thr;
   }
 };

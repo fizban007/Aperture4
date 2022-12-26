@@ -22,6 +22,7 @@
 #include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "core/multi_array.hpp"
+#include "core/random.h"
 #include "core/typedefs_and_constants.h"
 #include "utils/binary_search.h"
 #include "utils/util_functions.h"
@@ -39,12 +40,12 @@ struct sync_emission_helper_t {
   // is normalized such that cyclotron frequency at BQ is at electron rest mass,
   // or hbar e BQ / m_e c = m_e c^2. We assume the photon energy is much less
   // than gamma. Otherwise we need the quantum prescription of synchrotron emission
-  template <typename Rng>
+  // template <typename Rng>
   HOST_DEVICE value_t gen_curv_photon(value_t gamma, value_t Rc, value_t BQ,
-                                      Rng& rng) const {
+                                      rand_state& state) const {
     value_t e_c = 3.0f * cube(gamma) / (2.0f * BQ * Rc);
     value_t l, h, b;
-    value_t u = rng.template uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
 
     auto m = upper_bound(u, ptr_lookup, nx);
 
@@ -59,10 +60,10 @@ struct sync_emission_helper_t {
     return std::min(x * e_c, gamma - 1.001f);
   }
 
-  template <typename Rng>
-  HOST_DEVICE value_t gen_curv_photon(value_t e_c, value_t gamma, Rng& rng) const {
+  // template <typename Rng>
+  HOST_DEVICE value_t gen_curv_photon(value_t e_c, value_t gamma, rand_state& state) const {
     value_t l, h, b;
-    value_t u = rng.template uniform<value_t>();
+    value_t u = rng_uniform<value_t>(state);
 
     auto m = upper_bound(u, ptr_lookup, nx);
 
@@ -77,10 +78,10 @@ struct sync_emission_helper_t {
     return std::min(x * e_c, gamma - 1.001f);
   }
 
-  template <typename Rng>
+  // template <typename Rng>
   HOST_DEVICE value_t gen_sync_photon(value_t gamma, value_t accel_perp, value_t BQ,
-                                      Rng& rng) const {
-    return gen_curv_photon(gamma, gamma / accel_perp, BQ, rng);
+                                      rand_state& state) const {
+    return gen_curv_photon(gamma, gamma / accel_perp, BQ, state);
   }
 };
 

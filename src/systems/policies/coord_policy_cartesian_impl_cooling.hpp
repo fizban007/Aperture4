@@ -154,7 +154,7 @@ class coord_policy_cartesian_impl_cooling
             cross(aL, context.p) / p;
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
         value_t eph =
-            m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.rng);
+            m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.local_state);
         if (eph > math::exp(m_lim_lower)) {
           value_t log_eph = clamp(math::log(std::max(eph, math::exp(m_lim_lower))),
                                   m_lim_lower, m_lim_upper);

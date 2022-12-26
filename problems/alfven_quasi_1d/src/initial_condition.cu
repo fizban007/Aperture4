@@ -273,7 +273,7 @@ initial_condition_wave(vector_field<Conf> &B,
         auto ext = grid.extent();
         // int id = threadIdx.x + blockIdx.x * blockDim.x;
         // cuda_rng_t rng(&states[id]);
-        rng_t rng(states);
+        rng_t<exec_tags::device> rng(states);
         for (auto cell : grid_stride_range(0, ext.size())) {
           auto idx = Conf::idx(cell, ext);
           // auto pos = idx.get_pos();

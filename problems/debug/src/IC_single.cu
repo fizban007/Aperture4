@@ -59,9 +59,9 @@ main(int argc, char *argv[]) {
   buffer<value_t> eph(N, MemType::device_managed);
 
   kernel_launch([N, ic_module, gamma] __device__ (rand_state* states, value_t* eph) {
-      rng_t rng(states);
+      rng_t<exec_tags::device> rng(states);
       for (auto tid : grid_stride_range(0, N)) {
-        eph[tid] = ic_module.gen_photon_e(gamma, rng) * gamma;
+        eph[tid] = ic_module.gen_photon_e(gamma, rng.m_local_state) * gamma;
         // printf("eph is %f\n", eph[tid]);
       }
     }, rng_states.states().dev_ptr(), eph.dev_ptr());

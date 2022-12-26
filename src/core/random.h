@@ -18,12 +18,14 @@
 #ifndef __RANDOM_H_
 #define __RANDOM_H_
 
+#include "core/exec_tags.h"
 #include "core/gpu_translation_layer.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/environment.h"
 #include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
+#include <limits>
 
 // #ifdef CUDA_ENABLED
 // #include <curand_kernel.h>
@@ -152,16 +154,95 @@ struct rand_state {
   }
 };
 
+template <typename Float = Scalar>
+HD_INLINE Float rng_uniform(rand_state& local_state) {
+    uint64_t n = local_state.next();
+    // return n / 18446744073709551616.0;
+    return n / static_cast<double>(std::numeric_limits<uint64_t>::max());
+}
+
+template <typename Float>
+HD_INLINE Float rng_gaussian(rand_state& local_state, Float sigma) {
+  auto u1 = rng_uniform<Float>(local_state);
+  auto u2 = rng_uniform<Float>(local_state);
+  return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
+         sigma;
+}
+
+template <typename Float>
+HD_INLINE int rng_poisson(rand_state& local_state, Float lambda) {
+  Float L = math::exp(-lambda);
+  Float p = 1.0;
+  int k = 0;
+  do {
+    k += 1;
+    p *= rng_uniform<Float>(local_state);
+  } while (p > L);
+  return k - 1;
+}
+
+template <typename Float>
+HD_INLINE Float rng_maxwell_juttner(rand_state& local_state, Float theta) {
+  // This is the Sobol algorithm described in Zenitani 2015
+  Float u = 0.0f;
+  if (theta > 0.1) {
+    while (true) {
+      auto x1 = rng_uniform<Float>(local_state);
+      auto x2 = rng_uniform<Float>(local_state);
+      auto x3 = rng_uniform<Float>(local_state);
+      auto x4 = rng_uniform<Float>(local_state);
+      u = -theta * math::log(x1 * x2 * x3);
+      auto eta = -theta * math::log(x1 * x2 * x3 * x4);
+      if (eta * eta - u * u > 1.0) {
+        break;
+      }
+    }
+  } else {
+    u = rng_gaussian<Float>(local_state, math::sqrt(theta));
+  }
+  return u;
+}
+
+template <typename Float>
+HD_INLINE vec_t<Float, 3> rng_maxwell_juttner_3d(rand_state& local_state, Float theta) {
+  vec_t<Float, 3> result;
+
+  auto u = rng_maxwell_juttner(local_state, theta);
+  auto x1 = rng_uniform<Float>(local_state);
+  auto x2 = rng_uniform<Float>(local_state);
+
+  result[0] = u * (2.0f * x1 - 1.0f);
+  result[1] =
+      2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::cos(2.0f * M_PI * x2);
+  result[2] =
+      2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::sin(2.0f * M_PI * x2);
+  return result;
+}
+
+template <typename Float>
+HD_INLINE vec_t<Float, 3>
+rng_maxwell_juttner_drifting(rand_state& local_state, Float theta, type_identity_t<Float> beta) {
+  vec_t<Float, 3> u = rng_maxwell_juttner_3d(local_state, theta);
+  auto G = 1.0f / math::sqrt(1.0f - beta * beta);
+  auto u0 = math::sqrt(1.0f + u.dot(u));
+
+  auto x1 = rng_uniform<Float>(local_state);
+  if (-beta * u[0] / u0 > x1) u[0] = -u[0];
+
+  u[0] = G * (u[0] + beta * u0);
+
+  return u;
+}
+
+// A local rng to capture the thread-local rand_state
+template <typename ExecTag>
+struct rng_t;
+
 #if (defined(CUDA_ENABLED) && defined(__CUDACC__)) || \
   (defined(HIP_ENABLED) && defined(__HIPCC__))
 
-// #ifdef CUDA_ENABLED
-// typedef curandState rand_state;
-// #elif HIP_ENABLED
-// typedef rocrand_state_xorwow rand_state;
-// #endif
-
-struct rng_t {
+template <>
+struct rng_t<exec_tags::device> {
   __device__ rng_t(rand_state* state) {
     id = threadIdx.x + blockIdx.x * blockDim.x;
     m_state = state;
@@ -174,81 +255,32 @@ struct rng_t {
   // Generates a device random number between 0.0 and 1.0
   template <typename Float>
   __device__ __forceinline__ Float uniform() {
-    uint64_t n = m_local_state.next();
-    return n / 18446744073709551616.0;
+    return rng_uniform<Float>(m_local_state);
   }
 
   template <typename Float>
-  // __device__ __forceinline__ Float gaussian(Float sigma);
   __device__ __forceinline__ Float gaussian(Float sigma) {
-    auto u1 = uniform<Float>();
-    auto u2 = uniform<Float>();
-    return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
-           sigma;
+    return rng_gaussian(m_local_state, sigma);
   }
 
   template <typename Float>
   __device__ __forceinline__ int poisson(Float lambda) {
-    // return curand_poisson(&m_local_state, lambda);
-    Float L = math::exp(-lambda);
-    Float p = 1.0;
-    int k = 0;
-    do {
-      k += 1;
-      p *= uniform<Float>();
-    } while (p > L);
-    return k - 1;
+    return rng_poisson(m_local_state, lambda);
   }
 
   template <typename Float>
   __device__ Float maxwell_juttner(Float theta) {
-    // This is the Sobol algorithm described in Zenitani 2015
-    Float u = 0.0f;
-    if (theta > 0.1) {
-      while (true) {
-        auto x1 = uniform<Float>();
-        auto x2 = uniform<Float>();
-        auto x3 = uniform<Float>();
-        auto x4 = uniform<Float>();
-        u = -theta * math::log(x1 * x2 * x3);
-        auto eta = -theta * math::log(x1 * x2 * x3 * x4);
-        if (eta * eta - u * u > 1.0) {
-          break;
-        }
-      }
-    } else {
-      u = gaussian<Float>(math::sqrt(theta));
-    }
-    return u;
+    return rng_maxwell_juttner(m_local_state, theta);
   }
 
   template <typename Float>
   __device__ vec_t<Float, 3> maxwell_juttner_3d(Float theta) {
-    vec_t<Float, 3> result;
-
-    auto u = maxwell_juttner(theta);
-    auto x1 = uniform<Float>();
-    auto x2 = uniform<Float>();
-
-    result[0] = u * (2.0f * x1 - 1.0f);
-    result[1] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::cos(2.0f * M_PI * x2);
-    result[2] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::sin(2.0f * M_PI * x2);
-    return result;
+    return rng_maxwell_juttner_3d(m_local_state, theta);
   }
 
   template <typename Float>
   __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, type_identity_t<Float> beta) {
-    vec_t<Float, 3> u = maxwell_juttner_3d(theta);
-    auto G = 1.0f / math::sqrt(1.0f - beta*beta);
-    auto u0 = math::sqrt(1.0f + u.dot(u));
-
-    auto x1 = uniform<Float>();
-    if (-beta * u[0] / u0 > x1)
-      u[0] = -u[0];
-
-    u[0] = G * (u[0] + beta * u0);
-
-    return u;
+    return rng_maxwell_juttner_drifting(m_local_state, theta, beta);
   }
 
   int id;
@@ -256,101 +288,46 @@ struct rng_t {
   rand_state m_local_state;
 };
 
-// template <>
-// __device__ __forceinline__ float
-// rng_t::uniform() {
-// #ifdef CUDA_ENABLED
-//   return curand_uniform(&m_local_state);
-// #elif HIP_ENABLED
-//   return rocrand_uniform(&m_local_state);
-// #endif
-// }
+#endif
 
-// template <>
-// __device__ __forceinline__ double
-// rng_t::uniform() {
-// #ifdef CUDA_ENABLED
-//   return curand_uniform_double(&m_local_state);
-// #elif HIP_ENABLED
-//   return rocrand_uniform_double(&m_local_state);
-// #endif
-// }
+template <>
+struct rng_t<exec_tags::host> {
+  rand_state& m_local_state;
 
-// template <>
-// __device__ __forceinline__ float
-// rng_t::gaussian(float sigma) {
-// #ifdef CUDA_ENABLED
-//   return curand_normal(&m_local_state) * sigma;
-// #elif HIP_ENABLED
-//   return rocrand_normal(&m_local_state) * sigma;
-// #endif
-// }
-
-// template <>
-// __device__ __forceinline__ double
-// rng_t::gaussian(double sigma) {
-// #ifdef CUDA_ENABLED
-//   return curand_normal_double(&m_local_state) * sigma;
-// #elif HIP_ENABLED
-//   return rocrand_normal_double(&m_local_state) * sigma;
-// #endif
-// }
-
-#else
-
-struct rng_t {
-  rand_state& m_state;
-
-  rng_t(rand_state* state) : m_state(*state) {}
+  rng_t(rand_state* state) : m_local_state(*state) {}
 
   template <typename Float>
   inline Float uniform() {
-    uint64_t n = m_state.next();
-    return n / 18446744073709551616.0;
+    return rng_uniform<Float>(m_local_state);
   }
 
   template <typename Float>
   inline Float gaussian(Float sigma) {
-    auto u1 = uniform<Float>();
-    auto u2 = uniform<Float>();
-    return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
-           sigma;
+    return rng_gaussian(m_local_state, sigma);
   }
 
   template <typename Float>
   inline int poisson(Float lambda) {
-    Float L = math::exp(-lambda);
-    Float p = 1.0;
-    int k = 0;
-    do {
-      k += 1;
-      p *= uniform<Float>();
-    } while (p > L);
-    return k - 1;
+    return rng_poisson(m_local_state, lambda);
   }
 
   template <typename Float>
-  Float maxwell_juttner(Float theta) {
-    // FIXME: Implement this
+  inline Float maxwell_juttner(Float theta) {
+    return rng_maxwell_juttner(m_local_state, theta);
   }
 
   template <typename Float>
-  vec_t<Float, 3> maxwell_juttner_3d(Float theta) {
-    vec_t<Float, 3> result;
+  inline vec_t<Float, 3> maxwell_juttner_3d(Float theta) {
+    return rng_maxwell_juttner_3d(m_local_state, theta);
+  }
 
-    auto u = maxwell_juttner(theta);
-    auto x1 = uniform<Float>();
-    auto x2 = uniform<Float>();
-
-    result[0] = u * (2.0f * x1 - 1.0f);
-    result[1] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::cos(2.0f * M_PI * x2);
-    result[2] = 2.0f * u * math::sqrt(x1 * (1.0f - x1)) * math::sin(2.0f * M_PI * x2);
-    return result;
+  template <typename Float>
+  inline vec_t<Float, 3> maxwell_juttner_drifting(Float theta, type_identity_t<Float> beta) {
+    return rng_maxwell_juttner_drifting(m_local_state, theta, beta);
   }
 
 };
 
-#endif
 
 }  // namespace Aperture
 

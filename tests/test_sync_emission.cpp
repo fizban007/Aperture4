@@ -32,15 +32,15 @@ int main(int argc, char *argv[]) {
 
   int N = 1000000;
   rand_state state;
-  rng_t rng(&state);
+  rng_t<exec_tags::host> rng(&state);
 
   buffer<float> eph1(N), eph2(N), eph3(N);
   float Rc_over_c = 1e8/3e10;
   float omega_Q = 7.76e20;
   for (int i = 0; i < N; i++) {
-    eph1[i] = sc_helper.gen_curv_photon(10, Rc_over_c, omega_Q, rng);
-    eph2[i] = sc_helper.gen_curv_photon(1e3, Rc_over_c, omega_Q, rng);
-    eph3[i] = sc_helper.gen_curv_photon(1e5, Rc_over_c, omega_Q, rng);
+    eph1[i] = sc_helper.gen_curv_photon(10, Rc_over_c, omega_Q, rng.m_local_state);
+    eph2[i] = sc_helper.gen_curv_photon(1e3, Rc_over_c, omega_Q, rng.m_local_state);
+    eph3[i] = sc_helper.gen_curv_photon(1e5, Rc_over_c, omega_Q, rng.m_local_state);
   }
 
   file.write(eph1, "gamma1e1");

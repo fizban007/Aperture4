@@ -139,7 +139,7 @@ initial_condition_bg(vector_field<Conf> &B,
       [mult] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * mult;
       },
-      [] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
                     PtcType type) {
         return vec_t<value_t, 3>(0.0, 0.0, 0.0);
       },
@@ -205,7 +205,7 @@ initial_condition_wave(vector_field<Conf> &B,
       [mult] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * mult;
       },
-      [Lbox, wave, Bbg_func] __device__(auto &pos, auto &grid, auto &ext, rng_t &rng,
+      [Lbox, wave, Bbg_func] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
                                   PtcType type) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
         value_t B = Bbg_func(Lbox, x_global[0]) + wave.Bz(0.0, x_global[0]);

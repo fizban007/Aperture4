@@ -62,9 +62,9 @@ add_custom_target(
   WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 add_dependencies(check run_tests)
 if(use_cuda OR use_hip)
-  add_dependencies(run_tests test_dev)
+  add_dependencies(run_tests tests_dev)
   add_custom_command(
-    TARGET test_dev POST_BUILD
+    TARGET tests_dev POST_BUILD
     COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests_dev"
     WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 endif()

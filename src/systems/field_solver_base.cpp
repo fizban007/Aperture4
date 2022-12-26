@@ -15,14 +15,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "domain_comm_impl.hpp"
+#include "field_solver_base_impl.hpp"
 #include "framework/config.h"
+#include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_host.hpp"
 
 namespace Aperture {
 
-template class domain_comm<Config<1, Scalar>, exec_policy_host>;
-template class domain_comm<Config<2, Scalar>, exec_policy_host>;
-template class domain_comm<Config<3, Scalar>, exec_policy_host>;
+template class field_solver<Config<1>, exec_policy_host,
+                            coord_policy_cartesian>;
+template class field_solver<Config<2>, exec_policy_host,
+                            coord_policy_cartesian>;
+template class field_solver<Config<3>, exec_policy_host,
+                            coord_policy_cartesian>;
 
+template class field_solver<Config<2>, exec_policy_host,
+                            coord_policy_spherical>;
+template class field_solver<Config<3>, exec_policy_host,
+                            coord_policy_spherical>;
 }

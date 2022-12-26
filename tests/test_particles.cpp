@@ -128,10 +128,10 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
 
 #ifdef GPU_ENABLED
   ptc.copy_to_device();
-  ptc.sort_by_cell(exec_tags::device{}, 100);
+  ptc_sort_by_cell(exec_tags::device{}, ptc, 100);
   ptc.copy_to_host();
 #else
-  ptc.sort_by_cell_host(100);
+  ptc_sort_by_cell(exec_tags::host{}, ptc, 100);
 #endif
   for (int i = 0; i < N; i++) {
     Logger::print_info("cell[{}] is {}", i, ptc.cell[i]);

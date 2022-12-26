@@ -24,7 +24,7 @@
 
 namespace Aperture {
 
-template <typename Conf>
+template <typename Conf, template <class> class ExecPolicy>
 class domain_comm;
 
 // The system that is responsible for setting up the computational grid
@@ -37,7 +37,11 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
   typedef Grid<Conf::dim, value_t> base_type;
 
   grid_t();
-  grid_t(const domain_comm<Conf>& comm);
+  template <template <class> class ExecPolicy>
+  grid_t(const domain_comm<Conf, ExecPolicy>& comm) :
+      grid_t(comm.domain_info()) {
+    comm.resize_buffers(*this);
+  }
   grid_t(const domain_info_t<Conf::dim>& domain_info);
   grid_t(const grid_t<Conf>& grid) = default;
   virtual ~grid_t();

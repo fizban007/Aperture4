@@ -21,7 +21,7 @@
 #include "systems/boundary_condition.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+#include "systems/field_solver_base.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
@@ -40,7 +40,7 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   grid_t<Conf> grid(comm);
   size_t max_ptc_num = 10000;
   env.register_data<particle_data_t>("particles", max_ptc_num, MemType::device_managed);
@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
 
   Logger::print_info("initializing a single particle");
-  ptc->append(exec_tags::host{}, {0.0f, 0.0f, 0.0f}, {1000.0f, 0.0f, 0.0f}, 4 + 4 * 36, 1.0f,
+  ptc_append(exec_tags::host{}, *ptc, {0.0f, 0.0f, 0.0f}, {1000.0f, 0.0f, 0.0f}, 4 + 4 * 36, 1.0f,
               set_ptc_type_flag(0, PtcType::electron));
   gpuDeviceSynchronize();
   Logger::print_info("finished initializing a single particle");

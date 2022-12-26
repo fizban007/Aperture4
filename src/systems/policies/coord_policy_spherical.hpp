@@ -35,20 +35,21 @@ namespace Aperture {
 template <typename Conf>
 class coord_policy_spherical {
  public:
-  typedef typename Conf::value_t value_t;
+  using value_t = typename Conf::value_t;
+  using grid_type = grid_sph_t<Conf>;
 
   coord_policy_spherical(const grid_t<Conf>& grid)
-      : m_grid(dynamic_cast<const grid_sph_t<Conf>&>(grid)) {}
+      : m_grid(dynamic_cast<const grid_type&>(grid)) {}
   ~coord_policy_spherical() = default;
 
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
                                        value_t x3 = 0.0f) {
-    return math::sin(grid_sph_t<Conf>::theta(x2));
+    return math::sin(grid_type::theta(x2));
   }
 
-  HD_INLINE static value_t x1(value_t x) { return grid_sph_t<Conf>::radius(x); }
-  HD_INLINE static value_t x2(value_t x) { return grid_sph_t<Conf>::theta(x); }
+  HD_INLINE static value_t x1(value_t x) { return grid_type::radius(x); }
+  HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   void init() {}
@@ -84,26 +85,26 @@ class coord_policy_spherical {
     //                                x3(x_global_old[2]));
 
     // Global position in cartesian coord
-    vec_t<value_t, 3> x_global_cart = grid_sph_t<Conf>::coord_to_cart(x_global_old);
+    vec_t<value_t, 3> x_global_cart = grid_type::coord_to_cart(x_global_old);
     // value_t sth = math::sin(x_global_sph[1]);
     // x_global_cart[0] = x_global_sph[0] * sth * math::cos(x_global_sph[2]);
     // x_global_cart[1] = x_global_sph[0] * sth * math::sin(x_global_sph[2]);
     // x_global_cart[2] = x_global_sph[0] * math::cos(x_global_sph[1]);
 
     // Transform momentum vector to cartesian
-    grid_sph_t<Conf>::vec_to_cart(context.p, x_global_old);
+    grid_type::vec_to_cart(context.p, x_global_old);
 
     // Move in Cartesian coordinates
     x_global_cart += context.p * (dt / context.gamma);
 
     // Compute the new spherical location
-    vec_t<value_t, 3> x_global_sph_new = grid_sph_t<Conf>::coord_from_cart(x_global_cart);
+    vec_t<value_t, 3> x_global_sph_new = grid_type::coord_from_cart(x_global_cart);
     // x_global_sph_new[0] = math::sqrt(x_global_cart.dot(x_global_cart));
     // x_global_sph_new[2] = math::atan2(x_global_cart[1], x_global_cart[0]);
     // x_global_sph_new[1] = math::acos(x_global_cart[2] / x_global_sph_new[0]);
 
     // Transform the momentum vector to spherical at the new location
-    grid_sph_t<Conf>::vec_from_cart(context.p, x_global_sph_new);
+    grid_type::vec_from_cart(context.p, x_global_sph_new);
     // x_global_sph_new[0] = grid_sph_t<Conf>::from_radius(x_global_sph_new[0]);
     // x_global_sph_new[1] = grid_sph_t<Conf>::from_theta(x_global_sph_new[1]);
 
@@ -194,7 +195,7 @@ class coord_policy_spherical {
   }
 
  private:
-  const grid_sph_t<Conf>& m_grid;
+  const grid_type& m_grid;
 };
 
 }  // namespace Aperture

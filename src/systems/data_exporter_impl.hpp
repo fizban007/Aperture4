@@ -47,7 +47,7 @@ namespace Aperture {
 template <typename Conf, template <class> class ExecPolicy>
 // data_exporter<Conf>::data_exporter(sim_environment& env,
 data_exporter<Conf, ExecPolicy>::data_exporter(const grid_t<Conf>& grid,
-                                   const domain_comm<Conf>* comm)
+                                   const domain_comm<Conf, ExecPolicy>* comm)
     : m_grid(grid), m_comm(comm), m_output_grid(grid) {
   sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
   sim_env().params().get_value("fld_output_interval", m_fld_output_interval);

@@ -17,12 +17,12 @@
 
 #include "domain_comm_impl.hpp"
 #include "framework/config.h"
-#include "systems/policies/exec_policy_host.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
 
 namespace Aperture {
 
-template class domain_comm<Config<1, Scalar>, exec_policy_host>;
-template class domain_comm<Config<2, Scalar>, exec_policy_host>;
-template class domain_comm<Config<3, Scalar>, exec_policy_host>;
+template class domain_comm<Config<1, Scalar>, exec_policy_cuda>;
+template class domain_comm<Config<2, Scalar>, exec_policy_cuda>;
+template class domain_comm<Config<3, Scalar>, exec_policy_cuda>;
 
 }

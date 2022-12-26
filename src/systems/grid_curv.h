@@ -46,7 +46,8 @@ class grid_curv_t : public grid_t<Conf> {
   grid_curv_t() : grid_t<Conf>() {
     resize_arrays();
   }
-  grid_curv_t(const domain_comm<Conf>& comm) : grid_t<Conf>(comm) {
+  template <template <class> class ExecPolicy>
+  grid_curv_t(const domain_comm<Conf, ExecPolicy>& comm) : grid_t<Conf>(comm) {
     resize_arrays();
   }
   grid_curv_t(const grid_curv_t<Conf>& grid) = default;

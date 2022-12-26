@@ -34,7 +34,7 @@ main(int argc, char *argv[]) {
   using value_t = typename Conf::value_t;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   grid_t<Conf> grid(comm);
 
   auto pusher = env.register_system<ptc_updater_new<

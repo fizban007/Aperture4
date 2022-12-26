@@ -45,7 +45,7 @@ class ptc_updater_new : public system_t {
   static std::string name() { return "ptc_updater"; }
 
   ptc_updater_new(const grid_t<Conf>& grid);
-  ptc_updater_new(const grid_t<Conf>& grid, const domain_comm<Conf>& comm);
+  ptc_updater_new(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>& comm);
   ~ptc_updater_new();
 
   void init() override;
@@ -69,7 +69,7 @@ class ptc_updater_new : public system_t {
 
   // Grid and communicator which are essential for particle update
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>* m_comm = nullptr;
+  const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // These are data components that are relevant for particle update
   nonown_ptr<particle_data_t> ptc;

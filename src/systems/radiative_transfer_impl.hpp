@@ -26,7 +26,7 @@ template <class Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class RadiationPolicy>
 radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::
-    radiative_transfer(const grid_t<Conf>& grid, const domain_comm<Conf>* comm)
+    radiative_transfer(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
     : m_grid(grid), m_comm(comm) {
   if (comm != nullptr) {
     m_track_rank = comm->rank();

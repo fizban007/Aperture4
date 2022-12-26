@@ -9,7 +9,7 @@ add_executable(tests
   "test_params.cpp"
   "test_fields.cpp"
   "test_interp.cpp"
-  "test_ptc_updater.cpp"
+  # "test_ptc_updater.cpp"
   "test_exporter.cpp"
   "test_config.cpp"
   "test_gaussian_quadrature.cpp"
@@ -17,7 +17,7 @@ add_executable(tests
   "test_mem_layout.cpp"
   "test_lorentz.cpp"
   )
-target_link_libraries(tests Aperture_dev Catch2::Catch2WithMain)
+target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 
 # add_executable(tests_dev "test.cpp")
 if (use_cuda AND CMAKE_CUDA_COMPILER)

@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
   auto &env = sim_environment::instance(&argc, &argv);
   typedef typename Conf::value_t value_t;
 
-  domain_comm<Conf> comm(&argc, &argv);
+  domain_comm<Conf, exec_policy_cuda> comm(&argc, &argv);
   grid_t<Conf> grid(comm);
 
   Logger::print_info("Max ptc num is {}",
@@ -148,7 +148,7 @@ main(int argc, char *argv[]) {
 
   value_t ptc_p_parallel = env.params().get_as("p0", 1.0);
 
-  ptc->append(exec_tags::device{}, rel_x, {ptc_p_parallel, 0.0, 0.0}, cell, 1.0,
+  ptc_append(exec_tags::device{}, *ptc, rel_x, {ptc_p_parallel, 0.0, 0.0}, cell, 1.0,
                   gen_ptc_type_flag(PtcType::electron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[0] << std::endl;

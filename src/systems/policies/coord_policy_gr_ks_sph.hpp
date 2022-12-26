@@ -115,10 +115,11 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
 template <typename Conf>
 class coord_policy_gr_ks_sph {
  public:
-  typedef typename Conf::value_t value_t;
+  using value_t = typename Conf::value_t;
+  using grid_type = grid_ks_t<Conf>;
 
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
-      : m_grid(dynamic_cast<const grid_ks_t<Conf> &>(grid)) {
+      : m_grid(dynamic_cast<const grid_type&>(grid)) {
     m_a = m_grid.a;
   }
   ~coord_policy_gr_ks_sph() = default;
@@ -148,11 +149,11 @@ class coord_policy_gr_ks_sph {
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
                                        value_t x3 = 0.0f) {
-    return math::sin(grid_ks_t<Conf>::theta(x2));
+    return math::sin(grid_type::theta(x2));
   }
 
-  HD_INLINE static value_t x1(value_t x) { return grid_ks_t<Conf>::radius(x); }
-  HD_INLINE static value_t x2(value_t x) { return grid_ks_t<Conf>::theta(x); }
+  HD_INLINE static value_t x1(value_t x) { return grid_type::radius(x); }
+  HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   // Inline functions to be called in the particle update loop
@@ -161,8 +162,8 @@ class coord_policy_gr_ks_sph {
                             const extent_t<Conf::dim> &ext, PtcContext &context,
                             index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
-    x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
+    x_global[0] = grid_type::radius(x_global[0]);
+    x_global[1] = grid_type::theta(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
@@ -202,12 +203,12 @@ class coord_policy_gr_ks_sph {
     gr_ks_geodesic_advance(m_a, dt, new_x, context.p, is_photon);
 
     context.new_x[0] =
-        context.x[0] + (grid_ks_t<Conf>::from_radius(new_x[0]) -
-                        grid_ks_t<Conf>::from_radius(x_global[0])) *
+        context.x[0] + (grid_type::from_radius(new_x[0]) -
+                        grid_type::from_radius(x_global[0])) *
                            grid.inv_delta[0];
     context.new_x[1] =
-        context.x[1] + (grid_ks_t<Conf>::from_theta(new_x[1]) -
-                        grid_ks_t<Conf>::from_theta(x_global[1])) *
+        context.x[1] + (grid_type::from_theta(new_x[1]) -
+                        grid_type::from_theta(x_global[1])) *
                            grid.inv_delta[1];
     // if constexpr (Conf::dim == 2) {
     if (Conf::dim == 2) {
@@ -230,8 +231,8 @@ class coord_policy_gr_ks_sph {
                            ph_context<Conf::dim, value_t> &context,
                            index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
-    x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
+    x_global[0] = grid_type::radius(x_global[0]);
+    x_global[1] = grid_type::theta(x_global[1]);
 
     move_ptc(grid, context, x_global, pos, dt, true);
   }
@@ -296,7 +297,7 @@ class coord_policy_gr_ks_sph {
   }
 
  private:
-  const grid_ks_t<Conf> &m_grid;
+  const grid_type &m_grid;
   value_t m_a;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_B;

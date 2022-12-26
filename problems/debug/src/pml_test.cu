@@ -21,10 +21,10 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
-#include "systems/field_solver.h"
-#include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/field_solver_base.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/ptc_updater_base.h"
 
 using namespace Aperture;
 
@@ -50,17 +50,19 @@ main(int argc, char *argv[]) {
   auto &grid = *(env.register_system<grid_t<Conf>>());
   auto pusher = env.register_system<
       ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
-  auto solver = env.register_system<field_solver_cu<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
 
   env.init();
 
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
 
-  ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 10.0f, 0.0f},
-                  64 + 64 * grid.dims[0] + 64 * grid.dims[0] * grid.dims[1],
-                  1.0f, set_ptc_type_flag(0, PtcType::electron));
+  ptc_append(exec_tags::device{}, *ptc, {0.0f, 0.0f, 0.0f}, {0.0f, 10.0f, 0.0f},
+             64 + 64 * grid.dims[0] + 64 * grid.dims[0] * grid.dims[1], 1.0f,
+             set_ptc_type_flag(0, PtcType::electron));
   cudaDeviceSynchronize();
   Logger::print_info("finished initializing a single particle");
 

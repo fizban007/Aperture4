@@ -33,10 +33,10 @@ grid_ks_t<Conf>::grid_ks_t() {
   initialize();
 }
 
-template <typename Conf>
-grid_ks_t<Conf>::grid_ks_t(const domain_comm<Conf> &comm) : grid_t<Conf>(comm) {
-  initialize();
-}
+// template <typename Conf>
+// grid_ks_t<Conf>::grid_ks_t(const domain_comm<Conf> &comm) : grid_t<Conf>(comm) {
+//   initialize();
+// }
 
 template <typename Conf>
 void

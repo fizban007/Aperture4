@@ -55,7 +55,10 @@ class grid_ks_t : public grid_t<Conf> {
   grid_ptrs ptrs;
 
   grid_ks_t();
-  grid_ks_t(const domain_comm<Conf>& comm);
+  template <template <class> class ExecPolicy>
+  grid_ks_t(const domain_comm<Conf, ExecPolicy>& comm) : grid_t<Conf>(comm) {
+    initialize();
+  }
   grid_ks_t(const grid_ks_t<Conf>& grid) = default;
   grid_ks_t(grid_ks_t<Conf>&& grid) = default;
   virtual ~grid_ks_t() {}

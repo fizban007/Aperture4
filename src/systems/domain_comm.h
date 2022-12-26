@@ -32,10 +32,11 @@ namespace Aperture {
 template <int Dim, typename value_t>
 struct Grid;
 
-template <typename Conf>
+template <typename Conf, template <class> class ExecPolicy>
 class domain_comm : public system_t {
  public:
   static std::string name() { return "domain_comm"; }
+  using exec_tag = typename ExecPolicy<Conf>::exec_tag;
 
   // domain_comm(sim_environment& env);
   domain_comm(int* argc = nullptr, char*** argv = nullptr);

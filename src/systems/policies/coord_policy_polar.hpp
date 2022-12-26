@@ -35,10 +35,11 @@ namespace Aperture {
 template <typename Conf>
 class coord_policy_polar {
  public:
-  typedef typename Conf::value_t value_t;
+  using value_t = typename Conf::value_t;
+  using grid_type = grid_polar_t<Conf>;
 
   coord_policy_polar(const grid_t<Conf>& grid)
-      : m_grid(dynamic_cast<const grid_polar_t<Conf>&>(grid)) {}
+      : m_grid(dynamic_cast<const grid_type&>(grid)) {}
   ~coord_policy_polar() = default;
 
   // Static coordinate functions
@@ -47,8 +48,8 @@ class coord_policy_polar {
     return 1.0;
   }
 
-  HD_INLINE static value_t x1(value_t x) { return grid_polar_t<Conf>::radius(x); }
-  HD_INLINE static value_t x2(value_t x) { return grid_polar_t<Conf>::theta(x); }
+  HD_INLINE static value_t x1(value_t x) { return grid_type::radius(x); }
+  HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
   void init() {}
@@ -105,8 +106,8 @@ class coord_policy_polar {
 
     // Transform the momentum vector to polar coorpolar coord at the new location
     cart2polar(context.p, x_global_pol_new);
-    x_global_pol_new[0] = grid_polar_t<Conf>::from_radius(x_global_pol_new[0]);
-    x_global_pol_new[1] = grid_polar_t<Conf>::from_theta(x_global_pol_new[1]);
+    x_global_pol_new[0] = grid_type::from_radius(x_global_pol_new[0]);
+    x_global_pol_new[1] = grid_type::from_theta(x_global_pol_new[1]);
 
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {
@@ -189,7 +190,7 @@ class coord_policy_polar {
   }
 
  private:
-  const grid_polar_t<Conf>& m_grid;
+  const grid_type& m_grid;
 };
 
 }  // namespace Aperture

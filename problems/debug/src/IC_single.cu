@@ -22,7 +22,7 @@
 #include "systems/boundary_condition.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+// #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/physics/ic_scattering.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"

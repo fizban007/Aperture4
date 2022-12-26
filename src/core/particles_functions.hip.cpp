@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2022 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// #include "core/cached_allocator.hpp"
+#include "particles.h"
 #include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
@@ -36,6 +36,7 @@
 
 namespace Aperture {
 
+namespace {
 template <int Dim>
 constexpr int
 get_zone_offset() {
@@ -88,7 +89,8 @@ compute_target_buffers(const uint32_t* cells, size_t offset, size_t num,
           // rest of the bits go to encode the index of this particle in that
           // zone.
           index[n] = ((zone & 0b11111) << bitshift_width) + pos;
-          // printf("pos is %lu, index is %lu, zone is %lu\n", pos, index[n], zone);
+          // printf("pos is %lu, index is %lu, zone is %lu\n", pos, index[n],
+          // zone);
         }
       },
       cells, buffer_num.dev_ptr(), index);
@@ -118,7 +120,8 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           //        i, zone, zone << bitshift_width, pos);
           // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
           // assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
-          assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data, n + offset);
+          assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data,
+                     n + offset);
           // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
           //                                                 zone_offset].cell[pos],
           //                                                 ptc_data.cell[n]);
@@ -140,7 +143,8 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
                   .dec_x(dx * grid.reduced_dim(0))
                   .linear;
           // auto cell_after = ptc_buffers[zone - zone_offset][pos].cell;
-          // printf("i is %lu, pos is %lu, cell is %u, cell after is (%d, %d), zone is %lu\n",
+          // printf("i is %lu, pos is %lu, cell is %u, cell after is (%d, %d),
+          // zone is %lu\n",
           //        i, pos, cell,
           //        cell_after % grid.dims[0],
           //        cell_after / grid.dims[0],
@@ -156,61 +160,64 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
 
 template <typename BufferType>
 void
-particles_base<BufferType>::resize_tmp_arrays() {
-  if (m_index.size() != m_sort_segment_size ||
-      m_tmp_data.size() != m_sort_segment_size) {
-    m_index.resize(m_sort_segment_size);
-    m_tmp_data.resize(m_sort_segment_size);
-    m_segment_nums.set_memtype(MemType::host_device);
-    m_segment_nums.resize(m_size / m_sort_segment_size + 1);
+ptc_resize_tmp_arrays(particles_base<BufferType>& data) {
+  if (data.index().size() != data.sort_segment_size() ||
+      data.tmp_data().size() != data.sort_segment_size()) {
+    data.index().resize(data.sort_segment_size());
+    data.tmp_data().resize(data.sort_segment_size());
+    data.segment_nums().set_memtype(MemType::host_device);
+    data.segment_nums().resize(data.size() / data.sort_segment_size() + 1);
   }
 }
 
 template <typename BufferType>
 void
-particles_base<BufferType>::rearrange_arrays(exec_tags::device, const std::string& skip,
-                                             size_t offset, size_t num) {
+ptc_rearrange_arrays(exec_tags::device, particles_base<BufferType>& data,
+                     const std::string& skip, size_t offset, size_t num) {
   auto ptc = typename BufferType::single_type{};
   for_each_double_with_name(
-      m_dev_ptrs, ptc,
-      [this, offset, num, &skip](const char* name, auto& x, auto& u) {
+      data.get_dev_ptrs(), ptc,
+      [offset, num, &skip, &data](const char* name, auto& x, auto& u) {
         typedef typename std::remove_reference<decltype(x)>::type x_type;
-        auto ptr_index = thrust::device_pointer_cast(m_index.dev_ptr());
+        auto ptr_index = thrust::device_pointer_cast(data.index().dev_ptr());
         if (std::strcmp(name, skip.c_str()) == 0) return;
 
         auto x_ptr = thrust::device_pointer_cast(x + offset);
         auto tmp_ptr = thrust::device_pointer_cast(
-            reinterpret_cast<x_type>(m_tmp_data.dev_ptr()));
+            reinterpret_cast<x_type>(data.tmp_data().dev_ptr()));
         thrust::gather(ptr_index, ptr_index + num, x_ptr, tmp_ptr);
         thrust::copy_n(tmp_ptr, num, x_ptr);
         GpuCheckError();
       });
 }
 
+}  // namespace
+
 template <typename BufferType>
 void
-particles_base<BufferType>::sort_by_cell(exec_tags::device, size_t max_cell) {
-  if (m_number > 0) {
+ptc_sort_by_cell(exec_tags::device, particles_base<BufferType>& ptc,
+                 size_t max_cell) {
+  if (ptc.number() > 0) {
     // Lazy resize the tmp arrays
-    resize_tmp_arrays();
-    m_segment_nums.assign_host(0);
+    ptc_resize_tmp_arrays(ptc);
+    ptc.segment_nums().assign_host(0);
 
     // 1st: Sort the particle array segment by segment
-    for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
+    for (int n = 0; n < ptc.number() / ptc.sort_segment_size() + 1; n++) {
       // Logger::print_info("Sorting segment {}", n);
-      size_t offset = n * m_sort_segment_size;
-      // Fringe case of m_number being an exact multiple of segment_size
-      if (offset == m_number) {
-        m_segment_nums[n] = 0;
+      size_t offset = n * ptc.sort_segment_size();
+      // Fringe case of number being an exact multiple of segment_size
+      if (offset == ptc.number()) {
+        ptc.segment_nums()[n] = 0;
         continue;
       }
       // Generate particle index array
-      auto ptr_cell =
-          thrust::device_pointer_cast(this->cell.dev_ptr() + offset);
-      auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
+      auto ptr_cell = thrust::device_pointer_cast(ptc.cell.dev_ptr() + offset);
+      auto ptr_idx = thrust::device_pointer_cast(ptc.index().dev_ptr());
 
       // Sort the index array by key
-      size_t sort_size = std::min(m_sort_segment_size, m_number - offset);
+      size_t sort_size =
+          std::min(ptc.sort_segment_size(), ptc.number() - offset);
       thrust::counting_iterator<size_t> iter(0);
       thrust::copy_n(iter, sort_size, ptr_idx);
 
@@ -219,46 +226,46 @@ particles_base<BufferType>::sort_by_cell(exec_tags::device, size_t max_cell) {
 
       // Move the rest of particle array using the new index
       // Logger::print_info("Rearranging");
-      rearrange_arrays(exec_tags::device{}, "cell", offset, sort_size);
+      ptc_rearrange_arrays(exec_tags::device{}, ptc, "cell", offset, sort_size);
 
       // Update the new number of particles in each sorted segment
-      m_segment_nums[n] =
+      ptc.segment_nums()[n] =
           thrust::upper_bound(ptr_cell, ptr_cell + sort_size, empty_cell - 1) -
           ptr_cell;
       // Logger::print_info("segment[{}] has size {}", n, m_segment_nums[n]);
     }
 
     // 2nd: Defragment the particle array
-    int last_segment = m_number / m_sort_segment_size;
+    int last_segment = ptc.number() / ptc.sort_segment_size();
     for (int m = 0; m < last_segment; m++) {
       // Logger::print_info(
       //     "Filling segment {}, last_segment is {}, num_last is {}", m,
       //     last_segment, m_segment_nums[last_segment]);
 
-      while (m_segment_nums[m] < m_sort_segment_size) {
+      while (ptc.segment_nums()[m] < ptc.sort_segment_size()) {
         // deficit is how many "holes" do we have in this segment
-        int deficit = m_sort_segment_size - m_segment_nums[m];
+        int deficit = ptc.sort_segment_size() - ptc.segment_nums()[m];
         // do not copy more particles than the number in the last segment
-        int num_to_copy = std::min(deficit, m_segment_nums[last_segment]);
+        int num_to_copy = std::min(deficit, ptc.segment_nums()[last_segment]);
         // calculate offsets
-        size_t offset_from = last_segment * m_sort_segment_size +
-                             m_segment_nums[last_segment] - num_to_copy;
-        size_t offset_to = m * m_sort_segment_size + m_segment_nums[m];
+        size_t offset_from = last_segment * ptc.sort_segment_size() +
+                             ptc.segment_nums()[last_segment] - num_to_copy;
+        size_t offset_to = m * ptc.sort_segment_size() + ptc.segment_nums()[m];
         // Logger::print_info(
         //     "deficit is {}, num_to_copy is {}, offset_from is {}", deficit,
         //     num_to_copy, offset_from);
 
         // Copy the particles from the end of the last segment to the end of
         // this segment
-        copy_from(*this, num_to_copy, offset_from, offset_to);
+        ptc.copy_from(ptc, num_to_copy, offset_from, offset_to);
         // Erase particles from the last segment
-        erase(offset_from, num_to_copy);
+        ptc.erase(offset_from, num_to_copy);
 
-        m_segment_nums[m] += num_to_copy;
-        m_segment_nums[last_segment] -= num_to_copy;
+        ptc.segment_nums()[m] += num_to_copy;
+        ptc.segment_nums()[last_segment] -= num_to_copy;
         // Logger::print_info("Segment num is {}", m_segment_nums[m]);
 
-        if (m_segment_nums[last_segment] == 0) {
+        if (ptc.segment_nums()[last_segment] == 0) {
           last_segment -= 1;
           if (last_segment == m) break;
         }
@@ -267,20 +274,28 @@ particles_base<BufferType>::sort_by_cell(exec_tags::device, size_t max_cell) {
 
     // Logger::print_info("Last segment size is {}",
     // m_segment_nums[last_segment]);
-    m_number =
-        last_segment * m_sort_segment_size + m_segment_nums[last_segment];
+    // m_number =
+    ptc.set_num(last_segment * ptc.sort_segment_size() +
+                ptc.segment_nums()[last_segment]);
 
     GpuSafeCall(gpuDeviceSynchronize());
     GpuCheckError();
   }
 }
 
+template void ptc_sort_by_cell<ptc_buffer>(exec_tags::device,
+                                           particles_base<ptc_buffer>& ptc,
+                                           size_t max_cell);
+template void ptc_sort_by_cell<ph_buffer>(exec_tags::device,
+                                          particles_base<ph_buffer>& ptc,
+                                          size_t max_cell);
+
 template <typename BufferType>
 void
-particles_base<BufferType>::append(exec_tags::device, const vec_t<Scalar, 3>& x,
-                                   const vec_t<Scalar, 3>& p, uint32_t cell,
-                                   Scalar weight, uint32_t flag) {
-  if (m_number == m_size) return;
+ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
+           const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p, uint32_t cell,
+           Scalar weight, uint32_t flag) {
+  if (ptc.number() == ptc.size()) return;
   kernel_launch(
       {1, 1},
       [x, p, cell, weight, flag] __device__(auto ptrs, size_t pos) {
@@ -296,41 +311,80 @@ particles_base<BufferType>::append(exec_tags::device, const vec_t<Scalar, 3>& x,
         ptrs.cell[pos] = cell;
         ptrs.flag[pos] = flag;
       },
-      m_dev_ptrs, m_number);
+      ptc.get_dev_ptrs(), ptc.number());
   GpuSafeCall(gpuDeviceSynchronize());
-  m_number += 1;
+  // m_number += 1;
+  ptc.set_num(ptc.number() + 1);
 }
 
+template void ptc_append<ptc_buffer>(exec_tags::device,
+                                     particles_base<ptc_buffer>& ptc,
+                                     const vec_t<Scalar, 3>& x,
+                                     const vec_t<Scalar, 3>& p, uint32_t cell,
+                                     Scalar weight, uint32_t flag);
+template void ptc_append<ph_buffer>(exec_tags::device,
+                                    particles_base<ph_buffer>& ptc,
+                                    const vec_t<Scalar, 3>& x,
+                                    const vec_t<Scalar, 3>& p, uint32_t cell,
+                                    Scalar weight, uint32_t flag);
+
 template <typename BufferType>
-template <typename Conf>
 void
-particles_base<BufferType>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
+ptc_copy_from_buffer(exec_tags::device, particles_base<BufferType>& ptc,
+                     const buffer<typename BufferType::single_type>& buf,
+                     int num, size_t dst_idx) {
+  if (dst_idx + num > ptc.size()) num = ptc.size() - dst_idx;
+  if (num > 0) {
+    kernel_launch(
+        [num, dst_idx] __device__(auto ptc, auto buf) {
+          for (auto n : grid_stride_range(0, num)) {
+            assign_ptc(ptc, dst_idx + n, buf[n]);
+          }
+        },
+        ptc.get_dev_ptrs(), buf.dev_ptr());
+    // GpuSafeCall(gpuDeviceSynchronize());
+  }
+  if (dst_idx + num > ptc.number()) ptc.set_num(dst_idx + num);
+}
+
+template void ptc_copy_from_buffer(exec_tags::device,
+                                   particles_base<ptc_buffer>& ptc,
+                                   const buffer<single_ptc_t>& buf, int num,
+                                   size_t dst_idx);
+template void ptc_copy_from_buffer(exec_tags::device,
+                                   particles_base<ph_buffer>& ptc,
+                                   const buffer<single_ph_t>& buf, int num,
+                                   size_t dst_idx);
+
+template <typename BufferType, typename Conf>
+void
+ptc_copy_to_comm_buffers(
+    exec_tags::device, particles_base<BufferType>& ptc,
+    std::vector<buffer<typename BufferType::single_type>>& buffers,
+    buffer<typename BufferType::single_type*>& buf_ptrs, buffer<int>& buf_nums,
     const grid_t<Conf>& grid) {
-  if (m_number > 0) {
+  if (ptc.number() > 0) {
     // timer::stamp("compute_buffer");
     // Lazy resize the tmp arrays
-    resize_tmp_arrays();
-    m_zone_buffer_num.assign_dev(0);
+    ptc_resize_tmp_arrays(ptc);
+    ptc.zone_buffer_num().assign_dev(0);
 
-    for (int n = 0; n < m_number / m_sort_segment_size + 1; n++) {
-      size_t offset = n * m_sort_segment_size;
+    for (int n = 0; n < ptc.number() / ptc.sort_segment_size() + 1; n++) {
+      size_t offset = n * ptc.sort_segment_size();
       // Logger::print_debug("offset is {}, n is {}", offset, n);
 
-      m_index.assign_dev(0, m_sort_segment_size, size_t(-1));
+      ptc.index().assign_dev(0, ptc.sort_segment_size(), size_t(-1));
       // auto ptr_idx = thrust::device_pointer_cast(m_index.dev_ptr());
-      compute_target_buffers<Conf>(this->cell.dev_ptr(), offset,
-                                   m_sort_segment_size, m_zone_buffer_num,
-                                   m_index.dev_ptr());
+      compute_target_buffers<Conf>(
+          ptc.cell.dev_ptr(), offset, ptc.sort_segment_size(),
+          ptc.zone_buffer_num(), ptc.index().dev_ptr());
 
-      copy_component_to_buffer<Conf>(m_dev_ptrs, offset, m_sort_segment_size,
-                                     m_index.dev_ptr(), buf_ptrs);
+      copy_component_to_buffer<Conf>(ptc.get_dev_ptrs(), offset,
+                                     ptc.sort_segment_size(),
+                                     ptc.index().dev_ptr(), buf_ptrs);
     }
 
-    m_zone_buffer_num.copy_to_host();
+    ptc.zone_buffer_num().copy_to_host();
     // timer::show_duration_since_stamp("Computing target buffers", "ms",
     // "compute_buffer");
 
@@ -340,7 +394,7 @@ particles_base<BufferType>::copy_to_comm_buffers(
       //                     m_zone_buffer_num[i + zone_offset]);
       if (i + zone_offset == 13) continue;
       // buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
-      buf_nums[i] = m_zone_buffer_num[i + zone_offset];
+      buf_nums[i] = ptc.zone_buffer_num()[i + zone_offset];
     }
     // timer::stamp("copy_to_buffer");
     // for (unsigned int i = 0; i < buffers.size(); i++) {
@@ -358,113 +412,34 @@ particles_base<BufferType>::copy_to_comm_buffers(
   }
 }
 
-template <typename BufferType>
-void
-particles_base<BufferType>::copy_from_buffer(
-    exec_tags::device,
-    const buffer<single_type> &buf,
-    int num, size_t dst_idx) {
-  if (dst_idx + num > m_size)
-    num = m_size - dst_idx;
-  if (num > 0) {
-    kernel_launch([num, dst_idx] __device__(auto ptc, auto buf) {
-        for (auto n : grid_stride_range(0, num)) {
-            assign_ptc(ptc, dst_idx + n, buf[n]);
-        }
-        }, m_dev_ptrs, buf.dev_ptr());
-    // GpuSafeCall(gpuDeviceSynchronize());
-  }
-  if (dst_idx + num > m_number)
-    m_number = dst_idx + num;
-}
+template void ptc_copy_to_comm_buffers<ptc_buffer, Config<1>>(
+    exec_tags::device, particles_base<ptc_buffer>& ptc,
+    std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<1, Scalar>>& grid);
 
-// Explicit instantiation
-// template class particles_base<ptc_buffer>;
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1, float>>& grid);
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1, double>>& grid);
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2, float>>& grid);
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2, double>>& grid);
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3, float>>& grid);
-template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3, double>>& grid);
+template void ptc_copy_to_comm_buffers<ptc_buffer, Config<2>>(
+    exec_tags::device, particles_base<ptc_buffer>& ptc,
+    std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<2, Scalar>>& grid);
 
-// template class particles_base<ph_buffer>;
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1, float>>& grid);
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<1, double>>& grid);
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2, float>>& grid);
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<2, double>>& grid);
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3, float>>& grid);
-template void particles_base<ph_buffer>::copy_to_comm_buffers(
-    exec_tags::device,
-    std::vector<buffer<single_type>>& buffers,
-    buffer<single_type*>& buf_ptrs,
-    buffer<int>& buf_nums,
-    // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-    const grid_t<Config<3, double>>& grid);
+template void ptc_copy_to_comm_buffers<ptc_buffer, Config<3>>(
+    exec_tags::device, particles_base<ptc_buffer>& ptc,
+    std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<3, Scalar>>& grid);
+
+template void ptc_copy_to_comm_buffers<ph_buffer, Config<1>>(
+    exec_tags::device, particles_base<ph_buffer>& ptc,
+    std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<1, Scalar>>& grid);
+
+template void ptc_copy_to_comm_buffers<ph_buffer, Config<2>>(
+    exec_tags::device, particles_base<ph_buffer>& ptc,
+    std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<2, Scalar>>& grid);
+
+template void ptc_copy_to_comm_buffers<ph_buffer, Config<3>>(
+    exec_tags::device, particles_base<ph_buffer>& ptc,
+    std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
+    buffer<int>& buf_nums, const grid_t<Config<3, Scalar>>& grid);
 
 }  // namespace Aperture

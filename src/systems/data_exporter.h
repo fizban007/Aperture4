@@ -48,7 +48,7 @@ class data_exporter : public system_t {
   using exec_tag = typename ExecPolicy<Conf>::exec_tag;
   // data_exporter(sim_environment& env, const grid_t<Conf>& grid,
   data_exporter(const grid_t<Conf>& grid,
-                const domain_comm<Conf>* comm = nullptr);
+                const domain_comm<Conf, ExecPolicy>* comm = nullptr);
   virtual ~data_exporter();
 
   static std::string name() { return "data_exporter"; }
@@ -135,7 +135,7 @@ class data_exporter : public system_t {
 
  private:
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>* m_comm;
+  const domain_comm<Conf, ExecPolicy>* m_comm;
 
   std::ofstream m_xmf;  //!< This is the accompanying xmf file
                         //!< describing the hdf structure

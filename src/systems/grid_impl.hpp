@@ -93,11 +93,11 @@ grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
 template <typename Conf>
 grid_t<Conf>::grid_t() : grid_t(domain_info_t<Conf::dim>{}) {}
 
-template <typename Conf>
-grid_t<Conf>::grid_t(const domain_comm<Conf>& comm)
-    : grid_t(comm.domain_info()) {
-  comm.resize_buffers(*this);
-}
+// template <typename Conf>
+// grid_t<Conf>::grid_t(const domain_comm<Conf>& comm)
+//     : grid_t(comm.domain_info()) {
+//   comm.resize_buffers(*this);
+// }
 
 template <typename Conf>
 grid_t<Conf>::~grid_t() {}

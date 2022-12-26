@@ -40,7 +40,7 @@ class radiative_transfer : public system_t {
   static std::string name() { return "radiative_transfer"; }
 
   radiative_transfer(const grid_t<Conf>& grid,
-                     const domain_comm<Conf>* comm = nullptr);
+                     const domain_comm<Conf, ExecPolicy>* comm = nullptr);
   ~radiative_transfer();
 
   virtual void init() override;
@@ -55,7 +55,7 @@ class radiative_transfer : public system_t {
   std::unique_ptr<RadiationPolicy<Conf>> m_rad_policy;
 
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf>* m_comm = nullptr;
+  const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // associated data components
   nonown_ptr<photon_data_t> ph;

@@ -21,7 +21,7 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver.h"
+#include "systems/field_solver_base.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
@@ -41,7 +41,8 @@ namespace Aperture {
 template <typename Conf>
 void initial_condition_single_stream(vector_field<Conf> &B,
                                      vector_field<Conf> &E,
-                                     particle_data_t &ptc, rng_states_t<exec_tags::device> &states);
+                                     particle_data_t &ptc,
+                                     rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture
 
@@ -52,18 +53,18 @@ main(int argc, char *argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   // grid_t<Conf> grid(comm);
-  auto& grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   // auto pusher = env.register_system<
   //     ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
   //                                                                      comm);
   auto pusher = env.register_system<ptc_updater_new<
-      // Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_IC_cooling>>(
-      // Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling,
+      // Conf, exec_policy_cuda, coord_policy_cartesian,
+      // phys_policy_IC_cooling>>( Conf, exec_policy_cuda,
+      // coord_policy_cartesian_impl_cooling,
       //     phys_policy_IC_cooling>>(
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
-      grid, comm);
+      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
@@ -71,7 +72,8 @@ main(int argc, char *argv[]) {
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   // auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 

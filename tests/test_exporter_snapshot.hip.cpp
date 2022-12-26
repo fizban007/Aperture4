@@ -50,7 +50,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   env.params().add("max_tracked_num", 100l);
   env.params().add<int64_t>("downsample", 2);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   grid_t<Conf> grid(comm);
   // scalar_field<Conf> fs(grid, MemType::device_managed);
   auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, MemType::device_managed);
@@ -82,7 +82,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
 
   // particle_data_t ptc(1000, MemType::device_managed);
   for (int i = 0; i < 100; i++) {
-    ptc->append(exec_tags::host{}, {0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
+    ptc_append(exec_tags::host{}, *ptc, {0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
                 16 + 16 * 36 + 32 * 36 * 36, 1.0, flag_or(PtcFlag::tracked));
   }
 

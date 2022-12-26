@@ -34,7 +34,9 @@ namespace Aperture {
 template <typename Conf>
 class coord_policy_cartesian {
  public:
-  typedef typename Conf::value_t value_t;
+  // typedef typename Conf::value_t value_t;
+  using value_t = typename Conf::value_t;
+  using grid_type = grid_t<Conf>;
 
   coord_policy_cartesian(const grid_t<Conf>& grid) : m_grid(grid) {}
   ~coord_policy_cartesian() = default;

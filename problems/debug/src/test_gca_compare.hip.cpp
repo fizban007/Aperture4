@@ -51,7 +51,7 @@ main(int argc, char *argv[]) {
   auto &env = sim_environment::instance(&argc, &argv);
   typedef typename Conf::value_t value_t;
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_cuda> comm;
   grid_t<Conf> grid;
 
   auto ptc_data = env.register_data<particle_data_t>(
@@ -130,7 +130,7 @@ main(int argc, char *argv[]) {
       B3_func(ptc_global_x[0], ptc_global_x[1], ptc_global_x[2]));
   ptc_p *= ptc_p_parallel / math::sqrt(ptc_p.dot(ptc_p));
 
-  ptc->append(exec_tags::device{}, rel_x, ptc_p, cell, 1.0,
+  ptc_append(exec_tags::device{}, *ptc, rel_x, ptc_p, cell, 1.0,
                   gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[2] << std::endl;

@@ -59,16 +59,16 @@ class particles_base : public BufferType {
   void init() { erase(0, m_size); }
 
   // void sort_by_cell(size_t max_cell);
-  void sort_by_cell(exec_tags::device, size_t max_cell);
-  void sort_by_cell(exec_tags::host, size_t max_cell);
+  // void sort_by_cell(exec_tags::device, size_t max_cell);
+  // void sort_by_cell(exec_tags::host, size_t max_cell);
   // void sort_by_cell_host(size_t max_cell);
   // void sort_by_cell_dev(size_t max_cell);
 
-  void append(exec_tags::host, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
-              uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
+  // void append(exec_tags::host, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+  //             uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  void append(exec_tags::device, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
-              uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
+  // void append(exec_tags::device, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+  //             uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
   void copy_to_host(bool all = true);
   void copy_to_device(bool all = true);
@@ -79,12 +79,22 @@ class particles_base : public BufferType {
   // void copy_to_comm_buffers(std::vector<self_type>& buffers,
   //                           buffer<ptrs_type>& buf_ptrs,
   //                           const grid_t<Conf>& grid);
-  template <typename Conf>
-  void copy_to_comm_buffers(std::vector<buffer<single_type>>& buffers,
-                            buffer<single_type*>& buf_ptrs,
-                            buffer<int>& buf_nums,
-                            const grid_t<Conf>& grid);
-  void copy_from_buffer(const buffer<single_type>& buf, int num, size_t dst_idx);
+  // template <typename Conf>
+  // void copy_to_comm_buffers(exec_tags::device,
+  //                           std::vector<buffer<single_type>>& buffers,
+  //                           buffer<single_type*>& buf_ptrs,
+  //                           buffer<int>& buf_nums, const grid_t<Conf>& grid);
+  // template <typename Conf>
+  // void copy_to_comm_buffers(exec_tags::host,
+  //                           std::vector<buffer<single_type>>& buffers,
+  //                           buffer<single_type*>& buf_ptrs,
+  //                           buffer<int>& buf_nums, const grid_t<Conf>& grid);
+  // void copy_from_buffer(exec_tags::device, const buffer<single_type>& buf, int num,
+  //                       size_t dst_idx);
+  // void copy_from_buffer(exec_tags::host, const buffer<single_type>& buf, int num,
+  //                       size_t dst_idx);
+
+  void swap(size_t pos, single_type& p);
 
   size_t size() const { return m_size; }
   size_t number() const { return m_number; }
@@ -103,6 +113,13 @@ class particles_base : public BufferType {
   typename BufferType::ptrs_type& get_host_ptrs() { return m_host_ptrs; }
   typename BufferType::ptrs_type& get_dev_ptrs() { return m_dev_ptrs; }
   buffer<uint32_t>& ptc_id() { return m_ptc_id; }
+
+  size_t sort_segment_size() { return m_sort_segment_size; }
+  buffer<size_t>& index() { return m_index; }
+  buffer<double>& tmp_data() { return m_tmp_data; }
+  buffer<int>& segment_nums() { return m_segment_nums; }
+  buffer<int>& zone_buffer_num() { return m_zone_buffer_num; }
+  std::vector<size_t>& partition() { return m_partition; }
 
  private:
   size_t m_size = 0;
@@ -128,9 +145,8 @@ class particles_base : public BufferType {
   typename BufferType::ptrs_type m_dev_ptrs;
 
   void resize_tmp_arrays();
-  void rearrange_arrays(const std::string& skip, size_t offset, size_t num);
-  void rearrange_arrays(exec_tags::host);
-  void swap(size_t pos, single_type& p);
+  // void rearrange_arrays(exec_tags::device, const std::string& skip, size_t offset, size_t num);
+  // void rearrange_arrays(exec_tags::host);
 };
 
 using particles_t = particles_base<ptc_buffer>;
@@ -167,5 +183,7 @@ struct gpu_adapter<particles_base<BufferType>> {
 #endif
 
 }  // namespace Aperture
+
+#include "particles_functions.h"
 
 #endif

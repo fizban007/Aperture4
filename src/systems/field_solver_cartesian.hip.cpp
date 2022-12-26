@@ -15,24 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "field_solver_base_impl.hpp"
+#include "field_solver_cartesian_impl.hpp"
 #include "framework/config.h"
-#include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/coord_policy_spherical.hpp"
-#include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 
 namespace Aperture {
 
-template class field_solver<Config<1>, exec_policy_cuda,
-                            coord_policy_cartesian>;
-template class field_solver<Config<2>, exec_policy_cuda,
-                            coord_policy_cartesian>;
-template class field_solver<Config<3>, exec_policy_cuda,
-                            coord_policy_cartesian>;
+template class field_solver<Config<1>, exec_policy_cuda, coord_policy_cartesian>;
+template class field_solver<Config<2>, exec_policy_cuda, coord_policy_cartesian>;
+template class field_solver<Config<3>, exec_policy_cuda, coord_policy_cartesian>;
 
-template class field_solver<Config<2>, exec_policy_cuda,
-                            coord_policy_spherical>;
-template class field_solver<Config<3>, exec_policy_cuda,
-                            coord_policy_spherical>;
+
 }

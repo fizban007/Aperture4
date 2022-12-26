@@ -10,6 +10,7 @@ elseif (use_hip AND CMAKE_HIP_COMPILER)
     PROPERTIES LANGUAGE HIP)
 endif()
 
+if (use_cuda OR use_hip)
 add_executable(single_stream
   "single_stream.cu"
   "initial_condition.cu"
@@ -46,3 +47,4 @@ add_executable(gca_test_compare
   "test_gca_compare.hip.cpp")
 target_link_libraries(gca_test_compare Aperture Aperture_dev)
 add_dependencies(problems gca_test_compare)
+endif()

@@ -174,7 +174,9 @@ class buffer {
     // Do not go further than the array size
     end = std::min(m_size, end);
     start = std::min(start, end);
+#ifdef GPU_ENABLED
     if (m_dev_allocated) ptr_assign(exec_tags::device{}, m_data_d, start, end, value);
+#endif
   }
 
   /// Assign a single value to part of the buffer, host version
@@ -266,7 +268,9 @@ class buffer {
       num = other.m_size - src_pos;
     }
     if (m_dev_allocated && other.m_dev_allocated) {
+#ifdef GPU_ENABLED
       ptr_copy(exec_tags::device{}, other.m_data_d, m_data_d, num, src_pos, dst_pos);
+#endif
     }
   }
 

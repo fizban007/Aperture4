@@ -16,17 +16,19 @@
  */
 
 #include "catch2/catch_all.hpp"
-#include <catch2/catch_approx.hpp>
 #include "core/particles.h"
 #include "utils/util_functions.h"
+#include <catch2/catch_approx.hpp>
 
 using namespace Aperture;
 
 #ifdef GPU_ENABLED
-// constexpr MemType mem_type = MemType::host_device;
-constexpr MemType mem_type = MemType::device_managed;
+constexpr MemType mem_type = MemType::host_device;
+// constexpr MemType mem_type = MemType::device_managed;
+using exec_tag = exec_tags::device;
 #else
 constexpr MemType mem_type = MemType::host_only;
+using exec_tag = exec_tags::host;
 #endif
 
 TEST_CASE("Initializing particles", "[particles]") {
@@ -55,9 +57,8 @@ TEST_CASE("Initializing particles", "[particles]") {
 }
 
 TEST_CASE("Particle flag manipulation", "[particles]") {
-  uint32_t flag = set_ptc_type_flag(
-      flag_or(PtcFlag::primary, PtcFlag::tracked),
-      PtcType::electron);
+  uint32_t flag = set_ptc_type_flag(flag_or(PtcFlag::primary, PtcFlag::tracked),
+                                    PtcType::electron);
 
   REQUIRE(get_ptc_type(flag) == (int)PtcType::electron);
   REQUIRE(check_flag(flag, PtcFlag::primary) == true);
@@ -73,21 +74,19 @@ TEST_CASE("Init, copy and assign particles", "[particles]") {
   particles_t ptc2(N, mem_type);
   ptc.init();
   ptc.copy_to_host();
-  for (int i = 0; i < N; i++)
-    REQUIRE(ptc.cell[i] == empty_cell);
+  for (int i = 0; i < N; i++) REQUIRE(ptc.cell[i] == empty_cell);
 
   ptc2.cell.assign(10);
   ptc2.copy_to_host();
-  for (int i = 0; i < N; i++)
-    REQUIRE(ptc2.cell[i] == 10);
+  for (int i = 0; i < N; i++) REQUIRE(ptc2.cell[i] == 10);
 
   ptc2.copy_from(ptc, N, 0, 0);
   ptc2.copy_to_host();
-  for (int i = 0; i < N; i++)
-    REQUIRE(ptc2.cell[i] == empty_cell);
+  for (int i = 0; i < N; i++) REQUIRE(ptc2.cell[i] == empty_cell);
 }
 
-TEST_CASE("Assigning between particle array and single particle", "[particles]") {
+TEST_CASE("Assigning between particle array and single particle",
+          "[particles]") {
   size_t N = 100;
   particles_t ptc(N, mem_type);
   ptc.init();
@@ -123,7 +122,8 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   ptc.set_segment_size(4);
   ptc.x1.emplace(0, {0.1, 0.2, 0.3});
   ptc.cell.assign_host(empty_cell);
-  ptc.cell.emplace(0, {34, 24, 14, empty_cell, 4, 90, 12, 35, 9, 50, 42, empty_cell, empty_cell, 70, 99});
+  ptc.cell.emplace(0, {34, 24, 4, empty_cell, 14, 90, 12, 35, 9, 50, 42,
+                       empty_cell, empty_cell, 70, 99});
   ptc.set_num(15);
 
 #ifdef GPU_ENABLED
@@ -134,13 +134,11 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   ptc_sort_by_cell(exec_tags::host{}, ptc, 100);
 #endif
   for (int i = 0; i < N; i++) {
-    Logger::print_info("cell[{}] is {}", i, ptc.cell[i]);
+    Logger::print_info("cell[{0}] is {1}, x1[{0}] is {2}", i, ptc.cell[i], ptc.x1[i]);
   }
   REQUIRE(ptc.x1[0] == Catch::Approx(0.3f));
-  REQUIRE(ptc.x1[1] == Catch::Approx(0.2f));
-  REQUIRE(ptc.x1[2] == Catch::Approx(0.1f));
-  REQUIRE(ptc.cell[0] == 14);
-  REQUIRE(ptc.cell[1] == 24);
-  REQUIRE(ptc.cell[2] == 34);
+  REQUIRE(ptc.cell[0] == 4);
+  REQUIRE(ptc.cell[1] == 9);
+  REQUIRE(ptc.cell[2] == 12);
   REQUIRE(ptc.number() == 12);
 }

@@ -20,9 +20,10 @@ add_executable(tests
 target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 
 # add_executable(tests_dev "test.cpp")
+if (use_cuda OR use_hip)
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # target_sources(tests PUBLIC
-  set(test_cuda_src
+  set(test_dev_src
     "test_multi_array.cu"
     "test_vec.cu"
     "test_params.cu"
@@ -32,11 +33,9 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
     )
-  set_source_files_properties(${test_cuda_src} PROPERTIES LANGUAGE CUDA)
-  add_executable(tests_dev
-    ${test_cuda_src})
+  set_source_files_properties(${test_dev_src} PROPERTIES LANGUAGE CUDA)
 elseif(use_hip)
-  set(test_hip_src
+  set(test_dev_src
     "test_multi_array.cu"
     "test_vec.cu"
     "test_params.cu"
@@ -45,29 +44,30 @@ elseif(use_hip)
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
     )
-  set_source_files_properties(${test_hip_src} PROPERTIES
+  set_source_files_properties(${test_dev_src} PROPERTIES
     LANGUAGE HIP
     # COMPILE_FLAGS "-save-temps"
     )
   # target_sources(tests_dev PUBLIC
-  add_executable(tests_dev
-    ${test_hip_src})
-else()
-  target_sources(tests_dev PUBLIC
-    # "test_ptc_updater.cpp"
-    "test_rng.cpp"
-    # "compare_new_pusher.cpp"
-    )
 endif()
-
-target_link_libraries(tests_dev Aperture_dev Catch2::Catch2WithMain)
+  add_executable(tests_dev
+    ${test_dev_src})
+  target_link_libraries(tests_dev Aperture_dev Catch2::Catch2WithMain)
+endif()
 
 add_custom_target(
   run_tests
-  COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests" "&&" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests_dev"
-  DEPENDS tests tests_dev
+  COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests"
+  DEPENDS tests
   WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 add_dependencies(check run_tests)
+if(use_cuda OR use_hip)
+  add_dependencies(run_tests test_dev)
+  add_custom_command(
+    TARGET test_dev POST_BUILD
+    COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/tests_dev"
+    WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endif()
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # add_executable(test_summit_mpi "test_summit_mpi.cu")
@@ -114,6 +114,8 @@ else()
 
 endif()
 
+if (use_cuda OR use_hip)
+
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE CUDA)
 elseif(use_hip)
@@ -122,6 +124,8 @@ endif()
 
 add_executable(test_exporter_snapshot "test_exporter_snapshot.hip.cpp")
 target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
+
+endif()
 
 # add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
 # target_link_libraries(test_exporter_mpi Aperture_dev)

@@ -26,30 +26,20 @@
 namespace Aperture {
 
 template <typename Conf>
-using fd = finite_diff<Conf::dim, 2>;
-
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
 void
-field_solver<Conf, ExecPolicy, CoordPolicy>::init() {
+field_solver_base<Conf>::init() {
   sim_env().params().get_value("use_implicit", m_use_implicit);
   if (m_use_implicit) {
     sim_env().params().get_value("implicit_beta", m_beta);
     m_alpha = 1.0 - m_beta;
   }
-  this->init_tmp_fields();
   sim_env().params().get_value("fld_output_interval", m_data_interval);
 
   sim_env().params().get_value("update_e", m_update_e);
   sim_env().params().get_value("update_b", m_update_b);
+  sim_env().params().get_value("compute_field_energies", m_compute_energies);
+  sim_env().params().get_value("compute_field_divs", m_compute_divs);
 
-  sim_env().params().get_value("pml_length", m_pml_length);
-  sim_env().params().get_array("damping_boundary", m_damping);
-  for (int i = 0; i < Conf::dim * 2; i++) {
-    if (m_comm != nullptr && m_comm->domain_info().is_boundary[i] != true) {
-      m_damping[i] = false;
-    }
-  }
   // for (int i = 0; i < Conf::dim * 2; i++) {
   //   if (m_damping[i] == true) {
   //     m_pml[i] = std::make_unique<pml_data<Conf>>((BoundaryPos)i, m_pml_length,
@@ -62,11 +52,10 @@ field_solver<Conf, ExecPolicy, CoordPolicy>::init() {
   this->Btotal->add_by(*(this->B));
 }
 
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
+template <typename Conf>
 void
-field_solver<Conf, ExecPolicy, CoordPolicy>::register_data_components() {
-  MemType type = ExecPolicy<Conf>::data_mem_type();
+field_solver_base<Conf>::register_data_components_impl(MemType type) {
+  // MemType type = ExecPolicy<Conf>::data_mem_type();
   // output fields, we don't directly use here
   Etotal = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, type);
@@ -104,26 +93,11 @@ field_solver<Conf, ExecPolicy, CoordPolicy>::register_data_components() {
       "flux", m_grid, field_type::vert_centered, type);
   // EdotB = sim_env().register_data<scalar_field<Conf>>("EdotB", m_grid,
   //                                                 field_type::vert_centered);
-  m_tmp_b1 = sim_env().register_data<vector_field<Conf>>(
-    "tmp_b1", m_grid, field_type::face_centered, type);
-  m_tmp_b2 = sim_env().register_data<vector_field<Conf>>(
-    "tmp_b2", m_grid, field_type::face_centered, type);
-  m_tmp_e1 = sim_env().register_data<vector_field<Conf>>(
-    "tmp_e1", m_grid, field_type::vert_centered, type);
-  m_tmp_e2 = sim_env().register_data<vector_field<Conf>>(
-    "tmp_e2", m_grid, field_type::vert_centered, type);
-  if (!m_use_implicit) {
-    m_tmp_b1->include_in_snapshot(true);
-    m_tmp_b2->include_in_snapshot(true);
-    m_tmp_e1->include_in_snapshot(true);
-    m_tmp_e2->include_in_snapshot(true);
-  }
 }
 
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
+template <typename Conf>
 void
-field_solver<Conf, ExecPolicy, CoordPolicy>::update(double dt, uint32_t step) {
+field_solver_base<Conf>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
   if (m_use_implicit)
     this->update_semi_implicit(dt, m_alpha, m_beta, time);
@@ -134,22 +108,25 @@ field_solver<Conf, ExecPolicy, CoordPolicy>::update(double dt, uint32_t step) {
   this->Etotal->add_by(*(this->E));
   this->Btotal->copy_from(*(this->B0));
   this->Btotal->add_by(*(this->B));
+
+  if (step % this->m_data_interval == 0) {
+    this->compute_flux();
+    if (m_compute_divs) {
+      this->compute_divs_e_b();
+    }
+    if (m_compute_energies) {
+      this->compute_EB_sqr();
+    }
+  }
 }
 
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
+template <typename Conf>
 void
-field_solver<Conf, ExecPolicy, CoordPolicy>::init_tmp_fields() {}
+field_solver_base<Conf>::update_explicit(double dt, double time) {}
 
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
+template <typename Conf>
 void
-field_solver<Conf, ExecPolicy, CoordPolicy>::update_explicit(double dt, double time) {}
-
-template <typename Conf, template <class> class ExecPolicy,
-          template <class> class CoordPolicy>
-void
-field_solver<Conf, ExecPolicy, CoordPolicy>::update_semi_implicit(double dt, double alpha, double beta, double time) {}
+field_solver_base<Conf>::update_semi_implicit(double dt, double alpha, double beta, double time) {}
 
 }
 

@@ -32,16 +32,15 @@ field_t<N, Conf>::field_t(const Grid_t& grid, MemType memtype)
 }
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid_t& grid,
-                          const vec_t<stagger_t, N> st, MemType memtype)
+field_t<N, Conf>::field_t(const Grid_t& grid, const vec_t<stagger_t, N> st,
+                          MemType memtype)
     : m_stagger(st), m_memtype(memtype) {
   set_memtype(memtype);
   resize(grid);
 }
 
 template <int N, typename Conf>
-field_t<N, Conf>::field_t(const Grid_t& grid, field_type type,
-                          MemType memtype)
+field_t<N, Conf>::field_t(const Grid_t& grid, field_type type, MemType memtype)
     : m_memtype(memtype) {
   set_memtype(memtype);
   if (type == field_type::face_centered) {
@@ -89,14 +88,18 @@ field_t<N, Conf>::set_memtype(MemType type) {
 
 template <int N, typename Conf>
 void
-field_t<N, Conf>::add_by(const field_t<N, Conf> &other, typename Conf::value_t scale) {
+field_t<N, Conf>::add_by(const field_t<N, Conf>& other,
+                         typename Conf::value_t scale) {
   for (int i = 0; i < N; i++) {
-    if (m_memtype == MemType::host_only)
-      add(exec_tags::host{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
-          m_grid->extent());
-    else
-      add(exec_tags::device{}, m_data[i], other.m_data[i], index_t<Conf::dim>{}, index_t<Conf::dim>{},
-              m_grid->extent());
+    if (m_memtype == MemType::host_only) {
+      add(exec_tags::host{}, m_data[i], other.m_data[i], index_t<Conf::dim>{},
+          index_t<Conf::dim>{}, m_grid->extent());
+    } else {
+#ifdef GPU_ENABLED
+      add(exec_tags::device{}, m_data[i], other.m_data[i], index_t<Conf::dim>{},
+          index_t<Conf::dim>{}, m_grid->extent());
+#endif
+    }
   }
 }
 

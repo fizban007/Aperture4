@@ -21,7 +21,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
-#include "systems/field_solver_base.h"
+#include "systems/field_solver_cartesian.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_cuda.hpp"
 #include "systems/ptc_updater_base.h"

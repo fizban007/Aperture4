@@ -172,18 +172,33 @@ template void ptc_copy_from_buffer(exec_tags::host,
                                    const buffer<single_ph_t>& buf, int num,
                                    size_t dst_idx);
 
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::copy_from_buffer(
-//     exec_tags::host,
-//     const buffer<single_type> &buf,
-//     int num, size_t dst_idx) {
 template <typename BufferType, typename Conf>
 void
 ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
                          std::vector<buffer<typename BufferType::single_type>>& buffers,
                          buffer<typename BufferType::single_type*>& buf_ptrs,
-                         buffer<int>& buf_nums, const grid_t<Conf>& grid) {}
+                         buffer<int>& buf_nums, const grid_t<Conf>& grid) {
+  // TODO: Test this function to make sure it behaves correctly
+  if (ptc.number() > 0) {
+    auto ext = grid.extent();
+    buf_nums.assign(0);
+
+    for (size_t n : range(0, ptc.number())) {
+      // Loop over the particle array and copy particles to the correct
+      // communication buffer
+      uint32_t cell = ptc.cell[n];
+      if (cell == empty_cell) continue;
+      auto idx = Conf::idx(cell, ext);
+      auto grid_pos = get_pos(idx, ext);
+      int zone_offset = get_zone_offset<Conf::dim>();
+      int zone = grid.find_zone(grid_pos) + zone_offset;
+      if (zone == 13) continue; // Zone 13 is center, no need for communication
+      assign_ptc(buffers[zone][buf_nums[zone]], ptc.get_host_ptrs(), n);
+      ptc.cell[n] = empty_cell;
+      buf_nums[zone] += 1;
+    }
+  }
+}
 
 template void ptc_copy_to_comm_buffers<ptc_buffer, Config<1>>(
     exec_tags::host, particles_base<ptc_buffer>& ptc,

@@ -53,7 +53,10 @@ class exec_policy_cuda {
     }
   }
 
-  static void sync() { GpuSafeCall(gpuDeviceSynchronize()); }
+  static void sync() {
+    GpuSafeCall(gpuDeviceSynchronize());
+    GpuCheckError();
+  }
 
   static __device__ const Grid<Conf::dim, typename Conf::value_t>& grid() {
 #if defined(__CUDACC__) || defined(__HIPCC__)

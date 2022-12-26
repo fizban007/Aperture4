@@ -18,11 +18,10 @@
 #ifndef _DATA_EXPORTER_IMPL_H_
 #define _DATA_EXPORTER_IMPL_H_
 
-
-#include "data_exporter.h"
 #include "core/detail/multi_array_helpers.h"
 #include "data/multi_array_data.hpp"
 #include "data/particle_data.h"
+#include "data_exporter.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "framework/params_store.h"
@@ -46,8 +45,8 @@ namespace Aperture {
 
 template <typename Conf, template <class> class ExecPolicy>
 // data_exporter<Conf>::data_exporter(sim_environment& env,
-data_exporter<Conf, ExecPolicy>::data_exporter(const grid_t<Conf>& grid,
-                                   const domain_comm<Conf, ExecPolicy>* comm)
+data_exporter<Conf, ExecPolicy>::data_exporter(
+    const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
     : m_grid(grid), m_comm(comm), m_output_grid(grid) {
   sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
   sim_env().params().get_value("fld_output_interval", m_fld_output_interval);
@@ -118,8 +117,10 @@ data_exporter<Conf, ExecPolicy>::register_data_components() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write_field_data(data_t* data, const std::string& name,
-                                H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write_field_data(data_t* data,
+                                                  const std::string& name,
+                                                  H5File& datafile,
+                                                  bool snapshot) {
   using value_t = typename Conf::value_t;
   if (auto* ptr = dynamic_cast<vector_field<Conf>*>(data)) {
     Logger::print_detail("Writing vector field {}", name);
@@ -280,8 +281,8 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename, uint32_t step,
-                                    double time) {
+data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
+                                                uint32_t step, double time) {
   auto create_mode = H5CreateMode::trunc_parallel;
   if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
   H5File snapfile = hdf_create(filename, create_mode);
@@ -340,8 +341,8 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename, uin
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename, uint32_t& step,
-                                   double& time) {
+data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
+                                               uint32_t& step, double& time) {
   H5File snapfile(filename, H5OpenMode::read_parallel);
 
   // Read simulation stats
@@ -464,7 +465,8 @@ data_exporter<Conf, ExecPolicy>::write_xmf_head(std::ofstream& fs) {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write_xmf_step_header(std::string& buffer, double time) {
+data_exporter<Conf, ExecPolicy>::write_xmf_step_header(std::string& buffer,
+                                                       double time) {
   if (!is_root()) return;
 
   if (Conf::dim == 3) {
@@ -540,11 +542,13 @@ data_exporter<Conf, ExecPolicy>::write_grid_multiarray(
     stagger_t stagger, H5File& file) {
   // if (m_downsample != 1) {
   // if (array.dev_allocated() && tmp_grid_data.dev_allocated()) {
-  //   resample(exec_tags::device{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+  //   resample(exec_tags::device{}, array, tmp_grid_data, m_grid.guards(),
+  //   index_t<Conf::dim>{},
   //                stagger, m_output_stagger, m_downsample);
   //   tmp_grid_data.copy_to_host();
   // } else {
-  //   resample(exec_tags::host{}, array, tmp_grid_data, m_grid.guards(), index_t<Conf::dim>{},
+  //   resample(exec_tags::host{}, array, tmp_grid_data, m_grid.guards(),
+  //   index_t<Conf::dim>{},
   //            stagger, m_output_stagger, m_downsample);
   // }
   resample(exec_tag{}, array, tmp_grid_data, m_grid.guards(),
@@ -579,8 +583,8 @@ data_exporter<Conf, ExecPolicy>::write_multi_array_helper(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write_xmf_field_entry(std::string& buffer, int num,
-                                           const std::string& name) {
+data_exporter<Conf, ExecPolicy>::write_xmf_field_entry(
+    std::string& buffer, int num, const std::string& name) {
   if (is_root()) {
     m_xmf_buffer += fmt::format(
         "  <Attribute Name=\"{}\" Center=\"Node\" "
@@ -599,8 +603,9 @@ data_exporter<Conf, ExecPolicy>::write_xmf_field_entry(std::string& buffer, int 
 template <typename Conf, template <class> class ExecPolicy>
 template <typename PtcData>
 void
-data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data, const std::string& name,
-                                        H5File& datafile) {
+data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data,
+                                                    const std::string& name,
+                                                    H5File& datafile) {
   auto& ptc_buffer = tmp_ptc_data;
   size_t number = data.number();
   size_t total = number;
@@ -611,12 +616,13 @@ data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data, const std::st
   }
   // TODO: figure out whether to use dev_ptr or host_ptr
   visit_struct::for_each(
-      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total, offset,
-                        multi_rank](const char* entry, auto u) {
+      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total,
+                                offset, multi_rank](const char* entry, auto u) {
         // Copy to the temporary ptc buffer
-        // ptr_copy(exec_tags::device{}, reinterpret_cast<double*>(u), ptc_buffer.dev_ptr(), number,
-        ptr_copy(exec_tag{}, reinterpret_cast<double*>(u), adapt(exec_tag{}, ptc_buffer), number,
-                 0, 0);
+        // ptr_copy(exec_tags::device{}, reinterpret_cast<double*>(u),
+        // ptc_buffer.dev_ptr(), number,
+        ptr_copy(exec_tag{}, reinterpret_cast<double*>(u),
+                 adapt(exec_tag{}, ptc_buffer), number, 0, 0);
         ptc_buffer.copy_to_host();
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
         // typedef decltype(*u) data_type;
@@ -634,35 +640,42 @@ data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data, const std::st
 template <typename Conf, template <class> class ExecPolicy>
 template <typename PtcData>
 void
-data_exporter<Conf, ExecPolicy>::read_ptc_snapshot(PtcData& data, const std::string& name,
-                                       H5File& datafile, size_t number,
-                                       size_t total, size_t offset) {
+data_exporter<Conf, ExecPolicy>::read_ptc_snapshot(PtcData& data,
+                                                   const std::string& name,
+                                                   H5File& datafile,
+                                                   size_t number, size_t total,
+                                                   size_t offset) {
   auto& ptc_buffer = tmp_ptc_data;
   bool multi_rank = is_multi_rank();
   // visit_struct::for_each(data.dev_ptrs(), [&ptc_buffer, &name, &datafile,
-  visit_struct::for_each(adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile,
-                                           number, total, offset, multi_rank](
-                                              const char* entry, auto u) {
-    typedef typename std::remove_reference_t<decltype(*u)> data_type;
-    Logger::print_info("reading {}", entry);
-    if (multi_rank) {
-      datafile.read_subset(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
-                           number, name + "_" + entry, offset, number, 0);
-    } else {
-      datafile.read_array(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
-                          number, name + "_" + entry);
-    }
-    ptc_buffer.copy_to_device();
-    // ptr_copy(exec_tags::device{}, ptc_buffer.dev_ptr(), reinterpret_cast<double*>(u), number, 0,
-    ptr_copy(exec_tags::device{}, adapt(exec_tag{}, ptc_buffer), reinterpret_cast<double*>(u), number, 0,
-             0);
-  });
+  visit_struct::for_each(
+      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total,
+                                offset, multi_rank](const char* entry, auto u) {
+        typedef typename std::remove_reference_t<decltype(*u)> data_type;
+        Logger::print_info("reading {}", entry);
+        if (multi_rank) {
+          datafile.read_subset(
+              reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
+              name + "_" + entry, offset, number, 0);
+        } else {
+          datafile.read_array(
+              reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
+              name + "_" + entry);
+        }
+        ptc_buffer.copy_to_device();
+        // ptr_copy(exec_tags::device{}, ptc_buffer.dev_ptr(),
+        // reinterpret_cast<double*>(u), number, 0,
+        ptr_copy(typename ExecPolicy<Conf>::exec_tag{},
+                 adapt(exec_tag{}, ptc_buffer), reinterpret_cast<double*>(u),
+                 number, 0, 0);
+      });
 }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write(particle_data_t& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(particle_data_t& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   if (snapshot) {
     write_ptc_snapshot(data, name, datafile);
   }
@@ -670,8 +683,9 @@ data_exporter<Conf, ExecPolicy>::write(particle_data_t& data, const std::string&
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write(photon_data_t& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(photon_data_t& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   if (snapshot) {
     write_ptc_snapshot(data, name, datafile);
   }
@@ -680,8 +694,9 @@ data_exporter<Conf, ExecPolicy>::write(photon_data_t& data, const std::string& n
 template <typename Conf, template <class> class ExecPolicy>
 template <int N>
 void
-data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // Loop over all components, downsample them, then write them to the file
   for (int i = 0; i < N; i++) {
     std::string namestr;
@@ -712,8 +727,9 @@ data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data, const std::string
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write(rng_states_t<exec_tag>& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(rng_states_t<exec_tag>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // No point writing rng states for regular data output
   if (!snapshot) {
     return;
@@ -745,8 +761,9 @@ data_exporter<Conf, ExecPolicy>::write(rng_states_t<exec_tag>& data, const std::
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::write(momentum_space<Conf>& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(momentum_space<Conf>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // No point including this in the snapshot
   if (snapshot) {
     return;
@@ -819,8 +836,9 @@ data_exporter<Conf, ExecPolicy>::write(momentum_space<Conf>& data, const std::st
 template <typename Conf, template <class> class ExecPolicy>
 template <int N>
 void
-data_exporter<Conf, ExecPolicy>::write(phase_space<Conf, N>& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(phase_space<Conf, N>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // Should not include this in the snapshot either
   if (snapshot) {
     return;
@@ -872,8 +890,9 @@ data_exporter<Conf, ExecPolicy>::write(phase_space<Conf, N>& data, const std::st
 template <typename Conf, template <class> class ExecPolicy>
 template <typename T>
 void
-data_exporter<Conf, ExecPolicy>::write(scalar_data<T>& data, const std::string& name,
-                           H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::write(scalar_data<T>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // The same behavior for snapshot or not
   if (is_multi_rank() && data.do_gather()) {
     m_comm->gather_to_root(data.data());
@@ -889,8 +908,8 @@ template <typename Conf, template <class> class ExecPolicy>
 template <typename T, int Rank>
 void
 data_exporter<Conf, ExecPolicy>::write(multi_array_data<T, Rank>& data,
-                           const std::string& name, H5File& datafile,
-                           bool snapshot) {
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // This makes most sense when not doing snapshot
   if (!snapshot) {
     if (is_multi_rank()) {
@@ -929,8 +948,8 @@ template <typename Conf, template <class> class ExecPolicy>
 template <typename BufferType>
 void
 data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
-                           const std::string& name, H5File& datafile,
-                           bool snapshot) {
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
   // No need to specifically write tracked_ptc into snapshot
   if (!snapshot) {
     size_t number = data.number();
@@ -977,8 +996,9 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
 template <typename Conf, template <class> class ExecPolicy>
 template <int N>
 void
-data_exporter<Conf, ExecPolicy>::read(field_t<N, Conf>& data, const std::string& name,
-                          H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::read(field_t<N, Conf>& data,
+                                      const std::string& name, H5File& datafile,
+                                      bool snapshot) {
   // Loop over all components, reading them from file
   for (int i = 0; i < N; i++) {
     std::string namestr;
@@ -1008,8 +1028,9 @@ data_exporter<Conf, ExecPolicy>::read(field_t<N, Conf>& data, const std::string&
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::read(rng_states_t<exec_tag>& data, const std::string& name,
-                          H5File& datafile, bool snapshot) {
+data_exporter<Conf, ExecPolicy>::read(rng_states_t<exec_tag>& data,
+                                      const std::string& name, H5File& datafile,
+                                      bool snapshot) {
   // No point reading rng states for regular data output
   if (!snapshot) {
     return;
@@ -1039,10 +1060,9 @@ data_exporter<Conf, ExecPolicy>::read(rng_states_t<exec_tag>& data, const std::s
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::compute_snapshot_ext_offset(extent_t<Conf::dim>& ext_total,
-                                                 extent_t<Conf::dim>& ext,
-                                                 index_t<Conf::dim>& pos_array,
-                                                 index_t<Conf::dim>& pos_file) {
+data_exporter<Conf, ExecPolicy>::compute_snapshot_ext_offset(
+    extent_t<Conf::dim>& ext_total, extent_t<Conf::dim>& ext,
+    index_t<Conf::dim>& pos_array, index_t<Conf::dim>& pos_file) {
   // Figure out the total ext and individual ext, and individual offsets for
   // snaphsot output
   ext_total = m_global_ext * m_downsample;
@@ -1075,15 +1095,12 @@ data_exporter<Conf, ExecPolicy>::compute_snapshot_ext_offset(extent_t<Conf::dim>
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-data_exporter<Conf, ExecPolicy>::compute_ext_offset(const extent_t<Conf::dim>& ext_total,
-                                        const extent_t<Conf::dim>& ext,
-                                        int downsample,
-                                        index_t<Conf::dim>& offsets) const {}
+data_exporter<Conf, ExecPolicy>::compute_ext_offset(
+    const extent_t<Conf::dim>& ext_total, const extent_t<Conf::dim>& ext,
+    int downsample, index_t<Conf::dim>& offsets) const {}
 
 // INSTANTIATE_WITH_CONFIG(data_exporter);
 
 }  // namespace Aperture
-
-
 
 #endif  // _DATA_EXPORTER_IMPL_H_

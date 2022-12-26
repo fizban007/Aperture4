@@ -65,6 +65,26 @@ void ptc_copy_from_buffer(exec_tags::host, particles_base<BufferType>& ptc,
                           const buffer<typename BufferType::single_type>& buf,
                           int num, size_t dst_idx);
 
+template <int Dim>
+constexpr int
+get_zone_offset() {
+  return 0;
+}
+
+template <>
+constexpr int
+get_zone_offset<1>() {
+  return 12;
+}
+
+template <>
+constexpr int
+get_zone_offset<2>() {
+  return 9;
+}
+
+
+
 }  // namespace Aperture
 
 #endif  // _PARTICLES_FUNCTIONS_H_

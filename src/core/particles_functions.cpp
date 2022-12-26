@@ -29,23 +29,24 @@ namespace Aperture {
 
 template <typename BufferType>
 void
-ptc_rearrange_arrays(exec_tags::host, particles_base<BufferType>& data) {
+ptc_rearrange_arrays(exec_tags::host, particles_base<BufferType>& data,
+                     size_t offset, size_t num) {
   typename BufferType::single_type p_tmp;
   auto& m_index = data.index();
-  for (size_t i = 0; i < data.number(); i++) {
+  for (size_t i = 0; i < num; i++) {
     // -1 means LLONG_MAX for unsigned long int
     if (m_index[i] != (size_t)-1) {
       for_each_double(p_tmp, data.get_host_ptrs(),
-                      [i](auto& x, auto& y) { x = y[i]; });
+                      [i, offset](auto& x, auto& y) { x = y[i + offset]; });
       for (size_t j = i;;) {
-        if (m_index[j] != i) {
+        if (m_index[j] != i + offset) {
           // put(index[j], m_data[j]);
           data.swap(m_index[j], p_tmp);
           size_t id = m_index[j];
           m_index[j] = (size_t)-1;  // Mark as done
-          j = id;
+          j = id - offset;
         } else {
-          assign_ptc(data.get_host_ptrs(), i, p_tmp);
+          assign_ptc(data.get_host_ptrs(), i + offset, p_tmp);
           m_index[j] = (size_t)-1;  // Mark as done
           break;
         }
@@ -93,52 +94,73 @@ ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
     // Compute the number of cells and resize the partition array if
     // needed
     if (m_partition.size() != num_cells + 2) m_partition.resize(num_cells + 2);
-    if (m_index.size() != ptc.size()) m_index.resize(ptc.size());
+    if (m_index.size() != ptc.sort_segment_size())
+      m_index.resize(ptc.sort_segment_size());
 
-    std::fill(m_partition.begin(), m_partition.end(), 0);
-    // Generate particle index from 0 up to the current number
-    std::iota(m_index.host_ptr(), m_index.host_ptr() + m_number, 0);
+    size_t total_num = 0;
 
-    // Loop over the particle array to count how many particles in each
-    // cell
-    for (std::size_t i = 0; i < m_number; i++) {
-      size_t cell_idx = 0;
-      if (ptc.cell[i] == empty_cell)
-        cell_idx = num_cells;
-      else
-        cell_idx = ptc.cell[i];
-      // Right now m_index array saves the id of each particle in its
-      // cell, and partitions array saves the number of particles in
-      // each cell
-      m_index[i] = m_partition[cell_idx + 1];
-      m_partition[cell_idx + 1] += 1;
-    }
-
-    // Scan the array, now the array contains the starting index of each
-    // zone in the main particle array
-    for (uint32_t i = 1; i < num_cells + 2; i++) {
-      m_partition[i] += m_partition[i - 1];
-      // The last element means how many particles are empty
-    }
-
-    // Second pass through the particle array, get the real index
-    for (size_t i = 0; i < m_number; i++) {
-      size_t cell_idx = 0;
-      if (ptc.cell[i] == empty_cell) {
-        cell_idx = num_cells;
-      } else {
-        cell_idx = ptc.cell[i];
+    // Go through the particle array segment by segment
+    for (int n = 0; n < ptc.number() / ptc.sort_segment_size() + 1; n++) {
+      size_t offset = n * ptc.sort_segment_size();
+      // Fringe case of number being an exact multiple of segment_size
+      if (offset == ptc.number()) {
+        // ptc.segment_nums()[n] = 0;
+        continue;
       }
-      m_index[i] += m_partition[cell_idx];
-    }
 
-    // Rearrange the particles to reflect the partition
-    // timer::show_duration_since_stamp("partition", "ms");
-    ptc_rearrange_arrays(exec_tags::host{}, ptc);
+      std::fill(m_partition.begin(), m_partition.end(), 0);
+      // Generate particle index from 0 up to the current number
+      size_t sort_size =
+          std::min(ptc.sort_segment_size(), ptc.number() - offset);
+      std::iota(m_index.host_ptr(), m_index.host_ptr() + sort_size, 0);
+
+      // Loop over the particle array to count how many particles in each
+      // cell
+      for (std::size_t i = 0; i < sort_size; i++) {
+        size_t cell_idx = 0;
+        if (ptc.cell[i + offset] == empty_cell)
+          cell_idx = num_cells;
+        else
+          cell_idx = ptc.cell[i + offset];
+        // Right now m_index array saves the id of each particle in its
+        // cell, and partitions array saves the number of particles in
+        // each cell
+        m_index[i] = m_partition[cell_idx + 1];
+        m_partition[cell_idx + 1] += 1;
+      }
+      // Scan the array, now the array contains the starting index of each
+      // zone in the main particle array
+      for (uint32_t i = 1; i < num_cells + 2; i++) {
+        m_partition[i] += m_partition[i - 1];
+        // The last element means how many particles are empty
+      }
+
+      // Second pass through the particle array, get the real index
+      for (size_t i = 0; i < sort_size; i++) {
+        size_t cell_idx = 0;
+        if (ptc.cell[i + offset] == empty_cell) {
+          cell_idx = num_cells;
+        } else {
+          cell_idx = ptc.cell[i + offset];
+        }
+        m_index[i] += m_partition[cell_idx] + offset;
+      }
+
+      // Rearrange the particles to reflect the partition
+      // timer::show_duration_since_stamp("partition", "ms");
+      ptc_rearrange_arrays(exec_tags::host{}, ptc, offset, sort_size);
+
+      if (n < ptc.number() / ptc.sort_segment_size()) {
+        total_num += sort_size;
+      } else {
+        total_num += m_partition[num_cells];
+      }
+    }
 
     // num_cells is where the empty particles start, so we record this as
     // the new particle number
-    if (m_partition[num_cells] != m_number) ptc.set_num(m_partition[num_cells]);
+    // if (m_partition[num_cells] != m_number) ptc.set_num(m_partition[num_cells]);
+    if (total_num != m_number) ptc.set_num(total_num);
     Logger::print_info("Sorting complete, there are {} particles in the pool",
                        m_number);
   }

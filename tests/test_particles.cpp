@@ -137,8 +137,10 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
     Logger::print_info("cell[{0}] is {1}, x1[{0}] is {2}", i, ptc.cell[i], ptc.x1[i]);
   }
   REQUIRE(ptc.x1[0] == Catch::Approx(0.3f));
+  REQUIRE(ptc.x1[1] == Catch::Approx(0.2f));
+  REQUIRE(ptc.x1[2] == Catch::Approx(0.1f));
   REQUIRE(ptc.cell[0] == 4);
-  REQUIRE(ptc.cell[1] == 9);
-  REQUIRE(ptc.cell[2] == 12);
-  REQUIRE(ptc.number() == 12);
+  REQUIRE(ptc.cell[1] == 24);
+  REQUIRE(ptc.cell[2] == 34);
+  REQUIRE(ptc.number() == 14);
 }

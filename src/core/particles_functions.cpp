@@ -94,17 +94,19 @@ ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
     // Compute the number of cells and resize the partition array if
     // needed
     if (m_partition.size() != num_cells + 2) m_partition.resize(num_cells + 2);
+    if (ptc.segment_nums().size() != ptc.size() / ptc.sort_segment_size() + 1)
+      ptc.segment_nums().resize(ptc.size() / ptc.sort_segment_size() + 1);
     if (m_index.size() != ptc.sort_segment_size())
       m_index.resize(ptc.sort_segment_size());
 
     size_t total_num = 0;
 
-    // Go through the particle array segment by segment
+    // 1st: Go through the particle array segment by segment
     for (int n = 0; n < ptc.number() / ptc.sort_segment_size() + 1; n++) {
       size_t offset = n * ptc.sort_segment_size();
       // Fringe case of number being an exact multiple of segment_size
       if (offset == ptc.number()) {
-        // ptc.segment_nums()[n] = 0;
+        ptc.segment_nums()[n] = 0;
         continue;
       }
 
@@ -150,19 +152,60 @@ ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
       // timer::show_duration_since_stamp("partition", "ms");
       ptc_rearrange_arrays(exec_tags::host{}, ptc, offset, sort_size);
 
-      if (n < ptc.number() / ptc.sort_segment_size()) {
-        total_num += sort_size;
-      } else {
-        total_num += m_partition[num_cells];
+      ptc.segment_nums()[n] = m_partition[num_cells];
+      // if (n < ptc.number() / ptc.sort_segment_size()) {
+      //   total_num += sort_size;
+      // } else {
+      //   total_num += m_partition[num_cells];
+      // }
+    }
+
+    // 2nd: Defrag the whole particle array
+    int last_segment = ptc.number() / ptc.sort_segment_size();
+    for (int m = 0; m < last_segment; m++) {
+      // Logger::print_info(
+      //     "Filling segment {}, last_segment is {}, num_last is {}", m,
+      //     last_segment, m_segment_nums[last_segment]);
+
+      while (ptc.segment_nums()[m] < ptc.sort_segment_size()) {
+        // deficit is how many "holes" do we have in this segment
+        int deficit = ptc.sort_segment_size() - ptc.segment_nums()[m];
+        // do not copy more particles than the number in the last segment
+        int num_to_copy = std::min(deficit, ptc.segment_nums()[last_segment]);
+        // calculate offsets
+        size_t offset_from = last_segment * ptc.sort_segment_size() +
+                             ptc.segment_nums()[last_segment] - num_to_copy;
+        size_t offset_to = m * ptc.sort_segment_size() + ptc.segment_nums()[m];
+        // Logger::print_info(
+        //     "deficit is {}, num_to_copy is {}, offset_from is {}", deficit,
+        //     num_to_copy, offset_from);
+
+        // Copy the particles from the end of the last segment to the end of
+        // this segment
+        ptc.copy_from(ptc, num_to_copy, offset_from, offset_to);
+        // Erase particles from the last segment
+        ptc.erase(offset_from, num_to_copy);
+
+        ptc.segment_nums()[m] += num_to_copy;
+        ptc.segment_nums()[last_segment] -= num_to_copy;
+        // Logger::print_info("Segment num is {}", m_segment_nums[m]);
+
+        if (ptc.segment_nums()[last_segment] == 0) {
+          last_segment -= 1;
+          if (last_segment == m) break;
+        }
       }
     }
 
-    // num_cells is where the empty particles start, so we record this as
-    // the new particle number
-    // if (m_partition[num_cells] != m_number) ptc.set_num(m_partition[num_cells]);
-    if (total_num != m_number) ptc.set_num(total_num);
+    total_num = last_segment * ptc.sort_segment_size() +
+                ptc.segment_nums()[last_segment];
+    ptc.set_num(total_num);
+    // // num_cells is where the empty particles start, so we record this as
+    // // the new particle number
+    // // if (m_partition[num_cells] != m_number) ptc.set_num(m_partition[num_cells]);
+    // if (total_num != m_number) ptc.set_num(total_num);
     Logger::print_info("Sorting complete, there are {} particles in the pool",
-                       m_number);
+                       total_num);
   }
 }
 

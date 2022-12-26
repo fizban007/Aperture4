@@ -142,5 +142,5 @@ TEST_CASE("Sorting particles by cell", "[particles]") {
   REQUIRE(ptc.cell[0] == 4);
   REQUIRE(ptc.cell[1] == 24);
   REQUIRE(ptc.cell[2] == 34);
-  REQUIRE(ptc.number() == 14);
+  REQUIRE(ptc.number() == 12);
 }

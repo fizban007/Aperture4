@@ -637,11 +637,13 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 
     if (src == dst && src == m_rank) {
       if constexpr (m_is_device && use_cuda_mpi) {
-        // gpuMemcpy(recv_ptr, send_ptr,
-        //            buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-        //            gpuMemcpyDeviceToDevice);
-        ptr_copy(typename ExecPolicy<Conf>::exec_tag{}, send_ptr, recv_ptr,
-                 buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]), 0, 0);
+#ifdef GPU_ENABLED
+        gpuMemcpy(recv_ptr, send_ptr,
+                  buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+                  gpuMemcpyDeviceToDevice);
+#endif
+        // ptr_copy(typename ExecPolicy<Conf>::exec_tag{}, send_ptr, recv_ptr,
+        //          buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]), 0, 0);
       } else {
         std::copy_n(send_ptr, buf_nums[buf_send_idx[i]], recv_ptr);
       }

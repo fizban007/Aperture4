@@ -79,6 +79,14 @@ field_t<N, Conf>::resize(const Grid_t& grid) {
 
 template <int N, typename Conf>
 void
+field_t<N, Conf>::assign(const typename Conf::value_t &value) {
+  for (int i = 0; i < N; i++) {
+    m_data[i].assign(value);
+  }
+}
+
+template <int N, typename Conf>
+void
 field_t<N, Conf>::set_memtype(MemType type) {
   m_memtype = type;
   for (int i = 0; i < N; i++) {

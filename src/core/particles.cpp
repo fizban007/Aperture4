@@ -16,127 +16,144 @@
  */
 
 #include "framework/config.h"
-#include "particles_impl.hpp"
+#include "particles.h"
+#include "utils/for_each_dual.hpp"
+#include "visit_struct/visit_struct.hpp"
+#include <algorithm>
+#include <numeric>
 
 namespace Aperture {
 
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::sort_by_cell_dev(size_t max_cell) {}
+template <typename BufferType>
+particles_base<BufferType>::particles_base(MemType model) : m_mem_type(model) {
+  set_memtype(m_mem_type);
+}
 
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::rearrange_arrays(const std::string& skip,
-//                                              size_t offset, size_t num) {}
+template <typename BufferType>
+particles_base<BufferType>::particles_base(size_t size, MemType model)
+    : m_mem_type(model) {
+  set_memtype(m_mem_type);
+  resize(size);
+  m_host_ptrs = this->host_ptrs();
+  m_dev_ptrs = this->dev_ptrs();
+}
 
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::append(exec_tags::device{}, const vec_t<Scalar, 3>& x,
-//                                        const vec_t<Scalar, 3>& p, uint32_t cell,
-//                                        Scalar weight, uint32_t flag) {}
+template <typename BufferType>
+void
+particles_base<BufferType>::set_memtype(MemType memtype) {
+  if (memtype == MemType::host_only) {
+    m_zone_buffer_num.set_memtype(memtype);
+  } else {
+    m_zone_buffer_num.set_memtype(MemType::host_device);
+  }
+  visit_struct::for_each(
+      *static_cast<base_type*>(this),
+      [memtype](const char* name, auto& x) { x.set_memtype(memtype); });
+}
 
-// template <typename BufferType>
-// void
-// particles_base<BufferType>::resize_tmp_arrays() {}
+template <typename BufferType>
+void
+particles_base<BufferType>::resize(size_t size) {
+  visit_struct::for_each(*static_cast<base_type*>(this),
+                         [size](const char* name, auto& x) { x.resize(size); });
+  m_size = size;
+  m_zone_buffer_num.resize(27);
+  // Resize the particle id buffer to one, since it only holds a single number
+  // identifying all the tracked particles
+  m_ptc_id.resize(1);
+  m_ptc_id.assign(0);
+  m_ptc_id.assign_dev(0);
+  if (m_mem_type == MemType::host_only || m_mem_type == MemType::host_device) {
+    this->cell.assign_host(empty_cell);
+  }
+  if (m_mem_type == MemType::device_only || m_mem_type == MemType::device_managed) {
+    this->cell.assign_dev(empty_cell);
+  }
+}
 
-// // Explicit instantiation
-// template class particles_base<ptc_buffer>;
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3>>& grid);
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_from(const self_type& other) {
+  copy_from(other, other.number(), 0, 0);
+}
 
-// template class particles_base<ph_buffer>;
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3>>& grid);
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_from(const self_type& other, size_t num,
+                                      size_t src_pos, size_t dst_pos) {
+  if (dst_pos + num > m_size) num = m_size - dst_pos;
+  visit_struct::for_each(
+      *static_cast<base_type*>(this), *static_cast<const base_type*>(&other),
+      [num, src_pos, dst_pos](const char* name, auto& u, auto& v) {
+        u.copy_from(v, num, src_pos, dst_pos);
+      });
+  if (dst_pos + num > m_number) set_num(dst_pos + num);
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::erase(size_t pos, size_t amount) {
+  this->cell.assign(pos, pos + amount, empty_cell);
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::swap(size_t pos, single_type& p) {
+  single_type p_tmp;
+  for_each_double(p_tmp, m_host_ptrs, [pos](auto& x, auto& y) { x = y[pos]; });
+  assign_ptc(m_host_ptrs, pos, p);
+  p = p_tmp;
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_to_host(bool all) {
+  auto num = (all ? m_size : m_number);
+  if (m_mem_type == MemType::host_device) {
+    visit_struct::for_each(
+        *static_cast<base_type*>(this),
+        [num](const char* name, auto& x) { x.copy_to_host(0, num); });
+        // [num](const char* name, auto& x) { x.copy_to_host(); });
+  }
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_to_host(gpuStream_t stream, bool all) {
+  auto num = (all ? m_size : m_number);
+  if (m_mem_type == MemType::host_device)
+    visit_struct::for_each(*static_cast<base_type*>(this),
+                           [num, stream](const char* name, auto& x) {
+                             x.copy_to_host(0, num, stream);
+                             // x.copy_to_host(stream);
+                           });
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_to_device(bool all) {
+  auto num = (all ? m_size : m_number);
+  if (m_mem_type == MemType::host_device)
+    visit_struct::for_each(
+        *static_cast<base_type*>(this),
+        [num](const char* name, auto& x) { x.copy_to_device(0, num); });
+        // [num](const char* name, auto& x) { x.copy_to_device(); });
+}
+
+template <typename BufferType>
+void
+particles_base<BufferType>::copy_to_device(gpuStream_t stream, bool all) {
+  auto num = (all ? m_size : m_number);
+  if (m_mem_type == MemType::host_device)
+    visit_struct::for_each(*static_cast<base_type*>(this),
+                           [num, stream](const char* name, auto& x) {
+                             x.copy_to_device(0, num, stream);
+                             // x.copy_to_device(stream);
+                           });
+}
 
 // Explicit instantiation
 template class particles_base<ptc_buffer>;
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1, float>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1, double>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2, float>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2, double>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3, float>>& grid);
-// template void particles_base<ptc_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3, double>>& grid);
-
 template class particles_base<ph_buffer>;
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1, float>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<1, double>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2, float>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<2, double>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3, float>>& grid);
-// template void particles_base<ph_buffer>::copy_to_comm_buffers(
-//     exec_tags::host,
-//     std::vector<buffer<single_type>>& buffers, buffer<single_type*>& buf_ptrs,
-//     buffer<int>& buf_nums,
-//     // std::vector<self_type>& buffers, buffer<ptrs_type>& buf_ptrs,
-//     const grid_t<Config<3, double>>& grid);
 
 }  // namespace Aperture

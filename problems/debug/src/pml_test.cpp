@@ -31,7 +31,7 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<3> Conf;
-  auto &env = sim_environment::instance(&argc, &argv, false);
+  auto &env = sim_environment::instance(&argc, &argv);
   typedef typename Conf::value_t value_t;
 
   // env.params().add("dt", 3.5e-3);
@@ -47,23 +47,24 @@ main(int argc, char *argv[]) {
   // env.params().add("pml_length", 8l);
   // env.params().add("fld_output_interval", 10l);
 
-  auto &grid = *(env.register_system<grid_t<Conf>>());
+  domain_comm<Conf, exec_policy_host> comm;
+  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_host, coord_policy_cartesian>>(grid);
+      ptc_updater_new<Conf, exec_policy_host, coord_policy_cartesian>>(grid, comm);
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy_host, coord_policy_cartesian>>(grid);
+      field_solver<Conf, exec_policy_host, coord_policy_cartesian>>(grid, &comm);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_host>>(grid);
+      env.register_system<data_exporter<Conf, exec_policy_host>>(grid, &comm);
 
   env.init();
 
   particle_data_t *ptc;
   env.get_data("particles", &ptc);
 
-  for (int i = 0; i < 10; i++) {
-    ptc_append(exec_tags::host{}, *ptc, {0.0f, 0.0f, 0.0f}, {0.0f, 10.0f, 0.0f},
-               64 + 64 * grid.dims[0] + 64 * grid.dims[0] * grid.dims[1], 1.0f,
-               set_ptc_type_flag(0, PtcType::electron));
+  for (int i = 0; i < 1; i++) {
+    ptc_append_global(exec_tags::host{}, *ptc, grid, {0.45f, 0.45f, 0.45f},
+                      {0.0f, 10.0f, 0.0f}, 1.0f,
+                      set_ptc_type_flag(0, PtcType::electron));
   }
   Logger::print_info("finished initializing a single particle");
 

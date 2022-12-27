@@ -43,6 +43,18 @@ void ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
                 uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
 template <typename BufferType, typename Conf>
+void ptc_append_global(exec_tags::host, particles_base<BufferType>& ptc,
+                       const grid_t<Conf>& grid,
+                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
+                       Scalar weight = 1.0, uint32_t flag = 0);
+
+template <typename BufferType, typename Conf>
+void ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
+                       const grid_t<Conf>& grid,
+                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
+                       Scalar weight = 1.0, uint32_t flag = 0);
+
+template <typename BufferType, typename Conf>
 void ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
                               std::vector<buffer<typename BufferType::single_type>>& buffers,
                               buffer<typename BufferType::single_type*>& buf_ptrs,

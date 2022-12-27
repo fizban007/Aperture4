@@ -201,6 +201,17 @@ struct Grid {
     return linear;
   }
 
+  HD_INLINE bool is_in_bound(const vec_t<value_t, 3>& global_x) const {
+    bool result = true;
+    for (int n = 0; n < Dim; n++) {
+      if (global_x[n] < lower[n] || global_x[n] > lower[n] + sizes[n]) {
+        result = false;
+        break;
+      }
+    }
+    return result;
+  }
+
   HD_INLINE bool is_in_bound(const index_t<Dim>& idx) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {

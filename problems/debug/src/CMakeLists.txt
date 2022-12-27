@@ -33,10 +33,10 @@ if (use_cuda OR use_hip)
   target_link_libraries(IC_single Aperture Aperture_dev)
   add_dependencies(problems IC_single)
 
-  add_executable(pml_test
-    "pml_test.cu")
-  target_link_libraries(pml_test Aperture Aperture_dev)
-  add_dependencies(problems pml_test)
+  # add_executable(pml_test
+  #   "pml_test.cu")
+  # target_link_libraries(pml_test Aperture Aperture_dev)
+  # add_dependencies(problems pml_test)
 
   add_executable(gca_test
     "test_gca.hip.cpp")
@@ -48,8 +48,13 @@ if (use_cuda OR use_hip)
   target_link_libraries(gca_test_compare Aperture Aperture_dev)
   add_dependencies(problems gca_test_compare)
 else()
-  add_executable(pml_test
-    "pml_test.cpp")
-  target_link_libraries(pml_test Aperture)
-  add_dependencies(problems pml_test)
 endif()
+
+add_executable(pml_test
+  "pml_test.cpp")
+target_link_libraries(pml_test
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+add_dependencies(problems pml_test)

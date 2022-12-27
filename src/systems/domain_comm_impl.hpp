@@ -36,6 +36,7 @@
 #if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
     MPIX_CUDA_AWARE_SUPPORT
 #pragma message "CUDA-aware MPI found!"
+constexpr bool use_cuda_mpi = true;
 #endif
 
 namespace Aperture {
@@ -190,8 +191,8 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
       sim_env().params().template get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
-    m_ptc_buffers.emplace_back(ptc_buffer_size);
-    m_ph_buffers.emplace_back(ph_buffer_size);
+    m_ptc_buffers.emplace_back(ptc_buffer_size, ExecPolicy<Conf>::data_mem_type());
+    m_ph_buffers.emplace_back(ph_buffer_size, ExecPolicy<Conf>::data_mem_type());
   }
   m_ptc_buffer_ptrs.resize(num_ptc_buffers);
   m_ph_buffer_ptrs.resize(num_ptc_buffers);
@@ -203,8 +204,8 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
   }
   m_ptc_buffer_ptrs.copy_to_device();
   m_ph_buffer_ptrs.copy_to_device();
-  m_ptc_buffer_num.assign_dev(0);
-  m_ph_buffer_num.assign_dev(0);
+  m_ptc_buffer_num.assign(0);
+  m_ph_buffer_num.assign(0);
 
   // Logger::print_debug("m_ptc_buffers has size {}", m_ptc_buffers.size());
   m_buffers_ready = true;
@@ -729,16 +730,6 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 #endif
       buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
     } else {
-      // MPI_Irecv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]),
-      // MPI_BYTE,
-      //           src, i, m_cart, &req_recv[i]);
-      // MPI_Isend(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-      //           MPI_BYTE, dst, i, m_cart, &req_send[i]);
-      // MPI_Recv(recv_ptr, recv_buffer.size() * sizeof(send_buffer[0]),
-      // MPI_BYTE,
-      //          src, i, m_cart, &stat_recv[i]);
-      // MPI_Send(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-      //          MPI_BYTE, dst, i, m_cart);
       MPI_Sendrecv(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
                    MPI_BYTE, dst, i, recv_ptr,
                    recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE, src,
@@ -746,13 +737,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
       int num_recved = 0;
       MPI_Get_count(&stat_recv[i], MPI_BYTE, &num_recved);
       buf_nums[buf_recv_idx[i]] += num_recved / sizeof(recv_buffer[0]);
-      // #if CUDA_ENABLED &&                                              \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-      //       recv_buffer.copy_to_device();
-      // #endif
     }
-    // buf_nums[buf_send_idx[i]] = 0;
   }
 
   //   for (int i = 0; i < buf_recv_idx.size(); i++) {
@@ -788,7 +773,8 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
   int recv_offset = recv_num;
   // int num_send = send_buffer.number();
   // Logger::print_info_all("rank {}, src {}, dst {}, num_send {}", m_rank, src,
-  // dst, num_send); if (num_send > 0) {
+  // dst, send_num);
+  // if (num_send > 0) {
   //   Logger::print_info_all("Sending {} particles from rank {} to rank {}",
   //   num_send,
   //                          m_rank, dst);
@@ -842,7 +828,8 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
   int num_recved = 0;
   MPI_Get_count(recv_stat, MPI_BYTE, &num_recved);
   // MPI_Get_count(recv_stat, MPI_Helper::get_mpi_datatype(recv_ptr[0]),
-  // &num_recved); Logger::print_debug_all("Rank {} received {}", m_rank,
+  // &num_recved);
+  // Logger::print_debug_all("Rank {} received {}", m_rank,
   // num_recved);
   recv_num = recv_offset + num_recved / sizeof(recv_buffer[0]);
 
@@ -871,8 +858,10 @@ domain_comm<Conf, ExecPolicy>::send_particles_impl(
   auto &buf_nums = ptc_buffer_nums(ptc);
   buf_nums.assign_host(0);
   // timer::stamp("copy_comm");
+  // Logger::print_detail("Copying to comm buffers");
   // ptc.copy_to_comm_buffers(exec_tag{}, buffers, buf_ptrs, buf_nums, grid);
   ptc_copy_to_comm_buffers(exec_tag{}, ptc, buffers, buf_ptrs, buf_nums, grid);
+  // Logger::print_detail("Finished copying to comm buffers");
   // timer::show_duration_since_stamp("Coping to comm buffers", "ms",
   // "copy_comm");
 

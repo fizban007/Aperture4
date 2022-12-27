@@ -83,6 +83,38 @@ template void ptc_append(exec_tags::host, particles_base<ph_buffer>& ptc,
                          const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
                          uint32_t cell, Scalar weight, uint32_t flag);
 
+template <typename BufferType, typename Conf>
+void ptc_append_global(exec_tags::host, particles_base<BufferType>& ptc,
+                       const grid_t<Conf>& grid,
+                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
+                       Scalar weight, uint32_t flag) {
+  if (grid.is_in_bound(x_global)) {
+    vec_t<Scalar, 3> x_rel;
+    uint32_t cell;
+    grid.from_x_global(x_global, x_rel, cell);
+    ptc_append(exec_tags::host{}, ptc, x_rel, p, cell, weight, flag);
+  }
+}
+
+template void ptc_append_global(exec_tags::host, particles_base<ptc_buffer>&,
+                                const grid_t<Config<1>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+template void ptc_append_global(exec_tags::host, particles_base<ptc_buffer>&,
+                                const grid_t<Config<2>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+template void ptc_append_global(exec_tags::host, particles_base<ptc_buffer>&,
+                                const grid_t<Config<3>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+template void ptc_append_global(exec_tags::host, particles_base<ph_buffer>&,
+                                const grid_t<Config<1>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+template void ptc_append_global(exec_tags::host, particles_base<ph_buffer>&,
+                                const grid_t<Config<2>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+template void ptc_append_global(exec_tags::host, particles_base<ph_buffer>&,
+                                const grid_t<Config<3>>&, const vec_t<Scalar, 3>&,
+                                const vec_t<Scalar, 3>&, Scalar, uint32_t);
+
 template <typename BufferType>
 void
 ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
@@ -243,7 +275,6 @@ ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
                          std::vector<buffer<typename BufferType::single_type>>& buffers,
                          buffer<typename BufferType::single_type*>& buf_ptrs,
                          buffer<int>& buf_nums, const grid_t<Conf>& grid) {
-  // TODO: Test this function to make sure it behaves correctly
   if (ptc.number() > 0) {
     auto ext = grid.extent();
     buf_nums.assign(0);
@@ -256,11 +287,20 @@ ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
       auto idx = Conf::idx(cell, ext);
       auto grid_pos = get_pos(idx, ext);
       int zone_offset = get_zone_offset<Conf::dim>();
-      int zone = grid.find_zone(grid_pos) + zone_offset;
+      int zone_id = grid.find_zone(grid_pos);
+      int zone = zone_id + zone_offset;
       if (zone == 13) continue; // Zone 13 is center, no need for communication
-      assign_ptc(buffers[zone][buf_nums[zone]], ptc.get_host_ptrs(), n);
+      assign_ptc(buffers[zone_id][buf_nums[zone_id]], ptc.get_host_ptrs(), n);
+      int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
+      int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);
+      int dx = zone % 3 - 1;
+      buffers[zone_id][buf_nums[zone_id]].cell =
+          idx.dec_z(dz * grid.reduced_dim(2))
+              .dec_y(dy * grid.reduced_dim(1))
+              .dec_x(dx * grid.reduced_dim(0))
+              .linear;
       ptc.cell[n] = empty_cell;
-      buf_nums[zone] += 1;
+      buf_nums[zone_id] += 1;
     }
   }
 }

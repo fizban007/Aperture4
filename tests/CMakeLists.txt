@@ -18,7 +18,11 @@ add_executable(tests
   "test_lorentz.cpp"
   "test_rng.cpp"
   )
-target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
+# target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
+target_link_libraries(tests PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  Catch2::Catch2WithMain)
 
 # add_executable(tests_dev "test.cpp")
 if (use_cuda OR use_hip)
@@ -53,7 +57,11 @@ elseif(use_hip)
 endif()
   add_executable(tests_dev
     ${test_dev_src})
-  target_link_libraries(tests_dev Aperture_dev Catch2::Catch2WithMain)
+  # target_link_libraries(tests_dev Aperture_dev Catch2::Catch2WithMain)
+  target_link_libraries(tests_dev PUBLIC
+    Aperture
+    $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+    Catch2::Catch2WithMain)
 endif()
 
 add_custom_target(
@@ -73,9 +81,6 @@ endif()
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # add_executable(test_summit_mpi "test_summit_mpi.cu")
   # target_link_libraries(test_summit_mpi Aperture_dev)
-
-  # add_executable(test_mpi2d "test_mpi2d.cpp")
-  # target_link_libraries(test_mpi2d Aperture_dev)
 
   # add_executable(test_mpi3d "test_mpi3d.cpp")
   # target_link_libraries(test_mpi3d Aperture)
@@ -124,12 +129,30 @@ elseif(use_hip)
 endif()
 
 add_executable(test_exporter_snapshot "test_exporter_snapshot.hip.cpp")
-target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
+# target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
+target_link_libraries(test_exporter_snapshot
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  Catch2::Catch2)
 
 endif()
 
-# add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
-# target_link_libraries(test_exporter_mpi Aperture_dev)
+add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
+# target_link_libraries(test_exporter_mpi Aperture Aperture_dev)
+target_link_libraries(test_exporter_mpi
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+
+add_executable(test_mpi2d "test_mpi2d.cpp")
+# target_link_libraries(test_mpi2d Aperture Aperture_dev)
+target_link_libraries(test_mpi2d
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
 
 # add_executable(gr_pusher "test_gr_pusher.cpp")
 # target_link_libraries(gr_pusher Aperture_dev)

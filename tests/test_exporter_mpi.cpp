@@ -20,6 +20,7 @@
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
+#include "systems/policies/exec_policy_host.hpp"
 
 using namespace Aperture;
 
@@ -38,19 +39,22 @@ main(int argc, char* argv[]) {
 
   env.init();
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_host> comm;
   grid_t<Conf> grid(comm);
   int num_bins[4] = {32, 32, 32, 32};
   float lowers[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   float uppers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
   momentum_space<Conf> mom(grid, 4, num_bins, lowers, uppers, false);
-  data_exporter<Conf> exporter(grid, &comm);
+  vector_field<Conf> vf(grid);
+  vf.assign(3.0);
+  data_exporter<Conf, exec_policy_host> exporter(grid, &comm);
   exporter.init();
 
   Logger::print_info("writing momenta");
 
   auto outfile = hdf_create("Data/momenta_mpi.h5", H5CreateMode::trunc_parallel);
   exporter.write(mom, "momentum", outfile);
+  exporter.write(vf, "vector", outfile);
 
   return 0;
 }

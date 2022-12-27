@@ -29,56 +29,61 @@ set(Aperture_src
   "systems/sync_curv_emission.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
-
-set(Aperture_dev_src
-  "core/buffer_impl.hip.cpp"
-  "core/constant_mem.hip.cpp"
-  # "core/particles.hip.cpp"
-  "core/detail/multi_array_helpers.hip.cpp"
-  "core/particles_functions.hip.cpp"
-  "data/rng_states.hip.cpp"
-  "data/tracked_ptc.hip.cpp"
-  "systems/data_exporter.hip.cpp"
-  "systems/domain_comm.hip.cpp"
-  "systems/field_solver_cartesian.hip.cpp"
-  # "systems/field_solver_sph.hip.cpp"
-  # "systems/field_solver_polar.hip.cpp"
-  # "systems/field_solver_gr_ks.hip.cpp"
-  "systems/compute_lorentz_factor.hip.cpp"
-  "systems/gather_momentum_space.hip.cpp"
-  "systems/gather_tracked_ptc.hip.cpp"
-  "systems/ptc_updater_base.hip.cpp"
-  "systems/radiative_transfer.hip.cpp"
-  )
-if (use_cuda AND CMAKE_CUDA_COMPILER)
-  set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
-elseif(use_hip)
-  set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
-else()
-  # list(APPEND Aperture_src
-  set(Aperture_dev_src
-    "core/particles.cpp"
-    # "systems/ptc_updater_simd.cpp"
-    # "systems/ffe_solver_EZ.cpp"
-    )
-endif()
-
 add_library(Aperture STATIC ${Aperture_src})
-# set_property(TARGET Aperture PROPERTY CUDA_ARCHITECTURES 60 61)
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
   ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
-add_library(Aperture_dev STATIC ${Aperture_dev_src})
-target_link_libraries(Aperture_dev Aperture)
+if (use_cuda OR use_hip)
+  set(Aperture_dev_src
+    "core/buffer_impl.hip.cpp"
+    "core/constant_mem.hip.cpp"
+    # "core/particles.hip.cpp"
+    "core/detail/multi_array_helpers.hip.cpp"
+    "core/particles_functions.hip.cpp"
+    "data/rng_states.hip.cpp"
+    "data/tracked_ptc.hip.cpp"
+    "systems/data_exporter.hip.cpp"
+    "systems/domain_comm.hip.cpp"
+    "systems/field_solver_cartesian.hip.cpp"
+    # "systems/field_solver_sph.hip.cpp"
+    # "systems/field_solver_polar.hip.cpp"
+    # "systems/field_solver_gr_ks.hip.cpp"
+    "systems/compute_lorentz_factor.hip.cpp"
+    "systems/gather_momentum_space.hip.cpp"
+    "systems/gather_tracked_ptc.hip.cpp"
+    "systems/ptc_updater_base.hip.cpp"
+    "systems/radiative_transfer.hip.cpp"
+    )
+  if (use_cuda AND CMAKE_CUDA_COMPILER)
+    set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
+  elseif(use_hip)
+    set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
+  endif()
 
-if (use_cuda AND CMAKE_CUDA_COMPILER)
-  target_link_libraries(Aperture_dev ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
-endif()
+  add_library(Aperture_dev STATIC ${Aperture_dev_src})
+  target_link_libraries(Aperture_dev Aperture)
+  if (use_cuda AND CMAKE_CUDA_COMPILER)
+    target_link_libraries(Aperture_dev ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+    # target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+  endif()
 
-if (use_hip AND CMAKE_HIP_COMPILER)
-  # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
-  target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust)
+  if (use_hip AND CMAKE_HIP_COMPILER)
+    # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
+    target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust)
+    # target_link_libraries(Aperture hip::host hip::device roc::rocthrust)
+  endif()
 endif()
+# else()
+  # list(APPEND Aperture_src
+  # set(Aperture_dev_src ""
+    # "systems/ptc_updater_simd.cpp"
+    # "systems/ffe_solver_EZ.cpp"
+    # )
+# endif()
+
+# set_property(TARGET Aperture PROPERTY CUDA_ARCHITECTURES 60 61)
+
+
 
 
 # add_executable(aperture "main.cpp")

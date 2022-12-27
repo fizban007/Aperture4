@@ -38,7 +38,7 @@ namespace Aperture {
 template class radiative_transfer<Config<3>, exec_policy_cuda,
                                   coord_policy_cartesian,
                                   curvature_emission_scheme_polar_cap>;
-template class ptc_updater_new<Config<3>, exec_policy_cuda,
+template class ptc_updater<Config<3>, exec_policy_cuda,
                                coord_policy_cartesian_gca_lite>;
 
 }  // namespace Aperture
@@ -62,9 +62,9 @@ main(int argc, char *argv[]) {
       MemType::device_managed);
 
   auto pusher = env.register_system<
-      // ptc_updater_new<Conf, exec_policy_cuda,
+      // ptc_updater<Conf, exec_policy_cuda,
       // coord_policy_cartesian_gca_lite>>(grid, comm);
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,

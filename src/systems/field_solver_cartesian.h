@@ -43,10 +43,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
   virtual void update_semi_implicit(double dt, double alpha, double beta,
                                     double time) override;
 
-  void compute_e_update_pml(vector_field<Conf>& E, const vector_field<Conf>& B,
-                            const vector_field<Conf>& J, double dt);
-  void compute_b_update_pml(vector_field<Conf>& B, const vector_field<Conf>& E,
-                            double dt);
+  void compute_e_update_pml(double dt);
+  void compute_b_update_pml(double dt);
   virtual void compute_divs_e_b() override;
   virtual void compute_flux() override;
   virtual void compute_EB_sqr() override;

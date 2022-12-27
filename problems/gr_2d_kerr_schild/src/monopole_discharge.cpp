@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 
   auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid,
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid,
                                                                        comm);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   // auto rt = env.register_system<

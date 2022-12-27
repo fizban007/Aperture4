@@ -20,7 +20,7 @@ implicit_beta = 0.55
 current_smoothing = 0
 
 ### Simulation life time
-max_steps = 200
+max_steps = 500
 
 fld_output_interval = 20
 

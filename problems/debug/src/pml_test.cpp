@@ -31,7 +31,7 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<3> Conf;
-  auto &env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv, true);
   typedef typename Conf::value_t value_t;
 
   // env.params().add("dt", 3.5e-3);
@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_host> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_host, coord_policy_cartesian>>(grid, comm);
+      ptc_updater<Conf, exec_policy_host, coord_policy_cartesian>>(grid, comm);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_host, coord_policy_cartesian>>(grid, &comm);
   auto exporter =
@@ -62,7 +62,7 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
 
   for (int i = 0; i < 1; i++) {
-    ptc_append_global(exec_tags::host{}, *ptc, grid, {0.45f, 0.45f, 0.45f},
+    ptc_append_global(exec_tags::host{}, *ptc, grid, {0.35f, 0.35f, 0.35f},
                       {0.0f, 10.0f, 0.0f}, 1.0f,
                       set_ptc_type_flag(0, PtcType::electron));
   }

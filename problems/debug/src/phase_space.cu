@@ -37,7 +37,7 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_cuda> comm;
   grid_t<Conf> grid(comm);
 
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian, ptc_physics_policy_empty>>(
       grid, comm);
   auto momentum =

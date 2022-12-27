@@ -16,36 +16,32 @@
  */
 
 #include "framework/config.h"
-#include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/exec_policy_host.hpp"
 #include "systems/policies/exec_policy_openmp.hpp"
+#include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
 
-template class ptc_updater_new<Config<1>, exec_policy_host,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<2>, exec_policy_host,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<3>, exec_policy_host,
-                               coord_policy_cartesian>;
+template class ptc_updater<Config<1>, exec_policy_host, coord_policy_cartesian>;
+template class ptc_updater<Config<2>, exec_policy_host, coord_policy_cartesian>;
+template class ptc_updater<Config<3>, exec_policy_host, coord_policy_cartesian>;
 
-// template class ptc_updater_new<Config<1>, exec_policy_openmp,
+// template class ptc_updater<Config<1>, exec_policy_openmp,
 //                                coord_policy_cartesian>;
-// template class ptc_updater_new<Config<2>, exec_policy_openmp,
+// template class ptc_updater<Config<2>, exec_policy_openmp,
 //                                coord_policy_cartesian>;
-// template class ptc_updater_new<Config<3>, exec_policy_openmp,
+// template class ptc_updater<Config<3>, exec_policy_openmp,
 //                                coord_policy_cartesian>;
 
-// template class ptc_updater_new<Config<2>, exec_policy_openmp,
+// template class ptc_updater<Config<2>, exec_policy_openmp,
 //                                coord_policy_spherical>;
-// template class ptc_updater_new<Config<3>, exec_policy_openmp,
+// template class ptc_updater<Config<3>, exec_policy_openmp,
 //                                coord_policy_spherical>;
 
-template class ptc_updater_new<Config<2>, exec_policy_host,
-                               coord_policy_gr_ks_sph>;
+template class ptc_updater<Config<2>, exec_policy_host, coord_policy_gr_ks_sph>;
 
 }  // namespace Aperture

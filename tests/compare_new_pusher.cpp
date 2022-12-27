@@ -47,8 +47,8 @@ TEST_CASE("Comparing two pushers", "[ptc_updater]") {
                                                 MemType::host_only);
   grid_t<Conf> grid;
   auto pusher = env.register_system<
-      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
-      ptc_updater_new<Conf, exec_policy_openmp, coord_policy_cartesian>>(grid);
+      // ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater<Conf, exec_policy_openmp, coord_policy_cartesian>>(grid);
   // auto pusher = env.register_system<ptc_updater_cu<Conf>>(grid);
 
   env.init();

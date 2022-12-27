@@ -42,7 +42,7 @@ main(int argc, char *argv[]) {
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>();
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_spherical, ptc_physics_policy_gravity_sph>>(*grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(*grid);

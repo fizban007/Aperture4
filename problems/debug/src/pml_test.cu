@@ -49,7 +49,7 @@ main(int argc, char *argv[]) {
 
   auto &grid = *(env.register_system<grid_t<Conf>>());
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto exporter =

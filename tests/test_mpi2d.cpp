@@ -42,8 +42,9 @@ main(int argc, char* argv[]) {
   env.params().add("ptc_buffer_size", int64_t(100));
   env.params().add("ph_buffer_size", int64_t(100));
 
-  auto comm = env.register_system<domain_comm<Conf, exec_policy_host>>();
-  auto grid = env.register_system<grid_t<Conf>>(*comm);
+  // auto comm = env.register_system<domain_comm<Conf, exec_policy_host>>();
+  domain_comm<Conf, exec_policy_host> comm;
+  auto grid = env.register_system<grid_t<Conf>>(comm);
 
   particles_t ptc(100, MemType::host_only);
   photons_t ph(100, MemType::host_only);
@@ -51,7 +52,7 @@ main(int argc, char* argv[]) {
   ph.set_segment_size(1);
   int N1 = grid->dims[0];
   ptc.set_num(18);
-  if (comm->rank() == 0) {
+  if (comm.rank() == 0) {
     ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
     ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
     ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
@@ -61,35 +62,35 @@ main(int argc, char* argv[]) {
     ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
     ptc_append(exec_tags::host{}, ph, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
   }
-  Logger::print_debug_all("initially Rank {} has {} particles:", comm->rank(),
+  Logger::print_debug_all("initially Rank {} has {} particles:", comm.rank(),
                           ptc.number());
   // ptc.sort_by_cell(grid->size());
   // ph.sort_by_cell(grid->size());
-  comm->send_particles(ptc, *grid);
-  comm->send_particles(ph, *grid);
+  comm.send_particles(ptc, *grid);
+  comm.send_particles(ph, *grid);
   ptc_sort_by_cell(exec_tags::host{}, ptc, grid->size());
   ptc_sort_by_cell(exec_tags::host{}, ph, grid->size());
 
-  Logger::print_debug_all("Rank {} has {} particles:", comm->rank(),
+  Logger::print_debug_all("Rank {} has {} particles:", comm.rank(),
                           ptc.number());
   // ptc.copy_to_host();
   // for (unsigned int i = 0; i < ptc.number(); i++) {
   //   auto c = ptc.cell[i];
   //   Logger::print_debug_all("cell {}, {}", c % N1, c / N1);
   // }
-  Logger::print_debug_all("Rank {} has {} photons:", comm->rank(), ph.number());
+  Logger::print_debug_all("Rank {} has {} photons:", comm.rank(), ph.number());
 
   // typename Conf::multi_array_t v(grid->extent());
   vector_field<Conf> f(*grid);
   auto& v = f[2];
-  v.assign(comm->rank());
-  // comm->send_guard_cells(v, *grid);
-  comm->send_guard_cells(f);
+  v.assign(comm.rank());
+  // comm.send_guard_cells(v, *grid);
+  comm.send_guard_cells(f);
   v.copy_to_host();
 
-  for (int n = 0; n < comm->size(); n++) {
+  for (int n = 0; n < comm.size(); n++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (n == comm->rank()) {
+    if (n == comm.rank()) {
       std::cout << "This is the initial content from rank " << n << std::endl;
       for (int j = 0; j < grid->dims[1]; j++) {
         for (int i = 0; i < grid->dims[0]; i++) {
@@ -100,17 +101,17 @@ main(int argc, char* argv[]) {
     }
   }
 
-  v.assign_dev(comm->rank());
-  // comm->send_add_guard_cells(v, *grid);
-  // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, -1);
-  // comm->send_add_array_guard_cells_single_dir(v, *grid, 0, 1);
-  comm->send_add_guard_cells(f);
+  v.assign(comm.rank());
+  // comm.send_add_guard_cells(v, *grid);
+  // comm.send_add_array_guard_cells_single_dir(v, *grid, 0, -1);
+  // comm.send_add_array_guard_cells_single_dir(v, *grid, 0, 1);
+  comm.send_add_guard_cells(f);
 
   v.copy_to_host();
 
-  for (int n = 0; n < comm->size(); n++) {
+  for (int n = 0; n < comm.size(); n++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (n == comm->rank()) {
+    if (n == comm.rank()) {
       std::cout << "This is the content from rank " << n << std::endl;
       for (int j = 0; j < grid->dims[1]; j++) {
         for (int i = 0; i < grid->dims[0]; i++) {

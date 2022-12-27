@@ -48,9 +48,9 @@ template <typename Conf>
 void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                                  rng_states_t<exec_tags::device> &states);
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian, phys_policy_IC_cooling>;
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian_impl_cooling>;
 
 }  // namespace Aperture
@@ -66,7 +66,7 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf, exec_policy_cuda> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
       grid, comm);
   auto rad = env.register_system<radiative_transfer<

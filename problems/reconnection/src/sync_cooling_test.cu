@@ -26,7 +26,7 @@
 
 namespace Aperture {
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian, phys_policy_sync_cooling>;
 
 }
@@ -44,7 +44,7 @@ main(int argc, char* argv[]) {
   domain_comm<Conf, exec_policy_cuda> comm;
 
   auto grid = env.register_system<grid_t<Conf>>(comm);
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_sync_cooling>>(
       *grid, comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid, &comm);

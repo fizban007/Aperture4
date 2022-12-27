@@ -45,7 +45,7 @@ main(int argc, char *argv[]) {
   grid.init();
 
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_spherical>>(grid);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_spherical>>(grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);

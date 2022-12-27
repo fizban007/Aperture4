@@ -21,6 +21,27 @@
 
 namespace Aperture {
 
+template <typename Conf, template <class> class ExecPolicy>
+void
+domain_comm<Conf, ExecPolicy>::setup_devices() {
+  // Poll the system to detect how many GPUs are on the node, set the
+  // GPU corresponding to the rank
+  int n_devices;
+  GpuSafeCall(gpuGetDeviceCount(&n_devices));
+  if (n_devices <= 0) {
+    std::cerr << "No usable Cuda device found!!" << std::endl;
+    exit(1);
+  } else {
+    Logger::print_info("Found {} Cuda devices!", n_devices);
+  }
+  // TODO: This way of finding device id may not be reliable
+  int dev_id = m_rank % n_devices;
+  // std::cout << "Rank " << m_rank << " is on device #" << dev_id <<
+  // std::endl;
+  GpuSafeCall(gpuSetDevice(dev_id));
+  init_dev_rank(m_rank);
+}
+
 template class domain_comm<Config<1, Scalar>, exec_policy_cuda>;
 template class domain_comm<Config<2, Scalar>, exec_policy_cuda>;
 template class domain_comm<Config<3, Scalar>, exec_policy_cuda>;

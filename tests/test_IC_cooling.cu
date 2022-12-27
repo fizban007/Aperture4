@@ -32,7 +32,7 @@
 
 namespace Aperture {
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_cuda,
                                coord_policy_cartesian, phys_policy_IC_cooling>;
 
 }  // namespace Aperture

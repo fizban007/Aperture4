@@ -37,6 +37,8 @@
     MPIX_CUDA_AWARE_SUPPORT
 #pragma message "CUDA-aware MPI found!"
 constexpr bool use_cuda_mpi = true;
+#else
+constexpr bool use_cuda_mpi = false;
 #endif
 
 namespace Aperture {
@@ -63,6 +65,7 @@ domain_comm<Conf, ExecPolicy>::domain_comm(int *argc, char ***argv) {
   setup_domain();
   MPI_Helper::register_particle_type(single_ptc_t{}, &MPI_PARTICLES);
   MPI_Helper::register_particle_type(single_ph_t{}, &MPI_PHOTONS);
+  // Logger::print_debug("m_is_device is {}", m_is_device);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -141,29 +144,14 @@ domain_comm<Conf, ExecPolicy>::setup_domain() {
     if (right < 0) m_domain_info.is_boundary[2 * n + 1] = true;
   }
 
-#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
-  // Poll the system to detect how many GPUs are on the node, set the
-  // GPU corresponding to the rank
-  int n_devices;
-  GpuSafeCall(gpuGetDeviceCount(&n_devices));
-  if (n_devices <= 0) {
-    std::cerr << "No usable Cuda device found!!" << std::endl;
-    exit(1);
-  } else {
-    Logger::print_info("Found {} Cuda devices!", n_devices);
-  }
-  // TODO: This way of finding device id may not be reliable
-  int dev_id = m_rank % n_devices;
-  // std::cout << "Rank " << m_rank << " is on device #" << dev_id << std::endl;
-  GpuSafeCall(gpuSetDevice(dev_id));
-  init_dev_rank(m_rank);
-#endif
+  setup_devices();
 }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
 domain_comm<Conf, ExecPolicy>::resize_buffers(
     const typename Conf::grid_t &grid) const {
+  Logger::print_debug("Resizing comm buffers");
   if (m_buffers_ready) return;
   for (int i = 0; i < Conf::dim; i++) {
     auto ext = extent_t<Conf::dim>{};
@@ -179,10 +167,14 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
     ext_vec[Conf::dim - 1] *= 3;
     ext_vec.get_strides();
 
-    m_send_buffers.emplace_back(ext);
-    m_recv_buffers.emplace_back(ext);
-    m_send_vec_buffers.emplace_back(ext_vec);
-    m_recv_vec_buffers.emplace_back(ext_vec);
+    m_send_buffers.emplace_back(ext,
+                               ExecPolicy<Conf>::data_mem_type());
+    m_recv_buffers.emplace_back(ext,
+                               ExecPolicy<Conf>::data_mem_type());
+    m_send_vec_buffers.emplace_back(ext_vec,
+                               ExecPolicy<Conf>::data_mem_type());
+    m_recv_vec_buffers.emplace_back(ext_vec,
+                               ExecPolicy<Conf>::data_mem_type());
   }
 
   size_t ptc_buffer_size =
@@ -191,8 +183,10 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
       sim_env().params().template get_as<int64_t>("ph_buffer_size", 100000l);
   int num_ptc_buffers = std::pow(3, Conf::dim);
   for (int i = 0; i < num_ptc_buffers; i++) {
-    m_ptc_buffers.emplace_back(ptc_buffer_size, ExecPolicy<Conf>::data_mem_type());
-    m_ph_buffers.emplace_back(ph_buffer_size, ExecPolicy<Conf>::data_mem_type());
+    m_ptc_buffers.emplace_back(ptc_buffer_size,
+                               ExecPolicy<Conf>::data_mem_type());
+    m_ph_buffers.emplace_back(ph_buffer_size,
+                              ExecPolicy<Conf>::data_mem_type());
   }
   m_ptc_buffer_ptrs.resize(num_ptc_buffers);
   m_ph_buffer_ptrs.resize(num_ptc_buffers);
@@ -258,49 +252,24 @@ domain_comm<Conf, ExecPolicy>::send_array_guard_cells_single_dir(
          index_t<Conf::dim>{}, send_idx, m_send_buffers[dim].extent());
     // timer::show_duration_since_stamp("copy guard cells", "ms");
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptr = m_send_buffers[dim].dev_ptr();
-    auto recv_ptr = m_recv_buffers[dim].dev_ptr();
-#else
     auto send_ptr = m_send_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_buffers[dim].host_ptr();
-    m_send_buffers[dim].copy_to_host();
-#endif
+    if constexpr (m_is_device && use_cuda_mpi) {
+      send_ptr = m_send_buffers[dim].dev_ptr();
+      recv_ptr = m_recv_buffers[dim].dev_ptr();
+    } else {
+      m_send_buffers[dim].copy_to_host();
+    }
 
     // timer::stamp();
     MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, dim,
                  recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin,
                  dim, m_cart, &status);
-    // MPI_Request req_send, req_recv;
-
-    // MPI_Irecv(recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin,
-    //           0, m_world, &req_recv);
-    // MPI_Isend(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest,
-    //           0, m_world, &req_send);
-    // MPI_Wait(&req_recv, &status);
-    // timer::show_duration_since_stamp("MPI sendrecv", "ms");
 
     if (origin != MPI_PROC_NULL) {
-//       if (array.mem_type() == MemType::host_only) {
-//         copy(exec_tags::host{}, array, m_recv_buffers[dim], recv_idx,
-//         index_t<Conf::dim>{},
-//              m_recv_buffers[dim].extent());
-//       } else {
-// #if CUDA_ENABLED &&                                              \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-//         m_recv_buffers[dim].copy_to_device();
-// #endif
-//         copy(exec_tags::device{}, array, m_recv_buffers[dim], recv_idx,
-//         index_t<Conf::dim>{},
-//                  m_recv_buffers[dim].extent());
-//       }
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-      m_recv_buffers[dim].copy_to_device();
-#endif
+      if constexpr (m_is_device && !use_cuda_mpi) {
+        m_recv_buffers[dim].copy_to_device();
+      }
       copy(typename ExecPolicy<Conf>::exec_tag{}, array, m_recv_buffers[dim],
            recv_idx, index_t<Conf::dim>{}, m_recv_buffers[dim].extent());
     }
@@ -362,48 +331,23 @@ domain_comm<Conf, ExecPolicy>::send_add_array_guard_cells_single_dir(
     copy(typename ExecPolicy<Conf>::exec_tag{}, m_send_buffers[dim], array,
          index_t<Conf::dim>{}, send_idx, m_send_buffers[dim].extent());
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptr = m_send_buffers[dim].dev_ptr();
-    auto recv_ptr = m_recv_buffers[dim].dev_ptr();
-#else
     auto send_ptr = m_send_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_buffers[dim].host_ptr();
-    m_send_buffers[dim].copy_to_host();
-#endif
+    if constexpr (m_is_device && use_cuda_mpi) {
+      send_ptr = m_send_buffers[dim].dev_ptr();
+      recv_ptr = m_recv_buffers[dim].dev_ptr();
+    } else {
+      m_send_buffers[dim].copy_to_host();
+    }
 
     MPI_Sendrecv(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest, 0,
                  recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin, 0,
                  m_cart, &status);
-    // MPI_Request req_send, req_recv;
-
-    // MPI_Irecv(recv_ptr, m_recv_buffers[dim].size(), m_scalar_type, origin,
-    //           0, m_world, &req_recv);
-    // MPI_Isend(send_ptr, m_send_buffers[dim].size(), m_scalar_type, dest,
-    //           0, m_world, &req_send);
-    // MPI_Wait(&req_recv, &status);
 
     if (origin != MPI_PROC_NULL) {
-      // Index recv_idx(0, 0, 0);
-//       if (array.mem_type() == MemType::host_only) {
-//         add(exec_tags::host{}, array, m_recv_buffers[dim], recv_idx,
-//         index_t<Conf::dim>{},
-//             m_recv_buffers[dim].extent());
-//       } else {
-// #if CUDA_ENABLED &&                                              \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-//         m_recv_buffers[dim].copy_to_device();
-// #endif
-//         add(exec_tags::device{}, array, m_recv_buffers[dim], recv_idx,
-//         index_t<Conf::dim>{},
-//                 m_recv_buffers[dim].extent());
-//       }
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-      m_recv_buffers[dim].copy_to_device();
-#endif
+      if constexpr (m_is_device && !use_cuda_mpi) {
+        m_recv_buffers[dim].copy_to_device();
+      }
       add(typename ExecPolicy<Conf>::exec_tag{}, array, m_recv_buffers[dim],
           recv_idx, index_t<Conf::dim>{}, m_recv_buffers[dim].extent());
     }
@@ -468,15 +412,14 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_single_dir(
     }
     // timer::show_duration_since_stamp("copy guard cells", "ms");
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptr = m_send_vec_buffers[dim].dev_ptr();
-    auto recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
-#else
     auto send_ptr = m_send_vec_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
-    m_send_vec_buffers[dim].copy_to_host();
-#endif
+    if constexpr (m_is_device && use_cuda_mpi) {
+      send_ptr = m_send_vec_buffers[dim].dev_ptr();
+      recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
+    } else {
+      m_send_vec_buffers[dim].copy_to_host();
+    }
 
     // timer::stamp();
     MPI_Sendrecv(send_ptr, m_send_vec_buffers[dim].size(), m_scalar_type, dest,
@@ -490,25 +433,10 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_single_dir(
         index_t<Conf::dim> vec_buf_idx{};
         vec_buf_idx[Conf::dim - 1] =
             n * m_recv_buffers[dim].extent()[Conf::dim - 1];
-//         if (array.mem_type() == MemType::host_only) {
-//           copy(exec_tags::host{}, array, m_recv_vec_buffers[dim], recv_idx,
-//           vec_buf_idx,
-//                m_recv_buffers[dim].extent());
-//         } else {
-// #if CUDA_ENABLED &&                                              \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-//           m_recv_vec_buffers[dim].copy_to_device();
-// #endif
-//           copy(exec_tags::device{}, array, m_recv_vec_buffers[dim], recv_idx,
-//           vec_buf_idx,
-//                    m_recv_buffers[dim].extent());
-//         }
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-        m_recv_vec_buffers[dim].copy_to_device();
-#endif
+
+        if constexpr (m_is_device && !use_cuda_mpi) {
+          m_recv_vec_buffers[dim].copy_to_device();
+        }
         copy(typename ExecPolicy<Conf>::exec_tag{}, array,
              m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
              m_recv_buffers[dim].extent());
@@ -538,6 +466,9 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
   auto recv_idx = index_t<Conf::dim>{};
   recv_idx[dim] =
       (dir == -1 ? grid.dims[dim] - 2 * grid.guard[dim] : grid.guard[dim]);
+  // Logger::print_debug_all("recv_idx is ({}, {}, {}), dim is {}, dir is {}",
+  //                         recv_idx[0], recv_idx[1], recv_idx[2],
+  //                         dim, dir);
 
   if (dest == m_rank && origin == m_rank) {
     for (int n = 0; n < 3; n++) {
@@ -573,15 +504,14 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
     }
     // timer::show_duration_since_stamp("copy guard cells", "ms");
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptr = m_send_vec_buffers[dim].dev_ptr();
-    auto recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
-#else
     auto send_ptr = m_send_vec_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
-    m_send_vec_buffers[dim].copy_to_host();
-#endif
+    if constexpr (m_is_device && use_cuda_mpi) {
+      send_ptr = m_send_vec_buffers[dim].dev_ptr();
+      recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
+    } else {
+      m_send_vec_buffers[dim].copy_to_host();
+    }
 
     // timer::stamp();
     MPI_Sendrecv(send_ptr, m_send_vec_buffers[dim].size(), m_scalar_type, dest,
@@ -595,25 +525,10 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
         index_t<Conf::dim> vec_buf_idx{};
         vec_buf_idx[Conf::dim - 1] =
             n * m_send_buffers[dim].extent()[Conf::dim - 1];
-//         if (array.mem_type() == MemType::host_only) {
-//           add(exec_tags::host{}, array, m_recv_vec_buffers[dim], recv_idx,
-//           vec_buf_idx,
-//                m_recv_buffers[dim].extent());
-//         } else {
-// #if CUDA_ENABLED &&                                              \
-//     (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-//      !MPIX_CUDA_AWARE_SUPPORT)
-//           m_recv_vec_buffers[dim].copy_to_device();
-// #endif
-//           add(exec_tags::device{}, array, m_recv_vec_buffers[dim], recv_idx,
-//           vec_buf_idx,
-//                   m_recv_buffers[dim].extent());
-//         }
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-        m_recv_vec_buffers[dim].copy_to_device();
-#endif
+
+        if constexpr (m_is_device && !use_cuda_mpi) {
+          m_recv_vec_buffers[dim].copy_to_device();
+        }
         add(typename ExecPolicy<Conf>::exec_tag{}, array,
             m_recv_vec_buffers[dim], recv_idx, vec_buf_idx,
             m_recv_buffers[dim].extent());
@@ -710,24 +625,26 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
   for (int i = 0; i < buf_send_idx.size(); i++) {
     auto &send_buffer = buffers[buf_send_idx[i]];
     auto &recv_buffer = buffers[buf_recv_idx[i]];
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-    auto send_ptr = send_buffer.dev_ptr();
-    auto recv_ptr = recv_buffer.dev_ptr() + buf_nums[buf_recv_idx[i]];
-#else
-    send_buffer.copy_to_host();
+
     auto send_ptr = send_buffer.host_ptr();
     auto recv_ptr = recv_buffer.host_ptr() + buf_nums[buf_recv_idx[i]];
-#endif
+    if constexpr (m_is_device && use_cuda_mpi) {
+      send_ptr = send_buffer.dev_ptr();
+      recv_ptr = recv_buffer.dev_ptr() + buf_nums[buf_recv_idx[i]];
+    } else {
+      send_buffer.copy_to_host();
+    }
 
     if (src == dst && src == m_rank) {
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI
-      cudaMemcpy(recv_ptr, send_ptr,
-                 buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
-                 cudaMemcpyDeviceToDevice);
-#else
-      std::copy_n(send_ptr, buf_nums[buf_send_idx[i]], recv_ptr);
-#endif
+      if constexpr (m_is_device && use_cuda_mpi) {
+        // gpuMemcpy(recv_ptr, send_ptr,
+        //            buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
+        //            gpuMemcpyDeviceToDevice);
+        ptr_copy(typename ExecPolicy<Conf>::exec_tag{}, send_ptr, recv_ptr,
+                 buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]), 0, 0);
+      } else {
+        std::copy_n(send_ptr, buf_nums[buf_send_idx[i]], recv_ptr);
+      }
       buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
     } else {
       MPI_Sendrecv(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
@@ -769,53 +686,16 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
     T &send_buffer, int &send_num, T &recv_buffer, int &recv_num, int src,
     int dst, int tag, MPI_Request *send_req, MPI_Request *recv_req,
     MPI_Status *recv_stat) const {
-  // TODO: Detect cuda-aware MPI and use that accordingly
   int recv_offset = recv_num;
-  // int num_send = send_buffer.number();
-  // Logger::print_info_all("rank {}, src {}, dst {}, num_send {}", m_rank, src,
-  // dst, send_num);
-  // if (num_send > 0) {
-  //   Logger::print_info_all("Sending {} particles from rank {} to rank {}",
-  //   num_send,
-  //                          m_rank, dst);
-  // }
-  // if (m_size == 1 && m_rank == 0) {
-//   if (false) {
-//     // Logger::print_info("Not using MPI!");
-// #if CUDA_ENABLED
-//     auto send_ptr = send_buffer.get_dev_ptrs();
-//     auto recv_ptrs = recv_buffer.get_dev_ptrs();
-// #else
-//     auto send_ptrs = send_buffer.get_host_ptrs();
-//     auto recv_ptrs = recv_buffer.get_host_ptrs();
-// #endif
-//     int num_recv = send_num;
-//     // Logger::print_info("sending rank {}, src {}, dst {}", m_rank, src,
-//     dst); if (src != MPI_PROC_NULL || dst != MPI_PROC_NULL) {
-//       visit_struct::for_each(
-//           send_ptrs, recv_ptrs, [&](const char *name, auto &u, auto &v) {
-// #if CUDA_ENABLED
-//             // Logger::print_info("Sending size {} * {}", num_send,
-//             // sizeof(u[0]));
-//             CudaSafeCall(cudaMemcpy((void *)(v + recv_offset), (void *)u,
-//                                     num_send * sizeof(u[0]),
-//                                     cudaMemcpyDeviceToDevice));
-// #else
-//             std::copy(u, u + num_send, v + recv_offset);
-// #endif
-//           });
-//       recv_buffer.set_num(recv_offset + num_recv);
-//     }
-//   } else {
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-  auto send_ptr = send_buffer.dev_ptr();
-  auto recv_ptr = recv_buffer.dev_ptr() + recv_offset;
-#else
-  send_buffer.copy_to_host();
+
   auto send_ptr = send_buffer.host_ptr();
   auto recv_ptr = recv_buffer.host_ptr();
-#endif
+  if constexpr (m_is_device && use_cuda_mpi) {
+    send_ptr = send_buffer.dev_ptr();
+    recv_ptr = recv_buffer.dev_ptr() + recv_offset;
+  } else {
+    send_buffer.copy_to_host();
+  }
 
   // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is
   // {}", send_num,
@@ -835,11 +715,9 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 
   // MPI_Barrier(m_cart);
 
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-  recv_buffer.copy_to_device();
-#endif
+  if constexpr (m_is_device && !use_cuda_mpi) {
+    recv_buffer.copy_to_device();
+  }
   // }
   // send_buffer.set_num(0);
   send_num = 0;
@@ -975,11 +853,9 @@ domain_comm<Conf, ExecPolicy>::send_particles_impl(
   }
 
   // Copy the central recv buffer into the main array
-#if CUDA_ENABLED &&                                              \
-    (!USE_CUDA_AWARE_MPI || !defined(MPIX_CUDA_AWARE_SUPPORT) || \
-     !MPIX_CUDA_AWARE_SUPPORT)
-  buffers[central].copy_to_device();
-#endif
+  if constexpr (m_is_device && !use_cuda_mpi) {
+    buffers[central].copy_to_device();
+  }
   // ptc.copy_from(buffers[central], buffers[central].number(), 0,
   // ptc.number());
   // ptc.copy_from_buffer(exec_tag{}, buffers[central], buf_nums[central],

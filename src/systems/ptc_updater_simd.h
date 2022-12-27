@@ -24,16 +24,16 @@ namespace Aperture {
 
 template <typename Conf, template <class> class CoordPolicy,
           template <class> class PhysicsPolicy = ptc_physics_policy_empty>
-class ptc_updater_simd : public ptc_updater_new<Conf, exec_policy_openmp,
+class ptc_updater_simd : public ptc_updater<Conf, exec_policy_openmp,
                                                 CoordPolicy, PhysicsPolicy> {
  public:
-  // typedef ptc_updater_new<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>
+  // typedef ptc_updater<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>
   //     base_class;
   typedef typename Conf::value_t value_t;
-  using base_class = ptc_updater_new<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>;
+  using base_class = ptc_updater<Conf, exec_policy_openmp, CoordPolicy, PhysicsPolicy>;
   static std::string name() { return "ptc_updater"; }
 
-  using base_class::ptc_updater_new;
+  using base_class::ptc_updater;
 
   void update_particles(value_t dt, uint32_t step);
 };

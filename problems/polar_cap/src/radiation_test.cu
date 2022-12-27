@@ -41,7 +41,7 @@ template class radiative_transfer<Config<3>, exec_policy_cuda,
                                   // curvature_emission_scheme_polar_cap>;
                                   curvature_emission_scheme_gca_lite>;
 
-template class ptc_updater_new<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
 
 }
 
@@ -71,8 +71,8 @@ main(int argc, char *argv[]) {
 
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
-      // ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
+      // ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);

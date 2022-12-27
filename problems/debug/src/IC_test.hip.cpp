@@ -45,7 +45,7 @@ main(int argc, char *argv[]) {
   size_t max_ptc_num = 10000;
   env.register_data<particle_data_t>("particles", max_ptc_num, MemType::device_managed);
 
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian, ptc_physics_policy_empty>>(
       grid, comm);
   auto rad = env.register_system<radiative_transfer<

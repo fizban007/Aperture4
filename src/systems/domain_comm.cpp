@@ -21,6 +21,10 @@
 
 namespace Aperture {
 
+template <typename Conf, template <class> class ExecPolicy>
+void
+domain_comm<Conf, ExecPolicy>::setup_devices() {}
+
 template class domain_comm<Config<1, Scalar>, exec_policy_host>;
 template class domain_comm<Config<2, Scalar>, exec_policy_host>;
 template class domain_comm<Config<3, Scalar>, exec_policy_host>;

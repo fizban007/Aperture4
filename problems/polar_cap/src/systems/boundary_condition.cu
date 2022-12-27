@@ -64,7 +64,7 @@ template <typename Conf> void boundary_condition<Conf>::init() {
   }
 
   auto pusher = sim_env().get_system("ptc_updater");
-  if (dynamic_cast<ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>*>(pusher.get()) != nullptr) {
+  if (dynamic_cast<ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>*>(pusher.get()) != nullptr) {
     m_is_gca = false;
   }
 }

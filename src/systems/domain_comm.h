@@ -66,9 +66,9 @@ class domain_comm : public system_t {
   void gather_to_root(buffer<T>& buf) const {
     buffer<T> tmp_buf(buf.size(), MemType::host_only);
     buf.copy_to_host();
-    auto result = MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
-                             MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0,
-                             m_cart);
+    auto result =
+        MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
+                   MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, m_cart);
     if (is_root()) {
       buf.host_copy_from(tmp_buf, buf.size());
     }
@@ -85,6 +85,8 @@ class domain_comm : public system_t {
   int m_size = 1;  ///< Size of MPI_COMM_WORLD
   domain_info_t<Conf::dim> m_domain_info;
   mutable bool m_buffers_ready = false;
+  static constexpr bool m_is_device =
+      std::is_same_v<typename ExecPolicy<Conf>::exec_tag, exec_tags::device>;
 
   // Communication buffers. These buffers are declared mutable because we want
   // to use a const domain_comm reference to invoke communications, but
@@ -105,6 +107,7 @@ class domain_comm : public system_t {
   mutable buffer<single_ph_t*> m_ph_buffer_ptrs;
 
   void setup_domain();
+  void setup_devices();
   void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
                                          const typename Conf::grid_t& grid,
                                          int dim, int dir) const;
@@ -125,9 +128,10 @@ class domain_comm : public system_t {
                            MPI_Status* recv_stat) const;
   template <typename SingleType>
   void send_particle_array(std::vector<buffer<SingleType>>& buffers,
-                           buffer<int>& buf_nums, const std::vector<int>& buf_send_idx,
-                           const std::vector<int>& buf_recv_idx, int src, int dst,
-                           std::vector<MPI_Request>& req_send,
+                           buffer<int>& buf_nums,
+                           const std::vector<int>& buf_send_idx,
+                           const std::vector<int>& buf_recv_idx, int src,
+                           int dst, std::vector<MPI_Request>& req_send,
                            std::vector<MPI_Request>& req_recv,
                            std::vector<MPI_Status>& stat_recv) const;
   // std::vector<particles_t>& ptc_buffers(const particles_t& ptc) const;

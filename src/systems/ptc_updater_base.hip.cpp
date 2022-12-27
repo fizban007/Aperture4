@@ -28,26 +28,20 @@
 
 namespace Aperture {
 
-template class ptc_updater_new<Config<1>, exec_policy_cuda,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian>;
-template class ptc_updater_new<Config<3>, exec_policy_cuda,
-                               coord_policy_cartesian>;
+template class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_cartesian>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian>;
+template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian>;
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian_gca>;
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian_impl_cooling>;
+template class ptc_updater<Config<2>, exec_policy_cuda,
+                           coord_policy_cartesian_gca>;
+template class ptc_updater<Config<2>, exec_policy_cuda,
+                           coord_policy_cartesian_impl_cooling>;
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_spherical>;
-template class ptc_updater_new<Config<3>, exec_policy_cuda,
-                               coord_policy_spherical>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_spherical>;
+template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_spherical>;
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda, coord_policy_polar>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_polar>;
 
-template class ptc_updater_new<Config<2>, exec_policy_cuda,
-                               coord_policy_gr_ks_sph>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_gr_ks_sph>;
 
 }  // namespace Aperture

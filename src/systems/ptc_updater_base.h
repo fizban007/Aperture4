@@ -39,14 +39,14 @@ namespace Aperture {
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy = ptc_physics_policy_empty>
-class ptc_updater_new : public system_t {
+class ptc_updater : public system_t {
  public:
   typedef typename Conf::value_t value_t;
   static std::string name() { return "ptc_updater"; }
 
-  ptc_updater_new(const grid_t<Conf>& grid);
-  ptc_updater_new(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>& comm);
-  ~ptc_updater_new();
+  ptc_updater(const grid_t<Conf>& grid);
+  ptc_updater(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>& comm);
+  ~ptc_updater();
 
   void init() override;
   void update(double dt, uint32_t step) override;

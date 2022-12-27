@@ -47,7 +47,6 @@ if (use_cuda OR use_hip)
     "test_gca_compare.hip.cpp")
   target_link_libraries(gca_test_compare Aperture Aperture_dev)
   add_dependencies(problems gca_test_compare)
-else()
 endif()
 
 add_executable(pml_test

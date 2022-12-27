@@ -28,9 +28,9 @@
 using namespace Aperture;
 
 namespace Aperture {
-template class ptc_updater_new<Config<2>, exec_policy_openmp,
+template class ptc_updater<Config<2>, exec_policy_openmp,
                                coord_policy_cartesian>;
-template class ptc_updater_new<Config<3>, exec_policy_openmp,
+template class ptc_updater<Config<3>, exec_policy_openmp,
                                coord_policy_cartesian>;
 }  // namespace Aperture
 
@@ -50,7 +50,7 @@ main(int argc, char* argv[]) {
   auto comm = env.register_system<domain_comm<Conf3D>>();
   auto grid3d = env.register_system<grid_t<Conf3D>>(*comm);
   auto pusher3d = env.register_system<
-      // ptc_updater_new<Conf3D, exec_policy_openmp, coord_policy_cartesian>>(
+      // ptc_updater<Conf3D, exec_policy_openmp, coord_policy_cartesian>>(
       ptc_updater_simd<Conf3D, coord_policy_cartesian>>(
       *grid3d, *comm);
 

@@ -57,9 +57,9 @@ main(int argc, char *argv[]) {
   // grid_t<Conf> grid(comm);
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   // auto pusher = env.register_system<
-  //     ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+  //     ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
   //                                                                      comm);
-  auto pusher = env.register_system<ptc_updater_new<
+  auto pusher = env.register_system<ptc_updater<
       // Conf, exec_policy_cuda, coord_policy_cartesian,
       // phys_policy_IC_cooling>>( Conf, exec_policy_cuda,
       // coord_policy_cartesian_impl_cooling,

@@ -51,7 +51,7 @@ main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
 
   // auto pusher = env.register_system<
-  //     ptc_updater_new<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
+  //     ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);

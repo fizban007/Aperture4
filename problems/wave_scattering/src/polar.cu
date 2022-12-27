@@ -155,7 +155,7 @@ main(int argc, char *argv[]) {
   grid.init();
 
   auto pusher = env.register_system<
-      ptc_updater_new<Conf, exec_policy_cuda, coord_policy_polar>>(grid, comm);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_polar>>(grid, comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);

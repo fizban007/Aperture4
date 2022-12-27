@@ -92,6 +92,10 @@ field_solver<Conf, ExecPolicy,
   m_tmp_e2 = sim_env().register_data<vector_field<Conf>>(
       "tmp_e2", this->m_grid, field_type::vert_centered, type);
   if (!this->m_use_implicit) {
+    m_tmp_b1->skip_output(true);
+    m_tmp_b2->skip_output(true);
+    m_tmp_e1->skip_output(true);
+    m_tmp_e2->skip_output(true);
     m_tmp_b1->include_in_snapshot(true);
     m_tmp_b2->include_in_snapshot(true);
     m_tmp_e1->include_in_snapshot(true);
@@ -101,12 +105,13 @@ field_solver<Conf, ExecPolicy,
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
-    vector_field<Conf> &E, const vector_field<Conf> &B,
-    const vector_field<Conf> &J, double dt) {
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(double dt) {
   using value_t = typename Conf::value_t;
   int pml_len = this->m_pml_length;
   vec_t<bool, Conf::dim * 2> damping(this->m_damping);
+  auto& E = *(this->E);
+  auto& B = *(this->B);
+  auto& J = *(this->J);
 
   ExecPolicy<Conf>::launch(
       [dt, pml_len, damping] LAMBDA(auto result, auto e1, auto e2, auto b,
@@ -328,11 +333,12 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
-    vector_field<Conf> &B, const vector_field<Conf> &E, double dt) {
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(double dt) {
   using value_t = typename Conf::value_t;
   int pml_len = this->m_pml_length;
   vec_t<bool, Conf::dim * 2> damping(this->m_damping);
+  auto& B = *(this->B);
+  auto& E = *(this->E);
 
   ExecPolicy<Conf>::launch(
       [dt, pml_len, damping] LAMBDA(auto result, auto b1, auto b2, auto e,
@@ -546,11 +552,11 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
   // }
 
   if (this->m_update_b) {
-    compute_b_update_pml(*(this->B), *(this->E), dt);
+    compute_b_update_pml(dt);
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
   if (this->m_update_e) {
-    compute_e_update_pml(*(this->E), *(this->B), *(this->J), dt);
+    compute_e_update_pml(dt);
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   }
 
@@ -560,7 +566,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
 template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_semi_implicit(
-    double dt, double alpha, double beta, double time) {}
+    double dt, double alpha, double beta, double time) {
+  // FIXME: Running explicit update even for semi implicit
+  update_explicit(dt, time);
+}
 
 }  // namespace Aperture
 

@@ -308,10 +308,12 @@ void ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
                        const grid_t<Conf>& grid,
                        const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
                        Scalar weight, uint32_t flag) {
-  vec_t<Scalar, 3> x_rel;
-  uint32_t cell;
-  grid.from_x_global(x_global, x_rel, cell);
-  ptc_append(exec_tags::device{}, ptc, x_rel, p, cell, weight, flag);
+  if (grid.is_in_bound(x_global)) {
+    vec_t<Scalar, 3> x_rel;
+    uint32_t cell;
+    grid.from_x_global(x_global, x_rel, cell);
+    ptc_append(exec_tags::device{}, ptc, x_rel, p, cell, weight, flag);
+  }
 }
 
 template void ptc_append_global(exec_tags::device, particles_base<ptc_buffer>&,

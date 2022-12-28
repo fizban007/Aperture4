@@ -21,7 +21,7 @@
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
@@ -49,7 +49,7 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
   // 0, [Bp](Scalar x, Scalar y, Scalar z) { return 0.01*Bp; });
 
   auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   injector->inject(

@@ -58,12 +58,12 @@ int main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   // auto pusher = env.register_system<ptc_updater<
-  //     Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
+  //     Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(grid, comm);
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
+      Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);

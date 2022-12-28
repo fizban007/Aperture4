@@ -24,7 +24,7 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -33,7 +33,7 @@
 
 namespace Aperture {
 
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_cartesian_gca_lite>;
 
 }
 
@@ -64,9 +64,9 @@ main(int argc, char *argv[]) {
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid);
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian_gca_lite>>(grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

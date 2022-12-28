@@ -24,7 +24,7 @@
 #include "systems/field_solver_base.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
@@ -40,18 +40,18 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf, exec_policy_cuda> comm;
+  domain_comm<Conf, exec_policy_gpu> comm;
   grid_t<Conf> grid(comm);
   size_t max_ptc_num = 10000;
   env.register_data<particle_data_t>("particles", max_ptc_num, MemType::device_managed);
 
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_cuda, coord_policy_cartesian, ptc_physics_policy_empty>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian, ptc_physics_policy_empty>>(
       grid, &comm);
   auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

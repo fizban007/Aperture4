@@ -25,7 +25,7 @@
 #include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/grid.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/range.hpp"
 #include <thrust/device_ptr.h>
@@ -34,7 +34,7 @@
 namespace Aperture {
 
 template <typename Conf>
-class ptc_injector<Conf, exec_policy_cuda> : public system_t {
+class ptc_injector<Conf, exec_policy_gpu> : public system_t {
  public:
   using value_t = typename Conf::value_t;
   static std::string name() { return "ptc_injector"; }
@@ -56,7 +56,7 @@ class ptc_injector<Conf, exec_policy_cuda> : public system_t {
             typename FWeight>
   void inject(const FCriteria& f_criteria, const FNumPerCell& f_num,
               const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
-    using policy = exec_policy_cuda<Conf>;
+    using policy = exec_policy_gpu<Conf>;
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
     Logger::print_detail_all("Before calculating num_per_cell");

@@ -20,7 +20,7 @@
 #include "framework/config.h"
 #include "systems/grid.h"
 #include "systems/physics/lorentz_transform.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -38,7 +38,7 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
 
 template <typename Conf>
 boundary_condition<Conf>::boundary_condition(
-    const grid_t<Conf> &grid, const domain_comm<Conf, exec_policy_cuda> *comm)
+    const grid_t<Conf> &grid, const domain_comm<Conf, exec_policy_gpu> *comm)
     : m_grid(grid), m_comm(comm) {
   using multi_array_t = typename Conf::multi_array_t;
 
@@ -95,7 +95,7 @@ boundary_condition<Conf>::boundary_condition(
   m_dens_p2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
 
   injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 }
 
 template <typename Conf>

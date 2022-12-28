@@ -21,7 +21,7 @@
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "initial_condition.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 
@@ -51,7 +51,7 @@ set_initial_condition(const grid_sph_t<Conf>& grid) {
     auto num = ptc->number();
     using idx_t = typename Conf::idx_t;
 
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   injector->inject(

@@ -19,7 +19,7 @@
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "gather_momentum_space_impl.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 // #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -114,7 +114,7 @@ namespace Aperture {
 
 // INSTANTIATE_WITH_CONFIG(gather_momentum_space_cu);
 
-template class gather_momentum_space<Config<2>, exec_policy_cuda>;
-template class gather_momentum_space<Config<3>, exec_policy_cuda>;
+template class gather_momentum_space<Config<2>, exec_policy_gpu>;
+template class gather_momentum_space<Config<3>, exec_policy_gpu>;
 
 }  // namespace Aperture

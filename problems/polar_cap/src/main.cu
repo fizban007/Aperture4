@@ -25,7 +25,7 @@
 #include "systems/field_solver_frame_dragging.h"
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -40,12 +40,12 @@ using namespace Aperture;
 
 namespace Aperture {
 
-template class radiative_transfer<Config<3>, exec_policy_cuda,
+template class radiative_transfer<Config<3>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   // curvature_emission_scheme_polar_cap>;
                                   curvature_emission_scheme_gca_lite>;
 
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian_gca_lite>;
+template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_cartesian_gca_lite>;
 
 }  // namespace Aperture
 
@@ -61,14 +61,14 @@ main(int argc, char *argv[]) {
 
   auto solver = env.register_system<field_solver_frame_dragging<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(grid, &comm);
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian_gca_lite>>(grid, &comm);
   auto rad = env.register_system<
-      radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
+      radiative_transfer<Conf, exec_policy_gpu, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);
                          // curvature_emission_scheme_polar_cap>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

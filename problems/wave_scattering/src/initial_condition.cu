@@ -23,7 +23,7 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
@@ -131,7 +131,7 @@ initial_condition_bg(vector_field<Conf> &B,
       0, [Bbg, wave, sinth](value_t x, value_t y, value_t z) { return Bbg * wave.costh; });
 
   auto& grid = B.grid();
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   injector->inject(
@@ -195,7 +195,7 @@ initial_condition_wave(vector_field<Conf> &B,
   auto num = ptc.number();
 
   auto& grid = B.grid();
-  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+  auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   value_t Lbox = L[0];

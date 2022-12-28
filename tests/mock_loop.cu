@@ -20,7 +20,7 @@
 #include "core/multi_array_exp.hpp"
 #include "data/fields.h"
 #include "framework/config.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
 #include <iostream>
@@ -66,16 +66,16 @@ main() {
 
   // int n = 8;
   // auto w = Wrapper{3.0};
-  // exec_policy_cuda<Config<3>>::instance().loop(
+  // exec_policy_gpu<Config<3>>::instance().loop(
   //     w, idx_col_major_t<2>(0, ext), idx_col_major_t<2>(ext.size(), ext),
   //     &n);
   // cudaDeviceSynchronize();
 
   multi_array<float, 2> array(ext);
   typedef Config<2> Conf;
-  exec_policy_cuda<Conf>::launch(
+  exec_policy_gpu<Conf>::launch(
       [ext] __device__(auto array) {
-        exec_policy_cuda<Conf>::loop(Conf::begin(ext), Conf::end(ext),
+        exec_policy_gpu<Conf>::loop(Conf::begin(ext), Conf::end(ext),
                                      [ext] __device__(auto idx) {
                                        auto pos = get_pos(idx, ext);
                                        printf("%d, %d\n", pos[0], pos[1]);
@@ -88,11 +88,11 @@ main() {
   array.assign_dev(2.0f);
   array2.assign_dev(3.0f);
 
-  exec_policy_cuda<Conf>::launch([ext] __device__(auto array) {
+  exec_policy_gpu<Conf>::launch([ext] __device__(auto array) {
       if (threadIdx.x + blockIdx.x * blockDim.x == 0)
         printf("Product is %f\n", array[Conf::idx(0, ext)]);
     }, array * array2);
-  exec_policy_cuda<Conf>::sync();
+  exec_policy_gpu<Conf>::sync();
 
   return 0;
 }

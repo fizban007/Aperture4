@@ -26,9 +26,9 @@
 using namespace Aperture;
 
 namespace Aperture {
-template class ptc_updater<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_gpu,
                                coord_policy_cartesian>;
-template class ptc_updater<Config<3>, exec_policy_cuda,
+template class ptc_updater<Config<3>, exec_policy_gpu,
                                coord_policy_cartesian>;
 }  // namespace Aperture
 
@@ -48,7 +48,7 @@ main(int argc, char* argv[]) {
 
   auto grid3d = env.register_system<grid_t<Conf3D>>();
   auto pusher3d = env.register_system<ptc_updater<
-      Conf3D, exec_policy_cuda, coord_policy_cartesian>>(
+      Conf3D, exec_policy_gpu, coord_policy_cartesian>>(
       *grid3d);
 
   env.init();
@@ -84,7 +84,7 @@ main(int argc, char* argv[]) {
 
   auto grid2d = env.register_system<grid_t<Conf2D>>();
   auto pusher2d = env.register_system<ptc_updater<
-      Conf2D, exec_policy_cuda, coord_policy_cartesian>>(
+      Conf2D, exec_policy_gpu, coord_policy_cartesian>>(
       *grid2d);
 
   env.init();

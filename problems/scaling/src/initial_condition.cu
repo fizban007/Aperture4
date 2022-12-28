@@ -23,7 +23,7 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
@@ -71,7 +71,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
   auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   injector->inject(

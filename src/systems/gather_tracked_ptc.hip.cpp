@@ -17,21 +17,21 @@
 
 #include "framework/config.h"
 #include "systems/gather_tracked_ptc_impl.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 
 namespace Aperture {
 
-template class gather_tracked_ptc<Config<1>, exec_policy_cuda>;
-template void gather_tracked_ptc<Config<1>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
-template void gather_tracked_ptc<Config<1>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+template class gather_tracked_ptc<Config<1>, exec_policy_gpu>;
+template void gather_tracked_ptc<Config<1>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<1>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
 
-template class gather_tracked_ptc<Config<2>, exec_policy_cuda>;
-template void gather_tracked_ptc<Config<2>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
-template void gather_tracked_ptc<Config<2>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+template class gather_tracked_ptc<Config<2>, exec_policy_gpu>;
+template void gather_tracked_ptc<Config<2>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<2>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
 
-template class gather_tracked_ptc<Config<3>, exec_policy_cuda>;
-template void gather_tracked_ptc<Config<3>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
-template void gather_tracked_ptc<Config<3>, exec_policy_cuda>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
+template class gather_tracked_ptc<Config<3>, exec_policy_gpu>;
+template void gather_tracked_ptc<Config<3>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ptc_buffer>& ptc);
+template void gather_tracked_ptc<Config<3>, exec_policy_gpu>::gather_tracked_ptc_index(const particles_base<ph_buffer>& ptc);
 
 
 }

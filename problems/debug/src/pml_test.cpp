@@ -23,19 +23,10 @@
 #include "systems/data_exporter.h"
 #include "systems/field_solver_cartesian.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_updater_base.h"
 
 using namespace Aperture;
-
-#ifdef GPU_ENABLED
-#include "systems/policies/exec_policy_cuda.hpp"
-template <typename Conf>
-using exec_policy = exec_policy_cuda<Conf>;
-#else
-#include "systems/policies/exec_policy_host.hpp"
-template <typename Conf>
-using exec_policy = exec_policy_host<Conf>;
-#endif
 
 int
 main(int argc, char *argv[]) {
@@ -56,15 +47,15 @@ main(int argc, char *argv[]) {
   // env.params().add("pml_length", 8l);
   // env.params().add("fld_output_interval", 10l);
 
-  domain_comm<Conf, exec_policy> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   grid_t<Conf> grid(comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy, coord_policy_cartesian>>(grid, &comm);
+      ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy, coord_policy_cartesian>>(grid, &comm);
+      field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy>>(grid, &comm);
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 

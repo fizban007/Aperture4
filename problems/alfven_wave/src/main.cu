@@ -25,7 +25,7 @@
 #include "systems/initial_condition.h"
 #include "systems/ptc_injector_mult.h"
 #include "systems/ptc_updater_base_impl.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/ptc_physics_policy_gravity_sph.hpp"
 #include <iostream>
@@ -43,14 +43,14 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   auto grid = env.register_system<grid_sph_t<Conf>>();
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_cuda, coord_policy_spherical, ptc_physics_policy_gravity_sph>>(*grid);
+      Conf, exec_policy_gpu, coord_policy_spherical, ptc_physics_policy_gravity_sph>>(*grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(*grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(*grid);
   // auto injector =
   //     env.register_system<ptc_injector_mult<Conf>>(*grid);
   auto bc = env.register_system<boundary_condition<Conf>>(*grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(*grid);
 
   env.init();
 

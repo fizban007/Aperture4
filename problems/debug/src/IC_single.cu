@@ -26,7 +26,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/physics/ic_scattering.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"

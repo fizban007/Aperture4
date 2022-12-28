@@ -25,7 +25,7 @@
 #include "systems/domain_comm.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
@@ -40,7 +40,7 @@
 
 namespace Aperture {
 
-template class ptc_updater<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_gpu,
                                coord_policy_cartesian_impl_cooling>;
 
 
@@ -59,14 +59,14 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(
       grid, comm);
   auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto exporter = env.register_system<data_exporter<Conf>>(grid, &comm);
 
   env.init();
@@ -93,7 +93,7 @@ main(int argc, char *argv[]) {
   //                   1.0f, set_ptc_type_flag(0, PtcType::electron));
   // }
   auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   injector->init();
 
   int n_upstream = 1;

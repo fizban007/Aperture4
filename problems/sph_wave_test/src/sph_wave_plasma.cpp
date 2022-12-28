@@ -24,7 +24,7 @@
 #include "systems/data_exporter.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "initial_condition.h"
 // #include "systems/ptc_injector.h"
 #include <iostream>
@@ -45,14 +45,14 @@ main(int argc, char *argv[]) {
   grid.init();
 
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_spherical>>(grid);
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_spherical>>(grid);
   auto solver =
       env.register_system<field_solver_sph_cu<Conf>>(grid);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto bc = env.register_system<boundary_condition<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid);
 
   env.init();
 

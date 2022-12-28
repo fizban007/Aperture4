@@ -17,7 +17,7 @@
 
 #include "domain_comm_impl.hpp"
 #include "framework/config.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 
 namespace Aperture {
 
@@ -42,8 +42,8 @@ domain_comm<Conf, ExecPolicy>::setup_devices() {
   init_dev_rank(m_rank);
 }
 
-template class domain_comm<Config<1, Scalar>, exec_policy_cuda>;
-template class domain_comm<Config<2, Scalar>, exec_policy_cuda>;
-template class domain_comm<Config<3, Scalar>, exec_policy_cuda>;
+template class domain_comm<Config<1, Scalar>, exec_policy_gpu>;
+template class domain_comm<Config<2, Scalar>, exec_policy_gpu>;
+template class domain_comm<Config<3, Scalar>, exec_policy_gpu>;
 
 }

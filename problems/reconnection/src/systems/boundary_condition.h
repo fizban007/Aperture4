@@ -39,7 +39,7 @@ class boundary_condition : public system_t {
   using value_t = typename Conf::value_t;
   static std::string name() { return "boundary_condition"; }
 
-  boundary_condition(const grid_t<Conf>& grid, const domain_comm<Conf, exec_policy_cuda>* comm = nullptr);
+  boundary_condition(const grid_t<Conf>& grid, const domain_comm<Conf, exec_policy_gpu>* comm = nullptr);
 
   void init() override;
   void update(double dt, uint32_t step) override;
@@ -49,7 +49,7 @@ class boundary_condition : public system_t {
 
  protected:
   const grid_t<Conf>& m_grid;
-  const domain_comm<Conf, exec_policy_cuda>* m_comm;
+  const domain_comm<Conf, exec_policy_gpu>* m_comm;
   int m_inj_length = 16;
   int m_damping_length = 64;
   int m_upstream_n = 1;
@@ -63,7 +63,7 @@ class boundary_condition : public system_t {
   nonown_ptr<scalar_field<Conf>> rho_e, rho_p;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<rng_states_t<exec_tags::device>> rng_states;
-  nonown_ptr<ptc_injector<Conf, exec_policy_cuda>> injector;
+  nonown_ptr<ptc_injector<Conf, exec_policy_gpu>> injector;
   // curand_states_t *rand_states;
 
   std::unique_ptr<typename Conf::multi_array_t> m_dens_e1, m_dens_e2, m_dens_p1, m_dens_p2;

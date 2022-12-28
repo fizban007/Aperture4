@@ -21,7 +21,7 @@
 namespace Aperture {
 
 template <typename Conf>
-class exec_policy_cuda;
+class exec_policy_gpu;
 
 template <typename Conf>
 class exec_policy_host;

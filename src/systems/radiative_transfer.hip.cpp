@@ -21,26 +21,26 @@
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/radiation/default_radiation_scheme.hpp"
 #include "systems/radiation/gr_ks_ic_radiation_scheme.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "radiative_transfer_impl.hpp"
 
 namespace Aperture {
 
-template class radiative_transfer<Config<1>, exec_policy_cuda,
+template class radiative_transfer<Config<1>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   default_radiation_scheme>;
-template class radiative_transfer<Config<2>, exec_policy_cuda,
+template class radiative_transfer<Config<2>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   default_radiation_scheme>;
-template class radiative_transfer<Config<3>, exec_policy_cuda,
+template class radiative_transfer<Config<3>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   default_radiation_scheme>;
 
-template class radiative_transfer<Config<2>, exec_policy_cuda,
+template class radiative_transfer<Config<2>, exec_policy_gpu,
                                   coord_policy_spherical,
                                   default_radiation_scheme>;
 
-template class radiative_transfer<Config<2>, exec_policy_cuda,
+template class radiative_transfer<Config<2>, exec_policy_gpu,
                                   coord_policy_gr_ks_sph,
                                   gr_ks_ic_radiation_scheme>;
 

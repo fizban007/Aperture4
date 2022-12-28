@@ -17,13 +17,13 @@
 
 #include "data_exporter_impl.hpp"
 #include "framework/config.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 
 namespace Aperture {
 
-template class data_exporter<Config<1>, exec_policy_cuda>;
-template class data_exporter<Config<2>, exec_policy_cuda>;
-template class data_exporter<Config<3>, exec_policy_cuda>;
+template class data_exporter<Config<1>, exec_policy_gpu>;
+template class data_exporter<Config<2>, exec_policy_gpu>;
+template class data_exporter<Config<3>, exec_policy_gpu>;
 
 
 }

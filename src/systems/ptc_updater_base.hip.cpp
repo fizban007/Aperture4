@@ -22,26 +22,26 @@
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/coord_policy_polar.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 
 namespace Aperture {
 
-template class ptc_updater<Config<1>, exec_policy_cuda, coord_policy_cartesian>;
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_cartesian>;
+template class ptc_updater<Config<1>, exec_policy_gpu, coord_policy_cartesian>;
+template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_cartesian>;
+template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_cartesian>;
 
-template class ptc_updater<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_gpu,
                            coord_policy_cartesian_gca>;
-template class ptc_updater<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_gpu,
                            coord_policy_cartesian_impl_cooling>;
 
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_spherical>;
-template class ptc_updater<Config<3>, exec_policy_cuda, coord_policy_spherical>;
+template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical>;
+template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical>;
 
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_polar>;
+template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_polar>;
 
-template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_gr_ks_sph>;
+template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_gr_ks_sph>;
 
 }  // namespace Aperture

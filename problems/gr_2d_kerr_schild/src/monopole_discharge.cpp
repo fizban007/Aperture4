@@ -27,7 +27,7 @@
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
 #include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/radiative_transfer.h"
 #include "systems/radiation/gr_ks_ic_radiation_scheme.hpp"
 #include "utils/util_functions.h"
@@ -56,13 +56,13 @@ int main(int argc, char *argv[]) {
 
   auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_gr_ks_sph>>(grid,
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_gr_ks_sph>>(grid,
                                                                        comm);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   // auto rt = env.register_system<
-  //     radiative_transfer<Conf, exec_policy_cuda, coord_policy_gr_ks_sph,
+  //     radiative_transfer<Conf, exec_policy_gpu, coord_policy_gr_ks_sph,
   //                        gr_ks_ic_radiation_scheme>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

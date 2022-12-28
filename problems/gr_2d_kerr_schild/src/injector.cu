@@ -20,7 +20,7 @@
 #include "framework/environment.h"
 #include "injector.h"
 #include "systems/physics/metric_kerr_schild.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
@@ -70,7 +70,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   m_num_per_cell.assign_dev(0);
 
   // Measure how many pairs to inject per cell
-  exec_policy_cuda<Conf>::launch(
+  exec_policy_gpu<Conf>::launch(
       [a, inj_thr, sigma_thr, num_species] __device__(
           auto B, auto D, auto rho, auto num_per_cell, auto states) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -148,7 +148,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
 
   auto ptc_num = ptc->number();
   // kernel_launch(
-  exec_policy_cuda<Conf>::launch(
+  exec_policy_gpu<Conf>::launch(
       [a, ptc_num, qe] __device__(auto B, auto D, auto ptc, auto num_per_cell,
                                   auto cum_num, auto states) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();

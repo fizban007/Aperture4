@@ -25,7 +25,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
@@ -53,27 +53,27 @@ main(int argc, char *argv[]) {
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  domain_comm<Conf, exec_policy_cuda> comm;
+  domain_comm<Conf, exec_policy_gpu> comm;
   // grid_t<Conf> grid(comm);
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   // auto pusher = env.register_system<
-  //     ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+  //     ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid,
   //                                                                      comm);
   auto pusher = env.register_system<ptc_updater<
-      // Conf, exec_policy_cuda, coord_policy_cartesian,
-      // phys_policy_IC_cooling>>( Conf, exec_policy_cuda,
+      // Conf, exec_policy_gpu, coord_policy_cartesian,
+      // phys_policy_IC_cooling>>( Conf, exec_policy_gpu,
       // coord_policy_cartesian_impl_cooling,
       //     phys_policy_IC_cooling>>(
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, &comm);
+      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(grid, &comm);
   auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   // auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+      env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

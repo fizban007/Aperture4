@@ -19,7 +19,7 @@
 #include "core/math.hpp"
 #include "framework/config.h"
 #include "systems/grid.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_cuda.hpp"
 #include "systems/ptc_updater_base.h"
 #include "utils/interpolation.hpp"
@@ -45,7 +45,7 @@ boundary_condition<Conf>::boundary_condition(const grid_t<Conf> &grid,
 
   if (m_Ninject > 0) {
     injector =
-        sim_env().register_system<ptc_injector<Conf, exec_policy_cuda>>(grid);
+        sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
   }
 }
 
@@ -64,7 +64,7 @@ template <typename Conf> void boundary_condition<Conf>::init() {
   }
 
   auto pusher = sim_env().get_system("ptc_updater");
-  if (dynamic_cast<ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>*>(pusher.get()) != nullptr) {
+  if (dynamic_cast<ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>*>(pusher.get()) != nullptr) {
     m_is_gca = false;
   }
 }

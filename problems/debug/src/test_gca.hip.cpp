@@ -20,7 +20,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_updater_base.h"
 // #include "systems/policies/exec_policy_host.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
@@ -34,10 +34,10 @@
 
 namespace Aperture {
 
-template class radiative_transfer<Config<3>, exec_policy_cuda,
+template class radiative_transfer<Config<3>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   curvature_emission_scheme_gca_lite>;
-template class ptc_updater<Config<3>, exec_policy_cuda,
+template class ptc_updater<Config<3>, exec_policy_gpu,
                                coord_policy_cartesian_gca_lite>;
 
 }  // namespace Aperture
@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
   auto &env = sim_environment::instance(&argc, &argv);
   typedef typename Conf::value_t value_t;
 
-  domain_comm<Conf, exec_policy_cuda> comm(&argc, &argv);
+  domain_comm<Conf, exec_policy_gpu> comm(&argc, &argv);
   grid_t<Conf> grid(comm);
 
   Logger::print_info("Max ptc num is {}",
@@ -63,12 +63,12 @@ main(int argc, char *argv[]) {
       MemType::device_managed);
 
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian_gca_lite>>(
       grid, &comm);
   auto rad = env.register_system<
-      radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
+      radiative_transfer<Conf, exec_policy_gpu, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

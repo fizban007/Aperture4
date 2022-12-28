@@ -24,7 +24,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_updater_base.h"
 #include <iostream>
 
@@ -48,19 +48,17 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf, exec_policy_cuda> comm;
+  domain_comm<Conf, exec_policy_gpu> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                       &comm);
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                    &comm);
+      field_solver<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+      env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
 

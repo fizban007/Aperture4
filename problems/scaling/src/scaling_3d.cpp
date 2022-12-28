@@ -25,7 +25,7 @@
 #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/ptc_updater_base.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include <iostream>
 
 using namespace std;
@@ -53,14 +53,14 @@ main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
   grid.init();
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
+      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf,
-      exec_policy_cuda>>(grid);
+      exec_policy_gpu>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
 
   env.init();
   Logger::print_debug_all("env init complete");

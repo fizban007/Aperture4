@@ -20,7 +20,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/ptc_updater_base_impl.hpp"
 #include "utils/hdf_wrapper.h"
@@ -32,7 +32,7 @@
 
 namespace Aperture {
 
-template class ptc_updater<Config<2>, exec_policy_cuda,
+template class ptc_updater<Config<2>, exec_policy_gpu,
                                coord_policy_cartesian, phys_policy_IC_cooling>;
 
 }  // namespace Aperture

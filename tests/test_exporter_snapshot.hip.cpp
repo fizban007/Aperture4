@@ -24,7 +24,7 @@
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
 #include "systems/gather_tracked_ptc.h"
-#include "systems/policies/exec_policy_cuda.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 
 using namespace Aperture;
 
@@ -50,7 +50,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   env.params().add("max_tracked_num", 100l);
   env.params().add<int64_t>("downsample", 2);
 
-  domain_comm<Conf, exec_policy_cuda> comm;
+  domain_comm<Conf, exec_policy_gpu> comm;
   grid_t<Conf> grid(comm);
   // scalar_field<Conf> fs(grid, MemType::device_managed);
   auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, MemType::device_managed);
@@ -64,8 +64,8 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   ptc->include_in_snapshot(true);
   auto states = env.register_data<rng_states_t<exec_tags::device>>("rng_states");
   states->include_in_snapshot(true);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
-  auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_cuda>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
+  auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_gpu>>(grid);
 
   env.init();
 

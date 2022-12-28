@@ -39,7 +39,7 @@ main(int argc, char *argv[]) {
 
   auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian, ptc_physics_policy_empty>>(
-      grid, comm);
+      grid, &comm);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);

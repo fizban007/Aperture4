@@ -64,7 +64,7 @@ main(int argc, char *argv[]) {
 
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian_gca_lite>>(
-      grid, comm);
+      grid, &comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_gca_lite>>(grid, &comm);

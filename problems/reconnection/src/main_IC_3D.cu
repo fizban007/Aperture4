@@ -63,7 +63,7 @@ main(int argc, char *argv[]) {
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(
-      grid, comm);
+      grid, &comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);

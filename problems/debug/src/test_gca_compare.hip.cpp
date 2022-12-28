@@ -63,7 +63,7 @@ main(int argc, char *argv[]) {
 
   auto pusher = env.register_system<
       // ptc_updater<Conf, exec_policy_cuda,
-      // coord_policy_cartesian_gca_lite>>(grid, comm);
+      // coord_policy_cartesian_gca_lite>>(grid, &comm);
       ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
                                                                        comm);
   auto rad = env.register_system<

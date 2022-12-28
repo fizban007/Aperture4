@@ -64,7 +64,7 @@ main(int argc, char *argv[]) {
       // phys_policy_IC_cooling>>( Conf, exec_policy_cuda,
       // coord_policy_cartesian_impl_cooling,
       //     phys_policy_IC_cooling>>(
-      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, comm);
+      Conf, exec_policy_cuda, coord_policy_cartesian_impl_cooling>>(grid, &comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_cuda, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);

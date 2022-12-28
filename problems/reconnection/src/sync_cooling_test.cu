@@ -26,8 +26,8 @@
 
 namespace Aperture {
 
-template class ptc_updater<Config<2>, exec_policy_cuda,
-                               coord_policy_cartesian, phys_policy_sync_cooling>;
+template class ptc_updater<Config<2>, exec_policy_cuda, coord_policy_cartesian,
+                           phys_policy_sync_cooling>;
 
 }
 
@@ -44,25 +44,25 @@ main(int argc, char* argv[]) {
   domain_comm<Conf, exec_policy_cuda> comm;
 
   auto grid = env.register_system<grid_t<Conf>>(comm);
-  auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_cuda, coord_policy_cartesian, phys_policy_sync_cooling>>(
-      *grid, comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid, &comm);
+  auto pusher = env.register_system<
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian,
+                  phys_policy_sync_cooling>>(*grid, &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(*grid, &comm);
 
   env.init();
 
-  vector_field<Conf> *B;
+  vector_field<Conf>* B;
   env.get_data("B", &B);
   particle_data_t* ptc;
   env.get_data("particles", &ptc);
 
   auto Bp = sim_env().params().get_as("Bp", 1000.0);
 
-  B->set_values(0, [Bp] (auto x, auto y, auto z) {
-      return Bp;
-    });
+  B->set_values(0, [Bp](auto x, auto y, auto z) { return Bp; });
 
-  ptc_append(exec_tags::device{}, *ptc, {0.5f, 0.5f, 0.5f}, {10.0f, 10.0f, 0.0f},
+  ptc_append(exec_tags::device{}, *ptc, {0.5f, 0.5f, 0.5f},
+             {10.0f, 10.0f, 0.0f},
              grid->dims[0] / 2 + (grid->dims[1] / 2) * grid->dims[0], 1.0f,
              set_ptc_type_flag(0, PtcType::electron));
 

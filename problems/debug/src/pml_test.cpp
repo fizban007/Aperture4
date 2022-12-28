@@ -50,7 +50,7 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_host> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_host, coord_policy_cartesian>>(grid, comm);
+      ptc_updater<Conf, exec_policy_host, coord_policy_cartesian>>(grid, &comm);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_host, coord_policy_cartesian>>(grid, &comm);
   auto exporter =

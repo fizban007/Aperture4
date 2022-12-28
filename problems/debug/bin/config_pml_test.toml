@@ -17,7 +17,7 @@ use_implicit = false
 
 implicit_beta = 0.55
 
-current_smoothing = 0
+current_smoothing = 3
 
 ### Simulation life time
 max_steps = 500

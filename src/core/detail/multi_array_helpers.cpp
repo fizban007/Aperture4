@@ -48,10 +48,13 @@ void
 add(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
     const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
     const extent_t<Rank>& ext, T scale) {
-  for (auto n : range(0, ext.size())) {
-    idx_col_major_t<Rank> idx(n, ext);
-    auto idx_dst = dst.get_idx(dst_pos + idx.get_pos());
-    auto idx_src = src.get_idx(src_pos + idx.get_pos());
+  // for (auto n : range(0, ext.size())) {
+  using idx_t = idx_col_major_t<Rank>;
+  for (auto idx : range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+    // idx_col_major_t<Rank> idx(n, ext);
+    auto pos_offset = get_pos(idx, ext);
+    auto idx_dst = dst.get_idx(dst_pos + pos_offset);
+    auto idx_src = src.get_idx(src_pos + pos_offset);
     dst[idx_dst] += src[idx_src] * scale;
   }
 }
@@ -61,10 +64,12 @@ void
 copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
      const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
      const extent_t<Rank>& ext) {
-  for (auto n : range(0, ext.size())) {
-    idx_col_major_t<Rank> idx(n, ext);
-    auto idx_dst = dst.get_idx(dst_pos + idx.get_pos());
-    auto idx_src = src.get_idx(src_pos + idx.get_pos());
+  using idx_t = idx_col_major_t<Rank>;
+  for (auto idx : range(idx_t(0, ext), idx_t(ext.size(), ext))) {
+    // idx_col_major_t<Rank> idx(n, ext);
+    auto pos_offset = get_pos(idx, ext);
+    auto idx_dst = dst.get_idx(dst_pos + pos_offset);
+    auto idx_src = src.get_idx(src_pos + pos_offset);
     dst[idx_dst] = src[idx_src];
   }
 }

@@ -60,9 +60,9 @@ template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class PhysicsPolicy>
 ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::ptc_updater(
-    const grid_t<Conf> &grid, const domain_comm<Conf, ExecPolicy> &comm)
+    const grid_t<Conf> &grid, const domain_comm<Conf, ExecPolicy> *comm)
     : ptc_updater(grid) {
-  m_comm = &comm;
+  m_comm = comm;
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -266,6 +266,11 @@ template <typename Conf, template <class> class ExecPolicy,
 void
 ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
     value_t dt, uint32_t step, size_t begin, size_t end) {
+  J->init();
+  for (int i = 0; i < Rho.size(); i++) {
+    Rho[i]->init();
+  }
+
   if (end - begin <= 0) return;
   int rho_interval = m_rho_interval;
   auto charges = m_charges;
@@ -273,11 +278,6 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   auto coord_policy = *m_coord_policy;
   auto phys_policy = *m_phys_policy;
   bool deposit_rho = (step % rho_interval == 0);
-
-  J->init();
-  for (int i = 0; i < Rho.size(); i++) {
-    Rho[i]->init();
-  }
 
   // timer::stamp("ptc");
   // Main particle update loop

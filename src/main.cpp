@@ -36,7 +36,7 @@ main(int argc, char *argv[]) {
   auto grid = env.register_system<grid_t<Conf>>(env, *comm);
   auto solver =
       env.register_system<field_solver_default<Conf>>(env, *grid, comm);
-  auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid, comm);
+  auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf>>(env, *grid, comm);
 
   env.init();

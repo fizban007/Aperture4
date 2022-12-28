@@ -50,7 +50,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
   virtual void compute_EB_sqr() override;
 
  protected:
-  const domain_comm<Conf, ExecPolicy>* m_comm;
+  const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // Option to use pml for Cartesian field solver
   bool m_damping[Conf::dim * 2] = {};

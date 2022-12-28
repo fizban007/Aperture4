@@ -45,7 +45,7 @@ class ptc_updater : public system_t {
   static std::string name() { return "ptc_updater"; }
 
   ptc_updater(const grid_t<Conf>& grid);
-  ptc_updater(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>& comm);
+  ptc_updater(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm);
   ~ptc_updater();
 
   void init() override;

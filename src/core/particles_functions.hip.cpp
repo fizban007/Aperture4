@@ -403,19 +403,6 @@ ptc_copy_to_comm_buffers(
       // buffers[i].set_num(m_zone_buffer_num[i + zone_offset]);
       buf_nums[i] = ptc.zone_buffer_num()[i + zone_offset];
     }
-    // timer::stamp("copy_to_buffer");
-    // for (unsigned int i = 0; i < buffers.size(); i++) {
-    //   if (buffers[i].number() > 0) {
-    //     buffers[i].copy_to_host();
-    //   }
-    // }
-    // if (buffers[7].number() > 0) {
-    //   buffers[7].copy_to_host();
-    //   Logger::print_debug("buffer[7] cell[0] is {}", buffers[7].cell[0]);
-    // }
-    // GpuSafeCall(gpuDeviceSynchronize());
-    // timer::show_duration_since_stamp("Copy to buffer", "ms",
-    // "copy_to_buffer");
   }
 }
 

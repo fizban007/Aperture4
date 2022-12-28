@@ -63,7 +63,7 @@ main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, comm);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, &comm);
   auto lorentz =
       env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =

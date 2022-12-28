@@ -10,6 +10,15 @@ elseif (use_hip AND CMAKE_HIP_COMPILER)
     PROPERTIES LANGUAGE HIP)
 endif()
 
+add_executable(pml_test
+  "pml_test.cpp")
+target_link_libraries(pml_test
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+
+add_dependencies(problems pml_test)
 if (use_cuda OR use_hip)
   add_executable(single_stream
     "single_stream.cu"
@@ -49,11 +58,3 @@ if (use_cuda OR use_hip)
   add_dependencies(problems gca_test_compare)
 endif()
 
-add_executable(pml_test
-  "pml_test.cpp")
-target_link_libraries(pml_test
-  PUBLIC
-  Aperture
-  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
-  )
-add_dependencies(problems pml_test)

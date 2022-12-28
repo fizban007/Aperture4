@@ -39,7 +39,7 @@ template class radiative_transfer<Config<3>, exec_policy_cuda,
                                   coord_policy_cartesian,
                                   curvature_emission_scheme_polar_cap>;
 template class ptc_updater<Config<3>, exec_policy_cuda,
-                               coord_policy_cartesian_gca_lite>;
+                           coord_policy_cartesian_gca_lite>;
 
 }  // namespace Aperture
 
@@ -64,12 +64,12 @@ main(int argc, char *argv[]) {
   auto pusher = env.register_system<
       // ptc_updater<Conf, exec_policy_cuda,
       // coord_policy_cartesian_gca_lite>>(grid, &comm);
-      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                       &comm);
+      ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid, &comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_polar_cap>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_cuda>>(grid, &comm);
 
   env.init();
 
@@ -131,7 +131,7 @@ main(int argc, char *argv[]) {
   ptc_p *= ptc_p_parallel / math::sqrt(ptc_p.dot(ptc_p));
 
   ptc_append(exec_tags::device{}, *ptc, rel_x, ptc_p, cell, 1.0,
-                  gen_ptc_type_flag(PtcType::positron));
+             gen_ptc_type_flag(PtcType::positron));
   std::cout << "Total steps is " << env.get_max_steps() << std::endl;
   std::cout << ptc->p1[2] << std::endl;
   std::vector<value_t> x(env.get_max_steps());
@@ -141,10 +141,10 @@ main(int argc, char *argv[]) {
   vec_t<value_t, 3> x_global;
 
 #ifdef GPU_ENABLED
-    size_t free_mem, total_mem;
-    GpuSafeCall(gpuMemGetInfo(&free_mem, &total_mem));
-    Logger::print_info("GPU memory: free={:.3f}GiB/{:.3f}GiB", free_mem / 1.0e9,
-                       total_mem / 1.0e9);
+  size_t free_mem, total_mem;
+  GpuSafeCall(gpuMemGetInfo(&free_mem, &total_mem));
+  Logger::print_info("GPU memory: free={:.3f}GiB/{:.3f}GiB", free_mem / 1.0e9,
+                     total_mem / 1.0e9);
 #endif
   for (int i = 0; i < env.get_max_steps(); i++) {
     std::cout << "at step " << i << std::endl;
@@ -155,7 +155,8 @@ main(int argc, char *argv[]) {
     y[i] = x_global[1];
     z[i] = x_global[2];
     gamma[i] = ptc->E[0];
-    Logger::print_info("Current pos ({}, {}, {}), gamma {}", x[i], y[i], z[i], gamma[i]);
+    Logger::print_info("Current pos ({}, {}, {}), gamma {}", x[i], y[i], z[i],
+                       gamma[i]);
   }
 
   auto file = hdf_create("test_gca_compare.h5");

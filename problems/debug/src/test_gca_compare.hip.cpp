@@ -65,7 +65,7 @@ main(int argc, char *argv[]) {
       // ptc_updater<Conf, exec_policy_cuda,
       // coord_policy_cartesian_gca_lite>>(grid, &comm);
       ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                       comm);
+                                                                       &comm);
   auto rad = env.register_system<
       radiative_transfer<Conf, exec_policy_cuda, coord_policy_cartesian,
                          curvature_emission_scheme_polar_cap>>(grid, &comm);

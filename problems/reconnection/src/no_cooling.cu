@@ -52,7 +52,7 @@ main(int argc, char *argv[]) {
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_cuda, coord_policy_cartesian>>(grid,
-                                                                       comm);
+                                                                       &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_cuda>>(grid);

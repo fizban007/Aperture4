@@ -58,6 +58,7 @@ class exec_policy_host {
 
   static MemType data_mem_type() { return MemType::host_only; }
   static MemType tmp_mem_type() { return MemType::host_only; }
+  static MemType debug_mem_type() { return MemType::host_only; }
 
  protected:
   static const Grid<Conf::dim, typename Conf::value_t>* m_grid;

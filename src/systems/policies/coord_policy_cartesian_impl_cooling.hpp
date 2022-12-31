@@ -143,7 +143,7 @@ class coord_policy_cartesian_impl_cooling
 
       auto idx = Conf::idx(pos, ext);
       value_t loss =
-          context.weight * max(gamma - context.gamma, 0.0) / context.q;
+          context.weight * std::max(gamma - context.gamma, 0.0f) / context.q;
       atomic_add(&m_sync_loss_total[idx], loss);
       if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
         atomic_add(&m_sync_loss[idx], loss);

@@ -26,38 +26,13 @@
 #include "framework/environment.h"
 #include "systems/grid.h"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
+#include "systems/physics/curvature_emission.hpp"
 #include "systems/physics/sync_emission_helper.hpp"
 #include "systems/sync_curv_emission.h"
 #include "utils/interpolation.hpp"
 #include "utils/util_functions.h"
 
 namespace Aperture {
-
-HOST_DEVICE Scalar
-dipole_curv_radius(Scalar r, Scalar th) {
-  Scalar sinth =
-      std::max(math::sin(th), (Scalar)1.0e-5);  // Avoid the fringe case of sinth = 0
-  Scalar costh2 = 1.0f - sinth * sinth;
-  Scalar tmp = 1.0f + 3.0f * costh2;
-  Scalar Rc = r * tmp * math::sqrt(tmp) / (3.0f * sinth * (1.0f + costh2));
-  return Rc;
-}
-
-HOST_DEVICE Scalar
-dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
-  Scalar r_cyl = math::sqrt(x * x + y * y);
-  Scalar z_r = z + 1.0f;  // R* is our unit
-  Scalar th = atan2(r_cyl, z_r);
-  Scalar r = math::sqrt(z_r * z_r + r_cyl * r_cyl);
-  return dipole_curv_radius(r, th);
-}
-
-HOST_DEVICE Scalar
-magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth, Scalar Rpc_over_Rstar) {
-  // The coefficient is 0.23 * \alpha_f * R_pc / \labmdabar_c, seems no reason to rescale
-  // return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
-  return 4.35e13 * Rpc_over_Rstar * b * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
-}
 
 template <typename Conf>
 struct curvature_emission_scheme_polar_cap {

@@ -19,6 +19,7 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
+#include "systems/radiation/curvature_emission_scheme_gca_lite.hpp"
 #include "systems/radiation/default_radiation_scheme.hpp"
 #include "systems/radiation/gr_ks_ic_radiation_scheme.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
@@ -35,6 +36,10 @@ template class radiative_transfer<Config<2>, exec_policy_gpu,
 template class radiative_transfer<Config<3>, exec_policy_gpu,
                                   coord_policy_cartesian,
                                   default_radiation_scheme>;
+
+template class radiative_transfer<Config<3>, exec_policy_gpu,
+                                  coord_policy_cartesian,
+                                  curvature_emission_scheme_gca_lite>;
 
 template class radiative_transfer<Config<2>, exec_policy_gpu,
                                   coord_policy_spherical,

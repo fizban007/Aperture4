@@ -68,6 +68,7 @@ class exec_policy_gpu {
 
   static MemType data_mem_type() { return MemType::host_device; }
   static MemType tmp_mem_type() { return MemType::device_only; }
+  static MemType debug_mem_type() { return MemType::device_managed; }
 };
 
 // template <typename Conf>

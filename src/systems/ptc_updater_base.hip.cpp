@@ -18,6 +18,7 @@
 #include "framework/config.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca.hpp"
+#include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/coord_policy_polar.hpp"
@@ -36,6 +37,11 @@ template class ptc_updater<Config<2>, exec_policy_gpu,
                            coord_policy_cartesian_gca>;
 template class ptc_updater<Config<2>, exec_policy_gpu,
                            coord_policy_cartesian_impl_cooling>;
+
+template class ptc_updater<Config<2>, exec_policy_gpu,
+                           coord_policy_cartesian_gca_lite>;
+template class ptc_updater<Config<3>, exec_policy_gpu,
+                           coord_policy_cartesian_gca_lite>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical>;
 template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical>;

@@ -183,6 +183,18 @@ if(use_hip)
   endif()
 endif()
 
+function(add_aperture_executable target_name)
+  if (use_cuda AND CMAKE_CUDA_COMPILER)
+    set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
+  elseif (use_hip AND CMAKE_HIP_COMPILER)
+    set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
+  endif()
+  add_executable(${target_name} ${ARGN})
+  target_link_libraries(${target_name}
+    Aperture
+    $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+endfunction()
+
 add_subdirectory(src)
 add_subdirectory(problems)
 

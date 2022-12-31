@@ -12,7 +12,7 @@ option(use_double "Use double precision" OFF)
 option(use_hip "Include the HIP part of the code" OFF)
 option(build_docs "Build the doxygen documentation" OFF)
 option(build_tests "Build the test suite" ON)
-option(lib_only "Only build the core Aperture library" ON)
+option(lib_only "Only build the core Aperture library" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 
 if(POLICY CMP0074)

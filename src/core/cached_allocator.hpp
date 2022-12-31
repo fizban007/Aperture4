@@ -11,6 +11,11 @@
 // Note: this implementation cached_allocator is not thread-safe. If multiple
 // (host) threads use the same cached_allocator then they should gain exclusive
 // access to the allocator before accessing its methods.
+
+#ifndef _CACHED_ALLOCATOR_H_
+#define _CACHED_ALLOCATOR_H_
+
+
 #include "utils/logger.h"
 #include <iostream>
 #include <map>
@@ -114,3 +119,7 @@ class cached_allocator {
 extern cached_allocator alloc_global;
 
 }  // namespace Aperture
+
+
+
+#endif  // _CACHED_ALLOCATOR_H_

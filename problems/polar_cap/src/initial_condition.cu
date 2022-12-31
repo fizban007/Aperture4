@@ -17,14 +17,14 @@
 
 #include "core/math.hpp"
 #include "core/random.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>

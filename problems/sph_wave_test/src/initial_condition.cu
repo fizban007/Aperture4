@@ -21,7 +21,7 @@
 #include "framework/config.h"
 #include "initial_condition.h"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 
 namespace Aperture {
@@ -44,7 +44,6 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid) {
   int mult = sim_env().params().get_as<int64_t>("multiplicity", 10);
 
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   injector->inject(
       // Injection criterion

@@ -16,7 +16,7 @@
  */
 
 #include "core/math.hpp"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"

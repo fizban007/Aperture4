@@ -21,7 +21,7 @@
 #include "systems/grid.h"
 #include "systems/physics/lorentz_transform.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
@@ -94,8 +94,8 @@ boundary_condition<Conf>::boundary_condition(
   m_dens_e2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
   m_dens_p2 = std::make_unique<multi_array_t>(ext_inj, MemType::device_only);
 
-  injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
+  // injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 }
 
 template <typename Conf>
@@ -110,6 +110,8 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("rng_states", rng_states);
   sim_env().get_data("Rho_e", rho_e);
   sim_env().get_data("Rho_p", rho_p);
+
+  injector = std::make_unique<ptc_injector<Conf, exec_policy_gpu>>(m_grid);
 }
 
 template <typename Conf>

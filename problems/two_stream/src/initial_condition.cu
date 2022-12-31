@@ -16,11 +16,12 @@
  */
 
 #include "core/math.hpp"
-#include "data/curand_states.h"
+#include "data/rng_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
@@ -28,11 +29,11 @@
 namespace Aperture {
 
 template <typename Conf>
-void
-initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
-                             vector_field<Conf> &E, vector_field<Conf> &B0,
-                             particle_data_t &ptc, curand_states_t &states, int mult,
-                             Scalar p_init) {
+void initial_condition_two_stream(
+    sim_environment &env, vector_field<Conf> &B, vector_field<Conf> &E,
+    vector_field<Conf> &B0, particle_data_t &ptc,
+    rng_states_t<typename exec_policy_dynamic<Conf>::exec_tag> &states,
+    int mult, Scalar p_init) {
   Scalar Bp = env.params().get_as<double>("Bp", 5000.0);
   Scalar q_e = env.params().get_as<double>("q_e", 1.0);
 
@@ -62,7 +63,7 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
         Scalar gamma0 = sqrt(1.0f + p0 * p0);
         Scalar beta0 = p0 / gamma0;
         int id = threadIdx.x + blockIdx.x * blockDim.x;
-        cuda_rng_t rng(&states[id]);
+        rng_t rng(states);
         for (auto n : grid_stride_range(0, ext.size())) {
           auto idx = idx_col_major_t<Conf::dim>(n, ext);
           auto pos = idx.get_pos();
@@ -120,7 +121,7 @@ initial_condition_two_stream(sim_environment &env, vector_field<Conf> &B,
 template void initial_condition_two_stream<Config<2>>(
     sim_environment &env, vector_field<Config<2>> &B,
     vector_field<Config<2>> &E, vector_field<Config<2>> &B0,
-    particle_data_t &ptc, curand_states_t &states, int mult, Scalar p_init);
+    particle_data_t &ptc, rng_states_t &states, int mult, Scalar p_init);
 
 
 } // namespace Aperture

@@ -17,7 +17,7 @@
 
 #include "core/math.hpp"
 #include "core/random.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/rng_states.h"

@@ -20,7 +20,7 @@
 
 #include "data/fields.h"
 #include "data/particle_data.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "framework/environment.h"
 #include "framework/system.h"
 #include "systems/grid.h"

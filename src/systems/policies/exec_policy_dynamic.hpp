@@ -15,17 +15,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EXEC_POLICY_DYNAMIC_H_
-#define EXEC_POLICY_DYNAMIC_H_
+// #ifndef EXEC_POLICY_DYNAMIC_H_
+// #define EXEC_POLICY_DYNAMIC_H_
+#pragma once
+
+#include "core/gpu_translation_layer.h"
 
 #ifdef GPU_ENABLED
 #include "systems/policies/exec_policy_gpu.hpp"
+namespace Aperture {
 template <typename Conf>
-using exec_policy_dynamic = Aperture::exec_policy_gpu<Conf>;
+using exec_policy_dynamic = exec_policy_gpu<Conf>;
+}
 #else
 #include "systems/policies/exec_policy_host.hpp"
+namespace Aperture {
 template <typename Conf>
-using exec_policy_dynamic = Aperture::exec_policy_host<Conf>;
+using exec_policy_dynamic = exec_policy_host<Conf>;
+}
 #endif
 
-#endif // EXEC_POLICY_DYNAMIC_H_
+// #endif // EXEC_POLICY_DYNAMIC_H_

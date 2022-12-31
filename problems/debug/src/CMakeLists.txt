@@ -5,11 +5,11 @@ add_aperture_executable(gca_test "gca_test.cpp")
 add_dependencies(problems gca_test)
 
 if (use_cuda OR use_hip)
-  add_aperture_executable(single_stream
-    "single_stream.cu"
-    "initial_condition.cu"
-    )
-  add_dependencies(problems single_stream)
+  # add_aperture_executable(single_stream
+  #   "single_stream.cu"
+  #   "initial_condition.cu"
+  #   )
+  # add_dependencies(problems single_stream)
 
   add_aperture_executable(phase_space_test
     "phase_space.cu")

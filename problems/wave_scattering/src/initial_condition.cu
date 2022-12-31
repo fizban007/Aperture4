@@ -17,14 +17,14 @@
 
 #include "core/math.hpp"
 #include "core/random.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
@@ -132,7 +132,6 @@ initial_condition_bg(vector_field<Conf> &B,
 
   auto& grid = B.grid();
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   injector->inject(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
@@ -196,7 +195,6 @@ initial_condition_wave(vector_field<Conf> &B,
 
   auto& grid = B.grid();
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   value_t Lbox = L[0];
 

@@ -17,7 +17,7 @@
 
 #include "core/math.hpp"
 #include "core/random.h"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/rng_states.h"
@@ -25,7 +25,7 @@
 #include "framework/environment.h"
 #include "systems/physics/lorentz_transform.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
@@ -69,12 +69,12 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
+  ptc_injector<Conf, exec_policy_gpu> injector(grid);
 
   // Background (upstream) particles
-  injector->inject(
+  injector.inject(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
@@ -99,7 +99,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
-  injector->inject(
+  injector.inject(
       // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
@@ -175,12 +175,12 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
+  ptc_injector<Conf, exec_policy_gpu> injector(grid);
 
   // Background (upstream) particles
-  injector->inject(
+  injector.inject(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
@@ -208,7 +208,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
-  injector->inject(
+  injector.inject(
       // Injection criterion
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
@@ -302,12 +302,12 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
+  ptc_injector<Conf, exec_policy_gpu> injector(grid);
 
   // Background (upstream) particles
-  injector->inject(
+  injector.inject(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
@@ -331,7 +331,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       });
 
   // Current sheet particles
-  injector->inject(
+  injector.inject(
       [delta, ysize] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;

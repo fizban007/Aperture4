@@ -21,7 +21,7 @@
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_base.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include <iostream>
@@ -51,13 +51,13 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
+  ptc_injector<Conf, exec_policy_gpu> injector(grid);
 
   int n = sim_env().params().get_as<int64_t>("multiplicity", 10);
   float kT = sim_env().params().get_as<double>("kT", 1.0);
-  injector->inject(
+  injector.inject(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected

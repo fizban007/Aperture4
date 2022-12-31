@@ -16,13 +16,13 @@
  */
 
 #include "core/math.hpp"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
@@ -48,11 +48,11 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
   // E.set_values(
   // 0, [Bp](Scalar x, Scalar y, Scalar z) { return 0.01*Bp; });
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
-  injector->inject(
+  ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  injector.inject(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return (pos[1] < grid.dims[1] / 2 - 10); },
       // Number injected

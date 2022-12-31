@@ -27,7 +27,7 @@
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_base_impl.hpp"
 #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
@@ -94,7 +94,6 @@ main(int argc, char *argv[]) {
   // }
   auto injector =
       sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   int n_upstream = 1;
   float alpha = 2.0;

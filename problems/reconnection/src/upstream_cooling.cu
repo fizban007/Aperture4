@@ -23,7 +23,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/ptc_updater_base.h"
@@ -69,7 +69,6 @@ void init_upstream(vector_field<Conf> &E,
   });
 
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   injector->inject(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },

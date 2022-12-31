@@ -18,7 +18,7 @@
 #include "core/math.hpp"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "ptc_injector_pulsar.h"

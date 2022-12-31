@@ -26,7 +26,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/grid_polar.hpp"
 #include "systems/policies/coord_policy_polar.hpp"
-#include "systems/ptc_injector_cuda.hpp"
+#include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_base.h"
 #include "utils/kernel_helper.hpp"
 // #include "systems/ptc_injector.h"
@@ -183,7 +183,6 @@ main(int argc, char *argv[]) {
 
   auto injector =
       sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  injector->init();
 
   int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
   value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 0.01);

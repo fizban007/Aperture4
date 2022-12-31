@@ -15,33 +15,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PTC_INJECTOR_NEW_H_
-#define _PTC_INJECTOR_NEW_H_
+// #ifndef _PTC_INJECTOR_NEW_H_
+// #define _PTC_INJECTOR_NEW_H_
+#pragma once
 
 namespace Aperture {
 
 template <typename Conf, template <class> class ExecPolicy>
 class ptc_injector;
-//     : public system_t {
-//  public:
-//   using value_t = typename Conf::value_t;
-//   static std::string name() { return "ptc_injector"; }
-
-//   ptc_injector(const grid_t<Conf>& grid) : m_grid(grid) {}
-//   ~ptc_injector() {}
-
-//   void init() override;
-
-//   template <typename FCriteria, typename FDist>
-//   void inject(const FCriteria& fc, const FDist& fd);
-
-//  private:
-//   const grid_t<Conf>& m_grid;
-//   particle_data_t* ptc;
-
-//   multi_array<int, Conf::dim> m_num_per_cell, m_cum_num_per_cell;
-// };
 
 }  // namespace Aperture
 
-#endif  // _PTC_INJECTOR_NEW_H_
+#include "systems/ptc_injector_host.hpp"
+#include "systems/ptc_injector_gpu.hpp"
+
+namespace Aperture {
+
+#ifdef GPU_ENABLED
+template <typename Conf>
+using ptc_injector_dynamic = ptc_injector<Conf, exec_policy_gpu>;
+#else
+template <typename Conf>
+using ptc_injector_dynamic = ptc_injector<Conf, exec_policy_host>;
+#endif
+
+}
+
+// #endif  // _PTC_INJECTOR_NEW_H_

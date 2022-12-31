@@ -15,26 +15,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PTC_INJECTOR_CUDA_H_
-#define _PTC_INJECTOR_CUDA_H_
+// #ifndef _PTC_INJECTOR_GPU_H_
+// #define _PTC_INJECTOR_GPU_H_
+#pragma once
 
-#include "core/cached_allocator.hpp"
+// #include "core/cached_allocator.hpp"
+#include "core/gpu_translation_layer.h"
 #include "core/multi_array.hpp"
 #include "data/fields.h"
 #include "data/particle_data.h"
 #include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/grid.h"
-#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/range.hpp"
+#include "utils/util_functions.h"
+
+#ifdef GPU_ENABLED
+
+#include "systems/policies/exec_policy_gpu.hpp"
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 
 namespace Aperture {
 
 template <typename Conf>
-class ptc_injector<Conf, exec_policy_gpu> : public system_t {
+class ptc_injector<Conf, exec_policy_gpu> {
  public:
   using value_t = typename Conf::value_t;
   static std::string name() { return "ptc_injector"; }
@@ -43,14 +49,12 @@ class ptc_injector<Conf, exec_policy_gpu> : public system_t {
     auto ext = grid.extent();
     m_num_per_cell.resize(ext);
     m_cum_num_per_cell.resize(ext);
+    sim_env().get_data("particles", ptc);
+    sim_env().get_data("rng_states", rng_states);
+    sim_env().params().get_value("tracked_fraction", m_tracked_fraction);
   }
 
   ~ptc_injector() {}
-
-  void init() override {
-    sim_env().get_data("particles", ptc);
-    sim_env().get_data("rng_states", rng_states);
-  }
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
             typename FWeight>
@@ -94,14 +98,17 @@ class ptc_injector<Conf, exec_policy_gpu> : public system_t {
     auto num = ptc->number();
     auto max_num = ptc->size();
     Logger::print_debug("Current num is {}, injecting {}, max_num is {}", num,
-      new_particles, max_num);
+                        new_particles, max_num);
     // Logger::print_info("Injecting {}", new_particles);
 
+    auto tracked_fraction = m_tracked_fraction;
     // Actually create the particles
     policy::launch(
-        // kernel_exec_policy(rng_states_t::block_num, rng_states_t::thread_num),
-        [flag, num, max_num] __device__(ptc_ptrs ptc, auto states, auto num_per_cell,
-                               auto cum_num_per_cell, auto f_dist, auto f_weight) {
+        // kernel_exec_policy(rng_states_t::block_num,
+        // rng_states_t::thread_num),
+        [num, max_num, tracked_fraction] __device__(
+            ptc_ptrs ptc, auto states, auto num_per_cell, auto cum_num_per_cell,
+            auto f_dist, auto f_weight, auto flag) {
           auto& grid = policy::grid();
           auto ext = grid.extent();
           rng_t<exec_tags::device> rng(states);
@@ -129,13 +136,15 @@ class ptc_injector<Conf, exec_policy_gpu> : public system_t {
                 ptc.x3[offset_e] = x[2];
                 ptc.x3[offset_p] = x[2];
 
-                auto p = f_dist(pos, grid, ext, rng.m_local_state, PtcType::electron);
+                auto p = f_dist(pos, grid, ext, rng.m_local_state,
+                                PtcType::electron);
                 ptc.p1[offset_e] = p[0];
                 ptc.p2[offset_e] = p[1];
                 ptc.p3[offset_e] = p[2];
                 ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                p = f_dist(pos, grid, ext, rng.m_local_state, PtcType::positron);
+                p = f_dist(pos, grid, ext, rng.m_local_state,
+                           PtcType::positron);
                 ptc.p1[offset_p] = p[0];
                 ptc.p2[offset_p] = p[1];
                 ptc.p3[offset_p] = p[2];
@@ -144,13 +153,16 @@ class ptc_injector<Conf, exec_policy_gpu> : public system_t {
                 auto x_global = grid.coord_global(pos, x);
                 ptc.weight[offset_e] = f_weight(x_global);
                 ptc.weight[offset_p] = f_weight(x_global);
+                if (rng.uniform<value_t>() < tracked_fraction) {
+                  set_flag(flag, PtcFlag::tracked);
+                }
                 ptc.flag[offset_e] = set_ptc_type_flag(flag, PtcType::electron);
                 ptc.flag[offset_p] = set_ptc_type_flag(flag, PtcType::positron);
               }
             }
           }
         },
-        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, f_dist, f_weight);
+        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, f_dist, f_weight, flag);
     policy::sync();
     Logger::print_detail_all("Finished injecting particles");
     ptc->add_num(new_particles);
@@ -162,8 +174,11 @@ class ptc_injector<Conf, exec_policy_gpu> : public system_t {
   nonown_ptr<rng_states_t<exec_tags::device>> rng_states;
 
   multi_array<int, Conf::dim> m_num_per_cell, m_cum_num_per_cell;
+  float m_tracked_fraction = 0.0f;
 };
 
 }  // namespace Aperture
 
-#endif  // _PTC_INJECTOR_CUDA_H_
+#endif
+
+// #endif  // _PTC_INJECTOR_GPU_H_

@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "data/curand_states.h"
+// #include "data/curand_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/compute_lorentz_factor.h"

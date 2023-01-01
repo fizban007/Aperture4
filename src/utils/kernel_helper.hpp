@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __KERNEL_HELPER_H_
-#define __KERNEL_HELPER_H_
+#pragma once
 
 #include "core/gpu_error_check.h"
 #include "core/gpu_translation_layer.h"
@@ -284,7 +283,7 @@ generic_kernel(Func f, Args... args) {
 
 template <typename Func, typename... Args>
 void
-configure_grid(kernel_exec_policy& policy, Func f, Args... args) {
+configure_grid(kernel_exec_policy &policy, Func f, Args... args) {
   GpuSafeCall(configure_grid(policy, generic_kernel<Func, Args...>));
 }
 
@@ -366,5 +365,3 @@ kernel_launch(void (*f)(Args... args), Args... args) {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __KERNEL_HELPER_H_

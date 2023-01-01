@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FRAMEWORK_DATA_H_
-#define __FRAMEWORK_DATA_H_
+#pragma once
 
 #include <string>
 
@@ -39,7 +38,7 @@ class data_t {
       0;  //! Individual output interval if not the same as
           //! the standard intervals. If non-zero, it will be
           //! written in a separate output file
-  int m_special_output_num = 0; //! Number to record the special output file id
+  int m_special_output_num = 0;  //! Number to record the special output file id
 
   data_t() {}
   virtual ~data_t() {}
@@ -106,5 +105,3 @@ class data_t {
 };
 
 }  // namespace Aperture
-
-#endif  // __FRAMEWORK_DATA_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DATA_ADAPTER_H_
-#define __DATA_ADAPTER_H_
+#pragma once
 
 #include "core/exec_tags.h"
 #include "utils/nonown_ptr.hpp"
@@ -94,5 +93,3 @@ adapt(exec_tags::host, const T& t) {
 }
 
 }  // namespace Aperture
-
-#endif  // __DATA_ADAPTER_H_

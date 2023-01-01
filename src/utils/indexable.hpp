@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __INDEXABLE_H_
-#define __INDEXABLE_H_
+#pragma once
 
 #include "utils/type_traits.hpp"
 #include "utils/vec.hpp"
@@ -51,8 +50,8 @@ struct is_dev_indexable {
  private:
   template <typename T>
   static constexpr auto check(T*) -> typename std::is_same<
-      decltype(
-          std::declval<T>().at_dev(std::declval<index_t<Type::idx_t::dim>>())),
+      decltype(std::declval<T>().at_dev(
+          std::declval<index_t<Type::idx_t::dim>>())),
       typename Type::value_t&  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       >::type;  // attempt to call it and see if the return type is correct
 
@@ -92,8 +91,7 @@ struct is_plain_const_indexable {
  private:
   template <typename T>
   static constexpr auto check(T*) -> typename std::is_same<
-      decltype(
-          std::declval<const T>()[std::declval<typename Type::idx_t>()]),
+      decltype(std::declval<const T>()[std::declval<typename Type::idx_t>()]),
       typename Type::value_t  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       >::type;  // attempt to call it and see if the return type is correct
 
@@ -130,8 +128,8 @@ struct is_dev_const_indexable {
  private:
   template <typename T>
   static constexpr auto check(T*) -> typename std::is_same<
-      decltype(
-          std::declval<const T>().at_dev(std::declval<index_t<Type::idx_t::dim>>())),
+      decltype(std::declval<const T>().at_dev(
+          std::declval<index_t<Type::idx_t::dim>>())),
       typename Type::value_t  // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       >::type;  // attempt to call it and see if the return type is correct
 
@@ -159,5 +157,3 @@ using all_const_indexable = typename std::enable_if<
     conjunction<is_const_indexable<Ts>...>::value>::type;
 
 }  // namespace Aperture
-
-#endif  // __INDEXABLE_H_

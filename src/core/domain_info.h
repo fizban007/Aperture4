@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DOMAIN_INFO_H_
-#define __DOMAIN_INFO_H_
+#pragma once
 
 #include <mpi.h>
 
@@ -46,5 +45,3 @@ struct domain_info_t {
 };
 
 }  // namespace Aperture
-
-#endif

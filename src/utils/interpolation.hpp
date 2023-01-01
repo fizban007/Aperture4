@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __INTERPOLATION_H_
-#define __INTERPOLATION_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/ndptr.hpp"
@@ -447,5 +446,3 @@ lerp3(const Ptr& f, float x, float y, float z, const Index& idx) {
 }
 
 }  // namespace Aperture
-
-#endif  // __INTERPOLATION_H_

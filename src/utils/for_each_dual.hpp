@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FOR_EACH_DUAL_H_
-#define __FOR_EACH_DUAL_H_
+#pragma once
 
 #include "visit_struct/visit_struct.hpp"
 
@@ -44,8 +43,8 @@ struct iterate_struct<-1, T, U, Op> {
 template <typename U1, typename U2, typename Op>
 void
 for_each_double(U1& u1, U2& u2, const Op& op) {
-  iterate_struct<visit_struct::field_count<U1>() - 1, U1, U2, Op>::run(
-      u1, u2, op);
+  iterate_struct<visit_struct::field_count<U1>() - 1, U1, U2, Op>::run(u1, u2,
+                                                                       op);
 }
 
 template <typename U1, typename U2, typename Op>
@@ -56,5 +55,3 @@ for_each_double_with_name(U1& u1, U2& u2, const Op& op) {
 }
 
 }  // namespace Aperture
-
-#endif  // __FOR_EACH_DUAL_H_

@@ -12,9 +12,7 @@
 // (host) threads use the same cached_allocator then they should gain exclusive
 // access to the allocator before accessing its methods.
 
-#ifndef _CACHED_ALLOCATOR_H_
-#define _CACHED_ALLOCATOR_H_
-
+#pragma once
 
 #include "utils/logger.h"
 #include <iostream>
@@ -119,7 +117,3 @@ class cached_allocator {
 extern cached_allocator alloc_global;
 
 }  // namespace Aperture
-
-
-
-#endif  // _CACHED_ALLOCATOR_H_

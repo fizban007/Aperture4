@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RANDOM_H_
-#define __RANDOM_H_
+#pragma once
 
 #include "core/exec_tags.h"
 #include "core/gpu_translation_layer.h"
@@ -155,14 +154,16 @@ struct rand_state {
 };
 
 template <typename Float = Scalar>
-HD_INLINE Float rng_uniform(rand_state& local_state) {
-    uint64_t n = local_state.next();
-    // return n / 18446744073709551616.0;
-    return n / static_cast<double>(std::numeric_limits<uint64_t>::max());
+HD_INLINE Float
+rng_uniform(rand_state& local_state) {
+  uint64_t n = local_state.next();
+  // return n / 18446744073709551616.0;
+  return n / static_cast<double>(std::numeric_limits<uint64_t>::max());
 }
 
 template <typename Float>
-HD_INLINE Float rng_gaussian(rand_state& local_state, Float sigma) {
+HD_INLINE Float
+rng_gaussian(rand_state& local_state, Float sigma) {
   auto u1 = rng_uniform<Float>(local_state);
   auto u2 = rng_uniform<Float>(local_state);
   return math::sqrt(-2.0f * math::log(u1)) * math::cos(2.0f * M_PI * u2) *
@@ -170,7 +171,8 @@ HD_INLINE Float rng_gaussian(rand_state& local_state, Float sigma) {
 }
 
 template <typename Float>
-HD_INLINE int rng_poisson(rand_state& local_state, Float lambda) {
+HD_INLINE int
+rng_poisson(rand_state& local_state, Float lambda) {
   Float L = math::exp(-lambda);
   Float p = 1.0;
   int k = 0;
@@ -182,7 +184,8 @@ HD_INLINE int rng_poisson(rand_state& local_state, Float lambda) {
 }
 
 template <typename Float>
-HD_INLINE Float rng_maxwell_juttner(rand_state& local_state, Float theta) {
+HD_INLINE Float
+rng_maxwell_juttner(rand_state& local_state, Float theta) {
   // This is the Sobol algorithm described in Zenitani 2015
   Float u = 0.0f;
   if (theta > 0.1) {
@@ -204,7 +207,8 @@ HD_INLINE Float rng_maxwell_juttner(rand_state& local_state, Float theta) {
 }
 
 template <typename Float>
-HD_INLINE vec_t<Float, 3> rng_maxwell_juttner_3d(rand_state& local_state, Float theta) {
+HD_INLINE vec_t<Float, 3>
+rng_maxwell_juttner_3d(rand_state& local_state, Float theta) {
   vec_t<Float, 3> result;
 
   auto u = rng_maxwell_juttner(local_state, theta);
@@ -221,7 +225,8 @@ HD_INLINE vec_t<Float, 3> rng_maxwell_juttner_3d(rand_state& local_state, Float 
 
 template <typename Float>
 HD_INLINE vec_t<Float, 3>
-rng_maxwell_juttner_drifting(rand_state& local_state, Float theta, type_identity_t<Float> beta) {
+rng_maxwell_juttner_drifting(rand_state& local_state, Float theta,
+                             type_identity_t<Float> beta) {
   vec_t<Float, 3> u = rng_maxwell_juttner_3d(local_state, theta);
   auto G = 1.0f / math::sqrt(1.0f - beta * beta);
   auto u0 = math::sqrt(1.0f + u.dot(u));
@@ -239,7 +244,7 @@ template <typename ExecTag>
 struct rng_t;
 
 #if (defined(CUDA_ENABLED) && defined(__CUDACC__)) || \
-  (defined(HIP_ENABLED) && defined(__HIPCC__))
+    (defined(HIP_ENABLED) && defined(__HIPCC__))
 
 template <>
 struct rng_t<exec_tags::device> {
@@ -248,9 +253,7 @@ struct rng_t<exec_tags::device> {
     m_state = state;
     m_local_state = m_state[id];
   }
-  __device__ ~rng_t() {
-    m_state[id] = m_local_state;
-  }
+  __device__ ~rng_t() { m_state[id] = m_local_state; }
 
   // Generates a device random number between 0.0 and 1.0
   template <typename Float>
@@ -279,7 +282,8 @@ struct rng_t<exec_tags::device> {
   }
 
   template <typename Float>
-  __device__ vec_t<Float, 3> maxwell_juttner_drifting(Float theta, type_identity_t<Float> beta) {
+  __device__ vec_t<Float, 3> maxwell_juttner_drifting(
+      Float theta, type_identity_t<Float> beta) {
     return rng_maxwell_juttner_drifting(m_local_state, theta, beta);
   }
 
@@ -322,13 +326,10 @@ struct rng_t<exec_tags::host> {
   }
 
   template <typename Float>
-  inline vec_t<Float, 3> maxwell_juttner_drifting(Float theta, type_identity_t<Float> beta) {
+  inline vec_t<Float, 3> maxwell_juttner_drifting(Float theta,
+                                                  type_identity_t<Float> beta) {
     return rng_maxwell_juttner_drifting(m_local_state, theta, beta);
   }
-
 };
 
-
 }  // namespace Aperture
-
-#endif  // __RANDOM_H_

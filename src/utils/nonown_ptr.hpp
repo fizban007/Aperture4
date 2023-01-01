@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __NONOWN_PTR_H_
-#define __NONOWN_PTR_H_
+#pragma once
 
 #include "gsl/pointers"
 
@@ -55,5 +54,3 @@ struct nonown_ptr {
 };
 
 }  // namespace Aperture
-
-#endif  // __NONOWN_PTR_H_

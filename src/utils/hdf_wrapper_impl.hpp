@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HDF_WRAPPER_IMPL_H_
-#define _HDF_WRAPPER_IMPL_H_
+#pragma once
 
 #include "hdf_wrapper.h"
 #include "utils/logger.h"
@@ -72,8 +71,8 @@ H5File::write(const multi_array<T, Dim, Idx_t>& array,
     }
   }
   // auto status = H5Dwrite(dataset_id, h5datatype<T>(), H5S_ALL, H5S_ALL,
-  auto status = H5Dwrite(dataset_id, h5datatype<T>(), dataspace_id, dataspace_id,
-                         H5P_DEFAULT, array.host_ptr());
+  auto status = H5Dwrite(dataset_id, h5datatype<T>(), dataspace_id,
+                         dataspace_id, H5P_DEFAULT, array.host_ptr());
   H5Dclose(dataset_id);
   H5Sclose(dataspace_id);
 }
@@ -121,18 +120,19 @@ H5File::write_parallel(const multi_array<T, Dim>& array,
   auto memspace_id = H5Screate_simple(Dim, array_dims, NULL);
 
   if (Dim == 1)
-    Logger::print_detail_all("Writing dim {}, array_dim {}", dims[0], array_dims[0]);
+    Logger::print_detail_all("Writing dim {}, array_dim {}", dims[0],
+                             array_dims[0]);
   else if (Dim == 2)
     Logger::print_detail_all("Writing dims {}x{}, array_dims {}x{}", dims[0],
-                            dims[1], array_dims[0], array_dims[1]);
+                             dims[1], array_dims[0], array_dims[1]);
   else if (Dim == 3)
     Logger::print_detail_all("Writing dims {}x{}x{}, array_dims {}x{}x{}",
-                            dims[0], dims[1], dims[2], array_dims[0],
-                            array_dims[1], array_dims[2]);
+                             dims[0], dims[1], dims[2], array_dims[0],
+                             array_dims[1], array_dims[2]);
   else if (Dim == 4)
     Logger::print_detail_all("Writing dims {}x{}x{}x{}, array_dims {}x{}x{}x{}",
-                            dims[0], dims[1], dims[2], dims[3], array_dims[0],
-                            array_dims[1], array_dims[2], array_dims[3]);
+                             dims[0], dims[1], dims[2], dims[3], array_dims[0],
+                             array_dims[1], array_dims[2], array_dims[3]);
 
   auto dataset_id =
       H5Dcreate2(m_file_id, name.c_str(), h5datatype<T>(), filespace_id,
@@ -282,7 +282,7 @@ H5File::read_vector(const std::string& name) {
 
 template <typename T>
 void
-H5File::read_array(T* result, size_t size, const std::string &name) {
+H5File::read_array(T* result, size_t size, const std::string& name) {
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
   int dim = H5Sget_simple_extent_ndims(dataspace);
@@ -293,8 +293,7 @@ H5File::read_array(T* result, size_t size, const std::string &name) {
     total_dim *= dims[i];
   }
 
-  H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
-          result);
+  H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, result);
   // result.copy_to_device();
 
   H5Dclose(dataset);
@@ -303,14 +302,14 @@ H5File::read_array(T* result, size_t size, const std::string &name) {
 
 template <typename T>
 void
-H5File::read_array(buffer<T> &result, const std::string &name) {
+H5File::read_array(buffer<T>& result, const std::string& name) {
   read_array(result.host_ptr(), result.size(), name);
   result.copy_to_device();
 }
 
 template <typename T>
 buffer<T>
-H5File::read_array(const std::string &name) {
+H5File::read_array(const std::string& name) {
   buffer<T> result;
   read_array(result, name);
   return result;
@@ -424,5 +423,3 @@ H5File::read_subset(T* array, size_t array_size, const std::string& name,
 }
 
 }  // namespace Aperture
-
-#endif  // _HDF_WRAPPER_IMPL_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CONSANT_MEM_H_
-#define __CONSANT_MEM_H_
+#pragma once
 
 #include "core/enum_types.h"
 #include "core/typedefs_and_constants.h"
@@ -144,5 +143,3 @@ __device__ __forceinline__ const Grid<Rank, value_t>& dev_grid() {
 #endif
 
 }  // namespace Aperture
-
-#endif

@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PARTICLE_DATA_H_
-#define __PARTICLE_DATA_H_
+#pragma once
 
-#include "framework/data.h"
 #include "core/particles.h"
+#include "framework/data.h"
 
 namespace Aperture {
 
@@ -83,6 +82,4 @@ struct gpu_adapter<photon_data_t> {
 
 #endif
 
-}
-
-#endif
+}  // namespace Aperture

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PARAMS_STORE_H_
-#define __PARAMS_STORE_H_
+#pragma once
 
 // #include "core/params.h"
 #include "utils/logger.h"
@@ -206,5 +205,3 @@ class params_store {
 };
 
 }  // namespace Aperture
-
-#endif  // __PARAMS_STORE_H_

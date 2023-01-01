@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SCALAR_DATA_H_
-#define __SCALAR_DATA_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "framework/data.h"
@@ -30,8 +29,7 @@ namespace Aperture {
 template <typename T>
 class scalar_data : public data_t {
  public:
-  scalar_data(MemType type = default_mem_type)
-      : m_data(1, type) {}
+  scalar_data(MemType type = default_mem_type) : m_data(1, type) {}
 
   void init() override { m_data.assign(T(0.0)); }
 
@@ -39,9 +37,7 @@ class scalar_data : public data_t {
 
   bool do_gather() const { return m_do_gather; }
 
-  void copy_to_host() {
-    m_data.copy_to_host();
-  }
+  void copy_to_host() { m_data.copy_to_host(); }
 
   buffer<T>& data() { return m_data; }
 
@@ -53,5 +49,3 @@ class scalar_data : public data_t {
 };
 
 }  // namespace Aperture
-
-#endif  // __SCALAR_DATA_H_

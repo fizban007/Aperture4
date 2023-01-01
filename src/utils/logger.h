@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _LOGGER_H_
-#define _LOGGER_H_
+#pragma once
 
 // #include "core/enum_types.h"
 #include <cstdio>
@@ -39,9 +38,7 @@ class Logger {
   ~Logger();
 
   static void init(int rank, LogLevel level, std::string log_file = "");
-  static void set_log_level(LogLevel level) {
-    m_level = level;
-  }
+  static void set_log_level(LogLevel level) { m_level = level; }
 
   static bool open_log_file();
 
@@ -164,5 +161,3 @@ class Logger {
 };
 
 }  // namespace Aperture
-
-#endif  // _LOGGER_H_

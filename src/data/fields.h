@@ -15,12 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIELDS_H_
-#define __FIELDS_H_
+#pragma once
 
+#include "core/data_adapter.h"
 #include "core/grid.hpp"
 #include "core/ndptr.hpp"
-#include "core/data_adapter.h"
 #include "framework/data.h"
 #include "utils/logger.h"
 #include "utils/stagger.h"
@@ -78,7 +77,8 @@ class field_t : public data_t {
   template <typename Func>
   void set_values(int n, const Func& f) {
     if (n >= 0 && n < N) {
-      // Logger::print_debug("data[{}] has extent {}x{}", n, m_data[n].extent()[0],
+      // Logger::print_debug("data[{}] has extent {}x{}", n,
+      // m_data[n].extent()[0],
       //                     m_data[n].extent()[1]);
       for (auto idx : m_data[n].indices()) {
         auto pos = idx.get_pos();
@@ -124,7 +124,8 @@ class field_t : public data_t {
       m_data[i].copy_from(other.m_data[i]);
     }
   }
-  void add_by(const field_t<N, Conf>& other, typename Conf::value_t scale = 1.0);
+  void add_by(const field_t<N, Conf>& other,
+              typename Conf::value_t scale = 1.0);
 
   void copy_to_host() {
     for (int i = 0; i < N; i++) {
@@ -193,7 +194,9 @@ class field_t : public data_t {
   typename Conf::ndptr_const_t host_ndptr(int n = 0) const {
     return m_data[n].host_ndptr_const();
   }
-  typename Conf::ndptr_t host_ndptr(int n = 0) { return m_data[n].host_ndptr(); }
+  typename Conf::ndptr_t host_ndptr(int n = 0) {
+    return m_data[n].host_ndptr();
+  }
 
   const Grid_t& grid() const { return *m_grid; }
 
@@ -218,9 +221,7 @@ struct host_adapter<field_t<1, Conf>> {
   static inline const_type apply(const field_t<1, Conf>& f) {
     return f.host_ndptr();
   }
-  static inline type apply(field_t<1, Conf>& f) {
-    return f.host_ndptr();
-  }
+  static inline type apply(field_t<1, Conf>& f) { return f.host_ndptr(); }
 };
 
 template <int N, typename Conf>
@@ -231,9 +232,7 @@ struct host_adapter<field_t<N, Conf>> {
   static inline const_type apply(const field_t<N, Conf>& f) {
     return f.host_ptrs();
   }
-  static inline type apply(field_t<N, Conf>& f) {
-    return f.host_ptrs();
-  }
+  static inline type apply(field_t<N, Conf>& f) { return f.host_ptrs(); }
 };
 
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
@@ -246,9 +245,7 @@ struct gpu_adapter<field_t<1, Conf>> {
   static inline const_type apply(const field_t<1, Conf>& f) {
     return f.dev_ndptr();
   }
-  static inline type apply(field_t<1, Conf>& f) {
-    return f.dev_ndptr();
-  }
+  static inline type apply(field_t<1, Conf>& f) { return f.dev_ndptr(); }
 };
 
 template <int N, typename Conf>
@@ -259,13 +256,9 @@ struct gpu_adapter<field_t<N, Conf>> {
   static inline const_type apply(const field_t<N, Conf>& f) {
     return f.get_const_ptrs();
   }
-  static inline type apply(field_t<N, Conf>& f) {
-    return f.get_ptrs();
-  }
+  static inline type apply(field_t<N, Conf>& f) { return f.get_ptrs(); }
 };
 
 #endif
 
 }  // namespace Aperture
-
-#endif  // __FIELDS_H_

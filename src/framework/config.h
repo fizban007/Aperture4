@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CONFIG_H_
-#define __CONFIG_H_
+#pragma once
 
 #include "core/enum_types.h"
 #include "core/grid.hpp"
@@ -55,17 +54,17 @@ class Config {
       std::is_same<Idx_t<Dim>,
                    idx_zorder_t<Dim>>::value;  //!< Whether this is zorder
 
-  using value_t = FloatT;    //!< The floating point type
-  using idx_t = Idx_t<Dim>;  //!< The indexing type
-  using coord_t = vec_t<FloatT, Dim>; //!< The floating point coordinate type
+  using value_t = FloatT;              //!< The floating point type
+  using idx_t = Idx_t<Dim>;            //!< The indexing type
+  using coord_t = vec_t<FloatT, Dim>;  //!< The floating point coordinate type
   using multi_array_t =
-      multi_array<FloatT, Dim, Idx_t<Dim>>;  //!< The multi_array type
+      multi_array<FloatT, Dim, Idx_t<Dim>>;        //!< The multi_array type
   using ndptr_t = ndptr<FloatT, Dim, Idx_t<Dim>>;  //!< The ndptr type
   using ndptr_const_t =
       ndptr_const<FloatT, Dim, Idx_t<Dim>>;  //!< The const ndptr type
   using buffer_t = buffer<FloatT>;           //!< The buffer type
-  using spline_t = bspline<InterpOrder>;     //!< The interpolation b-spline type
-  using grid_t = Grid<Dim, FloatT>;          //!< The grid type
+  using spline_t = bspline<InterpOrder>;  //!< The interpolation b-spline type
+  using grid_t = Grid<Dim, FloatT>;       //!< The grid type
 
   /// Construct and return a multi_array.
   /**
@@ -145,14 +144,12 @@ class Config {
 };
 
 // Define a macro to help instantiate classes with config
-#define INSTANTIATE_WITH_CONFIG(class_name) \
-  template class class_name<Config<1, float>>;     \
-  template class class_name<Config<2, float>>;     \
-  template class class_name<Config<3, float>>;     \
-  template class class_name<Config<1, double>>;     \
-  template class class_name<Config<2, double>>;     \
+#define INSTANTIATE_WITH_CONFIG(class_name)     \
+  template class class_name<Config<1, float>>;  \
+  template class class_name<Config<2, float>>;  \
+  template class class_name<Config<3, float>>;  \
+  template class class_name<Config<1, double>>; \
+  template class class_name<Config<2, double>>; \
   template class class_name<Config<3, double>>
 
 }  // namespace Aperture
-
-#endif

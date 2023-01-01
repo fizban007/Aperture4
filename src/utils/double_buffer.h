@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DOUBLE_BUFFER_H_
-#define __DOUBLE_BUFFER_H_
+#pragma once
 
-#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
 
 namespace Aperture {
 
@@ -47,11 +46,10 @@ struct double_buffer {
 };
 
 template <typename T>
-double_buffer<T> make_double_buffer(T& t1, T& t2) {
+double_buffer<T>
+make_double_buffer(T& t1, T& t2) {
   double_buffer<T> result(&t1, &t2);
   return result;
 }
 
-}
-
-#endif
+}  // namespace Aperture

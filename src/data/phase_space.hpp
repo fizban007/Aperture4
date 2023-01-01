@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PHASE_SPACE_H_
-#define PHASE_SPACE_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 #include "framework/data.h"
@@ -110,5 +109,3 @@ struct gpu_adapter<phase_space<Conf, Dim>> {
 };
 
 }  // namespace Aperture
-
-#endif  // PHASE_SPACE_H_

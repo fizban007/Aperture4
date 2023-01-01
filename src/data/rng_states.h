@@ -15,13 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RNG_STATES_H_
-#define __RNG_STATES_H_
+#pragma once
 
 #include "core/buffer.hpp"
-#include "core/gpu_translation_layer.h"
-#include "core/gpu_error_check.h"
 #include "core/data_adapter.h"
+#include "core/gpu_error_check.h"
+#include "core/gpu_translation_layer.h"
 #include "core/random.h"
 #include "framework/data.h"
 
@@ -38,17 +37,13 @@ class rng_states_t : public data_t {
   buffer<rand_state>& states() { return m_states; }
   const buffer<rand_state>& states() const { return m_states; }
 
-  void copy_to_device() {
-    m_states.copy_to_device();
-  }
-  void copy_to_host() {
-    m_states.copy_to_host();
-  }
+  void copy_to_device() { m_states.copy_to_device(); }
+  void copy_to_host() { m_states.copy_to_host(); }
 
-// #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  // #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   static constexpr int block_num = 512;
   static constexpr int thread_num = 1024;
-// #endif
+  // #endif
 
   size_t size() { return m_size; }
 
@@ -58,7 +53,7 @@ class rng_states_t : public data_t {
   buffer<rand_state> m_states;
 };
 
-template<>
+template <>
 struct host_adapter<rng_states_t<exec_tags::host>> {
   typedef rand_state* type;
 
@@ -81,5 +76,3 @@ struct gpu_adapter<rng_states_t<exec_tags::device>> {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __RNG_STATES_H_

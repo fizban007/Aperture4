@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PARTICLE_STRUCTS_H_
-#define __PARTICLE_STRUCTS_H_
+#pragma once
 
 #include "core/typedefs_and_constants.h"
 #include "core/detail/macro_trickery.h"
@@ -104,4 +103,3 @@ DEF_PARTICLE_STRUCT(ph,
                     (uint32_t, flag, 0));
 
 
-#endif // __PARTICLE_STRUCTS_H_

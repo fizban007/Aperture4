@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MPI_HELPER_H_
-#define _MPI_HELPER_H_
+#pragma once
 
 #include <mpi.h>
 
@@ -38,5 +37,3 @@ void register_particle_type(const PtcType& ptc, MPI_Datatype* type);
 }  // namespace MPI_Helper
 
 }  // namespace Aperture
-
-#endif  // _MPI_HELPER_H_

@@ -15,13 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MULTI_ARRAY_EXP_H_
-#define __MULTI_ARRAY_EXP_H_
+#pragma once
 
-#include "core/gpu_translation_layer.h"
 #include "core/data_adapter.h"
-#include "utils/type_traits.hpp"
+#include "core/gpu_translation_layer.h"
 #include "utils/indexable.hpp"
+#include "utils/type_traits.hpp"
 #include <functional>
 
 namespace Aperture {
@@ -227,5 +226,3 @@ struct gpu_adapter<binary_exp_t<Op, Left, Right>> {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __MULTI_ARRAY_EXP_H_

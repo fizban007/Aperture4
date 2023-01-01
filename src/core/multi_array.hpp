@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MULTI_ARRAY_H_
-#define __MULTI_ARRAY_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "ndptr.hpp"
@@ -206,7 +205,7 @@ class multi_array : public buffer<T> {
     // HD_INLINE const value_t& operator[](const idx_t& idx) const {
     HD_INLINE value_t operator[](const idx_t& idx) const {
 #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
-// #if defined(__CUDACC__) || defined(__HIPCC__)
+      // #if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];
@@ -248,7 +247,7 @@ class multi_array : public buffer<T> {
 
     HD_INLINE value_t& operator[](const idx_t& idx) {
 #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
-// #if defined(__CUDACC__) || defined(__HIPCC__)
+      // #if defined(__CUDACC__) || defined(__HIPCC__)
       return m_dev_ptr[idx];
 #else
       return m_ptr[idx];
@@ -319,5 +318,3 @@ struct gpu_adapter<multi_array<T, Rank, Idx_t>> {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __MULTI_ARRAY_H_

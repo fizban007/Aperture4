@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SYSTEM_H_
-#define __SYSTEM_H_
+#pragma once
 
 #include <cstdint>
 #include <set>
@@ -64,12 +63,10 @@ class system_t {
   void unpause() { m_paused = false; }
 
  protected:
-  /// Keeps a reference to the `sim_environment` so that any derived `system` can
-  /// access it via this member
+  /// Keeps a reference to the `sim_environment` so that any derived `system`
+  /// can access it via this member
   // sim_environment& m_env;
   bool m_paused = false;
 };
 
 }  // namespace Aperture
-
-#endif

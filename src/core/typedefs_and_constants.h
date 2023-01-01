@@ -15,12 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TYPEDEFS_N_CONSTANTS_H_
-#define _TYPEDEFS_N_CONSTANTS_H_
+#pragma once
 
-#include <limits>
-#include <cstdint>
 #include "enum_types.h"
+#include <cstdint>
+#include <limits>
 
 namespace Aperture {
 
@@ -51,5 +50,3 @@ typedef double Scalar;
 constexpr uint64_t default_random_seed = 0x3141592653589793;
 
 }  // namespace Aperture
-
-#endif  // _TYPEDEFS_N_CONSTANTS_H_

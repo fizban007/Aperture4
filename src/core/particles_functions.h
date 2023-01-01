@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PARTICLES_FUNCTIONS_H_
-#define _PARTICLES_FUNCTIONS_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "core/exec_tags.h"
@@ -45,28 +44,29 @@ void ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
 template <typename BufferType, typename Conf>
 void ptc_append_global(exec_tags::host, particles_base<BufferType>& ptc,
                        const grid_t<Conf>& grid,
-                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
-                       Scalar weight = 1.0, uint32_t flag = 0);
+                       const vec_t<Scalar, 3>& x_global,
+                       const vec_t<Scalar, 3>& p, Scalar weight = 1.0,
+                       uint32_t flag = 0);
 
 template <typename BufferType, typename Conf>
 void ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
                        const grid_t<Conf>& grid,
-                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
-                       Scalar weight = 1.0, uint32_t flag = 0);
+                       const vec_t<Scalar, 3>& x_global,
+                       const vec_t<Scalar, 3>& p, Scalar weight = 1.0,
+                       uint32_t flag = 0);
 
 template <typename BufferType, typename Conf>
-void ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
-                              std::vector<buffer<typename BufferType::single_type>>& buffers,
-                              buffer<typename BufferType::single_type*>& buf_ptrs,
-                              buffer<int>& buf_nums,
-                              const grid_t<Conf>& grid);
+void ptc_copy_to_comm_buffers(
+    exec_tags::host, particles_base<BufferType>& ptc,
+    std::vector<buffer<typename BufferType::single_type>>& buffers,
+    buffer<typename BufferType::single_type*>& buf_ptrs, buffer<int>& buf_nums,
+    const grid_t<Conf>& grid);
 template <typename BufferType, typename Conf>
-void ptc_copy_to_comm_buffers(exec_tags::device,
-                              particles_base<BufferType>& ptc,
-                              std::vector<buffer<typename BufferType::single_type>>& buffers,
-                              buffer<typename BufferType::single_type*>& buf_ptrs,
-                              buffer<int>& buf_nums,
-                              const grid_t<Conf>& grid);
+void ptc_copy_to_comm_buffers(
+    exec_tags::device, particles_base<BufferType>& ptc,
+    std::vector<buffer<typename BufferType::single_type>>& buffers,
+    buffer<typename BufferType::single_type*>& buf_ptrs, buffer<int>& buf_nums,
+    const grid_t<Conf>& grid);
 
 template <typename BufferType>
 void ptc_copy_from_buffer(exec_tags::device, particles_base<BufferType>& ptc,
@@ -95,8 +95,4 @@ get_zone_offset<2>() {
   return 9;
 }
 
-
-
 }  // namespace Aperture
-
-#endif  // _PARTICLES_FUNCTIONS_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __ENVIRONMENT_H_
-#define __ENVIRONMENT_H_
+#pragma once
 
 #include <map>
 #include <memory>
@@ -343,5 +342,3 @@ sim_env(int* argc = nullptr, char*** argv = nullptr, bool use_mpi = true) {
 }
 
 }  // namespace Aperture
-
-#endif

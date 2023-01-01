@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _BINARY_SEARCH_H_
-#define _BINARY_SEARCH_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/typedefs_and_constants.h"
@@ -91,5 +90,3 @@ upper_bound(value_t x, const value_t* array, int size) {
 }
 
 }  // namespace Aperture
-
-#endif  // _BINARY_SEARCH_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SIMD_H_
-#define _SIMD_H_
+#pragma once
 
 // #include <immintrin.h>
 #include "core/typedefs_and_constants.h"
@@ -124,5 +123,3 @@ floor(simd::Vec_f_t x) {
 }  // namespace math
 
 }  // namespace Aperture
-
-#endif  // _SIMD_H_

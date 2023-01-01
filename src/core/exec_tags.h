@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _EXEC_TAGS_H_
-#define _EXEC_TAGS_H_
+#pragma once
 
 namespace Aperture {
 
@@ -31,5 +30,3 @@ struct device {
 }  // namespace exec_tag
 
 }  // namespace Aperture
-
-#endif  // _EXEC_TAGS_H_

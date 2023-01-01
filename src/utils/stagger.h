@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STAGGER_H_
-#define _STAGGER_H_
+#pragma once
 
 #include "core/cuda_control.h"
 
@@ -30,7 +29,8 @@ class stagger_t {
   /// Default constructor, initialize the stagger in each direction to be 0.
   HOST_DEVICE stagger_t() : stagger(0) {}
 
-  /// Constructor using an unsigned char. The recommended way to use this is to do
+  /// Constructor using an unsigned char. The recommended way to use this is to
+  /// do
   ///
   ///     stagger_t st(0b001);
   ///
@@ -47,7 +47,8 @@ class stagger_t {
     return *this;
   }
 
-  /// Assignment, using an unsigned char. The recommended way to use this is to do
+  /// Assignment, using an unsigned char. The recommended way to use this is to
+  /// do
   ///
   ///     st = 0b001;
   ///
@@ -58,14 +59,16 @@ class stagger_t {
     return *this;
   }
 
-  /// Subscript operator. Use this to take the stagger of a given direction. For example,
+  /// Subscript operator. Use this to take the stagger of a given direction. For
+  /// example,
   ///
   ///     stagger_t st(0b110);
   ///     assert(st[0] == 1);
   ///     assert(st[1] == 1);
   ///     assert(st[2] == 1);
   ///
-  /// Since this is inlined and bit shifts are cheap, feel free to use this inside a kernel.
+  /// Since this is inlined and bit shifts are cheap, feel free to use this
+  /// inside a kernel.
   HD_INLINE int operator[](int i) const { return (stagger >> i) & 1UL; }
 
   /// Set the given bit to true or false.
@@ -82,5 +85,3 @@ class stagger_t {
 };
 
 }  // namespace Aperture
-
-#endif  // _STAGGER_H_

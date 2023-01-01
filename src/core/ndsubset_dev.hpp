@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __NDSUBSET_DEV_H_
-#define __NDSUBSET_DEV_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/multi_array.hpp"
@@ -298,5 +297,3 @@ select_dev(multi_array<T, Rank, Idx_t>& array) {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __NDSUBSET_DEV_H_

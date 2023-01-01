@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _ENUM_TYPES_H_
-#define _ENUM_TYPES_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -101,5 +100,3 @@ enum class PtcFlag : uint32_t {
 enum class PhFlag : uint32_t { tracked = 1, ignore_pair_create };
 
 }  // namespace Aperture
-
-#endif  // _ENUM_TYPES_H_

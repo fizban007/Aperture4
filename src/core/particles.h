@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PARTICLES_H_
-#define __PARTICLES_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "core/exec_tags.h"
@@ -64,10 +63,12 @@ class particles_base : public BufferType {
   // void sort_by_cell_host(size_t max_cell);
   // void sort_by_cell_dev(size_t max_cell);
 
-  // void append(exec_tags::host, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+  // void append(exec_tags::host, const vec_t<Scalar, 3>& x, const vec_t<Scalar,
+  // 3>& p,
   //             uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
-  // void append(exec_tags::device, const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p,
+  // void append(exec_tags::device, const vec_t<Scalar, 3>& x, const
+  // vec_t<Scalar, 3>& p,
   //             uint32_t cell, Scalar weight = 1.0, uint32_t flag = 0);
 
   void copy_to_host(bool all = true);
@@ -89,9 +90,11 @@ class particles_base : public BufferType {
   //                           std::vector<buffer<single_type>>& buffers,
   //                           buffer<single_type*>& buf_ptrs,
   //                           buffer<int>& buf_nums, const grid_t<Conf>& grid);
-  // void copy_from_buffer(exec_tags::device, const buffer<single_type>& buf, int num,
+  // void copy_from_buffer(exec_tags::device, const buffer<single_type>& buf,
+  // int num,
   //                       size_t dst_idx);
-  // void copy_from_buffer(exec_tags::host, const buffer<single_type>& buf, int num,
+  // void copy_from_buffer(exec_tags::host, const buffer<single_type>& buf, int
+  // num,
   //                       size_t dst_idx);
 
   void swap(size_t pos, single_type& p);
@@ -104,9 +107,7 @@ class particles_base : public BufferType {
     m_number = std::min(num, m_size);
   }
 
-  void set_segment_size(size_t s) {
-    m_sort_segment_size = s;
-  }
+  void set_segment_size(size_t s) { m_sort_segment_size = s; }
 
   void add_num(size_t num) { set_num(m_number + num); }
 
@@ -137,16 +138,16 @@ class particles_base : public BufferType {
   std::vector<size_t> m_partition;
   // Map for tracked particles
   // buffer<uint32_t> m_tracked_map;
-  // buffer<int> m_tracked_num;  // Current number of tracked particles, using int
-                              // because need to do atomicAdd
+  // buffer<int> m_tracked_num;  // Current number of tracked particles, using
+  // int because need to do atomicAdd
   // size_t m_max_tracked_num = 0;
 
   typename BufferType::ptrs_type m_host_ptrs;
   typename BufferType::ptrs_type m_dev_ptrs;
 
   void resize_tmp_arrays();
-  // void rearrange_arrays(exec_tags::device, const std::string& skip, size_t offset, size_t num);
-  // void rearrange_arrays(exec_tags::host);
+  // void rearrange_arrays(exec_tags::device, const std::string& skip, size_t
+  // offset, size_t num); void rearrange_arrays(exec_tags::host);
 };
 
 using particles_t = particles_base<ptc_buffer>;
@@ -185,5 +186,3 @@ struct gpu_adapter<particles_base<BufferType>> {
 }  // namespace Aperture
 
 #include "particles_functions.h"
-
-#endif

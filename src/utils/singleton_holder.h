@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SINGLETON_HOLDER_H_
-#define __SINGLETON_HOLDER_H_
+#pragma once
 
-#include <memory>
 #include <cstdlib>
+#include <memory>
 
 namespace Aperture {
 
@@ -67,6 +66,4 @@ template <typename T>
 T* singleton_holder<T>::p_instance = nullptr;
 // std::unique_ptr<T> singleton_holder<T>::p_instance = nullptr;
 
-}
-
-#endif // __SINGLETON_HOLDER_H_
+}  // namespace Aperture

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MOMENTUM_SPACE_H_
-#define __MOMENTUM_SPACE_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 #include "framework/data.h"
@@ -124,5 +123,3 @@ class momentum_space : public data_t {
 };
 
 }  // namespace Aperture
-
-#endif  // __MOMENTUM_SPACE_H_

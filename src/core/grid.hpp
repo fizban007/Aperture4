@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CORE_GRID_H_
-#define __CORE_GRID_H_
+#pragma once
 
 #include "cuda_control.h"
 #include "typedefs_and_constants.h"
@@ -161,8 +160,8 @@ struct Grid {
   }
 
   // template <typename value_t = Scalar>
-  HD_INLINE vec_t<value_t, 3> coord_global(const index_t<Dim>& idx,
-                                         const vec_t<value_t, 3>& rel_x) const {
+  HD_INLINE vec_t<value_t, 3> coord_global(
+      const index_t<Dim>& idx, const vec_t<value_t, 3>& rel_x) const {
     vec_t<value_t, 3> result = rel_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
@@ -316,5 +315,3 @@ make_grid(const vec_t<uint32_t, Dim>& N, const vec_t<uint32_t, Dim>& guard,
 }
 
 }  // namespace Aperture
-
-#endif  // __CORE_GRID_H_

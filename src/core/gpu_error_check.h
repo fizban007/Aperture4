@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GPU_ERROR_CHECK_H_
-#define _GPU_ERROR_CHECK_H_
+#pragma once
 
 #include "gpu_translation_layer.h"
 
@@ -77,7 +76,3 @@ __gpuSafeCall(gpuError_t err, const char *file, const int line) {
 #define GpuSafeCall(err) err
 #define GpuCheckError()
 #endif
-
-
-
-#endif  // _GPU_ERROR_CHECK_H_

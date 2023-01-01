@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MULTI_ARRAY_DATA_HPP_
-#define __MULTI_ARRAY_DATA_HPP_
+#pragma once
 
-#include "framework/data.h"
 #include "core/multi_array.hpp"
+#include "framework/data.h"
 
 namespace Aperture {
 
@@ -35,11 +34,7 @@ class multi_array_data : public data_t, public multi_array<T, Rank> {
   using multi_array<T, Rank>::multi_array;
   bool gather_to_root = true;
 
-  void init() override {
-    this->assign(0.0);
-  }
+  void init() override { this->assign(0.0); }
 };
 
-}
-
-#endif // __MULTI_ARRAY_DATA_HPP_
+}  // namespace Aperture

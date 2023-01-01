@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CONSTANT_MEM_FUNC_H_
-#define __CONSTANT_MEM_FUNC_H_
+#pragma once
 
 #include "core/grid.hpp"
 #include <cstdint>
@@ -36,5 +35,3 @@ void init_dev_charge_mass(const float charge[max_ptc_types],
 void init_dev_rank(int rank);
 
 }  // namespace Aperture
-
-#endif

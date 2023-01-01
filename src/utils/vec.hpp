@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __VEC_H_
-#define __VEC_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "utils/type_traits.hpp"
@@ -54,8 +53,7 @@ class vec_t {
       memory[i] = vec[i - 1];
     }
   }
-  HD_INLINE vec_t(const T& v1, const T& v2,
-                  const vec_t<T, Rank - 2>& vec) {
+  HD_INLINE vec_t(const T& v1, const T& v2, const vec_t<T, Rank - 2>& vec) {
     memory[0] = v1;
     memory[1] = v2;
 #pragma unroll
@@ -321,8 +319,7 @@ class extent_t : public vec_t<uint32_t, Rank> {
     get_strides();
   }
 
-  HOST_DEVICE extent_t(uint32_t v1, uint32_t v2,
-                       const extent_t<Rank - 2>& vec)
+  HOST_DEVICE extent_t(uint32_t v1, uint32_t v2, const extent_t<Rank - 2>& vec)
       : base_class(v1, v2, vec) {
     get_strides();
   }
@@ -442,5 +439,3 @@ not_power_of_two(const extent_t<Rank>& ext) {
 }
 
 }  // namespace Aperture
-
-#endif  // __VEC_H_

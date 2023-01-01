@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BUFFER_H_
-#define __BUFFER_H_
+#pragma once
 
 #include "core/gpu_translation_layer.h"
 #include "core/gpu_error_check.h"
@@ -446,5 +445,3 @@ struct gpu_adapter<buffer<T>> {
 #endif
 
 }  // namespace Aperture
-
-#endif  // __BUFFER_H_

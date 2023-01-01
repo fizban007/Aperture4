@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TRACKED_PTC_H_
-#define _TRACKED_PTC_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "core/particle_structs.h"
@@ -50,5 +49,3 @@ using tracked_particles_t = tracked_ptc<ptc_buffer>;
 using tracked_photons_t = tracked_ptc<ph_buffer>;
 
 }  // namespace Aperture
-
-#endif  // _TRACKED_PTC_H_

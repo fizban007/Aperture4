@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GPU_TRANSLATION_LAYER_H_
-#define _GPU_TRANSLATION_LAYER_H_
+#pragma once
 
 #if (defined(HIP_ENABLED) && defined(__HIPCC__)) || \
     (defined(CUDA_ENABLED) && defined(__CUDACC__))
@@ -104,4 +103,3 @@ using gpuFuncAttributes = cudaFuncAttributes;
 #endif
 #endif
 
-#endif  // _GPU_TRANSLATION_LAYER_H_

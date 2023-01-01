@@ -15,14 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __NDSUBSET_H_
-#define __NDSUBSET_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/multi_array.hpp"
+#include "utils/indexable.hpp"
 #include "utils/range.hpp"
 #include "utils/type_traits.hpp"
-#include "utils/indexable.hpp"
 
 namespace Aperture {
 
@@ -31,12 +30,14 @@ class ndsubset_const_t {
  public:
   ndsubset_const_t(const Indexable& array, const index_t<Idx_t::dim>& begin,
                    const extent_t<Idx_t::dim>& ext)
-                   // const extent_t<Idx_t::dim>& parent_ext)
+      // const extent_t<Idx_t::dim>& parent_ext)
       : m_array(array), m_begin(begin), m_ext(ext) {}
   ~ndsubset_const_t() {}
 
   // inline auto at(const Idx_t& idx) const { return m_array.at(idx); }
-  inline auto at(const index_t<Idx_t::dim>& pos) const { return m_array.at(m_begin + pos); }
+  inline auto at(const index_t<Idx_t::dim>& pos) const {
+    return m_array.at(m_begin + pos);
+  }
 
   // private:
   Indexable m_array;
@@ -52,12 +53,14 @@ class ndsubset_t {
 
   ndsubset_t(const Indexable& array, const index_t<Idx_t::dim>& begin,
              const extent_t<Idx_t::dim>& ext)
-             // const extent_t<Idx_t::dim>& parent_ext)
+      // const extent_t<Idx_t::dim>& parent_ext)
       : m_array(array), m_begin(begin), m_ext(ext) {}
   ~ndsubset_t() {}
 
   // inline auto& at(const Idx_t& idx) { return m_array.at(idx); }
-  inline auto& at(const index_t<Idx_t::dim>& pos) { return m_array.at(m_begin + pos); }
+  inline auto& at(const index_t<Idx_t::dim>& pos) {
+    return m_array.at(m_begin + pos);
+  }
 
   template <typename Other>
   void check_ext(const ndsubset_const_t<Other, Idx_t>& subset) {
@@ -70,8 +73,8 @@ class ndsubset_t {
   void loop_subset(const ndsubset_const_t<Other, Idx_t>& subset, const Op& op) {
     check_ext(subset);
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
-    for (auto idx : range(col_idx_t(0, m_ext),
-                          col_idx_t(m_ext.size(), m_ext))) {
+    for (auto idx :
+         range(col_idx_t(0, m_ext), col_idx_t(m_ext.size(), m_ext))) {
       // op(at(idx.get_pos()), subset.at(idx.get_pos()));
       op(at(get_pos(idx, m_ext)), subset.at(get_pos(idx, m_ext)));
     }
@@ -81,8 +84,8 @@ class ndsubset_t {
             typename = is_host_const_indexable<OtherIndexable>>
   void loop_indexable(const OtherIndexable& other, const Op& op) {
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
-    for (auto idx : range(col_idx_t(0, m_ext),
-                          col_idx_t(m_ext.size(), m_ext))) {
+    for (auto idx :
+         range(col_idx_t(0, m_ext), col_idx_t(m_ext.size(), m_ext))) {
       // op(m_array.at(m_begin + idx.get_pos()),
       //    other.at(m_begin + idx.get_pos()));
       op(m_array.at(m_begin + get_pos(idx, m_ext)),
@@ -93,8 +96,8 @@ class ndsubset_t {
   template <typename Op>
   void loop_self(const Op& op) {
     using col_idx_t = idx_col_major_t<Idx_t::dim>;
-    for (auto idx : range(col_idx_t(0, m_ext),
-                          col_idx_t(m_ext.size(), m_ext))) {
+    for (auto idx :
+         range(col_idx_t(0, m_ext), col_idx_t(m_ext.size(), m_ext))) {
       // op(m_array.at(m_begin + idx.get_pos()));
       op(m_array.at(m_begin + get_pos(idx, m_ext)));
     }
@@ -199,9 +202,9 @@ template <typename Indexable, typename = typename std::enable_if_t<
 ndsubset_const_t<Indexable, typename Indexable::idx_t>
 select(const Indexable& array, const index_t<Indexable::idx_t::dim>& begin,
        const extent_t<Indexable::idx_t::dim>& ext) {
-       // const extent_t<Indexable::idx_t::dim>& parent_ext) {
-  return ndsubset_const_t<Indexable, typename Indexable::idx_t>(
-      array, begin, ext);
+  // const extent_t<Indexable::idx_t::dim>& parent_ext) {
+  return ndsubset_const_t<Indexable, typename Indexable::idx_t>(array, begin,
+                                                                ext);
 }
 
 template <typename T, int Rank, typename Idx_t>
@@ -220,5 +223,3 @@ select(multi_array<T, Rank, Idx_t>& array) {
 }
 
 }  // namespace Aperture
-
-#endif  // __NDSUBSET_H_

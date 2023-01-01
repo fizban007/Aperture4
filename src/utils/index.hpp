@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __INDEX_H_
-#define __INDEX_H_
+#pragma once
 
 #include "core/cuda_control.h"
 // #include "morton2d.h"
@@ -663,5 +662,3 @@ get_pos(const idx_zorder_t<Rank>& idx, const extent_t<Rank>& ext) {
 }
 
 }  // namespace Aperture
-
-#endif  // __INDEX_H_

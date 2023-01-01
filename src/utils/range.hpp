@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RANGE_HPP_
-#define __RANGE_HPP_
+#pragma once
 
-#include "core/gpu_translation_layer.h"
 #include "core/gpu_error_check.h"
+#include "core/gpu_translation_layer.h"
 #include "utils/type_traits.hpp"
 #include <iterator>
 #include <type_traits>
@@ -60,9 +59,7 @@ struct range_iter_base {
   }
 
   HD_INLINE
-  int operator-(const range_iter_base& it) {
-    return current - it.current;
-  }
+  int operator-(const range_iter_base& it) { return current - it.current; }
 
   HD_INLINE
   range_iter_base operator+=(int n) {
@@ -116,22 +113,17 @@ struct range_proxy {
       }
 
       HD_INLINE
-      int operator-(const iter& it) {
-        return current - it.current;
-      }
+      int operator-(const iter& it) { return current - it.current; }
 
       // Loses commutativity. Iterator-based ranges are simply broken.
       // :-(
       HD_INLINE
       bool operator==(iter const& other) const {
-        return step > 0 ? current >= other.current
-                        : current < other.current;
+        return step > 0 ? current >= other.current : current < other.current;
       }
 
       HD_INLINE
-      bool operator!=(iter const& other) const {
-        return not(*this == other);
-      }
+      bool operator!=(iter const& other) const { return not(*this == other); }
 
      private:
       U step;
@@ -156,8 +148,9 @@ struct range_proxy {
   range_proxy(T begin, T end) : begin_(begin), end_(end) {}
 
   template <typename U>
-  HD_INLINE
-  step_range_proxy<U> step(U step) { return {*begin_, *end_, step}; }
+  HD_INLINE step_range_proxy<U> step(U step) {
+    return {*begin_, *end_, step};
+  }
 
   HD_INLINE
   iter begin() const { return begin_; }
@@ -219,21 +212,19 @@ indices(std::initializer_list<T>&& cont) {
   return {0, cont.size()};
 }
 
-template<typename T, typename U>
+template <typename T, typename U>
 using step_range = typename range_proxy<T>::template step_range_proxy<U>;
 
 // #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
 #if defined(__CUDACC__) || defined(__HIPCC__)
 
 template <typename U, typename T>
-__device__ __forceinline__
-step_range<T, int> grid_stride_range(U begin, T end) {
-    return range(T(begin + blockDim.x * blockIdx.x + threadIdx.x), end)
+__device__ __forceinline__ step_range<T, int>
+grid_stride_range(U begin, T end) {
+  return range(T(begin + blockDim.x * blockIdx.x + threadIdx.x), end)
       .step(int(gridDim.x * blockDim.x));
 }
 
 #endif
 
 }  // namespace Aperture
-
-#endif  // ndef __RANGE_HPP_

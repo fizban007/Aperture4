@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __CUDA_CONTROL_H_
-#define __CUDA_CONTROL_H_
+#pragma once
 
 #include "gpu_error_check.h"
 
@@ -88,5 +87,3 @@
 // #define CudaSafeCall(err) err
 // #define CudaCheckError()
 // #endif
-
-#endif  // __CUDA_CONTROL_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __TYPE_TRAITS_H_
-#define __TYPE_TRAITS_H_
+#pragma once
 
 #include <type_traits>
 
@@ -112,5 +111,3 @@ using all_convertible_to = typename std::enable_if<
   }
 
 }  // namespace Aperture
-
-#endif  // __TYPE_TRAITS_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __INTERPOLATION_SIMD_H_
-#define __INTERPOLATION_SIMD_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/ndptr.hpp"
@@ -196,5 +195,3 @@ struct interpolator<Interp, 3> {
 }  // namespace simd
 
 }  // namespace Aperture
-
-#endif  // __INTERPOLATION_SIMD_H_

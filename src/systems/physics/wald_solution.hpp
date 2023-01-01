@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __WALD_SOLUTION_H_
-#define __WALD_SOLUTION_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -145,5 +144,3 @@ gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
 }
 
 }  // namespace Aperture
-
-#endif  // __WALD_SOLUTION_H_

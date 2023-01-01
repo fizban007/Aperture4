@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DATA_EXPORTER_H_
-#define _DATA_EXPORTER_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 #include "data/fields.h"
@@ -188,5 +187,3 @@ class data_exporter : public system_t {
 };
 
 }  // namespace Aperture
-
-#endif  // _DATA_EXPORTER_H_

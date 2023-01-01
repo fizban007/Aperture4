@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _LORENTZ_TRANSFORM_H_
-#define _LORENTZ_TRANSFORM_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -47,10 +46,9 @@ lorentz_transform_vector(Scalar u0, const vec_t<Scalar, 3>& u_orig,
   Scalar gamma = 1.0f / math::sqrt(1.0f - v_sqr);
   Scalar udotv = u_orig.dot(v);
   Scalar u0p = gamma * (u0 - udotv);
-  vec_t<Scalar, 3> up = u_orig + v * ((gamma - 1.0f) * udotv / v_sqr - gamma * u0);
+  vec_t<Scalar, 3> up =
+      u_orig + v * ((gamma - 1.0f) * udotv / v_sqr - gamma * u0);
   return {u0p, up};
 }
 
 }  // namespace Aperture
-
-#endif  // _LORENTZ_TRANSFORM_H_

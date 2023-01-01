@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _FIELD_SOLVER_CARTESIAN_H_
-#define _FIELD_SOLVER_CARTESIAN_H_
-
+#pragma once
 
 #include "field_solver.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
@@ -61,6 +59,3 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
 };
 
 }  // namespace Aperture
-
-
-#endif  // _FIELD_SOLVER_CARTESIAN_H_

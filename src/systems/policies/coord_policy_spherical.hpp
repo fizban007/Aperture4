@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COORD_POLICY_SPHERICAL_H_
-#define __COORD_POLICY_SPHERICAL_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -57,10 +56,8 @@ class coord_policy_spherical {
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
-                            const extent_t<Conf::dim>& ext,
-                            PtcContext& context,
-                            index_t<Conf::dim>& pos,
-                            value_t dt) const {
+                            const extent_t<Conf::dim>& ext, PtcContext& context,
+                            index_t<Conf::dim>& pos, value_t dt) const {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
@@ -78,9 +75,10 @@ class coord_policy_spherical {
                           PtcContext& context, index_t<Conf::dim>& pos,
                           value_t dt) const {
     // Global position in sph coord
-    vec_t<value_t, 3> x_global_old(grid.template coord<0>(pos[0], context.x[0]),
-                                   grid.template coord<1>(pos[1], context.x[1]),
-                                   grid.template coord<2>(pos[2], context.x[2]));
+    vec_t<value_t, 3> x_global_old(
+        grid.template coord<0>(pos[0], context.x[0]),
+        grid.template coord<1>(pos[1], context.x[1]),
+        grid.template coord<2>(pos[2], context.x[2]));
     // vec_t<value_t, 3> x_global_sph(x1(x_global_old[0]), x2(x_global_old[1]),
     //                                x3(x_global_old[2]));
 
@@ -98,7 +96,8 @@ class coord_policy_spherical {
     x_global_cart += context.p * (dt / context.gamma);
 
     // Compute the new spherical location
-    vec_t<value_t, 3> x_global_sph_new = grid_type::coord_from_cart(x_global_cart);
+    vec_t<value_t, 3> x_global_sph_new =
+        grid_type::coord_from_cart(x_global_cart);
     // x_global_sph_new[0] = math::sqrt(x_global_cart.dot(x_global_cart));
     // x_global_sph_new[2] = math::atan2(x_global_cart[1], x_global_cart[0]);
     // x_global_sph_new[1] = math::acos(x_global_cart[2] / x_global_sph_new[0]);
@@ -137,7 +136,8 @@ class coord_policy_spherical {
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     ExecPolicy::launch(
-        [dt, num_species, process_rho] LAMBDA(auto j, auto rho, auto grid_ptrs) {
+        [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
+                                              auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
           // grid.cell_size() is simply the product of all deltas
@@ -168,7 +168,7 @@ class coord_policy_spherical {
                   j[2][idx] = 0.0;
                 }
               });
-              // j, rho, grid_ptrs);
+          // j, rho, grid_ptrs);
         },
         J, Rho, m_grid.get_grid_ptrs());
     ExecPolicy::sync();
@@ -199,5 +199,3 @@ class coord_policy_spherical {
 };
 
 }  // namespace Aperture
-
-#endif  // __COORD_POLICY_SPHERICAL_H_

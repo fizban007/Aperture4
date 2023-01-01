@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RESONANT_DRAG_H_
-#define __RESONANT_DRAG_H_
+#pragma once
 
-#include "core/cuda_control.h"
 #include "core/constant_mem.h"
+#include "core/cuda_control.h"
 #include "core/math.hpp"
 #include "utils/util_functions.h"
 #include <cstdint>
@@ -28,10 +27,9 @@ namespace Aperture {
 
 template <typename Scalar>
 __device__ void
-resonant_drag(Scalar &p1, Scalar &p2, Scalar &p3, Scalar &gamma,
-              Scalar r, Scalar B1, Scalar B2, Scalar B3, Scalar q_over_m,
-              Scalar dt, Scalar &Eph,
-              Scalar &th_obs) {
+resonant_drag(Scalar &p1, Scalar &p2, Scalar &p3, Scalar &gamma, Scalar r,
+              Scalar B1, Scalar B2, Scalar B3, Scalar q_over_m, Scalar dt,
+              Scalar &Eph, Scalar &th_obs) {
   Scalar p = sqrt(p1 * p1 + p2 * p2 + p3 * p3);
   Scalar B = sqrt(B1 * B1 + B2 * B2 + B3 * B3);
   Scalar pdotB = (p1 * B1 + p2 * B2 + p3 * B3) / B;
@@ -72,8 +70,7 @@ resonant_drag(Scalar &p1, Scalar &p2, Scalar &p3, Scalar &gamma,
       // Produce individual tracked photons
       if (Nph < 1.0f) {
         float u = curand_uniform(&state);
-        if (u < Nph)
-          flag = (flag | bit_or(ParticleFlag::emit_photon));
+        if (u < Nph) flag = (flag | bit_or(ParticleFlag::emit_photon));
       } else {
         flag = (flag | bit_or(ParticleFlag::emit_photon));
       }
@@ -83,8 +80,7 @@ resonant_drag(Scalar &p1, Scalar &p2, Scalar &p3, Scalar &gamma,
 
       Scalar drag_coef =
           coef * dev_params.star_kT * y * (g * mu - p_mag_signed);
-      if (B1 < 0.0f)
-        drag_coef = -drag_coef;
+      if (B1 < 0.0f) drag_coef = -drag_coef;
       p1 += B1 * dt * drag_coef / B;
       p2 += B2 * dt * drag_coef / B;
       p3 += B3 * dt * drag_coef / B;
@@ -117,9 +113,6 @@ resonant_drag(Scalar &p1, Scalar &p2, Scalar &p3, Scalar &gamma,
       }
     }
   }
-
 }
 
 }  // namespace Aperture
-
-#endif  // __RESONANT_DRAG_H_

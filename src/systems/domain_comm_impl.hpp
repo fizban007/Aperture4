@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DOMAIN_COMM_IMPL_H_
-#define _DOMAIN_COMM_IMPL_H_
+#pragma once
 
 #include "core/constant_mem_func.h"
 #include "core/detail/multi_array_helpers.h"
@@ -167,14 +166,10 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
     ext_vec[Conf::dim - 1] *= 3;
     ext_vec.get_strides();
 
-    m_send_buffers.emplace_back(ext,
-                               ExecPolicy<Conf>::data_mem_type());
-    m_recv_buffers.emplace_back(ext,
-                               ExecPolicy<Conf>::data_mem_type());
-    m_send_vec_buffers.emplace_back(ext_vec,
-                               ExecPolicy<Conf>::data_mem_type());
-    m_recv_vec_buffers.emplace_back(ext_vec,
-                               ExecPolicy<Conf>::data_mem_type());
+    m_send_buffers.emplace_back(ext, ExecPolicy<Conf>::data_mem_type());
+    m_recv_buffers.emplace_back(ext, ExecPolicy<Conf>::data_mem_type());
+    m_send_vec_buffers.emplace_back(ext_vec, ExecPolicy<Conf>::data_mem_type());
+    m_recv_vec_buffers.emplace_back(ext_vec, ExecPolicy<Conf>::data_mem_type());
   }
 
   size_t ptc_buffer_size =
@@ -988,5 +983,3 @@ domain_comm<Conf, ExecPolicy>::ptc_buffer_ptrs(const photons_t &ph) const {
 //     buffer<double> &buf) const;
 
 }  // namespace Aperture
-
-#endif  // _DOMAIN_COMM_IMPL_H_

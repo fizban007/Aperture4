@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SPECTRA_H_
-#define __SPECTRA_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -72,11 +71,7 @@ struct power_law_soft {
 struct broken_power_law {
   HOST_DEVICE broken_power_law(Scalar alpha, Scalar delta, Scalar ep,
                                Scalar emin, Scalar emax)
-      : alpha_(alpha),
-        delta_(delta),
-        epeak_(ep),
-        emin_(emin),
-        emax_(emax) {}
+      : alpha_(alpha), delta_(delta), epeak_(ep), emin_(emin), emax_(emax) {}
 
   HD_INLINE Scalar operator()(Scalar e) const {
     if (e < epeak_ && e > emin_)
@@ -88,8 +83,10 @@ struct broken_power_law {
   }
 
   HD_INLINE Scalar emean() const {
-    Scalar e1 = (emax_ - epeak_ * pow(epeak_ / emax_, delta_)) / (1.0f + delta_);
-    Scalar e2 = (epeak_ * pow(epeak_ / emin_, -alpha_) - emin_) / (alpha_ - 1.0f);
+    Scalar e1 =
+        (emax_ - epeak_ * pow(epeak_ / emax_, delta_)) / (1.0f + delta_);
+    Scalar e2 =
+        (epeak_ * pow(epeak_ / emin_, -alpha_) - emin_) / (alpha_ - 1.0f);
     return e1 + e2;
   }
 
@@ -137,6 +134,3 @@ struct mono_energetic {
 }  // namespace Spectra
 
 }  // namespace Aperture
-
-
-#endif // __SPECTRA_H_

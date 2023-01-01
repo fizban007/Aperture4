@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PHYS_POLICY_SYNC_COOLING_H_
-#define _PHYS_POLICY_SYNC_COOLING_H_
-
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -44,37 +42,39 @@ class phys_policy_sync_cooling {
                             value_t dt) const {
     // value_t q_over_m = context.q / context.m;
     value_t q_over_m = math::abs(context.q) / context.m;
-    value_t tmp1 =
-        (context.E[0] +
-         (context.p[1] * context.B[2] - context.p[2] * context.B[1]) / context.gamma) /
-        q_over_m;
-    value_t tmp2 =
-        (context.E[1] +
-         (context.p[2] * context.B[0] - context.p[0] * context.B[2]) / context.gamma) /
-        q_over_m;
-    value_t tmp3 =
-        (context.E[2] +
-         (context.p[0] * context.B[1] - context.p[3] * context.B[0]) / context.gamma) /
-        q_over_m;
+    value_t tmp1 = (context.E[0] + (context.p[1] * context.B[2] -
+                                    context.p[2] * context.B[1]) /
+                                       context.gamma) /
+                   q_over_m;
+    value_t tmp2 = (context.E[1] + (context.p[2] * context.B[0] -
+                                    context.p[0] * context.B[2]) /
+                                       context.gamma) /
+                   q_over_m;
+    value_t tmp3 = (context.E[2] + (context.p[0] * context.B[1] -
+                                    context.p[3] * context.B[0]) /
+                                       context.gamma) /
+                   q_over_m;
     value_t tmp_sq = tmp1 * tmp1 + tmp2 * tmp2 + tmp3 * tmp3;
-    value_t bE = (context.p.dot(context.E)) /
-                 (context.gamma * q_over_m);
+    value_t bE = (context.p.dot(context.E)) / (context.gamma * q_over_m);
 
     value_t delta_p1 =
         m_cooling_coef *
         (((tmp2 * context.B[2] - tmp3 * context.B[1]) + bE * context.E[0]) /
              q_over_m -
-         context.gamma * context.p[0] * (tmp_sq - bE * bE)) / square(m_B0);
+         context.gamma * context.p[0] * (tmp_sq - bE * bE)) /
+        square(m_B0);
     value_t delta_p2 =
         m_cooling_coef *
         (((tmp3 * context.B[0] - tmp1 * context.B[2]) + bE * context.E[1]) /
              q_over_m -
-         context.gamma * context.p[1] * (tmp_sq - bE * bE)) / square(m_B0);
+         context.gamma * context.p[1] * (tmp_sq - bE * bE)) /
+        square(m_B0);
     value_t delta_p3 =
         m_cooling_coef *
         (((tmp1 * context.B[1] - tmp2 * context.B[0]) + bE * context.E[2]) /
              q_over_m -
-         context.gamma * context.p[2] * (tmp_sq - bE * bE)) / square(m_B0);
+         context.gamma * context.p[2] * (tmp_sq - bE * bE)) /
+        square(m_B0);
 
     context.p[0] += delta_p1 * dt / context.gamma;
     context.p[1] += delta_p2 * dt / context.gamma;
@@ -84,9 +84,10 @@ class phys_policy_sync_cooling {
     context.gamma = sqrt(1.0f + p_sqr);
 
     // pitch angle
-    value_t mu = context.p.dot(context.B) / math::sqrt(p_sqr) / math::sqrt(context.B.dot(context.B));
-    printf("pitch angle is %f, gamma is %f, beta_para is %f\n", acos(mu), context.gamma,
-           math::sqrt(p_sqr) / context.gamma * mu);
+    value_t mu = context.p.dot(context.B) / math::sqrt(p_sqr) /
+                 math::sqrt(context.B.dot(context.B));
+    printf("pitch angle is %f, gamma is %f, beta_para is %f\n", acos(mu),
+           context.gamma, math::sqrt(p_sqr) / context.gamma * mu);
   }
 
  private:
@@ -95,6 +96,3 @@ class phys_policy_sync_cooling {
 };
 
 }  // namespace Aperture
-
-
-#endif  // _PHYS_POLICY_SYNC_COOLING_H_

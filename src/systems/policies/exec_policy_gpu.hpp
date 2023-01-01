@@ -15,14 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __EXEC_POLICY_GPU_H_
-#define __EXEC_POLICY_GPU_H_
+#pragma once
 
 #include "core/constant_mem.h"
 #include "core/constant_mem_func.h"
 #include "core/cuda_control.h"
-#include "core/exec_tags.h"
 #include "core/data_adapter.h"
+#include "core/exec_tags.h"
 #include "systems/grid.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -63,7 +62,7 @@ class exec_policy_gpu {
     return dev_grid<Conf::dim, typename Conf::value_t>();
 #else
     return Grid<Conf::dim, typename Conf::value_t>{};
-#endif 
+#endif
   }
 
   static MemType data_mem_type() { return MemType::host_device; }
@@ -76,5 +75,3 @@ class exec_policy_gpu {
 // using exec_policy_gpu = singleton_holder<exec_policy_gpu_impl>;
 
 }  // namespace Aperture
-
-#endif  // __EXEC_POLICY_GPU_H_

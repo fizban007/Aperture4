@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __EXEC_POLICY_OPENMP_H_
-#define __EXEC_POLICY_OPENMP_H_
+#pragma once
 
 #include "exec_policy_host.hpp"
 #include <omp.h>
@@ -27,15 +26,14 @@ template <typename Conf>
 class exec_policy_openmp : public exec_policy_host<Conf> {
  public:
   template <typename Func, typename Idx, typename... Args>
-  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f, Args&&... args) {
+  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f,
+                   Args&&... args) {
 #pragma omp parallel for
     for (auto idx = begin; idx < end; idx++) {
-    // for (auto idx : range(begin, end)) {
+      // for (auto idx : range(begin, end)) {
       // f.operator()(idx, args...);
 #ifdef __INTEL_COMPILER
-      auto lam = [f, idx] LAMBDA (Args&&... args) {
-	f(idx, args...);
-      };
+      auto lam = [f, idx] LAMBDA(Args && ... args) { f(idx, args...); };
       lam(args...);
 #else
       f(idx, args...);
@@ -48,5 +46,3 @@ class exec_policy_openmp : public exec_policy_host<Conf> {
 // using exec_policy_host = singleton_holder<exec_policy_host_impl<Conf>>;
 
 }  // namespace Aperture
-
-#endif  // __EXEC_POLICY_OPENMP_H_

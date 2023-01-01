@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _FIELD_SOLVER_BASE_H_
-#define _FIELD_SOLVER_BASE_H_
+#pragma once
 
 #include "data/fields.h"
 #include "framework/environment.h"
@@ -67,5 +66,3 @@ class field_solver_base : public system_t {
 };
 
 }  // namespace Aperture
-
-#endif  // _FIELD_SOLVER_BASE_H_

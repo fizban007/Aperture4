@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __METRIC_BL_H_
-#define __METRIC_BL_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -69,13 +68,13 @@ Sigma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 
 HD_INLINE Scalar
 gu00(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  Scalar a2r2 = a*a + r*r;
+  Scalar a2r2 = a * a + r * r;
   return -1.0f - 2.0f * r * a2r2 / (a2r2 - 2.0f * r) / rho2(a, r, sth, cth);
 }
 
 HD_INLINE Scalar
 gu11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return (a*a + r*r - 2.0f*r) / rho2(a, r, sth, cth);
+  return (a * a + r * r - 2.0f * r) / rho2(a, r, sth, cth);
 }
 
 HD_INLINE Scalar
@@ -86,17 +85,14 @@ gu22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 HD_INLINE Scalar
 gu33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   Scalar rho2v = rho2(a, r, sth, cth);
-  return (rho2v - 2.0f * r) / (a*a + r*r - 2.0f*r) / rho2v / square(sth);
+  return (rho2v - 2.0f * r) / (a * a + r * r - 2.0f * r) / rho2v / square(sth);
 }
 
 HD_INLINE Scalar
 gu03(Scalar a, Scalar r, Scalar sth, Scalar cth) {
-  return -2.0f * a * r / (a*a + r*r - 2.0*r) / rho2(a, r, sth, cth);
+  return -2.0f * a * r / (a * a + r * r - 2.0 * r) / rho2(a, r, sth, cth);
 }
 
-}
+}  // namespace Metric_BL
 
-}
-
-
-#endif // __METRIC_BL_H_
+}  // namespace Aperture

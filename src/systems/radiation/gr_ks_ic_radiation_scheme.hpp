@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GR_KS_IC_RADIATION_SCHEME_H_
-#define _GR_KS_IC_RADIATION_SCHEME_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -51,7 +50,8 @@ struct gr_ks_ic_radiation_scheme {
     Spectra::broken_power_law spec(1.25, 1.1, emin, 1.0e-10, 0.1);
 
     auto ic = sim_env().register_system<inverse_compton_t>();
-    // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 / ic_path);
+    // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 /
+    // ic_path);
     ic->compute_coefficients(spec, spec.emin(), spec.emax());
 
     m_ic_module = ic->get_ic_module();
@@ -60,8 +60,8 @@ struct gr_ks_ic_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rand_state &state,
-                                 value_t dt) {
+                                 unsigned long long int *ph_pos,
+                                 rand_state &state, value_t dt) {
     // First obtain the global position of the particle
     vec_t<value_t, 3> x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
     auto idx = Conf::idx(ptc.cell[tid], ext);
@@ -159,7 +159,8 @@ struct gr_ks_ic_radiation_scheme {
     ptc.p3[tid] -= ph.p3[offset];
     // Note: not necessary to write ptc.E[tid] since we really don't use it at
     // all
-    // printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
+    // printf("particle u_i is now (%f, %f, %f)\n", ptc.p1[tid], ptc.p2[tid],
+    // ptc.p3[tid]);
 
     return offset;
   }
@@ -167,8 +168,8 @@ struct gr_ks_ic_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rand_state &state,
-                                  value_t dt) {
+                                  unsigned long long int *ptc_pos,
+                                  rand_state &state, value_t dt) {
     // First obtain the global position of the photon
     vec_t<value_t, 3> x(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
     auto idx = Conf::idx(ph.cell[tid], ext);
@@ -250,5 +251,3 @@ struct gr_ks_ic_radiation_scheme {
 };
 
 }  // namespace Aperture
-
-#endif  // _GR_KS_IC_RADIATION_SCHEME_H_

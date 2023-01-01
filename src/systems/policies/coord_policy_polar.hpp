@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef COORD_POLICY_POLAR_H_
-#define COORD_POLICY_POLAR_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -57,10 +56,8 @@ class coord_policy_polar {
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
   HD_INLINE void update_ptc(const Grid<Conf::dim, value_t>& grid,
-                            const extent_t<Conf::dim>& ext,
-                            PtcContext& context,
-                            index_t<Conf::dim>& pos,
-                            value_t dt) const {
+                            const extent_t<Conf::dim>& ext, PtcContext& context,
+                            index_t<Conf::dim>& pos, value_t dt) const {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       default_pusher pusher;
 
@@ -78,9 +75,10 @@ class coord_policy_polar {
                           PtcContext& context, index_t<Conf::dim>& pos,
                           value_t dt) const {
     // Global position in polar coord
-    vec_t<value_t, 3> x_global_old(grid.template coord<0>(pos[0], context.x[0]),
-                                   grid.template coord<1>(pos[1], context.x[1]),
-                                   grid.template coord<2>(pos[2], context.x[2]));
+    vec_t<value_t, 3> x_global_old(
+        grid.template coord<0>(pos[0], context.x[0]),
+        grid.template coord<1>(pos[1], context.x[1]),
+        grid.template coord<2>(pos[2], context.x[2]));
     vec_t<value_t, 3> x_global_pol(x1(x_global_old[0]), x2(x_global_old[1]),
                                    x3(x_global_old[2]));
 
@@ -101,10 +99,12 @@ class coord_policy_polar {
     // Compute the new polar coord location
     vec_t<value_t, 3> x_global_pol_new;
     x_global_pol_new[2] = x_global_cart[2];
-    x_global_pol_new[0] = math::sqrt(square(x_global_cart[0]) + square(x_global_cart[1]));
+    x_global_pol_new[0] =
+        math::sqrt(square(x_global_cart[0]) + square(x_global_cart[1]));
     x_global_pol_new[1] = math::atan2(x_global_cart[1], x_global_cart[0]);
 
-    // Transform the momentum vector to polar coorpolar coord at the new location
+    // Transform the momentum vector to polar coorpolar coord at the new
+    // location
     cart2polar(context.p, x_global_pol_new);
     x_global_pol_new[0] = grid_type::from_radius(x_global_pol_new[0]);
     x_global_pol_new[1] = grid_type::from_theta(x_global_pol_new[1]);
@@ -138,32 +138,32 @@ class coord_policy_polar {
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     ExecPolicy::launch(
-        [dt, num_species, process_rho] LAMBDA(auto j, auto rho, auto grid_ptrs) {
+        [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
+                                              auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
           // grid.cell_size() is simply the product of all deltas
           auto w = grid.cell_size();
-          ExecPolicy::loop(
-              Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-                auto pos = get_pos(idx, ext);
+          ExecPolicy::loop(Conf::begin(ext), Conf::end(ext),
+                           [&] LAMBDA(auto idx) {
+                             auto pos = get_pos(idx, ext);
 
-                j[0][idx] *= w / grid_ptrs.Ae[0][idx];
-                j[1][idx] *= w / grid_ptrs.Ae[1][idx];
+                             j[0][idx] *= w / grid_ptrs.Ae[0][idx];
+                             j[1][idx] *= w / grid_ptrs.Ae[1][idx];
 
-                // Would be nice to turn this into constexpr, but this will do
-                // as well
-                // if (Conf::dim == 2)
-                //   j[2][idx] /= grid_ptrs.dV[idx];
-                // else if (Conf::dim == 3)
-                typename Conf::value_t theta =
-                    grid.template coord<1>(pos[1], true);
-                j[2][idx] *= w / grid_ptrs.Ae[2][idx];
+                             // Would be nice to turn this into constexpr, but
+                             // this will do as well if (Conf::dim == 2)
+                             //   j[2][idx] /= grid_ptrs.dV[idx];
+                             // else if (Conf::dim == 3)
+                             typename Conf::value_t theta =
+                                 grid.template coord<1>(pos[1], true);
+                             j[2][idx] *= w / grid_ptrs.Ae[2][idx];
 
-                for (int n = 0; n < num_species; n++) {
-                  rho[n][idx] /= grid_ptrs.dV[idx];
-                }
-              });
-              // j, rho, grid_ptrs);
+                             for (int n = 0; n < num_species; n++) {
+                               rho[n][idx] /= grid_ptrs.dV[idx];
+                             }
+                           });
+          // j, rho, grid_ptrs);
         },
         J, Rho, m_grid.get_grid_ptrs());
     ExecPolicy::sync();
@@ -194,5 +194,3 @@ class coord_policy_polar {
 };
 
 }  // namespace Aperture
-
-#endif // COORD_POLICY_POLAR_H_

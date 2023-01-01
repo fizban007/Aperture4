@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIELD_FILTER_H_
-#define __FIELD_FILTER_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 
@@ -106,8 +105,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
         ExecPolicy::loop(
-            Idx_t(0, ext), Idx_t(ext.size(), ext),
-            [&] LAMBDA(auto idx) {
+            Idx_t(0, ext), Idx_t(ext.size(), ext), [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
@@ -123,7 +121,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                 }
               }
             });
-            // result, f);
+        // result, f);
       },
       tmp, field);
   ExecPolicy::sync();
@@ -163,7 +161,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                 }
               }
             });
-            // result, f, factor);
+        // result, f, factor);
       },
       tmp, field, geom_factor);
   ExecPolicy::sync();
@@ -172,5 +170,3 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
 }
 
 }  // namespace Aperture
-
-#endif  // __FIELD_FILTER_H_

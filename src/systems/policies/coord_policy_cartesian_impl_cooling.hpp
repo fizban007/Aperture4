@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _COORD_POLICY_CARTESIAN_IMPL_COOLING_H_
-#define _COORD_POLICY_CARTESIAN_IMPL_COOLING_H_
+#pragma once
 
 #include "coord_policy_cartesian.hpp"
 #include "data/fields.h"
@@ -150,14 +149,14 @@ class coord_policy_cartesian_impl_cooling
 
         auto aL = context.E + cross(context.p, context.B) / context.gamma;
         auto p = math::sqrt(context.p.dot(context.p));
-        auto aL_perp =
-            cross(aL, context.p) / p;
+        auto aL_perp = cross(aL, context.p) / p;
         value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
-        value_t eph =
-            m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ, *context.local_state);
+        value_t eph = m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ,
+                                             *context.local_state);
         if (eph > math::exp(m_lim_lower)) {
-          value_t log_eph = clamp(math::log(std::max(eph, math::exp(m_lim_lower))),
-                                  m_lim_lower, m_lim_upper);
+          value_t log_eph =
+              clamp(math::log(std::max(eph, math::exp(m_lim_lower))),
+                    m_lim_lower, m_lim_upper);
           auto ext_out = grid.extent_less() / m_downsample;
           auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
           index_t<Conf::dim + 1> pos_out(0,
@@ -244,5 +243,3 @@ class coord_policy_cartesian_impl_cooling
 };
 
 }  // namespace Aperture
-
-#endif  // _COORD_POLICY_CARTESIAN_IMPL_COOLING_H_

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_
-#define _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -25,9 +24,9 @@
 #include "data/phase_space.hpp"
 #include "framework/environment.h"
 #include "systems/grid.h"
-#include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/physics/curvature_emission.hpp"
 #include "systems/physics/sync_emission_helper.hpp"
+#include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/sync_curv_emission.h"
 #include "utils/interpolation.hpp"
 #include "utils/util_functions.h"
@@ -40,10 +39,11 @@ struct curvature_emission_scheme_gca_lite {
 
   const grid_t<Conf> &m_grid;
   sync_emission_helper_t m_sync_module;
-  value_t m_BQ = 1.0e7;    // B_Q determines the spectrum
+  value_t m_BQ = 1.0e7;  // B_Q determines the spectrum
   value_t m_e0 = 1.0e-6;
   value_t m_nc = 1.0;
-  value_t m_re = 3.0 * m_e0 * m_nc / 2.0;   // r_e determines the overall curvature loss rate
+  value_t m_re = 3.0 * m_e0 * m_nc /
+                 2.0;  // r_e determines the overall curvature loss rate
   value_t m_zeta = 7.0;
   value_t m_rpc = 1.0;  // r_pc is the polar cap radius
   value_t m_Rstar = 10.0;
@@ -53,8 +53,7 @@ struct curvature_emission_scheme_gca_lite {
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B0;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;
 
-  curvature_emission_scheme_gca_lite(const grid_t<Conf> &grid)
-      : m_grid(grid) {}
+  curvature_emission_scheme_gca_lite(const grid_t<Conf> &grid) : m_grid(grid) {}
 
   void init() {
     // initialize the spectrum related parameters
@@ -106,15 +105,16 @@ struct curvature_emission_scheme_gca_lite {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rand_state &state,
-                                 value_t dt) {
+                                 unsigned long long int *ph_pos,
+                                 rand_state &state, value_t dt) {
     auto flag = ptc.flag[tid];
     if (check_flag(flag, PtcFlag::ignore_radiation)) {
       return 0;
     }
 
     value_t gamma = ptc.E[tid];
-    value_t p_par = ptc.p1[tid]; // Note that this only works for the gca pusher lite
+    value_t p_par =
+        ptc.p1[tid];  // Note that this only works for the gca pusher lite
 
     if (gamma < m_gamma_thr) {
       return 0;
@@ -151,12 +151,13 @@ struct curvature_emission_scheme_gca_lite {
     // value_t p1 = p_par * B[0] / B_mag;
     // value_t p2 = p_par * B[1] / B_mag;
     // value_t p3 = p_par * B[2] / B_mag;
-    value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
+    value_t p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
     // printf("emit_photon, p is (%f, %f, %f), %f\n", p1, p2, p3, p);
 
     // Rc is computed in units of Rstar, we renormalize it to rpc units
     value_t Rc = dipole_curv_radius_above_polar_cap(x_global[0], x_global[1],
-                                                    x_global[2]) * (m_Rstar / m_rpc);
+                                                    x_global[2]) *
+                 (m_Rstar / m_rpc);
 
     // printf("x_global[2] is %f, Rc is %f\n", x_global[2], Rc);
 
@@ -187,8 +188,8 @@ struct curvature_emission_scheme_gca_lite {
       // printf("e_c is %f, eph is %f\n", e_c, eph);
 
       // // New particle p_parallel
-      // value_t p_ph_par = eph * (p1 * B[0] + p2 * B[1] + p3 * B[2]) / p / B_mag;
-      // value_t u_par_new = p_par - p_ph_par;
+      // value_t p_ph_par = eph * (p1 * B[0] + p2 * B[1] + p3 * B[2]) / p /
+      // B_mag; value_t u_par_new = p_par - p_ph_par;
 
       // Compute new particle energy and p_parallel
       value_t Ef = gamma - eph;
@@ -199,8 +200,8 @@ struct curvature_emission_scheme_gca_lite {
         eph = gamma - kappa;
       }
 
-      value_t u_par_new =
-          sgn(p_par) * math::sqrt(square(Ef / kappa) - 1.0f - 2.0f * mu * kappa);
+      value_t u_par_new = sgn(p_par) * math::sqrt(square(Ef / kappa) - 1.0f -
+                                                  2.0f * mu * kappa);
 
       ptc.p1[tid] = u_par_new;
       ptc.E[tid] = Ef;
@@ -210,13 +211,14 @@ struct curvature_emission_scheme_gca_lite {
       // TODO: Refine criterion for photon to potentially convert to pair
       // if (eph > 2.1f) {
       // value_t sinth_max = grid.sizes[2] / Rc;
-      value_t sinth_max = 2.0f / Rc; // FIXME: 2.0f is out of blue
-      value_t chi_max = 0.5 * eph * m_zeta * B_mag/m_BQ * sinth_max;
+      value_t sinth_max = 2.0f / Rc;  // FIXME: 2.0f is out of blue
+      value_t chi_max = 0.5 * eph * m_zeta * B_mag / m_BQ * sinth_max;
       value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
-                            square(x_global[2] + 1.0f));
+                             square(x_global[2] + 1.0f));
       value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
-      // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
-      // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
+      // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1],
+      // x_global[2]); printf("r is %f, r_max is %f, rlc is %f\n", r,
+      // r_max, 1.0f / m_omega);
       if (r_max < 1.1f / m_omega) {
         // || p[2] < 0.0f) {
         return 0;
@@ -247,8 +249,8 @@ struct curvature_emission_scheme_gca_lite {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rand_state &state,
-                                  value_t dt) {
+                                  unsigned long long int *ptc_pos,
+                                  rand_state &state, value_t dt) {
     // Get the magnetic field vector at the particle location
     auto cell = ph.cell[tid];
     auto idx = Conf::idx(cell, ext);
@@ -260,39 +262,44 @@ struct curvature_emission_scheme_gca_lite {
     auto x_global = grid.coord_global(pos, x) * (m_rpc / m_Rstar);
 
     value_t r = math::sqrt(square(x_global[0]) + square(x_global[1]) +
-                          square(x_global[2] + 1.0f));
+                           square(x_global[2] + 1.0f));
     value_t r_max = r / (1.0f - square((x_global[2] + 1.0f) / r));
     if (r_max < 1.1f / m_omega) {
       return 0;
     }
     // if (x_global[2] <= (grid.guard[2] + 5) * grid.delta[2] || p[2] < 0.0f) {
     if (x_global[2] * m_Rstar / m_rpc <= (grid.guard[2] + 1) * grid.delta[2]) {
-    // if (x_global[2] * m_Rstar / m_rpc <= (grid.guard[2] + 1) * grid.delta[2] ||
-    //     x_global[2] * m_Rstar / m_rpc > 3.0f) {
-    // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
-        // || r_max / m_Rstar < 1.2f / m_omega) {
-        // || p[2] < 0.0f) {
+      // if (x_global[2] * m_Rstar / m_rpc <= (grid.guard[2] + 1) *
+      // grid.delta[2] ||
+      //     x_global[2] * m_Rstar / m_rpc > 3.0f) {
+      // if (x_global[2] <= (grid.guard[2] + 1) * grid.delta[2]
+      // || r_max / m_Rstar < 1.2f / m_omega) {
+      // || p[2] < 0.0f) {
       return 0;
     }
 
-    // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1], x_global[2]);
-    // printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f / m_omega);
+    // printf("x_global is %f, %f, %f\n", x_global[0], x_global[1],
+    // x_global[2]); printf("r is %f, r_max is %f, rlc is %f\n", r, r_max, 1.0f
+    // / m_omega);
     vec_t<value_t, 3> B;
     auto interp = interp_t<1, Conf::dim>{};
     B[0] = interp(x, m_B[0], idx, ext, stagger_t(0b001));
     B[1] = interp(x, m_B[1], idx, ext, stagger_t(0b010));
     B[2] = interp(x, m_B[2], idx, ext, stagger_t(0b100));
 
-    // Compute the angle between photon and B field and compute the quantum parameter chi
-    // value_t chi = quantum_chi(p, B, m_BQ);
+    // Compute the angle between photon and B field and compute the quantum
+    // parameter chi value_t chi = quantum_chi(p, B, m_BQ);
     value_t B_mag = math::sqrt(B.dot(B));
     value_t eph = ph.E[tid];
     auto pxB = cross(p, B);
     auto pdotB = p.dot(B);
     value_t sinth = math::abs(math::sqrt(pxB.dot(pxB)) / B_mag / eph);
-    // Note here that eph is multiplied by zeta. This is rescaling parameter in action
-    value_t prob = magnetic_pair_production_rate(B_mag/m_BQ, m_zeta * eph, sinth, m_rpc / m_Rstar) * dt;
-    value_t chi = 0.5f * m_zeta * eph * B_mag/m_BQ * sinth;
+    // Note here that eph is multiplied by zeta. This is rescaling parameter in
+    // action
+    value_t prob = magnetic_pair_production_rate(B_mag / m_BQ, m_zeta * eph,
+                                                 sinth, m_rpc / m_Rstar) *
+                   dt;
+    value_t chi = 0.5f * m_zeta * eph * B_mag / m_BQ * sinth;
 
     value_t u = rng_uniform<value_t>(state);
     // if (u < prob && eph * sinth * m_zeta > 2.01f) {
@@ -302,8 +309,10 @@ struct curvature_emission_scheme_gca_lite {
       size_t offset_p = offset_e + 1;
 
       // value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * eph;
-      value_t p_ptc = math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(pdotB) / B_mag;
-      // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f, p_ptc is %f\n", sinth, ph.path_left[tid], eph, prob,
+      value_t p_ptc =
+          math::sqrt(0.25f - 1.0f / square(eph)) * math::abs(pdotB) / B_mag;
+      // printf("sinth is %f, path is %f, eph is %f, prob is %f, chi is %f,
+      // p_ptc is %f\n", sinth, ph.path_left[tid], eph, prob,
       //        0.5f * eph * B_mag/m_BQ * sinth * m_zeta, p_ptc);
       // Immediately cool to zero magnetic moment and reduce Lorentz factor as
       // needed
@@ -347,5 +356,3 @@ struct curvature_emission_scheme_gca_lite {
 };
 
 }  // namespace Aperture
-
-#endif  // _CURVATURE_EMISSION_SCHEME_GCA_LITE_H_

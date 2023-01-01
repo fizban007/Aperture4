@@ -15,11 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _COORD_POLICY_CARTESIAN_GCA_LITE_H_
-#define _COORD_POLICY_CARTESIAN_GCA_LITE_H_
+#pragma once
 
-#include "core/typedefs_and_constants.h"
 #include "coord_policy_cartesian.hpp"
+#include "core/typedefs_and_constants.h"
 #include "utils/interpolation.hpp"
 
 namespace Aperture {
@@ -58,7 +57,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     // w_E[0] = (E[1] * B[2] - E[2] * B[1]) / EB_sqr;
     // w_E[1] = (E[2] * B[0] - E[0] * B[2]) / EB_sqr;
     // w_E[2] = (E[0] * B[1] - E[1] * B[0]) / EB_sqr;
-    vec_t<value_t,3 > w_E = cross(E, B) / EB_sqr;
+    vec_t<value_t, 3> w_E = cross(E, B) / EB_sqr;
     value_t w2 = w_E.dot(w_E);
     if (w2 < TINY) {
       return w_E;
@@ -74,8 +73,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     return 1.0f / math::sqrt(std::max(1.0f - vE.dot(vE), TINY));
   }
 
-  HD_INLINE static value_t f_Gamma(value_t u_par, value_t mu,
-                                   value_t B_mag,
+  HD_INLINE static value_t f_Gamma(value_t u_par, value_t mu, value_t B_mag,
                                    const vec_t<value_t, 3>& vE) {
     auto k = 1.0f / math::sqrt(std::max(1.0f - vE.dot(vE), TINY));
     // Note that here mu is defined as specific mu, or mu divided by mass of the
@@ -145,7 +143,8 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     // Need to update this because we are going to use this in the iteration
     context.gamma = Gamma_new;
 
-    // printf("u_par_new is %f, Gamma_new is %f, E_par is %f\n", u_par_new, Gamma_new, E_par);
+    // printf("u_par_new is %f, Gamma_new is %f, E_par is %f\n", u_par_new,
+    // Gamma_new, E_par);
 
     auto x_global = grid.coord_global(pos, context.x);
     auto x_iter = x_global;
@@ -160,10 +159,10 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
       value_t B_mag_iter = math::sqrt(B_iter.dot(B_iter));
       vec_t<value_t, 3> vE_iter = f_v_E(E_iter, B_iter);
 
-      vec_t<value_t, 3> dx = 0.5f * dt * u_par_new *
-                                 (b / Gamma_new +
-                                  B_iter / (context.gamma * B_mag_iter)) +
-                             0.5f * dt * (vE + vE_iter);
+      vec_t<value_t, 3> dx =
+          0.5f * dt * u_par_new *
+              (b / Gamma_new + B_iter / (context.gamma * B_mag_iter)) +
+          0.5f * dt * (vE + vE_iter);
       x_iter = x_global + dx;
       // printf("x_iter is (%f, %f, %f)\n", x_iter[0], x_iter[1], x_iter[2]);
 
@@ -172,12 +171,18 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
       auto idx_iter = Conf::idx(pos_iter, ext);
 
       // Interpolate the E and B field at the new position
-      E_iter[0] = interp(context.new_x, m_E[0], idx_iter, ext, stagger_t(0b110));
-      E_iter[1] = interp(context.new_x, m_E[1], idx_iter, ext, stagger_t(0b101));
-      E_iter[2] = interp(context.new_x, m_E[2], idx_iter, ext, stagger_t(0b011));
-      B_iter[0] = interp(context.new_x, m_B[0], idx_iter, ext, stagger_t(0b001));
-      B_iter[1] = interp(context.new_x, m_B[1], idx_iter, ext, stagger_t(0b010));
-      B_iter[2] = interp(context.new_x, m_B[2], idx_iter, ext, stagger_t(0b100));
+      E_iter[0] =
+          interp(context.new_x, m_E[0], idx_iter, ext, stagger_t(0b110));
+      E_iter[1] =
+          interp(context.new_x, m_E[1], idx_iter, ext, stagger_t(0b101));
+      E_iter[2] =
+          interp(context.new_x, m_E[2], idx_iter, ext, stagger_t(0b011));
+      B_iter[0] =
+          interp(context.new_x, m_B[0], idx_iter, ext, stagger_t(0b001));
+      B_iter[1] =
+          interp(context.new_x, m_B[1], idx_iter, ext, stagger_t(0b010));
+      B_iter[2] =
+          interp(context.new_x, m_B[2], idx_iter, ext, stagger_t(0b100));
       context.gamma = f_Gamma(u_par_new, mu, B_mag_iter, vE_iter);
     }
 
@@ -202,5 +207,3 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
 };
 
 }  // namespace Aperture
-
-#endif  // _COORD_POLICY_CARTESIAN_GCA_LITE_H_

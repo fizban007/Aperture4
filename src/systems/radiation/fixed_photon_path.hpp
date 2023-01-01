@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIXED_PHOTON_PATH_H_
-#define __FIXED_PHOTON_PATH_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -83,11 +82,10 @@ struct fixed_photon_path {
     ph.cell[offset] = ptc.cell[tid];
   }
 
-  HD_INLINE bool check_produce_pair(ph_ptrs& ph, size_t tid, rand_state& state) {
+  HD_INLINE bool check_produce_pair(ph_ptrs& ph, size_t tid,
+                                    rand_state& state) {
     return ph.path_left[tid] < 0.0f;
   }
 };
 
 }  // namespace Aperture
-
-#endif  // __FIXED_PHOTON_PATH_H_

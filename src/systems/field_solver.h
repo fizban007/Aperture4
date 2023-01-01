@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _FIELD_SOLVER_H_
-#define _FIELD_SOLVER_H_
+#pragma once
 
 #include "field_solver_base.h"
 
@@ -25,9 +24,6 @@ namespace Aperture {
 // System that updates Maxwell equations
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy>
-class field_solver : public field_solver_base<Conf> {
-};
+class field_solver : public field_solver_base<Conf> {};
 
 }  // namespace Aperture
-
-#endif  // _FIELD_SOLVER_H_

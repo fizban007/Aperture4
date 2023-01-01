@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __IC_SCATTERING_H_
-#define __IC_SCATTERING_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -42,8 +41,7 @@ struct ic_scatter_t {
     auto result =
         upper_bound(u, array.dev_ptr().p + n * spec_ext[0], spec_ext[0]);
 #else
-    auto result =
-        upper_bound(u, array.ptr().p + n * spec_ext[0], spec_ext[0]);
+    auto result = upper_bound(u, array.ptr().p + n * spec_ext[0], spec_ext[0]);
 #endif
     if (result <= spec_ext[0] - 1) {
       l = array[idx + result - 1];
@@ -101,9 +99,7 @@ struct ic_scatter_t {
     return math::exp(n * dgamma);
   }
 
-  static HD_INLINE value_t ep(int n, value_t dep) {
-    return n * dep;
-  }
+  static HD_INLINE value_t ep(int n, value_t dep) { return n * dep; }
 
   static HD_INLINE value_t e_log(int n, value_t dloge, value_t min_e) {
     return min_e * math::exp(n * dloge);
@@ -118,5 +114,3 @@ struct ic_scatter_t {
 };
 
 }  // namespace Aperture
-
-#endif  // __IC_SCATTERING_H_

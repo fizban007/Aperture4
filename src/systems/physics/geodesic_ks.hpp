@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __GEODESIC_KS_H_
-#define __GEODESIC_KS_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -105,5 +104,3 @@ geodesic_ks_x_rhs(value_t a, const vec_t<value_t, 3>& x,
 }
 
 }  // namespace Aperture
-
-#endif  // __GEODESIC_KS_H_

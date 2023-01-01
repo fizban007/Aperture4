@@ -15,19 +15,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CURVATURE_EMISSION_H_
-#define CURVATURE_EMISSION_H_
+#pragma once
 
 #include "core/gpu_translation_layer.h"
-#include "core/typedefs_and_constants.h"
 #include "core/math.hpp"
+#include "core/typedefs_and_constants.h"
 
 namespace Aperture {
 
 HD_INLINE Scalar
 dipole_curv_radius(Scalar r, Scalar th) {
-  Scalar sinth =
-      std::max(math::sin(th), (Scalar)1.0e-5);  // Avoid the fringe case of sinth = 0
+  Scalar sinth = std::max(
+      math::sin(th), (Scalar)1.0e-5);  // Avoid the fringe case of sinth = 0
   Scalar costh2 = 1.0f - sinth * sinth;
   Scalar tmp = 1.0f + 3.0f * costh2;
   Scalar Rc = r * tmp * math::sqrt(tmp) / (3.0f * sinth * (1.0f + costh2));
@@ -44,13 +43,13 @@ dipole_curv_radius_above_polar_cap(Scalar x, Scalar y, Scalar z) {
 }
 
 HD_INLINE Scalar
-magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth, Scalar Rpc_over_Rstar) {
-  // The coefficient is 0.23 * \alpha_f * R_pc / \labmdabar_c, seems no reason to rescale
-  // return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
-  return 4.35e13 * Rpc_over_Rstar * b * math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
+magnetic_pair_production_rate(Scalar b, Scalar eph, Scalar sinth,
+                              Scalar Rpc_over_Rstar) {
+  // The coefficient is 0.23 * \alpha_f * R_pc / \labmdabar_c, seems no reason
+  // to rescale return 4.35e13 * b * sinth * math::exp(-4.0f / 3.0f / (0.5f *
+  // eph * b * sinth));
+  return 4.35e13 * Rpc_over_Rstar * b *
+         math::exp(-4.0f / 3.0f / (0.5f * eph * b * sinth));
 }
 
-}
-
-
-#endif // CURVATURE_EMISSION_H_
+}  // namespace Aperture

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __GRAVITY_H_
-#define __GRAVITY_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -26,8 +25,8 @@ namespace Aperture {
 
 template <typename Scalar>
 HD_INLINE void
-gravity(Scalar& p1, Scalar p2, Scalar p3, Scalar& gamma, Scalar r,
-        Scalar dt, Scalar g0, Scalar q_over_m) {
+gravity(Scalar& p1, Scalar p2, Scalar p3, Scalar& gamma, Scalar r, Scalar dt,
+        Scalar g0, Scalar q_over_m) {
   // Add an artificial gravity
   p1 -= dt * g0 / (r * r * math::abs(q_over_m));
   gamma = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
@@ -41,7 +40,4 @@ gravity(Scalar& p1, Scalar p2, Scalar p3, Scalar& gamma, Scalar r,
   // }
 }
 
-
-}
-
-#endif // __GRAVITY_H_
+}  // namespace Aperture

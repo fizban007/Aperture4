@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _COORD_POLICY_CARTESIAN_GCA_H_
-#define _COORD_POLICY_CARTESIAN_GCA_H_
+#pragma once
 
 #include "coord_policy_cartesian.hpp"
 #include "utils/interpolation.hpp"
@@ -70,7 +69,8 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
     return 1.0f / math::sqrt(1.0f - vE.dot(vE));
   }
 
-  HD_INLINE value_t f_Gamma(value_t u_par, value_t mu, const vec_t<value_t, 3>& E,
+  HD_INLINE value_t f_Gamma(value_t u_par, value_t mu,
+                            const vec_t<value_t, 3>& E,
                             const vec_t<value_t, 3>& B) const {
     auto k = f_kappa(E, B);
     auto B_mag = math::sqrt(B.dot(B));
@@ -82,20 +82,16 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
   // This computes (\mathbf{v} \cdot\div)\mathbf{b}, the change of the
   // unit vector b along the direction of v
   template <typename FieldType>
-  HOST_DEVICE vec_t<value_t, 3> vec_div_b(const vec_t<value_t, 3>& v,
-                                          const FieldType& B,
-                                          vec_t<value_t, 3> rel_x,
-                                          index_t<Conf::dim> pos,
-                                          const Grid<Conf::dim, value_t>& grid,
-                                          const vec_t<uint32_t, Conf::dim>& ext,
-                                          value_t dt) const {
+  HOST_DEVICE vec_t<value_t, 3> vec_div_b(
+      const vec_t<value_t, 3>& v, const FieldType& B, vec_t<value_t, 3> rel_x,
+      index_t<Conf::dim> pos, const Grid<Conf::dim, value_t>& grid,
+      const vec_t<uint32_t, Conf::dim>& ext, value_t dt) const {
     constexpr value_t h = 0.05f;
     vec_t<value_t, 3> vb, result;
 
     auto dv = v * (h * dt) / math::sqrt(v.dot(v));
     auto x_global = grid.coord_global(pos, rel_x);
     grid.from_global(x_global + dv, pos, rel_x);
-
 
     auto idx = Conf::idx(pos, ext);
     auto interp = interp_t<Conf::interp_order, Conf::dim>{};
@@ -116,14 +112,11 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
     return result / (2.0f * h * dt);
   }
 
-  HOST_DEVICE vec_t<value_t, 3> f_v_c(value_t u_par, value_t mu,
-                                      const vec_t<value_t, 3>& E,
-                                      const vec_t<value_t, 3>& B,
-                                      const vec_t<value_t, 3>& x_rel,
-                                      const index_t<Conf::dim>& pos,
-                                      const Grid<Conf::dim, value_t>& grid,
-                                      const extent_t<Conf::dim>& ext,
-                                      value_t dt, value_t q_over_m) const {
+  HOST_DEVICE vec_t<value_t, 3> f_v_c(
+      value_t u_par, value_t mu, const vec_t<value_t, 3>& E,
+      const vec_t<value_t, 3>& B, const vec_t<value_t, 3>& x_rel,
+      const index_t<Conf::dim>& pos, const Grid<Conf::dim, value_t>& grid,
+      const extent_t<Conf::dim>& ext, value_t dt, value_t q_over_m) const {
     vec_t<value_t, 3> result;
     auto B_mag = math::sqrt(B.dot(B));
     auto b = B / B_mag;
@@ -156,28 +149,35 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
                               value_t dt) const {
     vec_t<value_t, 3> vE = f_v_E(context.E, context.B);
     value_t kappa = 1.0f / math::sqrt(1.0f - vE.dot(vE));
-    value_t u_par = math::sqrt(context.p.dot(context.p)) * sgn(context.p.dot(context.B));
+    value_t u_par =
+        math::sqrt(context.p.dot(context.p)) * sgn(context.p.dot(context.B));
     value_t B_mag = math::sqrt(context.B.dot(context.B));
 
     vec_t<value_t, 3> b = context.B / B_mag;
     value_t E_par = context.E.dot(b);
 
     value_t Gamma = f_Gamma(u_par, context.aux1, context.E, context.B);
-    value_t vE_b_divb = vE.dot(vec_div_b(b, m_B, context.x, pos, grid, ext, dt));
-    value_t vE_vE_divb = vE.dot(vec_div_b(vE, m_B, context.x, pos, grid, ext, dt));
+    value_t vE_b_divb =
+        vE.dot(vec_div_b(b, m_B, context.x, pos, grid, ext, dt));
+    value_t vE_vE_divb =
+        vE.dot(vec_div_b(vE, m_B, context.x, pos, grid, ext, dt));
 
     value_t u_par_prime = u_par * (1.0f + 0.5f * dt * vE_b_divb) +
-        context.q / context.m * dt * E_par + 0.5f * dt * Gamma * vE_vE_divb;
+                          context.q / context.m * dt * E_par +
+                          0.5f * dt * Gamma * vE_vE_divb;
     // solve for Gamma at the next step
-    value_t k1 = 0.25f * dt * square(vE_vE_divb) - square((1.0f - 0.5f * dt * vE_b_divb) / kappa);
+    value_t k1 = 0.25f * dt * square(vE_vE_divb) -
+                 square((1.0f - 0.5f * dt * vE_b_divb) / kappa);
     value_t k2 = u_par_prime * dt * vE_vE_divb;
     // TODO: should I divide by m?
-    value_t k3 = square(u_par_prime) + (1.0f + 2.0f * context.aux1 * B_mag * kappa) *
-        square(1.0f - 0.5f * dt * vE_b_divb);
-    value_t Gamma_prime = (math::sqrt(k2*k2 - 4.0f * k1 * k3) - k2) * 0.5f / k1;
+    value_t k3 =
+        square(u_par_prime) + (1.0f + 2.0f * context.aux1 * B_mag * kappa) *
+                                  square(1.0f - 0.5f * dt * vE_b_divb);
+    value_t Gamma_prime =
+        (math::sqrt(k2 * k2 - 4.0f * k1 * k3) - k2) * 0.5f / k1;
 
     value_t u_par_new = (u_par_prime + 0.5f * dt * Gamma_prime * vE_vE_divb) /
-        (1.0f - 0.5f * dt * vE_b_divb);
+                        (1.0f - 0.5f * dt * vE_b_divb);
     context.p[0] = u_par_new * context.B[0] / B_mag;
     context.p[1] = u_par_new * context.B[1] / B_mag;
     context.p[2] = u_par_new * context.B[2] / B_mag;
@@ -192,5 +192,3 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
 };
 
 }  // namespace Aperture
-
-#endif  // _COORD_POLICY_CARTESIAN_GCA_H_

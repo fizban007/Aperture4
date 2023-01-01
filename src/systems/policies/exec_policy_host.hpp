@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __EXEC_POLICY_HOST_H_
-#define __EXEC_POLICY_HOST_H_
+#pragma once
 
 #include "core/exec_tags.h"
 #include "core/multi_array.hpp"
@@ -34,9 +33,7 @@ class exec_policy_host {
  public:
   using exec_tag = exec_tags::host;
 
-  static void set_grid(const grid_t<Conf>& grid) {
-    m_grid = &grid;
-  }
+  static void set_grid(const grid_t<Conf>& grid) { m_grid = &grid; }
 
   template <typename Func, typename... Args>
   static void launch(const Func& f, Args&&... args) {
@@ -44,7 +41,8 @@ class exec_policy_host {
   }
 
   template <typename Func, typename Idx, typename... Args>
-  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f, Args&&... args) {
+  static void loop(Idx begin, type_identity_t<Idx> end, const Func& f,
+                   Args&&... args) {
     for (auto idx : range(begin, end)) {
       f(idx, args...);
     }
@@ -65,12 +63,10 @@ class exec_policy_host {
 };
 
 template <typename Conf>
-const Grid<Conf::dim, typename Conf::value_t>*
-exec_policy_host<Conf>::m_grid = nullptr;
+const Grid<Conf::dim, typename Conf::value_t>* exec_policy_host<Conf>::m_grid =
+    nullptr;
 
 // template <typename Conf>
 // using exec_policy_host = singleton_holder<exec_policy_host_impl<Conf>>;
 
 }  // namespace Aperture
-
-#endif  // __EXEC_POLICY_HOST_H_

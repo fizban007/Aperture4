@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef IC_RADIATION_SCHEME_H_
-#define IC_RADIATION_SCHEME_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -107,10 +106,9 @@ struct IC_radiation_scheme {
     ext[0] = m_num_bins;
     ext.get_strides();
 
-    auto photon_dist =
-        sim_env().register_data<phase_space<Conf, 1>>(
-            "photon_spectrum", m_grid, m_downsample, &m_num_bins,
-            &m_lim_lower, &m_lim_upper, true, MemType::host_device);
+    auto photon_dist = sim_env().register_data<phase_space<Conf, 1>>(
+        "photon_spectrum", m_grid, m_downsample, &m_num_bins, &m_lim_lower,
+        &m_lim_upper, true, MemType::host_device);
     m_spec_ptr = photon_dist->data.dev_ndptr();
     photon_dist->reset_after_output(true);
 
@@ -132,8 +130,8 @@ struct IC_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,
                                  const extent_t<Conf::dim> &ext, ptc_ptrs &ptc,
                                  size_t tid, ph_ptrs &ph, size_t ph_num,
-                                 unsigned long long int *ph_pos, rand_state &state,
-                                 value_t dt) {
+                                 unsigned long long int *ph_pos,
+                                 rand_state &state, value_t dt) {
     using idx_t = default_idx_t<Conf::dim + 1>;
     value_t gamma = ptc.E[tid];
     value_t p1 = ptc.p1[tid];
@@ -215,9 +213,9 @@ struct IC_radiation_scheme {
         int th_bin = round(th / M_PI * (m_ph_nth - 1));
         int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
         index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
-        atomic_add(&m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
-                   ptc.weight[tid]);
-
+        atomic_add(
+            &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
+            ptc.weight[tid]);
       }
     }
 
@@ -237,12 +235,10 @@ struct IC_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
                                   const extent_t<Conf::dim> &ext, ph_ptrs &ph,
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
-                                  unsigned long long int *ptc_pos, rand_state &state,
-                                  value_t dt) {
+                                  unsigned long long int *ptc_pos,
+                                  rand_state &state, value_t dt) {
     return 0;
   }
 };
 
 }  // namespace Aperture
-
-#endif  // IC_RADIATION_SCHEME_H_

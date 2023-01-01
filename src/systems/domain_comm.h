@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DOMAIN_COMM_H_
-#define __DOMAIN_COMM_H_
+#pragma once
 
 #include "core/buffer.hpp"
 #include "core/domain_info.h"
@@ -149,7 +148,3 @@ class domain_comm : public system_t {
 };
 
 }  // namespace Aperture
-
-// #include "domain_comm.cpp"
-
-#endif  // __DOMAIN_COMM_H_

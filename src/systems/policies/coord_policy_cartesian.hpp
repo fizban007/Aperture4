@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COORD_POLICY_CARTESIAN_H_
-#define __COORD_POLICY_CARTESIAN_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -149,5 +148,3 @@ class coord_policy_cartesian {
 };
 
 }  // namespace Aperture
-
-#endif  // __COORD_POLICY_CARTESIAN_H_

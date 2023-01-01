@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __THRESHOLD_EMISSION_H_
-#define __THRESHOLD_EMISSION_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/particle_structs.h"
@@ -28,9 +27,7 @@ namespace Aperture {
 struct threshold_emission {
   float gamma_thr = 30.0f;
 
-  void init() {
-    sim_env().params().get_value("gamma_thr", gamma_thr);
-  }
+  void init() { sim_env().params().get_value("gamma_thr", gamma_thr); }
 
   HOST_DEVICE bool check_emit_photon(ptc_ptrs& ptc, size_t tid,
                                      rand_state& state) const {
@@ -39,5 +36,3 @@ struct threshold_emission {
 };
 
 }  // namespace Aperture
-
-#endif  // __THRESHOLD_EMISSION_H_

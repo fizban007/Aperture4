@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PHYS_POLICY_IC_COOLING_H_
-#define _PHYS_POLICY_IC_COOLING_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -46,10 +45,10 @@ class phys_policy_IC_cooling {
       sim_env().params().get_value("IC_compactness", m_IC_coef);
     }
 
-    auto grid = dynamic_cast<const grid_t<Conf>*>(sim_env().get_system("grid").get());
-    auto IC_loss =
-        sim_env().register_data<scalar_field<Conf>>(
-            "IC_loss", *grid, field_type::cell_centered, MemType::host_device);
+    auto grid =
+        dynamic_cast<const grid_t<Conf>*>(sim_env().get_system("grid").get());
+    auto IC_loss = sim_env().register_data<scalar_field<Conf>>(
+        "IC_loss", *grid, field_type::cell_centered, MemType::host_device);
     m_IC_loss = IC_loss->dev_ndptr();
     IC_loss->reset_after_output(true);
   }
@@ -70,7 +69,8 @@ class phys_policy_IC_cooling {
 
     auto ext = grid.extent();
     auto idx = Conf::idx(pos, ext);
-    atomic_add(&m_IC_loss[idx], context.weight * max(gamma - context.gamma, 0.0) / context.q);
+    atomic_add(&m_IC_loss[idx],
+               context.weight * max(gamma - context.gamma, 0.0) / context.q);
   }
 
  private:
@@ -80,7 +80,4 @@ class phys_policy_IC_cooling {
   mutable ndptr<value_t, Conf::dim> m_IC_loss;
 };
 
-}
-
-
-#endif  // _PHYS_POLICY_IC_COOLING_H_
+}  // namespace Aperture

@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PTC_PHYSICS_POLICY_EMPTY_H_
-#define __PTC_PHYSICS_POLICY_EMPTY_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -33,10 +32,9 @@ class ptc_physics_policy_empty {
 
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
-                            PtcContext& context, const vec_t<IntT, Conf::dim>& pos,
+                            PtcContext& context,
+                            const vec_t<IntT, Conf::dim>& pos,
                             value_t dt) const {}
 };
 
 }  // namespace Aperture
-
-#endif  // __PTC_PHYSICS_POLICY_EMPTY_H_

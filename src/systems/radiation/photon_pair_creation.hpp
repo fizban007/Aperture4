@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PHOTON_PAIR_CREATION_H_
-#define __PHOTON_PAIR_CREATION_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -73,5 +72,3 @@ struct photon_pair_creation {
 };
 
 }  // namespace Aperture
-
-#endif  // __PHOTON_PAIR_CREATION_H_

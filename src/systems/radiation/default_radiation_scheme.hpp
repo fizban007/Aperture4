@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DEFAULT_RADIATION_SCHEME_H_
-#define __DEFAULT_RADIATION_SCHEME_H_
+#pragma once
 
 #include "fixed_photon_path.hpp"
 #include "photon_pair_creation.hpp"
@@ -55,7 +54,8 @@ struct default_radiation_scheme {
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t>& grid,
                                  const extent_t<Conf::dim>& ext, ptc_ptrs& ptc,
                                  size_t tid, ph_ptrs& ph, size_t ph_num,
-                                 unsigned long long int* ph_pos, rand_state& state, value_t dt) {
+                                 unsigned long long int* ph_pos,
+                                 rand_state& state, value_t dt) {
     value_t gamma = ptc.E[tid];
     if (gamma < gamma_thr) {
       return 0;  // 0 means no photon is produced
@@ -100,7 +100,8 @@ struct default_radiation_scheme {
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t>& grid,
                                   const extent_t<Conf::dim>& ext, ph_ptrs& ph,
                                   size_t tid, ptc_ptrs& ptc, size_t ptc_num,
-                                  unsigned long long int* ptc_pos, rand_state& state, value_t dt) {
+                                  unsigned long long int* ptc_pos,
+                                  rand_state& state, value_t dt) {
     value_t path_left = ph.path_left[tid];
     if (path_left > 0.0f) {
       return 0;  // 0 means no pairs are produced
@@ -143,5 +144,3 @@ struct default_radiation_scheme {
 };
 
 }  // namespace Aperture
-
-#endif  // __DEFAULT_RADIATION_SCHEME_H_

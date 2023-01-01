@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PUSHERS_H_
-#define __PUSHERS_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -129,4 +128,3 @@ using default_pusher = vay_pusher;
 
 }  // namespace Aperture
 
-#endif  // __PUSHERS_H_

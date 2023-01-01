@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FIELD_SOLVER_BASE_IMPL_H_
-#define FIELD_SOLVER_BASE_IMPL_H_
+#pragma once
 
 #include "field_solver_base.h"
 #include "framework/config.h"
@@ -42,7 +41,8 @@ field_solver_base<Conf>::init() {
 
   // for (int i = 0; i < Conf::dim * 2; i++) {
   //   if (m_damping[i] == true) {
-  //     m_pml[i] = std::make_unique<pml_data<Conf>>((BoundaryPos)i, m_pml_length,
+  //     m_pml[i] = std::make_unique<pml_data<Conf>>((BoundaryPos)i,
+  //     m_pml_length,
   //                                                 m_grid, m_comm);
   //   }
   // }
@@ -126,8 +126,7 @@ field_solver_base<Conf>::update_explicit(double dt, double time) {}
 
 template <typename Conf>
 void
-field_solver_base<Conf>::update_semi_implicit(double dt, double alpha, double beta, double time) {}
+field_solver_base<Conf>::update_semi_implicit(double dt, double alpha,
+                                              double beta, double time) {}
 
-}
-
-#endif // FIELD_SOLVER_BASE_IMPL_H_
+}  // namespace Aperture

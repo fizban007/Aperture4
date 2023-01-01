@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _DATA_EXPORTER_IMPL_H_
-#define _DATA_EXPORTER_IMPL_H_
+#pragma once
 
 #include "core/detail/multi_array_helpers.h"
 #include "data/multi_array_data.hpp"
@@ -1102,5 +1101,3 @@ data_exporter<Conf, ExecPolicy>::compute_ext_offset(
 // INSTANTIATE_WITH_CONFIG(data_exporter);
 
 }  // namespace Aperture
-
-#endif  // _DATA_EXPORTER_IMPL_H_

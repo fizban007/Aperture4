@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COORD_POLICY_GR_KS_SPH_H_
-#define __COORD_POLICY_GR_KS_SPH_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -119,7 +118,7 @@ class coord_policy_gr_ks_sph {
   using grid_type = grid_ks_t<Conf>;
 
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
-      : m_grid(dynamic_cast<const grid_type&>(grid)) {
+      : m_grid(dynamic_cast<const grid_type &>(grid)) {
     m_a = m_grid.a;
   }
   ~coord_policy_gr_ks_sph() = default;
@@ -202,14 +201,12 @@ class coord_policy_gr_ks_sph {
     // Both new_x and u are updated
     gr_ks_geodesic_advance(m_a, dt, new_x, context.p, is_photon);
 
-    context.new_x[0] =
-        context.x[0] + (grid_type::from_radius(new_x[0]) -
-                        grid_type::from_radius(x_global[0])) *
-                           grid.inv_delta[0];
-    context.new_x[1] =
-        context.x[1] + (grid_type::from_theta(new_x[1]) -
-                        grid_type::from_theta(x_global[1])) *
-                           grid.inv_delta[1];
+    context.new_x[0] = context.x[0] + (grid_type::from_radius(new_x[0]) -
+                                       grid_type::from_radius(x_global[0])) *
+                                          grid.inv_delta[0];
+    context.new_x[1] = context.x[1] + (grid_type::from_theta(new_x[1]) -
+                                       grid_type::from_theta(x_global[1])) *
+                                          grid.inv_delta[1];
     // if constexpr (Conf::dim == 2) {
     if (Conf::dim == 2) {
       context.new_x[2] = new_x[2];
@@ -306,5 +303,3 @@ class coord_policy_gr_ks_sph {
 };
 
 }  // namespace Aperture
-
-#endif  // __COORD_POLICY_GR_KS_SPH_H_

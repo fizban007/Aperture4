@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _COMPUTE_LORENTZ_FACTOR_H_
-#define _COMPUTE_LORENTZ_FACTOR_H_
+#pragma once
 
 #include "data/fields.h"
 #include "data/particle_data.h"
@@ -33,8 +32,7 @@ class compute_lorentz_factor : public system_t {
   static std::string name() { return "compute_lorentz_factor"; }
 
   // compute_lorentz_factor(sim_environment& env, const grid_t<Conf>& grid)
-  compute_lorentz_factor(const grid_t<Conf>& grid)
-      : m_grid(grid) {}
+  compute_lorentz_factor(const grid_t<Conf>& grid) : m_grid(grid) {}
   virtual ~compute_lorentz_factor() {}
 
   virtual void register_data_components() override;
@@ -76,6 +74,4 @@ class compute_lorentz_factor_cu : public compute_lorentz_factor<Conf> {
   // std::vector<std::unique_ptr<scalar_field<Conf>>> m_nums;
 };
 
-}
-
-#endif  // _COMPUTE_LORENTZ_FACTOR_H_
+}  // namespace Aperture

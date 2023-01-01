@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PTC_PHYSICS_POLICY_GRAVITY_SPH_H_
-#define PTC_PHYSICS_POLICY_GRAVITY_SPH_H_
-
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -32,13 +30,12 @@ class ptc_physics_policy_gravity_sph {
  public:
   using value_t = typename Conf::value_t;
 
-  void init() {
-    sim_env().params().get_value("gravity", m_g);
-  }
+  void init() { sim_env().params().get_value("gravity", m_g); }
 
   template <typename PtcContext, typename IntT>
   HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
-                            PtcContext& context, const vec_t<IntT, Conf::dim>& pos,
+                            PtcContext& context,
+                            const vec_t<IntT, Conf::dim>& pos,
                             value_t dt) const {
     auto x1 = grid.coord(0, pos[0], context.x[0]);
     x1 = grid_sph_t<Conf>::radius(x1);
@@ -51,6 +48,3 @@ class ptc_physics_policy_gravity_sph {
 };
 
 }  // namespace Aperture
-
-
-#endif // PTC_PHYSICS_POLICY_GRAVITY_SPH_H_

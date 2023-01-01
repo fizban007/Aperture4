@@ -15,8 +15,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// #ifndef EXEC_POLICY_DYNAMIC_H_
-// #define EXEC_POLICY_DYNAMIC_H_
 #pragma once
 
 #include "core/gpu_translation_layer.h"
@@ -34,5 +32,3 @@ template <typename Conf>
 using exec_policy_dynamic = exec_policy_host<Conf>;
 }
 #endif
-
-// #endif // EXEC_POLICY_DYNAMIC_H_

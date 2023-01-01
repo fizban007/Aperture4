@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FINITE_DIFF_HELPER_H_
-#define __FINITE_DIFF_HELPER_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/grid.hpp"
@@ -87,25 +86,29 @@ struct finite_diff;
 
 template <int Order>
 struct finite_diff<1, Order> {
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto div(const VecType& f, const Idx_t& idx,
                             const Stagger& st, const Grid<1, value_t>& g) {
     return diff<0>(f[0], idx, st[0], order_tag<Order>{}) * g.inv_delta[0];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl0(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<1, value_t>& g) {
     return 0.0;
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl1(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<1, value_t>& g) {
     return -diff<0>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[0];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl2(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<1, value_t>& g) {
     return diff<0>(f[1], idx, st[1], order_tag<Order>{}) * g.inv_delta[0];
@@ -120,26 +123,30 @@ struct finite_diff<1, Order> {
 
 template <int Order>
 struct finite_diff<2, Order> {
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto div(const VecType& f, const Idx_t& idx,
                             const Stagger& st, const Grid<2, value_t>& g) {
     return diff<0>(f[0], idx, st[0], order_tag<Order>{}) * g.inv_delta[0] +
            diff<1>(f[1], idx, st[1], order_tag<Order>{}) * g.inv_delta[1];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl0(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<2, value_t>& g) {
     return diff<1>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[1];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl1(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<2, value_t>& g) {
     return -diff<0>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[0];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl2(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<2, value_t>& g) {
     return diff<0>(f[1], idx, st[1], order_tag<Order>{}) * g.inv_delta[0] -
@@ -156,7 +163,8 @@ struct finite_diff<2, Order> {
 
 template <int Order>
 struct finite_diff<3, Order> {
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto div(const VecType& f, const Idx_t& idx,
                             const Stagger& st, const Grid<3, value_t>& g) {
     return diff<0>(f[0], idx, st[0], order_tag<Order>{}) * g.inv_delta[0] +
@@ -164,21 +172,24 @@ struct finite_diff<3, Order> {
            diff<2>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[2];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl0(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<3, value_t>& g) {
     return diff<1>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[1] -
            diff<2>(f[1], idx, st[1], order_tag<Order>{}) * g.inv_delta[2];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl1(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<3, value_t>& g) {
     return diff<2>(f[0], idx, st[0], order_tag<Order>{}) * g.inv_delta[2] -
            diff<0>(f[2], idx, st[2], order_tag<Order>{}) * g.inv_delta[0];
   }
 
-  template <typename VecType, typename Idx_t, typename Stagger, typename value_t>
+  template <typename VecType, typename Idx_t, typename Stagger,
+            typename value_t>
   HD_INLINE static auto curl2(const VecType& f, const Idx_t& idx,
                               const Stagger& st, const Grid<3, value_t>& g) {
     return diff<0>(f[1], idx, st[1], order_tag<Order>{}) * g.inv_delta[0] -
@@ -195,5 +206,3 @@ struct finite_diff<3, Order> {
 };
 
 }  // namespace Aperture
-
-#endif  // __FINITE_DIFF_HELPER_H_

@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SYNC_EMISSION_HELPER_H_
-#define _SYNC_EMISSION_HELPER_H_
-
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -39,8 +37,8 @@ struct sync_emission_helper_t {
   // Function to generate synchro-curvature photon energy. The resulting energy
   // is normalized such that cyclotron frequency at BQ is at electron rest mass,
   // or hbar e BQ / m_e c = m_e c^2. We assume the photon energy is much less
-  // than gamma. Otherwise we need the quantum prescription of synchrotron emission
-  // template <typename Rng>
+  // than gamma. Otherwise we need the quantum prescription of synchrotron
+  // emission template <typename Rng>
   HOST_DEVICE value_t gen_curv_photon(value_t gamma, value_t Rc, value_t BQ,
                                       rand_state& state) const {
     value_t e_c = 3.0f * cube(gamma) / (2.0f * BQ * Rc);
@@ -61,7 +59,8 @@ struct sync_emission_helper_t {
   }
 
   // template <typename Rng>
-  HOST_DEVICE value_t gen_curv_photon(value_t e_c, value_t gamma, rand_state& state) const {
+  HOST_DEVICE value_t gen_curv_photon(value_t e_c, value_t gamma,
+                                      rand_state& state) const {
     value_t l, h, b;
     value_t u = rng_uniform<value_t>(state);
 
@@ -79,12 +78,10 @@ struct sync_emission_helper_t {
   }
 
   // template <typename Rng>
-  HOST_DEVICE value_t gen_sync_photon(value_t gamma, value_t accel_perp, value_t BQ,
-                                      rand_state& state) const {
+  HOST_DEVICE value_t gen_sync_photon(value_t gamma, value_t accel_perp,
+                                      value_t BQ, rand_state& state) const {
     return gen_curv_photon(gamma, gamma / accel_perp, BQ, state);
   }
 };
 
-}
-
-#endif  // _SYNC_EMISSION_HELPER_H_
+}  // namespace Aperture

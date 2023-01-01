@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __METRIC_KS_H_
-#define __METRIC_KS_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "core/math.hpp"
@@ -276,7 +275,6 @@ u_0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3>& u,
   return u_0(a, r, sth, cth, u, is_photon);
 }
 
-
 HD_INLINE Scalar
 rH(Scalar a) {
   return 1.0f + math::sqrt(1.0f - a * a);
@@ -285,5 +283,3 @@ rH(Scalar a) {
 }  // namespace Metric_KS
 
 }  // namespace Aperture
-
-#endif  // __METRIC_KS_H_

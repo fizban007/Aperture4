@@ -44,8 +44,8 @@ gather_tracked_ptc<Conf, ExecPolicy>::init() {
   }
   sim_env().get_data_optional("photons", ph);
   if (ph != nullptr) {
-    tracked_ph = sim_env().register_data<tracked_photons_t>("tracked_ph",
-                                                            m_max_tracked);
+    tracked_ph =
+        sim_env().register_data<tracked_photons_t>("tracked_ph", m_max_tracked);
   }
 
   sim_env().get_data("E", E);
@@ -97,16 +97,18 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ph_attr(
 template <typename Conf, template <class> class ExecPolicy>
 template <typename BufferType>
 void
-gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_index(const particles_base<BufferType> &ptc) {
+gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_index(
+    const particles_base<BufferType>& ptc) {
   size_t number = ptc.number();
   size_t max_tracked = m_max_tracked;
   m_tracked_num[0] = 0;
   m_tracked_num.copy_to_device();
   // Logger::print_info_all("getting tracked index");
-  kernel_launch(
+  ExecPolicy<Conf>::launch(
       [number, max_tracked] LAMBDA(auto flags, auto cells, auto tracked_map,
                                    auto tracked_num) {
-        for (auto n : grid_stride_range(0, number)) {
+        // for (auto n : grid_stride_range(0, number)) {
+        ExecPolicy<Conf>::loop(0, number, [&] LAMBDA(auto n) {
           if (check_flag(flags[n], PtcFlag::tracked) &&
               cells[n] != empty_cell) {
             uint32_t nt = atomic_add(&tracked_num[0], 1);
@@ -114,15 +116,15 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_index(const particles_b
               tracked_map[nt] = n;
             }
           }
-        }
+        });
       },
-      ptc.flag.dev_ptr(), ptc.cell.dev_ptr(), m_tracked_map.dev_ptr(),
-      m_tracked_num.dev_ptr());
-  GpuSafeCall(gpuDeviceSynchronize());
+      ptc.flag, ptc.cell, m_tracked_map, m_tracked_num);
+  ExecPolicy<Conf>::sync();
 
   // Logger::print_info_all("finished getting tracked index");
   m_tracked_num.copy_to_host();
-  // Logger::print_info_all("There are {} tracked particles", m_tracked_num[0]);
+  Logger::print_debug_all("There are {} tracked particles, {} particles", m_tracked_num[0],
+                          ptc.number());
   if (m_tracked_num[0] > max_tracked) {
     m_tracked_num[0] = max_tracked;
     m_tracked_num.copy_to_device();
@@ -151,7 +153,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.coord<0>(pos, ptc.x1[n]);
+            return grid.template coord<0>(pos, ptc.x1[n]);
           });
       gather_tracked_ptc_attr(
           tracked_ptc->x2, tracked_map, tracked_num,
@@ -159,7 +161,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.coord<1>(pos, ptc.x2[n]);
+            return grid.template coord<1>(pos, ptc.x2[n]);
           });
       gather_tracked_ptc_attr(
           tracked_ptc->x3, tracked_map, tracked_num,
@@ -167,43 +169,29 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
-            return grid.coord<2>(pos, ptc.x3[n]);
+            return grid.template coord<2>(pos, ptc.x3[n]);
           });
-      gather_tracked_ptc_attr(
-          tracked_ptc->p1, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.p1[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->p2, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.p2[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->p3, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.p3[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->E, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.E[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->weight, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.weight[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->flag, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.flag[n];
-          });
-      gather_tracked_ptc_attr(
-          tracked_ptc->id, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
-            return ptc.id[n];
-          });
+      gather_tracked_ptc_attr(tracked_ptc->p1, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.p1[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->p2, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.p2[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->p3, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.p3[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->E, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.E[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->weight, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.weight[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->flag, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.flag[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->id, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.id[n]; });
     }
     if (ph != nullptr) {
       gather_tracked_ptc_index(*ph);
@@ -212,65 +200,55 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       auto& tracked_map = m_tracked_map;
 
       // Get positions
-      gather_tracked_ph_attr(
-          tracked_ph->x1, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            auto& grid = ExecPolicy<Conf>::grid();
-            auto idx = Conf::idx(ph.cell[n], ext);
-            auto pos = get_pos(idx, ext);
-            return grid.coord<0>(pos, ph.x1[n]);
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->x2, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            auto& grid = ExecPolicy<Conf>::grid();
-            auto idx = Conf::idx(ph.cell[n], ext);
-            auto pos = get_pos(idx, ext);
-            return grid.coord<1>(pos, ph.x2[n]);
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->x3, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            auto& grid = ExecPolicy<Conf>::grid();
-            auto idx = Conf::idx(ph.cell[n], ext);
-            auto pos = get_pos(idx, ext);
-            return grid.coord<2>(pos, ph.x3[n]);
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->p1, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.p1[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->p2, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.p2[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->p3, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.p3[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->E, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.E[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->weight, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.weight[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->flag, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.flag[n];
-          });
-      gather_tracked_ph_attr(
-          tracked_ph->id, tracked_map, tracked_num,
-          [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
-            return ph.id[n];
-          });
+      gather_tracked_ph_attr(tracked_ph->x1, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               auto& grid = ExecPolicy<Conf>::grid();
+                               auto idx = Conf::idx(ph.cell[n], ext);
+                               auto pos = get_pos(idx, ext);
+                               return grid.template coord<0>(pos, ph.x1[n]);
+                             });
+      gather_tracked_ph_attr(tracked_ph->x2, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               auto& grid = ExecPolicy<Conf>::grid();
+                               auto idx = Conf::idx(ph.cell[n], ext);
+                               auto pos = get_pos(idx, ext);
+                               return grid.template coord<1>(pos, ph.x2[n]);
+                             });
+      gather_tracked_ph_attr(tracked_ph->x3, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               auto& grid = ExecPolicy<Conf>::grid();
+                               auto idx = Conf::idx(ph.cell[n], ext);
+                               auto pos = get_pos(idx, ext);
+                               return grid.template coord<2>(pos, ph.x3[n]);
+                             });
+      gather_tracked_ph_attr(tracked_ph->p1, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.p1[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->p2, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.p2[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->p3, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.p3[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->E, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.E[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->weight, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.weight[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->flag, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.flag[n];
+                             });
+      gather_tracked_ph_attr(tracked_ph->id, tracked_map, tracked_num,
+                             [ext] LAMBDA(uint32_t n, auto ph, auto E, auto B) {
+                               return ph.id[n];
+                             });
     }
   }
 }

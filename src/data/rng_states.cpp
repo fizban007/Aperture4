@@ -25,6 +25,8 @@ template <>
 rng_states_t<exec_tags::host>::rng_states_t(uint64_t seed) {
   m_states.set_memtype(MemType::host_only);
   m_states.resize(1);
+  m_size = 1;
+  m_initial_seed = seed;
 }
 
 template <>
@@ -33,7 +35,11 @@ rng_states_t<exec_tags::host>::~rng_states_t() {}
 template <>
 void
 rng_states_t<exec_tags::host>::init() {
-  m_states[0].jump();
+  int rank = sim_env().get_rank();
+  m_states[0].init(m_initial_seed);
+  for (int i = 0; i < rank; i++) {
+    m_states[0].jump();
+  }
 }
 
 }

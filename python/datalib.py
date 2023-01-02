@@ -9,6 +9,9 @@ import re
 
 extra_fld_keys = ["B", "J", "flux"]
 
+def flag_to_species(flag):
+  return flag >> (32 - 4);
+
 class Data:
   def __init__(self, path):
     self._conf = self.load_conf(os.path.join(path, "config.toml"))
@@ -53,7 +56,9 @@ class Data:
       data.close()
 
   def __load_ptc_quantity(self, key):
-    pass
+    path = os.path.join(self._path, f"ptc.{self._current_fld_step:05d}.h5")
+    data = h5py.File(path, "r")
+    self.__dict__[key] = data[key][()]
 
   def __load_mesh_quantity(self, key):
     data = h5py.File(self._meshfile, "r")

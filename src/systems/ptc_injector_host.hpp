@@ -43,6 +43,7 @@ class ptc_injector<Conf, exec_policy_host> {
     auto ext = grid.extent();
     sim_env().get_data("particles", ptc);
     sim_env().get_data("rng_states", rng_states);
+    sim_env().params().get_value("tracked_fraction", m_tracked_fraction);
   }
 
   ~ptc_injector() {}
@@ -110,13 +111,16 @@ class ptc_injector<Conf, exec_policy_host> {
                   auto x_global = grid.coord_global(pos, x);
                   ptc.weight[offset_e] = f_weight(x_global);
                   ptc.weight[offset_p] = f_weight(x_global);
-                  if (rng.uniform<value_t>() < tracked_fraction) {
-                    set_flag(flag, PtcFlag::tracked);
+                  auto u = rng.uniform<value_t>();
+                  // printf("u is %f, tracked_fraction is %f\n", u, tracked_fraction);
+                  uint32_t local_flag = flag;
+                  if (u < tracked_fraction) {
+                    set_flag(local_flag, PtcFlag::tracked);
                   }
                   ptc.flag[offset_e] =
-                      set_ptc_type_flag(flag, PtcType::electron);
+                      set_ptc_type_flag(local_flag, PtcType::electron);
                   ptc.flag[offset_p] =
-                      set_ptc_type_flag(flag, PtcType::positron);
+                      set_ptc_type_flag(local_flag, PtcType::positron);
                 }
                 cum_num += num_inject;
               }

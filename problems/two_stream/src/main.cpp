@@ -25,6 +25,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
+#include "systems/gather_tracked_ptc.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
@@ -44,51 +45,56 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_t<Conf> grid(comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
+      ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
+                                                                      &comm);
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
+      field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
+                                                                       &comm);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   // auto lorentz =
   //     env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_dynamic>>(grid);
-  auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
+  // auto momentum =
+  //     env.register_system<gather_momentum_space<Conf, exec_policy_dynamic>>(
+  //         grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
+      grid, &comm);
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
-  particle_data_t *ptc;
-  rng_states_t<typename exec_policy::exec_tag> *states;
-  env.get_data("B0", &B0);
-  env.get_data("Bdelta", &Bdelta);
-  env.get_data("Edelta", &Edelta);
-  env.get_data("particles", &ptc);
-  env.get_data("rand_states", &states);
-
-  // set_initial_condition(env, *B0, *ptc, *states, 10, 1.0);
-  // initial_condition_two_stream(env, *Bdelta, *Edelta, *B0, *ptc, *states, 30,
-  //                              0.0);
-
-  value_t rho0 = 1.0, q_e = 1.0, p0 = 1.0;
+  // Prepare initial conditions
+  value_t rho_b = 1.0, rho_0 = 1.0, q_e = 1.0, p0 = 1.0;
   int mult = 10;
-  env.params().get_value("rho0", rho0);
+  env.params().get_value("rho_b", rho_b);
+  env.params().get_value("rho_0", rho_0);
   env.params().get_value("q_e", q_e);
   env.params().get_value("p0", p0);
   env.params().get_value("multiplicity", mult);
   ptc_injector_dynamic<Conf> injector(grid);
+  // This is the background population with 0 momentum
+  // injector.inject(
+  //     [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+  //     [mult] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * mult; },
+  //     [p0] LAMBDA(auto &pos, auto &grid, auto &ext, rand_state &state,
+  //                 PtcType type) { return vec_t<value_t, 3>(0.0, 0.0, 0.0); },
+  //     [rho_0, mult, q_e] LAMBDA(auto &x_global) { return rho_0 / mult / q_e; });
+  // This is the beam population with momenpum p0 in the x direction
   injector.inject(
-      [] LAMBDA (auto &pos, auto &grid, auto &ext) { return true; },
-      [mult] LAMBDA (auto &pos, auto &grid, auto &ext) {
-        return 2 * mult;
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [mult] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * mult; },
+      [p0] LAMBDA(auto &pos, auto &grid, auto &ext, rand_state &state,
+                  PtcType type) {
+        if (type == PtcType::electron) {
+          // value_t dp = 0.02 * rng_uniform(state) - 0.01;
+          value_t dp = 0.0;
+          return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
+        } else {
+          // value_t dp = 0.02 * rng_uniform(state) - 0.01;
+          value_t dp = 0.0;
+          return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
+        }
       },
-      [p0] LAMBDA (auto &pos, auto &grid, auto &ext,
-           rand_state &state, PtcType type) {
-        value_t sign = (type == PtcType::electron ? 1.0 : -1.0);
-        return vec_t<value_t, 3>(sign * p0, 0.0, 0.0);
-      },
-      [rho0, mult, q_e] LAMBDA (auto &x_global) {
-        return rho0 / mult / q_e;
-      });
+      [rho_b, mult, q_e] LAMBDA(auto &x_global) { return rho_b / mult / q_e; });
 
   env.run();
   return 0;

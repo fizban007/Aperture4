@@ -65,6 +65,7 @@ void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::init() {
   field_solver_base<Conf>::init();
 
+  sim_env().params().get_value("use_pml", m_use_pml);
   sim_env().params().get_value("pml_length", m_pml_length);
   sim_env().params().get_array("damping_boundary", m_damping);
   for (int i = 0; i < Conf::dim * 2; i++) {
@@ -343,6 +344,49 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update(
+    double dt) {
+  using value_t = typename Conf::value_t;
+  auto& E = *(this->E);
+  auto& B = *(this->B);
+  auto& J = *(this->J);
+
+  ExecPolicy<Conf>::launch(
+      [dt] LAMBDA(auto result, auto b, auto stagger, auto j) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
+        // {
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              if (grid.is_in_bound(pos)) {
+                // evolve E0
+                result[0][idx] +=
+                    dt *
+                    (cherenkov_factor * fd<Conf>::curl0(b, idx, stagger, grid) -
+                     j[0][idx]);
+
+                // evolve E1
+                result[1][idx] +=
+                    dt *
+                    (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
+                     j[1][idx]);
+
+                // evolve E2
+                result[2][idx] +=
+                    dt *
+                    (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
+                     j[2][idx]);
+              }
+            });
+      },
+      this->E, this->B, this->B->stagger_vec(), this->J);
+  ExecPolicy<Conf>::sync();
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
     double dt) {
   using value_t = typename Conf::value_t;
@@ -501,6 +545,40 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update(
+    double dt) {
+  using value_t = typename Conf::value_t;
+  auto& B = *(this->B);
+  auto& E = *(this->E);
+
+  ExecPolicy<Conf>::launch(
+      [dt] LAMBDA(auto result, auto e, auto stagger) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              if (grid.is_in_bound(pos)) {
+                // evolve B0
+                result[0][idx] += -dt * cherenkov_factor *
+                                  fd<Conf>::curl0(e, idx, stagger, grid);
+
+                // evolve B1
+                result[1][idx] += -dt * cherenkov_factor *
+                                  fd<Conf>::curl1(e, idx, stagger, grid);
+
+                // evolve B2
+                result[2][idx] += -dt * cherenkov_factor *
+                                  fd<Conf>::curl2(e, idx, stagger, grid);
+              }
+            });
+      },
+      this->B, this->E, this->E->stagger_vec());
+  ExecPolicy<Conf>::sync();
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_divs_e_b() {}
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -573,11 +651,19 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
   // }
 
   if (this->m_update_b) {
-    compute_b_update_pml(dt);
+    if (m_use_pml) {
+      compute_b_update_pml(dt);
+    } else {
+      compute_b_update(dt);
+    }
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
   if (this->m_update_e) {
-    compute_e_update_pml(dt);
+    if (m_use_pml) {
+      compute_e_update_pml(dt);
+    } else {
+      compute_e_update(dt);
+    }
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   }
 

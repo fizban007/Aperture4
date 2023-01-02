@@ -126,11 +126,11 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
   E = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered,
       ExecPolicy<Conf>::data_mem_type());
-  E->include_in_snapshot(true);
+  // E->include_in_snapshot(true);
   B = sim_env().register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered,
       ExecPolicy<Conf>::data_mem_type());
-  B->include_in_snapshot(true);
+  // B->include_in_snapshot(true);
   J = sim_env().register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered,
       ExecPolicy<Conf>::data_mem_type());
@@ -443,7 +443,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::clear_guard_cells() {
       [num] LAMBDA(auto ptc) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
-        ExecPolicy<Conf>::loop(0ul, num, [&] LAMBDA(auto n) {
+        ExecPolicy<Conf>::loop(0, num, [&] LAMBDA(auto n) {
           auto cell = ptc.cell[n];
           if (cell == empty_cell) return;
 
@@ -461,7 +461,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::clear_guard_cells() {
         [ph_num] LAMBDA(auto ph) {
           auto &grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
-          ExecPolicy<Conf>::loop(0ul, ph_num, [&] LAMBDA(auto n) {
+          ExecPolicy<Conf>::loop(0, ph_num, [&] LAMBDA(auto n) {
             auto cell = ph.cell[n];
             if (cell == empty_cell) return;
 

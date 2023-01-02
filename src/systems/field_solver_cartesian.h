@@ -43,6 +43,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
 
   void compute_e_update_pml(double dt);
   void compute_b_update_pml(double dt);
+  void compute_e_update(double dt);
+  void compute_b_update(double dt);
   virtual void compute_divs_e_b() override;
   virtual void compute_flux() override;
   virtual void compute_EB_sqr() override;
@@ -51,6 +53,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
   const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // Option to use pml for Cartesian field solver
+  bool m_use_pml = false;
   bool m_damping[Conf::dim * 2] = {};
   int m_pml_length = 16;
 

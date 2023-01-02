@@ -95,12 +95,13 @@ copy_component_to_buffer(PtcPtrs ptc_data, size_t offset, size_t num,
           //        i, zone, zone << bitshift_width, pos);
           // Copy the particle data from ptc_data[n] to ptc_buffers[zone][pos]
           // assign_ptc(ptc_buffers[zone - zone_offset], pos, ptc_data, n);
+          // printf("target zone is %lu, pos is %lu, n + offset is %lu\n",
+          //  zone - zone_offset, pos, n + offset);
           assign_ptc(ptc_buffers[zone - zone_offset][pos], ptc_data,
                      n + offset);
           // printf("pos is %lu, %u, %u\n", pos, ptc_buffers[zone -
           //                                                 zone_offset].cell[pos],
           //                                                 ptc_data.cell[n]);
-          // printf("target zone is %lu\n", zone - zone_offset);
           // Compute particle cell delta
           int dz = (Conf::dim > 2 ? (zone / 9) - 1 : 0);
           int dy = (Conf::dim > 1 ? (zone / 3) % 3 - 1 : 0);

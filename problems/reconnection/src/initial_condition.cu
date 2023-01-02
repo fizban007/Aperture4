@@ -82,9 +82,9 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
+      [kT_upstream, B_g, delta] __device__(auto &x_global,
                                            rand_state &state, PtcType type) {
-        value_t y = grid.template coord<1>(pos, 0.5f);
+        value_t y = x_global[1];
         value_t Bx = tanh(y / delta);
         value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT_upstream);
@@ -113,7 +113,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // Number injected
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
-      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rand_state &state,
+      [kT_cs, beta_d] __device__(auto &x_global, rand_state &state,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t sign = 1.0f;
@@ -188,7 +188,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+      [kT_upstream, boost_beta] __device__(auto &x_global,
                                            rand_state &state, PtcType type) {
         auto p1 = rng_gaussian<value_t>(state, 2.0f * kT_upstream);
         auto p2 = rng_gaussian<value_t>(state, 2.0f * kT_upstream);
@@ -222,7 +222,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // Number injected
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
-      [kT_cs, beta_d, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+      [kT_cs, beta_d, boost_beta] __device__(auto &x_global,
                                              rand_state &state, PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t gamma_d = math::sqrt(1.0f + u_d.dot(u_d));
@@ -315,9 +315,9 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
       //                          PtcType type) {
       //   return rng.maxwell_juttner_3d(kT_upstream);
-      [kT_upstream, B_g, delta] __device__(auto &pos, auto &grid, auto &ext,
+      [kT_upstream, B_g, delta] __device__(auto &x_global,
                                            rand_state &state, PtcType type) {
-        value_t y = grid.template coord<1>(pos, 0.5f);
+        value_t y = x_global[1];
         value_t Bx = tanh(y / delta);
         value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT_upstream);
@@ -344,10 +344,10 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         }
       },
       [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] __device__(auto &pos, auto &grid, auto &ext, rand_state &state,
+      [kT_cs, beta_d] __device__(auto &x_global, rand_state &state,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
-        value_t y = grid.template coord<1>(pos, 0.5f);
+        value_t y = x_global[1];
         value_t sign = (y < 0 ? 1.0f : -1.0f);
         if (type == PtcType::positron) sign *= -1.0f;
 

@@ -641,7 +641,7 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
     double dt, double time) {
-  Logger::print_debug("Running explicit Cartesian solver!");
+  Logger::print_detail("Running explicit Cartesian solver!");
   // dt *= 1.025;
   // if (time < TINY) {
   //   compute_e_update_explicit_pml_cu(*(this->E), *(this->m_tmp_e1),

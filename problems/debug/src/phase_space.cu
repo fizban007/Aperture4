@@ -63,7 +63,7 @@ main(int argc, char *argv[]) {
       // Number injected
       [n] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n; },
       // Initialize particles
-      [kT] __device__(auto &pos, auto &grid, auto &ext, rand_state &state,
+      [kT] __device__(auto &x_global, rand_state &state,
                       PtcType type) {
         vec_t<value_t, 3> u = rng_maxwell_juttner_3d(state, kT);
         return u;

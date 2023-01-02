@@ -223,7 +223,7 @@ boundary_condition<Conf>::inject_plasma() {
         return false;
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-      [upstream_kT, boost_beta] __device__(auto &pos, auto &grid, auto &ext,
+      [upstream_kT, boost_beta] __device__(auto &x_global,
                                            rand_state &state, PtcType type) {
         // vec_t<value_t, 3> u_d =
         // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);

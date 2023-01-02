@@ -236,8 +236,8 @@ ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
     // // the new particle number
     // // if (m_partition[num_cells] != m_number) ptc.set_num(m_partition[num_cells]);
     // if (total_num != m_number) ptc.set_num(total_num);
-    Logger::print_info("Sorting complete, there are {} particles in the pool",
-                       total_num);
+    // Logger::print_info("Sorting complete, there are {} particles in the pool",
+                       // total_num);
   }
 }
 

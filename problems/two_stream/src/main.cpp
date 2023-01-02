@@ -70,30 +70,30 @@ main(int argc, char *argv[]) {
   env.params().get_value("q_e", q_e);
   env.params().get_value("p0", p0);
   env.params().get_value("multiplicity", mult);
+
   ptc_injector_dynamic<Conf> injector(grid);
-  // This is the background population with 0 momentum
-  // injector.inject(
-  //     [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
-  //     [mult] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * mult; },
-  //     [p0] LAMBDA(auto &pos, auto &grid, auto &ext, rand_state &state,
-  //                 PtcType type) { return vec_t<value_t, 3>(0.0, 0.0, 0.0); },
-  //     [rho_0, mult, q_e] LAMBDA(auto &x_global) { return rho_0 / mult / q_e; });
-  // This is the beam population with momenpum p0 in the x direction
   injector.inject(
+      // First function is the injection criterion for each cell. pos is an
+      // index_t<Dim> object marking the cell in the grid. Returns true for
+      // cells that inject and false for cells that do nothing.
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      // Second function returns the number of particles injected in each cell.
+      // This includes all species
       [mult] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * mult; },
-      [p0] LAMBDA(auto &pos, auto &grid, auto &ext, rand_state &state,
-                  PtcType type) {
+      // Third function is the momentum distribution of the injected particles.
+      // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
+      // particular particle
+      [p0] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+        // value_t dp = 0.01 * sin(2.0 * M_PI * x_global[0]);
+        value_t dp = 0.0;
         if (type == PtcType::electron) {
-          // value_t dp = 0.02 * rng_uniform(state) - 0.01;
-          value_t dp = 0.0;
           return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
         } else {
-          // value_t dp = 0.02 * rng_uniform(state) - 0.01;
-          value_t dp = 0.0;
           return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
         }
       },
+      // Fourth function is the particle weight, which can depend on the global
+      // coordinate.
       [rho_b, mult, q_e] LAMBDA(auto &x_global) { return rho_b / mult / q_e; });
 
   env.run();

@@ -58,6 +58,9 @@ class ptc_injector<Conf, exec_policy_host> {
     auto max_num = ptc->size();
     size_t cum_num = 0;
     auto tracked_fraction = m_tracked_fraction;
+    size_t ptc_id_base = ptc->ptc_id()[0];
+    size_t track_rank = sim_env().get_rank();
+    track_rank <<= 32;
 
     // Inject particles per cell
     policy::launch(
@@ -94,21 +97,21 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.x3[offset_e] = x[2];
                   ptc.x3[offset_p] = x[2];
 
-                  auto p = f_dist(pos, grid, ext, rng.m_local_state,
+                  auto x_global = grid.coord_global(pos, x);
+                  auto p = f_dist(x_global, rng.m_local_state,
                                   PtcType::electron);
                   ptc.p1[offset_e] = p[0];
                   ptc.p2[offset_e] = p[1];
                   ptc.p3[offset_e] = p[2];
                   ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                  p = f_dist(pos, grid, ext, rng.m_local_state,
+                  p = f_dist(x_global, rng.m_local_state,
                              PtcType::positron);
                   ptc.p1[offset_p] = p[0];
                   ptc.p2[offset_p] = p[1];
                   ptc.p3[offset_p] = p[2];
                   ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                  auto x_global = grid.coord_global(pos, x);
                   ptc.weight[offset_e] = f_weight(x_global);
                   ptc.weight[offset_p] = f_weight(x_global);
                   auto u = rng.uniform<value_t>();
@@ -121,6 +124,8 @@ class ptc_injector<Conf, exec_policy_host> {
                       set_ptc_type_flag(local_flag, PtcType::electron);
                   ptc.flag[offset_p] =
                       set_ptc_type_flag(local_flag, PtcType::positron);
+                  ptc.id[offset_e] = track_rank + atomic_add(&ptc_id_base, 1);
+                  ptc.id[offset_p] = track_rank + atomic_add(&ptc_id_base, 1);
                 }
                 cum_num += num_inject;
               }

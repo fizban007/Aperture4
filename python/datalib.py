@@ -116,6 +116,7 @@ class Data:
         "r",
       )
       self._ptc_keys = list(f_ptc.keys())
+      print("ptc keys are:", self._ptc_keys)
       f_ptc.close()
 
   def load_fld(self, step):

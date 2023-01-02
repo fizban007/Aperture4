@@ -102,13 +102,16 @@ class ptc_injector<Conf, exec_policy_gpu> {
     // Logger::print_info("Injecting {}", new_particles);
 
     auto tracked_fraction = m_tracked_fraction;
+    auto& ptc_id = ptc->ptc_id();
+    size_t track_rank = sim_env().get_rank();
+    track_rank <<= 32;
     // Actually create the particles
     policy::launch(
         // kernel_exec_policy(rng_states_t::block_num,
         // rng_states_t::thread_num),
-        [num, max_num, tracked_fraction] __device__(
+        [num, max_num, tracked_fraction, track_rank] __device__(
             ptc_ptrs ptc, auto states, auto num_per_cell, auto cum_num_per_cell,
-            auto f_dist, auto f_weight, auto flag) {
+            auto f_dist, auto f_weight, auto flag, auto ptc_id) {
           auto& grid = policy::grid();
           auto ext = grid.extent();
           rng_t<exec_tags::device> rng(states);
@@ -136,21 +139,19 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.x3[offset_e] = x[2];
                 ptc.x3[offset_p] = x[2];
 
-                auto p = f_dist(pos, grid, ext, rng.m_local_state,
-                                PtcType::electron);
+                auto x_global = grid.coord_global(pos, x);
+                auto p = f_dist(x_global, rng.m_local_state, PtcType::electron);
                 ptc.p1[offset_e] = p[0];
                 ptc.p2[offset_e] = p[1];
                 ptc.p3[offset_e] = p[2];
                 ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                p = f_dist(pos, grid, ext, rng.m_local_state,
-                           PtcType::positron);
+                p = f_dist(x_global, rng.m_local_state, PtcType::positron);
                 ptc.p1[offset_p] = p[0];
                 ptc.p2[offset_p] = p[1];
                 ptc.p3[offset_p] = p[2];
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                auto x_global = grid.coord_global(pos, x);
                 ptc.weight[offset_e] = f_weight(x_global);
                 ptc.weight[offset_p] = f_weight(x_global);
                 if (rng.uniform<value_t>() < tracked_fraction) {
@@ -158,11 +159,14 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 }
                 ptc.flag[offset_e] = set_ptc_type_flag(flag, PtcType::electron);
                 ptc.flag[offset_p] = set_ptc_type_flag(flag, PtcType::positron);
+                ptc.id[offset_e] = track_rank + atomic_add(ptc_id, 1);
+                ptc.id[offset_p] = track_rank + atomic_add(ptc_id, 1);
               }
             }
           }
         },
-        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, f_dist, f_weight, flag);
+        ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, f_dist, f_weight,
+        flag, ptc_id.dev_ptr());
     policy::sync();
     Logger::print_detail_all("Finished injecting particles");
     ptc->add_num(new_particles);

@@ -251,10 +251,9 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   // sort at the given interval. Turn off sorting if m_sort_interval is 0
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
+    tally_ptc_number(*ptc);
   }
   Logger::print_detail("Finished sorting");
-
-  tally_ptc_number(*ptc);
   // if (ph != nullptr) {
   // tally_ptc_number(*ph);
   // }
@@ -529,11 +528,11 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::tally_ptc_number(
     total_num = max_num = (*ptc_number)[0] = ptc.number();
   }
   if (std::is_same<PtcType, ptc_buffer>::value) {
-    Logger::print_info("Total ptc number: {}, max ptc number on a rank: {}",
-                       total_num, max_num);
+    Logger::print_debug("Total ptc number: {}, max ptc number on a rank: {}",
+                        total_num, max_num);
   } else if (std::is_same<PtcType, ph_buffer>::value) {
-    Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
-                       total_num, max_num);
+    Logger::print_debug("Total ph number: {}, max ph number on a rank: {}",
+                        total_num, max_num);
   }
 }
 

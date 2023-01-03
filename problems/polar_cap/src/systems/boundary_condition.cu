@@ -21,7 +21,7 @@
 #include "systems/grid.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/ptc_injector_new.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "utils/interpolation.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"

@@ -29,7 +29,7 @@
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/policies.h"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 
 namespace Aperture {
 

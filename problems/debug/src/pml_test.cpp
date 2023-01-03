@@ -24,7 +24,7 @@
 #include "systems/field_solver_cartesian.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 
 using namespace Aperture;
 

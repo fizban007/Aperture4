@@ -26,7 +26,7 @@
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/radiative_transfer.h"
 #include "systems/radiation/gr_ks_ic_radiation_scheme.hpp"

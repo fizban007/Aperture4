@@ -27,7 +27,7 @@
 // #include "systems/legacy/ptc_updater_old.h"
 // #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include <iostream>
 
 using namespace std;

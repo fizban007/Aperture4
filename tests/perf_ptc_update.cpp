@@ -18,7 +18,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/policies.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "utils/timer.h"
 #include <fstream>
 #include <iomanip>

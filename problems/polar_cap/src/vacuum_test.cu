@@ -23,7 +23,7 @@
 #include "systems/boundary_condition.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 
 using namespace Aperture;

@@ -18,7 +18,7 @@
 #ifndef _PTC_UPDATER_SIMD_H_
 #define _PTC_UPDATER_SIMD_H_
 
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 
 namespace Aperture {
 

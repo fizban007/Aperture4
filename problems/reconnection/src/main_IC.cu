@@ -19,7 +19,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/boundary_condition.h"
-#include "systems/compute_lorentz_factor.h"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
@@ -30,7 +30,7 @@
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 #include <iostream>

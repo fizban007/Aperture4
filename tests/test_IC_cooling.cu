@@ -22,7 +22,7 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include "utils/vec.hpp"

@@ -29,7 +29,7 @@
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 #include "utils/hdf_wrapper.h"

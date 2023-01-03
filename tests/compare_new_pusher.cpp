@@ -19,7 +19,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/legacy/ptc_updater_old.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/ptc_updater_simd.h"
 #include "utils/timer.h"
 #include <fstream>

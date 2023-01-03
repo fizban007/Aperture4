@@ -22,7 +22,7 @@
 #include "systems/domain_comm.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_injector_new.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include <iostream>
 

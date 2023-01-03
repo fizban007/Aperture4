@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PTC_UPDATER_BASE_H_
-#define __PTC_UPDATER_BASE_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 #include "data/data_array.hpp"
@@ -98,5 +97,3 @@ class ptc_updater : public system_t {
 };
 
 }  // namespace Aperture
-
-#endif  // __PTC_UPDATER_BASE_H_

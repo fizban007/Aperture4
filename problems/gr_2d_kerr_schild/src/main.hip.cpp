@@ -26,7 +26,7 @@
 #include "systems/data_exporter.h"
 #include "systems/grid_ks.h"
 // #include "systems/legacy/ptc_updater_gr_ks.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "utils/util_functions.h"

@@ -28,7 +28,7 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_gca_lite.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 #include "systems/radiation/curvature_emission_scheme_polar_cap.hpp"
 // #include "systems/radiation/curvature_emission_scheme_gca_lite.hpp"
 #include "systems/radiative_transfer_impl.hpp"

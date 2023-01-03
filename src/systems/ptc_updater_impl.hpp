@@ -15,14 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __PTC_UPDATER_BASE_IMPL_H_
-#define __PTC_UPDATER_BASE_IMPL_H_
+#pragma once
 
 #include "data/rng_states.h"
 #include "framework/environment.h"
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "utils/interpolation.hpp"
 #include "utils/range.hpp"
 #include "utils/timer.h"
@@ -636,5 +635,3 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
 }
 
 }  // namespace Aperture
-
-#endif  // __PTC_UPDATER_BASE_IMPL_H_

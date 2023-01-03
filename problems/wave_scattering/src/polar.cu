@@ -27,7 +27,7 @@
 #include "systems/grid_polar.hpp"
 #include "systems/policies/coord_policy_polar.hpp"
 #include "systems/ptc_injector_new.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "utils/kernel_helper.hpp"
 // #include "systems/ptc_injector.h"
 #include <iostream>

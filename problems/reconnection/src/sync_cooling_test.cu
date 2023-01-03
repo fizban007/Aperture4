@@ -22,7 +22,7 @@
 #include "systems/policies/exec_policy_gpu.hpp"
 // #include "systems/policies/sync_cooling_policy.hpp"
 #include "systems/policies/phys_policy_sync_cooling.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 
 namespace Aperture {
 

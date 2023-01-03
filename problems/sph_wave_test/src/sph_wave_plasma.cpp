@@ -23,7 +23,7 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "initial_condition.h"
 // #include "systems/ptc_injector.h"

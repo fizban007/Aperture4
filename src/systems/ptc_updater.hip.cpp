@@ -25,7 +25,7 @@
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
-#include "systems/ptc_updater_base_impl.hpp"
+#include "systems/ptc_updater_impl.hpp"
 
 namespace Aperture {
 

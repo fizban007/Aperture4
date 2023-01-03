@@ -19,14 +19,12 @@ set(Aperture_src
   "systems/grid_sph.cpp"
   "systems/grid_polar.cpp"
   "systems/grid_ks.cpp"
-  # "systems/legacy/ptc_updater_old.cpp"
-  "systems/compute_lorentz_factor.cpp"
+  "systems/compute_moments.cpp"
   "systems/gather_momentum_space.cpp"
   "systems/gather_tracked_ptc.cpp"
   "systems/inverse_compton.cpp"
   "systems/field_solver_cartesian.cpp"
-  "systems/ptc_updater_base.cpp"
-  # "systems/ptc_updater_simd.cpp"
+  "systems/ptc_updater.cpp"
   "systems/radiative_transfer.cpp"
   "systems/sync_curv_emission.cpp"
   )
@@ -39,7 +37,6 @@ if (use_cuda OR use_hip)
   set(Aperture_dev_src
     "core/buffer_impl.hip.cpp"
     "core/constant_mem.hip.cpp"
-    # "core/particles.hip.cpp"
     "core/detail/multi_array_helpers.hip.cpp"
     "core/particles_functions.hip.cpp"
     "data/rng_states.hip.cpp"
@@ -49,10 +46,10 @@ if (use_cuda OR use_hip)
     # "systems/field_solver_sph.hip.cpp"
     # "systems/field_solver_polar.hip.cpp"
     # "systems/field_solver_gr_ks.hip.cpp"
-    "systems/compute_lorentz_factor.hip.cpp"
+    "systems/compute_moments.hip.cpp"
     "systems/gather_momentum_space.hip.cpp"
     "systems/gather_tracked_ptc.hip.cpp"
-    "systems/ptc_updater_base.hip.cpp"
+    "systems/ptc_updater.hip.cpp"
     "systems/radiative_transfer.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)

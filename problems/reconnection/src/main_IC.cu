@@ -72,7 +72,8 @@ main(int argc, char *argv[]) {
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
-  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  // auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  auto moments = env.register_system<compute_moments<Conf, exec_policy_gpu>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto solver = env.register_system<field_solver<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);

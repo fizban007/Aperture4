@@ -20,16 +20,15 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/compute_lorentz_factor.h"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
-#include "systems/gather_momentum_space.h"
 #include "systems/gather_tracked_ptc.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include <iostream>
 
 using namespace std;
@@ -52,11 +51,8 @@ main(int argc, char *argv[]) {
                                                                        &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
-  // auto lorentz =
-  //     env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  // auto momentum =
-  //     env.register_system<gather_momentum_space<Conf, exec_policy_dynamic>>(
-  //         grid);
+  auto moments =
+      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 

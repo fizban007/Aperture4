@@ -42,7 +42,8 @@ class data_array {
 
   void resize(int size) {
     m_data.resize(size);
-    m_ptrs.set_memtype(MemType::host_device);
+    // m_ptrs.set_memtype(MemType::host_device);
+    m_ptrs.set_memtype(default_mem_type);
     m_ptrs.resize(size);
   }
 

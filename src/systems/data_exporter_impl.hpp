@@ -127,6 +127,15 @@ data_exporter<Conf, ExecPolicy>::write_field_data(data_t* data,
   } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
     Logger::print_detail("Writing scalar field {}", name);
     write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<field_t<4, Conf>*>(data)) {
+    Logger::print_detail("Writing 4-vector field {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<field_t<6, Conf>*>(data)) {
+    Logger::print_detail("Writing antisymmetric 4-tensor field {}", name);
+    write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<field_t<10, Conf>*>(data)) {
+    Logger::print_detail("Writing symmetric 4-tensor field {}", name);
+    write(*ptr, name, datafile, false);
   } else if (auto* ptr = dynamic_cast<scalar_data<value_t>*>(data)) {
     Logger::print_detail("Writing scalar data {}", name);
     write(*ptr, name, datafile, false);

@@ -114,18 +114,20 @@ field_t<N, Conf>::add_by(const field_t<N, Conf>& other,
 ///////////////////////////////////////////////////////
 // Explicitly instantiate some fields
 ///////////////////////////////////////////////////////
-template class field_t<3, Config<1, float>>;
-template class field_t<3, Config<2, float>>;
-template class field_t<3, Config<3, float>>;
-template class field_t<3, Config<1, double>>;
-template class field_t<3, Config<2, double>>;
-template class field_t<3, Config<3, double>>;
+template class field_t<1, Config<1>>;
+template class field_t<1, Config<2>>;
+template class field_t<1, Config<3>>;
 
-template class field_t<1, Config<1, float>>;
-template class field_t<1, Config<2, float>>;
-template class field_t<1, Config<3, float>>;
-template class field_t<1, Config<1, double>>;
-template class field_t<1, Config<2, double>>;
-template class field_t<1, Config<3, double>>;
+template class field_t<3, Config<1>>;
+template class field_t<3, Config<2>>;
+template class field_t<3, Config<3>>;
+
+template class field_t<4, Config<1>>;
+template class field_t<4, Config<2>>;
+template class field_t<4, Config<3>>;
+
+template class field_t<10, Config<1>>;
+template class field_t<10, Config<2>>;
+template class field_t<10, Config<3>>;
 
 }  // namespace Aperture

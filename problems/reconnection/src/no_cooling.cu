@@ -19,13 +19,13 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/boundary_condition.h"
-#include "systems/compute_lorentz_factor.h"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/exec_policy_gpu.hpp"
-#include "systems/ptc_updater_base.h"
+#include "systems/ptc_updater.h"
 #include <iostream>
 
 using namespace std;
@@ -52,7 +52,7 @@ main(int argc, char *argv[]) {
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
-  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  auto moments = env.register_system<compute_moments<Conf, exec_policy_gpu>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto solver = env.register_system<

@@ -1,0 +1,30 @@
+FROM archlinux
+
+USER root
+
+RUN --mount=type=cache,sharing=locked,target=/var/cache/pacman \
+    pacman -Syu --noconfirm --needed base base-devel cuda
+
+RUN --mount=type=cache,sharing=locked,target=/var/cache/pacman \
+    pacman -Syu --noconfirm --needed git cmake hdf5-openmpi boost ccls clang openssh
+
+# install python
+RUN --mount=type=cache,sharing=locked,target=/var/cache/pacman \
+    pacman -Syu --noconfirm --needed python python-pip
+
+# Install python-related packages
+ENV VIRTUAL_ENV=/opt/venv
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN pip install numpy scipy h5py toml matplotlib jupyter
+
+# install latex
+RUN --mount=type=cache,sharing=locked,target=/var/cache/pacman \
+    pacman -Syu --noconfirm texlive-core texlive-science texlive-publishers texlive-latexextra texlive-formatsextra
+
+# finally define a normal user and switch to it
+RUN useradd -r -g users -m developer
+RUN mkdir /code && chown -R developer:users /code
+USER developer
+ENV PATH="${PATH}:/opt/cuda/bin

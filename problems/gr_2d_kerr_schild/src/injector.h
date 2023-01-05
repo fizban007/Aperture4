@@ -25,6 +25,7 @@
 #include "data/data_array.hpp"
 #include "framework/system.h"
 #include "systems/grid_ks.h"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
@@ -50,7 +51,8 @@ class bh_injector : public system_t {
   multi_array<int, Conf::dim> m_cum_num_per_cell;
 
   // curand_states_t* m_rand_states;
-  nonown_ptr<rng_states_t<exec_tags::device>> m_rng_states;
+  using exec_tag = typename exec_policy_dynamic<Conf>::exec_tag;
+  nonown_ptr<rng_states_t<exec_tag>> m_rng_states;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<vector_field<Conf>> B, D;
   // std::vector<const scalar_field<Conf>*> Rho;

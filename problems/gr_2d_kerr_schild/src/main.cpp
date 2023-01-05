@@ -17,18 +17,17 @@
 
 #include "core/cuda_control.h"
 #include "core/enum_types.h"
-#include "cuda_runtime_api.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "injector.h"
+#include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
-#include "systems/data_exporter.h"
+#include "systems/gather_tracked_ptc.h"
 #include "systems/grid_ks.h"
-// #include "systems/legacy/ptc_updater_gr_ks.h"
-#include "systems/ptc_updater.h"
-#include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
+#include "systems/ptc_updater.h"
 #include "utils/util_functions.h"
 
 using namespace std;
@@ -44,22 +43,26 @@ using namespace Aperture;
 
 int
 main(int argc, char *argv[]) {
-  typedef Config<2, Scalar> Conf;
+  typedef Config<2> Conf;
   using value_t = Conf::value_t;
 
-  auto &env = sim_environment::instance(&argc, &argv, false);
+  auto &env = sim_environment::instance(&argc, &argv, true);
 
   env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // domain_comm<Conf> comm;
   grid_ks_t<Conf> grid;
 
-  auto solver = env.register_system<field_solver_gr_ks_cu<Conf>>(grid);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
   // auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_gpu, coord_policy_gr_ks_sph>>(grid);
+      ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid);
 
   env.init();
 
@@ -86,7 +89,8 @@ main(int argc, char *argv[]) {
   // typename Conf::idx_t idx(pos, ext);
 
   // for (int i = 0; i < 1; i++) {
-  //   ptc->append(exec_tags::device{}, x, {0.57367008, 0.0, 1.565}, idx.linear, 1000.0,
+  //   ptc->append(exec_tags::device{}, x, {0.57367008, 0.0, 1.565}, idx.linear,
+  //   1000.0,
   //                   set_ptc_type_flag(0, PtcType::positron));
   //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
   // }
@@ -97,8 +101,8 @@ main(int argc, char *argv[]) {
   // typename Conf::idx_t idx(pos, ext);
 
   // for (int i = 0; i < 1; i++) {
-  //   ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, idx.linear,
-  //   1000.0,
+  //   ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
+  //   idx.linear, 1000.0,
   //                   set_ptc_type_flag(0, PtcType::positron));
   //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
   // }

@@ -1,3 +1,17 @@
+add_aperture_library(reconnection "initial_condition.cpp")
+
+add_aperture_executable(no_cooling "no_cooling.cpp")
+target_link_libraries(no_cooling reconnection)
+add_dependencies(problems no_cooling)
+
+add_aperture_executable(cooling "main_cooling.cpp")
+target_link_libraries(cooling reconnection)
+add_dependencies(problems cooling)
+
+add_aperture_executable(cooling_3d "main_cooling_3d.cpp")
+target_link_libraries(cooling_3d reconnection)
+add_dependencies(problems cooling_3d)
+
 # file(GLOB reconnection_src_files *.cu *.hip.cpp)
 # if (use_cuda AND CMAKE_CUDA_COMPILER)
 #   set_source_files_properties(
@@ -47,17 +61,3 @@
 # target_link_libraries(sync_cooling_test_2d Aperture Aperture_dev)
 # add_dependencies(problems sync_cooling_test_2d)
 # endif()
-
-add_aperture_library(reconnection "initial_condition.cpp")
-
-add_aperture_executable(no_cooling "no_cooling.cpp")
-target_link_libraries(no_cooling reconnection)
-add_dependencies(problems no_cooling)
-
-add_aperture_executable(cooling "main_cooling.cpp")
-target_link_libraries(cooling reconnection)
-add_dependencies(problems cooling)
-
-add_aperture_executable(cooling_3d "main_cooling_3d.cpp")
-target_link_libraries(cooling_3d reconnection)
-add_dependencies(problems cooling_3d)

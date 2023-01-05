@@ -294,10 +294,6 @@ field_solver<Conf, ExecPolicy,
         "tmp_b2", this->m_grid, field_type::face_centered, type);
     m_bnew = sim_env().register_data<vector_field<Conf>>(
         "tmp_bnew", this->m_grid, field_type::face_centered, type);
-
-    m_tmp_b1->skip_output(true);
-    m_tmp_b2->skip_output(true);
-    m_bnew->skip_output(true);
   }
 }
 

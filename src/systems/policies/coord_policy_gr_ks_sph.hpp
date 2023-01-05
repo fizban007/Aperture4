@@ -111,6 +111,7 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
 
 }  // namespace
 
+/// This is the Kerr Schild coordinate policy
 template <typename Conf>
 class coord_policy_gr_ks_sph {
  public:

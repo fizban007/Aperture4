@@ -815,11 +815,11 @@ field_solver_cu<Conf>::update_semi_implicit(double dt, double alpha,
   }
   // m_bnew now holds B^{n+1}
   // add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
-  select_dev(buffer.main()[0]) =
+  select(exec_tags::device, buffer.main()[0]) =
       alpha * this->B->at(0) + beta * this->m_bnew->at(0);
-  select_dev(buffer.main()[1]) =
+  select(exec_tags::device, buffer.main()[1]) =
       alpha * this->B->at(1) + beta * this->m_bnew->at(1);
-  select_dev(buffer.main()[2]) =
+  select(exec_tags::device, buffer.main()[2]) =
       alpha * this->B->at(2) + beta * this->m_bnew->at(2);
 
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from

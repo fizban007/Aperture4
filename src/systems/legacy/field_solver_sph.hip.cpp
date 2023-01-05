@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Alex Chen.
+ * Copyright (c) 2020 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset_dev.hpp"
-#include "field_solver_polar.h"
+#include "field_solver_sph.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 // #include "helpers/field_solver_helper_cu.hpp"
@@ -30,6 +29,7 @@ namespace Aperture {
 
 namespace {
 
+// template <typename PtrType, typename Idx_t>
 template <typename VecType, typename Idx_t>
 HD_INLINE Scalar
 circ0(const VecType& f, const VecType& dl, const Idx_t& idx,
@@ -89,6 +89,11 @@ compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                      circ2(b, gp.lb, idx, idx_pxmy, idx_px, idx_px) /
                      gp.Ae[2][idx_px]) /
                 gp.Ab[1][idx];
+            // Take care of axis boundary
+            Scalar theta = grid.template coord<1>(pos[1], true);
+            if (abs(theta) < 0.1 * grid.delta[1]) {
+              result[1][idx] = 0.0f;
+            }
 
             result[2][idx] =
                 coef *
@@ -135,6 +140,12 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
                                dt * beta * circ1(j, gp.le, idx, idx_px)) /
                               gp.Ab[1][idx];
 
+            // Take care of axis boundary
+            Scalar theta = grid.template coord<1>(pos[1], true);
+            if (abs(theta) < 0.1 * grid.delta[1]) {
+              result[1][idx] = 0.0f;
+            }
+
             result[2][idx] +=
                 -dt *
                 (circ2(e, gp.le, idx, idx, idx_px, idx_py) -
@@ -175,6 +186,11 @@ compute_e_update_explicit(vector_field<Conf>& result,
             result[2][idx] += dt * (circ2(b, gp.lb, idx_mx, idx_my, idx, idx) /
                                         gp.Ae[2][idx] -
                                     j[2][idx]);
+            // Take care of axis boundary, setting E_phi to zero
+            Scalar theta = grid.template coord<1>(pos[1], true);
+            if (abs(theta) < 0.1f * grid.delta[1]) {
+              result[2][idx] = 0.0f;
+            }
             // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1] + 1) {
             //   printf("Br is %f, %f, %f; Btheta is %f, %f, %f, %f\n",
             //   b[0][idx_my],
@@ -201,6 +217,13 @@ compute_e_update_explicit(vector_field<Conf>& result,
             //          b[1][idx.dec_y(2).dec_x()], b[1][idx.dec_y().dec_x()], b[1][idx.dec_x()], b[1][idx.inc_y().dec_x()]);
             //   printf("circ B is: %f\n", circ2(b, gp.lb, idx_mx, idx_my, idx, idx));
             // }
+          }
+          // extra work for the theta = pi axis
+          auto theta = grid.template coord<1>(pos[1], true);
+          if (std::abs(theta - M_PI) < 0.1f * grid.delta[1]) {
+            auto idx_my = idx.dec_y();
+            result[0][idx] +=
+                dt * (circ0(b, gp.lb, idx_my, idx) / gp.Ae[0][idx] - j[0][idx]);
           }
         }
       },
@@ -229,6 +252,21 @@ compute_b_update_explicit(vector_field<Conf>& result,
 
             auto idx_px = idx.inc_x();
             result[1][idx] -= dt * circ1(e, gp.le, idx, idx_px) / gp.Ab[1][idx];
+            // Take care of axis boundary
+            Scalar theta = grid.template coord<1>(pos[1], true);
+            if (abs(theta) < 0.1f * grid.delta[1]) {
+              result[1][idx] = 0.0f;
+            }
+            // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1] + 1) {
+            //   printf("Eph is:\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n"
+            //          "%f, %f, %f, %f\n",
+            //          e[2][idx.dec_y(2).inc_x()], e[2][idx.dec_y().inc_x()], e[2][idx.inc_x()], e[2][idx.inc_y().inc_x()],
+            //          e[2][idx.dec_y(2)], e[2][idx.dec_y()], e[2][idx], e[2][idx.inc_y()],
+            //          e[2][idx.dec_y(2).dec_x()], e[2][idx.dec_y().dec_x()], e[2][idx.dec_x()], e[2][idx.inc_y().dec_x()]);
+            //   printf("circ E is: %f\n", circ2(e, gp.le, idx, idx, idx_px, idx_py));
+            // }
 
             result[2][idx] -=
                 dt * circ2(e, gp.le, idx, idx, idx_px, idx_py) / gp.Ab[2][idx];
@@ -239,79 +277,79 @@ compute_b_update_explicit(vector_field<Conf>& result,
   GpuSafeCall(gpuDeviceSynchronize());
 }
 
-// template <typename Conf>
-// void
-// axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
-//   auto ext = grid.extent();
-//   typedef typename Conf::idx_t idx_t;
-//   kernel_launch(
-//       [ext] __device__(auto e) {
-//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-//         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-//           auto n1_0 = grid.guard[1];
-//           auto n1_pi = grid.dims[1] - grid.guard[1];
-//           if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
-//             // At the theta = 0 axis
+template <typename Conf>
+void
+axis_boundary_e(vector_field<Conf>& e, const grid_curv_t<Conf>& grid) {
+  auto ext = grid.extent();
+  typedef typename Conf::idx_t idx_t;
+  kernel_launch(
+      [ext] __device__(auto e) {
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          auto n1_0 = grid.guard[1];
+          auto n1_pi = grid.dims[1] - grid.guard[1];
+          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+            // At the theta = 0 axis
 
-//             // Set E_phi and B_theta to zero
-//             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
-//             e[2][idx] = 0.0f;
-//             // e[1][idx] = 0.0;
-//             e[1][idx.dec_y()] = e[1][idx];
-//             // e[0][idx] = 0.0f;
-//           }
-//           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
-//           if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
-//               0.1f * grid.delta[1]) {
-//             // At the theta = pi axis
-//             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
-//             e[2][idx] = 0.0f;
-//             // e[1][idx] = 0.0;
-//             e[1][idx] = e[1][idx.dec_y()];
-//             // e[0][idx] = 0.0f;
-//           }
-//         }
-//       },
-//       e.get_ptrs());
-//   GpuSafeCall(gpuDeviceSynchronize());
-// }
+            // Set E_phi and B_theta to zero
+            auto idx = idx_t(index_t<2>(n0, n1_0), ext);
+            e[2][idx] = 0.0f;
+            // e[1][idx] = 0.0;
+            e[1][idx.dec_y()] = e[1][idx];
+            // e[0][idx] = 0.0f;
+          }
+          // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
+              0.1f * grid.delta[1]) {
+            // At the theta = pi axis
+            auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
+            e[2][idx] = 0.0f;
+            // e[1][idx] = 0.0;
+            e[1][idx] = e[1][idx.dec_y()];
+            // e[0][idx] = 0.0f;
+          }
+        }
+      },
+      e.get_ptrs());
+  GpuSafeCall(gpuDeviceSynchronize());
+}
 
-// template <typename Conf>
-// void
-// axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
-//   auto ext = grid.extent();
-//   typedef typename Conf::idx_t idx_t;
-//   kernel_launch(
-//       [ext] __device__(auto b) {
-//         auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
-//         for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-//           auto n1_0 = grid.guard[1];
-//           auto n1_pi = grid.dims[1] - grid.guard[1];
-//           if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
-//             // At the theta = 0 axis
+template <typename Conf>
+void
+axis_boundary_b(vector_field<Conf>& b, const grid_curv_t<Conf>& grid) {
+  auto ext = grid.extent();
+  typedef typename Conf::idx_t idx_t;
+  kernel_launch(
+      [ext] __device__(auto b) {
+        auto& grid = dev_grid<Conf::dim, typename Conf::value_t>();
+        for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          auto n1_0 = grid.guard[1];
+          auto n1_pi = grid.dims[1] - grid.guard[1];
+          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+            // At the theta = 0 axis
 
-//             // Set E_phi and B_theta to zero
-//             auto idx = idx_t(index_t<2>(n0, n1_0), ext);
-//             b[1][idx] = 0.0;
-//             b[2][idx.dec_y()] = b[2][idx];
-//             // b[2][idx.dec_y()] = 0.0;
-//             b[0][idx.dec_y()] = b[0][idx];
-//           }
-//           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
-//           if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
-//               0.1f * grid.delta[1]) {
-//             // At the theta = pi axis
-//             auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
-//             b[1][idx] = 0.0;
-//             b[2][idx] = b[2][idx.dec_y()];
-//             // b[2][idx] = 0.0;
-//             b[0][idx] = b[0][idx.dec_y()];
-//           }
-//         }
-//       },
-//       b.get_ptrs());
-//   GpuSafeCall(gpuDeviceSynchronize());
-// }
+            // Set E_phi and B_theta to zero
+            auto idx = idx_t(index_t<2>(n0, n1_0), ext);
+            b[1][idx] = 0.0;
+            b[2][idx.dec_y()] = b[2][idx];
+            // b[2][idx.dec_y()] = 0.0;
+            b[0][idx.dec_y()] = b[0][idx];
+          }
+          // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
+          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
+              0.1f * grid.delta[1]) {
+            // At the theta = pi axis
+            auto idx = idx_t(index_t<2>(n0, n1_pi), ext);
+            b[1][idx] = 0.0;
+            b[2][idx] = b[2][idx.dec_y()];
+            // b[2][idx] = 0.0;
+            b[0][idx] = b[0][idx.dec_y()];
+          }
+        }
+      },
+      b.get_ptrs());
+  GpuSafeCall(gpuDeviceSynchronize());
+}
 
 template <typename Conf>
 void
@@ -416,11 +454,12 @@ compute_flux(scalar_field<Conf>& flux, const vector_field<Conf>& b,
   GpuSafeCall(gpuDeviceSynchronize());
   GpuCheckError();
 }
+
 }
 
 template <typename Conf>
 void
-field_solver_polar_cu<Conf>::init() {
+field_solver_sph_cu<Conf>::init() {
   field_solver_cu<Conf>::init();
 
   sim_env().params().get_value("damping_length", m_damping_length);
@@ -429,14 +468,14 @@ field_solver_polar_cu<Conf>::init() {
 
 template <typename Conf>
 void
-field_solver_polar_cu<Conf>::register_data_components() {
+field_solver_sph_cu<Conf>::register_data_components() {
   field_solver_cu<Conf>::register_data_components();
 
 }
 
 template <typename Conf>
 void
-field_solver_polar_cu<Conf>::update(double dt, uint32_t step) {
+field_solver_sph_cu<Conf>::update(double dt, uint32_t step) {
   field_solver_cu<Conf>::update(dt, step);
 
   if (step % this->m_data_interval == 0) {
@@ -447,7 +486,7 @@ field_solver_polar_cu<Conf>::update(double dt, uint32_t step) {
 
 template <typename Conf>
 void
-field_solver_polar_cu<Conf>::update_explicit(double dt, double time) {
+field_solver_sph_cu<Conf>::update_explicit(double dt, double time) {
   auto& grid = dynamic_cast<const grid_curv_t<Conf>&>(this->m_grid);
   if (time < TINY)
     compute_b_update_explicit(*(this->B), *(this->E), grid, 0.5 * dt);
@@ -456,10 +495,10 @@ field_solver_polar_cu<Conf>::update_explicit(double dt, double time) {
 
   // Communicate B guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
-  // axis_boundary_b(*(this->B), grid);
+  axis_boundary_b(*(this->B), grid);
 
   compute_e_update_explicit(*(this->E), *(this->B), *(this->J), grid, dt);
-  // axis_boundary_e(*(this->E), grid);
+  axis_boundary_e(*(this->E), grid);
 
   // Communicate E guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
@@ -482,9 +521,9 @@ field_solver_polar_cu<Conf>::update_explicit(double dt, double time) {
 
 template <typename Conf>
 void
-field_solver_polar_cu<Conf>::update_semi_implicit(double dt, double alpha,
+field_solver_sph_cu<Conf>::update_semi_implicit(double dt, double alpha,
                                                 double beta, double time) {
-  Logger::print_detail("updating polar fields implicitly");
+  Logger::print_detail("updating sph fields implicitly");
   // set m_tmp_b1 to B
   this->m_tmp_b1->copy_from(*(this->B));
 
@@ -502,7 +541,7 @@ field_solver_polar_cu<Conf>::update_semi_implicit(double dt, double alpha,
 
   compute_implicit_rhs(*(this->m_tmp_b1), *(this->E), *(this->J), grid, alpha,
                        beta, dt);
-  // axis_boundary_b(*(this->m_tmp_b1), grid);
+  axis_boundary_b(*(this->m_tmp_b1), grid);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
 
   // Since we need to iterate, define a double buffer to switch quickly between
@@ -515,7 +554,7 @@ field_solver_polar_cu<Conf>::update_semi_implicit(double dt, double alpha,
                         -beta * beta * dt * dt);
 
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
-    // axis_boundary_b(buffer.alt(), grid);
+    axis_boundary_b(buffer.alt(), grid);
     this->m_bnew->add_by(buffer.alt());
 
     buffer.swap();
@@ -535,7 +574,7 @@ field_solver_polar_cu<Conf>::update_semi_implicit(double dt, double alpha,
   // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this
   compute_e_update_explicit(*(this->E), buffer.main(), *(this->J), grid, dt);
-  // axis_boundary_e(*(this->E), grid);
+  axis_boundary_e(*(this->E), grid);
 
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
@@ -557,7 +596,6 @@ field_solver_polar_cu<Conf>::update_semi_implicit(double dt, double alpha,
   }
 }
 
-template class field_solver_polar_cu<Config<2>>;
+template class field_solver_sph_cu<Config<2>>;
 
-
-}
+}  // namespace Aperture

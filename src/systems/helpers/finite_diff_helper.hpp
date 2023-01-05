@@ -153,6 +153,26 @@ struct finite_diff<2, Order> {
            diff<1>(f[0], idx, st[0], order_tag<Order>{}) * g.inv_delta[1];
   }
 
+  template <typename VecType, typename Idx_t>
+  HD_INLINE static auto circ0(const VecType& f, const VecType& dl, const Idx_t& idx,
+                         const Idx_t& idx_py) {
+    return f[2][idx_py] * dl[2][idx_py] - f[2][idx] * dl[2][idx];
+  }
+
+  template <typename VecType, typename Idx_t>
+  HD_INLINE static auto circ1(const VecType& f, const VecType& dl, const Idx_t& idx,
+                         const Idx_t& idx_px) {
+    return f[2][idx] * dl[2][idx] - f[2][idx_px] * dl[2][idx_px];
+  }
+
+  template <typename VecType, typename Idx_t>
+  HD_INLINE static auto circ2(const VecType& f, const VecType& dl,
+                         const Idx_t& idx_mx, const Idx_t& idx_my,
+                         const Idx_t& idx_px, const Idx_t& idx_py) {
+    return f[1][idx_px] * dl[1][idx_px] - f[1][idx_mx] * dl[1][idx_mx] +
+           f[0][idx_my] * dl[0][idx_my] - f[0][idx_py] * dl[0][idx_py];
+  }
+
   template <typename PtrType, typename Idx_t, typename value_t>
   HD_INLINE static auto laplacian(const PtrType& f, const Idx_t& idx,
                                   const Grid<2, value_t>& g) {

@@ -91,16 +91,15 @@ field_solver<Conf, ExecPolicy,
       "tmp_e1", this->m_grid, field_type::vert_centered, type);
   m_tmp_e2 = sim_env().register_data<vector_field<Conf>>(
       "tmp_e2", this->m_grid, field_type::vert_centered, type);
-  if (!this->m_use_implicit) {
-    m_tmp_b1->skip_output(true);
-    m_tmp_b2->skip_output(true);
-    m_tmp_e1->skip_output(true);
-    m_tmp_e2->skip_output(true);
-    m_tmp_b1->include_in_snapshot(true);
-    m_tmp_b2->include_in_snapshot(true);
-    m_tmp_e1->include_in_snapshot(true);
-    m_tmp_e2->include_in_snapshot(true);
-  }
+
+  m_tmp_b1->skip_output(true);
+  m_tmp_b2->skip_output(true);
+  m_tmp_e1->skip_output(true);
+  m_tmp_e2->skip_output(true);
+  m_tmp_b1->include_in_snapshot(true);
+  m_tmp_b2->include_in_snapshot(true);
+  m_tmp_e1->include_in_snapshot(true);
+  m_tmp_e2->include_in_snapshot(true);
 }
 
 template <typename Conf, template <class> class ExecPolicy>

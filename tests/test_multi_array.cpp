@@ -739,8 +739,8 @@ TEST_CASE("Testing select", "[multi_array][exp_template]") {
 
   v.assign_host(3.0f);
 
-  auto w = select(v, index(0, 0), extent(10, 10));
-  w += select((v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
+  auto w = select(exec_tags::host{}, v, index(0, 0), extent(10, 10));
+  w += select(exec_tags::host{}, (v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
 
   for (auto idx : v.indices()) {
     auto pos = idx.get_pos();
@@ -751,12 +751,12 @@ TEST_CASE("Testing select", "[multi_array][exp_template]") {
     }
   }
 
-  select(v) = 5.0f;
+  select(exec_tags::host{}, v) = 5.0f;
   for (auto idx : v.indices()) {
     REQUIRE(v[idx] == 5.0f);
   }
 
-  select(v) *= v + 4.0f;
+  select(exec_tags::host{}, v) *= v + 4.0f;
   for (auto idx : v.indices()) {
     REQUIRE(v[idx] == 45.0f);
   }

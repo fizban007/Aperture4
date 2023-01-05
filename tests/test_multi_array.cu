@@ -240,8 +240,8 @@ TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
 
   v.assign_dev(3.0f);
 
-  auto w = select_dev(v, index(0, 0), extent(10, 10));
-  w += select_dev((v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
+  auto w = select(exec_tags::device{}, v, index(0, 0), extent(10, 10));
+  w += select(exec_tags::device{}, (v * 3.0f + 4.0f), index(0, 0), extent(10, 10));
   v.copy_to_host();
 
   for (auto idx : v.indices()) {
@@ -253,20 +253,20 @@ TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
     }
   }
 
-  select_dev(v) = 2.5f;
+  select(exec_tags::device{}, v) = 2.5f;
   REQUIRE(v[0] != 2.5f);
   v.copy_to_host();
   for (auto idx : v.indices()) {
     REQUIRE(v[idx] == 2.5f);
   }
 
-  select_dev(v) = v * 3.0f;
+  select(exec_tags::device{}, v) = v * 3.0f;
   v.copy_to_host();
   for (auto idx : v.indices()) {
     REQUIRE(v[idx] == 7.5f);
   }
 
-  select(v) = 4.0f * v - 2.0f;
+  select(exec_tags::host{}, v) = 4.0f * v - 2.0f;
   for (auto idx : v.indices()) {
     REQUIRE(v[idx] == 28.0f);
   }
@@ -274,8 +274,8 @@ TEST_CASE("Testing select_dev", "[multi_array][exp_template]") {
 
   auto v2 = make_multi_array<float>(extent(30, 30), MemType::host_device);
   v2.assign_dev(0.0f);
-  select_dev(v2, index(10, 10), extent(10, 10)) =
-      select_dev(v / 7.0f + 1.0f, index(0, 0), extent(10, 10));
+  select(exec_tags::device{}, v2, index(10, 10), extent(10, 10)) =
+      select(exec_tags::device{}, v / 7.0f + 1.0f, index(0, 0), extent(10, 10));
   v2.copy_to_host();
   for (auto idx : v.indices()) {
     auto pos = idx.get_pos();
@@ -318,7 +318,7 @@ TEST_CASE("Performance of expression template",
   v1.assign_dev(3.0f);
 
   timer::stamp();
-  select_dev(v1) = v1 * 7.0f + 9.0f / v1;
+  select(exec_tags::device{}, v1) = v1 * 7.0f + 9.0f / v1;
   timer::show_duration_since_stamp("Evaluation using Exp template", "us");
   v1.copy_to_host();
   REQUIRE(v1[0] == 24.0f);
@@ -338,7 +338,7 @@ TEST_CASE("Performance of expression template",
   }
 
   timer::stamp();
-  select_dev(v3) += v1.cref();
+  select(exec_tags::device{}, v3) += v1.cref();
   GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("Copy using expression template", "us");
   v3.copy_to_host();

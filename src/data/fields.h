@@ -177,10 +177,10 @@ class field_t : public data_t {
 
   // Only provides this method for N > 1
   template <int M = N, greater_than_unity<M> = true>
-  vec_t<typename Conf::ndptr_const_t, M> host_ptrs() const {
+  vec_t<typename Conf::ndptr_const_t, M> host_const_ptrs() const {
     vec_t<typename Conf::ndptr_const_t, M> result;
     for (int i = 0; i < M; i++) {
-      result[i] = m_data[i].host_ndptr();
+      result[i] = m_data[i].host_ndptr_const();
     }
     return result;
   }
@@ -230,7 +230,7 @@ struct host_adapter<field_t<N, Conf>> {
   typedef vec_t<typename Conf::ndptr_const_t, N> const_type;
 
   static inline const_type apply(const field_t<N, Conf>& f) {
-    return f.host_ptrs();
+    return f.host_const_ptrs();
   }
   static inline type apply(field_t<N, Conf>& f) { return f.host_ptrs(); }
 };

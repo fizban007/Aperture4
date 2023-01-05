@@ -45,12 +45,12 @@ struct nonown_ptr {
   void release() { p = nullptr; }
 
   T& operator*() { return *p; }
-  constexpr T& operator*() const { return *p; }
+  const T& operator*() const { return *p; }
 
   T* operator->() { return p; }
-  constexpr T* operator->() const { return p; }
+  const T* operator->() const { return p; }
 
-  constexpr T* get() const { return p; }
+  const T* get() const { return p; }
 };
 
 }  // namespace Aperture

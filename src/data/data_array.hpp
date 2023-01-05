@@ -50,9 +50,9 @@ class data_array {
   void set(int i, const nonown_ptr<T> &p) {
     m_data[i] = p;
 #ifdef GPU_ENABLED
-    m_ptrs[i] = gpu_adapter<T>::apply(*p);
+    m_ptrs[i] = gpu_adapter<T>::apply(*m_data[i]);
 #else
-    m_ptrs[i] = host_adapter<T>::apply(*p);
+    m_ptrs[i] = host_adapter<T>::apply(*m_data[i]);
 #endif
   }
 

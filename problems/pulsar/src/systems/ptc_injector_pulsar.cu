@@ -134,7 +134,7 @@ void ptc_injector_pulsar<Conf>::update(double dt, uint32_t step) {
     this->m_num_per_cell.assign_dev(0);
     this->m_cum_num_per_cell.assign_dev(0);
 
-    select_dev(this->m_num_per_cell, inj.begin, inj.ext) = inj.num;
+    select(exec_tags::device, this->m_num_per_cell, inj.begin, inj.ext) = inj.num;
 
     size_t grid_size = this->m_grid.extent().size();
     thrust::device_ptr<int> p_num_per_block(this->m_num_per_cell.dev_ptr());

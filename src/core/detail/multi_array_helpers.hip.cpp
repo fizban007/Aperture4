@@ -99,10 +99,10 @@ add(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank>& sr
   //               src_pos, dst.extent(), src.extent());
   // GpuSafeCall(gpuDeviceSynchronize());
   if (stream != nullptr) {
-    select_dev(dst, dst_pos, ext).with_stream(*stream) +=
-        select_dev(scale * src, src_pos, ext);
+    select(exec_tags::device{}, dst, dst_pos, ext).with_stream(*stream) +=
+        select(exec_tags::device{}, scale * src, src_pos, ext);
   } else {
-    select_dev(dst, dst_pos, ext) += select_dev(scale * src, src_pos, ext);
+    select(exec_tags::device{}, dst, dst_pos, ext) += select(exec_tags::device{}, scale * src, src_pos, ext);
   }
 }
 
@@ -133,10 +133,10 @@ copy(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank>& s
   //               src_pos, dst.extent(), src.extent());
   // GpuSafeCall(gpuDeviceSynchronize());
   if (stream != nullptr) {
-    select_dev(dst, dst_pos, ext).with_stream(*stream) =
-        select_dev(src, src_pos, ext);
+    select(exec_tags::device{}, dst, dst_pos, ext).with_stream(*stream) =
+        select(exec_tags::device{}, src, src_pos, ext);
   } else {
-    select_dev(dst, dst_pos, ext) = select_dev(src, src_pos, ext);
+    select(exec_tags::device{}, dst, dst_pos, ext) = select(exec_tags::device{}, src, src_pos, ext);
   }
 }
 

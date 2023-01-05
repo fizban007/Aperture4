@@ -17,11 +17,11 @@
 
 #include "field_solver_sph_impl.hpp"
 #include "framework/config.h"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_host.hpp"
 
 namespace Aperture {
 
 // Currently we have only implemented 2D spherical solver
-template class field_solver<Config<2>, exec_policy_gpu, coord_policy_spherical>;
+template class field_solver<Config<2>, exec_policy_host, coord_policy_spherical>;
 
 }

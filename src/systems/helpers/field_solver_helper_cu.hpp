@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __FIELD_SOLVER_HELPER_CU_H_
-#define __FIELD_SOLVER_HELPER_CU_H_
+#pragma once
 
 #include "core/cuda_control.h"
 #include "data/fields.h"
@@ -44,5 +43,3 @@ add_alpha_beta_cu(vector_field<Conf>& result, const vector_field<Conf>& b1,
 
 
 }
-
-#endif // __FIELD_SOLVER_HELPER_CU_H_

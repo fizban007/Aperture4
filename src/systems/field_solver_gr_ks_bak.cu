@@ -620,7 +620,7 @@ field_solver_gr_ks_cu<Conf>::update_Bth(vector_field<Conf> &B,
   // }
 
   // B[1].copy_from(m_tmp_rhs);
-  // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
+  // select(exec_tags::device, m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
       [] __device__(auto B, auto rhs, auto prev_field, auto beta) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -764,7 +764,7 @@ field_solver_gr_ks_cu<Conf>::update_Bph(vector_field<Conf> &B,
 
   // B[2].copy_from(m_tmp_rhs);
   auto &grid = B.grid();
-  select_dev(B[2], grid.guards(), grid.extent_less()) =
+  select(exec_tags::device, B[2], grid.guards(), grid.extent_less()) =
       select_dev_const(m_tmp_rhs);
 }
 
@@ -978,7 +978,7 @@ field_solver_gr_ks_cu<Conf>::update_Dth(vector_field<Conf> &D,
   // }
 
   // D[1].copy_from(m_tmp_rhs);
-  // select_dev(m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
+  // select(exec_tags::device, m_tmp_prev_field) = m_tmp_rhs * 0.5f + m_tmp_prev_field * 0.5f;
   kernel_launch(
       [] __device__(auto D, auto rhs, auto prev_field, auto beta) {
         auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
@@ -1140,7 +1140,7 @@ field_solver_gr_ks_cu<Conf>::update_Dph(vector_field<Conf> &D,
 
   // D[2].copy_from(m_tmp_rhs);
   auto &grid = D.grid();
-  select_dev(D[2], grid.guards(), grid.extent_less()) =
+  select(exec_tags::device, D[2], grid.guards(), grid.extent_less()) =
       select_dev_const(m_tmp_rhs);
 }
 

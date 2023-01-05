@@ -269,7 +269,7 @@ ptc_injector_cu<Conf>::update(double dt, uint32_t step) {
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
 
-    select_dev(m_num_per_cell, inj.begin, inj.ext) = inj.num;
+    select(exec_tags::device, m_num_per_cell, inj.begin, inj.ext) = inj.num;
 
     size_t grid_size = this->m_grid.extent().size();
     thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());

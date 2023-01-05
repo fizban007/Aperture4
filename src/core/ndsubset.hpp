@@ -18,6 +18,7 @@
 #pragma once
 
 #include "core/cuda_control.h"
+#include "core/exec_tags.h"
 #include "core/multi_array.hpp"
 #include "utils/indexable.hpp"
 #include "utils/range.hpp"
@@ -200,7 +201,8 @@ class ndsubset_t {
 template <typename Indexable, typename = typename std::enable_if_t<
                                   is_host_const_indexable<Indexable>::value>>
 ndsubset_const_t<Indexable, typename Indexable::idx_t>
-select(const Indexable& array, const index_t<Indexable::idx_t::dim>& begin,
+select(exec_tags::host, const Indexable& array,
+       const index_t<Indexable::idx_t::dim>& begin,
        const extent_t<Indexable::idx_t::dim>& ext) {
   // const extent_t<Indexable::idx_t::dim>& parent_ext) {
   return ndsubset_const_t<Indexable, typename Indexable::idx_t>(array, begin,
@@ -209,15 +211,15 @@ select(const Indexable& array, const index_t<Indexable::idx_t::dim>& begin,
 
 template <typename T, int Rank, typename Idx_t>
 auto
-select(multi_array<T, Rank, Idx_t>& array, const index_t<Rank>& begin,
-       const extent_t<Rank>& ext) {
+select(exec_tags::host, multi_array<T, Rank, Idx_t>& array,
+       const index_t<Rank>& begin, const extent_t<Rank>& ext) {
   return ndsubset_t<typename multi_array<T, Rank, Idx_t>::ref_t, Idx_t>(
       array.ref(), begin, ext);
 }
 
 template <typename T, int Rank, typename Idx_t>
 auto
-select(multi_array<T, Rank, Idx_t>& array) {
+select(exec_tags::host, multi_array<T, Rank, Idx_t>& array) {
   return ndsubset_t<typename multi_array<T, Rank, Idx_t>::ref_t, Idx_t>(
       array.ref(), array.begin().get_pos(), array.extent());
 }

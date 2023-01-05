@@ -23,11 +23,12 @@
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
-#include "systems/gather_momentum_space.h"
+#include "systems/gather_tracked_ptc.h"
+// #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_updater_impl.hpp"
@@ -48,10 +49,10 @@ template <typename Conf>
 void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                                  rng_states_t<exec_tags::device> &states);
 
-template class ptc_updater<Config<2>, exec_policy_gpu,
-                               coord_policy_cartesian, phys_policy_IC_cooling>;
-template class ptc_updater<Config<2>, exec_policy_gpu,
-                               coord_policy_cartesian_impl_cooling>;
+template class ptc_updater<Config<2>, exec_policy_dynamic,
+                           coord_policy_cartesian, phys_policy_IC_cooling>;
+template class ptc_updater<Config<2>, exec_policy_dynamic,
+                           coord_policy_cartesian_impl_cooling>;
 
 }  // namespace Aperture
 
@@ -64,27 +65,34 @@ main(int argc, char *argv[]) {
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // auto comm = env.register_system<domain_comm<Conf>>(env);
-  domain_comm<Conf, exec_policy_gpu> comm;
-  auto& grid = *(env.register_system<grid_t<Conf>>(comm));
-  auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(
-      grid, &comm);
+  domain_comm<Conf, exec_policy_dynamic> comm;
+  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto pusher =
+      env.register_system<ptc_updater<Conf, exec_policy_dynamic,
+                                      coord_policy_cartesian_impl_cooling>>(
+          grid, &comm);
   auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
+      Conf, exec_policy_dynamic, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
   // auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto moments = env.register_system<compute_moments<Conf, exec_policy_gpu>>(grid);
-  auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
-  auto solver = env.register_system<field_solver<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
+  auto moments =
+      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  // auto momentum =
+  //     env.register_system<gather_momentum_space<Conf,
+  //     exec_policy_gpu>>(grid);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
+                                                                       &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
+      grid, &comm);
 
   env.init();
 
   vector_field<Conf> *B0, *Bdelta, *Edelta;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
@@ -92,10 +100,12 @@ main(int argc, char *argv[]) {
 
   double_harris_current_sheet(*Bdelta, *ptc, *states);
 
+#ifdef GPU_ENABLED
   size_t free_mem, total_mem;
-  cudaMemGetInfo(&free_mem, &total_mem);
-  Logger::print_info("GPU memory: free = {} GiB, total = {} GiB", free_mem / 1.0e9,
-                     total_mem / 1.0e9);
+  gpuMemGetInfo(&free_mem, &total_mem);
+  Logger::print_info("GPU memory: free = {} GiB, total = {} GiB",
+                     free_mem / 1.0e9, total_mem / 1.0e9);
+#endif
   env.run();
   return 0;
 }

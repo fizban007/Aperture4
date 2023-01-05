@@ -65,6 +65,20 @@ symlog(T val) {
   return sgn(val) * math::log(1.0f + math::abs(val));
 }
 
+// Attempt to avoid std::max requiring two identical types
+template <typename T>
+HD_INLINE T
+max(T a, type_identity_t<T> b) {
+  return std::max(a, T(b));
+}
+
+// Attempt to avoid std::min requiring two identical types
+template <typename T>
+HD_INLINE T
+min(T a, type_identity_t<T> b) {
+  return std::min(a, T(b));
+}
+
 template <typename T>
 HD_INLINE T
 clamp(T val, type_identity_t<T> a, type_identity_t<T> b) {

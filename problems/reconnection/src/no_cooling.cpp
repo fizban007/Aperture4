@@ -24,7 +24,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_updater.h"
 #include <iostream>
 
@@ -48,17 +48,17 @@ main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf, exec_policy_gpu> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
-  auto moments = env.register_system<compute_moments<Conf, exec_policy_gpu>>(grid);
+      ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
+  auto moments = env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
+      env.register_system<gather_momentum_space<Conf, exec_policy_dynamic>>(grid);
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
+      field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid, &comm);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 
@@ -66,7 +66,6 @@ main(int argc, char *argv[]) {
   particle_data_t *ptc;
   // curand_states_t *states;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
@@ -74,10 +73,12 @@ main(int argc, char *argv[]) {
 
   double_harris_current_sheet(*Bdelta, *ptc, *states);
 
+#ifdef GPU_ENABLED
   size_t free_mem, total_mem;
-  cudaMemGetInfo(&free_mem, &total_mem);
+  gpuMemGetInfo(&free_mem, &total_mem);
   Logger::print_info("GPU memory: free = {} GiB, total = {} GiB",
                      free_mem / 1.0e9, total_mem / 1.0e9);
+#endif
   env.run();
   return 0;
 }

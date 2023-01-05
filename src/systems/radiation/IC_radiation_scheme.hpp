@@ -28,6 +28,7 @@
 #include "systems/inverse_compton.h"
 #include "systems/physics/ic_scattering.hpp"
 #include "systems/physics/spectra.hpp"
+#include "utils/util_functions.h"
 
 namespace Aperture {
 

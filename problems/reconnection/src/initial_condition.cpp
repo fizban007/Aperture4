@@ -24,13 +24,9 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/physics/lorentz_transform.hpp"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
-#include <thrust/device_ptr.h>
-#include <thrust/scan.h>
-
-namespace {}  // namespace
 
 namespace Aperture {
 
@@ -71,18 +67,19 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  // ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
   injector.inject(
       // Injection criterion
-      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
-      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream, B_g, delta] __device__(auto &x_global,
+      [kT_upstream, B_g, delta] LAMBDA(auto &x_global,
                                            rand_state &state, PtcType type) {
         value_t y = x_global[1];
         value_t Bx = tanh(y / delta);
@@ -96,12 +93,12 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // Particle weight
-      [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
+      [n_upstream] LAMBDA(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
   injector.inject(
       // Injection criterion
-      [delta] __device__(auto &pos, auto &grid, auto &ext) {
+      [delta] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         if (math::abs(y) < cs_y) {
@@ -111,9 +108,9 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         }
       },
       // Number injected
-      [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
-      [kT_cs, beta_d] __device__(auto &x_global, rand_state &state,
+      [kT_cs, beta_d] LAMBDA(auto &x_global, rand_state &state,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t sign = 1.0f;
@@ -127,7 +124,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         // p2, p3);
       },
       // Particle weight
-      [B0, n_cs, q_e, beta_d, delta] __device__(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
@@ -177,18 +174,19 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  // ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
   injector.inject(
       // Injection criterion
-      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
-      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
       // Initialize particles
-      [kT_upstream, boost_beta] __device__(auto &x_global,
+      [kT_upstream, boost_beta] LAMBDA(auto &x_global,
                                            rand_state &state, PtcType type) {
         auto p1 = rng_gaussian<value_t>(state, 2.0f * kT_upstream);
         auto p2 = rng_gaussian<value_t>(state, 2.0f * kT_upstream);
@@ -205,12 +203,12 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
-      [n_upstream] __device__(auto &x_global) { return 1.0 / n_upstream; });
+      [n_upstream] LAMBDA(auto &x_global) { return 1.0 / n_upstream; });
 
   // Current sheet particles
   injector.inject(
       // Injection criterion
-      [delta] __device__(auto &pos, auto &grid, auto &ext) {
+      [delta] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         if (math::abs(y) < cs_y) {
@@ -220,9 +218,9 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         }
       },
       // Number injected
-      [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
-      [kT_cs, beta_d, boost_beta] __device__(auto &x_global,
+      [kT_cs, beta_d, boost_beta] LAMBDA(auto &x_global,
                                              rand_state &state, PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t gamma_d = math::sqrt(1.0f + u_d.dot(u_d));
@@ -243,7 +241,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
-      [B0, n_cs, q_e, beta_d, delta] __device__(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
@@ -304,18 +302,19 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  // ptc_injector<Conf, exec_policy_gpu> injector(grid);
+  ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
   injector.inject(
-      [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
-      [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
-      // [kT_upstream] __device__(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
+      // [kT_upstream] LAMBDA(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
       //                          PtcType type) {
       //   return rng.maxwell_juttner_3d(kT_upstream);
-      [kT_upstream, B_g, delta] __device__(auto &x_global,
+      [kT_upstream, B_g, delta] LAMBDA(auto &x_global,
                                            rand_state &state, PtcType type) {
         value_t y = x_global[1];
         value_t Bx = tanh(y / delta);
@@ -325,14 +324,14 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t pdotB = (u_d[0] * Bx + u_d[2] * B_g) / B;
         return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
-      // [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
-      [n_upstream, q_e] __device__(auto &x_global) {
+      // [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      [n_upstream, q_e] LAMBDA(auto &x_global) {
         return 1.0 / q_e / n_upstream;
       });
 
   // Current sheet particles
   injector.inject(
-      [delta, ysize] __device__(auto &pos, auto &grid, auto &ext) {
+      [delta, ysize] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
         value_t y1 = 0.25 * ysize;
@@ -343,8 +342,8 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
           return false;
         }
       },
-      [n_cs] __device__(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] __device__(auto &x_global, rand_state &state,
+      [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
+      [kT_cs, beta_d] LAMBDA(auto &x_global, rand_state &state,
                                  PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t y = x_global[1];
@@ -356,9 +355,9 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p3 = u_d[0] * sign;
         return vec_t<value_t, 3>(p1, p2, p3);
       },
-      // [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &pos, auto &grid,
+      // [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &pos, auto &grid,
       // auto &ext) {
-      [B0, n_cs, q_e, beta_d, delta, ysize] __device__(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &x_global) {
         // auto y = grid.coord(1, pos[1], 0.5f);
         auto y = x_global[1];
         value_t j = 0.0;

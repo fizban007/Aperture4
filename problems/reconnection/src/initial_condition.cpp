@@ -71,7 +71,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
@@ -93,10 +93,10 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // Particle weight
-      [n_upstream] LAMBDA(auto &x_global) { return 1.0 / n_upstream; });
+      [n_upstream] LAMBDA(auto &x_global, PtcType type) { return 1.0 / n_upstream; });
 
   // Current sheet particles
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [delta] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
@@ -111,7 +111,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       // Initialize particles
       [kT_cs, beta_d] LAMBDA(auto &x_global, rand_state &state,
-                                 PtcType type) {
+                             PtcType type) {
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t sign = 1.0f;
         if (type == PtcType::positron) sign *= -1.0f;
@@ -124,7 +124,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         // p2, p3);
       },
       // Particle weight
-      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global, PtcType type) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
@@ -178,7 +178,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected
@@ -203,10 +203,10 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
-      [n_upstream] LAMBDA(auto &x_global) { return 1.0 / n_upstream; });
+      [n_upstream] LAMBDA(auto &x_global, PtcType type) { return 1.0 / n_upstream; });
 
   // Current sheet particles
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [delta] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
@@ -241,7 +241,7 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return p_prime.template subset<1, 4>();
       },
       // Particle weight
-      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta] LAMBDA(auto &x_global, PtcType type) {
         auto y = x_global[1];
         value_t j = -B0 / delta / square(cosh(y / delta));
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
@@ -306,7 +306,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles
-  injector.inject(
+  injector.inject_pairs(
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
@@ -325,12 +325,12 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      [n_upstream, q_e] LAMBDA(auto &x_global) {
+      [n_upstream, q_e] LAMBDA(auto &x_global, PtcType type) {
         return 1.0 / q_e / n_upstream;
       });
 
   // Current sheet particles
-  injector.inject(
+  injector.inject_pairs(
       [delta, ysize] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;
@@ -357,7 +357,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       },
       // [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &pos, auto &grid,
       // auto &ext) {
-      [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &x_global) {
+      [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &x_global, PtcType type) {
         // auto y = grid.coord(1, pos[1], 0.5f);
         auto y = x_global[1];
         value_t j = 0.0;

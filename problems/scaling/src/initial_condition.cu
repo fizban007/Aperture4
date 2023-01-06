@@ -73,7 +73,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   auto injector =
       sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
@@ -91,7 +91,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       });
 
     // Current sheet particles
-  injector->inject(
+  injector->inject_pairs(
       [delta] __device__(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
         value_t cs_y = 3.0f * delta;

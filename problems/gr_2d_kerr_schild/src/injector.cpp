@@ -137,7 +137,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
 
   auto num_per_cell = adapt(typename exec_policy::exec_tag{}, m_num_per_cell);
   auto injector = ptc_injector_dynamic<Conf>(m_grid);
-  injector.inject(
+  injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
@@ -156,7 +156,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [] LAMBDA(auto &x_global) {
+      [] LAMBDA(auto &x_global, PtcType type) {
         return math::sin(x_global[1]);
       });
   // size_t grid_size = m_grid.extent().size();

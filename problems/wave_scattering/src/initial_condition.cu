@@ -133,7 +133,7 @@ initial_condition_bg(vector_field<Conf> &B,
   auto& grid = B.grid();
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [mult] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * mult;
@@ -142,7 +142,7 @@ initial_condition_bg(vector_field<Conf> &B,
                     PtcType type) {
         return vec_t<value_t, 3>(0.0, 0.0, 0.0);
       },
-      [mult, rho_bg, q_e] __device__(auto &x_global) {
+      [mult, rho_bg, q_e] __device__(auto &x_global, PtcType type) {
         return rho_bg / q_e / mult;
       });
 
@@ -198,7 +198,7 @@ initial_condition_wave(vector_field<Conf> &B,
 
   value_t Lbox = L[0];
 
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [mult] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * mult;
@@ -213,7 +213,7 @@ initial_condition_wave(vector_field<Conf> &B,
         value_t gamma = 1.0f;
         return vec_t<value_t, 3>(v_d * gamma, 0.0, 0.0);
       },
-      [mult, rho_bg, q_e] __device__(auto &x_global) {
+      [mult, rho_bg, q_e] __device__(auto &x_global, PtcType type) {
         return rho_bg / q_e / mult;
       });
 

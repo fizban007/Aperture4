@@ -45,7 +45,7 @@ initial_condition_plasma(const grid_sph_t<Conf>& grid) {
 
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
-  injector->inject(
+  injector->inject_pairs(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected

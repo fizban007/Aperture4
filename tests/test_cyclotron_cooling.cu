@@ -97,7 +97,7 @@ main(int argc, char *argv[]) {
 
   int n_upstream = 1;
   float alpha = 2.0;
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;

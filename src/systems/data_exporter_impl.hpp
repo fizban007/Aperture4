@@ -375,6 +375,9 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
   fs::copy_file(xmf_file, xmf_snapshot_file,
                 fs::copy_option::overwrite_if_exists);
 #endif
+
+  Logger::print_info("Finishd writing snapshot at time {}, step {}",
+                     time, step);
 }
 
 template <typename Conf, template <class> class ExecPolicy>

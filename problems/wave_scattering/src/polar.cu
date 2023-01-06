@@ -189,7 +189,7 @@ main(int argc, char *argv[]) {
   value_t rho_bg = sim_env().params().get_as<double>("rho_bg", 100.0);
   value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
   // Background (upstream) particles
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;

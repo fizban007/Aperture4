@@ -57,7 +57,7 @@ main(int argc, char *argv[]) {
 
   int n = sim_env().params().get_as<int64_t>("multiplicity", 10);
   float kT = sim_env().params().get_as<double>("kT", 1.0);
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       // Number injected

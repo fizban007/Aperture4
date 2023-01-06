@@ -68,7 +68,7 @@ main(int argc, char *argv[]) {
   env.params().get_value("multiplicity", mult);
 
   ptc_injector_dynamic<Conf> injector(grid);
-  injector.inject(
+  injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
@@ -90,7 +90,7 @@ main(int argc, char *argv[]) {
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [rho_b, mult, q_e] LAMBDA(auto &x_global) { return rho_b / mult / q_e; });
+      [rho_b, mult, q_e] LAMBDA(auto &x_global, PtcType type) { return rho_b / mult / q_e; });
 
   env.run();
   return 0;

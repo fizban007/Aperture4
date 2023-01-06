@@ -70,7 +70,7 @@ void init_upstream(vector_field<Conf> &E,
 
   auto injector = sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
-  injector->inject(
+  injector->inject_pairs(
       [] __device__(auto &pos, auto &grid, auto &ext) { return true; },
       [n_upstream] __device__(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;

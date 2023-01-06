@@ -209,7 +209,7 @@ boundary_condition<Conf>::inject_plasma() {
   auto rho_p_ptr = rho_p->dev_ndptr();
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
   auto inj_size = inj_length * m_grid.delta[1];
-  injector->inject(
+  injector->inject_pairs(
       [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(
           auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
@@ -247,7 +247,7 @@ boundary_condition<Conf>::inject_plasma() {
         // 0.0f, 0.0f); return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-      [upstream_n] __device__(auto &x_global) { return 1.0 / upstream_n; });
+      [upstream_n] __device__(auto &x_global, PtcType type) { return 1.0 / upstream_n; });
 
   // buffer<int> offset(1, MemType::host_device);
   // offset[0] = num;

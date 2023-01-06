@@ -58,8 +58,8 @@ class ptc_injector<Conf, exec_policy_gpu> {
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
             typename FWeight>
-  void inject(const FCriteria& f_criteria, const FNumPerCell& f_num,
-              const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
+  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                    const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
     using policy = exec_policy_gpu<Conf>;
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
@@ -152,8 +152,8 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.p3[offset_p] = p[2];
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                ptc.weight[offset_e] = f_weight(x_global);
-                ptc.weight[offset_p] = f_weight(x_global);
+                ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
+                ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
                 uint32_t local_flag = flag;
                 if (rng.uniform<value_t>() < tracked_fraction) {
                   set_flag(local_flag, PtcFlag::tracked);

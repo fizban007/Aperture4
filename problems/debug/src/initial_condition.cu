@@ -52,7 +52,7 @@ initial_condition_single_stream(vector_field<Conf> &B, vector_field<Conf> &E,
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
 
   ptc_injector<Conf, exec_policy_gpu> injector(grid);
-  injector.inject(
+  injector.inject_pairs(
       // Injection criterion
       [] __device__(auto &pos, auto &grid, auto &ext) { return (pos[1] < grid.dims[1] / 2 - 10); },
       // Number injected

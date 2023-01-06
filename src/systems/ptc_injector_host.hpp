@@ -50,8 +50,8 @@ class ptc_injector<Conf, exec_policy_host> {
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
             typename FWeight>
-  void inject(const FCriteria& f_criteria, const FNumPerCell& f_num,
-              const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
+  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                    const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
     using policy = exec_policy_host<Conf>;
     auto& grid = m_grid;
     auto num = ptc->number();
@@ -112,8 +112,8 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.p3[offset_p] = p[2];
                   ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
-                  ptc.weight[offset_e] = f_weight(x_global);
-                  ptc.weight[offset_p] = f_weight(x_global);
+                  ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
+                  ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
                   auto u = rng.uniform<value_t>();
                   // printf("u is %f, tracked_fraction is %f\n", u, tracked_fraction);
                   uint32_t local_flag = flag;

@@ -59,8 +59,10 @@ field_solver_base<Conf>::register_data_components_impl(MemType type) {
   // output fields, we don't directly use here
   Etotal = sim_env().register_data<vector_field<Conf>>(
       "E", m_grid, field_type::edge_centered, type);
+  Etotal->include_in_snapshot(true);
   Btotal = sim_env().register_data<vector_field<Conf>>(
       "B", m_grid, field_type::face_centered, type);
+  Btotal->include_in_snapshot(true);
 
   // actual fields for computation, do not output. Do save in snapshots
   E = sim_env().register_data<vector_field<Conf>>(
@@ -128,5 +130,17 @@ template <typename Conf>
 void
 field_solver_base<Conf>::update_semi_implicit(double dt, double alpha,
                                               double beta, double time) {}
+
+template <typename Conf>
+void
+field_solver_base<Conf>::compute_flux() {}
+
+template <typename Conf>
+void
+field_solver_base<Conf>::compute_EB_sqr() {}
+
+template <typename Conf>
+void
+field_solver_base<Conf>::compute_divs_e_b() {}
 
 }  // namespace Aperture

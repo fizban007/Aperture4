@@ -70,6 +70,10 @@ class sim_environment_impl {
   uint32_t max_steps;
   uint32_t perf_interval;
 
+  bool m_is_restart = false;
+  std::string m_restart_file = "";
+  std::function<void()> m_load_snapshot;
+
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
 
@@ -329,8 +333,12 @@ class sim_environment_impl {
   double get_time() const { return time; }
   uint32_t get_perf_interval() const { return perf_interval; }
 
+  bool is_restart() const { return m_is_restart; }
+  const std::string& restart_file() const { return m_restart_file; }
+  void finish_restart() { m_is_restart = false; }
+
   void set_step(uint32_t s) { step = s; }
-  void set_time(double s) { step = s; }
+  void set_time(double t) { time = t; }
   const data_map_t& data_map() { return m_data_map; }
 };
 

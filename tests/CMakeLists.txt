@@ -120,23 +120,27 @@ else()
 
 endif()
 
-if (use_cuda OR use_hip)
+# if (use_cuda OR use_hip)
 
-if (use_cuda AND CMAKE_CUDA_COMPILER)
-  set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE CUDA)
-elseif(use_hip)
-  set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE HIP)
-endif()
+# if (use_cuda AND CMAKE_CUDA_COMPILER)
+#   set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE CUDA)
+# elseif(use_hip)
+#   set_source_files_properties("test_exporter_snapshot.hip.cpp" PROPERTIES LANGUAGE HIP)
+# endif()
 
-add_executable(test_exporter_snapshot "test_exporter_snapshot.hip.cpp")
-# target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
-target_link_libraries(test_exporter_snapshot
-  PUBLIC
-  Aperture
-  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
-  Catch2::Catch2)
+# add_executable(test_exporter_snapshot "test_exporter_snapshot.hip.cpp")
+# # target_link_libraries(test_exporter_snapshot Aperture_dev Catch2::Catch2)
+# target_link_libraries(test_exporter_snapshot
+#   PUBLIC
+#   Aperture
+#   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+#   Catch2::Catch2)
 
-endif()
+# endif()
+
+add_aperture_executable(test_exporter_snapshot "test_exporter_snapshot.cpp")
+target_link_libraries(test_exporter_snapshot Catch2::Catch2)
+
 
 add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
 # target_link_libraries(test_exporter_mpi Aperture Aperture_dev)

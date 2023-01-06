@@ -142,7 +142,8 @@ class data_exporter : public system_t {
   std::string m_xmf_buffer;
 
   /// tmp_ptc_data stores temporary particle outputs
-  buffer<double> tmp_ptc_data;
+  buffer<uint64_t> tmp_ptc_data64;
+  buffer<uint32_t> tmp_ptc_data32;
   /// tmp_grid_data stores the temporary downsampled data for output
   multi_array<float, Conf::dim> tmp_grid_data;
   grid_t<Conf> m_output_grid;

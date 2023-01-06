@@ -39,19 +39,18 @@ gather_tracked_ptc<Conf, ExecPolicy>::init() {
 
   sim_env().get_data_optional("particles", ptc);
   if (ptc != nullptr) {
-    tracked_ptc = sim_env().register_data<tracked_particles_t>("tracked_ptc",
-                                                               m_max_tracked);
+    tracked_ptc = sim_env().register_data<tracked_particles_t>(
+        "tracked_ptc", m_max_tracked, ExecPolicy<Conf>::data_mem_type());
   }
   sim_env().get_data_optional("photons", ph);
   if (ph != nullptr) {
-    tracked_ph =
-        sim_env().register_data<tracked_photons_t>("tracked_ph", m_max_tracked);
+    tracked_ph = sim_env().register_data<tracked_photons_t>(
+        "tracked_ph", m_max_tracked, ExecPolicy<Conf>::data_mem_type());
   }
 
   sim_env().get_data("E", E);
   sim_env().get_data("B", B);
 
-  m_ptc_output_interval = 0;
   sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
 }
 
@@ -123,8 +122,8 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_index(
 
   // Logger::print_info_all("finished getting tracked index");
   m_tracked_num.copy_to_host();
-  Logger::print_debug_all("There are {} tracked particles, {} particles", m_tracked_num[0],
-                          ptc.number());
+  Logger::print_debug_all("There are {} tracked particles, {} particles",
+                          m_tracked_num[0], ptc.number());
   if (m_tracked_num[0] > max_tracked) {
     m_tracked_num[0] = max_tracked;
     m_tracked_num.copy_to_device();
@@ -136,25 +135,29 @@ void
 gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (m_ptc_output_interval == 0 || m_max_tracked == 0) return;
 
-  // Logger::print_info("gathering tracked particles");
+  Logger::print_debug_all("gathering tracked particles, {}", m_ptc_output_interval);
   // Logger::print_info("tracked_ptc size is {}", tracked_ptc->size());
   if (step % m_ptc_output_interval == 0) {
     auto ext = m_grid.extent();
     if (ptc != nullptr) {
       gather_tracked_ptc_index(*ptc);
+      Logger::print_debug_all("gathered index");
       size_t tracked_num = m_tracked_num[0];
       tracked_ptc->set_number(tracked_num);
       auto& tracked_map = m_tracked_map;
 
       // Get positions
+      Logger::print_debug_all("before gather x1");
       gather_tracked_ptc_attr(
           tracked_ptc->x1, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
+            // printf("n is %u, cell[n] is %u\n", n, ptc.cell[n]);
             auto& grid = ExecPolicy<Conf>::grid();
             auto idx = Conf::idx(ptc.cell[n], ext);
             auto pos = get_pos(idx, ext);
             return grid.template coord<0>(pos, ptc.x1[n]);
           });
+      Logger::print_debug_all("gathered x1");
       gather_tracked_ptc_attr(
           tracked_ptc->x2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {

@@ -77,7 +77,9 @@ sim_environment_impl::reset(int* argc, char*** argv) {
       cxxopts::value<std::string>()->default_value("config.toml"))(
       "d,dry-run",
       "Only initialize, do not actualy run the simulation. Useful for looking "
-      "at initialization stage problems.");
+      "at initialization stage problems.")(
+      "r,restart", "Restart from the given snapshot file.",
+      cxxopts::value<std::string>()->default_value(""));
 
   // Parse options and store the results
   if (argc != nullptr && argv != nullptr) {
@@ -109,6 +111,10 @@ sim_environment_impl::parse_options(int argc, char** argv) {
     auto conf_file = result["config"].as<std::string>();
     m_params.add("config_file", conf_file);
 
+    m_restart_file = result["restart"].as<std::string>();
+    if (m_restart_file != "") {
+      m_is_restart = true;
+    }
   } catch (std::exception& e) {
     Logger::print_err("Error: {}", e.what());
     std::cout << m_options->help() << std::endl;
@@ -195,7 +201,7 @@ sim_environment_impl::run() {
   }
 
   Logger::print_debug("Max steps is: {}", max_steps);
-  for (int n = 0; n < max_steps; n++) {
+  for (int n = step; n <= max_steps; n++) {
     update();
   }
 }

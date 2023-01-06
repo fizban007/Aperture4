@@ -24,7 +24,7 @@
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
 #include "systems/gather_tracked_ptc.h"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 
 using namespace Aperture;
 
@@ -47,25 +47,28 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   env.params().add("size", std::vector<double>({1.0, 1.0, 2.0}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
-  env.params().add("max_tracked_num", 100l);
+  env.params().add("max_tracked_num", 1000l);
+  // env.params().add("ptc_output_interval", 0l);
   env.params().add<int64_t>("downsample", 2);
 
-  domain_comm<Conf, exec_policy_gpu> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   grid_t<Conf> grid(comm);
+  using exec_tag = typename exec_policy_dynamic<Conf>::exec_tag;
+  auto mem_type = exec_policy_dynamic<Conf>::debug_mem_type();
   // scalar_field<Conf> fs(grid, MemType::device_managed);
-  auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, MemType::device_managed);
+  auto fs = env.register_data<scalar_field<Conf>>("scalar", grid, mem_type);
   fs->include_in_snapshot(true);
   // vector_field<Conf> fv(grid, MemType::device_managed);
-  auto fv = env.register_data<vector_field<Conf>>("vector", grid, MemType::device_managed);
+  auto fv = env.register_data<vector_field<Conf>>("vector", grid, mem_type);
   fv->include_in_snapshot(true);
-  auto E = env.register_data<vector_field<Conf>>("E", grid, MemType::device_managed);
-  auto B = env.register_data<vector_field<Conf>>("B", grid, MemType::device_managed);
-  auto ptc = env.register_data<particle_data_t>("particles", 1000, MemType::device_managed);
+  auto E = env.register_data<vector_field<Conf>>("E", grid, mem_type);
+  auto B = env.register_data<vector_field<Conf>>("B", grid, mem_type);
+  auto ptc = env.register_data<particle_data_t>("particles", 1000, mem_type);
   ptc->include_in_snapshot(true);
-  auto states = env.register_data<rng_states_t<exec_tags::device>>("rng_states");
+  auto states = env.register_data<rng_states_t<exec_tag>>("rng_states");
   states->include_in_snapshot(true);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
-  auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_gpu>>(grid);
+  auto tracker = env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 
@@ -80,15 +83,18 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
     return 3.0f;
   });
 
+  Logger::print_info("Before append");
   // particle_data_t ptc(1000, MemType::device_managed);
   for (int i = 0; i < 100; i++) {
     ptc_append(exec_tags::host{}, *ptc, {0.1, 0.2, 0.3}, {1.0, 2.0, 3.0},
                 16 + 16 * 36 + 32 * 36 * 36, 1.0, flag_or(PtcFlag::tracked));
   }
 
+  Logger::print_info_all("Before writing snapshot");
   exporter->write_snapshot("Data/snapshot_mpi.h5", 0, 0.0);
   tracker->update(0.0, 0);
-  exporter->update(0.0, 0);
+  Logger::print_info_all("Before writing output");
+  // exporter->update(0.0, 0);
   ptc->init();
   fs->init();
   fv->init();
@@ -110,7 +116,7 @@ TEST_CASE("Writing and reading snapshot", "[snapshot]") {
     REQUIRE(ptc->x2[i] == Catch::Approx(0.2));
     REQUIRE(ptc->x3[i] == Catch::Approx(0.3));
 
-    REQUIRE(ptc->cell[i] == 
+    REQUIRE(ptc->cell[i] ==
                   16 + 16 * 36 + 32 * 36 * 36);
   }
   // TODO: add checking of rng_states

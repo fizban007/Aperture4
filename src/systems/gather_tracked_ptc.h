@@ -58,7 +58,7 @@ class gather_tracked_ptc : public system_t {
   nonown_ptr<tracked_photons_t> tracked_ph;
   nonown_ptr<vector_field<Conf>> E, B;
 
-  uint32_t m_ptc_output_interval;
+  uint32_t m_ptc_output_interval = 1;
   size_t m_max_tracked = 0;
   buffer<uint32_t> m_tracked_num;
   buffer<uint32_t> m_tracked_map;

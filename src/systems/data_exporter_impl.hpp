@@ -59,8 +59,10 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
   sim_env().params().get_value("max_ph_num", max_ph_num);
 
   // tmp_ptc_data.set_memtype(MemType::host_device);
-  tmp_ptc_data.set_memtype(ExecPolicy<Conf>::data_mem_type());
-  tmp_ptc_data.resize(std::max(max_ptc_num, max_ph_num));
+  tmp_ptc_data32.set_memtype(ExecPolicy<Conf>::data_mem_type());
+  tmp_ptc_data32.resize(std::max(max_ptc_num, max_ph_num));
+  tmp_ptc_data64.set_memtype(ExecPolicy<Conf>::data_mem_type());
+  tmp_ptc_data64.resize(std::max(max_ptc_num, max_ph_num));
 
   // Obtain the output grid
   for (int i = 0; i < Conf::dim; i++) {
@@ -173,6 +175,17 @@ void
 data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   double time = sim_env().get_time();
   using value_t = typename Conf::value_t;
+
+  // Load snapshot if it is a restart
+  if (sim_env().is_restart()) {
+    double time = 0.0;
+    load_snapshot(sim_env().restart_file(), step, time);
+    sim_env().set_step(step);
+    sim_env().set_time(time);
+    sim_env().finish_restart();
+    return;
+  }
+
   if (m_comm != nullptr) {
     m_comm->barrier();
   }
@@ -181,7 +194,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     auto create_mode = H5CreateMode::trunc_parallel;
-    if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
+    if (!is_multi_rank()) create_mode = H5CreateMode::trunc;
     H5File datafile = hdf_create(filename, create_mode);
 
     datafile.write(step, "step");
@@ -281,6 +294,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     }
   }
 
+  // Save snapshot
   if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0) {
     write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(), step,
                    time);
@@ -293,6 +307,7 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
                                                 uint32_t step, double time) {
   auto create_mode = H5CreateMode::trunc_parallel;
   if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
+  // if (!is_multi_rank()) create_mode = H5CreateMode::trunc;
   H5File snapfile = hdf_create(filename, create_mode);
 
   // Walk over all data components and write them to the snapshot file according
@@ -308,7 +323,8 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
     } else if (auto* ptr = dynamic_cast<scalar_field<Conf>*>(data)) {
       write(*ptr, it.first, snapfile, true);
     } else if (auto* ptr = dynamic_cast<particle_data_t*>(data)) {
-      write(*ptr, it.first, snapfile, true);
+      // write(*ptr, it.first, snapfile, true);
+      write_ptc_snapshot(*ptr, it.first, snapfile);
       // Also write particle numbers of each rank
       size_t ptc_num = ptr->number();
       int num_ranks = 1;
@@ -319,7 +335,8 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
       }
       snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0, "ptc_num");
     } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
-      write(*ptr, it.first, snapfile, true);
+      // write(*ptr, it.first, snapfile, true);
+      write_ptc_snapshot(*ptr, it.first, snapfile);
       // Also write photon numbers of each rank
       size_t ph_num = ptr->number();
       int num_ranks = 1;
@@ -345,6 +362,19 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
   if (m_comm != nullptr) num_ranks = m_comm->size();
 
   snapfile.close();
+
+  // Copy the current data.xmf file to a snapshot one
+  std::string xmf_file = m_output_dir + "data.xmf";
+  std::string xmf_snapshot_file = m_output_dir + "snapshot.xmf";
+  Logger::print_detail("Copying xmf file from {} to {}", xmf_file,
+                       xmf_snapshot_file);
+#ifndef USE_BOOST_FILESYSTEM
+  fs::copy_file(xmf_file, xmf_snapshot_file,
+                fs::copy_options::overwrite_existing);
+#else
+  fs::copy_file(xmf_file, xmf_snapshot_file,
+                fs::copy_option::overwrite_if_exists);
+#endif
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -355,7 +385,9 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
 
   // Read simulation stats
   step = snapfile.read_scalar<uint32_t>("step");
+  Logger::print_info("Snapshot step is {}", step);
   time = snapfile.read_scalar<double>("time");
+  Logger::print_info("Snapshot time is {}", time);
   m_fld_num = snapfile.read_scalar<int>("output_fld_num");
   m_ptc_num = snapfile.read_scalar<int>("output_ptc_num");
 
@@ -397,7 +429,19 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
 
   // read field output interval to sort out the xmf file
   auto fld_interval = snapfile.read_scalar<int>("output_fld_interval");
-  // TODO: touch up the xmf file
+
+  // Copy snapshot.xmf back to data.xmf
+  std::string xmf_file = m_output_dir + "data.xmf";
+  std::string xmf_snapshot_file = m_output_dir + "snapshot.xmf";
+  Logger::print_detail("Copying xmf file from {} to {}", xmf_snapshot_file,
+                       xmf_file);
+#ifndef USE_BOOST_FILESYSTEM
+  fs::copy_file(xmf_snapshot_file, xmf_file,
+                fs::copy_options::overwrite_existing);
+#else
+  fs::copy_file(xmf_snapshot_file, xmf_file,
+                fs::copy_option::overwrite_if_exists);
+#endif
 
   snapfile.close();
 }
@@ -614,33 +658,42 @@ void
 data_exporter<Conf, ExecPolicy>::write_ptc_snapshot(PtcData& data,
                                                     const std::string& name,
                                                     H5File& datafile) {
-  auto& ptc_buffer = tmp_ptc_data;
+  auto& ptc_buffer64 = tmp_ptc_data64;
+  auto& ptc_buffer32 = tmp_ptc_data32;
   size_t number = data.number();
+  Logger::print_debug("Writing snapshot of {} particles", number);
   size_t total = number;
   size_t offset = 0;
   bool multi_rank = is_multi_rank();
   if (multi_rank) {
     m_comm->get_total_num_offset(number, total, offset);
   }
-  // TODO: figure out whether to use dev_ptr or host_ptr
   visit_struct::for_each(
-      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total,
-                                offset, multi_rank](const char* entry, auto u) {
+      adapt(exec_tag{}, data),
+      [&ptc_buffer64, &ptc_buffer32, &name, &datafile, number, total, offset,
+       multi_rank](const char* entry, auto u) {
         // Copy to the temporary ptc buffer
-        // ptr_copy(exec_tags::device{}, reinterpret_cast<double*>(u),
+        // ptr_copy(exec_tags::device{}, reinterpret_cast<uint64_t*>(u),
         // ptc_buffer.dev_ptr(), number,
-        ptr_copy(exec_tag{}, reinterpret_cast<double*>(u),
-                 adapt(exec_tag{}, ptc_buffer), number, 0, 0);
-        ptc_buffer.copy_to_host();
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
-        // typedef decltype(*u) data_type;
-        if (multi_rank) {
-          datafile.write_parallel(
-              reinterpret_cast<const data_type*>(ptc_buffer.host_ptr()), number,
-              total, offset, number, 0, name + "_" + entry);
-        } else {
-          datafile.write(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
-                         number, name + "_" + entry);
+        auto write_component = [&](auto& ptc_buffer) {
+          auto ptr = adapt(exec_tag{}, ptc_buffer);
+          ptr_copy(exec_tag{}, reinterpret_cast<decltype(ptr)>(u), ptr, number,
+                   0, 0);
+          ptc_buffer.copy_to_host();
+          if (multi_rank) {
+            datafile.write_parallel(
+                reinterpret_cast<const data_type*>(ptc_buffer.host_ptr()),
+                number, total, offset, number, 0, name + "_" + entry);
+          } else {
+            datafile.write(reinterpret_cast<data_type*>(ptc_buffer.host_ptr()),
+                           number, name + "_" + entry);
+          }
+        };
+        if (sizeof(data_type) == 4) {
+          write_component(ptc_buffer32);
+        } else if (sizeof(data_type) == 8) {
+          write_component(ptc_buffer64);
         }
       });
 }
@@ -653,30 +706,43 @@ data_exporter<Conf, ExecPolicy>::read_ptc_snapshot(PtcData& data,
                                                    H5File& datafile,
                                                    size_t number, size_t total,
                                                    size_t offset) {
-  auto& ptc_buffer = tmp_ptc_data;
+  auto& ptc_buffer64 = tmp_ptc_data64;
+  auto& ptc_buffer32 = tmp_ptc_data32;
   bool multi_rank = is_multi_rank();
   // visit_struct::for_each(data.dev_ptrs(), [&ptc_buffer, &name, &datafile,
   visit_struct::for_each(
-      adapt(exec_tag{}, data), [&ptc_buffer, &name, &datafile, number, total,
-                                offset, multi_rank](const char* entry, auto u) {
+      adapt(exec_tag{}, data),
+      [&ptc_buffer64, &ptc_buffer32, &name, &datafile, number, total, offset,
+       multi_rank](const char* entry, auto u) {
         typedef typename std::remove_reference_t<decltype(*u)> data_type;
         Logger::print_info("reading {}", entry);
-        if (multi_rank) {
-          datafile.read_subset(
-              reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
-              name + "_" + entry, offset, number, 0);
-        } else {
-          datafile.read_array(
-              reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
-              name + "_" + entry);
+        auto read_component = [&](auto& ptc_buffer) {
+          if (multi_rank) {
+            datafile.read_subset(
+                reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
+                name + "_" + entry, offset, number, 0);
+          } else {
+            datafile.read_array(
+                reinterpret_cast<data_type*>(ptc_buffer.host_ptr()), number,
+                name + "_" + entry);
+          }
+          ptc_buffer.copy_to_device();
+          // ptr_copy(exec_tags::device{}, ptc_buffer.dev_ptr(),
+          // reinterpret_cast<uint64_t*>(u), number, 0,
+          auto ptr = adapt(exec_tag{}, ptc_buffer);
+          ptr_copy(typename ExecPolicy<Conf>::exec_tag{}, ptr,
+                   reinterpret_cast<decltype(ptr)>(u), number, 0, 0);
+          // for (int i = 0; i < number; i++) {
+          //   Logger::print_debug("{} is {}", entry, u[i]);
+          // }
+        };
+        if (sizeof(data_type) == 4) {
+          read_component(ptc_buffer32);
+        } else if (sizeof(data_type) == 8) {
+          read_component(ptc_buffer64);
         }
-        ptc_buffer.copy_to_device();
-        // ptr_copy(exec_tags::device{}, ptc_buffer.dev_ptr(),
-        // reinterpret_cast<double*>(u), number, 0,
-        ptr_copy(typename ExecPolicy<Conf>::exec_tag{},
-                 adapt(exec_tag{}, ptc_buffer), reinterpret_cast<double*>(u),
-                 number, 0, 0);
       });
+  data.set_num(number);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -721,6 +787,10 @@ data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data,
       extent_t<Conf::dim> ext_total, ext;
       index_t<Conf::dim> pos_src, pos_dst;
       compute_snapshot_ext_offset(ext_total, ext, pos_src, pos_dst);
+      // Logger::print_info_all(
+      //     "ext_total[0] is {}, ext[0] is {}, pos_src[0] is {}, pos_dst[0] is "
+      //     "{}",
+      //     ext_total[0], ext[0], pos_src[0], pos_dst[0]);
 
       data[i].copy_to_host();
       if (is_multi_rank()) {
@@ -1083,11 +1153,13 @@ data_exporter<Conf, ExecPolicy>::compute_snapshot_ext_offset(
       pos_file[n] += m_grid.guard[n];
     }
     if (m_comm != nullptr &&
-        m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
+        // m_comm->domain_info().neighbor_left[n] == MPI_PROC_NULL) {
+        m_comm->domain_info().mpi_coord[n] == 0) {
       ext[n] += m_grid.guard[n];
     }
     if (m_comm != nullptr &&
-        m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
+        // m_comm->domain_info().neighbor_right[n] == MPI_PROC_NULL) {
+        m_comm->domain_info().mpi_coord[n] == m_comm->domain_info().mpi_dims[n] - 1) {
       ext[n] += m_grid.guard[n];
     }
     ext_total[n] += 2 * m_grid.guard[n];

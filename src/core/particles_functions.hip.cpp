@@ -20,6 +20,7 @@
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/config.h"
+#include "framework/environment.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -272,9 +273,11 @@ ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
            const vec_t<Scalar, 3>& x, const vec_t<Scalar, 3>& p, uint32_t cell,
            Scalar weight, uint32_t flag) {
   if (ptc.number() == ptc.size()) return;
+  size_t rank = sim_env().get_rank();
+  rank <<= 32;
   kernel_launch(
       {1, 1},
-      [x, p, cell, weight, flag] __device__(auto ptrs, size_t pos) {
+      [x, p, cell, weight, flag, rank] __device__(auto ptrs, size_t pos, auto ptc_id) {
         ptrs.x1[pos] = x[0];
         ptrs.x2[pos] = x[1];
         ptrs.x3[pos] = x[2];
@@ -286,8 +289,9 @@ ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
         ptrs.weight[pos] = weight;
         ptrs.cell[pos] = cell;
         ptrs.flag[pos] = flag;
+        ptrs.id[pos] = rank + atomic_add(&ptc_id[0], 1);
       },
-      ptc.get_dev_ptrs(), ptc.number());
+      ptc.get_dev_ptrs(), ptc.number(), ptc.ptc_id().dev_ptr());
   GpuSafeCall(gpuDeviceSynchronize());
   // m_number += 1;
   ptc.set_num(ptc.number() + 1);

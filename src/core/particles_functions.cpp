@@ -19,6 +19,7 @@
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/config.h"
+#include "framework/environment.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/range.hpp"
 #include "visit_struct/visit_struct.hpp"
@@ -72,6 +73,9 @@ ptc_append(exec_tags::host, particles_base<BufferType>& ptc,
   ptc.weight[m_number] = weight;
   ptc.cell[m_number] = cell;
   ptc.flag[m_number] = flag;
+  size_t rank = sim_env().get_rank();
+  rank <<= 32;
+  ptc.id[m_number] = rank + atomic_add(&ptc.ptc_id()[0], 1);
   // m_number += 1;
   ptc.set_num(ptc.number() + 1);
 }

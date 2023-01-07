@@ -56,9 +56,10 @@ class Data:
       data.close()
 
   def __load_ptc_quantity(self, key):
-    path = os.path.join(self._path, f"ptc.{self._current_fld_step:05d}.h5")
+    path = os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5")
     data = h5py.File(path, "r")
     self.__dict__[key] = data[key][()]
+    data.close()
 
   def __load_mesh_quantity(self, key):
     data = h5py.File(self._meshfile, "r")
@@ -140,3 +141,17 @@ class Data:
 
   def load_conf(self, path):
     return toml.load(path)
+
+  def particle_series(self, ptc_id, key):
+    if isinstance(ptc_id, list) or isinstance(ptc_id, np.ndarray):
+      result = np.zeros((len(self.ptc_steps), len(ptc_id)))
+      for n in self.ptc_steps:
+        self.load_ptc(n)
+        for i in ptc_id:
+          result[n, i] = self.__getattr__(key)[self.tracked_ptc_id == ptc_id[i]]
+    else:
+      result = np.zeros(len(self.ptc_steps))
+      for n in self.ptc_steps:
+        self.load_ptc(n)
+        result[n] = self.__getattr__(key)[self.tracked_ptc_id == ptc_id]
+    return result

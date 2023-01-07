@@ -69,7 +69,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
                    RadiationPolicy>::register_data_components() {
   size_t max_ph_num = 10000;
   sim_env().params().get_value("max_ph_num", max_ph_num);
-  int segment_size = 10000;
+  int segment_size = max_ph_num;
   sim_env().params().get_value("ph_segment_size", segment_size);
 
   ph = sim_env().template register_data<photon_data_t>(

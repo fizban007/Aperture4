@@ -141,13 +141,13 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     auto ext = m_grid.extent();
     if (ptc != nullptr) {
       gather_tracked_ptc_index(*ptc);
-      Logger::print_debug_all("gathered index");
+      // Logger::print_debug_all("gathered index");
       size_t tracked_num = m_tracked_num[0];
       tracked_ptc->set_number(tracked_num);
       auto& tracked_map = m_tracked_map;
 
       // Get positions
-      Logger::print_debug_all("before gather x1");
+      // Logger::print_debug_all("before gather x1");
       gather_tracked_ptc_attr(
           tracked_ptc->x1, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {
@@ -157,7 +157,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             auto pos = get_pos(idx, ext);
             return grid.template coord<0>(pos, ptc.x1[n]);
           });
-      Logger::print_debug_all("gathered x1");
+      // Logger::print_debug_all("gathered x1");
       gather_tracked_ptc_attr(
           tracked_ptc->x2, tracked_map, tracked_num,
           [ext] LAMBDA(uint32_t n, auto ptc, auto E, auto B) {

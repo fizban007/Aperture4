@@ -270,9 +270,17 @@ params_store::get_as<std::vector<std::string>>(const std::string& name) const;
 
 template void params_store::add(const std::string& name, const bool& value);
 template void params_store::add(const std::string& name, const int64_t& value);
+template <> void params_store::add(const std::string& name,
+                                   const int& value) {
+  add(name, static_cast<int64_t>(value));
+}
 // template void params_store::add(const std::string& name,
 //                                const uint64_t& value);
 template void params_store::add(const std::string& name, const double& value);
+template <> void params_store::add(const std::string& name,
+                                   const float& value) {
+  add(name, static_cast<double>(value));
+}
 template void params_store::add(const std::string& name,
                                 const std::string& value);
 template void params_store::add(const std::string& name,

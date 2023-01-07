@@ -463,6 +463,8 @@ data_exporter<Conf, ExecPolicy>::copy_config_file() {
 #else
     fs::copy_file(conf_file, path, fs::copy_option::overwrite_if_exists);
 #endif
+  } else {
+    sim_env().params().write(path);
   }
 }
 

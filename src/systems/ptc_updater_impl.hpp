@@ -113,7 +113,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
             PhysicsPolicy>::register_data_components() {
   size_t max_ptc_num = 10000;
   sim_env().params().get_value("max_ptc_num", max_ptc_num);
-  int segment_size = 10000000;
+  int segment_size = max_ptc_num;
   sim_env().params().get_value("ptc_segment_size", segment_size);
 
   ptc = sim_env().register_data<particle_data_t>(

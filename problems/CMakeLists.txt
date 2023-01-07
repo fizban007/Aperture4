@@ -18,5 +18,6 @@ add_subdirectory(gr_2d_kerr_schild)
 # add_subdirectory(vacuum_sph_wave_test)
 # add_subdirectory(sph_wave_test)
 # add_subdirectory(wave_scattering)
+add_subdirectory(training)
 
 endif()

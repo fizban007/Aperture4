@@ -304,15 +304,6 @@ domain_comm<Conf, ExecPolicy>::send_add_array_guard_cells_single_dir(
     // }
     add(typename ExecPolicy<Conf>::exec_tag{}, array, array, recv_idx, send_idx,
         m_recv_buffers[dim].extent());
-    // if (array.mem_type() == MemType::host_only) {
-    //   add(exec_tags::host{}, array, array, recv_idx, send_idx,
-    //   m_recv_buffers[dim].extent());
-    // } else {
-    //   add(exec_tags::device{}, array, array, recv_idx, send_idx,
-    //   m_recv_buffers[dim].extent());
-    // }
-    add(typename ExecPolicy<Conf>::exec_tag{}, array, array, recv_idx, send_idx,
-        m_recv_buffers[dim].extent());
   } else {
     // if (array.mem_type() == MemType::host_only) {
     //   copy(exec_tags::host{}, m_send_buffers[dim], array,

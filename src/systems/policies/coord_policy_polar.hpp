@@ -59,7 +59,8 @@ class coord_policy_polar {
                             const extent_t<Conf::dim>& ext, PtcContext& context,
                             index_t<Conf::dim>& pos, value_t dt) const {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      default_pusher pusher;
+      // default_pusher pusher;
+      typename Conf::pusher_t pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],

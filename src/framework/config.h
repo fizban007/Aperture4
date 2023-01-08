@@ -23,6 +23,7 @@
 #include "core/ndptr.hpp"
 #include "core/particles.h"
 #include "core/typedefs_and_constants.h"
+#include "systems/physics/pushers.hpp"
 #include "utils/index.hpp"
 #include "utils/interpolation.hpp"
 #include "utils/logger.h"
@@ -44,6 +45,7 @@ namespace Aperture {
 ///  \tparam Idx_t            Indexing scheme for multiarrays
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
+          typename Pusher = default_pusher,
           int InterpOrder = default_interp_order,
           template <int> typename Idx_t = default_idx_t>
 class Config {
@@ -65,6 +67,7 @@ class Config {
   using buffer_t = buffer<FloatT>;           //!< The buffer type
   using spline_t = bspline<InterpOrder>;  //!< The interpolation b-spline type
   using grid_t = Grid<Dim, FloatT>;       //!< The grid type
+  using pusher_t = Pusher; //!< Pusher type
 
   /// Construct and return a multi_array.
   /**

@@ -62,7 +62,8 @@ class coord_policy_cartesian {
 #ifndef USE_SIMD
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
 #endif
-      default_pusher pusher;
+      // default_pusher pusher;
+      typename Conf::pusher_t pusher;
 
       pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],

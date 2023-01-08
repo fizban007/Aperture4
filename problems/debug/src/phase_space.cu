@@ -69,7 +69,7 @@ main(int argc, char *argv[]) {
         return u;
       },
       // Particle weight
-      [n] __device__(auto &x_global) { return 1.0 / n; });
+      [n] __device__(auto &x_global, PtcType type) { return 1.0 / n; });
 
   env.update();
 

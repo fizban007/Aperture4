@@ -242,14 +242,14 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] *
                   // (sigma_0 > 0.0f ? alpha : 1.0f);
                   result[0][idx] =
-                      e1[0][idx] + e2[0][idx] - dt * 4.0f * M_PI * j[0][idx] * alpha_0;
+                      e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha_0;
                   // result[0][idx] = e1[0][idx] + e2[0][idx];
                 } else {
                   result[0][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl0(b, idx, stagger, grid) -
                             // j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f));
-                            4.0f * M_PI * j[0][idx] * alpha_0);
+                            j[0][idx] * alpha_0);
                 }
 
                 // evolve E1
@@ -283,14 +283,14 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] *
                   // (sigma_1 > 0.0f ? alpha : 1.0f);
                   result[1][idx] =
-                      e1[1][idx] + e2[1][idx] - dt * 4.0f * M_PI * j[1][idx] * alpha_1;
+                      e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha_1;
                   // result[1][idx] = e1[1][idx] + e2[1][idx];
                 } else {
                   result[1][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl1(b, idx, stagger, grid) -
                             // j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f));
-                            4.0f * M_PI * j[1][idx] * alpha_1);
+                            j[1][idx] * alpha_1);
                 }
 
                 // evolve E2
@@ -324,14 +324,14 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] *
                   // (sigma_2 > 0.0f ? alpha : 1.0f);
                   result[2][idx] =
-                      e1[2][idx] + e2[2][idx] - dt * 4.0f * M_PI * j[2][idx] * alpha_2;
+                      e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha_2;
                   // result[2][idx] = e1[2][idx] + e2[2][idx];
                 } else {
                   result[2][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl2(b, idx, stagger, grid) -
                             // j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f));
-                            4.0f * M_PI * j[2][idx] * alpha_2);
+                            j[2][idx] * alpha_2);
                 }
               }
             });
@@ -364,19 +364,19 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update(
                 result[0][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl0(b, idx, stagger, grid) -
-                     4.0f * M_PI * j[0][idx]);
+                     j[0][idx]);
 
                 // evolve E1
                 result[1][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
-                     4.0f * M_PI * j[1][idx]);
+                     j[1][idx]);
 
                 // evolve E2
                 result[2][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
-                     4.0f * M_PI * j[2][idx]);
+                     j[2][idx]);
               }
             });
       },

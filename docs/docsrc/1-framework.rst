@@ -17,7 +17,7 @@ categories of classes: ``system`` and ``data``. ``data`` is what holds the
 simulation data, e.g. fields and particles, while ``system`` refers to any
 module that works on the data, e.g. pushing particles or evolving fields.
 
-For lack of a better name, the :ref:`sim_environment` class is a coordinator that
+For lack of a better name, the :ref:`sim_environment_impl` class is a coordinator that
 ties things together. It keeps a registry of systems and data components, and
 calls every system in order in a giant loop for the duration of the simulation.
 

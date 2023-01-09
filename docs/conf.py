@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'Aperture'
-copyright = '2020, Alex Chen'
+copyright = '2023, Alex Chen'
 author = 'Alex Chen'
 html_logo = '../logo_icon.png'
 

@@ -6,8 +6,7 @@
 Welcome to Aperture's documentation!
 ====================================
 
-*Aperture* is a Particle-in-Cell (PIC) code framework that targets CUDA-capable
-GPUs. It is designed to be fast, flexible, and easy to extend.
+*Aperture* is a Particle-in-Cell (PIC) code framework that targets both traditional CPUs and modern GPUs. It is designed to be fast, flexible, and easy to extend.
 
 .. toctree::
    :maxdepth: 1

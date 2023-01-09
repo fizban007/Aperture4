@@ -45,8 +45,8 @@ namespace Aperture {
 ///  \tparam Idx_t            Indexing scheme for multiarrays
 ////////////////////////////////////////////////////////////////////////////////
 template <int Dim, typename FloatT = Scalar,
-          typename Pusher = default_pusher,
           int InterpOrder = default_interp_order,
+          typename Pusher = default_pusher,
           template <int> typename Idx_t = default_idx_t>
 class Config {
  public:
@@ -148,11 +148,14 @@ class Config {
 
 // Define a macro to help instantiate classes with config
 #define INSTANTIATE_WITH_CONFIG(class_name)     \
-  template class class_name<Config<1, float>>;  \
-  template class class_name<Config<2, float>>;  \
-  template class class_name<Config<3, float>>;  \
-  template class class_name<Config<1, double>>; \
-  template class class_name<Config<2, double>>; \
-  template class class_name<Config<3, double>>
+  template class class_name<Config<1, Scalar, 1>>;  \
+  template class class_name<Config<2, Scalar, 1>>;  \
+  template class class_name<Config<3, Scalar, 1>>;  \
+  template class class_name<Config<1, Scalar, 2>>;  \
+  template class class_name<Config<2, Scalar, 2>>;  \
+  template class class_name<Config<3, Scalar, 2>>;  \
+  template class class_name<Config<1, Scalar, 3>>;  \
+  template class class_name<Config<2, Scalar, 3>>;  \
+  template class class_name<Config<3, Scalar, 3>>;
 
 }  // namespace Aperture

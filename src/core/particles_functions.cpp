@@ -312,32 +312,32 @@ ptc_copy_to_comm_buffers(exec_tags::host, particles_base<BufferType>& ptc,
 template void ptc_copy_to_comm_buffers<ptc_buffer, Config<1>>(
     exec_tags::host, particles_base<ptc_buffer>& ptc,
     std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<1, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<1>>& grid);
 
 template void ptc_copy_to_comm_buffers<ptc_buffer, Config<2>>(
     exec_tags::host, particles_base<ptc_buffer>& ptc,
     std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<2, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<2>>& grid);
 
 template void ptc_copy_to_comm_buffers<ptc_buffer, Config<3>>(
     exec_tags::host, particles_base<ptc_buffer>& ptc,
     std::vector<buffer<single_ptc_t>>& buffers, buffer<single_ptc_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<3, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<3>>& grid);
 
 template void ptc_copy_to_comm_buffers<ph_buffer, Config<1>>(
     exec_tags::host, particles_base<ph_buffer>& ptc,
     std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<1, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<1>>& grid);
 
 template void ptc_copy_to_comm_buffers<ph_buffer, Config<2>>(
     exec_tags::host, particles_base<ph_buffer>& ptc,
     std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<2, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<2>>& grid);
 
 template void ptc_copy_to_comm_buffers<ph_buffer, Config<3>>(
     exec_tags::host, particles_base<ph_buffer>& ptc,
     std::vector<buffer<single_ph_t>>& buffers, buffer<single_ph_t*>& buf_ptrs,
-    buffer<int>& buf_nums, const grid_t<Config<3, Scalar>>& grid);
+    buffer<int>& buf_nums, const grid_t<Config<3>>& grid);
 
 
 }  // namespace Aperture

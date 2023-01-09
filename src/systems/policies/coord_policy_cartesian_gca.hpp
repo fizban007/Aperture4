@@ -94,7 +94,8 @@ class coord_policy_cartesian_gca : public coord_policy_cartesian<Conf> {
     grid.from_global(x_global + dv, pos, rel_x);
 
     auto idx = Conf::idx(pos, ext);
-    auto interp = interp_t<Conf::interp_order, Conf::dim>{};
+    // auto interp = interp_t<Conf::interp_order, Conf::dim>{};
+    auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
 
     vb[0] = interp(rel_x, B[0], idx, ext, stagger_t(0b001));
     vb[1] = interp(rel_x, B[1], idx, ext, stagger_t(0b010));

@@ -21,9 +21,6 @@
 
 namespace Aperture {
 
-template class field_solver<Config<1>, exec_policy_host, coord_policy_cartesian>;
-template class field_solver<Config<2>, exec_policy_host, coord_policy_cartesian>;
-template class field_solver<Config<3>, exec_policy_host, coord_policy_cartesian>;
-
+INSTANTIATE_WITH_CONFIG(field_solver, exec_policy_host, coord_policy_cartesian);
 
 }

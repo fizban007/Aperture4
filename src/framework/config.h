@@ -147,15 +147,14 @@ class Config {
 };
 
 // Define a macro to help instantiate classes with config
-#define INSTANTIATE_WITH_CONFIG(class_name)     \
-  template class class_name<Config<1, Scalar, 1>>;  \
-  template class class_name<Config<2, Scalar, 1>>;  \
-  template class class_name<Config<3, Scalar, 1>>;  \
-  template class class_name<Config<1, Scalar, 2>>;  \
-  template class class_name<Config<2, Scalar, 2>>;  \
-  template class class_name<Config<3, Scalar, 2>>;  \
-  template class class_name<Config<1, Scalar, 3>>;  \
-  template class class_name<Config<2, Scalar, 3>>;  \
-  template class class_name<Config<3, Scalar, 3>>;
+#define INSTANTIATE_ARGS_WITH_CONFIG(class_name, args)     \
+  template class class_name<args, Config<1>>;  \
+  template class class_name<args, Config<2>>;  \
+  template class class_name<args, Config<3>>
+
+#define INSTANTIATE_WITH_CONFIG(class_name, ...)     \
+  template class class_name<Config<1>, ##__VA_ARGS__>;  \
+  template class class_name<Config<2>, ##__VA_ARGS__>;  \
+  template class class_name<Config<3>, ##__VA_ARGS__>
 
 }  // namespace Aperture

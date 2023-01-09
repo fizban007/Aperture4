@@ -75,7 +75,7 @@ class field_t : public data_t {
   void assign(const typename Conf::value_t& value);
 
   template <typename Func>
-  void set_values(int n, const Func& f) {
+  void set_values(int n, Func f) {
     if (n >= 0 && n < N) {
       // Logger::print_debug("data[{}] has extent {}x{}", n,
       // m_data[n].extent()[0],
@@ -94,7 +94,7 @@ class field_t : public data_t {
   }
 
   template <typename Func>
-  void set_values(const Func& f) {
+  void set_values(Func f) {
     for (int n = 0; n < Conf::dim; n++) {
       set_values(
           n, [&f, n](auto x0, auto x1, auto x2) { return f(n, x0, x1, x2); });

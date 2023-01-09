@@ -100,8 +100,8 @@ documentation include ``Doxygen``, ``Sphinx``, ``Breathe``, and ``sphinx_rtd_the
 The latter 3 are python packages and preferably installed in a python virtual
 environment.
 
-Run Simulations
----------------
+Running Simulations
+-------------------
 
 To run a quick test simulation, checkout the ``training`` directory in
 ``problems``. It contains several self-contained simple setups that can run

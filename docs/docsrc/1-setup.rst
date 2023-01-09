@@ -2,42 +2,61 @@
  Setting up a Simulation
 =========================
 
-The following code sets up a simple PIC simulation:
+The following code is the boiler plate for setting up a PIC simulation in *Aperture*:
 
 .. code-block:: cpp
+
+    #include "framework/config.h"
+    #include "framework/environment.h"
+    #include "systems/data_exporter.h"
+    #include "systems/domain_comm.h"
+    #include "systems/field_solver_cartesian.h"
+    #include "systems/ptc_updater.h"
 
     using namespace Aperture;
 
     int main(int argc, char* argv[]) {
         typedef Config<2> Conf; // Specify that this is a 2D simulation
-        sim_environment env(&argc, &argv); // Initialize the coordinator
+        // Initialize the simulation environment
+        auto &env = sim_environment::instance(&argc, &argv);
+        // Choose execution policy depending on compile options (GPU or CPU)
+        using exec_policy = exec_policy_dynamic<Conf>;
 
-        // Setup the simulation grid
-        auto grid = env.register_system<grid_t<Conf>>(env);
+        // Setting up domain decomposition
+        domain_comm<Conf, exec_policy_dynamic> comm;
+        // Setting up the simulation grid
+        grid_t<Conf> grid(comm);
         // Add a particle pusher
-        auto pusher = env.register_system<ptc_updater<Conf>>(env, *grid);
+        auto pusher = env.register_system<
+          ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
+          &comm);
         // Add a field solver
-        auto solver = env.register_system<field_solver<Conf>>(env, *grid);
+        auto solver = env.register_system<
+          field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
+          &comm);
         // Setup data output
-        auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
+        auto exporter = env.register_system<data_exporter<Conf,
+          exec_policy_dynamic>>(grid, &comm);
 
         // Call the init() method of all systems
         env.init();
+
+        // Prepare initial conditions
+        ...
 
         // Enter the main simulation loop
         env.run();
     }
 
 The ``Config`` class contains compile-time configurations for the code,
-including the dimensionality (2 in the above example), data type for floating point
-numbers, and indexing scheme.
+including the dimensionality (2 in the above example), data type for floating
+point numbers, particle pusher type, and indexing scheme.
 
-The method ``register_system<T>`` constructs a ``system``, put it in the
-registry, and returns a pointer to it. When ``init()`` or ``run()`` is called,
-all the ``init()`` and ``run()`` methods of the registered systems are run in
-the order they are registered. In the above example, at every timestep, the code
-will first call the ``ptc_updater``, then the ``field_solver``, then the
-``data_exporter``.
+The method ``register_system<T>`` constructs a :doc:`/api/framework/system`, puts it in the registry, and returns a pointer to it. When ``init()`` or ``run()`` is
+called, all the ``init()`` and ``run()`` methods of the registered systems are
+run in the order they are registered. In the above example, at every timestep,
+the code will first call the ``ptc_updater``, then the ``field_solver``, then
+the ``data_exporter``.
 
 There are two main ways to customize the problem setup, namely through the
 config file ``config.toml``, or programmatically through coding initial or
@@ -62,23 +81,10 @@ programmatically:
 
 .. code-block:: cpp
 
-   sim_environment env;
-   env.params().add("dt", 0.01);
-   env.params().add("max_ptc_num", int64_t(100));
+   sim_env().params().add("dt", 0.01);
+   sim_env().params().add("max_ptc_num", 100);
 
-Note that the parameters can only be one of these types:
-
-* ``bool``
-* ``int64_t``
-* ``double``
-* ``std::string``
-* ``std::vector<bool>``
-* ``std::vector<int64_t>``
-* ``std::vector<double>``
-* ``std::vector<std::string>``
-
-When there is type ambiguity, an explicit cast is required when add a parameter
-this way. Since systems may use parameters in their constructors, one should add
+Since systems may use parameters in their constructors, one should add
 whatever needed parameters before initializing any systems.
 
 Source Code
@@ -93,10 +99,10 @@ function to some field:
    vector_field<Conf> *B0;  // Declare a pointer to the background B
    env.get_data("B0", &B0); // Point it to the "B0" data component in the registry
    double Bp = 100.0;       // Set a characteristic value for B
-   B0->set_value(0, [Bp](Scalar r, Scalar theta, Scalar phi) {
+   B0->set_value(0, [Bp](auto r, auto theta, auto phi) {
        return Bp / square(r);
-   }); // Set the 0th component (B_r) to a monopolar field
+   }); // Set the 0th component (B_r) to a monopole field in spherical coordinates
 
 Nontrivial boundary conditions can be more difficult to set up, especially
 time-dependent ones which requires the user to write a customized ``system``.
-Please refer to the tutorial for how to do that.
+Please refer to :doc:`The Aperture Framework <2-framework>` for an explanation of how to write a custom ``system``.

@@ -286,8 +286,8 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
-        // auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
-        auto interp = interp_t<1, Conf::dim>{};
+        auto interp = interpolator<typename Conf::spline_t, Conf::dim>{};
+        // auto interp = interp_t<1, Conf::dim>{};
         ExecPolicy<Conf>::loop(begin, end, [&] LAMBDA(auto n) {
           ptc_context<Conf::dim, int32_t, uint32_t, value_t> context;
           context.cell = ptc.cell[n];

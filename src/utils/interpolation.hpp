@@ -123,8 +123,11 @@ struct interpolator<Interp, 1> {
   //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx,
+  // HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
+  //                             const Index_t& idx,
+  //                             stagger_t stagger = stagger_t(0b111)) const ->
+  HOST_DEVICE auto operator()(const vec_t<FloatT, 3>& x, const Ptr& f,
+                              const Index_t& idx, const extent_t<1>& ext,
                               stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
@@ -166,8 +169,11 @@ struct interpolator<Interp, 2> {
   //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx,
+  // HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
+  //                             const Index_t& idx,
+  //                             stagger_t stagger = stagger_t(0b111)) const ->
+  HOST_DEVICE auto operator()(const vec_t<FloatT, 3>& x, const Ptr& f,
+                              const Index_t& idx, const extent_t<2>& ext,
                               stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0f;
@@ -223,8 +229,8 @@ struct interpolator<Interp, 3> {
   //   }
 
   template <typename Ptr, typename Index_t, typename FloatT>
-  HOST_DEVICE auto operator()(const Ptr& f, const vec_t<FloatT, 3>& x,
-                              const Index_t& idx,
+  HOST_DEVICE auto operator()(const vec_t<FloatT, 3>& x, const Ptr& f,
+                              const Index_t& idx, const extent_t<3>& ext,
                               stagger_t stagger = stagger_t(0b111)) const ->
       typename Ptr::value_t {
     typename Ptr::value_t result = 0.0;

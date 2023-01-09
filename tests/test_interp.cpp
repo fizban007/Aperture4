@@ -23,7 +23,8 @@
 using namespace Aperture;
 
 TEST_CASE("1D linear interpolation", "[interp]") {
-  auto v = make_multi_array<double>(extent(4), MemType::host_only);
+  auto ext = extent(4);
+  auto v = make_multi_array<double>(ext, MemType::host_only);
   auto interp = interpolator<bspline<1>, 1>{};
 
   v[0] = 3.0;
@@ -32,22 +33,23 @@ TEST_CASE("1D linear interpolation", "[interp]") {
   v[3] = 6.0;
   auto idx = v.get_idx(1);
   // auto pos = idx.get_pos();
-  REQUIRE(interp(v, vec_t<float, 3>(0.1, 0.2, 0.3), idx) ==
+  REQUIRE(interp(vec_t<float, 3>(0.1, 0.2, 0.3), v, idx, ext) ==
           Catch::Approx(0.1 * 5.0 + 0.9 * 4.0));
 }
 
 TEST_CASE("2D cubic interpolation", "[interp]") {
-  auto v = make_multi_array<double>(extent(4, 4), MemType::host_only);
+  auto ext = extent(4, 4);
+  auto v = make_multi_array<double>(ext, MemType::host_only);
   auto interp = interpolator<bspline<3>, 2>{};
 
   v.assign(1.0);
   auto idx = v.get_idx(1, 1);
-  double a = interp(v, vec_t<float, 3>(0.3, 0.4, 0.5), idx);
+  double a = interp(vec_t<float, 3>(0.3, 0.4, 0.5), v, idx, ext);
   REQUIRE(a == Catch::Approx(1.0));
 
   v.emplace(0, {1.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0, 5.0, 3.0, 4.0, 5.0, 6.0, 4.0,
                 5.0, 6.0, 7.0});
-  a = interp(v, vec_t<double, 3>(0.0, 1.0, 0.5), idx);
+  a = interp(vec_t<double, 3>(0.0, 1.0, 0.5), v, idx, ext);
   REQUIRE(a == Catch::Approx(4.0));
 }
 
@@ -71,7 +73,7 @@ TEST_CASE("3D linear interpolation", "[interp]") {
                       2.9 * 0.7 * 0.45 * 0.65 + 3.9 * 0.3 * 0.45 * 0.65));
 
   auto interp_old = interpolator<bspline<1>, 3>{};
-  auto b = interp_old(v, x, idx);
+  auto b = interp_old(x, v, idx, ext);
 
   REQUIRE(a == Catch::Approx(b));
 

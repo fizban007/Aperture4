@@ -406,7 +406,7 @@ TEST_CASE("Performance of 3d interpolation on CPU",
       if (pos[0] < N1 - 2 && pos[1] < N2 - 2 && pos[2] < N3 - 2) {
         // result[i] = x;
         // result[i] = lerp3(f, xs[i], ys[i], zs[i], idx);
-        result[i] = interp(f, vec_t<float, 3>(xs[i], ys[i], zs[i]), idx);
+        result[i] = interp(vec_t<float, 3>(xs[i], ys[i], zs[i]), f, idx, ext);
       }
     }
   };
@@ -491,7 +491,7 @@ TEST_CASE("Performance of 2d interpolation on CPU",
       if (pos[0] < N1 - 2 && pos[1] < N2 - 2) {
         // result[i] = x;
         // result[i] = lerp2(f, xs[i], ys[i], idx);
-        result[i] = interp(f, vec_t<float, 3>(xs[i], ys[i], 0.0f), idx);
+        result[i] = interp(vec_t<float, 3>(xs[i], ys[i], 0.0f), f, idx, ext);
       }
     }
   };

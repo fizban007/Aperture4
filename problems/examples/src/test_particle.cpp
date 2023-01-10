@@ -25,9 +25,7 @@
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_updater.h"
-#include <iostream>
 
-using namespace std;
 using namespace Aperture;
 
 int

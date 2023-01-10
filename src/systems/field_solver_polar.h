@@ -37,8 +37,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_polar>
   using value_t = typename Conf::value_t;
 
   field_solver(const grid_polar_t<Conf>& grid,
-               const domain_comm<Conf, ExecPolicy>* comm = nullptr)
-      : field_solver_base<Conf>(grid), m_grid_polar(grid), m_comm(comm) {}
+               const domain_comm<Conf, ExecPolicy>* comm = nullptr);
 
   virtual ~field_solver() {}
 

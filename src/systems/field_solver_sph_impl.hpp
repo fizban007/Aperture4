@@ -271,6 +271,13 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 }  // namespace
 
 template <typename Conf, template <class> class ExecPolicy>
+field_solver<Conf, ExecPolicy, coord_policy_spherical>::field_solver(const grid_sph_t<Conf>& grid,
+               const domain_comm<Conf, ExecPolicy>* comm)
+      : field_solver_base<Conf>(grid), m_grid_sph(grid), m_comm(comm) {
+  ExecPolicy<Conf>::set_grid(this->m_grid);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_spherical>::init() {
   field_solver_base<Conf>::init();

@@ -61,6 +61,13 @@ pml_alpha(Float x, Float dx, int n_pml) {
 }  // namespace
 
 template <typename Conf, template <class> class ExecPolicy>
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::field_solver(
+    const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
+    : field_solver_base<Conf>(grid), m_comm(comm) {
+  ExecPolicy<Conf>::set_grid(this->m_grid);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::init() {
   field_solver_base<Conf>::init();

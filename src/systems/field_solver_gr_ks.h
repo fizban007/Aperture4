@@ -40,8 +40,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
 
   // field_solver_gr_ks_cu(sim_environment& env, const grid_ks_t<Conf>& grid,
   field_solver(const grid_ks_t<Conf>& grid,
-               const domain_comm<Conf, ExecPolicy>* comm = nullptr)
-      : field_solver_base<Conf>(grid), m_ks_grid(grid), m_comm(comm) {}
+               const domain_comm<Conf, ExecPolicy>* comm = nullptr);
 
   virtual ~field_solver();
 

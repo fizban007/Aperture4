@@ -59,14 +59,14 @@ class Logger {
   template <typename... Args>
   static void print_err(const std::string& str, Args&&... args) {
     if (m_rank == 0) {
-      fmt::print(stderr, str, std::forward<Args>(args)...);
+      fmt::print(stderr, "Error: " + str, std::forward<Args>(args)...);
       fmt::print("\n");
     }
   }
 
   template <typename... Args>
   static void print_err_all(const std::string& str, Args&&... args) {
-    fmt::print(stderr, "Rank {}: " + str, m_rank, std::forward<Args>(args)...);
+    fmt::print(stderr, "Rank {} Error: " + str, m_rank, std::forward<Args>(args)...);
     fmt::print("\n");
   }
 
@@ -87,7 +87,7 @@ class Logger {
   template <typename... Args>
   static void print_detail(const std::string& str, Args&&... args) {
     if (m_rank == 0 && m_level >= LogLevel::detail) {
-      fmt::print(str, std::forward<Args>(args)...);
+      fmt::print("Detail: " + str, std::forward<Args>(args)...);
       fmt::print("\n");
     }
   }
@@ -95,7 +95,7 @@ class Logger {
   template <typename... Args>
   static void print_detail_all(const std::string& str, Args&&... args) {
     if (m_level >= LogLevel::detail) {
-      fmt::print("Rank {}: " + str, m_rank, std::forward<Args>(args)...);
+      fmt::print("Rank {} Detail: " + str, m_rank, std::forward<Args>(args)...);
       fmt::print("\n");
     }
   }

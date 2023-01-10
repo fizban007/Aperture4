@@ -51,8 +51,10 @@ class field_solver<Conf, ExecPolicy, coord_policy_spherical>
   virtual void compute_flux() override;
   virtual void compute_EB_sqr() override;
 
-  void compute_b_update_explicit(double dt);
-  void compute_e_update_explicit(double dt);
+  void compute_b_update_explicit(vector_field<Conf>& B, const vector_field<Conf>& E,
+                                 double dt);
+  void compute_e_update_explicit(vector_field<Conf>& E, const vector_field<Conf>& B,
+                                 const vector_field<Conf>& J, double dt);
 
  protected:
   const grid_sph_t<Conf>& m_grid_sph;
@@ -62,8 +64,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_spherical>
   value_t m_damping_coef = 0.003;
 
   // These are temporary fields required for the implicit update
-  // std::unique_ptr<vector_field<Conf>> m_bnew;
-  nonown_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
+  std::unique_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
+  // nonown_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_bnew;
 };
 
 // template <typename Conf>

@@ -115,8 +115,12 @@ domain_comm<Conf, ExecPolicy>::setup_domain() {
 
   auto periodic = sim_env().params().template get_as<std::vector<bool>>(
       "periodic_boundary");
-  for (int i = 0; i < std::min(Conf::dim, (int)periodic.size()); i++)
+  if (periodic.size() < Conf::dim) {
+    periodic.resize(Conf::dim, false);
+  }
+  for (int i = 0; i < Conf::dim; i++) {
     m_domain_info.is_periodic[i] = periodic[i];
+  }
 
   // Create a cartesian MPI group for communication
   MPI_Cart_create(m_world, Conf::dim, m_domain_info.mpi_dims,

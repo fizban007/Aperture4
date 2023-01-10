@@ -194,7 +194,8 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
     auto create_mode = H5CreateMode::trunc_parallel;
-    if (!is_multi_rank()) create_mode = H5CreateMode::trunc;
+    // if (!is_multi_rank()) create_mode = H5CreateMode::trunc;
+    if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
     H5File datafile = hdf_create(filename, create_mode);
 
     datafile.write(step, "step");
@@ -332,8 +333,10 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
       if (is_multi_rank()) {
         num_ranks = m_comm->size();
         rank = m_comm->rank();
+        snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0, "ptc_num");
+      } else {
+        snapfile.write(&ptc_num, 1, "ptc_num");
       }
-      snapfile.write_parallel(&ptc_num, 1, num_ranks, rank, 1, 0, "ptc_num");
     } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
       // write(*ptr, it.first, snapfile, true);
       write_ptc_snapshot(*ptr, it.first, snapfile);
@@ -344,8 +347,10 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
       if (is_multi_rank()) {
         num_ranks = m_comm->size();
         rank = m_comm->rank();
+        snapfile.write_parallel(&ph_num, 1, num_ranks, rank, 1, 0, "ph_num");
+      } else {
+        snapfile.write(&ph_num, 1, "ph_num");
       }
-      snapfile.write_parallel(&ph_num, 1, num_ranks, rank, 1, 0, "ph_num");
     } else if (auto* ptr = dynamic_cast<rng_states_t<exec_tag>*>(data)) {
       write(*ptr, it.first, snapfile, true);
     }
@@ -417,8 +422,10 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
       int rank = 0;
       if (is_multi_rank()) {
         rank = m_comm->rank();
+        snapfile.read_subset(&ptc_num, 1, "ptc_num", rank, 1, 0);
+      } else {
+        snapfile.read_array(&ptc_num, 1, "ptc_num");
       }
-      snapfile.read_subset(&ptc_num, 1, "ptc_num", rank, 1, 0);
       Logger::print_info_all("rank {} has ptc_num {}", rank, ptc_num);
       uint64_t total = ptc_num, offset = 0;
       if (is_multi_rank()) {

@@ -191,10 +191,10 @@ struct IC_radiation_scheme {
         continue;
       }
       if (e_ph > gamma - 1.0001) {
-        e_ph = abs(gamma - 1.0001);
+        e_ph = math::abs(gamma - 1.0001);
         num_scattering = 0;
       }
-      gamma -= abs(e_ph);
+      gamma -= math::abs(e_ph);
       // Account for the energy loss regardless of particle flag
       atomic_add(&m_IC_loss[idx], ptc.weight[tid] * max(e_ph, 0.0));
 

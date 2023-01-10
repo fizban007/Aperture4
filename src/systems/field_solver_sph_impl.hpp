@@ -17,10 +17,10 @@
 
 #pragma once
 
-#include "field_solver_sph.h"
 #include "core/multi_array_exp.hpp"
 #include "core/ndsubset.hpp"
 #include "core/ndsubset_dev.hpp"
+#include "field_solver_sph.h"
 #include "systems/helpers/finite_diff_helper.hpp"
 #include "utils/double_buffer.h"
 
@@ -28,19 +28,21 @@ namespace Aperture {
 
 namespace {
 
+const int diff_order = 2;
+
 template <int Dim>
-using fd = finite_diff<Dim, 2>;
+using fd = finite_diff<Dim, diff_order>;
 
 template <typename Conf, template <class> class ExecPolicy>
 void
 compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                     const grid_sph_t<Conf>& grid, typename Conf::value_t coef) {
   if constexpr (Conf::dim == 2) {
-    auto ext = grid.extent();
     // kernel_launch(
     ExecPolicy<Conf>::launch(
-        [coef, ext] LAMBDA(auto result, auto b, auto gp) {
+        [coef] LAMBDA(auto result, auto b, auto gp) {
           auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
           // for (auto n : grid_stride_range(0, ext.size())) {
           ExecPolicy<Conf>::loop(
               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
@@ -143,7 +145,7 @@ compute_implicit_rhs(vector_field<Conf>& result, const vector_field<Conf>& e,
 
                   // Take care of axis boundary
                   Scalar theta = grid.template coord<1>(pos[1], true);
-                  if (abs(theta) < 0.1 * grid.delta[1]) {
+                  if (math::abs(theta) < 0.1 * grid.delta[1]) {
                     result[1][idx] = 0.0f;
                   }
 
@@ -175,7 +177,8 @@ axis_boundary_e(vector_field<Conf>& e, const grid_sph_t<Conf>& grid) {
         ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+          if (math::abs(grid.template coord<1>(n1_0, true)) <
+              0.1f * grid.delta[1]) {
             // At the theta = 0 axis
             // Set E_phi and B_theta to zero
             auto idx = Conf::idx(index_t<Conf::dim>(n0, n1_0), ext);
@@ -185,7 +188,7 @@ axis_boundary_e(vector_field<Conf>& e, const grid_sph_t<Conf>& grid) {
             // e[0][idx] = 0.0f;
           }
           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
-          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
+          if (math::abs(grid.template coord<1>(n1_pi, true) - M_PI) <
               0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = Conf::idx(index_t<Conf::dim>(n0, n1_pi), ext);
@@ -212,7 +215,8 @@ axis_boundary_b(vector_field<Conf>& b, const grid_sph_t<Conf>& grid) {
         ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
           auto n1_0 = grid.guard[1];
           auto n1_pi = grid.dims[1] - grid.guard[1];
-          if (abs(grid.template coord<1>(n1_0, true)) < 0.1f * grid.delta[1]) {
+          if (math::abs(grid.template coord<1>(n1_0, true)) <
+              0.1f * grid.delta[1]) {
             // At the theta = 0 axis
 
             // Set E_phi and B_theta to zero
@@ -223,7 +227,7 @@ axis_boundary_b(vector_field<Conf>& b, const grid_sph_t<Conf>& grid) {
             b[0][idx.dec_y()] = b[0][idx];
           }
           // printf("boundary pi at %f\n", grid.template coord<1>(n1_pi, true));
-          if (abs(grid.template coord<1>(n1_pi, true) - M_PI) <
+          if (math::abs(grid.template coord<1>(n1_pi, true) - M_PI) <
               0.1f * grid.delta[1]) {
             // At the theta = pi axis
             auto idx = Conf::idx(index_t<Conf::dim>(n0, n1_pi), ext);
@@ -271,9 +275,9 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 }  // namespace
 
 template <typename Conf, template <class> class ExecPolicy>
-field_solver<Conf, ExecPolicy, coord_policy_spherical>::field_solver(const grid_sph_t<Conf>& grid,
-               const domain_comm<Conf, ExecPolicy>* comm)
-      : field_solver_base<Conf>(grid), m_grid_sph(grid), m_comm(comm) {
+field_solver<Conf, ExecPolicy, coord_policy_spherical>::field_solver(
+    const grid_sph_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
+    : field_solver_base<Conf>(grid), m_grid_sph(grid), m_comm(comm) {
   ExecPolicy<Conf>::set_grid(this->m_grid);
 }
 
@@ -284,6 +288,16 @@ field_solver<Conf, ExecPolicy, coord_policy_spherical>::init() {
 
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+
+  if (this->m_use_implicit) {
+    auto type = ExecPolicy<Conf>::data_mem_type();
+    m_tmp_b1 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, type);
+    m_tmp_b2 = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, type);
+    m_bnew = std::make_unique<vector_field<Conf>>(
+        this->m_grid, field_type::face_centered, type);
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -293,15 +307,6 @@ field_solver<Conf, ExecPolicy,
   auto type = ExecPolicy<Conf>::data_mem_type();
 
   field_solver_base<Conf>::register_data_components_impl(type);
-
-  if (this->m_use_implicit) {
-    m_tmp_b1 = sim_env().register_data<vector_field<Conf>>(
-        "tmp_b1", this->m_grid, field_type::face_centered, type);
-    m_tmp_b2 = sim_env().register_data<vector_field<Conf>>(
-        "tmp_b2", this->m_grid, field_type::face_centered, type);
-    m_bnew = sim_env().register_data<vector_field<Conf>>(
-        "tmp_bnew", this->m_grid, field_type::face_centered, type);
-  }
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -309,15 +314,15 @@ void
 field_solver<Conf, ExecPolicy, coord_policy_spherical>::update_explicit(
     double dt, double time) {
   if (time < TINY)
-    compute_b_update_explicit(0.5 * dt);
+    compute_b_update_explicit(*(this->B), *(this->E), 0.5 * dt);
   else
-    compute_b_update_explicit(dt);
+    compute_b_update_explicit(*(this->B), *(this->E), dt);
 
   // Communicate B guard cells
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   axis_boundary_b<Conf, ExecPolicy>(*(this->B), m_grid_sph);
 
-  compute_e_update_explicit(dt);
+  compute_e_update_explicit(*(this->E), *(this->B), *(this->J), dt);
   axis_boundary_e<Conf, ExecPolicy>(*(this->E), m_grid_sph);
 
   // Communicate E guard cells
@@ -334,21 +339,19 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_spherical>::update_semi_implicit(
     double dt, double alpha, double beta, double time) {
-  Logger::print_detail("updating sph fields implicitly");
   // set m_tmp_b1 to B
   m_tmp_b1->copy_from(*(this->B));
 
   // Assemble the RHS
   compute_double_circ<Conf, ExecPolicy>(*m_tmp_b2, *m_tmp_b1, m_grid_sph,
-                      -alpha * beta * dt * dt);
+                                        -alpha * beta * dt * dt);
   m_tmp_b1->add_by(*m_tmp_b2);
 
   // Send guard cells for m_tmp_b1
-  if (this->m_comm != nullptr)
-    this->m_comm->send_guard_cells(*m_tmp_b1);
+  if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*m_tmp_b1);
 
-  compute_implicit_rhs<Conf, ExecPolicy>(*m_tmp_b1, *(this->E), *(this->J), m_grid_sph, alpha,
-                       beta, dt);
+  compute_implicit_rhs<Conf, ExecPolicy>(*m_tmp_b1, *(this->E), *(this->J),
+                                         m_grid_sph, alpha, beta, dt);
   axis_boundary_b<Conf, ExecPolicy>(*m_tmp_b1, m_grid_sph);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
 
@@ -356,42 +359,45 @@ field_solver<Conf, ExecPolicy, coord_policy_spherical>::update_semi_implicit(
   // operand and result.
   m_bnew->copy_from(*m_tmp_b1);
   // m_tmp_b1->add_by(*(this->B0), -1.0);
-  auto buffer = make_double_buffer(*m_tmp_b1, *m_tmp_b2);
-  for (int i = 0; i < 6; i++) {
-    compute_double_circ<Conf, ExecPolicy>(buffer.alt(), buffer.main(), m_grid_sph,
-                        -beta * beta * dt * dt);
+  auto buf = make_double_buffer(*m_tmp_b1, *m_tmp_b2);
+  for (int i = 0; i < 5; i++) {
+    // Double curl of main -> alt
+    compute_double_circ<Conf, ExecPolicy>(buf.alt(), buf.main(), m_grid_sph,
+                                          -beta * beta * dt * dt);
 
-    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buffer.alt());
-    axis_boundary_b<Conf, ExecPolicy>(buffer.alt(), m_grid_sph);
-    this->m_bnew->add_by(buffer.alt());
+    if (this->m_comm != nullptr) this->m_comm->send_guard_cells(buf.alt());
+    axis_boundary_b<Conf, ExecPolicy>(buf.alt(), m_grid_sph);
+    this->m_bnew->add_by(buf.alt());
 
-    buffer.swap();
+    buf.swap();
   }
   // Communicate B new
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*m_bnew);
 
   // m_bnew now holds B^{n+1}
   // add_alpha_beta_cu(buffer.main(), *(this->B), *(this->m_bnew), alpha, beta);
-  select(typename ExecPolicy<Conf>::exec_tag{}, buffer.main()[0]) =
+  select(typename ExecPolicy<Conf>::exec_tag{}, buf.main()[0]) =
       alpha * this->B->at(0) + beta * m_bnew->at(0);
-  select(typename ExecPolicy<Conf>::exec_tag{}, buffer.main()[1]) =
+  select(typename ExecPolicy<Conf>::exec_tag{}, buf.main()[1]) =
       alpha * this->B->at(1) + beta * m_bnew->at(1);
-  select(typename ExecPolicy<Conf>::exec_tag{}, buffer.main()[2]) =
+  select(typename ExecPolicy<Conf>::exec_tag{}, buf.main()[2]) =
       alpha * this->B->at(2) + beta * m_bnew->at(2);
 
-  // buffer.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
+  // buf.main() now holds alpha*B^n + beta*B^{n+1}. Compute E explicitly from
   // this
-  compute_e_update_explicit(dt);
+  compute_e_update_explicit(*(this->E), buf.main(), *(this->J), dt);
   axis_boundary_e<Conf, ExecPolicy>(*(this->E), m_grid_sph);
 
   // Communicate E
   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
 
-  this->B->copy_from(*m_bnew);
+  // this->B->copy_from(*m_bnew);
+  this->B->copy_from(buf.main());
 
   // apply coordinate boundary condition
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
-    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B), m_damping_length, m_damping_coef);
+    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B), m_damping_length,
+                                       m_damping_coef);
   }
 }
 
@@ -477,18 +483,17 @@ field_solver<Conf, ExecPolicy, coord_policy_spherical>::compute_EB_sqr() {}
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy,
-             coord_policy_spherical>::compute_b_update_explicit(double dt) {
+field_solver<Conf, ExecPolicy, coord_policy_spherical>::
+    compute_b_update_explicit(vector_field<Conf>& B,
+                              const vector_field<Conf>& E, double dt) {
   if constexpr (Conf::dim == 2) {
-    const auto& E = this->E;
+    // const auto& E = this->E;
     // kernel_launch(
     ExecPolicy<Conf>::launch(
         [dt] LAMBDA(auto result, auto e, auto gp) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           // gp is short for grid_ptrs
-          // for (auto idx : grid_stride_range(Conf::begin(ext),
-          // Conf::end(ext))) {
           ExecPolicy<Conf>::loop(
               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
                 // auto idx = typename Conf::idx_t(n, ext);
@@ -503,9 +508,9 @@ field_solver<Conf, ExecPolicy,
                   result[1][idx] -=
                       dt * fd<Conf::dim>::circ1(e, gp.le, idx, idx_px) /
                       gp.Ab[1][idx];
-                  // Take care of axis boundary
+                  // Take care of axis boundary, B_th = 0
                   Scalar theta = grid.template coord<1>(pos[1], true);
-                  if (abs(theta) < 0.1f * grid.delta[1]) {
+                  if (math::abs(theta) < 0.1f * grid.delta[1]) {
                     result[1][idx] = 0.0f;
                   }
                   // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1]
@@ -533,17 +538,18 @@ field_solver<Conf, ExecPolicy,
                 }
               });
         },
-        this->B, E, m_grid_sph.get_grid_ptrs());
+        B, E, m_grid_sph.get_grid_ptrs());
     ExecPolicy<Conf>::sync();
   }
 }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy,
-             coord_policy_spherical>::compute_e_update_explicit(double dt) {
+field_solver<Conf, ExecPolicy, coord_policy_spherical>::
+    compute_e_update_explicit(vector_field<Conf>& E,
+                              const vector_field<Conf>& B,
+                              const vector_field<Conf>& J, double dt) {
   if constexpr (Conf::dim == 2) {
-    const auto& B = this->B;
     // kernel_launch(
     ExecPolicy<Conf>::launch(
         [dt] LAMBDA(auto result, auto b, auto j, auto gp) {
@@ -576,8 +582,8 @@ field_solver<Conf, ExecPolicy,
                                 gp.Ae[2][idx] -
                             j[2][idx]);
                   // Take care of axis boundary, setting E_phi to zero
-                  Scalar theta = grid.template coord<1>(pos[1], true);
-                  if (abs(theta) < 0.1f * grid.delta[1]) {
+                  Scalar theta = grid.coord(1, pos[1], true);
+                  if (math::abs(theta) < 0.1f * grid.delta[1]) {
                     result[2][idx] = 0.0f;
                   }
                   // if (pos[0] == grid.guard[0] + 1 && pos[1] == grid.guard[1]
@@ -622,8 +628,8 @@ field_solver<Conf, ExecPolicy,
                   // }
                 }
                 // extra work for the theta = pi axis
-                auto theta = grid.template coord<1>(pos[1], true);
-                if (std::abs(theta - M_PI) < 0.1f * grid.delta[1]) {
+                Scalar theta = grid.coord(1, pos[1], true);
+                if (math::abs(theta - M_PI) < 0.1f * grid.delta[1]) {
                   auto idx_my = idx.dec_y();
                   result[0][idx] +=
                       dt * (fd<Conf::dim>::circ0(b, gp.lb, idx_my, idx) /
@@ -632,7 +638,7 @@ field_solver<Conf, ExecPolicy,
                 }
               });
         },
-        this->E, B, this->J, m_grid_sph.get_grid_ptrs());
+        E, B, J, m_grid_sph.get_grid_ptrs());
     ExecPolicy<Conf>::sync();
   }
 }

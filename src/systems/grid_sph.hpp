@@ -35,7 +35,15 @@ class grid_sph_t : public grid_curv_t<Conf> {
   static std::string name() { return "grid"; }
   typedef typename Conf::value_t value_t;
 
-  using grid_curv_t<Conf>::grid_curv_t;
+  // using grid_curv_t<Conf>::grid_curv_t;
+  grid_sph_t() : grid_curv_t<Conf>() {
+    this->init();
+  }
+  template <template <class> class ExecPolicy>
+  grid_sph_t(const domain_comm<Conf, ExecPolicy>& comm) : grid_curv_t<Conf>(comm) {
+    this->init();
+  }
+  grid_sph_t(const grid_sph_t<Conf>& grid) = default;
   // ~grid_sph_t();
 
   // static HD_INLINE value_t radius(value_t x1) { return x1; }
@@ -191,8 +199,8 @@ alpha_gr(FloatT r, FloatT compactness) {
 template <typename Conf>
 void
 grid_sph_t<Conf>::compute_coef() {
-  double r_g = 0.0;
-  sim_env().params().get_value("compactness", r_g);
+  // double r_g = 0.0;
+  // sim_env().params().get_value("compactness", r_g);
 
   auto ext = this->extent();
 
@@ -200,15 +208,15 @@ grid_sph_t<Conf>::compute_coef() {
   for (auto idx : range(Conf::begin(ext), Conf::end(ext))) {
     auto pos = get_pos(idx, ext);
 
-    double r = radius(this->template coord<0>(pos[0], false));
-    double r_minus = radius(this->template coord<0>(pos[0] - 1, false));
-    double rs = radius(this->template coord<0>(pos[0], true));
-    double rs_plus = radius(this->template coord<0>(pos[0] + 1, true));
+    double r = radius(this->coord(0, pos[0], false));
+    double r_minus = radius(this->coord(0, pos[0] - 1, false));
+    double rs = radius(this->coord(0, pos[0], true));
+    double rs_plus = radius(this->coord(0, pos[0] + 1, true));
 
-    double th = theta(this->template coord<1>(pos[1], false));
-    double th_minus = theta(this->template coord<1>(pos[1] - 1, false));
-    double ths = theta(this->template coord<1>(pos[1], true));
-    double ths_plus = theta(this->template coord<1>(pos[1] + 1, true));
+    double th = theta(this->coord(1, pos[1], false));
+    double th_minus = theta(this->coord(1, pos[1] - 1, false));
+    double ths = theta(this->coord(1, pos[1], true));
+    double ths_plus = theta(this->coord(1, pos[1] + 1, true));
 
     // Note: Nothing depends on phi, so staggering in phi does not matter
 
@@ -234,9 +242,9 @@ grid_sph_t<Conf>::compute_coef() {
 
     // Area elements for E field
     this->m_Ae[0][idx] = r * r * (std::cos(th_minus) - std::cos(th));
-    if (std::abs(ths) < 0.1 * this->delta[1]) {
+    if (math::abs(ths) < 0.1 * this->delta[1]) {
       this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
-    } else if (std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+    } else if (math::abs(ths - M_PI) < 0.1 * this->delta[1]) {
       this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
     }
     // if constexpr (Conf::dim == 3) {
@@ -256,8 +264,8 @@ grid_sph_t<Conf>::compute_coef() {
         // 0.5 * (square(r) - square(r_minus)) * (std::cos(th_minus) - std::cos(th));
         // 0.5 * (square(r) - square(r_minus)) * this->delta[1];
         0.5 * (square(r) - square(r_minus)) * (th - th_minus);
-    // if (std::abs(ths) < 0.1 * this->delta[1] ||
-    //     std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+    // if (math::abs(ths) < 0.1 * this->delta[1] ||
+    //     math::abs(ths - M_PI) < 0.1 * this->delta[1]) {
     //   this->m_Ae[2][idx] =
     //       // (cube(r) - cube(r_minus)) * 2.0 * (1.0 - std::cos(0.5 * this->delta[1])) / 3.0;
     //       0.5 * (square(r) - square(r_minus)) * 2.0 * (1.0 - std::cos(0.5 * this->delta[1]));
@@ -272,8 +280,8 @@ grid_sph_t<Conf>::compute_coef() {
 
     // this->m_Ab[1][idx] = (cube(rs_plus) - cube(rs)) * std::sin(ths) / 3.0;
     this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
-    if (std::abs(ths) < 0.1 * this->delta[1] ||
-        std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+    if (math::abs(ths) < 0.1 * this->delta[1] ||
+        math::abs(ths - M_PI) < 0.1 * this->delta[1]) {
       // this->m_Ab[1][idx] = 0.5 * (square(rs_plus) - square(rs)) * std::sin(ths);
       this->m_Ab[1][idx] = TINY;
     }
@@ -292,8 +300,8 @@ grid_sph_t<Conf>::compute_coef() {
                       (std::cos(th_minus) - std::cos(th)) /
                       (this->delta[0] * this->delta[1] * 3.0);
 
-    if (std::abs(ths) < 0.1 * this->delta[1] ||
-        std::abs(ths - M_PI) < 0.1 * this->delta[1]) {
+    if (math::abs(ths) < 0.1 * this->delta[1] ||
+        math::abs(ths - M_PI) < 0.1 * this->delta[1]) {
       this->m_dV[idx] = (cube(r) - cube(r_minus)) * 2.0 *
                         (1.0 - std::cos(0.5 * this->delta[1])) /
                         (this->delta[0] * this->delta[1] * 3.0);

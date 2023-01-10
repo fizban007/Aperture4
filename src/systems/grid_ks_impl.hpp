@@ -18,9 +18,8 @@
 #ifndef _GRID_KS_IMPL_H_
 #define _GRID_KS_IMPL_H_
 
-
-#include "grid_ks.h"
 #include "framework/environment.h"
+#include "grid_ks.h"
 #include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/gauss_quadrature.h"
 #include "utils/logger.h"
@@ -34,7 +33,8 @@ grid_ks_t<Conf>::grid_ks_t() {
 }
 
 // template <typename Conf>
-// grid_ks_t<Conf>::grid_ks_t(const domain_comm<Conf> &comm) : grid_t<Conf>(comm) {
+// grid_ks_t<Conf>::grid_ks_t(const domain_comm<Conf> &comm) :
+// grid_t<Conf>(comm) {
 //   initialize();
 // }
 
@@ -58,18 +58,23 @@ grid_ks_t<Conf>::initialize() {
   m_gbetadth_e.resize(this->extent());
   m_gbetadth_h.resize(this->extent());
 
+#ifdef GPU_ENABLED
+  using exec_tag = exec_tags::device;
+#else
+  using exec_tag = exec_tags::host;
+#endif
   for (int i = 0; i < 3; i++) {
-    ptrs.Ab[i] = m_Ab[i].dev_ndptr_const();
-    ptrs.Ad[i] = m_Ad[i].dev_ndptr_const();
+    ptrs.Ab[i] = adapt(exec_tag{}, std::cref(m_Ab[i]).get());
+    ptrs.Ad[i] = adapt(exec_tag{}, std::cref(m_Ad[i]).get());
   }
-  ptrs.ag11dr_e = m_ag11dr_e.dev_ndptr_const();
-  ptrs.ag11dr_h = m_ag11dr_h.dev_ndptr_const();
-  ptrs.ag13dr_e = m_ag13dr_e.dev_ndptr_const();
-  ptrs.ag13dr_h = m_ag13dr_h.dev_ndptr_const();
-  ptrs.ag22dth_e = m_ag22dth_e.dev_ndptr_const();
-  ptrs.ag22dth_h = m_ag22dth_h.dev_ndptr_const();
-  ptrs.gbetadth_e = m_gbetadth_e.dev_ndptr_const();
-  ptrs.gbetadth_h = m_gbetadth_h.dev_ndptr_const();
+  ptrs.ag11dr_e = adapt(exec_tag{}, std::cref(m_ag11dr_e).get());
+  ptrs.ag11dr_h = adapt(exec_tag{}, std::cref(m_ag11dr_h).get());
+  ptrs.ag13dr_e = adapt(exec_tag{}, std::cref(m_ag13dr_e).get());
+  ptrs.ag13dr_h = adapt(exec_tag{}, std::cref(m_ag13dr_h).get());
+  ptrs.ag22dth_e = adapt(exec_tag{}, std::cref(m_ag22dth_e).get());
+  ptrs.ag22dth_h = adapt(exec_tag{}, std::cref(m_ag22dth_h).get());
+  ptrs.gbetadth_e = adapt(exec_tag{}, std::cref(m_gbetadth_e).get());
+  ptrs.gbetadth_h = adapt(exec_tag{}, std::cref(m_gbetadth_h).get());
 
   timer::stamp();
   compute_coef();
@@ -152,7 +157,8 @@ grid_ks_t<Conf>::compute_coef() {
                     [this, r, pos](auto x) {
                       return gauss_quad(
                           [this, x](auto y) { return sqrt_gamma(a, y, x); },
-                          radius(this->template coord<0>(pos[0] - 1, false)), r);
+                          radius(this->template coord<0>(pos[0] - 1, false)),
+                          r);
                     },
                     0.0f, th);
     } else if (pos[1] == this->dims[1] - this->guard[1] &&
@@ -162,15 +168,16 @@ grid_ks_t<Conf>::compute_coef() {
                     [this, r, pos](auto x) {
                       return gauss_quad(
                           [this, x](auto y) { return sqrt_gamma(a, y, x); },
-                          radius(this->template coord<0>(pos[0] - 1, false)), r);
+                          radius(this->template coord<0>(pos[0] - 1, false)),
+                          r);
                     },
                     th, M_PI);
     } else {
       m_Ad[2][idx] = gauss_quad(
           [this, r, pos](auto x) {
-            return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
-                              radius(this->template coord<0>(pos[0] - 1, false)),
-                              r);
+            return gauss_quad(
+                [this, x](auto y) { return sqrt_gamma(a, y, x); },
+                radius(this->template coord<0>(pos[0] - 1, false)), r);
           },
           theta(this->template coord<1>(pos[1] - 1, false)), th);
     }

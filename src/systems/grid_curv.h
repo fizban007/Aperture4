@@ -63,23 +63,27 @@ class grid_curv_t : public grid_t<Conf> {
     m_dV.resize(this->extent());
   }
 
-  void init() {
+  virtual void init() override {
+#ifdef GPU_ENABLED
+    using exec_tag = exec_tags::device;
+#else
+    using exec_tag = exec_tags::host;
+#endif
+
+    for (int i = 0; i < 3; i++) {
+      ptrs.le[i] = adapt(exec_tag{}, std::cref(m_le[i]).get());
+      ptrs.lb[i] = adapt(exec_tag{}, std::cref(m_lb[i]).get());
+      ptrs.Ae[i] = adapt(exec_tag{}, std::cref(m_Ae[i]).get());
+      ptrs.Ab[i] = adapt(exec_tag{}, std::cref(m_Ab[i]).get());
+    }
+    // ptrs.dV = m_dV.dev_ndptr_const();
+    ptrs.dV = adapt(exec_tag{}, std::cref(m_dV).get());
     compute_coef();
   }
 
   virtual void compute_coef() = 0;
   grid_ptrs_t get_grid_ptrs() const {
-    grid_ptrs_t result;
-
-    for (int i = 0; i < 3; i++) {
-      result.le[i] = m_le[i].dev_ndptr_const();
-      result.lb[i] = m_lb[i].dev_ndptr_const();
-      result.Ae[i] = m_Ae[i].dev_ndptr_const();
-      result.Ab[i] = m_Ab[i].dev_ndptr_const();
-    }
-    result.dV = m_dV.dev_ndptr_const();
-
-    return result;
+    return ptrs;
   }
 
   std::array<multi_array<value_t, Conf::dim>, 3> m_le;
@@ -87,6 +91,7 @@ class grid_curv_t : public grid_t<Conf> {
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ae;
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ab;
   multi_array<value_t, Conf::dim> m_dV;
+  grid_ptrs_t ptrs;
 };
 
 }  // namespace Aperture

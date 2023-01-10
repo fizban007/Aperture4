@@ -1,0 +1,72 @@
+log_level = 0
+
+num_species = 2
+
+ion_mass = 1.0
+
+max_ptc_num = 1_000_000
+max_ph_num = 1_000
+ptc_buffer_size = 500_000
+ptc_segment_size = 100_000
+max_tracked_num = 1_000_000
+
+dt = 2.0e-3
+
+q_e = 1.0
+
+current_smoothing = 1
+
+use_pml = true
+
+### Simulation life time
+max_steps = 10000
+
+fld_output_interval = 100
+
+ptc_output_interval = 100
+
+tracked_fraction = 0.1
+
+snapshot_interval = 10000 # disable snapshots
+
+sort_interval = 11
+
+### Grid parameters
+# Number of grid points in each direction, excluding guard cells. This should be
+# a multiple of at least 32.
+N = [256]
+
+nodes = [8]
+
+# Number of guard cells on each end. Effective number of cells per dimension
+# will be N + 2*guard. Minimum 2 is required!
+guard = [3]
+
+# Lower limit of the coordinate
+lower = [0.0]
+
+# Size of the box in each dimension
+size = [1.0]
+
+# Whether boundaries are periodic
+periodic_boundary = [true]
+
+# Whether to use PML damping
+damping_boundary = [false, false]
+
+# Length of the PML layer
+pml_length = 10
+
+# Field output downsample factor
+downsample = 1
+
+# Parameters for Two Stream setup
+rho_b = 1.0
+
+rho_0 = 1.0
+
+p0 = 0.15
+
+T_b = 0.0001
+
+multiplicity = 50

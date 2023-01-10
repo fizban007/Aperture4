@@ -114,20 +114,24 @@ field_t<N, Conf>::add_by(const field_t<N, Conf>& other,
 ///////////////////////////////////////////////////////
 // Explicitly instantiate some fields
 ///////////////////////////////////////////////////////
-template class field_t<1, Config<1>>;
-template class field_t<1, Config<2>>;
-template class field_t<1, Config<3>>;
+INSTANTIATE_ARGS_WITH_CONFIG(field_t, 1);
+INSTANTIATE_ARGS_WITH_CONFIG(field_t, 3);
+INSTANTIATE_ARGS_WITH_CONFIG(field_t, 4);
+INSTANTIATE_ARGS_WITH_CONFIG(field_t, 10);
+// template class field_t<1, Config<1>>;
+// template class field_t<1, Config<2>>;
+// template class field_t<1, Config<3>>;
 
-template class field_t<3, Config<1>>;
-template class field_t<3, Config<2>>;
-template class field_t<3, Config<3>>;
+// template class field_t<3, Config<1>>;
+// template class field_t<3, Config<2>>;
+// template class field_t<3, Config<3>>;
 
-template class field_t<4, Config<1>>;
-template class field_t<4, Config<2>>;
-template class field_t<4, Config<3>>;
+// template class field_t<4, Config<1>>;
+// template class field_t<4, Config<2>>;
+// template class field_t<4, Config<3>>;
 
-template class field_t<10, Config<1>>;
-template class field_t<10, Config<2>>;
-template class field_t<10, Config<3>>;
+// template class field_t<10, Config<1>>;
+// template class field_t<10, Config<2>>;
+// template class field_t<10, Config<3>>;
 
 }  // namespace Aperture

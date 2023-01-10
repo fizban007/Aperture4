@@ -31,7 +31,7 @@ constexpr MemType default_mem_type = MemType::host_only;
 constexpr uint32_t empty_cell = std::numeric_limits<uint32_t>::max();
 constexpr float eps_float = 1.0e-8f;
 constexpr double eps_double = 1.0e-14;
-constexpr int default_interp_order = 1;
+constexpr int default_interp_order = 3;
 
 #ifndef USE_DOUBLE
 typedef float Scalar;

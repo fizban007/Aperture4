@@ -17,14 +17,14 @@ ENV VIRTUAL_ENV=/opt/venv
 RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-RUN pip install numpy scipy h5py toml matplotlib jupyter
+RUN pip install numpy scipy h5py toml matplotlib jupyter sphinx sphinx_rtd_theme breathe
 
 # install latex
 RUN --mount=type=cache,sharing=locked,target=/var/cache/pacman \
-    pacman -Syu --noconfirm texlive-core texlive-science texlive-publishers texlive-latexextra texlive-formatsextra
+    pacman -Syu --noconfirm texlive-core texlive-science texlive-publishers texlive-latexextra texlive-formatsextra doxygen
 
 # finally define a normal user and switch to it
 RUN useradd -r -g users -m developer
 RUN mkdir /code && chown -R developer:users /code
 USER developer
-ENV PATH="${PATH}:/opt/cuda/bin
+ENV PATH="${PATH}:/opt/cuda/bin"

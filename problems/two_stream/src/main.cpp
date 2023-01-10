@@ -20,15 +20,15 @@
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/compute_moments.h"
-#include "systems/data_exporter.h"
-#include "systems/domain_comm.h"
-#include "systems/field_solver_cartesian.h"
-#include "systems/gather_tracked_ptc.h"
+#include "systems/compute_moments_impl.hpp"
+#include "systems/data_exporter_impl.hpp"
+#include "systems/domain_comm_impl.hpp"
+#include "systems/field_solver_cartesian_impl.hpp"
+#include "systems/gather_tracked_ptc_impl.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
-#include "systems/ptc_updater.h"
+#include "systems/ptc_updater_impl.hpp"
 #include <iostream>
 
 using namespace std;
@@ -60,12 +60,15 @@ main(int argc, char *argv[]) {
 
   // Prepare initial conditions
   value_t rho_b = 1.0, rho_0 = 1.0, q_e = 1.0, p0 = 1.0;
+  value_t T_b = 0.1, T_0 = 0.1;
   int mult = 10;
   env.params().get_value("rho_b", rho_b);
   env.params().get_value("rho_0", rho_0);
   env.params().get_value("q_e", q_e);
   env.params().get_value("p0", p0);
   env.params().get_value("multiplicity", mult);
+  env.params().get_value("T_b", T_b);
+  env.params().get_value("T_0", T_0);
 
   ptc_injector_dynamic<Conf> injector(grid);
   injector.inject_pairs(
@@ -79,18 +82,41 @@ main(int argc, char *argv[]) {
       // Third function is the momentum distribution of the injected particles.
       // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
       // particular particle
-      [p0] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        // value_t dp = 0.01 * sin(2.0 * M_PI * x_global[0]);
-        value_t dp = 0.0;
-        if (type == PtcType::electron) {
-          return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
-        } else {
-          return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
-        }
+      [p0, T_b] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+        auto beta = p0 / math::sqrt(p0*p0 + 1.0);
+        return rng_maxwell_juttner_drifting(state, T_b, beta);
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [rho_b, mult, q_e] LAMBDA(auto &x_global, PtcType type) { return rho_b / mult / q_e; });
+      [rho_b, mult, q_e] LAMBDA(auto &x_global, PtcType type) {
+        if (type == PtcType::electron)
+          return rho_b / mult / q_e;
+        else
+          return 0.0f;
+      });
+  injector.inject_pairs(
+      // First function is the injection criterion for each cell. pos is an
+      // index_t<Dim> object marking the cell in the grid. Returns true for
+      // cells that inject and false for cells that do nothing.
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      // Second function returns the number of particles injected in each cell.
+      // This includes all species
+      [mult] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * mult; },
+      // Third function is the momentum distribution of the injected particles.
+      // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
+      // particular particle
+      [p0, T_b] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+        auto beta = p0 / math::sqrt(p0*p0 + 1.0);
+        return rng_maxwell_juttner_drifting(state, T_b, -beta);
+      },
+      // Fourth function is the particle weight, which can depend on the global
+      // coordinate.
+      [rho_b, mult, q_e] LAMBDA(auto &x_global, PtcType type) {
+        if (type == PtcType::electron)
+          return rho_b / mult / q_e;
+        else
+          return 0.0f;
+      });
 
   env.run();
   return 0;

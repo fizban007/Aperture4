@@ -36,3 +36,7 @@ add_aperture_library(gr_2d_kerr_schild
 add_aperture_executable(grpic "main.cpp")
 target_link_libraries(grpic gr_2d_kerr_schild)
 add_dependencies(problems grpic)
+
+add_aperture_executable(vacuum_wald "vacuum.cpp")
+target_link_libraries(vacuum_wald gr_2d_kerr_schild)
+add_dependencies(problems vacuum_wald)

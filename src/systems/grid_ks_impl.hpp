@@ -242,6 +242,7 @@ grid_ks_t<Conf>::compute_coef() {
     }
   }
 
+#ifdef GPU_ENABLED
   for (int i = 0; i < 3; i++) {
     m_Ab[i].copy_to_device();
     m_Ad[i].copy_to_device();
@@ -254,6 +255,7 @@ grid_ks_t<Conf>::compute_coef() {
   m_ag22dth_h.copy_to_device();
   m_gbetadth_e.copy_to_device();
   m_gbetadth_h.copy_to_device();
+#endif
 }
 
 }  // namespace Aperture

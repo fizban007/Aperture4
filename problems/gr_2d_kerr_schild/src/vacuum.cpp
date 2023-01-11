@@ -21,7 +21,8 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/grid_ks.h"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/coord_policy_gr_ks_sph.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 
 using namespace std;
 
@@ -41,17 +42,17 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  auto& env = sim_environment::instance(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv);
+  using exec_policy = exec_policy_dynamic<Conf>;
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
-
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   grid_ks_t<Conf> grid(comm);
 
-  auto solver =
-      env.register_system<field_solver_gr_ks_cu<Conf>>(grid, &comm);
-  // auto bc = env.register_system<boundary_condition<Conf>>(grid);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_gpu>>(grid, &comm);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid,
+                                                                       &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 
@@ -63,8 +64,7 @@ main(int argc, char *argv[]) {
   env.get_data("Edelta", &D);
 
   initial_vacuum_wald(*B0, *D0, grid);
-  B->copy_from(*B0);
-  D->copy_from(*D0);
+  initial_nonrotating_vacuum_wald(*B, *D, grid);
 
   env.run();
 

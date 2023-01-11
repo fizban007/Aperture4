@@ -69,9 +69,9 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
 }  // namespace
 
 template <typename Conf, template <class> class ExecPolicy>
-field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::field_solver(const grid_ks_t<Conf>& grid,
-               const domain_comm<Conf, ExecPolicy>* comm)
-      : field_solver_base<Conf>(grid), m_ks_grid(grid), m_comm(comm) {
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::field_solver(
+    const grid_ks_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
+    : field_solver_base<Conf>(grid), m_ks_grid(grid), m_comm(comm) {
   ExecPolicy<Conf>::set_grid(this->m_grid);
 }
 
@@ -89,17 +89,27 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
 
-  m_prev_D.resize(this->m_grid);
-  m_prev_B.resize(this->m_grid);
-  m_new_D.resize(this->m_grid);
-  m_new_B.resize(this->m_grid);
+  auto type = ExecPolicy<Conf>::data_mem_type();
+  m_prev_D = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::edge_centered, type);
+  m_new_D = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::edge_centered, type);
+  m_prev_B = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, type);
+  m_new_B = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, type);
+  // m_prev_D.resize(this->m_grid);
+  // m_prev_B.resize(this->m_grid);
+  // m_new_D.resize(this->m_grid);
+  // m_new_B.resize(this->m_grid);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy,
              coord_policy_gr_ks_sph>::register_data_components() {
-  field_solver_base<Conf>::register_data_components();
+  auto type = ExecPolicy<Conf>::data_mem_type();
+  field_solver_base<Conf>::register_data_components_impl(type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -403,28 +413,28 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     });
   };
 
-  m_prev_B.copy_from(*(this->B));
-  m_prev_D.copy_from(*(this->E));
+  m_prev_B->copy_from(*(this->B));
+  m_prev_D->copy_from(*(this->E));
   // m_new_B.copy_from(*(this->B));
   // m_new_D.copy_from(*(this->E));
 
   // First pass, predictor values in m_new_B and m_new_D
-  ExecPolicy<Conf>::launch(update_B_kernel, m_new_B, m_prev_D, m_prev_B,
-                           m_prev_D, m_prev_B, m_ks_grid.get_grid_ptrs());
-  ExecPolicy<Conf>::launch(update_D_kernel, m_new_D, m_prev_D, m_prev_B,
-                           m_prev_D, m_prev_B, *(this->J),
+  ExecPolicy<Conf>::launch(update_B_kernel, *m_new_B, *m_prev_D, *m_prev_B,
+                           *m_prev_D, *m_prev_B, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::launch(update_D_kernel, *m_new_D, *m_prev_D, *m_prev_B,
+                           *m_prev_D, *m_prev_B, *(this->J),
                            m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
-    this->m_comm->send_guard_cells(m_new_B);
-    this->m_comm->send_guard_cells(m_new_D);
+    this->m_comm->send_guard_cells(*m_new_B);
+    this->m_comm->send_guard_cells(*m_new_D);
   }
 
   // Second pass, use predictor values and new values in E and B
-  ExecPolicy<Conf>::launch(update_B_kernel, *(this->B), m_prev_D, m_prev_B,
-                           m_new_D, m_new_B, m_ks_grid.get_grid_ptrs());
-  ExecPolicy<Conf>::launch(update_D_kernel, *(this->E), m_prev_D, m_prev_B,
-                           m_new_D, m_new_B, *(this->J),
+  ExecPolicy<Conf>::launch(update_B_kernel, *(this->B), *m_prev_D, *m_prev_B,
+                           *m_new_D, *m_new_B, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::launch(update_D_kernel, *(this->E), *m_prev_D, *m_prev_B,
+                           *m_new_D, *m_new_B, *(this->J),
                            m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
@@ -433,22 +443,22 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   }
 
   // Third pass, use E and B and store predictor values in m_new_B and m_new_D
-  ExecPolicy<Conf>::launch(update_B_kernel, m_new_B, m_prev_D, m_prev_B,
+  ExecPolicy<Conf>::launch(update_B_kernel, *m_new_B, *m_prev_D, *m_prev_B,
                            *(this->E), *(this->B), m_ks_grid.get_grid_ptrs());
-  ExecPolicy<Conf>::launch(update_D_kernel, m_new_D, m_prev_D, m_prev_B,
+  ExecPolicy<Conf>::launch(update_D_kernel, *m_new_D, *m_prev_D, *m_prev_B,
                            *(this->E), *(this->B), *(this->J),
                            m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
-    this->m_comm->send_guard_cells(m_new_B);
-    this->m_comm->send_guard_cells(m_new_D);
+    this->m_comm->send_guard_cells(*m_new_B);
+    this->m_comm->send_guard_cells(*m_new_D);
   }
 
   // Final pass, use m_new_B and m_new_D to generate next timestep
-  ExecPolicy<Conf>::launch(update_B_kernel, *(this->B), m_prev_D, m_prev_B,
-                           m_new_D, m_new_B, m_ks_grid.get_grid_ptrs());
-  ExecPolicy<Conf>::launch(update_D_kernel, *(this->E), m_prev_D, m_prev_B,
-                           m_new_D, m_new_B, *(this->J),
+  ExecPolicy<Conf>::launch(update_B_kernel, *(this->B), *m_prev_D, *m_prev_B,
+                           *m_new_D, *m_new_B, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::launch(update_D_kernel, *(this->E), *m_prev_D, *m_prev_B,
+                           *m_new_D, *m_new_B, *(this->J),
                            m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
@@ -486,7 +496,38 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {}
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {}
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
+  this->flux->init();
+  auto a = m_a;
+  ExecPolicy<Conf>::launch(
+      [a] LAMBDA (auto flux, auto b, auto grid_ptrs) {
+        auto &grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+        ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
+
+          for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
+               n1++) {
+            Scalar th = grid_ks_t<Conf>::theta(grid.template coord<1>(n1, false));
+            Scalar th_p =
+                grid_ks_t<Conf>::theta(grid.template coord<1>(n1 + 1, true));
+            Scalar th_m =
+                grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
+            auto dth = th_p - th_m;
+
+            auto pos = index_t<Conf::dim>(n0, n1);
+            auto idx = typename Conf::idx_t(pos, ext);
+
+            flux[idx] = flux[idx.dec_y()] +
+                        // b[0][idx] * Metric_KS::sqrt_gamma(a, r, th) * dth;
+                        b[0][idx] * grid_ptrs.Ab[0][idx];
+          }
+        });
+
+      }, this->flux, this->B, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::sync();
+}
 
 template <typename Conf, template <class> class ExecPolicy>
 void

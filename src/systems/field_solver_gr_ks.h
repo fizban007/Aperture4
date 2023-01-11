@@ -68,7 +68,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
 
   // typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
   // buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
-  vector_field<Conf> m_prev_D, m_prev_B, m_new_D, m_new_B;
+  std::unique_ptr<vector_field<Conf>> m_prev_D, m_prev_B, m_new_D, m_new_B;
 };
 
 }  // namespace Aperture

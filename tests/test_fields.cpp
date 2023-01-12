@@ -30,8 +30,8 @@ void set_initial_field(vector_field<Conf> &field) {
 }
 
 TEST_CASE("Memtype is correct for fields", "[fields]") {
-  typedef Config<2, float> Conf;
-  Grid<2, float> grid;
+  typedef Config<2> Conf;
+  Grid<2, Scalar> grid;
   grid.dims[0] = 32;
   grid.dims[1] = 32;
 
@@ -65,7 +65,7 @@ TEST_CASE("Memtype is correct for fields", "[fields]") {
 }
 
 TEST_CASE("Initializing fields", "[fields]") {
-  using Conf = Config<2, float>;
+  using Conf = Config<2>;
   Conf::grid_t g2;
   g2.dims[0] = 32;
   g2.dims[1] = 32;
@@ -78,7 +78,7 @@ TEST_CASE("Initializing fields", "[fields]") {
 }
 
 TEST_CASE("setting initial value from a function", "[fields]") {
-  using Conf = Config<2, float>;
+  using Conf = Config<2>;
   Conf::grid_t g2;
 
   for (int i = 0; i < 2; i++) {
@@ -108,7 +108,7 @@ TEST_CASE("setting initial value from a function", "[fields]") {
 }
 
 TEST_CASE("Resampling field 1D", "[fields]") {
-  using Conf = Config<1, float>;
+  using Conf = Config<1>;
   Conf::grid_t grid;
   for (int i = 0; i < 1; i++) {
     grid.dims[i] = 256;
@@ -138,7 +138,7 @@ TEST_CASE("Resampling field 1D", "[fields]") {
 }
 
 TEST_CASE("Resampling field 2D", "[fields]") {
-  using Conf = Config<2, float>;
+  using Conf = Config<2>;
   Conf::grid_t grid = Conf::make_grid({32, 32}, {2, 2}, {1.0, 1.0}, {0.0, 0.0});
   // for (int i = 0; i < 2; i++) {
   //   grid.dims[i] = 36;

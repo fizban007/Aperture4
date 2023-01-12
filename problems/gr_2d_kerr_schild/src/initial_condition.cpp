@@ -209,7 +209,7 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
 
 template void initial_nonrotating_vacuum_wald(
     vector_field<Config<2>> &B0, vector_field<Config<2>> &D0,
-    const grid_ks_t<Config<2, float>> &grid);
+    const grid_ks_t<Config<2>> &grid);
 
 template void initial_vacuum_wald(vector_field<Config<2>> &B0,
                                   vector_field<Config<2>> &D0,

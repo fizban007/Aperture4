@@ -20,6 +20,7 @@
 #include "coord_policy_cartesian.hpp"
 #include "core/typedefs_and_constants.h"
 #include "utils/interpolation.hpp"
+#include "utils/util_functions.h"
 
 namespace Aperture {
 
@@ -62,7 +63,7 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
     if (w2 < TINY) {
       return w_E;
     } else {
-      w_E *= (1.0f - math::sqrt(std::max(1.0f - 4.0f * w2, 0.0f))) * 0.5f / w2;
+      w_E *= (1.0f - math::sqrt(max(1.0f - 4.0f * w2, 0.0f))) * 0.5f / w2;
       return w_E;
     }
   }
@@ -70,12 +71,12 @@ class coord_policy_cartesian_gca_lite : public coord_policy_cartesian<Conf> {
   HD_INLINE static value_t f_kappa(const vec_t<value_t, 3>& E,
                                    const vec_t<value_t, 3>& B) {
     auto vE = f_v_E(E, B);
-    return 1.0f / math::sqrt(std::max(1.0f - vE.dot(vE), TINY));
+    return 1.0f / math::sqrt(max(1.0f - vE.dot(vE), TINY));
   }
 
   HD_INLINE static value_t f_Gamma(value_t u_par, value_t mu, value_t B_mag,
                                    const vec_t<value_t, 3>& vE) {
-    auto k = 1.0f / math::sqrt(std::max(1.0f - vE.dot(vE), TINY));
+    auto k = 1.0f / math::sqrt(max(1.0f - vE.dot(vE), TINY));
     // Note that here mu is defined as specific mu, or mu divided by mass of the
     // particle
     return k * math::sqrt(1.0f + u_par * u_par + 2.0f * mu * k * B_mag);

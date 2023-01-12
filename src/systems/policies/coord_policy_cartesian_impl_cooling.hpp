@@ -68,7 +68,12 @@ class coord_policy_cartesian_impl_cooling
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
         "sync_loss", this->m_grid, field_type::cell_centered,
         MemType::host_device);
+    // m_sync_loss = sync_loss->dev_ndptr();
+  #ifdef GPU_ENABLED
     m_sync_loss = sync_loss->dev_ndptr();
+  #else
+    m_sync_loss = sync_loss->host_ndptr();
+  #endif
     sync_loss->reset_after_output(true);
     auto sync_loss_total = sim_env().register_data<scalar_field<Conf>>(
         "sync_loss_total", this->m_grid, field_type::cell_centered,
@@ -142,7 +147,7 @@ class coord_policy_cartesian_impl_cooling
 
       auto idx = Conf::idx(pos, ext);
       value_t loss =
-          context.weight * std::max(gamma - context.gamma, 0.0f) / context.q;
+          context.weight * max(gamma - context.gamma, 0.0f) / context.q;
       atomic_add(&m_sync_loss_total[idx], loss);
       if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
         atomic_add(&m_sync_loss[idx], loss);
@@ -155,7 +160,7 @@ class coord_policy_cartesian_impl_cooling
                                              *context.local_state);
         if (eph > math::exp(m_lim_lower)) {
           value_t log_eph =
-              clamp(math::log(std::max(eph, math::exp(m_lim_lower))),
+              clamp(math::log(max(eph, math::exp(m_lim_lower))),
                     m_lim_lower, m_lim_upper);
           auto ext_out = grid.extent_less() / m_downsample;
           auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
@@ -230,14 +235,14 @@ class coord_policy_cartesian_impl_cooling
   mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;
   value_t m_BQ = 1e5;
-  value_t m_lim_lower = 1.0e-6;
-  value_t m_lim_upper = 1.0e2;
+  float m_lim_lower = 1.0e-6;
+  float m_lim_upper = 1.0e2;
   int m_downsample = 16;
   int m_ph_nth = 32;
   int m_ph_nphi = 64;
   extent_t<3> m_ext_ph_dist;
 
-  mutable ndptr<value_t, Conf::dim + 1> m_spec_ptr;
+  mutable ndptr<float, Conf::dim + 1> m_spec_ptr;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
   sync_emission_helper_t m_sync;
 };

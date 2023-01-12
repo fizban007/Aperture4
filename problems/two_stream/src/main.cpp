@@ -92,7 +92,7 @@ main(int argc, char *argv[]) {
         if (type == PtcType::electron)
           return rho_b / mult / q_e;
         else
-          return 0.0f;
+          return value_t(0.0);
       });
   injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
@@ -115,7 +115,7 @@ main(int argc, char *argv[]) {
         if (type == PtcType::electron)
           return rho_b / mult / q_e;
         else
-          return 0.0f;
+          return value_t(0.0);
       });
 
   env.run();

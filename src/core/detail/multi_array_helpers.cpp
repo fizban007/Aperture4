@@ -87,6 +87,7 @@ copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src
 INSTANTIATE_RESAMPLE(float, float);
 INSTANTIATE_RESAMPLE(float, double);
 INSTANTIATE_RESAMPLE(double, float);
+INSTANTIATE_RESAMPLE(double, double);
 
 #define INSTANTIATE_ADD(type, dim)                                            \
   template void add(exec_tags::host, multi_array<type, dim>& dst,                              \

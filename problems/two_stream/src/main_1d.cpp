@@ -82,15 +82,6 @@ main(int argc, char *argv[]) {
       // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
       // particular particle
       [p0, T_b] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        // value_t dp = 0.01 * sin(2.0 * M_PI * x_global[0]);
-        // value_t dp = 0.0;
-        // value_t dp = rng_gaussian(state, 0.001);
-        // if (type == PtcType::electron) {
-        //   return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
-        // } else {
-        //   return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
-        // }
-        // return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
         auto beta = p0 / math::sqrt(p0*p0 + 1.0);
         return rng_maxwell_juttner_drifting(state, T_b, beta);
       },
@@ -100,7 +91,7 @@ main(int argc, char *argv[]) {
         if (type == PtcType::electron)
           return rho_b / mult / q_e;
         else
-          return 0.0f;
+          return value_t(0.0);
       });
   injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
@@ -114,14 +105,6 @@ main(int argc, char *argv[]) {
       // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
       // particular particle
       [p0, T_b] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        // value_t dp = 0.01 * sin(2.0 * M_PI * x_global[0]);
-        // value_t dp = rng_gaussian(state, 0.001);
-        // if (type == PtcType::electron) {
-        //   return vec_t<value_t, 3>(p0 + dp, 0.0, 0.0);
-        // } else {
-        //   return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
-        // }
-        // return vec_t<value_t, 3>(-p0 + dp, 0.0, 0.0);
         auto beta = p0 / math::sqrt(p0*p0 + 1.0);
         return rng_maxwell_juttner_drifting(state, T_b, -beta);
       },
@@ -131,7 +114,7 @@ main(int argc, char *argv[]) {
         if (type == PtcType::electron)
           return rho_b / mult / q_e;
         else
-          return 0.0f;
+          return value_t(0.0);
       });
 
   env.run();

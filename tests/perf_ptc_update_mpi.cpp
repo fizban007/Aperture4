@@ -44,7 +44,7 @@ main(int argc, char* argv[]) {
   // env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
   // env.params().add("size", std::vector<double>({2.0, 3.14, 1.0}));
   // env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
-  // env.params().add("nodes", std::vector<int64_t>({2, 2, 1}));
+  // env.params().add("ranks", std::vector<int64_t>({2, 2, 1}));
   // env.params().add("max_ptc_num", 60000000l);
 
   auto comm = env.register_system<domain_comm<Conf3D>>();

@@ -34,7 +34,7 @@ main(int argc, char* argv[]) {
   env.params().add("log_level", int64_t(LogLevel::debug));
   env.params().add("N", std::vector<int64_t>({20, 20, 30}));
   env.params().add("guard", std::vector<int64_t>({2, 2, 2}));
-  env.params().add("nodes", std::vector<int64_t>({2, 2, 3}));
+  env.params().add("ranks", std::vector<int64_t>({2, 2, 3}));
   env.params().add("lower", std::vector<double>({0.0, 0.0, 0.0}));
   env.params().add("size", std::vector<double>({10.0, 10.0, 10.0}));
   env.params().add("periodic_boundary", std::vector<bool>({true, true, true}));

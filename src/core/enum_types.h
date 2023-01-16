@@ -30,7 +30,7 @@ enum class MemType : char {
 };
 
 /// Field staggering type
-enum class FieldType : char { face_centered = 0, edge_centered = 1 };
+// enum class FieldType : char { face_centered = 0, edge_centered = 1 };
 
 /// Particle types
 enum class PtcType : unsigned char { electron = 0, positron, ion };

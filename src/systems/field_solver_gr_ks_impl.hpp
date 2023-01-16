@@ -22,6 +22,7 @@
 #include "core/ndsubset.hpp"
 #include "core/ndsubset_dev.hpp"
 #include "field_solver_gr_ks.h"
+#include "field_solver_base_impl.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/helpers/finite_diff_helper.hpp"

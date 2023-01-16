@@ -54,6 +54,8 @@ template <int N, typename Conf>
 class field_t : public data_t {
  public:
   using Grid_t = typename Conf::grid_t;
+  using value_t = typename Conf::value_t;
+
   field_t(MemType memtype = default_mem_type) : m_memtype(memtype) {}
   field_t(const Grid_t& grid, MemType memtype = default_mem_type);
   field_t(const Grid_t& grid, const vec_t<stagger_t, N> st,
@@ -64,7 +66,10 @@ class field_t : public data_t {
   field_t(const field_t<N, Conf>& other) = delete;
   field_t(field_t<N, Conf>&& other) = default;
 
-  field_t<N, Conf>& operator=(const field_t<N, Conf>& other) = delete;
+  field_t<N, Conf>& operator=(const field_t<N, Conf>& other) {
+    this->copy_from(other);
+    return *this;
+  }
   field_t<N, Conf>& operator=(field_t<N, Conf>&& other) = default;
 
   void init() override;
@@ -95,7 +100,7 @@ class field_t : public data_t {
 
   template <typename Func>
   void set_values(Func f) {
-    for (int n = 0; n < Conf::dim; n++) {
+    for (int n = 0; n < N; n++) {
       set_values(
           n, [&f, n](auto x0, auto x1, auto x2) { return f(n, x0, x1, x2); });
     }

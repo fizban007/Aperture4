@@ -87,7 +87,7 @@ domain_comm<Conf, ExecPolicy>::setup_domain() {
 
   m_scalar_type = MPI_Helper::get_mpi_datatype(typename Conf::value_t{});
 
-  auto dims = sim_env().params().template get_as<std::vector<int64_t>>("nodes");
+  auto dims = sim_env().params().template get_as<std::vector<int64_t>>("ranks");
   if (dims.size() < Conf::dim) dims.resize(Conf::dim, 1);
 
   int64_t total_dim = 1;

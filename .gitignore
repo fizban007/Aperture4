@@ -51,3 +51,6 @@ Doxyfile
 /tests/test_di.cpp
 /tests/test_new_index.cpp
 /tests/test_template.cpp
+/env/
+/.ignore
+/.clang-tidy

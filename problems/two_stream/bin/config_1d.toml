@@ -19,7 +19,7 @@ current_smoothing = 1
 use_pml = true
 
 ### Simulation life time
-max_steps = 10000
+max_steps = 16000
 
 fld_output_interval = 100
 

@@ -106,7 +106,9 @@ main(int argc, char *argv[]) {
       // particular particle
       [p0, T_b] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         auto beta = p0 / math::sqrt(p0*p0 + 1.0);
-        return rng_maxwell_juttner_drifting(state, T_b, -beta);
+        auto result = rng_maxwell_juttner_drifting(state, T_b, beta);
+        result[0] = -result[0];
+        return result;
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.

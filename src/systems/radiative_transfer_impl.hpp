@@ -26,7 +26,8 @@ template <class Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
           template <class> class RadiationPolicy>
 radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::
-    radiative_transfer(const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
+    radiative_transfer(const grid_t<Conf>& grid,
+                       const domain_comm<Conf, ExecPolicy>* comm)
     : m_grid(grid), m_comm(comm) {
   if (comm != nullptr) {
     m_track_rank = comm->rank();
@@ -111,9 +112,11 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
     double dt, uint32_t step) {
   if (m_emit_photons) {
     emit_photons(dt);
+    Logger::print_info("Emitted photons!");
   }
   if (m_produce_pairs) {
     create_pairs(dt);
+    Logger::print_info("Created Pairs!");
   }
 
   // Tally photon number of this rank and store it in ph_number
@@ -185,8 +188,8 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
           int sp = get_ptc_type(flag);
           if (sp == (int)PtcType::ion) return;
 
-          size_t ph_offset = rad_policy.emit_photon(grid, ext, ptc, n, ph,
-                                                    ph_num, ph_pos, rng.m_local_state, dt);
+          size_t ph_offset = rad_policy.emit_photon(
+              grid, ext, ptc, n, ph, ph_num, ph_pos, rng.m_local_state, dt);
 
           if (ph_offset != 0) {
             auto w = ptc.weight[n];

@@ -117,6 +117,8 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("ph_dist_n_th", m_ph_nth);
     sim_env().params().get_value("ph_dist_n_phi", m_ph_nphi);
     int ph_dist_interval = 10;
+    sim_env().params().get_value("fld_output_interval", ph_dist_interval);
+    // If no "ph_dist_interval" specified, we use fld_output_interval
     sim_env().params().get_value("ph_dist_interval", ph_dist_interval);
 
     auto photon_angular_dist =

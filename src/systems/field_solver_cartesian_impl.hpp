@@ -19,6 +19,9 @@
 
 #include "field_solver_base_impl.hpp"
 #include "field_solver_cartesian.h"
+#include "core/multi_array_exp.hpp"
+#include "core/ndsubset.hpp"
+#include "core/ndsubset_dev.hpp"
 #include "systems/helpers/finite_diff_helper.hpp"
 #include "utils/interpolation.hpp"
 
@@ -65,6 +68,12 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::field_solver(
     const grid_t<Conf>& grid, const domain_comm<Conf, ExecPolicy>* comm)
     : field_solver_base<Conf>(grid), m_comm(comm) {
   ExecPolicy<Conf>::set_grid(this->m_grid);
+
+  auto type = ExecPolicy<Conf>::data_mem_type();
+  m_B_prev = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, type);
+  m_B_mid = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -645,8 +654,8 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_EB_sqr() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
-    double dt, double time) {
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update(double dt,
+                                                               uint32_t step) {
   Logger::print_detail("Running explicit Cartesian solver!");
   // dt *= 1.025;
   // if (time < TINY) {
@@ -657,10 +666,16 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
   // }
 
   if (this->m_update_b) {
+    double dt_b = dt;
+    auto time = sim_env().get_time();
+    m_B_prev->copy_from(*(this->B));
+    if (time < 0.1 * dt) {
+      dt_b *= 0.5;
+    }
     if (m_use_pml) {
-      compute_b_update_pml(dt);
+      compute_b_update_pml(dt_b);
     } else {
-      compute_b_update(dt);
+      compute_b_update(dt_b);
     }
     if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->B));
   }
@@ -674,14 +689,33 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_explicit(
   }
 
   ExecPolicy<Conf>::sync();
+  using exec_tag = typename ExecPolicy<Conf>::exec_tag;
+  select(exec_tag{}, m_B_mid->at(0)) = (m_B_prev->at(0) + this->B->at(0)) * 0.5F;
+  select(exec_tag{}, m_B_mid->at(1)) = (m_B_prev->at(1) + this->B->at(1)) * 0.5F;
+  select(exec_tag{}, m_B_mid->at(2)) = (m_B_prev->at(2) + this->B->at(2)) * 0.5F;
+
+  this->Etotal->copy_from(*(this->E0));
+  this->Etotal->add_by(*(this->E));
+  this->Btotal->copy_from(*(this->B0));
+  this->Btotal->add_by(*(m_B_mid));
+
+  if (step % this->m_data_interval == 0) {
+    this->compute_flux();
+    if (this->m_compute_divs) {
+      this->compute_divs_e_b();
+    }
+    if (this->m_compute_energies) {
+      this->compute_EB_sqr();
+    }
+  }
 }
 
-template <typename Conf, template <class> class ExecPolicy>
-void
-field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_semi_implicit(
-    double dt, double alpha, double beta, double time) {
-  // FIXME: Running explicit update even for semi implicit
-  update_explicit(dt, time);
-}
+// template <typename Conf, template <class> class ExecPolicy>
+// void
+// field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update_semi_implicit(
+//     double dt, double alpha, double beta, double time) {
+//   // FIXME: Running explicit update even for semi implicit
+//   update_explicit(dt, time);
+// }
 
 }  // namespace Aperture

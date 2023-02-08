@@ -34,11 +34,12 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
 
   virtual void init() override;
   virtual void register_data_components() override;
-  virtual void update_explicit(double dt, double time) override;
+  virtual void update(double dt, uint32_t step) override;
+  // virtual void update_explicit(double dt, double time) override;
   // Note Cartesian semi-implicit update is not very compatible with pml, so we
   // don't really implement it
-  virtual void update_semi_implicit(double dt, double alpha, double beta,
-                                    double time) override;
+  // virtual void update_semi_implicit(double dt, double alpha, double beta,
+                                    // double time) override;
 
   void compute_e_update_pml(double dt);
   void compute_b_update_pml(double dt);
@@ -58,6 +59,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
 
   // These are temporary fields required for pml
   nonown_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_tmp_e1, m_tmp_e2;
+  std::unique_ptr<vector_field<Conf>> m_B_prev, m_B_mid;
 };
 
 }  // namespace Aperture

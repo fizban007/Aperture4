@@ -86,7 +86,7 @@ main(int argc, char* argv[]) {
   env.params().add("log_level", (int64_t)LogLevel::debug);
   env.params().add("N", std::vector<int64_t>({128, 128}));
   env.params().add("guard", std::vector<int64_t>({3, 3}));
-  env.params().add("nodes", std::vector<int64_t>({2, 2}));
+  env.params().add("ranks", std::vector<int64_t>({2, 2}));
   env.params().add("periodic_boundary", std::vector<bool>({false, true}));
   env.params().add("use_pml", true);
   env.params().add("pml_length", 8);

@@ -203,6 +203,6 @@ In order to make a movie with the plots, you can open a terminal in VS Code and 
    cd python
    ffmpeg -y -f image2 -r 14 -i plots/%05d.png -c:v libx264 -crf 18 -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -pix_fmt yuv420p phase_space.mp4
 
-If you do not have ``ffmpeg`` in the Docker container, remember to pull the latest image from Docker Hub and re-create your container using the instructions `above <#Pull-the-development-Docker-image>`_.
+If you do not have ``ffmpeg`` in the Docker container, remember to pull the latest image from Docker Hub and re-create your container using the instructions `above <#pull-the-development-docker-image>`_.
 
 Once you successfully produced ``phase_space.mp4``\ , you can look at it in VS Code. You can also download it to your local machine by right clicking on the file and choose "Download".

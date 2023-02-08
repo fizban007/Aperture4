@@ -29,6 +29,7 @@ html_logo = '../logo_icon.png'
 # ones.
 extensions = [
   "breathe",
+  "sphinx.ext.autosectionlabel",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

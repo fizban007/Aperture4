@@ -296,7 +296,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   }
 
   // Save snapshot
-  if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0) {
+  if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0 && step > 0) {
     write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(), step,
                    time);
   }

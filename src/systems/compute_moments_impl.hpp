@@ -143,44 +143,46 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     // Then compute photon moments if applicable
     if (m_photon_data) {
       size_t ph_num = ph->number();
-      ExecPolicy<Conf>::launch(
-          [first_moments, second_moments, ph_num] LAMBDA(auto ph, auto S,
-                                                         auto T) {
-            auto& grid = ExecPolicy<Conf>::grid();
-            auto ext = grid.extent();
-            ExecPolicy<Conf>::loop(0, ph_num, [&] LAMBDA(auto n) {
-              uint32_t cell = ph.cell[n];
-              if (cell == empty_cell) {
-                return;
-              }
+      if (ph_num > 0) {
+        ExecPolicy<Conf>::launch(
+            [first_moments, second_moments, ph_num] LAMBDA(auto ph, auto S,
+                                                           auto T) {
+              auto& grid = ExecPolicy<Conf>::grid();
+              auto ext = grid.extent();
+              ExecPolicy<Conf>::loop(0, ph_num, [&] LAMBDA(auto n) {
+                uint32_t cell = ph.cell[n];
+                if (cell == empty_cell) {
+                  return;
+                }
 
-              typename Conf::idx_t idx = Conf::idx(cell, ext);
-              if (first_moments) {
-                atomic_add(&S[0][idx], ph.weight[n]);
-                atomic_add(&S[1][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
-                atomic_add(&S[2][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
-                atomic_add(&S[3][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
-              }
-              if (second_moments) {
-                // T00
-                atomic_add(&T[0][idx], ph.weight[n] * ph.E[n]);
-                // T0i
-                atomic_add(&T[1][idx], ph.weight[n] * ph.p1[n]);
-                atomic_add(&T[2][idx], ph.weight[n] * ph.p2[n]);
-                atomic_add(&T[3][idx], ph.weight[n] * ph.p3[n]);
-                // Tii
-                atomic_add(&T[4][idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
-                atomic_add(&T[5][idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
-                atomic_add(&T[6][idx], ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
-                // Tij
-                atomic_add(&T[7][idx], ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
-                atomic_add(&T[8][idx], ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
-                atomic_add(&T[9][idx], ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
-              }
-            });
-          },
-          ph, S[m_size - 1], T[m_size - 1]);
-      ExecPolicy<Conf>::sync();
+                typename Conf::idx_t idx = Conf::idx(cell, ext);
+                if (first_moments) {
+                  atomic_add(&S[0][idx], ph.weight[n]);
+                  atomic_add(&S[1][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&S[2][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&S[3][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
+                }
+                if (second_moments) {
+                  // T00
+                  atomic_add(&T[0][idx], ph.weight[n] * ph.E[n]);
+                  // T0i
+                  atomic_add(&T[1][idx], ph.weight[n] * ph.p1[n]);
+                  atomic_add(&T[2][idx], ph.weight[n] * ph.p2[n]);
+                  atomic_add(&T[3][idx], ph.weight[n] * ph.p3[n]);
+                  // Tii
+                  atomic_add(&T[4][idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T[5][idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&T[6][idx], ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
+                  // Tij
+                  atomic_add(&T[7][idx], ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&T[8][idx], ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T[9][idx], ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
+                }
+              });
+            },
+            ph, S[m_size - 1], T[m_size - 1]);
+        ExecPolicy<Conf>::sync();
+      }
     }
   }
 }

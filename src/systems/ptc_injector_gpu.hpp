@@ -155,7 +155,8 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
                 ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
                 uint32_t local_flag = flag;
-                if (rng.uniform<value_t>() < tracked_fraction) {
+                if (!check_flag(local_flag, PtcFlag::ignore_tracking) &&
+                    rng.uniform<value_t>() < tracked_fraction) {
                   set_flag(local_flag, PtcFlag::tracked);
                 }
                 ptc.flag[offset_e] = set_ptc_type_flag(local_flag, PtcType::electron);

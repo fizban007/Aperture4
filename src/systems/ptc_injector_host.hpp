@@ -117,7 +117,8 @@ class ptc_injector<Conf, exec_policy_host> {
                   auto u = rng.uniform<value_t>();
                   // printf("u is %f, tracked_fraction is %f\n", u, tracked_fraction);
                   uint32_t local_flag = flag;
-                  if (u < tracked_fraction) {
+                  if (!check_flag(local_flag, PtcFlag::ignore_tracking) &&
+                    u < tracked_fraction) {
                     set_flag(local_flag, PtcFlag::tracked);
                   }
                   ptc.flag[offset_e] =

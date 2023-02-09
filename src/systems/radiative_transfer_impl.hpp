@@ -112,11 +112,11 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
     double dt, uint32_t step) {
   if (m_emit_photons) {
     emit_photons(dt);
-    Logger::print_info("Emitted photons!");
+    Logger::print_detail("Emitted photons!");
   }
   if (m_produce_pairs) {
     create_pairs(dt);
-    Logger::print_info("Created Pairs!");
+    Logger::print_detail("Created Pairs!");
   }
 
   // Tally photon number of this rank and store it in ph_number

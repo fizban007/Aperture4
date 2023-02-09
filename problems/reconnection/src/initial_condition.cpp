@@ -130,7 +130,7 @@ harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
       },
-      flag_or(PtcFlag::exclude_from_spectrum));
+      flag_or(PtcFlag::exclude_from_spectrum, PtcFlag::ignore_tracking));
 
   Logger::print_info("After initial condition, there are {} particles",
                      ptc.number());
@@ -369,7 +369,8 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
         return w;
       },
-      flag_or(PtcFlag::exclude_from_spectrum));
+      // flag_or(PtcFlag::exclude_from_spectrum));
+      flag_or(PtcFlag::exclude_from_spectrum, PtcFlag::ignore_tracking));
 
   Logger::print_info("After initial condition, there are {} particles",
                      ptc.number());

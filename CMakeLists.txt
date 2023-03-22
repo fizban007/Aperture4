@@ -11,6 +11,7 @@ option(use_cuda "Include the Cuda part of the code" OFF)
 option(use_double "Use double precision" OFF)
 option(use_hip "Include the HIP part of the code" OFF)
 option(build_tests "Build the test suite" ON)
+option(build_docs "Build the documentation" OFF)
 option(lib_only "Only build the core Aperture library" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 
@@ -213,4 +214,7 @@ if(build_tests)
   add_subdirectory(tests)
 endif()
 
-add_subdirectory(docs)
+if(build_docs)
+  add_subdirectory(docs)
+endif()
+

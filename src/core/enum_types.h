@@ -79,6 +79,7 @@ enum class PtcFlag : uint32_t {
   ignore_current,
   ignore_EM,
   ignore_radiation,
+  ignore_tracking,
   exclude_from_spectrum,
   primary,
   secondary,

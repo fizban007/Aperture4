@@ -60,7 +60,7 @@ struct IC_radiation_scheme {
     value_t bb_kT = 1e-5;
     sim_env().params().get_value("IC_bb_kT", bb_kT);
     std::string spec_type = "soft_power_law";
-    sim_env().params().get_value("IC_spectrum", spec_type);
+    sim_env().params().get_value("IC_bg_spectrum", spec_type);
     sim_env().params().get_value("IC_compactness", m_IC_compactness);
 
     // Configure the spectrum here and initialize the ic module
@@ -108,7 +108,7 @@ struct IC_radiation_scheme {
     ext.get_strides();
 
     auto photon_dist = sim_env().register_data<phase_space<Conf, 1>>(
-        "photon_spectrum", m_grid, m_downsample, &m_num_bins, &m_lim_lower,
+        "IC_spectrum", m_grid, m_downsample, &m_num_bins, &m_lim_lower,
         &m_lim_upper, true, MemType::host_device);
     m_spec_ptr = photon_dist->data.dev_ndptr();
     photon_dist->reset_after_output(true);

@@ -64,6 +64,14 @@ class coord_policy_cartesian_impl_cooling
     if (sim_env().params().has("sync_cooling_coef")) {
       sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
     }
+    // If the config file specifies a synchrotron gamma_rad, then we
+    // use that to determine sync_compactness.
+    if (sim_env().params().has("sync_gamma_rad") && sim_env().params().has("sigma")) {
+      value_t sync_gamma_rad;
+      sim_env().params().get_value("sync_gamma_rad", sync_gamma_rad);
+      sync_compactness = 0.3f * math::sqrt(sigma) / (square(sync_gamma_rad) * 4.0f);
+      m_cooling_coef = 2.0f * sync_compactness / sigma;
+    }
 
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
         "sync_loss", this->m_grid, field_type::cell_centered,

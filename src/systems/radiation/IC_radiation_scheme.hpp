@@ -63,6 +63,15 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("IC_bg_spectrum", spec_type);
     sim_env().params().get_value("IC_compactness", m_IC_compactness);
 
+    // If the config file specifies an IC gamma_rad, then we
+    // use that to determine IC_compactness.
+    if (sim_env().params().has("IC_gamma_rad") && sim_env().params().has("sigma")) {
+      value_t IC_gamma_rad, sigma;
+      sim_env().params().get_value("IC_gamma_rad", IC_gamma_rad);
+      sim_env().params().get_value("sigma", sigma);
+      m_IC_compactness = 0.3f * math::sqrt(sigma) / (square(IC_gamma_rad) * 4.0f);
+    }
+
     // Configure the spectrum here and initialize the ic module
     // Spectra::black_body spec(bb_kT);
 

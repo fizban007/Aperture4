@@ -79,8 +79,9 @@ if(use_cuda OR use_hip)
 endif()
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  # add_executable(test_summit_mpi "test_summit_mpi.cu")
-  # target_link_libraries(test_summit_mpi Aperture_dev)
+  add_executable(test_summit_mpi "test_summit_mpi.cu")
+  target_link_libraries(test_summit_mpi ${MPI_LIBRARIES})
+  #target_link_libraries(test_summit_mpi Aperture_dev)
 
   # add_executable(test_mpi3d "test_mpi3d.cpp")
   # target_link_libraries(test_mpi3d Aperture)

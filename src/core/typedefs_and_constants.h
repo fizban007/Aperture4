@@ -49,4 +49,10 @@ typedef double Scalar;
 
 constexpr uint64_t default_random_seed = 0x3141592653589793;
 
+#if __cplusplus >= 201703L
+#define CONST_EXPR constexpr
+#else
+#define CONST_EXPR
+#endif
+
 }  // namespace Aperture

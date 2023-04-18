@@ -25,7 +25,7 @@
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "utils/for_each_dual.hpp"
-#if __GNUC__ >= 8 || __clang_major__ >= 7
+#if (__GNUC__ >= 8 || __clang_major__ >= 7) && !__NVCC__
 #include <filesystem>
 #else
 #define USE_BOOST_FILESYSTEM
@@ -498,16 +498,16 @@ data_exporter<Conf, ExecPolicy>::write_grid() {
     auto x = m_grid.cart_coord(p);
 
     x1_array[idx] = x[0];
-    if constexpr (Conf::dim > 1) x2_array[idx] = x[1];
-    if constexpr (Conf::dim > 2) x3_array[idx] = x[2];
+    if CONST_EXPR (Conf::dim > 1) x2_array[idx] = x[1];
+    if CONST_EXPR (Conf::dim > 2) x3_array[idx] = x[2];
   }
 
   write_multi_array_helper("x1", x1_array, m_global_ext,
                            m_output_grid.offsets(), meshfile);
-  if constexpr (Conf::dim > 1)
+  if CONST_EXPR (Conf::dim > 1)
     write_multi_array_helper("x2", x2_array, m_global_ext,
                              m_output_grid.offsets(), meshfile);
-  if constexpr (Conf::dim > 2)
+  if CONST_EXPR (Conf::dim > 2)
     write_multi_array_helper("x3", x3_array, m_global_ext,
                              m_output_grid.offsets(), meshfile);
 

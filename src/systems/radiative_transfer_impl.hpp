@@ -142,8 +142,10 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
   } else {
     total_num = max_num = (*ph_number)[0] = ph->number();
   }
-  Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
-                     total_num, max_num);
+  if (total_num > 0 || max_num > 0) {
+    Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
+                       total_num, max_num);
+  }
 }
 
 template <class Conf, template <class> class ExecPolicy,

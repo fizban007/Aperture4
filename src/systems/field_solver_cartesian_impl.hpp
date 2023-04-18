@@ -596,12 +596,13 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_divs_e_b() {}
 
-template <typename Conf, template <class> class ExecPolicy>
-void
-field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_flux() {
-  if constexpr (Conf::dim == 2) {
-    this->flux->init();
-    auto ext = this->m_grid.extent();
+namespace {
+
+template <int Dim, typename Conf, template <class> class ExecPolicy>
+typename std::enable_if<Dim == 2>::type compute_flux_impl(scalar_field<Conf>& flux,
+                                                          vector_field<Conf>& Btotal) {
+    flux.init();
+    auto ext = flux.grid().extent();
     ExecPolicy<Conf>::launch(
         [ext] LAMBDA(auto flux, auto b) {
           auto& grid = ExecPolicy<Conf>::grid();
@@ -614,9 +615,20 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_flux() {
             }
           });
         },
-        this->flux, this->Btotal);
+        flux, Btotal);
     ExecPolicy<Conf>::sync();
-  }
+}
+
+template <int Dim, typename Conf, template <class> class ExecPolicy>
+typename std::enable_if<Dim != 2>::type compute_flux_impl(scalar_field<Conf>& flux,
+                                                          vector_field<Conf>& Btotal) {}
+
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_flux() {
+  compute_flux_impl<Conf::dim, Conf, ExecPolicy>(*(this->flux), *(this->Btotal));
 }
 
 template <typename Conf, template <class> class ExecPolicy>

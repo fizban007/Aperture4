@@ -85,7 +85,7 @@ class domain_comm : public system_t {
   domain_info_t<Conf::dim> m_domain_info;
   mutable bool m_buffers_ready = false;
   static constexpr bool m_is_device =
-      std::is_same_v<typename ExecPolicy<Conf>::exec_tag, exec_tags::device>;
+      std::is_same<typename ExecPolicy<Conf>::exec_tag, exec_tags::device>::value;
 
   // Communication buffers. These buffers are declared mutable because we want
   // to use a const domain_comm reference to invoke communications, but

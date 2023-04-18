@@ -37,7 +37,7 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 compute_double_circ(vector_field<Conf>& result, const vector_field<Conf>& b,
                     const grid_sph_t<Conf>& grid, typename Conf::value_t coef) {
-  if constexpr (Conf::dim == 2) {
+  if CONST_EXPR (Conf::dim == 2) {
     // kernel_launch(
     ExecPolicy<Conf>::launch(
         [coef] LAMBDA(auto result, auto b, auto gp) {

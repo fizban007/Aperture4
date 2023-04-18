@@ -136,7 +136,8 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   exec_policy::sync();
 
   auto num_per_cell = adapt(typename exec_policy::exec_tag{}, m_num_per_cell);
-  auto injector = ptc_injector_dynamic<Conf>(m_grid);
+  // auto injector = ptc_injector_dynamic<Conf>(m_grid);
+  ptc_injector_dynamic<Conf> injector(m_grid);
   injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for

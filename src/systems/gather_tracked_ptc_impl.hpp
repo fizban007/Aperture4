@@ -30,7 +30,15 @@ gather_tracked_ptc<Conf, ExecPolicy>::register_data_components() {}
 template <typename Conf, template <class> class ExecPolicy>
 void
 gather_tracked_ptc<Conf, ExecPolicy>::init() {
+  // Logger::print_err("Initializing tracker system");
   sim_env().params().get_value("max_tracked_num", m_max_tracked);
+  sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
+  sim_env().get_data("E", E);
+  sim_env().get_data("B", B);
+
+  if (m_max_tracked == 0) {
+    return;
+  }
 
   m_tracked_map.set_memtype(ExecPolicy<Conf>::data_mem_type());
   m_tracked_map.resize(m_max_tracked);
@@ -48,10 +56,6 @@ gather_tracked_ptc<Conf, ExecPolicy>::init() {
         "tracked_ph", m_max_tracked, ExecPolicy<Conf>::data_mem_type());
   }
 
-  sim_env().get_data("E", E);
-  sim_env().get_data("B", B);
-
-  sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
 }
 
 template <typename Conf, template <class> class ExecPolicy>

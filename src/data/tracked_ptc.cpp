@@ -35,6 +35,7 @@ tracked_ptc<BufferType>::tracked_ptc(size_t max_size, MemType type)
       flag(max_size, type),
       id(max_size, type) {
   m_size = max_size;
+  m_number = 0;
 }
 
 template <typename BufferType>

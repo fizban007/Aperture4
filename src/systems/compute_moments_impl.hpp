@@ -94,7 +94,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     bool first_moments = m_compute_first_moments;
     bool second_moments = m_compute_second_moments;
     size_t num = ptc->number();
-    int num_species = m_num_species;
+    // int num_species = m_num_species;
     // First compute particle moments
     ExecPolicy<Conf>::launch(
         [first_moments, second_moments, num] LAMBDA(auto ptc, auto S, auto T) {

@@ -44,6 +44,7 @@ struct IC_radiation_scheme {
   int m_downsample = 16;
   value_t m_IC_compactness = 0.0;
   mutable ndptr<value_t, Conf::dim> m_IC_loss;
+  mutable ndptr<value_t, Conf::dim> m_IC_loss_total;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
   ndptr<float, Conf::dim + 1> m_spec_ptr;
   int m_ph_nth = 32;
@@ -108,6 +109,11 @@ struct IC_radiation_scheme {
         MemType::host_device);
     m_IC_loss = IC_loss->dev_ndptr();
     IC_loss->reset_after_output(true);
+    auto IC_loss_total = sim_env().register_data<scalar_field<Conf>>(
+        "IC_loss_total", this->m_grid, field_type::cell_centered,
+        MemType::host_device);
+    m_IC_loss_total = IC_loss_total->dev_ndptr();
+    IC_loss_total->reset_after_output(true);
 
     extent_t<Conf::dim + 1> ext;
     for (int i = 0; i < Conf::dim; i++) {
@@ -149,15 +155,22 @@ struct IC_radiation_scheme {
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
+    value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
     auto flag = ptc.flag[tid];
 
     if (check_flag(flag, PtcFlag::ignore_radiation)) {
       return 0;
     }
 
+    // Regardless of how energy loss is accounted, we add this to total IC loss
+    auto idx = Conf::idx(ptc.cell[tid], ext);
+    value_t IC_loss_dt = ptc.weight[tid] * (4.0f / 3.0f) * m_IC_compactness * gamma * p * dt;
+    atomic_add(&m_IC_loss_total[idx], IC_loss_dt);
+    // printf("gamma is %f, IC loss is %f, weight is %f\n", gamma, IC_loss_dt, ptc.weight[tid]);
     // We don't care too much about the radiation from lowest energy particles.
     // Just cool them using usual formula
-    if (gamma < 2.0f) {
+    // if (gamma < 2.0f) {
+    if (true) {
       if (gamma < 1.0001) return 0;
 
       ptc.p1[tid] -=
@@ -172,7 +185,6 @@ struct IC_radiation_scheme {
 
       // Since this part of cooling is not accounted for in the photon spectrum,
       // we need to accumulate it separately
-      auto idx = Conf::idx(ptc.cell[tid], ext);
       atomic_add(&m_IC_loss[idx],
                  ptc.weight[tid] * max(gamma - ptc.E[tid], 0.0));
 
@@ -180,8 +192,6 @@ struct IC_radiation_scheme {
     }
 
     value_t p_i = math::sqrt(square(p1) + square(p2) + square(p3));
-    auto cell = ptc.cell[tid];
-    auto idx = Conf::idx(cell, ext);
     auto pos = get_pos(idx, ext);
 
     auto ext_out = grid.extent_less() / m_downsample;
@@ -189,13 +199,12 @@ struct IC_radiation_scheme {
     index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
 
     value_t lambda = m_ic_module.ic_scatter_rate(gamma) * dt;
-    // printf("ic_prob is %f\n", ic_prob);
+    // printf("ic_prob is %f\n", lambda);
     int num_scattering = rng_poisson(state, lambda);
 
-    // printf("num_scattering is %f, e_ph / gamma is %f\n", weight, e_ph /
-    // gamma);
     for (int i = 0; i < num_scattering; i++) {
       value_t e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
+      // printf("num_scattering is %d, e_ph is %f, gamma is %f\n", num_scattering, e_ph, gamma);
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
       if (e_ph <= 0.0) {
         e_ph = 0.0;

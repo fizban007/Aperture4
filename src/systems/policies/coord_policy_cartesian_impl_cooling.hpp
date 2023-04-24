@@ -39,11 +39,11 @@ class coord_policy_cartesian_impl_cooling
   void init() {
     value_t t_cool = 100.0f, sigma = 10.0f, Bg = 0.0f;
     sim_env().params().get_value("cooling", m_use_cooling);
-    value_t sync_compactness = -1.0f;
-    sim_env().params().get_value("sync_compactness", sync_compactness);
+    // value_t sync_compactness = -1.0f;
+    sim_env().params().get_value("sync_compactness", m_sync_compactness);
     sim_env().params().get_value("cooling_time", t_cool);
-    if (sync_compactness < 0.0f) {
-      sync_compactness = 1.0f / t_cool;
+    if (m_sync_compactness < 0.0f) {
+      m_sync_compactness = 1.0f / t_cool;
     }
     sim_env().params().get_value("sigma", sigma);
     sim_env().params().get_value("guide_field", Bg);
@@ -56,7 +56,7 @@ class coord_policy_cartesian_impl_cooling
     if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
     } else {
-      m_cooling_coef = 2.0f * sync_compactness / sigma;
+      m_cooling_coef = 2.0f * m_sync_compactness / sigma;
     }
 
     // If the config file specifies a synchrotron cooling coefficient, then we
@@ -69,8 +69,8 @@ class coord_policy_cartesian_impl_cooling
     if (sim_env().params().has("sync_gamma_rad") && sim_env().params().has("sigma")) {
       value_t sync_gamma_rad;
       sim_env().params().get_value("sync_gamma_rad", sync_gamma_rad);
-      sync_compactness = 0.3f * math::sqrt(sigma) / (square(sync_gamma_rad) * 4.0f);
-      m_cooling_coef = 2.0f * sync_compactness / sigma;
+      m_sync_compactness = 0.3f * math::sqrt(sigma) / (square(sync_gamma_rad) * 4.0f);
+      m_cooling_coef = 2.0f * m_sync_compactness / sigma;
     }
 
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
@@ -136,16 +136,35 @@ class coord_policy_cartesian_impl_cooling
     value_t p2 = context.p[1];
     value_t p3 = context.p[2];
     value_t gamma = context.gamma;
+    value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
     auto flag = context.flag;
 
     default_pusher pusher;
+    value_t loss = 0.0f;
+    value_t th_loss =
+        context.weight * (4.0f / 3.0f) * m_sync_compactness * gamma * p * dt / context.q;
     // Turn off synchrotron cooling for gamma < 1.001
-    if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
-        m_cooling_coef == 0.0f) {
-      pusher(context.p[0], context.p[1], context.p[2], context.gamma,
+    // if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
+    //     m_cooling_coef == 0.0f) {
+    if (true) {
+      // pusher(context.p[0], context.p[1], context.p[2], context.gamma,
+      //        context.E[0], context.E[1], context.E[2], context.B[0],
+      //        context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+      //        decltype(context.q)(dt));
+      pusher(p1, p2, p3, gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
              decltype(context.q)(dt));
+
+      auto p_new = context.p;
+      p_new[0] = p1;
+      p_new[1] = p2;
+      p_new[2] = p3;
+      context.p = p_new + sync_force(context.E, context.B, (context.p + p_new) * 0.5,
+                                     context.q / context.m, m_cooling_coef, dt);
+      // context.p = p_new;
+      context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
+      gamma = math::sqrt(1.0f + p_new.dot(p_new));
     } else {
       pusher(p1, p2, p3, gamma, context.E[0], context.E[1], context.E[2],
              context.B[0], context.B[1], context.B[2],
@@ -155,47 +174,47 @@ class coord_policy_cartesian_impl_cooling
               m_cooling_coef, dt);
       context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
 
-      auto idx = Conf::idx(pos, ext);
-      value_t loss =
-          context.weight * max(gamma - context.gamma, 0.0f) / context.q;
-      atomic_add(&m_sync_loss_total[idx], loss);
-      if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
-        atomic_add(&m_sync_loss[idx], loss);
+    }
+    auto idx = Conf::idx(pos, ext);
+    // Need to divide by q here because context.weight has q in it
+    loss = context.weight * max(gamma - context.gamma, 0.0f) / context.q;
+    // context.weight * max(gamma - context.gamma, 0.0f);
+    atomic_add(&m_sync_loss_total[idx], th_loss);
+    // printf("gamma is %f, sync loss is %f, new gamma is %f, weight is %f\n",
+    //        gamma, th_loss, context.gamma, context.weight);
+    if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
+      atomic_add(&m_sync_loss[idx], loss);
 
-        auto aL = context.E + cross(context.p, context.B) / context.gamma;
-        auto p = math::sqrt(context.p.dot(context.p));
-        auto aL_perp = cross(aL, context.p) / p;
-        value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
-        value_t eph = m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ,
-                                             *context.local_state);
-        if (eph > math::exp(m_lim_lower)) {
-          value_t log_eph =
-              clamp(math::log(max(eph, math::exp(m_lim_lower))),
-                    m_lim_lower, m_lim_upper);
-          auto ext_out = grid.extent_less() / m_downsample;
-          auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
-          index_t<Conf::dim + 1> pos_out(0,
-                                         (pos - grid.guards()) / m_downsample);
-          int bin = round((log_eph - m_lim_lower) /
-                          (m_lim_upper - m_lim_lower) * (m_num_bins - 1));
-          pos_out[0] = bin;
-          atomic_add(
-              &m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
-              loss / eph);
-          // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
-          // ext_spec)], loss);
+      auto aL = context.E + cross(context.p, context.B) / context.gamma;
+      auto p = math::sqrt(context.p.dot(context.p));
+      auto aL_perp = cross(aL, context.p) / p;
+      value_t a_perp = math::sqrt(aL_perp.dot(aL_perp));
+      value_t eph = m_sync.gen_sync_photon(context.gamma, a_perp, m_BQ,
+                                           *context.local_state);
+      if (eph > math::exp(m_lim_lower)) {
+        value_t log_eph = clamp(math::log(max(eph, math::exp(m_lim_lower))),
+                                m_lim_lower, m_lim_upper);
+        auto ext_out = grid.extent_less() / m_downsample;
+        auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
+        index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
+        int bin = round((log_eph - m_lim_lower) / (m_lim_upper - m_lim_lower) *
+                        (m_num_bins - 1));
+        pos_out[0] = bin;
+        atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
+                   loss / eph);
+        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
+        // ext_spec)], loss);
 
-          // Simply deposit the photon direction along the particle direction,
-          // without computing the 1/gamma cone
-          value_t th = math::acos(context.p[2] / p);
-          value_t phi = math::atan2(context.p[1], context.p[0]) + M_PI;
-          int th_bin = round(th / M_PI * (m_ph_nth - 1));
-          int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
-          index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
-          atomic_add(
-              &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
-              loss / eph);
-        }
+        // Simply deposit the photon direction along the particle direction,
+        // without computing the 1/gamma cone
+        value_t th = math::acos(context.p[2] / p);
+        value_t phi = math::atan2(context.p[1], context.p[0]) + M_PI;
+        int th_bin = round(th / M_PI * (m_ph_nth - 1));
+        int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
+        index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
+        atomic_add(
+            &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
+            loss / eph);
       }
     }
 
@@ -224,6 +243,22 @@ class coord_policy_cartesian_impl_cooling
     return result * dt;
   }
 
+  HD_INLINE vec3 sync_force(const vec3& E, const vec3& B, const vec3& u,
+                            value_t e_over_m, value_t cooling_coef,
+                            value_t dt) const {
+    vec3 result;
+    value_t gamma = math::sqrt(1.0f + u.dot(u));
+    vec3 Epbetaxb = E + cross(u, B) / gamma;
+
+    result =
+        cooling_coef *
+            (cross(Epbetaxb, B) + E * u.dot(E) / gamma -
+             u * (gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma))));
+    // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
+
+    return result * dt;
+  }
+
   HD_INLINE void iterate(vec3& x, vec3& u, const vec3& E, const vec3& B,
                          double e_over_m, double cooling_coef,
                          double dt) const {
@@ -241,6 +276,7 @@ class coord_policy_cartesian_impl_cooling
  private:
   bool m_use_cooling = false;
   value_t m_cooling_coef = 0.0f;
+  value_t m_sync_compactness = -1.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
   mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;

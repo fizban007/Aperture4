@@ -144,27 +144,27 @@ class coord_policy_cartesian_impl_cooling
     value_t th_loss =
         context.weight * (4.0f / 3.0f) * m_sync_compactness * gamma * p * dt / context.q;
     // Turn off synchrotron cooling for gamma < 1.001
-    // if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
-    //     m_cooling_coef == 0.0f) {
-    if (true) {
-      // pusher(context.p[0], context.p[1], context.p[2], context.gamma,
-      //        context.E[0], context.E[1], context.E[2], context.B[0],
-      //        context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
-      //        decltype(context.q)(dt));
-      pusher(p1, p2, p3, gamma,
+    if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
+        m_cooling_coef == 0.0f) {
+      pusher(context.p[0], context.p[1], context.p[2], context.gamma,
              context.E[0], context.E[1], context.E[2], context.B[0],
              context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
              decltype(context.q)(dt));
+    // if (true) {
+    //   pusher(p1, p2, p3, gamma,
+    //          context.E[0], context.E[1], context.E[2], context.B[0],
+    //          context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+    //          decltype(context.q)(dt));
 
-      auto p_new = context.p;
-      p_new[0] = p1;
-      p_new[1] = p2;
-      p_new[2] = p3;
-      context.p = p_new + sync_force(context.E, context.B, (context.p + p_new) * 0.5,
-                                     context.q / context.m, m_cooling_coef, dt);
-      // context.p = p_new;
-      context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
-      gamma = math::sqrt(1.0f + p_new.dot(p_new));
+    //   auto p_new = context.p;
+    //   p_new[0] = p1;
+    //   p_new[1] = p2;
+    //   p_new[2] = p3;
+    //   context.p = p_new + sync_force(context.E, context.B, (context.p + p_new) * 0.5,
+    //                                  context.q / context.m, m_cooling_coef, dt);
+    //   // context.p = p_new;
+    //   context.gamma = math::sqrt(1.0f + context.p.dot(context.p));
+    //   gamma = math::sqrt(1.0f + p_new.dot(p_new));
     } else {
       pusher(p1, p2, p3, gamma, context.E[0], context.E[1], context.E[2],
              context.B[0], context.B[1], context.B[2],

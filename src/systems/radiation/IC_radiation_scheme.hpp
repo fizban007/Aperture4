@@ -171,7 +171,7 @@ struct IC_radiation_scheme {
     // Just cool them using usual formula
     // if (gamma < 2.0f) {
     if (true) {
-      if (gamma < 1.0001) return 0;
+      // if (gamma < 1.0001) return 0;
 
       ptc.p1[tid] -=
           (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p1[tid] * dt;

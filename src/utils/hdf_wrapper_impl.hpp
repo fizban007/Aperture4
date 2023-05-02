@@ -326,6 +326,10 @@ H5File::read_subset(multi_array<T, Dim>& array, const std::string& name,
     array_dims[i] = array.extent()[Dim - 1 - i];
   }
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
+  // Silently fails when the dataset does not exist
+  if (dataset == H5I_INVALID_HID) {
+    return;
+  }
   auto dataspace = H5Dget_space(dataset); /* dataspace handle */
   int dim = H5Sget_simple_extent_ndims(dataspace);
   if (dim != Dim) {

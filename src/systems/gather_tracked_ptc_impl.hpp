@@ -74,7 +74,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ptc_attr(
           });
         },
         data, tracked_map, ptc, E, B);
-    data.copy_to_host();
+    data.copy_to_host(0, tracked_num);
   }
 }
 
@@ -93,7 +93,7 @@ gather_tracked_ptc<Conf, ExecPolicy>::gather_tracked_ph_attr(
           });
         },
         data, tracked_map, ph, E, B);
-    data.copy_to_host();
+    data.copy_to_host(0, tracked_num);
   }
 }
 

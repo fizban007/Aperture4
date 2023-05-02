@@ -14,7 +14,6 @@ def flag_to_species(flag):
 
 class Data:
   def __init__(self, path):
-    self._conf = self.load_conf(os.path.join(path, "config.toml"))
     self._path = path
 
     self.reload()
@@ -71,6 +70,8 @@ class Data:
     self.load_ptc(step)
 
   def reload(self):
+    # reload configuration file
+    self._conf = self.load_conf(os.path.join(self._path, "config.toml"))
     # load mesh file
     self._meshfile = os.path.join(self._path, "grid.h5")
     f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')

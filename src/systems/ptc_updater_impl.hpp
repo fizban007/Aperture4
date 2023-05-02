@@ -133,7 +133,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
   J = sim_env().register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered,
       ExecPolicy<Conf>::data_mem_type());
-  // J->include_in_snapshot(true);
+  J->include_in_snapshot(true);
 
   sim_env().params().get_value("num_species", m_num_species);
   if (m_num_species > max_ptc_types) {
@@ -147,7 +147,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
             sim_env().register_data<scalar_field<Conf>>(
                 std::string("Rho_") + ptc_type_name(i), m_grid,
                 field_type::vert_centered, ExecPolicy<Conf>::data_mem_type()));
-    // Rho[i]->include_in_snapshot(true);
+    Rho[i]->include_in_snapshot(true);
   }
   Rho.copy_to_device();
 

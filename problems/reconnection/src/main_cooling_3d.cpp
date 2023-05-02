@@ -67,6 +67,10 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf, exec_policy_dynamic> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto moments =
+      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       coord_policy_cartesian_impl_cooling>>(
@@ -74,27 +78,21 @@ main(int argc, char *argv[]) {
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_dynamic, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
-  // auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto moments =
-      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
-  auto tracker =
-      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   // auto momentum =
   //     env.register_system<gather_momentum_space<Conf,
   //     exec_policy_gpu>>(grid);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
-                                                                       &comm);
+                                                                      &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *Bdelta;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
   env.get_data("Bdelta", &Bdelta);
-  env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 

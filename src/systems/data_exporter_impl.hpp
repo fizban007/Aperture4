@@ -25,6 +25,7 @@
 #include "framework/environment.h"
 #include "framework/params_store.h"
 #include "utils/for_each_dual.hpp"
+#include "utils/timer.h"
 #if (__GNUC__ >= 8 || __clang_major__ >= 7) && !__NVCC__
 #include <filesystem>
 #else
@@ -190,6 +191,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     m_comm->barrier();
   }
   if (step % m_fld_output_interval == 0) {
+    timer::stamp("write_field");
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
@@ -239,6 +241,8 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
     // Increment the output number
     m_fld_num += 1;
+    timer::show_duration_since_stamp("write_field", "ms",
+                                     "write_field");
   }
 
   if (step % m_ptc_output_interval == 0) {
@@ -1042,12 +1046,14 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
                                        H5File& datafile, bool snapshot) {
   // No need to specifically write tracked_ptc into snapshot
   if (!snapshot) {
+    timer::stamp("write_tracked_ptc");
     size_t number = data.number();
     size_t total = number;
     size_t offset = 0;
     bool multi_rank = is_multi_rank();
     if (multi_rank) {
       m_comm->get_total_num_offset(number, total, offset);
+      if (total == 0) return;
       datafile.write_parallel(data.x1.host_ptr(), data.size(), total, offset,
                               number, 0, name + "_x1");
       datafile.write_parallel(data.x2.host_ptr(), data.size(), total, offset,
@@ -1069,6 +1075,7 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       datafile.write_parallel(data.id.host_ptr(), data.size(), total, offset,
                               number, 0, name + "_id");
     } else {
+      if (total == 0) return;
       datafile.write(data.x1.host_ptr(), number, name + "_x1");
       datafile.write(data.x2.host_ptr(), number, name + "_x2");
       datafile.write(data.x3.host_ptr(), number, name + "_x3");
@@ -1080,6 +1087,8 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       datafile.write(data.weight.host_ptr(), number, name + "_weight");
       datafile.write(data.id.host_ptr(), number, name + "_id");
     }
+    timer::show_duration_since_stamp("write_tracked_ptc", "ms",
+                                     "write_tracked_ptc");
   }
 }
 

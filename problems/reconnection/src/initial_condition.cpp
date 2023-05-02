@@ -30,6 +30,18 @@
 
 namespace Aperture {
 
+namespace {
+
+HOST_DEVICE Scalar double_current_sheet_Bx(Scalar B0, Scalar y, Scalar ysize, Scalar delta) {
+  if (y < 0.0f) {
+    return B0 * tanh((y + 0.25f * ysize) / delta);
+  } else {
+    return -B0 * tanh((y - 0.25f * ysize) / delta);
+  }
+}
+
+}
+
 template <typename Conf>
 void
 harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
@@ -292,11 +304,7 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // x-z plane, and the B field changes sign in the y direction. This should be
   // reflected in the grid setup as well.
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
-    if (y < 0.0f) {
-      return B0 * tanh((y + 0.25f * ysize) / delta);
-    } else {
-      return -B0 * tanh((y - 0.25f * ysize) / delta);
-    }
+    return double_current_sheet_Bx(B0, y, ysize, delta);
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
 
@@ -314,10 +322,10 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       // [kT_upstream] LAMBDA(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
       //                          PtcType type) {
       //   return rng.maxwell_juttner_3d(kT_upstream);
-      [kT_upstream, B_g, delta] LAMBDA(auto &x_global,
-                                           rand_state &state, PtcType type) {
+      [kT_upstream, ysize, B_g, delta] LAMBDA(auto &x_global,
+                                       rand_state &state, PtcType type) {
         value_t y = x_global[1];
-        value_t Bx = tanh(y / delta);
+        value_t Bx = double_current_sheet_Bx(1.0, y, ysize, delta);
         value_t B = math::sqrt(Bx * Bx + B_g * B_g);
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT_upstream);
 

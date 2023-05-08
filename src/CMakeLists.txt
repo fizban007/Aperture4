@@ -21,6 +21,8 @@ set(BENCHMARK_HEADERS
   ${SOURCES_DIR}/benchmark/catch_sample_analysis.hpp
   ${SOURCES_DIR}/benchmark/detail/catch_analyse.hpp
   ${SOURCES_DIR}/benchmark/detail/catch_benchmark_function.hpp
+  ${SOURCES_DIR}/benchmark/detail/catch_benchmark_stats.hpp
+  ${SOURCES_DIR}/benchmark/detail/catch_benchmark_stats_fwd.hpp
   ${SOURCES_DIR}/benchmark/detail/catch_complete_invoke.hpp
   ${SOURCES_DIR}/benchmark/detail/catch_estimate_clock.hpp
   ${SOURCES_DIR}/benchmark/detail/catch_measure.hpp
@@ -39,7 +41,7 @@ set(BENCHMARK_FILES ${BENCHMARK_HEADERS} ${BENCHMARK_SOURCES})
 
 
 set(IMPL_HEADERS
- "${CMAKE_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
+ "${PROJECT_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
   ${SOURCES_DIR}/catch_user_config.hpp.in
   ${SOURCES_DIR}/catch_all.hpp
   ${SOURCES_DIR}/catch_approx.hpp
@@ -88,9 +90,11 @@ set(IMPL_HEADERS
   ${SOURCES_DIR}/internal/catch_floating_point_helpers.hpp
   ${SOURCES_DIR}/internal/catch_getenv.hpp
   ${SOURCES_DIR}/internal/catch_istream.hpp
+  ${SOURCES_DIR}/internal/catch_is_permutation.hpp
   ${SOURCES_DIR}/internal/catch_lazy_expr.hpp
   ${SOURCES_DIR}/internal/catch_leak_detector.hpp
   ${SOURCES_DIR}/internal/catch_list.hpp
+  ${SOURCES_DIR}/internal/catch_logical_traits.hpp
   ${SOURCES_DIR}/internal/catch_message_info.hpp
   ${SOURCES_DIR}/internal/catch_meta.hpp
   ${SOURCES_DIR}/internal/catch_move_and_forward.hpp
@@ -126,6 +130,7 @@ set(IMPL_HEADERS
   ${SOURCES_DIR}/internal/catch_test_failure_exception.hpp
   ${SOURCES_DIR}/internal/catch_test_macro_impl.hpp
   ${SOURCES_DIR}/internal/catch_test_registry.hpp
+  ${SOURCES_DIR}/internal/catch_test_run_info.hpp
   ${SOURCES_DIR}/internal/catch_test_spec_parser.hpp
   ${SOURCES_DIR}/internal/catch_textflow.hpp
   ${SOURCES_DIR}/internal/catch_to_string.hpp
@@ -151,6 +156,7 @@ set(IMPL_SOURCES
   ${SOURCES_DIR}/catch_timer.cpp
   ${SOURCES_DIR}/catch_tostring.cpp
   ${SOURCES_DIR}/catch_totals.cpp
+  ${SOURCES_DIR}/catch_translate_exception.cpp
   ${SOURCES_DIR}/catch_version.cpp
   ${SOURCES_DIR}/internal/catch_assertion_handler.cpp
   ${SOURCES_DIR}/internal/catch_case_insensitive_comparisons.cpp
@@ -214,8 +220,8 @@ set(INTERFACE_HEADERS
   ${SOURCES_DIR}/interfaces/catch_interfaces_registry_hub.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter_factory.hpp
-  ${SOURCES_DIR}/interfaces/catch_interfaces_reporter_registry.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_tag_alias_registry.hpp
+  ${SOURCES_DIR}/interfaces/catch_interfaces_test_invoker.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_testcase.hpp
 )
 set(INTERFACE_SOURCES
@@ -226,7 +232,6 @@ set(INTERFACE_SOURCES
   ${SOURCES_DIR}/interfaces/catch_interfaces_registry_hub.cpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter.cpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter_factory.cpp
-  ${SOURCES_DIR}/interfaces/catch_interfaces_reporter_registry.cpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_testcase.cpp
 )
 set(INTERFACE_FILES ${INTERFACE_HEADERS} ${INTERFACE_SOURCES})
@@ -251,6 +256,7 @@ set(MATCHER_HEADERS
   ${SOURCES_DIR}/matchers/catch_matchers_all.hpp
   ${SOURCES_DIR}/matchers/catch_matchers_container_properties.hpp
   ${SOURCES_DIR}/matchers/catch_matchers_contains.hpp
+  ${SOURCES_DIR}/matchers/catch_matchers_range_equals.hpp
   ${SOURCES_DIR}/matchers/catch_matchers_exception.hpp
   ${SOURCES_DIR}/matchers/catch_matchers_floating_point.hpp
   ${SOURCES_DIR}/matchers/catch_matchers_predicate.hpp
@@ -320,7 +326,7 @@ set(ALL_FILES
 )
 
 set(FILTERED_FILES ${ALL_FILES})
-list(REMOVE_ITEM FILTERED_FILES "${CMAKE_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp")
+list(REMOVE_ITEM FILTERED_FILES "${PROJECT_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp")
 source_group(
   TREE ${SOURCES_DIR}
   PREFIX sources
@@ -328,7 +334,7 @@ source_group(
 )
 source_group("generated headers"
   FILES
-    "${CMAKE_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
+    "${PROJECT_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
 )
 
 add_library(Catch2 ${ALL_FILES})
@@ -371,13 +377,13 @@ target_compile_features(Catch2
 
 configure_file(
   "${SOURCES_DIR}/catch_user_config.hpp.in"
-  "${CMAKE_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
+  "${PROJECT_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
 )
 
 target_include_directories(Catch2
   PUBLIC
     $<BUILD_INTERFACE:${SOURCES_DIR}/..>
-    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated-includes>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated-includes>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
@@ -425,7 +431,7 @@ if (NOT_SUBPROJECT)
     install(
       DIRECTORY
         "${SOURCES_DIR}"
-        "${CMAKE_BINARY_DIR}/generated-includes/catch2" # Also install the generated header
+        "${PROJECT_BINARY_DIR}/generated-includes/catch2" # Also install the generated header
       DESTINATION
         "${CMAKE_INSTALL_INCLUDEDIR}"
       FILES_MATCHING
@@ -446,7 +452,7 @@ if (CATCH_BUILD_EXAMPLES OR CATCH_BUILD_EXTRA_TESTS)
     target_include_directories(Catch2_buildall_interface
       INTERFACE
         $<BUILD_INTERFACE:${SOURCES_DIR}/..>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated-includes>
+        $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated-includes>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
     target_compile_definitions(Catch2_buildall_interface
@@ -486,12 +492,10 @@ set(CATCH_WARNING_TARGETS ${CATCH_WARNING_TARGETS} PARENT_SCOPE)
 # so we want to check & warn users if they do this. However, we won't abort
 # the configuration step so that we don't have to also provide an override.
 if (BUILD_SHARED_LIBS)
-    if (MSVC)
-        set_target_properties(Catch2 Catch2WithMain
-          PROPERTIES
-            WINDOWS_EXPORT_ALL_SYMBOLS ON
-        )
-    endif()
+    set_target_properties(Catch2 Catch2WithMain
+      PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
 
     get_target_property(_VisPreset Catch2 CXX_VISIBILITY_PRESET)
     if (NOT MSVC AND _VisPreset STREQUAL "hidden")

@@ -18,13 +18,13 @@
 #ifndef _COORD_POLICY_CARTESIAN_SYNC_IC_COOLING_H_
 #define _COORD_POLICY_CARTESIAN_SYNC_IC_COOLING_H_
 
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
+#include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 
 namespace Aperture {
 
 template <typename Conf>
 class coord_policy_cartesian_sync_IC_cooling
-    : public coord_policy_cartesian_impl_cooling<Conf> {
+    : public coord_policy_cartesian_sync_cooling<Conf> {
  public:
   using value_t = typename Conf::value_t;
   using vec3 = vec_t<value_t, 3>;

@@ -170,6 +170,16 @@ struct Grid {
     return result;
   }
 
+  HD_INLINE vec_t<value_t, 3> coord_global(
+      const index_t<Dim>& idx) const {
+    vec_t<value_t, 3> result;
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      result[i] = coord(i, idx[i], false);
+    }
+    return result;
+  }
+
   template <typename FloatT>
   HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
                              index_t<Dim>& idx, vec_t<FloatT, 3>& rel_x) const {

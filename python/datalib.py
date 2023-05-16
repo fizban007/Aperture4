@@ -13,6 +13,9 @@ def flag_to_species(flag):
   return flag >> (32 - 4);
 
 class Data:
+  _coord_keys = []
+  _mesh_loaded = False
+
   def __init__(self, path):
     self._path = path
 
@@ -72,17 +75,7 @@ class Data:
   def reload(self):
     # reload configuration file
     self._conf = self.load_conf(os.path.join(self._path, "config.toml"))
-    # load mesh file
-    self._meshfile = os.path.join(self._path, "grid.h5")
-    f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
-    self._mesh_keys = list(f_mesh.keys())
-    for k in self._mesh_keys:
-      self.__dict__[k] = f_mesh[k][()]
-    f_mesh.close()
-    # find mesh deltas
-    self.delta = np.zeros(len(self._conf["N"]))
-    for n in range(len(self.delta)):
-      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
+    self.__load_mesh()
 
     num_re = re.compile(r"\d+")
     # generate a list of output steps for fields
@@ -120,6 +113,24 @@ class Data:
       self._ptc_keys = list(f_ptc.keys())
       print("ptc keys are:", self._ptc_keys)
       f_ptc.close()
+  
+  def __load_mesh(self):
+    print("Base")
+    # load mesh file
+    if self._mesh_loaded:
+      return
+    self._meshfile = os.path.join(self._path, "grid.h5")
+    f_mesh = h5py.File(os.path.join(self._path, f"grid.h5"), 'r')
+    self._mesh_keys = list(f_mesh.keys())
+    for k in self._mesh_keys:
+      self.__dict__[k] = f_mesh[k][()]
+    f_mesh.close()
+    # find mesh deltas
+    self.delta = np.zeros(len(self._conf["N"]))
+    for n in range(len(self.delta)):
+      self.delta[n] = self._conf["size"][n] / self._conf["N"][n] * self._conf["downsample"]
+    self._mesh_loaded = True
+
 
   def load_fld(self, step):
     if not step in self.fld_steps:

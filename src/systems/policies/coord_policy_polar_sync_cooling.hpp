@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Alex Chen.
+ * Copyright (c) 2023 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -15,38 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __POLICIES_H_
-#define __POLICIES_H_
+#pragma once
+
+#include "coord_policy_polar.hpp"
+#include "systems/physics/pusher_synchrotron.hpp"
 
 namespace Aperture {
 
 template <typename Conf>
-class exec_policy_gpu;
+using coord_policy_polar_sync_cooling =
+    coord_policy_polar_base<Conf, pusher_synchrotron>;
 
-template <typename Conf>
-class exec_policy_host;
-
-template <typename Conf>
-class exec_policy_openmp;
-
-template <typename Conf>
-class exec_policy_openmp_simd;
-
-// template <typename Conf>
-// class coord_policy_cartesian;
-
-// template <typename Conf>
-// class coord_policy_polar;
-
-// template <typename Conf>
-// class coord_policy_spherical;
-
-template <typename Conf>
-class coord_policy_gr_ks_sph;
-
-template <typename Conf>
-class ptc_physics_policy_empty;
-
-}
-
-#endif // __POLICIES_H_
+}  // namespace Aperture

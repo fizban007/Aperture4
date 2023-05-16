@@ -27,18 +27,20 @@
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"
+#include "systems/physics/pusher_simple.hpp"
 
 namespace Aperture {
 
-template <typename Conf>
-class coord_policy_cartesian {
+template <typename Conf, template <class> class Pusher = pusher_simple>
+class coord_policy_cartesian_base {
  public:
   // typedef typename Conf::value_t value_t;
   using value_t = typename Conf::value_t;
   using grid_type = grid_t<Conf>;
 
-  coord_policy_cartesian(const grid_t<Conf>& grid) : m_grid(grid) {}
-  ~coord_policy_cartesian() = default;
+  coord_policy_cartesian_base(const grid_t<Conf>& grid) :
+      m_grid(grid), m_pusher(grid) {}
+  ~coord_policy_cartesian_base() = default;
 
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
@@ -50,7 +52,9 @@ class coord_policy_cartesian {
   HD_INLINE static value_t x2(value_t x) { return x; }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
-  void init() {}
+  void init() {
+    m_pusher.init();
+  }
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext, typename UIntT>
@@ -65,10 +69,11 @@ class coord_policy_cartesian {
       // default_pusher pusher;
       typename Conf::pusher_t pusher;
 
-      pusher(context.p[0], context.p[1], context.p[2], context.gamma,
-             context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
-             decltype(context.q)(dt));
+      // pusher(context.p[0], context.p[1], context.p[2], context.gamma,
+      //        context.E[0], context.E[1], context.E[2], context.B[0],
+      //        context.B[1], context.B[2], dt * context.q / context.m * 0.5f,
+      //        decltype(context.q)(dt));
+      m_pusher.push(grid, ext, context, pos, dt);
 #ifndef USE_SIMD
     }
 #endif
@@ -146,6 +151,10 @@ class coord_policy_cartesian {
 
  protected:
   const grid_t<Conf>& m_grid;
+  Pusher<Conf> m_pusher;
 };
+
+template <typename Conf>
+using coord_policy_cartesian = coord_policy_cartesian_base<Conf, pusher_simple>;
 
 }  // namespace Aperture

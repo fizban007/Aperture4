@@ -28,18 +28,19 @@
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"
+#include "systems/physics/pusher_simple.hpp"
 
 namespace Aperture {
 
-template <typename Conf>
-class coord_policy_polar {
+template <typename Conf, template <class> class Pusher = pusher_simple>
+class coord_policy_polar_base {
  public:
   using value_t = typename Conf::value_t;
   using grid_type = grid_polar_t<Conf>;
 
-  coord_policy_polar(const grid_t<Conf>& grid)
-      : m_grid(dynamic_cast<const grid_type&>(grid)) {}
-  ~coord_policy_polar() = default;
+  coord_policy_polar_base(const grid_t<Conf>& grid)
+      : m_grid(dynamic_cast<const grid_type&>(grid)), m_pusher(grid) {}
+  ~coord_policy_polar_base() = default;
 
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
@@ -51,7 +52,9 @@ class coord_policy_polar {
   HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
-  void init() {}
+  void init() {
+    m_pusher.init();
+  }
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
@@ -192,6 +195,10 @@ class coord_policy_polar {
 
  private:
   const grid_type& m_grid;
+  Pusher<Conf> m_pusher;
 };
+
+template <typename Conf>
+using coord_policy_polar = coord_policy_polar_base<Conf, pusher_simple>;
 
 }  // namespace Aperture

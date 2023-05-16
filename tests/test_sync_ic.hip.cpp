@@ -26,7 +26,7 @@
 #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
+#include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/hdf_wrapper.h"
@@ -42,7 +42,7 @@ using namespace Aperture;
 namespace Aperture {
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
-                           coord_policy_cartesian_impl_cooling>;
+                           coord_policy_cartesian_sync_cooling>;
 
 }  // namespace Aperture
 
@@ -61,13 +61,13 @@ main(int argc, char* argv[]) {
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
-  auto pusher =
-      env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      coord_policy_cartesian_impl_cooling>>(
-          grid, &comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_dynamic, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);
+  auto pusher =
+      env.register_system<ptc_updater<Conf, exec_policy_dynamic,
+                                      coord_policy_cartesian_sync_cooling>>(
+          grid, &comm);
 
   env.init();
 
@@ -100,8 +100,16 @@ main(int argc, char* argv[]) {
                 rand_state &state,
                 PtcType type) {
         return rng_maxwell_juttner_3d(state, kT);
-        // return vec_t<typename Conf::value_t, 3>(kT * math::sin(pitch), 0.0,
-        //                                         kT * math::cos(pitch));
+        // auto th = rng_uniform(state) * M_PI;
+        // auto cth = math::cos(th);
+        // auto sth = math::sin(th);
+        // auto cth = rng_uniform(state);
+        // auto sth = math::sqrt(1.0f - cth*cth);
+        // auto ph = rng_uniform(state) * 2.0f * M_PI;
+        // return vec_t<typename Conf::value_t, 3>(kT * sth * math::cos(ph),
+        //                                         kT * sth * math::sin(ph),
+        //                                         kT * cth);
+        // return vec_t<typename Conf::value_t, 3>(0.0, 0.0, kT);
       },
       [rho, ppc] LAMBDA(auto &x_global, PtcType type) {
         return rho / ppc;

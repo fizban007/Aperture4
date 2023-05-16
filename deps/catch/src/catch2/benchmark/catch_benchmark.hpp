@@ -34,6 +34,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <exception>
 
 namespace Catch {
     namespace Benchmark {

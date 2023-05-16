@@ -28,18 +28,20 @@
 #include "systems/helpers/filter_field.hpp"
 #include "systems/helpers/ptc_update_helper.hpp"
 #include "systems/physics/pushers.hpp"
+#include "systems/physics/pusher_simple.hpp"
 
 namespace Aperture {
 
-template <typename Conf>
-class coord_policy_spherical {
+template <typename Conf, template <class> class Pusher = pusher_simple>
+class coord_policy_spherical_base {
  public:
   using value_t = typename Conf::value_t;
   using grid_type = grid_sph_t<Conf>;
 
-  coord_policy_spherical(const grid_t<Conf>& grid)
-      : m_grid(dynamic_cast<const grid_type&>(grid)) {}
-  ~coord_policy_spherical() = default;
+  coord_policy_spherical_base(const grid_t<Conf>& grid) :
+      m_grid(dynamic_cast<const grid_type&>(grid)),
+      m_pusher(grid) {}
+  ~coord_policy_spherical_base() = default;
 
   // Static coordinate functions
   HD_INLINE static value_t weight_func(value_t x1, value_t x2,
@@ -51,7 +53,9 @@ class coord_policy_spherical {
   HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
   HD_INLINE static value_t x3(value_t x) { return x; }
 
-  void init() {}
+  void init() {
+    m_pusher.init();
+  }
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext>
@@ -59,12 +63,11 @@ class coord_policy_spherical {
                             const extent_t<Conf::dim>& ext, PtcContext& context,
                             index_t<Conf::dim>& pos, value_t dt) const {
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      // default_pusher pusher;
-      typename Conf::pusher_t pusher;
 
-      pusher(context.p[0], context.p[1], context.p[2], context.gamma,
-             context.E[0], context.E[1], context.E[2], context.B[0],
-             context.B[1], context.B[2], dt * context.q / context.m * 0.5f, dt);
+      // pusher(context.p[0], context.p[1], context.p[2], context.gamma,
+      //        context.E[0], context.E[1], context.E[2], context.B[0],
+      //        context.B[1], context.B[2], dt * context.q / context.m * 0.5f, dt);
+      m_pusher.push(grid, ext, context, pos, dt);
     }
 
     move_ptc(grid, context, pos, dt);
@@ -82,6 +85,7 @@ class coord_policy_spherical {
         grid.template coord<2>(pos[2], context.x[2]));
     // vec_t<value_t, 3> x_global_sph(x1(x_global_old[0]), x2(x_global_old[1]),
     //                                x3(x_global_old[2]));
+    // printf("coord is %f, %f\n", x_global_old[0], x_global_old[1]);
 
     // Global position in cartesian coord
     vec_t<value_t, 3> x_global_cart = grid_type::coord_to_cart(x_global_old);
@@ -94,11 +98,15 @@ class coord_policy_spherical {
     grid_type::vec_to_cart(context.p, x_global_old);
 
     // Move in Cartesian coordinates
+    // printf("x_cart is %f, %f, %f\n", x_global_cart[0], x_global_cart[1], x_global_cart[2]);
     x_global_cart += context.p * (dt / context.gamma);
+    // printf("x_cart is %f, %f, %f\n", x_global_cart[0], x_global_cart[1], x_global_cart[2]);
+    // printf("context.p0 is %f, %f\n", context.p[0], x_global_old[1]);
 
     // Compute the new spherical location
     vec_t<value_t, 3> x_global_sph_new =
         grid_type::coord_from_cart(x_global_cart);
+    // printf("x_sph_new is %f, %f, %f\n", x_global_sph_new[0], x_global_sph_new[1], x_global_sph_new[2]);
     // x_global_sph_new[0] = math::sqrt(x_global_cart.dot(x_global_cart));
     // x_global_sph_new[2] = math::atan2(x_global_cart[1], x_global_cart[0]);
     // x_global_sph_new[1] = math::acos(x_global_cart[2] / x_global_sph_new[0]);
@@ -107,7 +115,7 @@ class coord_policy_spherical {
     grid_type::vec_from_cart(context.p, x_global_sph_new);
     // x_global_sph_new[0] = grid_sph_t<Conf>::from_radius(x_global_sph_new[0]);
     // x_global_sph_new[1] = grid_sph_t<Conf>::from_theta(x_global_sph_new[1]);
-
+    // printf("pos old is %d, %d\n", pos[0], pos[1]);
 #pragma unroll
     for (int i = 0; i < Conf::dim; i++) {
       context.new_x[i] =
@@ -117,6 +125,7 @@ class coord_policy_spherical {
       pos[i] += context.dc[i];
       context.new_x[i] -= (value_t)context.dc[i];
     }
+    // printf("pos new is %d, %d\n", pos[0], pos[1]);
 #pragma unroll
     for (int i = Conf::dim; i < 3; i++) {
       // context.new_x[i] = context.x[i] + context.p[i] * (dt / context.gamma);
@@ -197,6 +206,10 @@ class coord_policy_spherical {
 
  private:
   const grid_type& m_grid;
+  Pusher<Conf> m_pusher;
 };
+
+template <typename Conf>
+using coord_policy_spherical = coord_policy_spherical_base<Conf, pusher_simple>;
 
 }  // namespace Aperture

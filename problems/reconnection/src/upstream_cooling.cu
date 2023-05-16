@@ -25,7 +25,7 @@
 #include "systems/gather_momentum_space.h"
 #include "systems/ptc_injector_new.h"
 // #include "systems/legacy/ptc_updater_old.h"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
+#include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/ptc_updater.h"
 #include <iostream>
 
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(grid, &comm);
+      Conf, exec_policy_gpu, coord_policy_cartesian_sync_cooling>>(grid, &comm);
   auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
   auto momentum =
       env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);

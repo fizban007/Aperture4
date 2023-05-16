@@ -24,6 +24,7 @@
 #include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater.h"
 #include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/coord_policy_cartesian.hpp"
 #include <iostream>
 
 using namespace Aperture;

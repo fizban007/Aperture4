@@ -24,7 +24,7 @@
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/gather_momentum_space.h"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
+#include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
 #include "systems/ptc_injector_new.h"
@@ -41,7 +41,7 @@
 namespace Aperture {
 
 template class ptc_updater<Config<2>, exec_policy_gpu,
-                               coord_policy_cartesian_impl_cooling>;
+                               coord_policy_cartesian_sync_cooling>;
 
 
 }
@@ -59,7 +59,7 @@ main(int argc, char *argv[]) {
   domain_comm<Conf> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(
+      Conf, exec_policy_gpu, coord_policy_cartesian_sync_cooling>>(
       grid, comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(

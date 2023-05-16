@@ -96,8 +96,8 @@ class grid_sph_t : public grid_curv_t<Conf> {
   template <typename FloatT>
   static HD_INLINE vec_t<FloatT, 3> coord_to_cart(const vec_t<FloatT, 3> &x_sph) {
     vec_t<FloatT, 3> result;
-    FloatT r = x_sph[0];
-    FloatT th = x_sph[1];
+    FloatT r = radius(x_sph[0]);
+    FloatT th = theta(x_sph[1]);
     FloatT sth = math::sin(th);
     result[0] = r * sth * math::cos(x_sph[2]);
     result[1] = r * sth * math::sin(x_sph[2]);

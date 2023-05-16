@@ -24,7 +24,7 @@
 #include "systems/field_solver_base.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
-#include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
+#include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/phys_policy_IC_cooling.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -62,9 +62,9 @@ main(int argc, char *argv[]) {
   auto pusher = env.register_system<ptc_updater<
       // Conf, exec_policy_gpu, coord_policy_cartesian,
       // phys_policy_IC_cooling>>( Conf, exec_policy_gpu,
-      // coord_policy_cartesian_impl_cooling,
+      // coord_policy_cartesian_sync_cooling,
       //     phys_policy_IC_cooling>>(
-      Conf, exec_policy_gpu, coord_policy_cartesian_impl_cooling>>(grid, &comm);
+      Conf, exec_policy_gpu, coord_policy_cartesian_sync_cooling>>(grid, &comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_gpu, coord_policy_cartesian, IC_radiation_scheme>>(
       grid, &comm);

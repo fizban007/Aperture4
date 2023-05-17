@@ -99,7 +99,7 @@ main(int argc, char *argv[]) {
   ptc_append_global(exec_policy_dynamic<Conf>::exec_tag{}, *ptc, grid,
                     {grid_ks_t<Conf>::from_radius(r0), th0, ph0},
                     {u_r0, u_th0, u_ph0}, 1.0f, flag_or(PtcFlag::tracked));
-  GpuSafeCall(gpuDeviceSynchronize());
+//   GpuSafeCall(gpuDeviceSynchronize());
 
   // initial_vacuum_wald(*B, *D, grid);
 

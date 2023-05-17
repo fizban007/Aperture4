@@ -93,13 +93,13 @@ main(int argc, char *argv[]) {
   value_t r0 = 2.0;
   value_t th0 = 0.5 * M_PI;
   value_t ph0 = 0.0;
-  value_t ur0 = 1.0;
-  value_t uth0 = 0.0;
-  value_t uph0 = 1.0;
+  value_t u_r0 = 1.0;
+  value_t u_th0 = 0.0;
+  value_t u_ph0 = 1.0;
   // Add a single electron with the above initial conditions
   ptc_append_global(exec_policy_dynamic<Conf>::exec_tag{}, *ptc, grid,
                     {grid_ks_t<Conf>::from_radius(r0), th0, ph0},
-                    {ur0, uth0, uph0}, 1.0f, flag_or(PtcFlag::tracked));
+                    {u_r0, u_th0, u_ph0}, 1.0f, flag_or(PtcFlag::tracked));
   GpuSafeCall(gpuDeviceSynchronize());
 
   // initial_vacuum_wald(*B, *D, grid);

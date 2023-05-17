@@ -40,3 +40,7 @@ add_dependencies(problems grpic)
 add_aperture_executable(vacuum_wald "vacuum.cpp")
 target_link_libraries(vacuum_wald gr_2d_kerr_schild)
 add_dependencies(problems vacuum_wald)
+
+add_aperture_executable(gr_single_ptc "test_particle.cpp")
+target_link_libraries(gr_single_ptc gr_2d_kerr_schild)
+add_dependencies(problems gr_single_ptc)

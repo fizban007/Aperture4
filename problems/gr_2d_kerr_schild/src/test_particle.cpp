@@ -17,7 +17,6 @@
 
 #include "core/cuda_control.h"
 #include "core/enum_types.h"
-#include "cuda_runtime_api.h"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "injector.h"

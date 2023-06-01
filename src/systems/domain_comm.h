@@ -21,6 +21,7 @@
 #include "core/domain_info.h"
 #include "core/particles.h"
 #include "data/fields.h"
+#include "data/phase_space.hpp"
 #include "framework/system.h"
 #include "utils/mpi_helper.h"
 #include <mpi.h>
@@ -47,6 +48,7 @@ class domain_comm : public system_t {
   int rank() const { return m_rank; }
   int size() const { return m_size; }
   void resize_buffers(const typename Conf::grid_t& grid) const;
+  void resize_phase_space_buffers(const typename Conf::grid_t& grid) const;
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
@@ -58,6 +60,8 @@ class domain_comm : public system_t {
                                     const typename Conf::grid_t& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
+  template <int Dim>
+  void send_phase_space(phase_space<Conf, Dim>& data, const grid_t<Conf>& grid) const;
   void get_total_num_offset(const uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 
@@ -84,6 +88,7 @@ class domain_comm : public system_t {
   int m_size = 1;  ///< Size of MPI_COMM_WORLD
   domain_info_t<Conf::dim> m_domain_info;
   mutable bool m_buffers_ready = false;
+  mutable bool m_phase_buffers_ready = false;
   static constexpr bool m_is_device =
       std::is_same<typename ExecPolicy<Conf>::exec_tag, exec_tags::device>::value;
 
@@ -96,6 +101,8 @@ class domain_comm : public system_t {
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<multi_array_t> m_send_vec_buffers;
   mutable std::vector<multi_array_t> m_recv_vec_buffers;
+  // mutable std::vector<multi_array_t> m_send_phase_space_buffers;
+  // mutable std::vector<multi_array_t> m_recv_phase_space_buffers;
   // mutable std::vector<particles_t> m_ptc_buffers;
   // mutable std::vector<photons_t> m_ph_buffers;
   mutable std::vector<buffer<single_ptc_t>> m_ptc_buffers;

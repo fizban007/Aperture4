@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GATHER_TRACKED_PTC_H_
-#define _GATHER_TRACKED_PTC_H_
+#pragma once
 
 #include "data/fields.h"
 #include "data/particle_data.h"
@@ -66,4 +65,3 @@ class gather_tracked_ptc : public system_t {
 
 }  // namespace Aperture
 
-#endif  // _GATHER_TRACKED_PTC_H_

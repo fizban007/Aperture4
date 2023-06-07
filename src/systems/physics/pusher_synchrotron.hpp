@@ -47,25 +47,22 @@ class pusher_synchrotron {
     if (m_sync_compactness < 0.0f) {
       m_sync_compactness = 1.0f / t_cool;
     }
-    sim_env().params().get_value("sigma", sigma);
-    sim_env().params().get_value("guide_field", Bg);
-    if (Bg > 0.0f) {
-      sigma = sigma + Bg * Bg * sigma;
+    if (sim_env().params().has("sigma")) {
+      sim_env().params().get_value("sigma", sigma);
+      sim_env().params().get_value("guide_field", Bg);
+      if (Bg > 0.0f) {
+        sigma = sigma + Bg * Bg * sigma;
+      }
     }
-    // The cooling coefficient is effectively 2r_e\omega_p/3c in the
-    // dimensionless units. In the reconnection setup, sigma = B_tot^2, so this
-    // makes sense.
+    // The cooling coefficient is effectively 2r_e t_0/3c in the dimensionless
+    // units, where t_0 is the time unit. In the reconnection setup, t_0 is
+    // 1/omega_p, sigma = B_tot^2, so this makes sense.
     if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
     } else {
       m_cooling_coef = 2.0f * m_sync_compactness / sigma;
     }
 
-    // If the config file specifies a synchrotron cooling coefficient, then we
-    // use that instead. Sync cooling coefficient is roughly 2l_B/B^2
-    if (sim_env().params().has("sync_cooling_coef")) {
-      sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
-    }
     // If the config file specifies a synchrotron gamma_rad, then we
     // use that to determine sync_compactness.
     if (sim_env().params().has("sync_gamma_rad") &&
@@ -75,6 +72,12 @@ class pusher_synchrotron {
       m_sync_compactness =
           0.3f * math::sqrt(sigma) / (square(sync_gamma_rad) * 4.0f);
       m_cooling_coef = 2.0f * m_sync_compactness / sigma;
+    }
+    // If the config file specifies a synchrotron cooling coefficient, then we
+    // use that instead. Sync cooling coefficient is roughly 2l_B/B^2, where l_B
+    // is the magnetic compactness for one length unit
+    if (sim_env().params().has("sync_cooling_coef")) {
+      sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
     }
 
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(

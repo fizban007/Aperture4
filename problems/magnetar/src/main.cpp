@@ -15,14 +15,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/math.hpp"
+#include "cxxopts.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.h"
+#include "systems/boundary_condition.hpp"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver_sph.h"
-#include "systems/ptc_updater_sph.h"
-#include "systems/rt_magnetar.h"
-#include <iostream>
+#include "systems/gather_tracked_ptc.h"
+#include "systems/grid_sph.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/coord_policy_spherical_sync_cooling.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
+#include "systems/ptc_injector_new.h"
+#include "systems/ptc_updater_impl.hpp"
+#include "systems/radiation/IC_radiation_scheme.hpp"
+#include "systems/radiative_transfer_impl.hpp"
+#include "utils/hdf_wrapper.h"
+#include "utils/logger.h"
+#include "utils/vec.hpp"
+#include <fstream>
+#include <memory>
+#include <vector>
 
 using namespace std;
 using namespace Aperture;
@@ -30,28 +45,50 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  sim_environment env(&argc, &argv);
+  auto &env = sim_environment::instance(&argc, &argv);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
-
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater_sph_cu<Conf>>(env, *grid);
-  auto rt = env.register_system<rt_magnetar<Conf>>(env, *grid);
-  auto solver = env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
+  domain_comm<Conf, exec_policy_dynamic> comm;
+  grid_sph_t<Conf> grid(comm);
+  // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto pusher =
+      env.register_system<ptc_updater<Conf, exec_policy_dynamic,
+                                      coord_policy_spherical_sync_cooling>>(
+          // coord_policy_spherical>>(
+          grid, &comm);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  auto moments =
+      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  // auto rad = env.register_system<radiative_transfer<
+  //     Conf, exec_policy_dynamic, coord_policy_spherical,
+  //     IC_radiation_scheme>>( grid, &comm);
+  auto solver =
+      // env.register_system<field_solver<Conf, exec_policy_dynamic,
+      // coord_policy_spherical>>(
+      env.register_system<field_solver<Conf, exec_policy_dynamic,
+                                       coord_policy_spherical>>(
+          grid, &comm);
+  auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
+      grid, &comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
+      grid, &comm);
 
   env.init();
 
-  double Bp = 10000.0;
-  env.params().get_value("Bp", Bp);
-
-  // Set initial condition
-  // set_initial_condition(env, *grid, 0, 1.0, Bp);
-  vector_field<Conf> *B0, *B;
+  vector_field<Conf> *B0;
+  particles_t *ptc;
   env.get_data("B0", &B0);
-  env.get_data("B", &B);
+  env.get_data("particles", &ptc);
+
+  // Read parameters
+  float Bp = 1.0e2;
+  float twist_omega = 0.01;
+  float qe = 1.0;
+  int ppc = 100;
+  env.params().get_value("Bp", Bp);
+  env.params().get_value("ppc", ppc);
+  env.params().get_value("twist_omega", twist_omega);
+  env.params().get_value("qe", qe);
 
   // Set dipole initial magnetic field
   B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
@@ -63,10 +100,9 @@ main(int argc, char *argv[]) {
     Scalar r = grid_sph_t<Conf>::radius(x);
     return Bp * sin(theta) / cube(r);
   });
-  B->copy_from(*B0);
 
   // Fill the magnetosphere with some multiplicity
-  pusher->fill_multiplicity(0, 1.0);
+  pusher->fill_multiplicity(ppc, Bp * twist_omega / qe / ppc);
 
   env.run();
   return 0;

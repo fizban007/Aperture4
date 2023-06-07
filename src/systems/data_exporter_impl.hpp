@@ -191,7 +191,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     m_comm->barrier();
   }
   if (step % m_fld_output_interval == 0) {
-    timer::stamp("write_field");
+    // timer::stamp("write_field");
     // Output downsampled fields!
     std::string filename =
         fmt::format("{}fld.{:05d}.h5", m_output_dir, m_fld_num);
@@ -241,8 +241,8 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
     // Increment the output number
     m_fld_num += 1;
-    timer::show_duration_since_stamp("write_field", "ms",
-                                     "write_field");
+    // timer::show_duration_since_stamp("write_field", "ms",
+    //                                  "write_field");
   }
 
   if (step % m_ptc_output_interval == 0) {
@@ -267,6 +267,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       }
     }
     m_ptc_num += 1;
+    datafile.close();
   }
 
   // Loop over the data map again to find special output cases

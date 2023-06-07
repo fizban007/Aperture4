@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Alex Chen.
+ * Copyright (c) 2023 Alex Chen.
  * This file is part of Aperture (https://github.com/fizban007/Aperture4.git).
  *
  * Aperture is free software: you can redistribute it and/or modify
@@ -22,22 +22,25 @@
 
 namespace Aperture {
 
+/// \brief Phase space data. Dim is the dimension of the phase space, which can
+/// be from 1 to 3.
 template <typename Conf, int Dim = 1>
 class phase_space : public data_t {
  public:
-  multi_array<float, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> data;
+  using value_t = typename Conf::value_t;
   using grid_t = typename Conf::grid_t;
+  multi_array<value_t, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> data;
   const grid_t& m_grid;
 
   extent_t<Conf::dim> m_grid_ext;
   int m_downsample = 16;
   int m_log_scale = false;
   int m_num_bins[Dim];
-  float m_lower[Dim];
-  float m_upper[Dim];
+  value_t m_lower[Dim];
+  value_t m_upper[Dim];
 
   phase_space(const grid_t& grid, int downsample, const int* num_bins,
-              const float* lower, const float* upper,
+              const value_t* lower, const value_t* upper,
               bool use_log_scale = false, MemType memtype = default_mem_type)
       : m_grid(grid) {
     m_downsample = downsample;
@@ -50,8 +53,11 @@ class phase_space : public data_t {
     }
 
     auto g_ext = grid.extent_less();
+    // ext is the total extent of the phase space
     extent_t<Conf::dim + Dim> ext;
 
+    // The first Dim dimensions are momentum space dimensions, while the
+    // subsequent Conf::dim dimensions are the spatial grid dimensions
     for (int i = 0; i < Conf::dim; i++) {
       ext[i + Dim] = g_ext[i] / m_downsample;
       m_grid_ext[i] = g_ext[i] / m_downsample;
@@ -67,9 +73,9 @@ class phase_space : public data_t {
 
   void init() override {
 #ifdef GPU_ENABLED
-    data.assign_dev(0.0f);
+    data.assign_dev(0.0);
 #else
-    data.assign(0.0f);
+    data.assign(0.0);
 #endif
   }
 

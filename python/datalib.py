@@ -105,7 +105,7 @@ class Data:
     ]
     if len(self.ptc_steps) > 0:
       self.ptc_steps.sort()
-      self._current_ptc_step = self.ptc_steps[0]
+      self._current_ptc_step = self.ptc_steps[-1]
       f_ptc = h5py.File(
         os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5"),
         "r",
@@ -166,4 +166,18 @@ class Data:
       for n in self.ptc_steps:
         self.load_ptc(n)
         result[n] = self.__getattr__(key)[self.tracked_ptc_id == ptc_id]
+    return result
+
+  def time_series_ptc(self, key):
+    result = np.zeros(len(self.ptc_steps))
+    for n in self.ptc_steps:
+      self.load_ptc(n)
+      result[n] = self.__getattr__(key)
+    return result
+    
+  def time_series_fld(self, key):
+    result = np.zeros(len(self.fld_steps))
+    for n in self.fld_steps:
+      self.load_fld(n)
+      result[n] = self.__getattr__(key)
     return result

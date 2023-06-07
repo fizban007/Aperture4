@@ -38,6 +38,7 @@ timer::show_duration_since_stamp(const std::string& routine_name,
                                  const std::string& unit,
                                  const std::string& stamp_name) {
   t_now = high_resolution_clock::now();
+  stamp_depth -= 1;
   for (int i = 0; i < stamp_depth + 1; i++) {
     Logger::print("---");
   }
@@ -65,7 +66,6 @@ timer::show_duration_since_stamp(const std::string& routine_name,
   } else {
     Logger::print_info(" Time for {} is {}", routine_name, elapsed_time);
   }
-  stamp_depth -= 1;
 }
 
 float

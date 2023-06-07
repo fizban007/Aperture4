@@ -43,6 +43,15 @@ sin(float x) {
 }
 
 HD_INLINE double
+asin(double x) {
+  return ::asin(x);
+}
+HD_INLINE float
+asin(float x) {
+  return asinf(x);
+}
+
+HD_INLINE double
 cos(double x) {
   return ::cos(x);
 }

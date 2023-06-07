@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GATHER_TRACKED_PTC_IMPL_H_
-#define GATHER_TRACKED_PTC_IMPL_H_
+#pragma once
 
 #include "framework/environment.h"
 #include "systems/gather_tracked_ptc.h"
@@ -139,7 +138,7 @@ void
 gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (m_ptc_output_interval == 0 || m_max_tracked == 0) return;
 
-  Logger::print_debug_all("gathering tracked particles, {}", m_ptc_output_interval);
+  // Logger::print_debug_all("gathering tracked particles, {}", m_ptc_output_interval);
   // Logger::print_info("tracked_ptc size is {}", tracked_ptc->size());
   if (step % m_ptc_output_interval == 0) {
     auto ext = m_grid.extent();
@@ -262,4 +261,3 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
 }  // namespace Aperture
 
-#endif  // GATHER_TRACKED_PTC_IMPL_H_

@@ -80,12 +80,6 @@ domain_comm<Conf, ExecPolicy>::~domain_comm() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-domain_comm<Conf, ExecPolicy>::init() {
-  // resize_buffers(const typename Conf::grid_t &grid);
-}
-
-template <typename Conf, template <class> class ExecPolicy>
-void
 domain_comm<Conf, ExecPolicy>::setup_domain() {
   m_world = MPI_COMM_WORLD;
   MPI_Comm_rank(m_world, &m_rank);

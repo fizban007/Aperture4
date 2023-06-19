@@ -65,6 +65,8 @@ main(int argc, char *argv[]) {
 
   initial_vacuum_wald(*B0, *D0, grid);
   initial_nonrotating_vacuum_wald(*B, *D, grid);
+  B->add_by(*B0, -1.0);
+  D->add_by(*D0, -1.0);
 
   env.run();
 

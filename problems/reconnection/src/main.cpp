@@ -19,11 +19,13 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/boundary_condition.h"
-#include "systems/compute_lorentz_factor.h"
+// #include "systems/compute_lorentz_factor.h"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver.h"
-#include "systems/gather_momentum_space.h"
+#include "systems/gather_tracked_ptc.h"
+// #include "systems/gather_momentum_space.h"
 // #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/ptc_updater.h"
@@ -56,11 +58,15 @@ int main(int argc, char *argv[]) {
   // auto grid = env.register_system<grid_t<Conf>>(env, comm);
   grid_t<Conf> grid(comm);
   // auto pusher = env.register_system<ptc_updater_old_cu<Conf>>(grid, &comm);
+  auto moments =
+      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_gpu, coord_policy_cartesian_sync_cooling>>(grid, &comm);
-  auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
-  auto momentum =
-      env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
+      Conf, exec_policy_gpu, coord_policy_cartesian>>(grid, &comm);
+  // auto lorentz = env.register_system<compute_lorentz_factor_cu<Conf>>(grid);
+  // auto momentum =
+      // env.register_system<gather_momentum_space<Conf, exec_policy_gpu>>(grid);
   auto solver = env.register_system<field_solver_cu<Conf>>(grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   // auto rad = env.register_system<ph_freepath_dev<Conf>>(*grid, comm);

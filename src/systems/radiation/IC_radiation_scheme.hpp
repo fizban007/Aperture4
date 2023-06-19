@@ -185,8 +185,10 @@ struct IC_radiation_scheme {
 
       // Since this part of cooling is not accounted for in the photon spectrum,
       // we need to accumulate it separately
-      atomic_add(&m_IC_loss[idx],
-                 ptc.weight[tid] * max(gamma - ptc.E[tid], 0.0));
+      if (!check_flag(ptc.flag[tid], PtcFlag::exclude_from_spectrum)) {
+        atomic_add(&m_IC_loss[idx],
+                   ptc.weight[tid] * max(gamma - ptc.E[tid], 0.0));
+      }
 
       return 0;
     }

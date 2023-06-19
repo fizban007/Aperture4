@@ -91,6 +91,18 @@ class pusher_synchrotron {
 #endif
     sync_loss->reset_after_output(true);
 
+    // sync_loss_total accounts for the radiation that are excluded in the spectrum
+    auto sync_loss_total = sim_env().register_data<scalar_field<Conf>>(
+        "sync_loss_total", m_grid, field_type::cell_centered,
+        MemType::host_device);
+    // m_sync_loss = sync_loss->dev_ndptr();
+#ifdef GPU_ENABLED
+    m_sync_loss_total = sync_loss_total->dev_ndptr();
+#else
+    m_sync_loss_total = sync_loss_total->host_ndptr();
+#endif
+    sync_loss_total->reset_after_output(true);
+
     // Initialize the spectrum related parameters
     sim_env().params().get_value("B_Q", m_BQ);
     sim_env().params().get_value("ph_num_bins", m_num_bins);
@@ -141,7 +153,9 @@ class pusher_synchrotron {
     auto flag = context.flag;
 
     value_t loss = 0.0f;
-    // Turn off synchrotron cooling for gamma < 1.0001
+    // value_t th_loss =
+    //     context.weight * (4.0f / 3.0f) * m_sync_compactness * gamma * p * dt / context.q;
+    // Turn off synchrotron cooling for gamma < 1.001
     if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
         m_cooling_coef == 0.0f) {
       m_pusher(context.p[0], context.p[1], context.p[2], context.gamma,
@@ -159,14 +173,16 @@ class pusher_synchrotron {
       // printf("p1: %f, p2: %f, p3: %f\n", context.p[0], context.p[1], context.p[2]);
       p = math::sqrt(context.p.dot(context.p));
       context.gamma = math::sqrt(1.0f + p * p);
-      // Need to divide by q here because context.weight has q in it
-      loss = context.weight * max(gamma - context.gamma, 0.0f) / context.q;
     }
     auto idx = Conf::idx(pos, ext);
-    atomic_add(&m_sync_loss[idx], loss);
-
-    // Compute synchrotron spectrum
+    // Need to divide by q here because context.weight has q in it
+    loss = context.weight * max(gamma - context.gamma, 0.0f) / context.q;
+    // context.weight * max(gamma - context.gamma, 0.0f);
+    atomic_add(&m_sync_loss_total[idx], loss);
+    // printf("gamma is %f, sync loss is %f, new gamma is %f, weight is %f\n",
+    //        gamma, th_loss, context.gamma, context.weight);
     if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
+      atomic_add(&m_sync_loss[idx], loss);
       auto aL = context.E + cross(context.p, context.B) / context.gamma;
       auto p = math::sqrt(context.p.dot(context.p));
       auto aL_perp = cross(aL, context.p) / p;
@@ -260,6 +276,7 @@ class pusher_synchrotron {
   value_t m_cooling_coef = 0.0f;
   value_t m_sync_compactness = -1.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
+  mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;
   value_t m_BQ = 1e5;
   float m_lim_lower = 1.0e-6;

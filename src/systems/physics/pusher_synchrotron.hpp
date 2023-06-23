@@ -123,6 +123,16 @@ class pusher_synchrotron {
     m_angle_dist_ptr = photon_angular_dist->dev_ndptr();
     photon_angular_dist->reset_after_output(true);
     photon_angular_dist->m_special_output_interval = ph_dist_interval;
+
+    //I
+    //sim_env().params().get_value("I", m_Fx_cumulative);
+
+    //Q
+    //sim_env().params().get_value("Q", m_Gcx_cumulative);
+
+    //U
+    //sim_env().params().get_value("Q", m_Gsx_cumulative);
+
   }
 
   // Inline functions to be called in the particle update loop

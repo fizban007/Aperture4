@@ -47,22 +47,25 @@ class pusher_synchrotron {
     if (m_sync_compactness < 0.0f) {
       m_sync_compactness = 1.0f / t_cool;
     }
-    if (sim_env().params().has("sigma")) {
-      sim_env().params().get_value("sigma", sigma);
-      sim_env().params().get_value("guide_field", Bg);
-      if (Bg > 0.0f) {
-        sigma = sigma + Bg * Bg * sigma;
-      }
+    sim_env().params().get_value("sigma", sigma);
+    sim_env().params().get_value("guide_field", Bg);
+    if (Bg > 0.0f) {
+      sigma = sigma + Bg * Bg * sigma;
     }
-    // The cooling coefficient is effectively 2r_e t_0/3c in the dimensionless
-    // units, where t_0 is the time unit. In the reconnection setup, t_0 is
-    // 1/omega_p, sigma = B_tot^2, so this makes sense.
+    // The cooling coefficient is effectively 2r_e\omega_p/3c in the
+    // dimensionless units. In the reconnection setup, sigma = B_tot^2, so this
+    // makes sense.
     if (!m_use_cooling) {
       m_cooling_coef = 0.0f;
     } else {
       m_cooling_coef = 2.0f * m_sync_compactness / sigma;
     }
 
+    // If the config file specifies a synchrotron cooling coefficient, then we
+    // use that instead. Sync cooling coefficient is roughly 2l_B/B^2
+    if (sim_env().params().has("sync_cooling_coef")) {
+      sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
+    }
     // If the config file specifies a synchrotron gamma_rad, then we
     // use that to determine sync_compactness.
     if (sim_env().params().has("sync_gamma_rad") &&
@@ -72,12 +75,6 @@ class pusher_synchrotron {
       m_sync_compactness =
           0.3f * math::sqrt(sigma) / (square(sync_gamma_rad) * 4.0f);
       m_cooling_coef = 2.0f * m_sync_compactness / sigma;
-    }
-    // If the config file specifies a synchrotron cooling coefficient, then we
-    // use that instead. Sync cooling coefficient is roughly 2l_B/B^2, where l_B
-    // is the magnetic compactness for one length unit
-    if (sim_env().params().has("sync_cooling_coef")) {
-      sim_env().params().get_value("sync_cooling_coef", m_cooling_coef);
     }
 
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
@@ -90,18 +87,6 @@ class pusher_synchrotron {
     m_sync_loss = sync_loss->host_ndptr();
 #endif
     sync_loss->reset_after_output(true);
-
-    // sync_loss_total accounts for the radiation that are excluded in the spectrum
-    auto sync_loss_total = sim_env().register_data<scalar_field<Conf>>(
-        "sync_loss_total", m_grid, field_type::cell_centered,
-        MemType::host_device);
-    // m_sync_loss = sync_loss->dev_ndptr();
-#ifdef GPU_ENABLED
-    m_sync_loss_total = sync_loss_total->dev_ndptr();
-#else
-    m_sync_loss_total = sync_loss_total->host_ndptr();
-#endif
-    sync_loss_total->reset_after_output(true);
 
     // Initialize the spectrum related parameters
     sim_env().params().get_value("B_Q", m_BQ);
@@ -139,16 +124,38 @@ class pusher_synchrotron {
     photon_angular_dist->reset_after_output(true);
     photon_angular_dist->m_special_output_interval = ph_dist_interval;
 
-    //I
-    //sim_env().params().get_value("I", m_Fx_cumulative);
+    auto stokes_parameter_I =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "I", m_ph_nth, m_ph_nphi, m_num_bins);
+    I_ptr = stokes_parameter_I->dev_ndptr();
+    stokes_parameter_I->reset_after_outpu(true);
 
-    //Q
-    //sim_env().params().get_value("Q", m_Gcx_cumulative);
+    auto stokes_parameter_Q =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "Q", m_ph_nth, m_ph_nphi, m_num_bins);
+    Q_ptr = stokes_parameter_Q->dev_ndptr();
+    stokes_parameter_Q->reset_after_outpu(true);
 
-    //U
-    //sim_env().params().get_value("Q", m_Gsx_cumulative);
+    auto stokes_parameter_U =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "U", m_ph_nth, m_ph_nphi, m_num_bins);
+    U_ptr = stokes_parameter_U->dev_ndptr();
+    stokes_parameter_U->reset_after_outpu(true);
 
+    auto Plarization_Degree =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "PD", m_ph_nth, m_ph_nphi, m_num_bins);
+    PD_ptr = Plarization_Degree->dev_ndptr();
+    Plarization_Degree->reset_after_outpu(true);
+
+    auto Plarization_Angle =
+        sim_env().register_data<multi_array_data<value_t, 3>>(
+            "PA", m_ph_nth, m_ph_nphi, m_num_bins);
+    PA_ptr = Plarization_Angle->dev_ndptr();
+    Plarization_Angle->reset_after_outpu(true);
   }
+
+
 
   // Inline functions to be called in the particle update loop
   template <typename PtcContext, typename UIntT>
@@ -163,9 +170,7 @@ class pusher_synchrotron {
     auto flag = context.flag;
 
     value_t loss = 0.0f;
-    // value_t th_loss =
-    //     context.weight * (4.0f / 3.0f) * m_sync_compactness * gamma * p * dt / context.q;
-    // Turn off synchrotron cooling for gamma < 1.001
+    // Turn off synchrotron cooling for gamma < 1.0001
     if (gamma <= 1.0001f || check_flag(flag, PtcFlag::ignore_radiation) ||
         m_cooling_coef == 0.0f) {
       m_pusher(context.p[0], context.p[1], context.p[2], context.gamma,
@@ -183,16 +188,14 @@ class pusher_synchrotron {
       // printf("p1: %f, p2: %f, p3: %f\n", context.p[0], context.p[1], context.p[2]);
       p = math::sqrt(context.p.dot(context.p));
       context.gamma = math::sqrt(1.0f + p * p);
+      // Need to divide by q here because context.weight has q in it
+      loss = context.weight * max(gamma - context.gamma, 0.0f) / context.q;
     }
     auto idx = Conf::idx(pos, ext);
-    // Need to divide by q here because context.weight has q in it
-    loss = context.weight * max(gamma - context.gamma, 0.0f) / context.q;
-    // context.weight * max(gamma - context.gamma, 0.0f);
-    atomic_add(&m_sync_loss_total[idx], loss);
-    // printf("gamma is %f, sync loss is %f, new gamma is %f, weight is %f\n",
-    //        gamma, th_loss, context.gamma, context.weight);
+    atomic_add(&m_sync_loss[idx], loss);
+
+    // Compute synchrotron spectrum
     if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
-      atomic_add(&m_sync_loss[idx], loss);
       auto aL = context.E + cross(context.p, context.B) / context.gamma;
       auto p = math::sqrt(context.p.dot(context.p));
       auto aL_perp = cross(aL, context.p) / p;
@@ -210,13 +213,15 @@ class pusher_synchrotron {
         pos_out[0] = bin;
         atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out, ext_spec)],
                    loss / eph);
-        // atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
-        // ext_spec)], loss);
+         atomic_add(&m_spec_ptr[default_idx_t<Conf::dim + 1>(pos_out,
+         ext_spec)], loss);
 
         // Simply deposit the photon direction along the particle direction,
         // without computing the 1/gamma cone
         value_t th = math::acos(context.p[2] / p);
         value_t phi = math::atan2(context.p[1], context.p[0]) + M_PI;
+        value_t nu = 1;
+        int omega_bin = round( nu * (m_num_bins - 1));
         int th_bin = round(th / M_PI * (m_ph_nth - 1));
         int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
         index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
@@ -225,6 +230,28 @@ class pusher_synchrotron {
             loss);
       }
     }
+    //Stokes parameter 
+    vec3 x_prime = vec3(-sin(phi), cos(phi), 0.0);
+    vec3 y_prime = vec3(cos(th)*cos(phi), cos(th)*sin(phi), -sin(th));
+    vec3 B_perp_prime = context.E + cross(context.u, context.B) - dot(context.u, context.E) * context.u; /* perpendicular part of the Lorentz force */;
+    value_t B_perp_prime_mag = B_perp_prime.norm();
+    value_t denominator = std::sqrt(std::pow(B_perp_prime_mag * B_perp_prime_mag + x_prime_mag * x_prime_mag, 2) 
+                                 + std::pow(B_perp_prime_mag * B_perp_prime_mag + y_prime_mag * y_prime_mag, 2));
+    value_t cos_chi = B_perp_prime.dot(y_prime) / denominator;
+    value_t chi = std::acos(cos_chi);
+    value_t Fx = sync_module->sync_curv_emission();        
+    value_t Gx = sync_module->sync_curv_emission();  
+    index_t<3> Stokes_parameters_index(th_bin, phi_bin, omega_bin);
+    atomic_add(
+            &I_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+            m_sync.Fx(nu));
+    atomic_add(
+            &Q_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+            cos(2 * chi) * m_sync.Gx(nu));
+    atomic_add(
+            &U_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+            sin(2 * chi) * m_sync.Gx(nu));       
+  
   }
 
   HD_INLINE vec3 rhs_x(const vec3& u, value_t dt) const {
@@ -286,7 +313,6 @@ class pusher_synchrotron {
   value_t m_cooling_coef = 0.0f;
   value_t m_sync_compactness = -1.0f;
   mutable ndptr<value_t, Conf::dim> m_sync_loss;
-  mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;
   value_t m_BQ = 1e5;
   float m_lim_lower = 1.0e-6;
@@ -295,10 +321,17 @@ class pusher_synchrotron {
   int m_ph_nth = 32;
   int m_ph_nphi = 64;
   extent_t<3> m_ext_ph_dist;
+  index_t<3> PD_ptr = math::sqrt(math::sqr(U_ptr)+math::sqr(Q_ptr))/I_ptr;
+  index_t<3> PA_ptr = (1/2) * math::atan2(U_ptr/Q_ptr);
 
   mutable ndptr<float, Conf::dim + 1> m_spec_ptr;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
   sync_emission_helper_t m_sync;
+  mutable ndptr<value_t, 3> I_ptr;
+  mutable ndptr<value_t, 3> Q_ptr;
+  mutable ndptr<value_t, 3> U_ptr;
+  mutable ndptr<value_t, 3> PD_ptr;
+  mutable ndptr<value_t, 3> PA_ptr;
 };
 
 }  // namespace Aperture

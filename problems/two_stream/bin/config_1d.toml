@@ -36,7 +36,7 @@ sort_interval = 11
 # a multiple of at least 32.
 N = [256]
 
-ranks = [8]
+ranks = [4]
 
 # Number of guard cells on each end. Effective number of cells per dimension
 # will be N + 2*guard. Minimum 2 is required!

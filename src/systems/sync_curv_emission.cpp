@@ -33,7 +33,17 @@ constexpr double Fx(double x) {
       / (1.0 + 1.64 * x23 + 0.974 * x43) * exp(-x);
 }
 
+constexpr double Gx(double x) {
+  double x13 = pow(x, 1.0/3.0);  // x13 is x^1/3
+  double x23 = x13 * x13; // x23 is x^2/3
+  double x43 = x23 * x23; // x43 is x^4/3
+
+  return 1.808 * x13 * (1.0 + 2.21 * x23 + 0.347 * x43) * exp(-x)
+      / (sqrt(1.0 + 3.4 * x23)*(1.0 + 1.353 * x23 + 0.217 * x43));
 }
+
+}
+
 
 sync_curv_emission_t::sync_curv_emission_t(MemType type) {
   m_nx = 2048;
@@ -47,6 +57,11 @@ sync_curv_emission_t::sync_curv_emission_t(MemType type) {
   m_Fx_cumulative.set_memtype(type);
   m_Fx_cumulative.resize(m_nx);
 
+  // prepare the lookup table array
+  m_Gx_lookup.resize(m_nx);
+  m_Gx_cumulative.set_memtype(type);
+  m_Gx_cumulative.resize(m_nx);
+
   // prepare the submodule
   m_sync.nx = m_nx;
   m_sync.logx_max = math::log(m_x_max);
@@ -54,14 +69,20 @@ sync_curv_emission_t::sync_curv_emission_t(MemType type) {
   m_sync.dlogx = (m_sync.logx_max - m_sync.logx_min) / m_nx;
   if (type == MemType::host_only) {
     m_sync.ptr_lookup = m_Fx_cumulative.host_ptr();
+    m_sync.ptr_fx = m_Fx_lookup.host_ptr();
+    m_sync.ptr_gx = m_Gx_lookup.host_ptr();
   } else {
     m_sync.ptr_lookup = m_Fx_cumulative.dev_ptr();
+    m_sync.ptr_fx = m_Fx_lookup.dev_ptr();
+    m_sync.ptr_gx = m_Gx_lookup.dev_ptr();
   }
 
   compute_lookup_table();
 }
 
+
 sync_curv_emission_t::~sync_curv_emission_t() {}
+
 
 void sync_curv_emission_t::compute_lookup_table() {
   value_t dlogx = m_sync.dlogx;
@@ -69,20 +90,29 @@ void sync_curv_emission_t::compute_lookup_table() {
     value_t logx = m_sync.logx_min + n * dlogx;
     value_t x = math::exp(logx);
     // Times an extra factor of x due to log spacing
-    m_Fx_lookup[n] = Fx(x) * x;
+    m_Fx_lookup[n] = Fx(x);
+    m_Gx_lookup[n] = Gx(x);
     // m_Fx_lookup[n] = Fx(x);
     if (n == 0) {
       m_Fx_cumulative[n] = 0.0;
+      m_Gx_cumulative[n] = 0.0;
     } else {
-      m_Fx_cumulative[n] = m_Fx_cumulative[n - 1] + m_Fx_lookup[n];
+      m_Fx_cumulative[n] = m_Fx_cumulative[n - 1] + m_Fx_lookup[n] * x;
+      m_Gx_cumulative[n] = m_Gx_cumulative[n - 1] + m_Gx_lookup[n] * x;
     }
   }
 
   for (int n = 0; n < m_nx; n++) {
     m_Fx_cumulative[n] /= m_Fx_cumulative[m_nx - 1];
+    m_Gx_cumulative[n] /= m_Gx_cumulative[m_nx - 1];
   }
 
   m_Fx_cumulative.copy_to_device();
+  m_Gx_cumulative.copy_to_device();
+  m_Fx_lookup.copy_to_device();
+  m_Gx_lookup.copy_to_device();
 }
 
+
 }
+

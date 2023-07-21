@@ -161,6 +161,7 @@ target_link_libraries(test_mpi2d
 
 add_aperture_executable(test_sync_ic "test_sync_ic.hip.cpp")
 add_aperture_executable(test_sync_sph "test_spherical_synchrotron.hip.cpp")
+add_aperture_executable(test_cam_network "test_cam_network.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
 
 # add_executable(gr_pusher "test_gr_pusher.cpp")

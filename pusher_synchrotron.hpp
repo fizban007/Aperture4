@@ -78,8 +78,7 @@ class pusher_synchrotron {
     }
 
     auto sync_loss = sim_env().register_data<scalar_field<Conf>>(
-        "sync_loss", m_grid, field_type::cell_centered,
-        MemType::host_device);
+        "sync_loss", m_grid, field_type::cell_centered, MemType::host_device);
     // m_sync_loss = sync_loss->dev_ndptr();
 #ifdef GPU_ENABLED
     m_sync_loss = sync_loss->dev_ndptr();
@@ -171,7 +170,8 @@ class pusher_synchrotron {
 
       iterate(context.x, context.p, context.E, context.B, context.q / context.m,
               m_cooling_coef, dt);
-      // printf("p1: %f, p2: %f, p3: %f\n", context.p[0], context.p[1], context.p[2]);
+      // printf("p1: %f, p2: %f, p3: %f\n", context.p[0], context.p[1],
+      // context.p[2]);
       p = math::sqrt(context.p.dot(context.p));
       context.gamma = math::sqrt(1.0f + p * p);
       // Need to divide by q here because context.weight has q in it
@@ -179,8 +179,7 @@ class pusher_synchrotron {
     }
     auto idx = Conf::idx(pos, ext);
     atomic_add(&m_sync_loss[idx], loss);
-    
-   for (value_t omega = omega_min; omega <= omega_max; omega += domega) {
+
     // Compute synchrotron spectrum
     if (!check_flag(context.flag, PtcFlag::exclude_from_spectrum)) {
       auto aL = context.E + cross(context.p, context.B) / context.gamma;
@@ -209,39 +208,62 @@ class pusher_synchrotron {
         value_t phi = math::atan2(context.p[1], context.p[0]) + M_PI;
         int th_bin = round(th / M_PI * (m_ph_nth - 1));
         int phi_bin = round(phi * 0.5 / M_PI * (m_ph_nphi - 1));
-        int omega_bin = round (omega - omega_min / domega +1);
+        // int omega_bin = round(omega - omega_min / domega + 1);
         index_t<3> pos_ph_dist(th_bin, phi_bin, bin);
         atomic_add(
             &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
             loss);
-  
-     //Stokes parameter 
-     vec3 x_prime = (-math::sin(phi), math::cos(phi), 0.0);
-     vec3 y_prime = (math::cos(th)*cos(phi), math::cos(th)*sin(phi), -math::sin(th));
-     vec3 B_perp_prime = context.E + cross(context.p, context.B) - (context.p[0] * context.E[0]+context.p[1] * context.E[1]+context.p[2] * context.E[2]) * context.p; /* perpendicular part of the Lorentz force */;
-     value_t B_perp_prime_mag = math::sqrt(B_perp_prime[0] * B_perp_prime[0] + B_perp_prime[1] * B_perp_prime[1] + B_perp_prime[2] * B_perp_prime[2] );
-     value_t x_prime_mag = math::sqrt(x_prime[0] * x_prime[0] + x_prime[1] * x_prime[1] + x_prime[2] * x_prime[2] );
-     value_t y_prime_mag = math::sqrt(y_prime[0] * y_prime[0] + y_prime[1] * y_prime[1] + y_prime[2] * y_prime[2] );
-     value_t denominator = std::sqrt(std::pow(B_perp_prime_mag * B_perp_prime_mag + x_prime_mag * x_prime_mag, 2) 
-                                 + std::pow(B_perp_prime_mag * B_perp_prime_mag + y_prime_mag * y_prime_mag, 2));
-     value_t cos_chi = B_perp_prime.dot(y_prime) / denominator;
-     value_t chi = std::acos(cos_chi);
-     value_t omega_c = context.gamma * context.gamma * math::sqrt(context.B[0] * context.B[0] + context.B[1] * context.B[1] + context.B[2] * context.B[2] );;
-     value_t zeta = coef * omega / omega_c;
-     index_t<3> Stokes_parameters_index(th_bin, phi_bin, omega_bin);
-     atomic_add(
-            &I_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
-            m_sync.Fx(zeta));
-     atomic_add(
-            &Q_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
-            cos(2 * chi) * m_sync.Gx(zeta));
-     atomic_add(
-            &U_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
-            sin(2 * chi) * m_sync.Gx(zeta)); 
+
+        for (value_t log_eph = math::log(eph_min);
+             log_eph <= math::log(eph_max); log_eph += deph) {
+          value_t eph = math::exp(log_eph);
+
+          // Stokes parameter
+          vec3 x_prime = (-math::sin(phi), math::cos(phi), 0.0);
+          vec3 y_prime = (math::cos(th) * cos(phi), math::cos(th) * sin(phi),
+                          -math::sin(th));
+          vec3 B_perp_prime =
+              context.E + cross(context.p, context.B) -
+              (context.p[0] * context.E[0] + context.p[1] * context.E[1] +
+               context.p[2] * context.E[2]) *
+                  context.p; /* perpendicular part of the Lorentz force */
+          
+          value_t B_perp_prime_mag =
+              math::sqrt(B_perp_prime[0] * B_perp_prime[0] +
+                         B_perp_prime[1] * B_perp_prime[1] +
+                         B_perp_prime[2] * B_perp_prime[2]);
+          value_t x_prime_mag =
+              math::sqrt(x_prime[0] * x_prime[0] + x_prime[1] * x_prime[1] +
+                         x_prime[2] * x_prime[2]);
+          value_t y_prime_mag =
+              math::sqrt(y_prime[0] * y_prime[0] + y_prime[1] * y_prime[1] +
+                         y_prime[2] * y_prime[2]);
+          value_t denominator =
+              std::sqrt(std::pow(B_perp_prime_mag * B_perp_prime_mag +
+                                     x_prime_mag * x_prime_mag,
+                                 2) +
+                        std::pow(B_perp_prime_mag * B_perp_prime_mag +
+                                     y_prime_mag * y_prime_mag,
+                                 2));
+          value_t cos_chi = B_perp_prime.dot(y_prime) / denominator;
+          value_t chi = std::acos(cos_chi);
+          value_t eph_c = m_sync->e_c();
+          
+          value_t zeta = eph / eph_c;
+          index_t<3> Stokes_parameters_index(th_bin, phi_bin, omega_bin);
+          atomic_add(
+              &I_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+              m_sync.Fx(zeta));
+          atomic_add(
+              &Q_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+              cos(2 * chi) * m_sync.Gx(zeta));
+          atomic_add(
+              &U_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
+              sin(2 * chi) * m_sync.Gx(zeta));
+        }
       }
-    }      
-   }
-                        }
+    }
+  }
 
   HD_INLINE vec3 rhs_x(const vec3& u, value_t dt) const {
     value_t gamma = math::sqrt(1.0f + u.dot(u));
@@ -294,7 +316,6 @@ class pusher_synchrotron {
       u = u1;
     }
   }
-  
 
  private:
   const grid_t<Conf>& m_grid;
@@ -312,10 +333,11 @@ class pusher_synchrotron {
   int m_ph_nphi = 64;
   value_t coef = 3.79e-12;
   extent_t<3> m_ext_ph_dist;
-  value_t omega_min = 0.0;   
-  value_t omega_max = 100000.0;  
-  int m_omega_bins = 100; 
-  value_t domega = omega_max - omega_min / m_omega_bins;
+  value_t eph_min = 1.0e-8;
+  value_t eph_max = 1.0e3;
+  int m_eph_bins = 100;
+  // value_t domega = omega_max - omega_min / m_omega_bins;
+  value_t deph = (math::log(eph_max) - math::log(eph_min)) / m_eph_bins;
 
   mutable ndptr<float, Conf::dim + 1> m_spec_ptr;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
@@ -323,7 +345,7 @@ class pusher_synchrotron {
   mutable ndptr<value_t, 3> I_ptr;
   mutable ndptr<value_t, 3> Q_ptr;
   mutable ndptr<value_t, 3> U_ptr;
- };
+};
 
 }  // namespace Aperture
 

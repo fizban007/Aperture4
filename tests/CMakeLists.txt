@@ -158,6 +158,7 @@ target_link_libraries(test_mpi2d
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
   )
 
+add_aperture_executable(test_sync_polarization "test_sync_polarization.cpp")
 # add_executable(gr_pusher "test_gr_pusher.cpp")
 # target_link_libraries(gr_pusher Aperture_dev)
 

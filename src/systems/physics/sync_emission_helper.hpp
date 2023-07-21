@@ -80,14 +80,18 @@ struct sync_emission_helper_t {
   return interpolated_Gx;
  }
 
+  HOST_DEVICE value_t e_c(value_t gamma, value_t a_perp, value_t BQ) {
+    return 3.0f * square(gamma) * a_perp / (2.0f * BQ); // TODO: e/m is missing
+  }
+
   // Function to generate synchro-curvature photon energy. The resulting energy
   // is normalized such that cyclotron frequency at BQ is at electron rest mass,
   // or hbar e BQ / m_e c = m_e c^2. We assume the photon energy is much less
   // than gamma. Otherwise we need the quantum prescription of synchrotron
-  // emission template <typename Rng>
+  // emission
   HOST_DEVICE value_t gen_curv_photon(value_t gamma, value_t Rc, value_t BQ,
                                       rand_state& state) const {
-    value_t e_c = 3.0f * cube(gamma) / (2.0f * BQ * Rc);
+    value_t e_c = 3.0f * cube(gamma) / (2.0f * BQ * Rc); // TODO: e/m is missing
     value_t l, h, b;
     value_t u = rng_uniform<value_t>(state);
 

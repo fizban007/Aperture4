@@ -30,6 +30,16 @@
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include "utils/vec.hpp"
+#include "core/multi_array.hpp"
+#include "data/fields.h"
+#include "data/particle_data.h"
+#include "data/rng_states.h"
+#include "framework/system.h"
+#include "systems/grid.h"
+#include "systems/policies/exec_policy_host.hpp"
+#include "systems/ptc_injector_new.h"
+#include "utils/range.hpp"
+#include "utils/util_functions.h"
 #include <fstream>
 #include <memory>
 #include <vector>
@@ -52,11 +62,11 @@ main(int argc, char *argv[]) {
   // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv);
 
-  domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   auto& grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher = env.register_system<ptc_updater<
       Conf, exec_policy_dynamic, coord_policy_cartesian_impl_cooling>>(
-      grid, comm);
+      grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
@@ -73,8 +83,9 @@ main(int argc, char *argv[]) {
       return Bp;
     });
 
-  auto injector =
-      sim_env().register_system<ptc_injector<Conf, exec_policy_dynamic>>(grid);
+  // auto injector =
+  //     sim_env().register_system<ptc_injector<Conf, exec_policy_dynamic>>(grid);
+  ptc_injector<Conf, exec_policy_dynamic> injector(grid);
 
   injector.inject_pairs(
       // Injection criterion
@@ -84,10 +95,10 @@ main(int argc, char *argv[]) {
         return 2 * ppc;
       },
       // Initialize particles
-      [kT_upstream, B_g, delta] LAMBDA(auto &x_global, rand_state &state,
+      [] LAMBDA(auto &x_global, rand_state &state,
                                        PtcType type) {
-        auto th = rng.uniform<float>() * M_PI;
-        auto ph = rng.uniform<float>() * 2.0 * M_PI;
+        auto th = rng_uniform<float>(state) * M_PI;
+        auto ph = rng_uniform<float>(state) * 2.0 * M_PI;
         double p = 100.0;
         return vec_t<float, 3>(p * math::sin(th) * math::cos(ph),
                                p * math::sin(th) * math::sin(ph),

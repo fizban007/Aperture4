@@ -98,8 +98,7 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.x3[offset_p] = x[2];
 
                   auto x_global = grid.coord_global(pos, x);
-                  auto p = f_dist(x_global, rng.m_local_state,
-                                  PtcType::electron);
+                  auto p = f_dist(x_global, rng.m_local_state, PtcType::electron);
                   ptc.p1[offset_e] = p[0];
                   ptc.p2[offset_e] = p[1];
                   ptc.p3[offset_e] = p[2];

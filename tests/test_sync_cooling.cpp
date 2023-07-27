@@ -24,6 +24,7 @@
 #include <memory>
 #include <vector>
 
+
 using namespace Aperture;
 
 using vec3 = vec_t<double, 3>;

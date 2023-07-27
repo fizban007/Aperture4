@@ -112,7 +112,7 @@ class sim_environment_impl {
       return nonown_ptr<System>(dynamic_cast<System*>(it->second.get()));
 
     // Otherwise, make the system, and return the pointer
-    std::unique_ptr<system_t> ptr =
+    std::unique_ptr<Aperture::system_t> ptr =
         std::make_unique<System>(std::forward<Args>(args)...);
     ptr->register_data_components();
     m_system_map.insert({name, std::move(ptr)});

@@ -26,6 +26,7 @@
 #include "systems/physics/sync_emission_helper.hpp"
 #include "systems/sync_curv_emission.h"
 
+
 namespace Aperture {
 
 template <typename Conf>

@@ -26,7 +26,8 @@
 #include "framework/params_store.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/timer.h"
-#if (__GNUC__ >= 8 || __clang_major__ >= 7) && !__NVCC__
+#if (__GNUC__ >= 8 || __clang_major__ >= 7) && !__NVCC__ && \
+    !defined(__USE_BOOST_FILESYSTEM__)
 #include <filesystem>
 #else
 #define USE_BOOST_FILESYSTEM

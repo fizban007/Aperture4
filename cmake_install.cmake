@@ -35,10 +35,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
   include("/grad/mrahbardar/Aperture4/deps/fmt/cmake_install.cmake")
-  include("/grad/mrahbardar/Aperture4/deps/catch/cmake_install.cmake")
-  include("/grad/mrahbardar/Aperture4/src/cmake_install.cmake")
-  include("/grad/mrahbardar/Aperture4/problems/cmake_install.cmake")
-  include("/grad/mrahbardar/Aperture4/tests/cmake_install.cmake")
 
 endif()
 

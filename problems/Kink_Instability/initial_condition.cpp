@@ -154,8 +154,8 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                      rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
-  value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
-  value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
+  value_t B_0 = sim_env().params().get_as<double>("troidal_magnetic_field_amplitude", 10.0);
+  value_t R_c = sim_env().params().get_as<double>("Radius", 1.0e3);
   value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
   value_t kT_upstream =
       sim_env().params().get_as<double>("upstream_kT", 1.0e-2);

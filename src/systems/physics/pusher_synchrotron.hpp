@@ -126,19 +126,19 @@ class pusher_synchrotron {
 
     auto stokes_parameter_I =
         sim_env().register_data<multi_array_data<value_t, 3>>(
-            "I", m_ph_nth, m_ph_nphi, m_omega_bins);
+            "I", m_ph_nth, m_ph_nphi, m_eph_bins);
     I_ptr = stokes_parameter_I->dev_ndptr();
     stokes_parameter_I->reset_after_output(true);
 
     auto stokes_parameter_Q =
         sim_env().register_data<multi_array_data<value_t, 3>>(
-            "Q", m_ph_nth, m_ph_nphi, m_omega_bins);
+            "Q", m_ph_nth, m_ph_nphi, m_eph_bins);
     Q_ptr = stokes_parameter_Q->dev_ndptr();
     stokes_parameter_Q->reset_after_output(true);
 
     auto stokes_parameter_U =
         sim_env().register_data<multi_array_data<value_t, 3>>(
-            "U", m_ph_nth, m_ph_nphi, m_omega_bins);
+            "U", m_ph_nth, m_ph_nphi, m_eph_bins);
     U_ptr = stokes_parameter_U->dev_ndptr();
     stokes_parameter_U->reset_after_output(true);
   }
@@ -248,10 +248,10 @@ class pusher_synchrotron {
                                  2));
           value_t cos_chi = B_perp_prime.dot(y_prime) / denominator;
           value_t chi = std::acos(cos_chi);
-          value_t eph_c = m_sync->e_c();
+          value_t eph_c = m_sync.e_c(context.gamma, a_perp, m_BQ);
           
           value_t zeta = eph / eph_c;
-          index_t<3> Stokes_parameters_index(th_bin, phi_bin, omega_bin);
+          index_t<3> Stokes_parameters_index(th_bin, phi_bin, eph);
           atomic_add(
               &I_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
               m_sync.Fx(zeta));

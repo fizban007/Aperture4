@@ -59,7 +59,7 @@ if(use_libcpp)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
 endif()
-
+message(${CMAKE_CXX_COMPILER})
 # Find required packages
 find_package(MPI REQUIRED)
 find_package(HDF5 REQUIRED)
@@ -118,7 +118,7 @@ if(use_cuda)
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable ${CUDA_EXTRA_FLAGS}")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 70 75 89)
+    set(CMAKE_CUDA_ARCHITECTURES native)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)

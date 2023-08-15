@@ -44,6 +44,7 @@ class sync_curv_emission_t : public system_t {
   value_t m_x_min, m_x_max;
   sync_emission_helper_t m_sync;
   buffer<value_t> m_Fx_lookup, m_Fx_cumulative;
+  buffer<value_t> m_Gx_lookup, m_Gx_cumulative;
 };
 
 }

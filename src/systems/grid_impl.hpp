@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _GRID_IMPL_H_
-#define _GRID_IMPL_H_
+#pragma once
 
 #include "core/constant_mem_func.h"
 #include "core/domain_info.h"
@@ -29,7 +28,6 @@
 namespace Aperture {
 
 template <typename Conf>
-// grid_t<Conf>::grid_t(sim_environment& env,
 grid_t<Conf>::grid_t(const domain_info_t<Conf::dim>& domain_info) {
   // Start with some sane defaults so that it doesn't blow up when no parameter
   // is provided
@@ -104,4 +102,3 @@ grid_t<Conf>::~grid_t() {}
 
 }  // namespace Aperture
 
-#endif  // _GRID_IMPL_H_

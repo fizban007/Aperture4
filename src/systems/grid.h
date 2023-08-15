@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __GRID_H_
-#define __GRID_H_
+#pragma once
 
 #include "core/domain_info.h"
 #include "core/grid.hpp"
@@ -99,4 +98,3 @@ class grid_t : public system_t, public Grid<Conf::dim, typename Conf::value_t> {
 
 }  // namespace Aperture
 
-#endif  // __GRID_H_

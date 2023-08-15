@@ -36,7 +36,7 @@
 #include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/grid.h"
-#include "systems/policies/exec_policy_host.hpp"
+// #include "systems/policies/exec_policy_host.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/range.hpp"
 #include "utils/util_functions.h"
@@ -63,11 +63,13 @@ main(int argc, char *argv[]) {
   auto &env = sim_environment::instance(&argc, &argv);
 
   domain_comm<Conf, exec_policy_dynamic> comm;
-  auto& grid = *(env.register_system<grid_t<Conf>>(comm));
+  // auto& grid = *(env.register_system<grid_t<Conf>>(comm));
+  grid_t<Conf> grid(comm);
   auto pusher = env.register_system<ptc_updater<
-      Conf, exec_policy_dynamic, coord_policy_cartesian_sync_cooling>>(
+      // Conf, exec_policy_dynamic, coord_policy_cartesian_sync_cooling>>(
+        Conf, exec_policy_dynamic, coord_policy_cartesian>>(
       grid, &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
+  // auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 

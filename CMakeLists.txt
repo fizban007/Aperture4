@@ -115,7 +115,7 @@ if(use_cuda)
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable ${CUDA_EXTRA_FLAGS}")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES 70 75)
+    set(CMAKE_CUDA_ARCHITECTURES native)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)

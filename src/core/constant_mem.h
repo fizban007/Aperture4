@@ -49,54 +49,8 @@ extern __device__ __constant__ uint64_t dev_rank;
 extern __device__ uint32_t dev_ptc_id;
 extern __device__ uint32_t dev_ph_id;
 
-namespace detail {
-
 template <int Rank, typename value_t>
-struct dev_grid_helper;
-
-template <>
-struct dev_grid_helper<1, float> {
-  using grid_type = Grid<1, float>;
-  static constexpr grid_type* dev_grid = &dev_grid_1d_float;
-};
-
-template <>
-struct dev_grid_helper<2, float> {
-  using grid_type = Grid<2, float>;
-  static constexpr grid_type* dev_grid = &dev_grid_2d_float;
-};
-
-template <>
-struct dev_grid_helper<3, float> {
-  using grid_type = Grid<3, float>;
-  static constexpr grid_type* dev_grid = &dev_grid_3d_float;
-};
-
-template <>
-struct dev_grid_helper<1, double> {
-  using grid_type = Grid<1, double>;
-  static constexpr grid_type* dev_grid = &dev_grid_1d_double;
-};
-
-template <>
-struct dev_grid_helper<2, double> {
-  using grid_type = Grid<2, double>;
-  static constexpr grid_type* dev_grid = &dev_grid_2d_double;
-};
-
-template <>
-struct dev_grid_helper<3, double> {
-  using grid_type = Grid<3, double>;
-  static constexpr grid_type* dev_grid = &dev_grid_3d_double;
-};
-
-}  // namespace detail
-
-template <int Rank, typename value_t>
-// FORCE_INLINE __device__ const Grid<Rank, value_t>& dev_grid();
-__device__ __forceinline__ const Grid<Rank, value_t>& dev_grid() {
-  return *detail::dev_grid_helper<Rank, value_t>::dev_grid;
-}
+__device__ const Grid<Rank, value_t>& dev_grid();
 
 #endif
 

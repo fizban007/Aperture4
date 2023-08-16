@@ -118,4 +118,83 @@ init_dev_charge_mass(const float charge[max_ptc_types],
   GpuSafeCall(gpuMemcpyToSymbol(dev_masses, (void*)mass, sizeof(dev_masses)));
 }
 
+// namespace detail {
+
+// template <int Rank, typename value_t>
+// struct dev_grid_helper;
+
+// template <>
+// struct dev_grid_helper<1, float> {
+//   using grid_type = Grid<1, float>;
+//   static constexpr grid_type* dev_grid = &dev_grid_1d_float;
+// };
+
+// template <>
+// struct dev_grid_helper<2, float> {
+//   using grid_type = Grid<2, float>;
+//   static constexpr grid_type* dev_grid = &dev_grid_2d_float;
+// };
+
+// template <>
+// struct dev_grid_helper<3, float> {
+//   using grid_type = Grid<3, float>;
+//   static constexpr grid_type* dev_grid = &dev_grid_3d_float;
+// };
+
+// template <>
+// struct dev_grid_helper<1, double> {
+//   using grid_type = Grid<1, double>;
+//   static constexpr grid_type* dev_grid = &dev_grid_1d_double;
+// };
+
+// template <>
+// struct dev_grid_helper<2, double> {
+//   using grid_type = Grid<2, double>;
+//   static constexpr grid_type* dev_grid = &dev_grid_2d_double;
+// };
+
+// template <>
+// struct dev_grid_helper<3, double> {
+//   using grid_type = Grid<3, double>;
+//   static constexpr grid_type* dev_grid = &dev_grid_3d_double;
+// };
+
+// }  // namespace detail
+
+// template <int Rank, typename value_t>
+// FORCE_INLINE __device__ const Grid<Rank, value_t>& dev_grid();
+// __device__ __forceinline__ const Grid<Rank, value_t>& dev_grid() {
+//   return *detail::dev_grid_helper<Rank, value_t>::dev_grid;
+// }
+
+template <>
+__device__ const Grid<1, float>& dev_grid() {
+  return dev_grid_1d_float;
+}
+
+template <>
+__device__ const Grid<1, double>& dev_grid() {
+  return dev_grid_1d_double;
+}
+
+template <>
+__device__ const Grid<2, float>& dev_grid() {
+  return dev_grid_2d_float;
+}
+
+template <>
+__device__ const Grid<2, double>& dev_grid() {
+  return dev_grid_2d_double;
+}
+
+template <>
+__device__ const Grid<3, float>& dev_grid() {
+  return dev_grid_3d_float;
+}
+
+template <>
+__device__ const Grid<3, double>& dev_grid() {
+  return dev_grid_3d_double;
+}
+
 }  // namespace Aperture

@@ -20,5 +20,6 @@ add_subdirectory(parker)
 # add_subdirectory(scaling)
 # add_subdirectory(vacuum_sph_wave_test)
 # add_subdirectory(wave_scattering)
+add_subdirectory(fast_wave_2d)
 
 endif()

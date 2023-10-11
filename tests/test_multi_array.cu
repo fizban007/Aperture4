@@ -60,7 +60,7 @@ TEST_CASE("Invoking kernels on multi_array", "[multi_array][kernel]") {
   }
 }
 
-TEST_CASE("Different indexing on multi_array", "[multi_array][kernel]") {
+TEST_CASE("Different indexing on multi_array", "[multi_array][kernel][managed]") {
   Logger::init(0, LogLevel::debug);
   uint32_t N1 = 32, N2 = 32;
   // Extent ext(1, N2, N1);
@@ -348,7 +348,7 @@ TEST_CASE("Performance of expression template",
   }
 }
 
-TEST_CASE("Testing resample", "[multi_array]") {
+TEST_CASE("Testing resample", "[multi_array][managed]") {
   uint32_t N1 = 8, N2 = 8;
   using idx_t = idx_col_major_t<2>;
   auto ext = extent(N1, N2);

@@ -99,7 +99,7 @@ TEST_CASE("Host device buffer", "[buffer]") {
   }
 }
 
-TEST_CASE("Managed buffer", "[buffer]") {
+TEST_CASE("Managed buffer", "[buffer][managed]") {
   uint32_t N = 1000;
 
   buffer<double> buf(N, MemType::device_managed);

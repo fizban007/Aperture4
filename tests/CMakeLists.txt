@@ -79,9 +79,8 @@ if(use_cuda OR use_hip)
 endif()
 
 if (use_cuda AND CMAKE_CUDA_COMPILER)
-  add_executable(test_summit_mpi "test_summit_mpi.cu")
-  target_link_libraries(test_summit_mpi ${MPI_LIBRARIES})
-  #target_link_libraries(test_summit_mpi Aperture_dev)
+  # add_executable(test_summit_mpi "test_summit_mpi.cu")
+  # target_link_libraries(test_summit_mpi Aperture_dev)
 
   # add_executable(test_mpi3d "test_mpi3d.cpp")
   # target_link_libraries(test_mpi3d Aperture)
@@ -161,8 +160,9 @@ target_link_libraries(test_mpi2d
 
 add_aperture_executable(test_sync_ic "test_sync_ic.hip.cpp")
 add_aperture_executable(test_sync_sph "test_spherical_synchrotron.hip.cpp")
+add_aperture_executable(test_cam_network "test_cam_network.cpp")
+add_aperture_executable(test_sync_polarization "test_sync_polarization.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
-
 # add_executable(gr_pusher "test_gr_pusher.cpp")
 # target_link_libraries(gr_pusher Aperture_dev)
 

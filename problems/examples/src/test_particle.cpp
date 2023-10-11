@@ -67,7 +67,7 @@ main(int argc, char *argv[]) {
   sim_env().get_data("B", &B);
 
   double B0 = 1000.0;
-  B->set_values(2, [B0] LAMBDA (auto x, auto y, auto z) {
+  B->set_values(2, [B0] (auto x, auto y, auto z) {
     return B0;
   });
 

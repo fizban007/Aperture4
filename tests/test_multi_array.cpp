@@ -677,7 +677,7 @@ TEST_CASE("Assign and copy", "[multi_array]") {
   }
 }
 
-TEST_CASE("Memtype is correct", "[multi_array]") {
+TEST_CASE("Memtype is correct", "[multi_array][managed]") {
   {
     auto m = make_multi_array<float>(extent(32, 32, 32), MemType::device_only);
     REQUIRE(m.mem_type() == MemType::device_only);

@@ -29,7 +29,7 @@ void set_initial_field(vector_field<Conf> &field) {
       0, [](auto x1, auto x2, auto x3) { return x1 * x1 + x2 + x3 * x3 * x3; });
 }
 
-TEST_CASE("Memtype is correct for fields", "[fields]") {
+TEST_CASE("Memtype is correct for fields", "[fields][managed]") {
   typedef Config<2> Conf;
   Grid<2, Scalar> grid;
   grid.dims[0] = 32;

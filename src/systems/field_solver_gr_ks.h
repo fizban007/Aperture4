@@ -57,6 +57,10 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   virtual void compute_EB_sqr() override;
 
   void iterate_predictor(double dt);
+  void compute_dD_dt(vector_field<Conf>& dD_dt, const vector_field<Conf>& B,
+                     const vector_field<Conf>& D, const vector_field<Conf>& J, double dt);
+  void compute_dB_dt(vector_field<Conf>& dB_dt, const vector_field<Conf>& B,
+                     const vector_field<Conf>& D, double dt);
 
   // void horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B);
  private:
@@ -68,7 +72,12 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
 
   // typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
   // buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;
-  std::unique_ptr<vector_field<Conf>> m_prev_D, m_prev_B, m_new_D, m_new_B;
+  // std::unique_ptr<vector_field<Conf>> m_prev_D, m_prev_B, m_new_D, m_new_B;
+  std::unique_ptr<vector_field<Conf>> m_dD_dt, m_dB_dt;
+  std::unique_ptr<vector_field<Conf>> m_tmpD, m_tmpB;
+  std::unique_ptr<vector_field<Conf>> m_tmpdD_dt, m_tmpdB_dt;
+  std::unique_ptr<vector_field<Conf>> m_dD_dt_prev2, m_dB_dt_prev2;
+  std::unique_ptr<vector_field<Conf>> m_dD_dt_prev3, m_dB_dt_prev3;
 };
 
 }  // namespace Aperture

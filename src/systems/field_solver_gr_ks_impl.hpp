@@ -410,17 +410,41 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions() {
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
+    // Inner boundary inside horizon
+    ExecPolicy<Conf>::launch(
+        [] LAMBDA(auto D, auto B) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+
+          ExecPolicy<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
+            auto pos = index_t<Conf::dim>(grid.guard[0], n1);
+            auto idx = typename Conf::idx_t(pos, ext);
+            D[0][idx.dec_x()] = D[0][idx];
+            D[1][idx.dec_x()] = D[1][idx];
+            D[2][idx.dec_x()] = D[2][idx];
+            B[0][idx.dec_x()] = B[0][idx];
+            B[1][idx.dec_x()] = B[1][idx];
+            B[2][idx.dec_x()] = B[2][idx];
+          });
+        },
+        *(this->E), *(this->B));
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
     double dt, double alpha, double beta, double time) {
   iterate_predictor(dt);
 
   // apply damping boundary condition at outer boundary
-  // if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
-  // {
-  //   damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
-  //   m_damping_length,
-  //                                      m_damping_coef);
-  // }
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
+  {
+    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
+                                       m_damping_length, m_damping_coef);
+  }
 
   // this->Etotal->copy_from(*(this->E));
   // this->Btotal->copy_from(*(this->B));

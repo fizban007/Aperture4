@@ -30,14 +30,22 @@ class vlasov_solver : public system_t {
   const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // Data components
-  nonown_ptr<phase_space<Conf, Dim_P>> f;
+  data_array<phase_space<Conf, Dim_P>> f;
   nonown_ptr<vector_field<Conf>> E, B, J;
-  data_array<scalar_field<Conf>> Rho;
+  // data_array<scalar_field<Conf>> Rho;
+
+  // Temp data
+  std::unique_ptr<phase_space<Conf, Dim_P>> df_tmp;
 
   // Parameters
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
   uint32_t m_filter_times = 0;
+  vec_t<int, Dim_P> m_momentum_ext;
+  vec_t<value_t, Dim_P> m_momentum_lower;
+  vec_t<value_t, Dim_P> m_momentum_upper;
+  vec_t<value_t, Dim_P> m_momentum_delta;
+  extent_t<Conf::dim + Dim_P> m_ext_total;
 };
 
 }

@@ -65,6 +65,8 @@ domain_comm<Conf, ExecPolicy>::domain_comm(int *argc, char ***argv) {
   MPI_Helper::register_particle_type(single_ptc_t{}, &MPI_PARTICLES);
   MPI_Helper::register_particle_type(single_ph_t{}, &MPI_PHOTONS);
   // Logger::print_debug("m_is_device is {}", m_is_device);
+
+  sim_env().params().get_vec_t("momentum_ext", m_momentum_ext);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -210,7 +212,23 @@ domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
     const typename Conf::grid_t &grid) const {
   Logger::print_debug("Resizing phase space buffers");
   if (m_phase_buffers_ready) return;
-  // TODO: implement this function
+
+  // Only resize the 1 momentum dimensional buffer, since that is the only case we implement
+  // for (int i = 0; i < Conf::dim; i++) {
+  if (Conf::dim == 1) {
+    extent_t<Conf::dim + 1> ext_total; // ext_total has only 2 values
+    ext_total = m_
+    for (int i = 0; i < Conf::dim + 1; i++) {
+      if (i < 1) {
+        m_ext_total[i] = m_momentum_ext[i];
+      } else {
+        m_ext_total[i] = m_grid.dims[i - Dim_P];
+      }
+    }
+  }
+    m_send_phase_space_buffers1d.emplace_back()
+  }
+
 
   m_phase_buffers_ready = true;
 }

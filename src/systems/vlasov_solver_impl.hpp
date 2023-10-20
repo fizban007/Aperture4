@@ -93,16 +93,16 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt, uint32_t 
                 value_t p = p_lower[0] + pos[0] * p_delta[0];
                 value_t v = p / std::sqrt(1.0 + p*p);
                 if (v > 0.0) {
-                  df[idx] = dt * v * (f[sp][idx.dec_y()] - f[sp][idx]) * grid.inv_delta[0];
+                  df[idx] = dt * math::abs(v) * (f[sp][idx.dec_y()] - f[sp][idx]) * grid.inv_delta[0];
                 } else {
-                  df[idx] = dt * v * (f[sp][idx.inc_y()]- f[sp][idx]) * grid.inv_delta[0];
+                  df[idx] = dt * math::abs(v) * (f[sp][idx.inc_y()]- f[sp][idx]) * grid.inv_delta[0];
                 }
 
                 // Update f in p
                 if (E[0][idx_x] > 0.0) {
-                  df[idx] += dt * E[0][idx_x] * (f[sp][idx.inc_x()] - f[sp][idx]) / p_delta[0];
+                  df[idx] += dt * math::abs(E[0][idx_x]) * (f[sp][idx.inc_x()] - f[sp][idx]) / p_delta[0];
                 } else {
-                  df[idx] += dt * E[0][idx_x] * (f[sp][idx.dec_x()] - f[sp][idx]) / p_delta[0];
+                  df[idx] += dt * math::abs(E[0][idx_x]) * (f[sp][idx.dec_x()] - f[sp][idx]) / p_delta[0];
                 }
 
                 // // add df to f

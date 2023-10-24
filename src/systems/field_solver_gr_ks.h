@@ -57,11 +57,13 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   virtual void compute_EB_sqr() override;
 
   void iterate_predictor(double dt);
+  void compute_aux_E(const vector_field<Conf>& B, const vector_field<Conf>& D);
+  void compute_aux_H(const vector_field<Conf>& B, const vector_field<Conf>& D);
   void compute_dD_dt(vector_field<Conf>& dD_dt, const vector_field<Conf>& B,
-                     const vector_field<Conf>& D, const vector_field<Conf>& J, double dt);
+                     const vector_field<Conf>& D, const vector_field<Conf>& J);
   void compute_dB_dt(vector_field<Conf>& dB_dt, const vector_field<Conf>& B,
-                     const vector_field<Conf>& D, double dt);
-  void boundary_conditions();
+                     const vector_field<Conf>& D);
+  void boundary_conditions(vector_field<Conf>& D, vector_field<Conf>& B);
 
   // void horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B);
  private:
@@ -77,7 +79,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   std::unique_ptr<vector_field<Conf>> m_dD_dt, m_dB_dt;
   std::unique_ptr<vector_field<Conf>> m_tmpD, m_tmpB;
   std::unique_ptr<vector_field<Conf>> m_tmpdD_dt, m_tmpdB_dt;
-  std::unique_ptr<vector_field<Conf>> m_dD_dt_prev2, m_dB_dt_prev2;
+  // Auxiliary fields E and H
+  std::unique_ptr<vector_field<Conf>> m_auxE, m_auxH;
   std::unique_ptr<vector_field<Conf>> m_dD_dt_prev3, m_dB_dt_prev3;
 };
 

@@ -66,7 +66,7 @@ main(int argc, char *argv[]) {
       // Initialize particles
       [kT] __device__(auto &x_global, rand_state &state,
                       PtcType type) {
-        vec_t<value_t, 3> u = rng_maxwell_juttner_3d(state, kT);
+        vec_t<value_t, 3> u = rng_maxwell_juttner_3d<value_t>(state, kT);
         return u;
       },
       // Particle weight

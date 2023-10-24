@@ -362,7 +362,7 @@ class pusher_synchrotron {
   // value_t domega = omega_max - omega_min / m_omega_bins;
   value_t deph = (math::log(eph_max) - math::log(eph_min)) / m_eph_bins;
 
-  mutable ndptr<float, Conf::dim + 1> m_spec_ptr;
+  mutable ndptr<value_t, Conf::dim + 1> m_spec_ptr;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
   sync_emission_helper_t m_sync;
   mutable ndptr<value_t, 3> I_ptr;

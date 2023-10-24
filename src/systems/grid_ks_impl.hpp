@@ -52,10 +52,14 @@ grid_ks_t<Conf>::initialize() {
   m_ag11dr_h.resize(this->extent());
   m_ag13dr_e.resize(this->extent());
   m_ag13dr_h.resize(this->extent());
+  m_ag13dr_d.resize(this->extent());
+  m_ag13dr_b.resize(this->extent());
   m_ag22dth_e.resize(this->extent());
   m_ag22dth_h.resize(this->extent());
   m_gbetadth_e.resize(this->extent());
   m_gbetadth_h.resize(this->extent());
+  m_gbetadth_d.resize(this->extent());
+  m_gbetadth_b.resize(this->extent());
 
 #ifdef GPU_ENABLED
   using exec_tag = exec_tags::device;
@@ -70,10 +74,14 @@ grid_ks_t<Conf>::initialize() {
   ptrs.ag11dr_h = adapt(exec_tag{}, std::cref(m_ag11dr_h).get());
   ptrs.ag13dr_e = adapt(exec_tag{}, std::cref(m_ag13dr_e).get());
   ptrs.ag13dr_h = adapt(exec_tag{}, std::cref(m_ag13dr_h).get());
+  ptrs.ag13dr_d = adapt(exec_tag{}, std::cref(m_ag13dr_d).get());
+  ptrs.ag13dr_b = adapt(exec_tag{}, std::cref(m_ag13dr_b).get());
   ptrs.ag22dth_e = adapt(exec_tag{}, std::cref(m_ag22dth_e).get());
   ptrs.ag22dth_h = adapt(exec_tag{}, std::cref(m_ag22dth_h).get());
   ptrs.gbetadth_e = adapt(exec_tag{}, std::cref(m_gbetadth_e).get());
   ptrs.gbetadth_h = adapt(exec_tag{}, std::cref(m_gbetadth_h).get());
+  ptrs.gbetadth_d = adapt(exec_tag{}, std::cref(m_gbetadth_d).get());
+  ptrs.gbetadth_b = adapt(exec_tag{}, std::cref(m_gbetadth_b).get());
 
   timer::stamp();
   compute_coef();
@@ -217,11 +225,25 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_ag13dr_h at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
+    m_ag13dr_b[idx] =
+        gauss_quad([this, th](auto x) { return ag_13(a, x, th); },
+                   r_s, radius(this->template coord<0>(pos[0] + 1, true)));
+    if (m_ag13dr_b[idx] != m_ag13dr_b[idx]) {
+      Logger::print_err("m_ag13dr_b at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
+
     m_ag13dr_e[idx] =
         gauss_quad([this, th_s](auto x) { return ag_13(a, x, th_s); }, r_s,
                    radius(this->template coord<0>(pos[0] + 1, true)));
     if (m_ag13dr_e[idx] != m_ag13dr_e[idx]) {
       Logger::print_err("m_ag13dr_e at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
+
+    m_ag13dr_d[idx] =
+        gauss_quad([this, th_s](auto x) { return ag_13(a, x, th_s); },
+                   radius(this->template coord<0>(pos[0] - 1, false)), r);
+    if (m_ag13dr_d[idx] != m_ag13dr_d[idx]) {
+      Logger::print_err("m_ag13dr_d at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
     m_ag22dth_h[idx] =
@@ -245,12 +267,27 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_gbetadth_h at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
+    m_gbetadth_b[idx] =
+        gauss_quad([this, r](auto x) { return sq_gamma_beta(a, r, x); },
+                   th_s, theta(this->template coord<1>(pos[1] + 1, true)));
+    if (m_gbetadth_b[idx] != m_gbetadth_b[idx]) {
+      Logger::print_err("m_gbetadth_b at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
+
     m_gbetadth_e[idx] =
         gauss_quad([this, r_s](auto x) { return sq_gamma_beta(a, r_s, x); },
                    th_s, theta(this->template coord<1>(pos[1] + 1, true)));
     if (m_gbetadth_e[idx] != m_gbetadth_e[idx]) {
       Logger::print_err("m_gbetadth_e at ({}, {}) is NaN!", pos[0], pos[1]);
     }
+
+    m_gbetadth_d[idx] =
+        gauss_quad([this, r_s](auto x) { return sq_gamma_beta(a, r_s, x); },
+                   theta(this->template coord<1>(pos[1] - 1, false)), r);
+    if (m_gbetadth_d[idx] != m_gbetadth_d[idx]) {
+      Logger::print_err("m_gbetadth_d at ({}, {}) is NaN!", pos[0], pos[1]);
+    }
+
   }
 
 #ifdef GPU_ENABLED
@@ -262,10 +299,14 @@ grid_ks_t<Conf>::compute_coef() {
   m_ag11dr_h.copy_to_device();
   m_ag13dr_e.copy_to_device();
   m_ag13dr_h.copy_to_device();
+  m_ag13dr_d.copy_to_device();
+  m_ag13dr_b.copy_to_device();
   m_ag22dth_e.copy_to_device();
   m_ag22dth_h.copy_to_device();
   m_gbetadth_e.copy_to_device();
   m_gbetadth_h.copy_to_device();
+  m_gbetadth_b.copy_to_device();
+  m_gbetadth_d.copy_to_device();
 #endif
 }
 

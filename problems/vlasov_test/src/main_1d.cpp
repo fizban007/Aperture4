@@ -58,6 +58,23 @@ main(int argc, char *argv[]) {
 
   // data is the distribution function of electrons
   auto& data = f[0]->data();
+  vec_t<int, 1> momentum_ext;
+  vec_t<double, 1> momentum_lower;
+  vec_t<double, 1> momentum_upper;
+  sim_env().params().get_vec_t("momentum_ext", momentum_ext);
+  sim_env().params().get_vec_t("momentum_lower", momentum_lower);
+  sim_env().params().get_vec_t("momentum_upper", momentum_upper);
+  double dp = (momentum_upper[0] - momentum_lower[0]) / momentum_ext[0];
+
+  double p_stream = 0.5;
+  sim_env().params().get_value("p_stream", p_stream);
+
+  f[0]->set_value([=] (double p0, double p1, double p2,
+                        double x0, double x1, double x2) {
+                          if (math::abs(math::abs(p0) - p_stream) < 0.5 * dp) {
+                            return 1.0 / dp;
+                          }
+                        });
 
   env.run();
   return 0;

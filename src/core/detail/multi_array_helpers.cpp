@@ -111,9 +111,11 @@ INSTANTIATE_ADD(double, 3);
 INSTANTIATE_COPY(float, 1);
 INSTANTIATE_COPY(float, 2);
 INSTANTIATE_COPY(float, 3);
+INSTANTIATE_COPY(float, 4);
 INSTANTIATE_COPY(double, 1);
 INSTANTIATE_COPY(double, 2);
 INSTANTIATE_COPY(double, 3);
+INSTANTIATE_COPY(double, 4);
 
 // #if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
 // template <typename T, int Rank>

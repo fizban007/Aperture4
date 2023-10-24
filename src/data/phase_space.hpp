@@ -33,6 +33,7 @@ class phase_space : public data_t {
   const grid_t& m_grid;
 
   extent_t<Conf::dim> m_grid_ext;
+  extent_t<Dim> m_momentum_ext;
   int m_downsample = 16;
   int m_log_scale = false;
   int m_num_bins[Dim];
@@ -51,6 +52,7 @@ class phase_space : public data_t {
       m_num_bins[i] = num_bins[i];
       m_lower[i] = lower[i];
       m_upper[i] = upper[i];
+      m_momentum_ext[i] = num_bins[i];
     }
 
     auto g_ext = grid.extent_less();

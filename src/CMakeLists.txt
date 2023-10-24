@@ -29,6 +29,7 @@ set(Aperture_src
   "systems/ptc_updater.cpp"
   "systems/radiative_transfer.cpp"
   "systems/sync_curv_emission.cpp"
+  "systems/vlasov_solver.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 add_library(Aperture STATIC ${Aperture_src})

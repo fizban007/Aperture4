@@ -48,7 +48,9 @@ class domain_comm : public system_t {
   int rank() const { return m_rank; }
   int size() const { return m_size; }
   void resize_buffers(const typename Conf::grid_t& grid) const;
-  void resize_phase_space_buffers(const typename Conf::grid_t& grid) const;
+  template <int Dim_P>
+  void resize_phase_space_buffers(const typename Conf::grid_t& grid,
+                                  const extent_t<Dim_P>& momentum_ext) const;
 
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
@@ -96,11 +98,14 @@ class domain_comm : public system_t {
   // to use a const domain_comm reference to invoke communications, but
   // communication will necessarily need to modify these buffers.
   typedef typename Conf::multi_array_t multi_array_t;
+  typedef typename Conf::value_t value_t;
 
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<multi_array_t> m_send_vec_buffers;
   mutable std::vector<multi_array_t> m_recv_vec_buffers;
+  mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_send_phase_space_buffers1d;
+  mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_recv_phase_space_buffers1d;
   // mutable std::vector<multi_array_t> m_send_phase_space_buffers;
   // mutable std::vector<multi_array_t> m_recv_phase_space_buffers;
   // mutable std::vector<particles_t> m_ptc_buffers;

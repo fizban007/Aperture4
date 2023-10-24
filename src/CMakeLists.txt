@@ -54,6 +54,7 @@ if (use_cuda OR use_hip)
     "systems/gather_tracked_ptc.hip.cpp"
     "systems/ptc_updater.hip.cpp"
     "systems/radiative_transfer.hip.cpp"
+    "systems/vlasov_solver.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)
     set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)

@@ -75,7 +75,7 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt, uint32_t 
   for (int sp = 0; sp < num_species; sp++) {
     // Launch kernel to update f
     ExecPolicy<Conf>::launch(
-        [&] LAMBDA(auto f, auto df, auto E, auto J) {
+        [=] LAMBDA(auto f, auto df, auto E, auto J) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(

@@ -65,8 +65,6 @@ domain_comm<Conf, ExecPolicy>::domain_comm(int *argc, char ***argv) {
   MPI_Helper::register_particle_type(single_ptc_t{}, &MPI_PARTICLES);
   MPI_Helper::register_particle_type(single_ph_t{}, &MPI_PHOTONS);
   // Logger::print_debug("m_is_device is {}", m_is_device);
-
-  sim_env().params().get_vec_t("momentum_ext", m_momentum_ext);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -207,28 +205,29 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
+template <int Dim_P>
 void
 domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
-    const typename Conf::grid_t &grid) const {
+    const typename Conf::grid_t &grid,
+    const extent_t<Dim_P> &momentum_ext) const {
   Logger::print_debug("Resizing phase space buffers");
   if (m_phase_buffers_ready) return;
 
   // Only resize the 1 momentum dimensional buffer, since that is the only case we implement
   // for (int i = 0; i < Conf::dim; i++) {
-  if (Conf::dim == 1) {
-    extent_t<Conf::dim + 1> ext_total; // ext_total has only 2 values
-    ext_total = m_
-    for (int i = 0; i < Conf::dim + 1; i++) {
-      if (i < 1) {
-        m_ext_total[i] = m_momentum_ext[i];
-      } else {
-        m_ext_total[i] = m_grid.dims[i - Dim_P];
-      }
-    }
+  extent_t<Conf::dim + Dim_P> ext_total;
+  for (int i = 0; i < Dim_P; i++) {
+    ext_total[i] = momentum_ext[i];
   }
-    m_send_phase_space_buffers1d.emplace_back()
+  for (int i = Dim_P; i < Dim_P + Conf::dim; i++) {
+    ext_total[i] = grid.dims[i - Dim_P];
   }
 
+  if (Dim_P == 1) {
+    ext_total[Dim_P] = grid.guard[0];
+    m_phase_space_send_buffers1d.emplace_back(ext_total, ExecPolicy<Conf>::data_mem_type());
+    m_phase_space_recv_buffers1d.emplace_back(ext_total, ExecPolicy<Conf>::data_mem_type());
+  }
 
   m_phase_buffers_ready = true;
 }
@@ -557,10 +556,12 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-template <int Dim>
+template <int Dim_P>
 void
 domain_comm<Conf, ExecPolicy>::send_phase_space(
-    phase_space<Conf, Dim> &data, const grid_t<Conf> &grid) const {
+    phase_space<Conf, Dim_P> &data, const grid_t<Conf> &grid) const {
+  if (!m_phase_buffers_ready) resize_phase_space_buffers(grid, data.momentum_ext());
+
 
 }
 

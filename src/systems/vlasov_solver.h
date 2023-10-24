@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "data/data_array.hpp"
 #include "framework/system.h"
 #include "systems/grid.h"
 #include "systems/domain_comm.h"

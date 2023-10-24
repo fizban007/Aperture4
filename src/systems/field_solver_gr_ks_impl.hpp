@@ -103,14 +103,14 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
 
   m_tmpdD_dt = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::edge_centered, type);
-  m_dD_dt_prev2 = std::make_unique<vector_field<Conf>>(
+  m_auxE = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::edge_centered, type);
   m_dD_dt_prev3 = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::edge_centered, type);
 
   m_tmpdB_dt = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::face_centered, type);
-  m_dB_dt_prev2 = std::make_unique<vector_field<Conf>>(
+  m_auxH = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::face_centered, type);
   m_dB_dt_prev3 = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::face_centered, type);
@@ -126,19 +126,163 @@ field_solver<Conf, ExecPolicy,
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(const vector_field<Conf> &B, const vector_field<Conf> &D) {
+  auto a = m_a;
+  m_auxE->init();
+  using value_t = typename Conf::value_t;
+
+  ExecPolicy<Conf>::launch(
+      [a] LAMBDA(auto B, auto D, auto auxE, auto grid_ptrs) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              // if (grid.is_in_bound(pos)) {
+              if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+                value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                value_t r_plus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
+                value_t r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
+                value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+                // Handle coordinate axis
+                if (math::abs(th) < 0.1f * grid.delta[1] ||
+                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+                  // auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
+                  auxE[0][idx] = Metric_KS::ag_11(a, r, th) * D[0][idx];
+                } else {
+                  auxE[0][idx] =
+                      Metric_KS::ag_11(a, r, th) * D[0][idx] +
+                      // grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+                      0.5 *
+                          (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] +
+                           Metric_KS::ag_13(a, r_plus, th) * D[2][idx.inc_x()]);
+                      // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] + D[2][idx.inc_x()]);
+                      // 0.5 * Metric_KS::ag_13(a, r, th) * (D[2][idx] + D[2][idx.inc_x()]);
+                }
+
+                r_plus = r;
+                r = r_minus;
+                r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) - 0.5f * grid.delta[0]);
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+
+                auxE[1][idx] = Metric_KS::ag_22(a, r, th) * D[1][idx] -
+                // auxE[1][idx] = grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+                    0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
+                           Metric_KS::sq_gamma_beta(a, r_minus, th) * B[2][idx.dec_x()]);
+                    // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] + B[2][idx.dec_x()]);
+                    // 0.5 * Metric_KS::sq_gamma_beta(a, r, th) * (B[2][idx] + B[2][idx.dec_x()]);
+
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+                // Handle coordinate axis
+                if (math::abs(th) < 0.1f * grid.delta[1] ||
+                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+                  auxE[2][idx] =
+                      0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                             Metric_KS::ag_13(a, r_minus, th) *
+                                 D[0][idx.dec_x()]);
+                      // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] + D[0][idx.dec_x()]);
+                } else {
+                  auxE[2][idx] =
+                      Metric_KS::ag_33(a, r, th) * D[2][idx] +
+                      0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                             Metric_KS::ag_13(a, r_minus, th) *
+                                 D[0][idx.dec_x()]) +
+                      0.5 *
+                          (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
+                           Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                               B[1][idx.dec_x()]);
+                      // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] + D[0][idx.dec_x()]) +
+                      // 0.5 * Metric_KS::sq_gamma_beta(a, r, th) * (B[1][idx] + B[1][idx.dec_x()]);
+                }
+              }
+            });
+      }, B, D, *(m_auxE), m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::sync();
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(const vector_field<Conf> &B, const vector_field<Conf> &D) {
+  auto a = m_a;
+  m_auxH->init();
+
+  ExecPolicy<Conf>::launch(
+      [a] LAMBDA(auto B, auto D, auto auxH, auto grid_ptrs) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              // if (grid.is_in_bound(pos)) {
+              if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+                value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+                value_t r_plus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) + 0.5f * grid.delta[0]);
+                value_t r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) - 0.5f * grid.delta[0]);
+                value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+
+                // auxH[0][idx] = grid_ptrs.ag11dr_h[idx] * B[0][idx] +
+                auxH[0][idx] = Metric_KS::ag_11(a, r, th) * B[0][idx] +
+                    0.5 * (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] +
+                           Metric_KS::ag_13(a, r_plus, th) * B[2][idx]);
+                    // 0.5 * grid_ptrs.ag13dr_h[idx] * (B[2][idx.dec_x()] + B[2][idx]);
+                    // 0.5 * Metric_KS::ag_13(a, r, th) * (B[2][idx.dec_x()] + B[2][idx]);
+
+                r_minus = r;
+                r = r_plus;
+                r_plus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+                // Handle coordinate axis
+                if (math::abs(th) < 0.1f * grid.delta[1] ||
+                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+                  auxH[1][idx] = 0.0f;
+                } else {
+                  auxH[1][idx] =
+                      // grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+                      Metric_KS::ag_22(a, r, th) * B[1][idx] +
+                      0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                                 D[2][idx.inc_x()] +
+                             Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                                 D[2][idx]);
+                      // 0.5 * grid_ptrs.gbetadth_h[idx] * (D[2][idx.inc_x()] + D[2][idx]);
+                      // 0.5 * Metric_KS::sq_gamma_beta(a, r, th) * (D[2][idx.inc_x()] + D[2][idx]);
+                }
+
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+
+                auxH[2][idx] = Metric_KS::ag_33(a, r, th) * B[2][idx] +
+                    0.5 * (Metric_KS::ag_13(a, r_plus, th) * B[0][idx.inc_x()] +
+                           Metric_KS::ag_13(a, r_minus, th) * B[0][idx]) -
+                    0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * D[1][idx.inc_x()] +
+                           Metric_KS::sq_gamma_beta(a, r_minus, th) * D[1][idx]);
+                    // 0.5 * Metric_KS::ag_13(a, r, th) * (B[0][idx] + B[0][idx.inc_x()]) +
+                    // 0.5 * Metric_KS::sq_gamma_beta(a, r, th) * (D[1][idx] + D[1][idx.inc_x()]);
+              }
+            });
+      }, B, D, *(m_auxH), m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::sync();
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
     vector_field<Conf>& dB_dt, const vector_field<Conf>& B,
-    const vector_field<Conf>& D, double dt) {
-  auto a = m_a;
+    const vector_field<Conf>& D) {
   vec_t<bool, Conf::dim* 2> is_boundary = true;
   if (this->m_comm != nullptr) {
     is_boundary = this->m_comm->domain_info().is_boundary;
   }
+  dB_dt.init();
+  compute_aux_E(B, D);
 
   using namespace Metric_KS;
 
   ExecPolicy<Conf>::launch(
-      [a, is_boundary] LAMBDA(auto B, auto D, auto dB_dt, auto grid_ptrs) {
+      [is_boundary] LAMBDA(auto auxE, auto dB_dt, auto grid_ptrs) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
 
@@ -146,66 +290,20 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
             Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
-                // First construct the auxiliary fields E and H
-                value_t r_sp = grid_ks_t<Conf>::radius(
-                    grid.template coord<0>(pos[0] + 1, true));
-                value_t r_sm = grid_ks_t<Conf>::radius(
-                    grid.template coord<0>(pos[0], true));
+                // dB_r / dt. dphi is taken to be 1
+                dB_dt[0][idx] = -(auxE[2][idx.inc_y()] - auxE[2][idx]) / grid_ptrs.Ab[0][idx];
 
-                value_t th_sp = grid_ks_t<Conf>::theta(
-                    grid.template coord<1>(pos[1] + 1, true));
-                value_t th_sm = grid_ks_t<Conf>::theta(
-                    grid.template coord<1>(pos[1], true));
-
-                value_t sth = math::sin(th_sm);
-                value_t cth = math::cos(th_sm);
-                auto Eph00 = ag_33(a, r_sm, sth, cth) * D[2][idx] +
-                             ag_13(a, r_sm, sth, cth) * 0.5f *
-                                 (D[0][idx] + D[0][idx.dec_x()]) +
-                             0.5f * sq_gamma_beta(a, r_sm, sth, cth) *
-                                 (B[1][idx] + B[1][idx.dec_x()]);
-
-                auto Eph10 = ag_33(a, r_sp, sth, cth) * D[2][idx.inc_x()] +
-                             ag_13(a, r_sp, sth, cth) * 0.5f *
-                                 (D[0][idx.inc_x()] + D[0][idx]) +
-                             0.5f * sq_gamma_beta(a, r_sp, sth, cth) *
-                                 (B[1][idx.inc_x()] + B[1][idx]);
-
-                // dB_th / dt
-                dB_dt[1][idx] = -(Eph00 - Eph10) / grid_ptrs.Ab[1][idx];
-
-                sth = math::sin(th_sp);
-                cth = math::cos(th_sp);
-                auto Eph01 =
-                    ag_33(a, r_sm, sth, cth) * D[2][idx.inc_y()] +
-                    ag_13(a, r_sm, sth, cth) * 0.5f *
-                        (D[0][idx.inc_y()] + D[0][idx.dec_x().inc_y()]) +
-                    0.5f * sq_gamma_beta(a, r_sm, sth, cth) *
-                        (B[1][idx.inc_y()] + B[1][idx.dec_x().inc_y()]);
-
-                // dB_r / dt
-                dB_dt[0][idx] = -(Eph01 - Eph00) / grid_ptrs.Ab[0][idx];
-
-                auto Er1 = grid_ptrs.ag11dr_e[idx.inc_y()] * D[0][idx.inc_y()] +
-                           grid_ptrs.ag13dr_e[idx.inc_y()] * 0.5f *
-                               (D[2][idx.inc_y()] + D[2][idx.inc_y().inc_x()]);
-
-                auto Er0 = grid_ptrs.ag11dr_e[idx] * D[0][idx] +
-                           grid_ptrs.ag13dr_e[idx] * 0.5f *
-                               (D[2][idx] + D[2][idx.inc_x()]);
-
-                auto Eth1 =
-                    grid_ptrs.ag22dth_e[idx.inc_x()] * D[1][idx.inc_x()] -
-                    grid_ptrs.gbetadth_e[idx.inc_x()] * 0.5f *
-                        (B[2][idx.inc_x()] + B[2][idx]);
-
-                auto Eth0 = grid_ptrs.ag22dth_e[idx] * D[1][idx] -
-                            grid_ptrs.gbetadth_e[idx] * 0.5f *
-                                (B[2][idx] + B[2][idx.dec_x()]);
+                // dB_th / dt. dphi is taken to be 1
+                dB_dt[1][idx] = -(auxE[2][idx] - auxE[2][idx.inc_x()]) / grid_ptrs.Ab[1][idx];
 
                 // dB_phi / dt
                 dB_dt[2][idx] =
-                    -((Er0 - Er1) + (Eth1 - Eth0)) / grid_ptrs.Ab[2][idx];
+                    -((auxE[1][idx.inc_x()] - auxE[1][idx]) * grid.delta[1] +
+                      (auxE[0][idx] - auxE[0][idx.inc_y()]) * grid.delta[0]) / grid_ptrs.Ab[2][idx];
+
+                if (pos[0] == 100 && pos[1] == grid.guard[1]) {
+                  printf("dBphi/dt is %f\n", dB_dt[2][idx]);
+                }
 
                 // Boundary conditions
                 if (pos[1] == grid.guard[1] && is_boundary[2]) {
@@ -221,7 +319,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
               }
             });
       },
-      B, D, dB_dt, m_ks_grid.get_grid_ptrs());
+      *(m_auxE), dB_dt, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
 }
 
@@ -229,71 +327,33 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
     vector_field<Conf>& dD_dt, const vector_field<Conf>& B,
-    const vector_field<Conf>& D, const vector_field<Conf>& J, double dt) {
-  auto a = m_a;
-
+    const vector_field<Conf>& D, const vector_field<Conf>& J) {
   vec_t<bool, Conf::dim* 2> is_boundary = true;
   if (this->m_comm != nullptr) {
     is_boundary = this->m_comm->domain_info().is_boundary;
   }
+  dD_dt.init();
+  compute_aux_H(B, D);
 
   using namespace Metric_KS;
   ExecPolicy<Conf>::launch(
-      [a, is_boundary] LAMBDA(auto D, auto B, auto J, auto dD_dt,
-                              auto grid_ptrs) {
+      [is_boundary] LAMBDA(auto auxH, auto J, auto dD_dt,
+                           auto grid_ptrs) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         ExecPolicy<
             Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-          // for (auto idx : grid_stride_range(Conf::begin(ext),
-          // Conf::end(ext))) {
           auto pos = get_pos(idx, ext);
           if (grid.is_in_bound(pos)) {
-            // First construct the auxiliary fields E and H
-            value_t r_p =
-                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
-            value_t r_m = grid_ks_t<Conf>::radius(
-                grid.template coord<0>(pos[0] - 1, false));
-
-            value_t th_p =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
-            value_t th_m = grid_ks_t<Conf>::theta(
-                grid.template coord<1>(pos[1] - 1, false));
-
-            value_t sth = math::sin(th_p);
-            value_t cth = math::cos(th_p);
-            auto Hph11 = ag_33(a, r_p, sth, cth) * B[2][idx] +
-                         ag_13(a, r_p, sth, cth) * 0.5f *
-                             (B[0][idx] + B[0][idx.inc_x()]) -
-                         0.5f * sq_gamma_beta(a, r_p, sth, cth) *
-                             (D[1][idx] + D[1][idx.inc_x()]);
-
-            auto Hph01 = ag_33(a, r_m, sth, cth) * B[2][idx.dec_x()] +
-                         ag_13(a, r_m, sth, cth) * 0.5f *
-                             (B[0][idx.dec_x()] + B[0][idx]) -
-                         0.5f * sq_gamma_beta(a, r_m, sth, cth) *
-                             (D[1][idx.dec_x()] + D[1][idx]);
-
-            dD_dt[1][idx] = (Hph01 - Hph11) / grid_ptrs.Ad[1][idx] - J[1][idx];
-
-            sth = math::sin(th_m);
-            cth = math::cos(th_m);
-            auto Hph10 = ag_33(a, r_p, sth, cth) * B[2][idx.dec_y()] +
-                         ag_13(a, r_p, sth, cth) * 0.5f *
-                             (B[0][idx.dec_y()] + B[0][idx.inc_x().dec_y()]) -
-                         0.5f * sq_gamma_beta(a, r_p, sth, cth) *
-                             (D[1][idx.dec_y()] + D[1][idx.inc_x().dec_y()]);
-
             if (pos[1] == grid.guard[1] && is_boundary[2]) {
-              Hph10 = -Hph11;
+              dD_dt[0][idx] = (2.0 * auxH[2][idx]) / grid_ptrs.Ad[0][idx] - J[0][idx];
+            } else {
+              dD_dt[0][idx] = (auxH[2][idx] - auxH[2][idx.dec_y()]) / grid_ptrs.Ad[0][idx] - J[0][idx];
             }
-
-            dD_dt[0][idx] = (Hph11 - Hph10) / grid_ptrs.Ad[0][idx] - J[0][idx];
-
-            // Do an extra cell at the theta = PI axis
+            // At theta = pi boundary, do an additional update
             if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
               dD_dt[0][idx.inc_y()] =
-                  (-2.0f * Hph11) / grid_ptrs.Ad[0][idx.inc_y()] -
+                  (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()] -
                   J[0][idx.inc_y()];
 
               // if (pos[0] == grid.guard[0] && is_boundary[0]) {
@@ -305,66 +365,62 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
               // }
             }
 
-            // Updating Dph
-            auto Hr0 = grid_ptrs.ag11dr_h[idx.dec_y()] * B[0][idx.dec_y()] +
-                       grid_ptrs.ag13dr_h[idx.dec_y()] * 0.5f *
-                           (B[2][idx.dec_y()] + B[2][idx.dec_y().dec_x()]);
+            dD_dt[1][idx] = (auxH[2][idx.dec_x()] - auxH[2][idx]) / grid_ptrs.Ad[1][idx] - J[1][idx];
 
-            auto Hr1 = grid_ptrs.ag11dr_h[idx] * B[0][idx] +
-                       grid_ptrs.ag13dr_h[idx] * 0.5f *
-                           (B[2][idx] + B[2][idx.dec_x()]);
-
-            auto Hth0 = grid_ptrs.ag22dth_h[idx.dec_x()] * B[1][idx.dec_x()] +
-                        grid_ptrs.gbetadth_h[idx.dec_x()] * 0.5f *
-                            (D[2][idx.dec_x()] + D[2][idx]);
-
-            auto Hth1 = grid_ptrs.ag22dth_h[idx] * B[1][idx] +
-                        grid_ptrs.gbetadth_h[idx] * 0.5f *
-                            (D[2][idx] + D[2][idx.inc_x()]);
-
-            dD_dt[2][idx] =
-                ((Hr0 - Hr1) + (Hth1 - Hth0)) / grid_ptrs.Ad[2][idx] -
-                J[2][idx];
-
-            // Boundary conditions
             if (pos[1] == grid.guard[1] && is_boundary[2]) {
-              // theta = 0 axis
               dD_dt[2][idx] = 0.0f;
-              if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
-                  is_boundary[1]) {
-                dD_dt[2][idx.inc_x()] = 0.0f;
-              }
-              // D[1][idx.dec_y()] = D[1][idx];
+            } else {
+              dD_dt[2][idx] =
+                  ((auxH[1][idx] - auxH[1][idx.dec_x()]) * grid.delta[1] +
+                   (auxH[0][idx.dec_y()] - auxH[0][idx]) * grid.delta[0]) /
+                      grid_ptrs.Ad[2][idx] -
+                  J[2][idx];
             }
-
+            // At theta = pi boundary, do an additional update
             if (pos[1] == grid.dims[1] - grid.guard[1] - 1 && is_boundary[3]) {
-              // theta = pi axis
               dD_dt[2][idx.inc_y()] = 0.0f;
-              if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
-                  is_boundary[1]) {
-                dD_dt[2][idx.inc_x().inc_y()] = 0.0f;
-              }
-              // D[1][idx.inc_y()] = D[1][idx];
             }
+              // Boundary conditions
+              // if (pos[1] == grid.guard[1] && is_boundary[2]) {
+              //   // theta = 0 axis
+              //   dD_dt[2][idx] = 0.0f;
+              //   if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
+              //       is_boundary[1]) {
+              //     dD_dt[2][idx.inc_x()] = 0.0f;
+              //   }
+              //   // D[1][idx.dec_y()] = D[1][idx];
+              // }
 
-            // if (pos[0] == grid.guard[0] && is_boundary[0]) {
-            //   // inner boundary
-            //   D[0][idx.dec_x()] = D[0][idx];
-            //   D[1][idx.dec_x()] = D[1][idx];
-            //   D[2][idx.dec_x()] = D[2][idx];
-            // }
+              // if (pos[1] == grid.dims[1] - grid.guard[1] - 1 &&
+              // is_boundary[3]) {
+              //   // theta = pi axis
+              //   dD_dt[2][idx.inc_y()] = 0.0f;
+              //   if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
+              //       is_boundary[1]) {
+              //     dD_dt[2][idx.inc_x().inc_y()] = 0.0f;
+              //   }
+              //   // D[1][idx.inc_y()] = D[1][idx];
+              // }
 
-            // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 && is_boundary[1])
-            // {
-            //   // outer boundary
-            //   D[0][idx.inc_x()] = D[0][idx];
-            //   D[1][idx.inc_x()] = D[1][idx];
-            //   D[2][idx.inc_x()] = D[2][idx];
-            // }
+              // if (pos[0] == grid.guard[0] && is_boundary[0]) {
+              //   // inner boundary
+              //   D[0][idx.dec_x()] = D[0][idx];
+              //   D[1][idx.dec_x()] = D[1][idx];
+              //   D[2][idx.dec_x()] = D[2][idx];
+              // }
+
+              // if (pos[0] == grid.dims[0] - grid.guard[0] - 1 &&
+              // is_boundary[1])
+              // {
+              //   // outer boundary
+              //   D[0][idx.inc_x()] = D[0][idx];
+              //   D[1][idx.inc_x()] = D[1][idx];
+              //   D[2][idx.inc_x()] = D[2][idx];
+              // }
           }
         });
       },
-      D, B, J, dD_dt, m_ks_grid.get_grid_ptrs());
+      *(m_auxH), J, dD_dt, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
 }
 
@@ -376,8 +432,8 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   // method
 
   // Compute the RHS at the current time step n
-  compute_dB_dt(*m_dB_dt, *(this->B), *(this->E), dt);
-  compute_dD_dt(*m_dD_dt, *(this->B), *(this->E), *(this->J), dt);
+  compute_dB_dt(*m_dB_dt, *(this->B), *(this->E));
+  compute_dD_dt(*m_dD_dt, *(this->B), *(this->E), *(this->J));
 
   // Construct the Euler estimate for the next time step n+1
   m_tmpB->copy_from(*(this->B));
@@ -391,26 +447,45 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     this->m_comm->send_guard_cells(*m_tmpD);
   }
 
-  // Compute the RHS using new values at n+1
-  compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD, dt);
-  compute_dD_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD, *(this->J), dt);
+  boundary_conditions(*m_tmpD, *m_tmpB);
 
-  // Set new B and D at n+1
-  this->B->add_by(*m_tmpdB_dt, dt * 0.5f);
-  this->B->add_by(*m_dB_dt, dt * 0.5f);
-  this->E->add_by(*m_tmpdD_dt, dt * 0.5f);
-  this->E->add_by(*m_dD_dt, dt * 0.5f);
+  // Iterate EC several times
+  for (int i = 0; i < 3; i++) {
+    // Compute the RHS using new values at n+1
+    compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
+    compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));
 
-  // Communicate the final result
-  if (this->m_comm != nullptr) {
-    this->m_comm->send_guard_cells(*(this->B));
-    this->m_comm->send_guard_cells(*(this->E));
+    // Set new B and D at n+1
+    m_tmpB->copy_from(*(this->B));
+    m_tmpD->copy_from(*(this->E));
+    m_tmpB->add_by(*m_tmpdB_dt, dt * 0.5f);
+    m_tmpB->add_by(*m_dB_dt, dt * 0.5f);
+    m_tmpD->add_by(*m_tmpdD_dt, dt * 0.5f);
+    m_tmpD->add_by(*m_dD_dt, dt * 0.5f);
+    // this->B->add_by(*m_tmpdB_dt, dt * 0.5f);
+    // this->B->add_by(*m_dB_dt, dt * 0.5f);
+    // this->E->add_by(*m_tmpdD_dt, dt * 0.5f);
+    // this->E->add_by(*m_dD_dt, dt * 0.5f);
+
+    // Communicate the result
+    if (this->m_comm != nullptr) {
+      // this->m_comm->send_guard_cells(*(this->B));
+      // this->m_comm->send_guard_cells(*(this->E));
+      this->m_comm->send_guard_cells(*m_tmpB);
+      this->m_comm->send_guard_cells(*m_tmpD);
+    }
+
+    boundary_conditions(*m_tmpD, *m_tmpB);
   }
+
+  this->E->copy_from(*m_tmpD);
+  this->B->copy_from(*m_tmpB);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions() {
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
+  vector_field<Conf>& D, vector_field<Conf>& B) {
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
     // Inner boundary inside horizon
     ExecPolicy<Conf>::launch(
@@ -429,7 +504,52 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions() {
             B[2][idx.dec_x()] = B[2][idx];
           });
         },
-        *(this->E), *(this->B));
+        D, B);
+    ExecPolicy<Conf>::sync();
+  }
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[2]) {
+    // Axis at theta = 0
+    ExecPolicy<Conf>::launch(
+        [] LAMBDA(auto D, auto B) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+
+          ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+            auto pos = index_t<Conf::dim>(n0, grid.guard[1]);
+            auto idx = typename Conf::idx_t(pos, ext);
+            // D[0][idx.dec_x()] = D[0][idx];
+            // D[1][idx.dec_x()] = D[1][idx];
+            // D[2][idx] = 0.0f;
+            // B[2][idx.dec_y()] = -B[2][idx];
+            // // B[2][idx] = 0.0f;
+            // B[1][idx] = 0.0f;
+            // B[2][idx.dec_x()] = B[2][idx];
+          });
+        },
+        D, B);
+    ExecPolicy<Conf>::sync();
+  }
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[3]) {
+    // Axis at theta = pi
+    ExecPolicy<Conf>::launch(
+        [] LAMBDA(auto D, auto B) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+
+          ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+            auto pos = index_t<Conf::dim>(n0, grid.dims[1] - grid.guard[1] - 1);
+            auto idx = typename Conf::idx_t(pos, ext);
+            // D[0][idx.dec_x()] = D[0][idx];
+            // D[1][idx.dec_x()] = D[1][idx];
+            // D[2][idx] = 0.0f;
+            // B[2][idx] = -B[2][idx.dec_y()];
+            // // B[2][idx] = 0.0f;
+            // B[1][idx] = 0.0f;
+            // B[2][idx.dec_x()] = B[2][idx];
+          });
+        },
+        D, B);
+    ExecPolicy<Conf>::sync();
   }
 }
 
@@ -482,7 +602,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
                 grid_ks_t<Conf>::theta(grid.template coord<1>(n1 + 1, true));
             Scalar th_m =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
-            auto dth = th_p - th_m;
+            // auto dth = th_p - th_m;
 
             auto pos = index_t<Conf::dim>(n0, n1);
             auto idx = typename Conf::idx_t(pos, ext);

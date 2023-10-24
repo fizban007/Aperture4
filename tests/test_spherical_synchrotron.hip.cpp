@@ -108,7 +108,7 @@ main(int argc, char *argv[]) {
       },
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
       [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        auto p = rng_maxwell_juttner_3d(state, kT);
+        auto p = rng_maxwell_juttner_3d<typename Conf::value_t>(state, kT);
         grid_sph_t<Conf>::vec_from_cart(p, x_global);
         return p;
         // return rng_maxwell_juttner_3d(state, kT);

@@ -109,31 +109,31 @@ grid_ks_t<Conf>::compute_coef() {
 
     double dth = (theta(this->template coord<1>(pos[1] + 1, true)) - th_s);
     m_Ab[0][idx] =
-        // gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
-        //            theta(this->template coord<1>(pos[1] + 1, true)));
-        sqrt_gamma(a, r_s, th) * dth;
+        gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
+                   theta(this->template coord<1>(pos[1] + 1, true)));
+        // sqrt_gamma(a, r_s, th) * dth;
     if (m_Ab[0][idx] != m_Ab[0][idx]) {
       Logger::print_err("m_Ab0 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
     double dr = (radius(this->template coord<0>(pos[0] + 1, true)) - r_s);
     m_Ab[1][idx] =
-        // gauss_quad([this, th_s](auto x) { return sqrt_gamma(a, x, th_s); }, r_s,
-        //            radius(this->template coord<0>(pos[0] + 1, true)));
-        sqrt_gamma(a, r, th_s) * dr;
+        gauss_quad([this, th_s](auto x) { return sqrt_gamma(a, x, th_s); }, r_s,
+                   radius(this->template coord<0>(pos[0] + 1, true)));
+        // sqrt_gamma(a, r, th_s) * dr;
     if (m_Ab[1][idx] != m_Ab[1][idx]) {
       Logger::print_err("m_Ab1 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
     m_Ab[2][idx] =
-        // gauss_quad(
-        // [this, r_s, pos](auto x) {
-        //   return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
-        //                     r_s,
-        //                     radius(this->template coord<0>(pos[0] + 1, true)));
-        // },
-        // th_s, theta(this->template coord<1>(pos[1] + 1, true)));
-        sqrt_gamma(a, r, th) * dr * dth;
+        gauss_quad(
+        [this, r_s, pos](auto x) {
+          return gauss_quad([this, x](auto y) { return sqrt_gamma(a, y, x); },
+                            r_s,
+                            radius(this->template coord<0>(pos[0] + 1, true)));
+        },
+        th_s, theta(this->template coord<1>(pos[1] + 1, true)));
+        // sqrt_gamma(a, r, th) * dr * dth;
     if (m_Ab[2][idx] != m_Ab[2][idx]) {
       Logger::print_err("m_Ab2 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
@@ -151,9 +151,9 @@ grid_ks_t<Conf>::compute_coef() {
                            M_PI);
     } else {
       m_Ad[0][idx] =
-          // gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
-          //            theta(this->template coord<1>(pos[1] - 1, false)), th);
-          sqrt_gamma(a, r, th_s) * dth;
+          gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
+                     theta(this->template coord<1>(pos[1] - 1, false)), th);
+          // sqrt_gamma(a, r, th_s) * dth;
     }
     if (m_Ad[0][idx] != m_Ad[0][idx]) {
       Logger::print_err("m_Ad0 at ({}, {}) is NaN!", pos[0], pos[1]);
@@ -161,9 +161,9 @@ grid_ks_t<Conf>::compute_coef() {
 
     dr = r - radius(this->template coord<0>(pos[0] - 1, false));
     m_Ad[1][idx] =
-        // gauss_quad([this, th](auto x) { return sqrt_gamma(a, x, th); },
-        //            radius(this->template coord<0>(pos[0] - 1, false)), r);
-        sqrt_gamma(a, r_s, th) * dr;
+        gauss_quad([this, th](auto x) { return sqrt_gamma(a, x, th); },
+                   radius(this->template coord<0>(pos[0] - 1, false)), r);
+        // sqrt_gamma(a, r_s, th) * dr;
     if (m_Ad[1][idx] != m_Ad[1][idx]) {
       Logger::print_err("m_Ad1 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
@@ -191,14 +191,14 @@ grid_ks_t<Conf>::compute_coef() {
                     th, M_PI);
     } else {
       m_Ad[2][idx] =
-          // gauss_quad(
-          // [this, r, pos](auto x) {
-          //   return gauss_quad(
-          //       [this, x](auto y) { return sqrt_gamma(a, y, x); },
-          //       radius(this->template coord<0>(pos[0] - 1, false)), r);
-          // },
-          // theta(this->template coord<1>(pos[1] - 1, false)), th);
-          sqrt_gamma(a, r_s, th_s) * dr * dth;
+          gauss_quad(
+          [this, r, pos](auto x) {
+            return gauss_quad(
+                [this, x](auto y) { return sqrt_gamma(a, y, x); },
+                radius(this->template coord<0>(pos[0] - 1, false)), r);
+          },
+          theta(this->template coord<1>(pos[1] - 1, false)), th);
+          // sqrt_gamma(a, r_s, th_s) * dr * dth;
     }
     if (m_Ad[2][idx] != m_Ad[2][idx]) {
       Logger::print_err("m_Ad2 at ({}, {}) is NaN!", pos[0], pos[1]);

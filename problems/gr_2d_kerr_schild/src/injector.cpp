@@ -93,9 +93,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t th =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
-            // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.0f ||
-            //     th < 0.5f * M_PI - 0.3f || th > 0.5f * M_PI + 0.3f)
-            if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
+            if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f ||
+                th < grid.delta[1] || th > M_PI - grid.delta[1])
+            // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
               return;
 
             value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
@@ -113,7 +113,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t B_sqr = Metric_KS::dot_product_u({B1, B2, B3}, {B1, B2, B3},
                                                      a, r, sth, cth);
 
-            value_t n = 0.0f;
+            value_t n = 1.0e-8f;
             for (int i = 0; i < num_species; i++) {
               n += math::abs(rho[i][idx]);
             }
@@ -122,13 +122,16 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             auto u = rng.template uniform<float>();
             // printf("u is %f\n", u);
             if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr &&
-                u < 0.02f) {
+                u < 0.001f) {
               // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
               // printf("idx.linear is %ld\n", idx.linear);
               num_per_cell[idx] = 0;
             }
+            // if (u < 0.01f) {
+            //   num_per_cell[idx] = 1;
+            // }
           }
         });
       },
@@ -142,7 +145,9 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) {
+        return true;
+      },
       // Second function returns the number of particles injected in each cell.
       // This includes all species
       [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
@@ -160,84 +165,6 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
       [] LAMBDA(auto &x_global, PtcType type) {
         return math::sin(x_global[1]);
       });
-  // size_t grid_size = m_grid.extent().size();
-  // thrust::device_ptr<int> p_num_per_block(m_num_per_cell.dev_ptr());
-  // thrust::device_ptr<int> p_cum_num_per_block(m_cum_num_per_cell.dev_ptr());
-
-  // thrust::exclusive_scan(p_num_per_block, p_num_per_block + grid_size,
-  //                        p_cum_num_per_block);
-  // CudaCheckError();
-  // m_num_per_cell.copy_to_host();
-  // m_cum_num_per_cell.copy_to_host();
-  // int new_pairs =
-  //     2 * (m_cum_num_per_cell[grid_size - 1] + m_num_per_cell[grid_size - 1]);
-  // Logger::print_info("{} new pairs are injected in the box!", new_pairs);
-
-  // auto ptc_num = ptc->number();
-  // // kernel_launch(
-  // exec_policy_gpu<Conf>::launch(
-  //     [a, ptc_num, qe] __device__(auto B, auto D, auto ptc, auto num_per_cell,
-  //                                 auto cum_num, auto states) {
-  //       auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-  //       auto ext = grid.extent();
-  //       auto interp = lerp<Conf::dim>{};
-
-  //       rng_t<exec_tags::device> rng(states);
-
-  //       for (auto cell : grid_stride_range(0, ext.size())) {
-  //         auto idx = typename Conf::idx_t(cell, ext);
-  //         auto pos = get_pos(idx, ext);
-  //         if (num_per_cell[cell] > 0) {
-  //           value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
-  //           value_t D2 = interp(D[1], idx, stagger_t(0b101), stagger_t(0b111));
-  //           value_t D3 = interp(D[2], idx, stagger_t(0b011), stagger_t(0b111));
-  //           value_t B1 = interp(B[0], idx, stagger_t(0b001), stagger_t(0b111));
-  //           value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
-  //           value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
-  //           value_t r =
-  //               grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
-  //           value_t th =
-  //               grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
-  //           value_t sth = math::sin(th);
-  //           value_t cth = math::cos(th);
-
-  //           value_t DdotB = Metric_KS::dot_product_u({D1, D2, D3}, {B1, B2, B3},
-  //                                                    a, r, sth, cth);
-  //           value_t B_sqr = Metric_KS::dot_product_u({B1, B2, B3}, {B1, B2, B3},
-  //                                                    a, r, sth, cth);
-
-  //           for (int i = 0; i < num_per_cell[cell]; i++) {
-  //             int offset = ptc_num + cum_num[cell] * 2 + i * 2;
-  //             ptc.x1[offset] = ptc.x1[offset + 1] = rng.uniform<float>();
-  //             ptc.x2[offset] = ptc.x2[offset + 1] = rng.uniform<float>();
-  //             // ptc.x1[offset] = ptc.x1[offset + 1] = 0.5f;
-  //             // ptc.x2[offset] = ptc.x2[offset + 1] = 0.5f;
-  //             th = grid.template coord<1>(pos[1], ptc.x2[offset]);
-  //             ptc.x3[offset] = ptc.x3[offset + 1] = 0.0f;
-  //             ptc.p1[offset] = ptc.p1[offset + 1] = 0.0f;
-  //             ptc.p2[offset] = ptc.p2[offset + 1] = 0.0f;
-  //             // ptc.p3[offset] = ptc.p3[offset + 1] = sin(th) * (rng() - 0.5f);
-  //             ptc.p3[offset] = ptc.p3[offset + 1] = 0.0f;
-  //             ptc.E[offset] = ptc.E[offset + 1] = 1.0f;
-  //             ptc.cell[offset] = ptc.cell[offset + 1] = cell;
-
-  //             // ptc.weight[offset] = ptc.weight[offset + 1] = max(0.02,
-  //             //     abs(2.0f * square(cos(th)) - square(sin(th))) * sin(th));
-  //             ptc.weight[offset] = ptc.weight[offset + 1] =
-  //                 // 1.0f * math::abs(DdotB) * sin(th) / math::sqrt(B_sqr);
-  //                 sin(th);
-  //             // ptc.weight[offset] = ptc.weight[offset + 1] = 1.0f;
-  //             ptc.flag[offset] = set_ptc_type_flag(0, PtcType::electron);
-  //             ptc.flag[offset + 1] = set_ptc_type_flag(0, PtcType::positron);
-  //           }
-  //         }
-  //       }
-  //     },
-  //     B, D, ptc, m_num_per_cell, m_cum_num_per_cell, m_rng_states);
-  // CudaSafeCall(cudaDeviceSynchronize());
-  // CudaCheckError();
-
-  // ptc->add_num(new_pairs);
 }
 
 template class bh_injector<Config<2>>;

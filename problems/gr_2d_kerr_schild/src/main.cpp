@@ -24,6 +24,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/gather_tracked_ptc.h"
+#include "systems/compute_moments.h"
 #include "systems/grid_ks.h"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
@@ -48,16 +49,16 @@ main(int argc, char *argv[]) {
 
   auto &env = sim_environment::instance(&argc, &argv, true);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
+  // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   // domain_comm<Conf> comm;
   grid_ks_t<Conf> grid;
 
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
-  // auto pusher = env.register_system<ptc_updater_gr_ks_cu<Conf>>(grid);
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
+  auto moments = env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
@@ -75,38 +76,11 @@ main(int argc, char *argv[]) {
   env.get_data("Edelta", &D);
   // env.get_data("particles", &ptc);
 
-  initial_vacuum_wald(*B0, *D0, grid);
-  B->copy_from(*B0);
-  D->copy_from(*D0);
+  initial_vacuum_wald(*B, *D, grid);
+  // B->copy_from(*B0);
+  // D->copy_from(*D0);
 
-  pusher->fill_multiplicity(5, 1.0, 0.01);
-  // Logger::print_info("number of particles is {}", ptc->number());
-  // vec_t<value_t, 3> x_global(math::log(4.0), M_PI * 0.5 - 0.2, 0.0);
-  // index_t<2> pos;
-  // vec_t<value_t, 3> x;
-  // grid.from_global(x_global, pos, x);
-  // auto ext = grid.extent();
-  // typename Conf::idx_t idx(pos, ext);
-
-  // for (int i = 0; i < 1; i++) {
-  //   ptc->append(exec_tags::device{}, x, {0.57367008, 0.0, 1.565}, idx.linear,
-  //   1000.0,
-  //                   set_ptc_type_flag(0, PtcType::positron));
-  //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
-  // }
-  // CudaSafeCall(cudaDeviceSynchronize());
-
-  // index_t<2> pos(200, 768);
-  // auto ext = grid.extent();
-  // typename Conf::idx_t idx(pos, ext);
-
-  // for (int i = 0; i < 1; i++) {
-  //   ptc->append(exec_tags::device{}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f},
-  //   idx.linear, 1000.0,
-  //                   set_ptc_type_flag(0, PtcType::positron));
-  //   // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, , uint32_t cell)
-  // }
-  // CudaSafeCall(cudaDeviceSynchronize());
+  pusher->fill_multiplicity(1, 1.0);
 
   env.run();
 

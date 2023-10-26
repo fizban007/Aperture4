@@ -122,6 +122,13 @@ field_solver<Conf, ExecPolicy,
              coord_policy_gr_ks_sph>::register_data_components() {
   auto type = ExecPolicy<Conf>::data_mem_type();
   field_solver_base<Conf>::register_data_components_impl(type);
+
+  DdotB = sim_env().register_data<scalar_field<Conf>>(
+      "DdotB", this->m_grid, field_type::cell_centered, type);
+  Bmag = sim_env().register_data<scalar_field<Conf>>(
+      "B", this->m_grid, field_type::cell_centered, type);
+  Jmag = sim_env().register_data<scalar_field<Conf>>(
+      "J", this->m_grid, field_type::vert_centered, type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -137,89 +144,86 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
 
-        ExecPolicy<Conf>::loop(
-            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-              auto pos = get_pos(idx, ext);
-              // if (grid.is_in_bound(pos)) {
-              if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
-                value_t r =
-                    grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
-                value_t r_plus = grid_ks_t<Conf>::radius(
-                    grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
-                value_t r_minus = grid_ks_t<Conf>::radius(
-                    grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
-                value_t th =
-                    grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+        ExecPolicy<
+            Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+          auto pos = get_pos(idx, ext);
+          // if (grid.is_in_bound(pos)) {
+          if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+            value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+            value_t r_plus = grid_ks_t<Conf>::radius(
+                grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
+            value_t r_minus = grid_ks_t<Conf>::radius(
+                grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
+            value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
-                // Handle coordinate axis
-                if (math::abs(th) < 0.1f * grid.delta[1] ||
-                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
-                  auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
-                  // auxE[0][idx] = Metric_KS::ag_11(a, r, th) * D[0][idx] * grid.delta[0];
-                } else {
-                  auxE[0][idx] =
-                      // Metric_KS::ag_11(a, r, th) * D[0][idx] * grid.delta[0] +
-                      grid_ptrs.ag11dr_e[idx] * D[0][idx] +
-                      0.5 *
-                          (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus +
-                           Metric_KS::ag_13(a, r_plus, th) *
-                               D[2][idx.inc_x()] * r_plus) *
-                          grid.delta[0];
-                  // (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
-                  //  grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
-                  // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] +
-                  // D[2][idx.inc_x()]); 0.5 * Metric_KS::ag_13(a, r, th) *
-                  // (D[2][idx] + D[2][idx.inc_x()]);
-                }
+            // Handle coordinate axis
+            if (math::abs(th) < 0.1f * grid.delta[1] ||
+                math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+              // auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
+              auxE[0][idx] =
+                  Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0];
+            } else {
+              auxE[0][idx] =
+                  Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0] +
+                  // grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+                  0.5 *
+                      (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus +
+                       Metric_KS::ag_13(a, r_plus, th) * D[2][idx.inc_x()] *
+                           r_plus) *
+                      grid.delta[0];
+              // (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
+              //  grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
+              // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] +
+              // D[2][idx.inc_x()]); 0.5 * Metric_KS::ag_13(a, r, th) *
+              // (D[2][idx] + D[2][idx.inc_x()]);
+            }
 
-                r_plus = r;
-                r = r_minus;
-                r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) -
-                                                  0.5f * grid.delta[0]);
-                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+            r_plus = r;
+            r = r_minus;
+            r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) -
+                                              0.5f * grid.delta[0]);
+            th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
-                // auxE[1][idx] = Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
-                auxE[1][idx] =
-                    grid_ptrs.ag22dth_e[idx] * D[1][idx] -
-                    0.5 *
-                        (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
+            auxE[1][idx] =
+                Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
+                // auxE[1][idx] =
+                //     grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+                0.5 *
+                    (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
+                     Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                         B[2][idx.dec_x()]) *
+                    grid.delta[1];
+            // 0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
+            //        grid_ptrs.gbetadth_b[idx.dec_x()] *
+            //        B[2][idx.dec_x()]);
+            // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] +
+            // B[2][idx.dec_x()]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
+            // * (B[2][idx] + B[2][idx.dec_x()]);
+
+            th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+            // Handle coordinate axis
+            if (math::abs(th) < 0.1f * grid.delta[1] ||
+                math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+              auxE[2][idx] =
+                  0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                         Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]);
+              // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
+              // D[0][idx.dec_x()]);
+            } else {
+              auxE[2][idx] =
+                  Metric_KS::ag_33(a, r, th) * D[2][idx] +
+                  0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                         Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]) +
+                  0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
                          Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                             B[2][idx.dec_x()]) *
-                        grid.delta[1];
-                // 0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
-                //        grid_ptrs.gbetadth_b[idx.dec_x()] *
-                //        B[2][idx.dec_x()]);
-                // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] +
-                // B[2][idx.dec_x()]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
-                // * (B[2][idx] + B[2][idx.dec_x()]);
-
-                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
-
-                // Handle coordinate axis
-                if (math::abs(th) < 0.1f * grid.delta[1] ||
-                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
-                  auxE[2][idx] =
-                      0.5 *
-                      (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-                       Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]);
-                  // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
-                  // D[0][idx.dec_x()]);
-                } else {
-                  auxE[2][idx] =
-                      Metric_KS::ag_33(a, r, th) * D[2][idx] +
-                      0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-                             Metric_KS::ag_13(a, r_minus, th) *
-                                 D[0][idx.dec_x()]) +
-                      0.5 *
-                          (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
-                           Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                               B[1][idx.dec_x()]);
-                  // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
-                  // D[0][idx.dec_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r,
-                  // th) * (B[1][idx] + B[1][idx.dec_x()]);
-                }
-              }
-            });
+                             B[1][idx.dec_x()]);
+              // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
+              // D[0][idx.dec_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r,
+              // th) * (B[1][idx] + B[1][idx.dec_x()]);
+            }
+          }
+        });
       },
       B, D, *(m_auxE), m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
@@ -251,11 +255,13 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                 value_t th =
                     grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
+                // auxH[0][idx] =
+                // grid_ptrs.ag11dr_h[idx] * B[0][idx] +
                 auxH[0][idx] =
-                    grid_ptrs.ag11dr_h[idx] * B[0][idx] +
-                    // auxH[0][idx] = Metric_KS::ag_11(a, r, th) * B[0][idx] * r * grid.delta[0] +
+                    Metric_KS::ag_11(a, r, th) * B[0][idx] * r * grid.delta[0] +
                     0.5 *
-                        (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] * r_minus +
+                        (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] *
+                             r_minus +
                          Metric_KS::ag_13(a, r_plus, th) * B[2][idx] * r_plus) *
                         grid.delta[0];
                 // 0.5 * (grid_ptrs.ag13dr_b[idx.dec_x()] * B[2][idx.dec_x()] +
@@ -276,14 +282,14 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                   auxH[1][idx] = 0.0f;
                 } else {
                   auxH[1][idx] =
-                      grid_ptrs.ag22dth_h[idx] * B[1][idx] +
-                                 // Metric_KS::ag_22(a, r, th) * B[1][idx] * grid.delta[1] +
-                                 0.5 *
-                                     (Metric_KS::sq_gamma_beta(a, r_plus, th) *
-                                          D[2][idx.inc_x()] +
-                                      Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                                          D[2][idx]) *
-                                     grid.delta[1];
+                      // grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+                      Metric_KS::ag_22(a, r, th) * B[1][idx] * grid.delta[1] +
+                      0.5 *
+                          (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                               D[2][idx.inc_x()] +
+                           Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                               D[2][idx]) *
+                          grid.delta[1];
                   // 0.5 * (grid_ptrs.gbetadth_d[idx.inc_x()] *
                   //            D[2][idx.inc_x()] +
                   //        grid_ptrs.gbetadth_d[idx] *
@@ -349,9 +355,9 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
                                   (auxE[0][idx] - auxE[0][idx.inc_y()])) /
                                 grid_ptrs.Ab[2][idx];
 
-                if (pos[0] == 100 && pos[1] == grid.guard[1]) {
-                  printf("dBphi/dt is %f\n", dB_dt[2][idx]);
-                }
+                // if (pos[0] == 100 && pos[1] == grid.guard[1]) {
+                //   printf("dBphi/dt is %f\n", dB_dt[2][idx]);
+                // }
 
                 // Boundary conditions
                 if (pos[1] == grid.guard[1] && is_boundary[2]) {
@@ -404,8 +410,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                 if (pos[1] == grid.dims[1] - grid.guard[1] - 1 &&
                     is_boundary[3]) {
                   dD_dt[0][idx.inc_y()] =
-                      (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()] -
-                      J[0][idx.inc_y()];
+                      (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx] - J[0][idx];
 
                   // if (pos[0] == grid.guard[0] && is_boundary[0]) {
                   //   D[0][idx.inc_y().dec_x()] = D[0][idx.inc_y()];
@@ -503,7 +508,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   boundary_conditions(*m_tmpD, *m_tmpB);
 
   // Iterate EC several times
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 7; i++) {
     // Compute the RHS using new values at n+1
     compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
     compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));
@@ -570,11 +575,11 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
           ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
             auto pos = index_t<Conf::dim>(n0, grid.guard[1]);
             auto idx = typename Conf::idx_t(pos, ext);
-            // D[0][idx.dec_x()] = D[0][idx];
+            D[0][idx.dec_y()] = D[0][idx];
             // D[1][idx.dec_x()] = D[1][idx];
             // D[2][idx] = 0.0f;
-            // B[2][idx.dec_y()] = -B[2][idx];
-            // // B[2][idx] = 0.0f;
+            B[2][idx.dec_y()] = -B[2][idx];
+            // B[2][idx] = 0.0f;
             // B[1][idx] = 0.0f;
             // B[2][idx.dec_x()] = B[2][idx];
           });
@@ -592,11 +597,11 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
           ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
             auto pos = index_t<Conf::dim>(n0, grid.dims[1] - grid.guard[1] - 1);
             auto idx = typename Conf::idx_t(pos, ext);
-            // D[0][idx.dec_x()] = D[0][idx];
+            D[0][idx.inc_y()] = D[0][idx];
             // D[1][idx.dec_x()] = D[1][idx];
             // D[2][idx] = 0.0f;
-            // B[2][idx] = -B[2][idx.dec_y()];
-            // // B[2][idx] = 0.0f;
+            B[2][idx.inc_y()] = -B[2][idx];
+            // B[2][idx] = 0.0f;
             // B[1][idx] = 0.0f;
             // B[2][idx.dec_x()] = B[2][idx];
           });
@@ -613,10 +618,12 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
   iterate_predictor(dt);
 
   // apply damping boundary condition at outer boundary
-  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
-    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B), m_damping_length,
-                                       m_damping_coef);
-  }
+  // if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
+  // {
+  //   damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
+  //   m_damping_length,
+  //                                      m_damping_coef);
+  // }
 
   // this->Etotal->copy_from(*(this->E));
   // this->Btotal->copy_from(*(this->B));
@@ -672,5 +679,40 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
 template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_EB_sqr() {}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_DdotB_J_B() {
+  DdotB->init();
+  Bmag->init();
+  Jmag->init();
+  auto a = m_a;
+  ExecPolicy<Conf>::launch(
+      [a] LAMBDA(auto DdotB, auto Bmag, auto Jmag, auto e, auto b, auto j, auto grid_ptrs) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+        ExecPolicy<Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+          auto pos = get_pos(idx, ext);
+          auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+          auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+          auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+          auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+          auto sth = std::sin(th_s);
+          auto cth = std::cos(th_s);
+
+          vec_t<value_t, 3> e_vec{e[0][idx], e[1][idx], e[2][idx]};
+          vec_t<value_t, 3> b_vec{b[0][idx], b[1][idx], b[2][idx]};
+          vec_t<value_t, 3> j_vec{j[0][idx], j[1][idx], j[2][idx]};
+
+          DdotB[idx] = Metric_KS::dot_product_u(e_vec, b_vec, a, r, sth, cth);
+          Bmag[idx] = math::sqrt(Metric_KS::dot_product_u(b_vec, b_vec, a, r, sth, cth));
+          Jmag[idx] = math::sqrt(Metric_KS::dot_product_u(j_vec, j_vec, a, r, sth, cth));
+        });
+      },
+      DdotB, Bmag, Jmag, this->Etotal, this->Btotal, this->J, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::sync();
+}
 
 }  // namespace Aperture

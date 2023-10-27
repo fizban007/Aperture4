@@ -61,11 +61,13 @@ main(int argc, char *argv[]) {
   vec_t<int, 1> momentum_ext;
   vec_t<double, 1> momentum_lower;
   vec_t<double, 1> momentum_upper;
+  std::cout << "momuntum_size" << momentum_ext[0];
   sim_env().params().get_vec_t("momentum_ext", momentum_ext);
   sim_env().params().get_vec_t("momentum_lower", momentum_lower);
   sim_env().params().get_vec_t("momentum_upper", momentum_upper);
   double dp = (momentum_upper[0] - momentum_lower[0]) / momentum_ext[0];
 
+  cout << "before set_value" << std::endl;
   double p_stream = 0.5;
   sim_env().params().get_value("p_stream", p_stream);
 

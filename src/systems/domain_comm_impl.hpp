@@ -626,6 +626,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
           recv_idx, index_t<Conf::dim + dimP>{}, recv_buffers[dim].extent());
     }
   }
+
 }
 
 template <typename Conf, template <class> class ExecPolicy>

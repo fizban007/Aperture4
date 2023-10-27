@@ -55,6 +55,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   virtual void compute_divs_e_b() override;
   virtual void compute_flux() override;
   virtual void compute_EB_sqr() override;
+  void compute_DdotB_J_B();
 
   void iterate_predictor(double dt);
   void compute_aux_E(const vector_field<Conf>& B, const vector_field<Conf>& D);
@@ -72,6 +73,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   int m_damping_length = 20;
   const grid_ks_t<Conf>& m_ks_grid;
   const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
+
+  nonown_ptr<scalar_field<Conf>> DdotB, Bmag, Jmag;
 
   // typename Conf::multi_array_t m_tmp_th_field, m_tmp_prev_field, m_tmp_predictor;
   // buffer<typename Conf::value_t> m_tri_dl, m_tri_d, m_tri_du, sp_buffer;

@@ -39,6 +39,7 @@ class phase_space : public data_t {
   int m_num_bins[Dim];
   value_t m_lower[Dim];
   value_t m_upper[Dim];
+  value_t m_dp[Dim];
 
   phase_space(const grid_t& grid, int downsample, const int* num_bins,
               const value_t* lower, const value_t* upper,
@@ -53,6 +54,7 @@ class phase_space : public data_t {
       m_lower[i] = lower[i];
       m_upper[i] = upper[i];
       m_momentum_ext[i] = num_bins[i];
+      m_dp[i] = (upper[i] - lower[i]) / num_bins[i];
     }
 
     auto g_ext = grid.extent_less();
@@ -80,6 +82,27 @@ class phase_space : public data_t {
 #else
     data.assign(0.0);
 #endif
+  }
+
+  template <typename F>
+  void set_value(F f) {
+    for (auto idx : data.indices()) {
+      auto pos = idx.get_pos();
+      double x0 = m_grid.coord(0, pos[Dim], false);
+      double x1 = (Conf::dim > 1 ?
+        m_grid.coord(1, pos[Dim + 1], false) : 0.0);
+      double x2 = (Conf::dim > 2 ?
+        m_grid.coord(2, pos[Dim + 2], false) : 0.0);
+      double p0 = m_lower[0] + pos[0] * m_dp[0];
+      double p1 = (Dim > 1 ?
+        m_lower[1] + pos[1] * m_dp[1] : 0.0);
+      double p2 = (Dim > 2 ?
+        m_lower[2] + pos[2] * m_dp[2] : 0.0);
+      data[idx] = f(p0, p1, p2, x0, x1, x2);
+    }
+    if (data.mem_type() != MemType::host_only) {
+      data.copy_to_device();
+    }
   }
 
   void copy_to_host() { data.copy_to_host(); }

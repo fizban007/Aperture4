@@ -38,6 +38,19 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::vlasov_solver(
   df_tmp = std::make_unique<phase_space_vlasov<Conf, Dim_P>>(
       m_grid, m_momentum_ext.data(), m_momentum_lower.data(),
       m_momentum_upper.data());
+
+  // Default values are 1.0
+  float q_e = 1.0;
+  float ion_mass = 1.0;
+  sim_env().params().get_value("q_e", q_e);
+  sim_env().params().get_value("ion_mass", ion_mass);
+
+  for (int i = 0; i < (max_ptc_types); i++) {
+    m_charges[i] = q_e;
+    m_masses[i] = q_e;
+  }
+  m_charges[(int)PtcType::electron] *= -1.0;
+  m_masses[(int)PtcType::ion] *= ion_mass;
 }
 
 template <typename Conf, int Dim_P, template <class> class ExecPolicy,
@@ -62,6 +75,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
   auto p_upper = m_momentum_upper;
   auto p_delta = m_momentum_delta;
   auto num_species = m_num_species;
+  auto charges = m_charges;
+  auto masses = m_masses;
   using idx_t = default_idx_t<Conf::dim + Dim_P>;
 
   J.init();
@@ -69,8 +84,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
   for (int sp = 0; sp < num_species; sp++) {
     // Launch kernel to update f
     ExecPolicy<Conf>::launch(
-        [ext_total, dt, sp, p_delta, p_lower] LAMBDA(auto f, auto f_tmp, auto E,
-                                                     auto J) {
+        [ext_total, dt, sp, p_delta, p_lower, charges, masses] LAMBDA(
+            auto f, auto f_tmp, auto E, auto J) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(
@@ -78,7 +93,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
               [&] LAMBDA(auto idx) {
                 // pos is a 2D index, first index in p, second index in x
                 auto pos = get_pos(idx, ext_total);
-                typename Conf::idx_t idx_x(pos.template subset<Dim_P, Dim_P+Conf::dim>(), ext);
+                typename Conf::idx_t idx_x(
+                    pos.template subset<Dim_P, Dim_P + Conf::dim>(), ext);
                 auto pos_x = get_pos(idx_x, ext);
 
                 if (grid.is_in_bound(pos_x)) {
@@ -97,16 +113,17 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
 
                   // Update f in p
                   if (E[0][idx_x] > 0.0) {
-                    f_tmp[idx] += dt * math::abs(E[0][idx_x]) *
-                                  (f[sp][idx.inc_x()] - f[sp][idx]) /
-                                  p_delta[0];
+                    f_tmp[idx] -=
+                        dt * math::abs(E[0][idx_x]) * charges[sp] / masses[sp] *
+                        (f[sp][idx.inc_x()] - f[sp][idx]) / p_delta[0];
                   } else {
-                    f_tmp[idx] += dt * math::abs(E[0][idx_x]) *
-                                  (f[sp][idx.dec_x()] - f[sp][idx]) /
-                                  p_delta[0];
+                    f_tmp[idx] +=
+                        dt * math::abs(E[0][idx_x]) * charges[sp] / masses[sp] *
+                        (f[sp][idx] - f[sp][idx.dec_x()]) / p_delta[0];
                   }
                   // if (pos_x[0] == grid.guard[0] && f[sp][idx] > 0.0) {
-                  //   printf("pos is %d, f is %f\n", pos[0], f[sp][idx.dec_y()]);
+                  //   printf("pos is %d, f is %f\n", pos[0],
+                  //   f[sp][idx.dec_y()]);
                   // }
 
                   // // add df to f
@@ -114,7 +131,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
 
                   // update J
                   //  J[0][idx_x] -= v * (f[sp][idx] + df[idx]);
-                  atomic_add(&J[0][idx_x], -v * (f[sp][idx] + f_tmp[idx]) * p_delta[0]);
+                  atomic_add(&J[0][idx_x],
+                             charges[sp] * v * (f[sp][idx] + f_tmp[idx]) * p_delta[0]);
 
                   // update E
                   //  E[0][idx_x] -= J[0][idx_x]* dt;

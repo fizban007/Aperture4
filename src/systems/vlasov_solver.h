@@ -43,6 +43,10 @@ class vlasov_solver : public system_t {
   uint32_t m_num_species = 2;
   uint32_t m_data_interval = 1;
   uint32_t m_filter_times = 0;
+
+  vec_t<value_t, max_ptc_types> m_charges;
+  vec_t<value_t, max_ptc_types> m_masses;
+
   vec_t<int, Dim_P> m_momentum_ext;
   vec_t<value_t, Dim_P> m_momentum_lower;
   vec_t<value_t, Dim_P> m_momentum_upper;

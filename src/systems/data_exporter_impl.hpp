@@ -249,7 +249,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     //                                  "write_field");
   }
 
-  if (step % m_ptc_output_interval == 0) {
+  if (m_ptc_output_interval > 0 && step % m_ptc_output_interval == 0) {
     // Output tracked particles!
     std::string filename =
         fmt::format("{}ptc.{:05d}.h5", m_output_dir, m_ptc_num);

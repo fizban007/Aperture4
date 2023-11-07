@@ -21,7 +21,7 @@
 #include "core/domain_info.h"
 #include "core/particles.h"
 #include "data/fields.h"
-#include "data/phase_space.hpp"
+#include "data/phase_space_vlasov.hpp"
 #include "framework/system.h"
 #include "utils/mpi_helper.h"
 #include <mpi.h>
@@ -52,6 +52,7 @@ class domain_comm : public system_t {
   void resize_phase_space_buffers(const typename Conf::grid_t& grid,
                                   const extent_t<Dim_P>& momentum_ext) const;
 
+  void send_guard_cells(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid) const;
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_guard_cells(typename Conf::multi_array_t& array,
@@ -62,8 +63,7 @@ class domain_comm : public system_t {
                                     const typename Conf::grid_t& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
-  void send_phase_space(phase_space<Conf, 1>& data, const grid_t<Conf>& grid) const;
-  void send_phase_space_single_direction(phase_space<Conf, 1>& data, const grid_t<Conf>& grid,
+  void send_phase_space_single_direction(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid,
                                          int dim, int dir) const;
   void get_total_num_offset(const uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;

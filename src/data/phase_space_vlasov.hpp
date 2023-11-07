@@ -25,7 +25,7 @@ namespace Aperture {
 /// \brief Phase space data. Dim is the dimension of the phase space, which can
 /// be from 1 to 3.
 template <typename Conf, int Dim = 1>
-class phase_space : public data_t {
+class phase_space_vlasov : public data_t {
  public:
   using value_t = typename Conf::value_t;
   using grid_t = typename Conf::grid_t;
@@ -34,19 +34,18 @@ class phase_space : public data_t {
 
   extent_t<Conf::dim> m_grid_ext;
   extent_t<Dim> m_momentum_ext;
-  int m_downsample = 16;
   int m_log_scale = false;
   int m_num_bins[Dim];
   value_t m_lower[Dim];
   value_t m_upper[Dim];
   value_t m_dp[Dim];
 
-  phase_space(const grid_t& grid, int downsample, const int* num_bins,
-              const value_t* lower, const value_t* upper,
-              // const float* lower, const float* upper,
-              bool use_log_scale = false, MemType memtype = default_mem_type)
+  phase_space_vlasov(const grid_t& grid, const int* num_bins,
+                     const value_t* lower, const value_t* upper,
+                     // const float* lower, const float* upper,
+                     bool use_log_scale = false,
+                     MemType memtype = default_mem_type)
       : m_grid(grid) {
-    m_downsample = downsample;
     m_log_scale = use_log_scale;
 
     for (int i = 0; i < Dim; i++) {
@@ -57,15 +56,15 @@ class phase_space : public data_t {
       m_dp[i] = (upper[i] - lower[i]) / num_bins[i];
     }
 
-    auto g_ext = grid.extent_less();
+    auto g_ext = grid.extent();
     // ext is the total extent of the phase space
     extent_t<Conf::dim + Dim> ext;
 
     // The first Dim dimensions are momentum space dimensions, while the
     // subsequent Conf::dim dimensions are the spatial grid dimensions
     for (int i = 0; i < Conf::dim; i++) {
-      ext[i + Dim] = g_ext[i] / m_downsample;
-      m_grid_ext[i] = g_ext[i] / m_downsample;
+      ext[i + Dim] = g_ext[i];
+      m_grid_ext[i] = g_ext[i];
     }
     for (int i = 0; i < Dim; i++) {
       ext[i] = m_num_bins[i];
@@ -112,31 +111,31 @@ class phase_space : public data_t {
 };
 
 template <typename Conf, int Dim>
-struct host_adapter<phase_space<Conf, Dim>> {
+struct host_adapter<phase_space_vlasov<Conf, Dim>> {
   typedef ndptr<typename Conf::value_t, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> type;
   typedef ndptr_const<typename Conf::value_t, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>>
       const_type;
 
-  static inline const_type apply(const phase_space<Conf, Dim>& data) {
+  static inline const_type apply(const phase_space_vlasov<Conf, Dim>& data) {
     return data.data.host_ptr();
   }
 
-  static inline type apply(phase_space<Conf, Dim>& data) {
+  static inline type apply(phase_space_vlasov<Conf, Dim>& data) {
     return data.data.host_ptr();
   }
 };
 
 template <typename Conf, int Dim>
-struct gpu_adapter<phase_space<Conf, Dim>> {
+struct gpu_adapter<phase_space_vlasov<Conf, Dim>> {
   typedef ndptr<typename Conf::value_t, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>> type;
   typedef ndptr_const<typename Conf::value_t, Conf::dim + Dim, idx_col_major_t<Conf::dim + Dim>>
       const_type;
 
-  static inline const_type apply(const phase_space<Conf, Dim>& data) {
+  static inline const_type apply(const phase_space_vlasov<Conf, Dim>& data) {
     return data.data.dev_ptr();
   }
 
-  static inline type apply(phase_space<Conf, Dim>& data) {
+  static inline type apply(phase_space_vlasov<Conf, Dim>& data) {
     return data.data.dev_ptr();
   }
 };

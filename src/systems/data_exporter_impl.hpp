@@ -155,6 +155,9 @@ data_exporter<Conf, ExecPolicy>::write_field_data(data_t* data,
   } else if (auto* ptr = dynamic_cast<phase_space<Conf, 3>*>(data)) {
     Logger::print_detail("Writing 3D phase space data {}", name);
     write(*ptr, name, datafile, false);
+  } else if (auto* ptr = dynamic_cast<phase_space_vlasov<Conf, 1>*>(data)) {
+    Logger::print_detail("Writing 1D phase space data {}", name);
+    write(*ptr, name, datafile, false);
   } else if (auto* ptr = dynamic_cast<multi_array_data<float, 1>*>(data)) {
     Logger::print_detail("Writing 1D array {}", name);
     write(*ptr, name, datafile, false);
@@ -976,6 +979,58 @@ data_exporter<Conf, ExecPolicy>::write(phase_space<Conf, N>& data,
     //                    idx_dst[0], idx_dst[1], idx_dst[2], idx_dst[3],
     //                    ext_total[0], ext_total[1], ext_total[2],
     //                    ext_total[3]);
+
+    datafile.write_parallel(data.data, ext_total, idx_dst, ext, idx_src, name);
+  } else {
+    datafile.write(data.data, name);
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+template <int N>
+void
+data_exporter<Conf, ExecPolicy>::write(phase_space_vlasov<Conf, N>& data,
+                                       const std::string& name,
+                                       H5File& datafile, bool snapshot) {
+  // Should not include this in the snapshot either
+  if (snapshot) {
+    return;
+  }
+
+  data.copy_to_host();
+
+  // First figure out the extent and offset of each node
+  extent_t<Conf::dim + N> ext_total;
+  extent_t<Conf::dim + N> ext;
+  for (int i = 0; i < Conf::dim + N; i++) {
+    if (i < N) {
+      ext_total[i] = data.m_num_bins[i];
+      ext[i] = data.m_num_bins[i];
+    } else {
+      ext_total[i] = m_global_ext[i - N];
+      ext[i] = data.m_grid_ext[i - N] - 2 * m_grid.guard[i - N];
+    }
+  }
+  ext.get_strides();
+  ext_total.get_strides();
+
+  index_t<Conf::dim + N> idx_src{};
+  for (int i = 0; i < Conf::dim; i++) {
+    idx_src[i + N] = m_grid.guard[i];
+  }
+  index_t<Conf::dim + N> idx_dst{};
+  // FIXME: This again assumes a uniform grid, which is no good in the long term
+  if (is_multi_rank()) {
+    for (int i = 0; i < Conf::dim + N; i++) {
+      if (i < N) {
+        idx_dst[i] = 0;
+      } else {
+        idx_dst[i] = m_comm->domain_info().mpi_coord[i - N] * ext[i];
+      }
+    }
+    // Logger::print_info_all("idx_dst is {}, {}; ext_total is {}, {}", idx_dst[0],
+    //                        idx_dst[1], idx_dst[2], idx_dst[3], ext_total[0],
+    //                        ext_total[1], ext_total[2], ext_total[3]);
 
     datafile.write_parallel(data.data, ext_total, idx_dst, ext, idx_src, name);
   } else {

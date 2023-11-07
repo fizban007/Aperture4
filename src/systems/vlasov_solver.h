@@ -2,6 +2,7 @@
 
 #include <string>
 #include "data/data_array.hpp"
+#include "data/phase_space_vlasov.hpp"
 #include "framework/system.h"
 #include "systems/grid.h"
 #include "systems/domain_comm.h"
@@ -31,12 +32,12 @@ class vlasov_solver : public system_t {
   const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;
 
   // Data components
-  data_array<phase_space<Conf, Dim_P>> f;
+  data_array<phase_space_vlasov<Conf, Dim_P>> f;
   nonown_ptr<vector_field<Conf>> E, B, J;
   // data_array<scalar_field<Conf>> Rho;
 
   // Temp data
-  std::unique_ptr<phase_space<Conf, Dim_P>> df_tmp;
+  std::unique_ptr<phase_space_vlasov<Conf, Dim_P>> df_tmp;
 
   // Parameters
   uint32_t m_num_species = 2;

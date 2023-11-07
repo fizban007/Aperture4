@@ -35,8 +35,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::vlasov_solver(
   }
   m_ext_total.get_strides();
 
-  df_tmp = std::make_unique<phase_space<Conf, Dim_P>>(
-      m_grid, 1, m_momentum_ext.data(), m_momentum_lower.data(),
+  df_tmp = std::make_unique<phase_space_vlasov<Conf, Dim_P>>(
+      m_grid, m_momentum_ext.data(), m_momentum_lower.data(),
       m_momentum_upper.data());
 }
 
@@ -78,7 +78,7 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
               [&] LAMBDA(auto idx) {
                 // pos is a 2D index, first index in p, second index in x
                 auto pos = get_pos(idx, ext_total);
-                typename Conf::idx_t idx_x(pos[1], ext);
+                typename Conf::idx_t idx_x(pos.template subset<Dim_P, Dim_P+Conf::dim>(), ext);
                 auto pos_x = get_pos(idx_x, ext);
 
                 if (grid.is_in_bound(pos_x)) {
@@ -105,6 +105,9 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
                                   (f[sp][idx.dec_x()] - f[sp][idx]) /
                                   p_delta[0];
                   }
+                  // if (pos_x[0] == grid.guard[0] && f[sp][idx] > 0.0) {
+                  //   printf("pos is %d, f is %f\n", pos[0], f[sp][idx.dec_y()]);
+                  // }
 
                   // // add df to f
                   // f[sp][idx] += df[idx];
@@ -126,7 +129,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy, CoordPolicy>::update(double dt,
         m_ext_total);
 
     // Communicate
-    m_comm->send_phase_space(*f[sp], m_grid);
+    m_comm->send_guard_cells(*f[sp], m_grid);
+    m_comm->send_guard_cells(J);
   }
 }
 
@@ -138,8 +142,8 @@ vlasov_solver<Conf, Dim_P, ExecPolicy,
   // Declare required data components here
   f.resize(m_num_species);
   for (int i = 0; i < m_num_species; i++) {
-    f.set(i, sim_env().register_data<phase_space<Conf, Dim_P>>(
-                 std::string("f_") + ptc_type_name(i), m_grid, 1,
+    f.set(i, sim_env().register_data<phase_space_vlasov<Conf, Dim_P>>(
+                 std::string("f_") + ptc_type_name(i), m_grid,
                  m_momentum_ext.data(), m_momentum_lower.data(),
                  m_momentum_upper.data()));
     f[i]->include_in_snapshot(true);

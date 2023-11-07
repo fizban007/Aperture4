@@ -16,7 +16,7 @@
  */
 
 #include "data/fields.h"
-#include "data/phase_space.hpp"
+#include "data/phase_space_vlasov.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/data_exporter.h"
@@ -40,21 +40,21 @@ main(int argc, char *argv[]) {
 
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_t<Conf> grid(comm);
+  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
+      grid, &comm);
   auto vlasov = env.register_system<
       vlasov_solver<Conf, 1, exec_policy_dynamic, coord_policy_cartesian>>(
       grid, &comm);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
                                                                        &comm);
-  auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
-      grid, &comm);
 
   env.init();
 
   cout << "after init" << endl;
 
   // Prepare initial conditions
-  std::vector<phase_space<Conf, 1> *> f(2);
+  std::vector<phase_space_vlasov<Conf, 1> *> f(2);
   env.get_data("f_e", &f[0]);
   env.get_data("f_p", &f[1]);
 
@@ -75,13 +75,20 @@ main(int argc, char *argv[]) {
   sim_env().params().get_value("p_stream", p_stream);
 
   f[0]->set_value(
-      [=](double p0, double p1, double p2, double x0, double x1, double x2) {
-        if (math::abs(math::abs(p0) - p_stream) < 0.5 * dp) {
-          // if (math::abs(x0 - 0.5) < 0.1)
-          return 1.0 / dp + 1.0e-1 * std::cos(2.0 * M_PI * x0);
+      [=](double p1, double p2, double p3, double x1, double x2, double x3) {
+        if (math::abs(math::abs(p1) - p_stream) < 0.5 * dp) {
+          // if (math::abs(x1 - 0.8) < 0.1)
+          return 1.0 / dp + 1.0e-1 * std::cos(2.0 * M_PI * x1);
+          // return 1.0 / dp;
         }
         return 0.0;
       });
+  comm.send_guard_cells(*f[0], grid);
+  // f[0]->copy_to_host();
+  // Logger::print_info("f is {}", f[0]->data(625, 1));
+  // Logger::print_info("f is {}", f[0]->data(625, 2));
+  // Logger::print_info("f is {}", f[0]->data(625, 1002));
+  // Logger::print_info("f is {}", f[0]->data(625, 1003));
 
   env.run();
   return 0;

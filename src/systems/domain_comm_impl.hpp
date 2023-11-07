@@ -233,6 +233,7 @@ domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
     }
   }
 
+  Logger::print_debug("ext_total is {}x{}", ext_total[0], ext_total[1]);
   m_phase_buffers_ready = true;
 }
 
@@ -561,8 +562,8 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-domain_comm<Conf, ExecPolicy>::send_phase_space(
-    phase_space<Conf, 1> &data, const grid_t<Conf> &grid) const {
+domain_comm<Conf, ExecPolicy>::send_guard_cells(
+    phase_space_vlasov<Conf, 1> &data, const grid_t<Conf> &grid) const {
   if (!m_phase_buffers_ready) resize_phase_space_buffers(grid, data.m_momentum_ext);
 
   // Send to left
@@ -574,7 +575,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space(
 template <typename Conf, template <class> class ExecPolicy>
 void
 domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
-    phase_space<Conf, 1> &data, const grid_t<Conf> &grid, int dim, int dir) const {
+    phase_space_vlasov<Conf, 1> &data, const grid_t<Conf> &grid, int dim, int dir) const {
   if (dim < 0 || dim >= Conf::dim) return;
   constexpr int dimP = 1;
 
@@ -601,6 +602,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
     copy(typename ExecPolicy<Conf>::exec_tag{}, array, array, recv_idx,
          send_idx, send_buffers[dim].extent());
   } else {
+  // if (true) {
     auto &array = data.data;
     copy(typename ExecPolicy<Conf>::exec_tag{}, send_buffers[dim], array,
          index_t<Conf::dim + dimP>{}, send_idx, send_buffers[dim].extent());

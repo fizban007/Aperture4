@@ -78,7 +78,7 @@ main(int argc, char *argv[]) {
       [=](double p1, double p2, double p3, double x1, double x2, double x3) {
         if (math::abs(math::abs(p1) - p_stream) < 0.5 * dp) {
           // if (math::abs(x1 - 0.8) < 0.1)
-          return 1.0 / dp + 1.0e-1 * std::cos(2.0 * M_PI * x1);
+          return (1.0 + 1.0e-2 * std::sin(2.0 * M_PI / 10.0 * x1)) / dp;
           // return 1.0 / dp;
         }
         return 0.0;

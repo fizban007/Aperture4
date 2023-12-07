@@ -35,8 +35,8 @@ template class ptc_updater<Config<1>, exec_policy_gpu, coord_policy_cartesian>;
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_cartesian>;
 template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_cartesian>;
 
-template class ptc_updater<Config<2>, exec_policy_gpu,
-                           coord_policy_cartesian_gca>;
+// template class ptc_updater<Config<2>, exec_policy_gpu,
+                        //    coord_policy_cartesian_gca>;
 template class ptc_updater<Config<2>, exec_policy_gpu,
                            coord_policy_cartesian_sync_cooling>;
 
@@ -46,13 +46,13 @@ template class ptc_updater<Config<3>, exec_policy_gpu,
                            coord_policy_cartesian_gca_lite>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical>;
-template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical>;
+// template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical_sync_cooling>;
-template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical_sync_cooling>;
+// template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical_sync_cooling>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_polar>;
-template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_polar_sync_cooling>;
+// template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_polar_sync_cooling>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_gr_ks_sph>;
 

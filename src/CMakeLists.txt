@@ -1,4 +1,5 @@
 set(Aperture_src
+<<<<<<< HEAD
   "${CMAKE_CURRENT_SOURCE_DIR}/core/buffer_impl.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/core/detail/multi_array_helpers.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/core/particles_functions.cpp"
@@ -32,6 +33,7 @@ set(Aperture_host_src
   "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_sph.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/systems/ptc_updater.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/systems/radiative_transfer.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/vlasov_solver.cpp"
   PARENT_SCOPE)
 if (NOT build_for_frontier)
   set_source_files_properties(${Aperture_src} ${Aperture_host_src} PROPERTIES LANGUAGE CXX)
@@ -55,7 +57,7 @@ if (use_cuda OR use_hip)
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_cartesian.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_sph.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_gr_ks.hip.cpp"
-    # "systems/field_solver_polar.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/vlasov_solver.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/ptc_updater.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/radiative_transfer.hip.cpp"
     PARENT_SCOPE)

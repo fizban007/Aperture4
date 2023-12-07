@@ -43,10 +43,14 @@ class grid_ks_t : public grid_t<Conf> {
     typename Conf::ndptr_const_t ag11dr_e;
     typename Conf::ndptr_const_t ag13dr_h;
     typename Conf::ndptr_const_t ag13dr_e;
+    typename Conf::ndptr_const_t ag13dr_b;
+    typename Conf::ndptr_const_t ag13dr_d;
     typename Conf::ndptr_const_t ag22dth_h;
     typename Conf::ndptr_const_t ag22dth_e;
     typename Conf::ndptr_const_t gbetadth_h;
     typename Conf::ndptr_const_t gbetadth_e;
+    typename Conf::ndptr_const_t gbetadth_b;
+    typename Conf::ndptr_const_t gbetadth_d;
     vec_t<typename Conf::ndptr_const_t, 3> Ad;
     vec_t<typename Conf::ndptr_const_t, 3> Ab;
   };
@@ -96,10 +100,14 @@ class grid_ks_t : public grid_t<Conf> {
   multi_array<value_t, Conf::dim> m_ag11dr_e;
   multi_array<value_t, Conf::dim> m_ag13dr_h;
   multi_array<value_t, Conf::dim> m_ag13dr_e;
+  multi_array<value_t, Conf::dim> m_ag13dr_b;
+  multi_array<value_t, Conf::dim> m_ag13dr_d;
   multi_array<value_t, Conf::dim> m_ag22dth_h;
   multi_array<value_t, Conf::dim> m_ag22dth_e;
   multi_array<value_t, Conf::dim> m_gbetadth_h;
   multi_array<value_t, Conf::dim> m_gbetadth_e;
+  multi_array<value_t, Conf::dim> m_gbetadth_b;
+  multi_array<value_t, Conf::dim> m_gbetadth_d;
 };
 
 }  // namespace Aperture

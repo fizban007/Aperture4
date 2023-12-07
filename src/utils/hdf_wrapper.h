@@ -52,6 +52,9 @@ class H5File {
 
   template <typename T, int Dim, typename Idx_t>
   void write(const multi_array<T, Dim, Idx_t>& array, const std::string& name);
+  // template <typename T, int Dim, typename Idx_t>
+  // void write(const multi_array<T, Dim, Idx_t>& array, const std::string& name,
+  //            const index_t<Dim>& pos, const extent_t<Dim>& ext);
   template <typename T>
   void write(const buffer<T>& array, const std::string& name);
   template <typename T>

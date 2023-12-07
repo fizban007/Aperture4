@@ -271,6 +271,18 @@ get_pos(const idx_col_major_t<3>& idx, const extent_t<3>& ext) {
   return index_t<3>(idx.linear - tmp * ext[0], tmp - tmp2 * ext[1], tmp2);
 }
 
+template <>
+HD_INLINE index_t<4>
+get_pos(const idx_col_major_t<4>& idx, const extent_t<4>& ext) {
+  auto tmp = idx.linear / ext[0];
+  auto tmp2 = tmp / ext[1];
+  auto tmp3 = tmp2 / ext[2];
+  return index_t<4>(idx.linear - tmp * ext[0],
+                    tmp - tmp2 * ext[1],
+                    tmp2 - tmp3 * ext[2],
+                    tmp3);
+}
+
 template <int Rank>
 struct idx_row_major_t : public idx_base_t<idx_row_major_t<Rank>, Rank> {
   // index_t<Rank> strides;
@@ -382,6 +394,15 @@ HD_INLINE index_t<3>
 get_pos(const idx_row_major_t<3>& idx, const extent_t<3>& ext) {
   return index_t<3>(idx.linear / (ext[0] * ext[1]),
                     (idx.linear / ext[0]) % ext[1], idx.linear % ext[0]);
+}
+
+template <>
+HD_INLINE index_t<4>
+get_pos(const idx_row_major_t<4>& idx, const extent_t<4>& ext) {
+  return index_t<4>(idx.linear / (ext[0] * ext[1] * ext[2]),
+                    (idx.linear / (ext[0] * ext[1])) % ext[2],
+                    (idx.linear / ext[0]) % ext[1],
+                    idx.linear % ext[0]);
 }
 
 template <int Rank>

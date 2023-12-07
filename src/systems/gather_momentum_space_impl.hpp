@@ -70,8 +70,8 @@ void gather_momentum_space<Conf, ExecPolicy>::register_data_components() {
   momenta.resize(m_num_species);
   energies.resize(m_num_species);
   int energy_bins[2] = {m_num_bins[3], m_pitch_bins};
-  float energy_lim_lower[2] = {m_lim_lower[3], -1.0f};
-  float energy_lim_upper[2] = {m_lim_upper[3], 1.0f};
+  value_t energy_lim_lower[2] = {m_lim_lower[3], -1.0f};
+  value_t energy_lim_upper[2] = {m_lim_upper[3], 1.0f};
 
   for (int i = 0; i < m_num_species; i++) {
     momenta.set(i, sim_env().register_data<phase_space<Conf, 3>>(
@@ -104,8 +104,8 @@ void gather_momentum_space<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   momenta.init();
   // Convert these into things that can be passed onto the gpu
   vec_t<int, 4> num_bins(m_num_bins);
-  vec_t<float, 4> lower(m_lim_lower);
-  vec_t<float, 4> upper(m_lim_upper);
+  vec_t<value_t, 4> lower(m_lim_lower);
+  vec_t<value_t, 4> upper(m_lim_upper);
   bool log_scale = m_use_log_scale;
   int pitch_bins = m_pitch_bins;
 

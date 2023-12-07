@@ -119,6 +119,12 @@ class params_store {
     }
 
     template <int Dim>
+    void operator()(const char* name, vec_t<int, Dim>& x) {
+      auto v = store.get_as<std::vector<int64_t>>(name);
+      for (int i = 0; i < std::min((size_t)Dim, v.size()); i++) x[i] = v[i];
+    }
+
+    template <int Dim>
     void operator()(const char* name, vec_t<uint32_t, Dim>& x) {
       auto v = store.get_as<std::vector<int64_t>>(name);
       for (int i = 0; i < std::min((size_t)Dim, v.size()); i++) x[i] = v[i];

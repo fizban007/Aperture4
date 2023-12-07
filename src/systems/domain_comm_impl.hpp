@@ -205,13 +205,35 @@ domain_comm<Conf, ExecPolicy>::resize_buffers(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
+template <int Dim_P>
 void
 domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
-    const typename Conf::grid_t &grid) const {
+    const typename Conf::grid_t &grid,
+    const extent_t<Dim_P> &momentum_ext) const {
   Logger::print_debug("Resizing phase space buffers");
   if (m_phase_buffers_ready) return;
-  // TODO: implement this function
 
+  // Only resize the 1 momentum dimensional buffer, since that is the only case we implement
+  // for (int i = 0; i < Conf::dim; i++) {
+  extent_t<Conf::dim + Dim_P> ext_total;
+  for (int i = 0; i < Dim_P; i++) {
+    ext_total[i] = momentum_ext[i];
+  }
+  for (int i = Dim_P; i < Dim_P + Conf::dim; i++) {
+    ext_total[i] = grid.dims[i - Dim_P];
+  }
+  for (int i = 0; i < Conf::dim; i++) {
+    if (Dim_P == 1) {
+      ext_total[Dim_P + i] = grid.guard[i];
+      m_phase_space_send_buffers1d.emplace_back(
+          ext_total, ExecPolicy<Conf>::data_mem_type());
+      m_phase_space_recv_buffers1d.emplace_back(
+          ext_total, ExecPolicy<Conf>::data_mem_type());
+      ext_total[Dim_P + i] = grid.dims[i];
+    }
+  }
+
+  Logger::print_debug("ext_total is {}x{}", ext_total[0], ext_total[1]);
   m_phase_buffers_ready = true;
 }
 
@@ -539,10 +561,73 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-template <int Dim>
 void
-domain_comm<Conf, ExecPolicy>::send_phase_space(
-    phase_space<Conf, Dim> &data, const grid_t<Conf> &grid) const {
+domain_comm<Conf, ExecPolicy>::send_guard_cells(
+    phase_space_vlasov<Conf, 1> &data, const grid_t<Conf> &grid) const {
+  if (!m_phase_buffers_ready) resize_phase_space_buffers(grid, data.m_momentum_ext);
+
+  // Send to left
+  send_phase_space_single_direction(data, grid, 0, -1);
+  // Send to right
+  send_phase_space_single_direction(data, grid, 0, 1);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
+    phase_space_vlasov<Conf, 1> &data, const grid_t<Conf> &grid, int dim, int dir) const {
+  if (dim < 0 || dim >= Conf::dim) return;
+  constexpr int dimP = 1;
+
+  int dest, origin;
+
+  dest = (dir == -1 ? m_domain_info.neighbor_left[dim]
+                    : m_domain_info.neighbor_right[dim]);
+  origin = (dir == -1 ? m_domain_info.neighbor_right[dim]
+                      : m_domain_info.neighbor_left[dim]);
+
+  MPI_Status status;
+  auto& send_buffers = m_phase_space_send_buffers1d;
+  auto& recv_buffers = m_phase_space_recv_buffers1d;
+
+  // Index send_idx(0, 0, 0);
+  auto send_idx = index_t<Conf::dim + dimP>{};
+  send_idx[dim + dimP] =
+      (dir == -1 ? grid.guard[dim] : grid.dims[dim] - 2 * grid.guard[dim]);
+  auto recv_idx = index_t<Conf::dim + dimP>{};
+  recv_idx[dim + dimP] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
+
+  if (dest == m_rank && origin == m_rank) {
+    auto &array = data.data;
+    copy(typename ExecPolicy<Conf>::exec_tag{}, array, array, recv_idx,
+         send_idx, send_buffers[dim].extent());
+  } else {
+  // if (true) {
+    auto &array = data.data;
+    copy(typename ExecPolicy<Conf>::exec_tag{}, send_buffers[dim], array,
+         index_t<Conf::dim + dimP>{}, send_idx, send_buffers[dim].extent());
+
+    auto send_ptr = send_buffers[dim].host_ptr();
+    auto recv_ptr = recv_buffers[dim].host_ptr();
+    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+      send_ptr = send_buffers[dim].dev_ptr();
+      recv_ptr = recv_buffers[dim].dev_ptr();
+    } else {
+      send_buffers[dim].copy_to_host();
+    }
+
+    MPI_Sendrecv(send_ptr, send_buffers[dim].size(), m_scalar_type, dest, 0,
+                 recv_ptr, recv_buffers[dim].size(), m_scalar_type, origin, 0,
+                 m_cart, &status);
+
+    if (origin != MPI_PROC_NULL) {
+      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+        recv_buffers[dim].copy_to_device();
+      }
+      copy(typename ExecPolicy<Conf>::exec_tag{}, array, recv_buffers[dim],
+          recv_idx, index_t<Conf::dim + dimP>{}, recv_buffers[dim].extent());
+    }
+  }
 
 }
 

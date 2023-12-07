@@ -410,7 +410,8 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                 if (pos[1] == grid.dims[1] - grid.guard[1] - 1 &&
                     is_boundary[3]) {
                   dD_dt[0][idx.inc_y()] =
-                      (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx] - J[0][idx];
+                      (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()]
+                      - J[0][idx.inc_y()];
 
                   // if (pos[0] == grid.guard[0] && is_boundary[0]) {
                   //   D[0][idx.inc_y().dec_x()] = D[0][idx.inc_y()];
@@ -575,12 +576,12 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
           ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
             auto pos = index_t<Conf::dim>(n0, grid.guard[1]);
             auto idx = typename Conf::idx_t(pos, ext);
-            D[0][idx.dec_y()] = D[0][idx];
+            D[0][idx.dec_y()] = D[0][idx.inc_y()];
             // D[1][idx.dec_x()] = D[1][idx];
-            // D[2][idx] = 0.0f;
+            D[2][idx] = 0.0f;
             B[2][idx.dec_y()] = -B[2][idx];
             // B[2][idx] = 0.0f;
-            // B[1][idx] = 0.0f;
+            B[1][idx] = 0.0f;
             // B[2][idx.dec_x()] = B[2][idx];
           });
         },
@@ -597,12 +598,12 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
           ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
             auto pos = index_t<Conf::dim>(n0, grid.dims[1] - grid.guard[1] - 1);
             auto idx = typename Conf::idx_t(pos, ext);
-            D[0][idx.inc_y()] = D[0][idx];
+            // D[0][idx.inc_y()] = D[0][idx];
             // D[1][idx.dec_x()] = D[1][idx];
-            // D[2][idx] = 0.0f;
+            D[2][idx.inc_y()] = 0.0f;
             B[2][idx.inc_y()] = -B[2][idx];
             // B[2][idx] = 0.0f;
-            // B[1][idx] = 0.0f;
+            B[1][idx.inc_y()] = 0.0f;
             // B[2][idx.dec_x()] = B[2][idx];
           });
         },

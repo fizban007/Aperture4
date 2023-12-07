@@ -5,10 +5,13 @@ module load cmake/3.23.2
 #module load cuda/11.0.3
 #module load gcc/9.3.0
 module load PrgEnv-amd/8.4.0
+#module load PrgEnv-cray
 module load boost/1.79.0-cxx17
 module load cray-mpich/8.1.23
+#module load cray-mpich
 module load cray-hdf5-parallel
 module load craype-accel-amd-gfx90a
+module load xpmem
 #module load hdf5_perf/1.10.6.gcc
 
 #export PAMI_ENABLE_STRIPING=1

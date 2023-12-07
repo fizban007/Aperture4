@@ -105,6 +105,7 @@ class sim_environment_impl {
   // auto register_system(Args&&... args) -> gsl::not_null<System*> {
   auto register_system(Args&&... args) -> nonown_ptr<System> {
     const std::string& name = System::name();
+    Logger::print_debug("registering system {}", name);
     // Check if the system has already been installed. If so, return it
     // directly
     auto it = m_system_map.find(name);

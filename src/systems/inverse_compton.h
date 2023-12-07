@@ -38,6 +38,8 @@ class inverse_compton_t : public system_t {
 
   ic_scatter_t get_ic_module();
 
+  void init() {}
+
   const buffer<value_t>& ic_rate() const { return m_ic_rate; }
   const buffer<value_t>& gg_rate() const { return m_gg_rate; }
   const multi_array<value_t, 2, idx_col_major_t<2>>& dNde() const {

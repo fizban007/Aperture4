@@ -1,76 +1,79 @@
 set(Aperture_src
-  "utils/logger.cpp"
-  "utils/timer.cpp"
-  "utils/mpi_helper.cpp"
-  "utils/hdf_wrapper.cpp"
-  "framework/environment.cpp"
-  "framework/params_store.cpp"
-  "data/fields.cpp"
-  "data/rng_states.cpp"
-  "core/buffer_impl.cpp"
-  "core/detail/multi_array_helpers.cpp"
-  "core/particles.cpp"
-  "core/particles_functions.cpp"
-  "data/particle_data.cpp"
-  "data/tracked_ptc.cpp"
-  "systems/data_exporter.cpp"
-  "systems/domain_comm.cpp"
-  "systems/grid.cpp"
-  "systems/grid_sph.cpp"
-  "systems/grid_polar.cpp"
-  "systems/grid_ks.cpp"
-  "systems/compute_moments.cpp"
-  "systems/gather_momentum_space.cpp"
-  "systems/gather_tracked_ptc.cpp"
-  "systems/inverse_compton.cpp"
-  "systems/field_solver_cartesian.cpp"
-  "systems/field_solver_gr_ks.cpp"
-  "systems/field_solver_sph.cpp"
-  "systems/ptc_updater.cpp"
-  "systems/radiative_transfer.cpp"
-  "systems/sync_curv_emission.cpp"
-  )
-set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
-add_library(Aperture STATIC ${Aperture_src})
-target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
-  ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+  "${CMAKE_CURRENT_SOURCE_DIR}/core/buffer_impl.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/core/detail/multi_array_helpers.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/core/particles_functions.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/data/rng_states.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/logger.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/timer.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/mpi_helper.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/hdf_wrapper.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/framework/environment.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/framework/params_store.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/data/fields.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/data/tracked_ptc.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/data/particle_data.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/core/particles.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/inverse_compton.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/grid.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/grid_sph.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/grid_polar.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/grid_ks.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/sync_curv_emission.cpp"
+  PARENT_SCOPE
+)
+set(Aperture_host_src
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/data_exporter.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/domain_comm.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/compute_moments.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/gather_momentum_space.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/gather_tracked_ptc.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_cartesian.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_gr_ks.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_sph.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/ptc_updater.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/systems/radiative_transfer.cpp"
+  PARENT_SCOPE)
+if (NOT build_for_frontier)
+  set_source_files_properties(${Aperture_src} ${Aperture_host_src} PROPERTIES LANGUAGE CXX)
+  add_library(Aperture STATIC ${Aperture_src} ${Aperture_host_src})
+  target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
+    ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+endif()
 
 if (use_cuda OR use_hip)
   set(Aperture_dev_src
-    "core/buffer_impl.hip.cpp"
-    "core/constant_mem.hip.cpp"
-    "core/detail/multi_array_helpers.hip.cpp"
-    "core/particles_functions.hip.cpp"
-    "data/rng_states.hip.cpp"
-    "systems/data_exporter.hip.cpp"
-    "systems/domain_comm.hip.cpp"
-    "systems/field_solver_cartesian.hip.cpp"
-    "systems/field_solver_sph.hip.cpp"
-    "systems/field_solver_gr_ks.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/buffer_impl.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/constant_mem.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/detail/multi_array_helpers.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/particles_functions.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/rng_states.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/data_exporter.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/domain_comm.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/compute_moments.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/gather_momentum_space.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/gather_tracked_ptc.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_cartesian.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_sph.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/field_solver_gr_ks.hip.cpp"
     # "systems/field_solver_polar.hip.cpp"
-    "systems/compute_moments.hip.cpp"
-    "systems/gather_momentum_space.hip.cpp"
-    "systems/gather_tracked_ptc.hip.cpp"
-    "systems/ptc_updater.hip.cpp"
-    "systems/radiative_transfer.hip.cpp"
-    )
-  if (use_cuda AND CMAKE_CUDA_COMPILER)
-    set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)
-  elseif(use_hip)
-    set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE HIP)
-  endif()
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/ptc_updater.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/systems/radiative_transfer.hip.cpp"
+    PARENT_SCOPE)
+  set_compile_gpu(${Aperture_dev_src})
 
-  add_library(Aperture_dev ${Aperture_dev_src})
-  target_link_libraries(Aperture_dev PUBLIC Aperture)
-  if (use_cuda AND CMAKE_CUDA_COMPILER)
-    target_link_libraries(Aperture_dev PUBLIC ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
-    # target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
-  endif()
+  if (NOT build_for_frontier)
+    add_library(Aperture_dev ${Aperture_dev_src})
+    target_link_libraries(Aperture_dev PUBLIC Aperture)
+    if (use_cuda AND CMAKE_CUDA_COMPILER)
+      target_link_libraries(Aperture_dev PUBLIC ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+      # target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+    endif()
 
-  if (use_hip AND CMAKE_HIP_COMPILER)
-    # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
-    target_link_libraries(Aperture_dev PUBLIC hip::host hip::device roc::rocthrust)
-    # target_link_libraries(Aperture hip::host hip::device roc::rocthrust)
+    if (use_hip AND CMAKE_HIP_COMPILER)
+      # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
+      target_link_libraries(Aperture_dev PUBLIC hip::host hip::device roc::rocthrust)
+      # target_link_libraries(Aperture hip::host hip::device roc::rocthrust)
+    endif()
   endif()
 endif()
 # else()

@@ -38,7 +38,8 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
     )
-  set_source_files_properties(${test_dev_src} PROPERTIES LANGUAGE CUDA)
+  # set_source_files_properties(${test_dev_src} PROPERTIES LANGUAGE CUDA)
+  set_compile_gpu(${test_dev_src})
 elseif(use_hip)
   set(test_dev_src
     "test_multi_array.cu"
@@ -49,10 +50,11 @@ elseif(use_hip)
     "test_rng.cu"
     # "compare_new_pusher_sph.cpp"
     )
-  set_source_files_properties(${test_dev_src} PROPERTIES
-    LANGUAGE HIP
-    # COMPILE_FLAGS "-save-temps"
-    )
+  # set_source_files_properties(${test_dev_src} PROPERTIES
+  #   LANGUAGE HIP
+  #   # COMPILE_FLAGS "-save-temps"
+  #   )
+  set_compile_gpu(${test_dev_src})
   # target_sources(tests_dev PUBLIC
 endif()
   add_executable(tests_dev

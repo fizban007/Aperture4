@@ -135,6 +135,10 @@ sim_environment_impl::init() {
   dt = m_params.get_as<double>("dt", 0.01);
   perf_interval = m_params.get_as<int64_t>("perf_interval", 10);
 
+  Logger::print_debug("The system names are:");
+  for (auto& name : m_system_order) {
+    Logger::print_debug("{}", name);
+  }
   // Initialize systems following declaration order
   for (auto& name : m_system_order) {
     auto& s = m_system_map[name];

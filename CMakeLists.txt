@@ -15,6 +15,7 @@ option(build_docs "Build the documentation" OFF)
 option(lib_only "Only build the core Aperture library" OFF)
 option(use_boost_filesystem "Use boost filesystem instead of std::filesystem" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
+option(build_for_frontier "Building for frontier" OFF)
 
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
@@ -71,9 +72,12 @@ if (OPENMP_FOUND)
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
+if (BOOST_FOUND)
+  message(${Boost_INCLUDE_DIRS})
+endif()
 
 # Set include directories
-set(BOOST_INCLUDE_DIR deps)
+set(BOOST_PREPROCESSOR_INCLUDE_DIR deps)
 set(FMT_INCLUDE_DIR deps/fmt/include)
 set(CATCH_INCLUDE_DIR deps/catch/src)
 set(VISIT_STRUCT_INCLUDE_DIR deps/visit_struct/include)
@@ -83,7 +87,7 @@ set(GSL_INCLUDE_DIR deps/gsl/include)
 set(VECTORCLASS_INCLUDE_DIR deps/vectorclass1)
 
 include_directories(
-  ${BOOST_INCLUDE_DIR}
+  ${BOOST_PREPROCESSOR_INCLUDE_DIR}
   ${MPI_INCLUDE_PATH}
   ${HDF5_INCLUDE_DIR}
   ${FMT_INCLUDE_DIR}
@@ -93,6 +97,7 @@ include_directories(
   ${CXXOPT_INCLUDE_DIR}
   ${GSL_INCLUDE_DIR}
   ${VECTORCLASS_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
   src)
 
 # Check for cuda support
@@ -113,12 +118,13 @@ if(use_cuda)
     include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
                         ${CUDA_INCLUDE_DIRS})
     #set(CUDA_EXTRA_FLAGS "-DNO_WARN_X86_INTRINSICS")
+    set(CUDA_EXTRA_FLAGS "-Wno-unused-variable")
     set(CMAKE_CUDA_FLAGS
         "--expt-extended-lambda --expt-relaxed-constexpr\
       -lcusparse -lcublas -lcurand -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored \
       -Xcudafe --diag_suppress=code_is_unreachable ${CUDA_EXTRA_FLAGS}")
     # set_property(TARGET myTarget PROPERTY CUDA_ARCHITECTURES 35 50 72)
-    set(CMAKE_CUDA_ARCHITECTURES native)
+    set(CMAKE_CUDA_ARCHITECTURES 70)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
@@ -171,9 +177,20 @@ if(use_hip)
     set(HDF5_DIR $ENV{HDF5_DIR})
     include_directories("${HDF5_DIR}/include")
     set(CRAY_XPMEM_POST_LINK_OPTS $ENV{CRAY_XPMEM_POST_LINK_OPTS})
-    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics")
-    # set(CMAKE_HIP_LINK_FLAGS "${CMAKE_HIP_LINK_FLAGS} --hip-link -fgpu-rdc ")
-    # set(CMAKE_HIP_LINK_EXECUTABLE "hipcc <FLAGS> <CMAKE_HIP_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+    message(${CRAY_XPMEM_POST_LINK_OPTS})
+    # set(PE_MPICH_GTL_DIR_amd_gfx90a $ENV{PE_MPICH_GTL_DIR_amd_gfx90a})
+    STRING(REGEX REPLACE "-L([^ ]*)" "\\1" PE_MPICH_GTL_DIR_amd_gfx90a $ENV{PE_MPICH_GTL_DIR_amd_gfx90a})
+    message(${PE_MPICH_GTL_DIR_amd_gfx90a})
+    link_directories(${PE_MPICH_GTL_DIR_amd_gfx90a})
+    set(CMAKE_HIP_COMPILER CC)
+    # set(PE_MPICH_GTL_LIBS_amd_gfx90a $ENV{PE_MPICH_GTL_LIBS_amd_gfx90a})
+    # message(${PE_MPICH_GTL_LIBS_amd_gfx90a})
+    set(ROCM_PATH $ENV{ROCM_PATH})
+    include_directories("${ROCM_PATH}/include")
+    # set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics -D__HIP_ROCclr__ -D__HIP_ARCH_GFX90A__=1 --rocm-path=${ROCM_PATH} --offload-arch=gfx90a ${CRAY_XPMEM_POST_LINK_OPTS}")
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics --rocm-path=${ROCM_PATH} --offload-arch=gfx90a")
+    set(CMAKE_HIP_LINK_FLAGS "${CMAKE_HIP_LINK_FLAGS} --rocm-path=${ROCM_PATH} ${CRAY_XPMEM_POST_LINK_OPTS}")
+    set(CMAKE_HIP_LINK_EXECUTABLE "CC <FLAGS> <CMAKE_HIP_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
     # set(CMAKE_CXX_LINK_EXECUTABLE "hipcc <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
     set(CMAKE_HIP_ARCHITECTURES "gfx90a")
     if(use_libcpp)
@@ -194,28 +211,49 @@ if(use_hip)
   endif()
 endif()
 
-function(add_aperture_executable target_name)
+function(set_compile_gpu)
   if (use_cuda AND CMAKE_CUDA_COMPILER)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
   elseif (use_hip AND CMAKE_HIP_COMPILER)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
   endif()
+endfunction()
+
+function(add_aperture_executable target_name)
+  set_compile_gpu(${ARGN})
   add_executable(${target_name} ${ARGN})
-  target_link_libraries(${target_name}
-    Aperture
-    $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+  if (NOT build_for_frontier)
+    target_link_libraries(${target_name}
+      Aperture
+      $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+  endif()
 endfunction()
 
 function(add_aperture_library target_name)
-  if (use_cuda AND CMAKE_CUDA_COMPILER)
-    set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
-  elseif (use_hip AND CMAKE_HIP_COMPILER)
-    set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
-  endif()
+  set_compile_gpu(${ARGN})
   add_library(${target_name} ${ARGN})
-  target_link_libraries(${target_name}
-    Aperture
-    $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+  if (NOT build_for_frontier)
+    target_link_libraries(${target_name}
+      Aperture
+      $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+  endif()
+endfunction()
+
+function(link_dependent_libraries target_name)
+  target_link_libraries(${target_name} PUBLIC
+    fmt::fmt ${MPI_LIBRARIES}
+    ${HDF5_LIBRARIES} ${Boost_LIBRARIES}
+  )
+  if (use_cuda AND CMAKE_CUDA_COMPILER)
+    target_link_libraries(${target_name} PUBLIC ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+    # target_link_libraries(Aperture ${CUDART_LIBRARY} ${CUSPARSE_LIBRARY})
+  endif()
+
+  if (use_hip AND CMAKE_HIP_COMPILER)
+    # target_link_libraries(Aperture_dev hip::host hip::device roc::rocthrust roc::rocrand)
+    target_link_libraries(${target_name} PUBLIC hip::host hip::device roc::rocthrust amdhip64 mpi xpmem mpi_gtl_hsa)
+    # target_link_libraries(Aperture hip::host hip::device roc::rocthrust)
+  endif()
 endfunction()
 
 add_subdirectory(src)

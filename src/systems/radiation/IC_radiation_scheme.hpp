@@ -51,9 +51,7 @@ struct IC_radiation_scheme {
   int m_ph_nphi = 64;
   extent_t<3> m_ext_ph_dist;
 
-  IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
-
-  void init() {
+  IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {
     value_t emin = 1.0e-5;
     sim_env().params().get_value("IC_emin", emin);
     value_t ic_alpha = 1.25;
@@ -143,6 +141,9 @@ struct IC_radiation_scheme {
     photon_angular_dist->reset_after_output(true);
     photon_angular_dist->m_special_output_interval = ph_dist_interval;
     m_ext_ph_dist = photon_angular_dist->extent();
+  }
+
+  void init() {
   }
 
   HOST_DEVICE size_t emit_photon(const Grid<Conf::dim, value_t> &grid,

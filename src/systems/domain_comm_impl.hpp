@@ -32,12 +32,12 @@
 
 #define USE_CUDA_AWARE_MPI true
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
-#pragma message "CUDA-aware MPI found!"
-constexpr bool use_cuda_mpi = true;
+#if (CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT) || (defined(GPU_AWARE_MPICH))
+#pragma message "GPU-aware MPI found!"
+constexpr bool use_gpu_mpi = true;
 #else
-constexpr bool use_cuda_mpi = false;
+constexpr bool use_gpu_mpi = false;
 #endif
 
 namespace Aperture {
@@ -286,7 +286,7 @@ domain_comm<Conf, ExecPolicy>::send_array_guard_cells_single_dir(
 
     auto send_ptr = m_send_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_buffers[dim].host_ptr();
-    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+    if CONST_EXPR (m_is_device && use_gpu_mpi) {
       send_ptr = m_send_buffers[dim].dev_ptr();
       recv_ptr = m_recv_buffers[dim].dev_ptr();
     } else {
@@ -299,7 +299,7 @@ domain_comm<Conf, ExecPolicy>::send_array_guard_cells_single_dir(
                  dim, m_cart, &status);
 
     if (origin != MPI_PROC_NULL) {
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+      if CONST_EXPR (m_is_device && !use_gpu_mpi) {
         m_recv_buffers[dim].copy_to_device();
       }
       copy(typename ExecPolicy<Conf>::exec_tag{}, array, m_recv_buffers[dim],
@@ -356,7 +356,7 @@ domain_comm<Conf, ExecPolicy>::send_add_array_guard_cells_single_dir(
 
     auto send_ptr = m_send_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_buffers[dim].host_ptr();
-    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+    if CONST_EXPR (m_is_device && use_gpu_mpi) {
       send_ptr = m_send_buffers[dim].dev_ptr();
       recv_ptr = m_recv_buffers[dim].dev_ptr();
     } else {
@@ -368,7 +368,7 @@ domain_comm<Conf, ExecPolicy>::send_add_array_guard_cells_single_dir(
                  m_cart, &status);
 
     if (origin != MPI_PROC_NULL) {
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+      if CONST_EXPR (m_is_device && !use_gpu_mpi) {
         m_recv_buffers[dim].copy_to_device();
       }
       add(typename ExecPolicy<Conf>::exec_tag{}, array, m_recv_buffers[dim],
@@ -437,7 +437,7 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_single_dir(
 
     auto send_ptr = m_send_vec_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
-    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+    if CONST_EXPR (m_is_device && use_gpu_mpi) {
       send_ptr = m_send_vec_buffers[dim].dev_ptr();
       recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
     } else {
@@ -457,7 +457,7 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_single_dir(
         vec_buf_idx[Conf::dim - 1] =
             n * m_recv_buffers[dim].extent()[Conf::dim - 1];
 
-        if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+        if CONST_EXPR (m_is_device && !use_gpu_mpi) {
           m_recv_vec_buffers[dim].copy_to_device();
         }
         copy(typename ExecPolicy<Conf>::exec_tag{}, array,
@@ -529,7 +529,7 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
 
     auto send_ptr = m_send_vec_buffers[dim].host_ptr();
     auto recv_ptr = m_recv_vec_buffers[dim].host_ptr();
-    if (m_is_device && use_cuda_mpi) {
+    if (m_is_device && use_gpu_mpi) {
       send_ptr = m_send_vec_buffers[dim].dev_ptr();
       recv_ptr = m_recv_vec_buffers[dim].dev_ptr();
     } else {
@@ -549,7 +549,7 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
         vec_buf_idx[Conf::dim - 1] =
             n * m_send_buffers[dim].extent()[Conf::dim - 1];
 
-        if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+        if CONST_EXPR (m_is_device && !use_gpu_mpi) {
           m_recv_vec_buffers[dim].copy_to_device();
         }
         add(typename ExecPolicy<Conf>::exec_tag{}, array,
@@ -609,7 +609,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
 
     auto send_ptr = send_buffers[dim].host_ptr();
     auto recv_ptr = recv_buffers[dim].host_ptr();
-    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+    if CONST_EXPR (m_is_device && use_gpu_mpi) {
       send_ptr = send_buffers[dim].dev_ptr();
       recv_ptr = recv_buffers[dim].dev_ptr();
     } else {
@@ -621,7 +621,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
                  m_cart, &status);
 
     if (origin != MPI_PROC_NULL) {
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+      if CONST_EXPR (m_is_device && !use_gpu_mpi) {
         recv_buffers[dim].copy_to_device();
       }
       copy(typename ExecPolicy<Conf>::exec_tag{}, array, recv_buffers[dim],
@@ -722,7 +722,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 
     auto send_ptr = send_buffer.host_ptr();
     auto recv_ptr = recv_buffer.host_ptr() + buf_nums[buf_recv_idx[i]];
-    if CONST_EXPR (m_is_device && use_cuda_mpi) {
+    if CONST_EXPR (m_is_device && use_gpu_mpi) {
       send_ptr = send_buffer.dev_ptr();
       recv_ptr = recv_buffer.dev_ptr() + buf_nums[buf_recv_idx[i]];
     } else {
@@ -730,7 +730,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
     }
 
     if (src == dst && src == m_rank) {
-      if CONST_EXPR (m_is_device && use_cuda_mpi) {
+      if CONST_EXPR (m_is_device && use_gpu_mpi) {
 #ifdef GPU_ENABLED
         gpuMemcpy(recv_ptr, send_ptr,
                   buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
@@ -786,7 +786,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 
   auto send_ptr = send_buffer.host_ptr();
   auto recv_ptr = recv_buffer.host_ptr();
-  if CONST_EXPR (m_is_device && use_cuda_mpi) {
+  if CONST_EXPR (m_is_device && use_gpu_mpi) {
     send_ptr = send_buffer.dev_ptr();
     recv_ptr = recv_buffer.dev_ptr() + recv_offset;
   } else {
@@ -811,7 +811,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
 
   // MPI_Barrier(m_cart);
 
-  if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+  if CONST_EXPR (m_is_device && !use_gpu_mpi) {
     recv_buffer.copy_to_device();
   }
   // }
@@ -949,7 +949,7 @@ domain_comm<Conf, ExecPolicy>::send_particles_impl(
   }
 
   // Copy the central recv buffer into the main array
-  if CONST_EXPR (m_is_device && !use_cuda_mpi) {
+  if CONST_EXPR (m_is_device && !use_gpu_mpi) {
     buffers[central].copy_to_device();
   }
   // ptc.copy_from(buffers[central], buffers[central].number(), 0,

@@ -1,5 +1,4 @@
 set(Aperture_src
-<<<<<<< HEAD
   "${CMAKE_CURRENT_SOURCE_DIR}/core/buffer_impl.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/core/detail/multi_array_helpers.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/core/particles_functions.cpp"

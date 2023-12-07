@@ -36,6 +36,7 @@ template <typename Conf, template <class> class ExecPolicy>
 class gather_momentum_space : public system_t {
  public:
   static std::string name() { return "gather_momentum_space"; }
+  using value_t = typename Conf::value_t;
 
   gather_momentum_space(const grid_t<Conf>& grid) : m_grid(grid) {}
   virtual ~gather_momentum_space() {}
@@ -51,8 +52,8 @@ class gather_momentum_space : public system_t {
   int m_num_species = 2;
   int m_num_bins[4] = {256, 256, 256, 256};
   int m_pitch_bins = 32;
-  float m_lim_lower[4] = {-1.0, -1.0, -1.0, 1.0};
-  float m_lim_upper[4] = {1.0, 1.0, 1.0, 1.0e2};
+  value_t m_lim_lower[4] = {-1.0, -1.0, -1.0, 1.0};
+  value_t m_lim_upper[4] = {1.0, 1.0, 1.0, 1.0e2};
   bool m_use_log_scale = false;
 
   // nonown_ptr<momentum_space<Conf>> momentum;

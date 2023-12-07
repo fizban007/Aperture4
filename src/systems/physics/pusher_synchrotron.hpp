@@ -349,8 +349,8 @@ class pusher_synchrotron {
   mutable ndptr<value_t, Conf::dim> m_sync_loss_total;
   int m_num_bins = 512;
   value_t m_BQ = 1e5;
-  float m_lim_lower = 1.0e-6;
-  float m_lim_upper = 1.0e2;
+  value_t m_lim_lower = 1.0e-6;
+  value_t m_lim_upper = 1.0e2;
   int m_downsample = 16;
   int m_ph_nth = 32;
   int m_ph_nphi = 64;

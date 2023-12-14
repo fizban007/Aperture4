@@ -76,7 +76,7 @@ main(int argc, char *argv[]) {
   env.get_data("Edelta", &D);
   // env.get_data("particles", &ptc);
 
-  initial_vacuum_wald(*B, *D, grid);
+  initial_vacuum_wald(*B0, *D0, grid);
   // B->copy_from(*B0);
   // D->copy_from(*D0);
 

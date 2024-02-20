@@ -226,15 +226,15 @@ rng_maxwell_juttner_3d(rand_state& local_state, Float theta) {
 template <typename Float>
 HD_INLINE vec_t<Float, 3>
 rng_maxwell_juttner_drifting(rand_state& local_state, Float theta,
-                             type_identity_t<Float> beta) {
+                             type_identity_t<Float> beta, int dir = 0) {
   vec_t<Float, 3> u = rng_maxwell_juttner_3d(local_state, theta);
   auto G = 1.0f / math::sqrt(1.0f - beta * beta);
   auto u0 = math::sqrt(1.0f + u.dot(u));
 
   auto x1 = rng_uniform<Float>(local_state);
-  if (-beta * u[0] / u0 > x1) u[0] = -u[0];
+  if (-beta * u[dir] / u0 > x1) u[dir] = -u[dir];
 
-  u[0] = G * (u[0] + beta * u0);
+  u[dir] = G * (u[dir] + beta * u0);
 
   return u;
 }

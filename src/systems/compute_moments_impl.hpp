@@ -47,34 +47,110 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 compute_moments<Conf, ExecPolicy>::register_data_components() {
   if (m_compute_first_moments) {
-    S.resize(m_size);
+    ptc_num.resize(m_size);
+    ptc_flux.resize(m_size);
     for (int n = 0; n < m_size; n++) {
       if (n < m_num_species) {
-        S.set(n, sim_env().register_data<field_t<4, Conf>>(
-                     std::string("flux_") + ptc_type_name(n), m_grid,
-                     ExecPolicy<Conf>::data_mem_type()));
+        // S.set(n, sim_env().register_data<field_t<4, Conf>>(
+        //              std::string("flux_") + ptc_type_name(n), m_grid,
+        //              ExecPolicy<Conf>::data_mem_type()));
+        ptc_num.set(n, sim_env().register_data<scalar_field<Conf>>(
+                          std::string("num_") + ptc_type_name(n), m_grid,
+                          ExecPolicy<Conf>::data_mem_type()));
+        ptc_flux.set(n, sim_env().register_data<field_t<3, Conf>>(
+                           std::string("flux_e") + ptc_type_name(n), m_grid,
+                           ExecPolicy<Conf>::data_mem_type()));
       } else {
-        S.set(n, sim_env().register_data<field_t<4, Conf>>(
-                     std::string("flux_ph"), m_grid,
-                     ExecPolicy<Conf>::data_mem_type()));
+        // S.set(n, sim_env().register_data<field_t<4, Conf>>(
+        //              std::string("flux_ph"), m_grid,
+        //              ExecPolicy<Conf>::data_mem_type()));
+        ptc_num.set(n, sim_env().register_data<scalar_field<Conf>>(
+                          std::string("num_ph"), m_grid,
+                          ExecPolicy<Conf>::data_mem_type()));
+        ptc_flux.set(n, sim_env().register_data<field_t<3, Conf>>(
+                           std::string("flux_ph"), m_grid,
+                           ExecPolicy<Conf>::data_mem_type()));
       }
     }
-    S.copy_to_device();
+    ptc_num.copy_to_device();
+    ptc_flux.copy_to_device();
   }
   if (m_compute_second_moments) {
-    T.resize(m_size);
+    T00.resize(m_size);
+    T0i.resize(m_size);
+    T11.resize(m_size);
+    T12.resize(m_size);
+    T13.resize(m_size);
+    T22.resize(m_size);
+    T23.resize(m_size);
+    T33.resize(m_size);
     for (int n = 0; n < m_size; n++) {
       if (n < m_num_species) {
-        T.set(n, sim_env().register_data<field_t<10, Conf>>(
-                     std::string("stress_") + ptc_type_name(n), m_grid,
-                     ExecPolicy<Conf>::data_mem_type()));
+        // T.set(n, sim_env().register_data<field_t<10, Conf>>(
+        //              std::string("stress_") + ptc_type_name(n), m_grid,
+        //              ExecPolicy<Conf>::data_mem_type()));
+        T00.set(n, sim_env().register_data<scalar_field<Conf>>(
+                       std::string("stress_") + ptc_type_name(n) + "00", m_grid,
+                       ExecPolicy<Conf>::data_mem_type()));
+        T0i.set(n, sim_env().register_data<field_t<3, Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "0", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T11.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "11", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T12.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "12", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T13.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "13", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T22.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "22", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T23.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "23", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T33.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_") + ptc_type_name(n) + "33", m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
       } else {
-        T.set(n, sim_env().register_data<field_t<10, Conf>>(
-                     std::string("stress_ph"), m_grid,
-                     ExecPolicy<Conf>::data_mem_type()));
+        // T.set(n, sim_env().register_data<field_t<10, Conf>>(
+        //              std::string("stress_ph"), m_grid,
+        //              ExecPolicy<Conf>::data_mem_type()));
+        T00.set(n, sim_env().register_data<scalar_field<Conf>>(
+                       std::string("stress_ph00"), m_grid,
+                       ExecPolicy<Conf>::data_mem_type()));
+        T0i.set(n, sim_env().register_data<field_t<3, Conf>>(
+                        std::string("stress_ph0"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T11.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph11"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T12.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph12"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T13.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph13"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T22.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph22"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T23.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph23"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
+        T33.set(n, sim_env().register_data<scalar_field<Conf>>(
+                        std::string("stress_ph33"), m_grid,
+                        ExecPolicy<Conf>::data_mem_type()));
       }
     }
-    T.copy_to_device();
+    T00.copy_to_device();
+    T0i.copy_to_device();
+    T11.copy_to_device();
+    T12.copy_to_device();
+    T13.copy_to_device();
+    T22.copy_to_device();
+    T23.copy_to_device();
+    T33.copy_to_device();
   }
 }
 
@@ -84,20 +160,30 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (step % m_fld_interval == 0) {
     for (int n = 0; n < m_size; n++) {
       if (m_compute_first_moments) {
-        S.init();
+        ptc_num.init();
+        ptc_flux.init();
       }
       if (m_compute_second_moments) {
-        T.init();
+        T00.init();
+        T0i.init();
+        T11.init();
+        T12.init();
+        T13.init();
+        T22.init();
+        T23.init();
+        T33.init();
       }
     }
 
-    bool first_moments = m_compute_first_moments;
-    bool second_moments = m_compute_second_moments;
+    bool first = m_compute_first_moments;
+    bool second = m_compute_second_moments;
     size_t num = ptc->number();
     // int num_species = m_num_species;
     // First compute particle moments
     ExecPolicy<Conf>::launch(
-        [first_moments, second_moments, num] LAMBDA(auto ptc, auto S, auto T) {
+        [first, second, num] LAMBDA(auto ptc, auto ptc_num, auto ptc_flux,
+                                    auto T00, auto T0i, auto T11, auto T12,
+                                    auto T13, auto T22, auto T23, auto T33) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
           ExecPolicy<Conf>::loop(0, num, [&] LAMBDA(auto n) {
@@ -108,45 +194,47 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
             typename Conf::idx_t idx = Conf::idx(cell, ext);
             int sp = get_ptc_type(ptc.flag[n]);
-            if (first_moments) {
-              atomic_add(&S[sp][0][idx], ptc.weight[n]);
-              atomic_add(&S[sp][1][idx], ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
-              atomic_add(&S[sp][2][idx], ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
-              atomic_add(&S[sp][3][idx], ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
+            if (first) {
+              atomic_add(&ptc_num[sp][idx], ptc.weight[n]);
+              atomic_add(&ptc_flux[sp][1][idx], ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][2][idx], ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][3][idx], ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
             }
-            if (second_moments) {
+            if (second) {
               // T00
-              atomic_add(&T[sp][0][idx], ptc.weight[n] * ptc.E[n]);
+              atomic_add(&T00[sp][idx], ptc.weight[n] * ptc.E[n]);
               // T0i
-              atomic_add(&T[sp][1][idx], ptc.weight[n] * ptc.p1[n]);
-              atomic_add(&T[sp][2][idx], ptc.weight[n] * ptc.p2[n]);
-              atomic_add(&T[sp][3][idx], ptc.weight[n] * ptc.p3[n]);
+              atomic_add(&T0i[sp][1][idx], ptc.weight[n] * ptc.p1[n]);
+              atomic_add(&T0i[sp][2][idx], ptc.weight[n] * ptc.p2[n]);
+              atomic_add(&T0i[sp][3][idx], ptc.weight[n] * ptc.p3[n]);
               // Tii
-              atomic_add(&T[sp][4][idx],
+              atomic_add(&T11[sp][idx],
                          ptc.weight[n] * ptc.p1[n] * ptc.p1[n] / ptc.E[n]);
-              atomic_add(&T[sp][5][idx],
+              atomic_add(&T22[sp][idx],
                          ptc.weight[n] * ptc.p2[n] * ptc.p2[n] / ptc.E[n]);
-              atomic_add(&T[sp][6][idx],
+              atomic_add(&T33[sp][idx],
                          ptc.weight[n] * ptc.p3[n] * ptc.p3[n] / ptc.E[n]);
               // Tij
-              atomic_add(&T[sp][7][idx],
+              atomic_add(&T23[sp][idx],
                          ptc.weight[n] * ptc.p2[n] * ptc.p3[n] / ptc.E[n]);
-              atomic_add(&T[sp][8][idx],
+              atomic_add(&T13[sp][idx],
                          ptc.weight[n] * ptc.p3[n] * ptc.p1[n] / ptc.E[n]);
-              atomic_add(&T[sp][9][idx],
+              atomic_add(&T12[sp][idx],
                          ptc.weight[n] * ptc.p1[n] * ptc.p2[n] / ptc.E[n]);
             }
           });
         },
-        ptc, S, T);
+        ptc, ptc_num, ptc_flux, T00, T0i, T11, T12, T13, T22, T23, T33);
     ExecPolicy<Conf>::sync();
     // Then compute photon moments if applicable
     if (m_photon_data) {
       size_t ph_num = ph->number();
       if (ph_num > 0) {
         ExecPolicy<Conf>::launch(
-            [first_moments, second_moments, ph_num] LAMBDA(auto ph, auto S,
-                                                           auto T) {
+            [first, second, ph_num] LAMBDA(auto ph, auto ptc_num, auto ptc_flux,
+                                            auto T00, auto T0i, auto T11,
+                                            auto T12, auto T13, auto T22,
+                                            auto T23, auto T33) {
               auto& grid = ExecPolicy<Conf>::grid();
               auto ext = grid.extent();
               ExecPolicy<Conf>::loop(0, ph_num, [&] LAMBDA(auto n) {
@@ -156,31 +244,33 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 }
 
                 typename Conf::idx_t idx = Conf::idx(cell, ext);
-                if (first_moments) {
-                  atomic_add(&S[0][idx], ph.weight[n]);
-                  atomic_add(&S[1][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&S[2][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
-                  atomic_add(&S[3][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
+                if (first) {
+                  atomic_add(&ptc_num[idx], ph.weight[n]);
+                  atomic_add(&ptc_flux[1][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[2][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[3][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
                 }
-                if (second_moments) {
+                if (second) {
                   // T00
-                  atomic_add(&T[0][idx], ph.weight[n] * ph.E[n]);
+                  atomic_add(&T00[idx], ph.weight[n] * ph.E[n]);
                   // T0i
-                  atomic_add(&T[1][idx], ph.weight[n] * ph.p1[n]);
-                  atomic_add(&T[2][idx], ph.weight[n] * ph.p2[n]);
-                  atomic_add(&T[3][idx], ph.weight[n] * ph.p3[n]);
+                  atomic_add(&T0i[1][idx], ph.weight[n] * ph.p1[n]);
+                  atomic_add(&T0i[2][idx], ph.weight[n] * ph.p2[n]);
+                  atomic_add(&T0i[3][idx], ph.weight[n] * ph.p3[n]);
                   // Tii
-                  atomic_add(&T[4][idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&T[5][idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
-                  atomic_add(&T[6][idx], ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&T11[idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T22[idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&T33[idx], ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
                   // Tij
-                  atomic_add(&T[7][idx], ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
-                  atomic_add(&T[8][idx], ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&T[9][idx], ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&T23[idx], ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&T13[idx], ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T12[idx], ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
                 }
               });
             },
-            ph, S[m_size - 1], T[m_size - 1]);
+            ph, ptc_num[m_size - 1], ptc_flux[m_size - 1], T00[m_size - 1],
+            T0i[m_size - 1], T11[m_size - 1], T12[m_size - 1], T13[m_size - 1],
+            T22[m_size - 1], T23[m_size - 1], T33[m_size - 1]);
         ExecPolicy<Conf>::sync();
       }
     }

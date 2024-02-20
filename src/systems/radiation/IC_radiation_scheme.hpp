@@ -39,14 +39,14 @@ struct IC_radiation_scheme {
   const grid_t<Conf> &m_grid;
   ic_scatter_t m_ic_module;
   int m_num_bins = 256;
-  float m_lim_lower = 1.0e-4;
-  float m_lim_upper = 1.0e4;
+  value_t m_lim_lower = 1.0e-4;
+  value_t m_lim_upper = 1.0e4;
   int m_downsample = 16;
   value_t m_IC_compactness = 0.0;
   mutable ndptr<value_t, Conf::dim> m_IC_loss;
   mutable ndptr<value_t, Conf::dim> m_IC_loss_total;
   mutable ndptr<value_t, 3> m_angle_dist_ptr;
-  ndptr<float, Conf::dim + 1> m_spec_ptr;
+  ndptr<value_t, Conf::dim + 1> m_spec_ptr;
   int m_ph_nth = 32;
   int m_ph_nphi = 64;
   extent_t<3> m_ext_ph_dist;

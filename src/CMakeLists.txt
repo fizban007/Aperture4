@@ -29,6 +29,7 @@ set(Aperture_src
   "systems/ptc_updater.cpp"
   "systems/radiative_transfer.cpp"
   "systems/sync_curv_emission.cpp"
+  "systems/vlasov_solver.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 add_library(Aperture STATIC ${Aperture_src})
@@ -53,6 +54,7 @@ if (use_cuda OR use_hip)
     "systems/gather_tracked_ptc.hip.cpp"
     "systems/ptc_updater.hip.cpp"
     "systems/radiative_transfer.hip.cpp"
+    "systems/vlasov_solver.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)
     set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)

@@ -29,7 +29,7 @@ using namespace Aperture;
 
 TEST_CASE("Using grid", "[grid]") {
   SECTION("1D grid") {
-    Grid<1, float> g1;
+    Grid<1, Scalar> g1;
 
     g1.dims[0] = 12;
     g1.N[0] = 8;
@@ -52,7 +52,7 @@ TEST_CASE("Using grid", "[grid]") {
   }
 
   SECTION("2D grid") {
-    Grid<2, float> g2;
+    Grid<2, Scalar> g2;
 
     for (int i = 0; i < 2; i++) {
       g2.dims[i] = 12;
@@ -81,13 +81,13 @@ TEST_CASE("Using grid", "[grid]") {
     z = g2.find_zone(index(11, 11));
     REQUIRE(z == 8);
 
-    auto coord_g = g2.coord_global(index(3, 5), vec<float>(0.4, 0.7, 0.0));
+    auto coord_g = g2.coord_global(index(3, 5), vec<Scalar>(0.4, 0.7, 0.0));
     REQUIRE(coord_g[0] == Catch::Approx(1.4f * g2.delta[0]));
     REQUIRE(coord_g[1] == Catch::Approx(3.7f * g2.delta[1]));
 
     index_t<2> idx;
-    vec_t<float, 3> x;
-    g2.from_global(vec_t<float, 3>(0.8f, 0.4f, 3.0f),
+    vec_t<Scalar, 3> x;
+    g2.from_global(vec_t<Scalar, 3>(0.8f, 0.4f, 3.0f),
                    idx, x);
     REQUIRE(idx[0] == 8);
     REQUIRE(idx[1] == 5);
@@ -98,7 +98,7 @@ TEST_CASE("Using grid", "[grid]") {
 }
 
 TEST_CASE("Kernels with grid", "[grid][kernel]") {
-  Grid<3, float> g3;
+  Grid<3, Scalar> g3;
 
   for (int i = 0; i < 3; i++) {
     g3.dims[i] = 12;
@@ -112,7 +112,7 @@ TEST_CASE("Kernels with grid", "[grid][kernel]") {
 
   kernel_launch(
       kernel_exec_policy(1, 1),
-      [] __device__(Grid<3, float> g) {
+      [] __device__(Grid<3, Scalar> g) {
         if (g.is_in_bound(6, 6, 6)) printf("coord is %f\n", g.coord<2>(6, 0.7f));
       },
       g3);
@@ -123,7 +123,7 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   Logger::init(0, LogLevel::debug);
   // sim_environment env;
   auto& env = sim_env(nullptr, nullptr, false);
-  typedef Config<3, float> Conf;
+  typedef Config<3, Scalar> Conf;
 
   // env.params().add("N", std::vector<int64_t>({32, 32, 32}));
   env.params().add("N", std::vector<int64_t>({32, 32, 32}));
@@ -135,10 +135,10 @@ TEST_CASE("Grid initialization on constant memory", "[grid][kernel]") {
   // // env.init();
 
   kernel_launch({1, 1}, [] __device__() {
-    auto& grid = dev_grid<3, float>();
+    auto& grid = dev_grid<3, Scalar>();
     // printf("N is %ux%ux%u\n", grid.reduced_dim(0),
-    //        dev_grid<3, float>().reduced_dim(1),
-    //        dev_grid<3, float>().reduced_dim(1));
+    //        dev_grid<3, Scalar>().reduced_dim(1),
+    //        dev_grid<3, Scalar>().reduced_dim(1));
   });
   GpuSafeCall(gpuDeviceSynchronize());
 }

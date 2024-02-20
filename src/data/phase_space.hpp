@@ -39,6 +39,7 @@ class phase_space : public data_t {
   int m_num_bins[Dim];
   value_t m_lower[Dim];
   value_t m_upper[Dim];
+
   value_t m_dp[Dim];
 
   phase_space(const grid_t& grid, int downsample, const int* num_bins,

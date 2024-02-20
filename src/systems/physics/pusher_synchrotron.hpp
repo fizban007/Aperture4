@@ -236,6 +236,7 @@ class pusher_synchrotron {
             &m_angle_dist_ptr[default_idx_t<3>(pos_ph_dist, m_ext_ph_dist)],
             loss);
 
+
         // for (value_t log_eph = math::log(eph_min);
         //      log_eph <= math::log(eph_max); log_eph += deph) {
           // value_t eph = math::exp(log_eph);
@@ -283,6 +284,7 @@ class pusher_synchrotron {
           //     &U_ptr[default_idx_t<3>(Stokes_parameters_index, m_ext_ph_dist)],
           //     sin(2 * chi) * m_sync.Gx(zeta));
         // }
+
       }
     }
   }

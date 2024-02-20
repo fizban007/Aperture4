@@ -16,6 +16,8 @@ option(lib_only "Only build the core Aperture library" OFF)
 option(use_boost_filesystem "Use boost filesystem instead of std::filesystem" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 
+# set(CMAKE_CXX_COMPILER "g++")
+
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
 endif()
@@ -31,7 +33,7 @@ endif()
 # Detect C++ compiler features
 # message("Your C++ compiler supports these C++ features:")
 # foreach(i ${CMAKE_CXX_COMPILE_FEATURES})
-#   message("${i}")
+  # message("${i}")
 # endforeach()
 
 # Set customized module path

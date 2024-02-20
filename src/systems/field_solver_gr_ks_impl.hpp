@@ -620,12 +620,15 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
   iterate_predictor(dt);
 
   // apply damping boundary condition at outer boundary
+
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
   {
     damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
     m_damping_length,
                                        m_damping_coef);
   }
+  // this->Etotal->copy_from(*(this->E));
+  // this->Btotal->copy_from(*(this->B));
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -670,6 +673,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
                         b[0][idx] * grid_ptrs.Ab[0][idx];
           }
         });
+
       },
       this->flux, this->Btotal, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();

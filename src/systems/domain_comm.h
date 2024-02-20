@@ -20,8 +20,9 @@
 #include "core/buffer.hpp"
 #include "core/domain_info.h"
 #include "core/particles.h"
-#include "data/fields.h"
+
 #include "data/phase_space_vlasov.hpp"
+
 #include "framework/system.h"
 #include "utils/mpi_helper.h"
 #include <mpi.h>
@@ -48,6 +49,7 @@ class domain_comm : public system_t {
   int rank() const { return m_rank; }
   int size() const { return m_size; }
   void resize_buffers(const typename Conf::grid_t& grid) const;
+
   template <int Dim_P>
   void resize_phase_space_buffers(const typename Conf::grid_t& grid,
                                   const extent_t<Dim_P>& momentum_ext) const;
@@ -63,6 +65,7 @@ class domain_comm : public system_t {
                                     const typename Conf::grid_t& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
+
   void send_phase_space_single_direction(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid,
                                          int dim, int dir) const;
   void get_total_num_offset(const uint64_t& num, uint64_t& total,
@@ -105,10 +108,12 @@ class domain_comm : public system_t {
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<multi_array_t> m_send_vec_buffers;
   mutable std::vector<multi_array_t> m_recv_vec_buffers;
+
   mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_send_buffers1d;
   mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_recv_buffers1d;
   mutable std::vector<multi_array<value_t, Conf::dim + 2>> m_phase_space_send_buffers2d;
   mutable std::vector<multi_array<value_t, Conf::dim + 2>> m_phase_space_recv_buffers2d;
+
   // mutable std::vector<multi_array_t> m_send_phase_space_buffers;
   // mutable std::vector<multi_array_t> m_recv_phase_space_buffers;
   // mutable std::vector<particles_t> m_ptc_buffers;

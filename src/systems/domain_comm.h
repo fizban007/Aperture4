@@ -20,6 +20,7 @@
 #include "core/buffer.hpp"
 #include "core/domain_info.h"
 #include "core/particles.h"
+#include "data/fields.h"
 
 #include "data/phase_space_vlasov.hpp"
 

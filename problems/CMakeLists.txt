@@ -23,5 +23,6 @@ add_subdirectory(vlasov_test)
 # add_subdirectory(vacuum_sph_wave_test)
 # add_subdirectory(wave_scattering)
 add_subdirectory(fast_wave_2d)
+add_subdirectory(fast_wave_2d_cartesian)
 
 endif()

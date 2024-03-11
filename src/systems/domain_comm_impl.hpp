@@ -237,16 +237,16 @@ domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
   m_phase_buffers_ready = true;
 }
 
-template <typename Conf, template <class> class ExecPolicy>
-void
-domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
-    const typename Conf::grid_t &grid) const {
-  Logger::print_debug("Resizing phase space buffers");
-  if (m_phase_buffers_ready) return;
-  // TODO: implement this function
+// template <typename Conf, template <class> class ExecPolicy>
+// void
+// domain_comm<Conf, ExecPolicy>::resize_phase_space_buffers(
+//     const typename Conf::grid_t &grid) const {
+//   Logger::print_debug("Resizing phase space buffers");
+//   if (m_phase_buffers_ready) return;
+//   // TODO: implement this function
 
-  m_phase_buffers_ready = true;
-}
+//   m_phase_buffers_ready = true;
+// }
 
 template <typename Conf, template <class> class ExecPolicy>
 void
@@ -571,13 +571,13 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
   }
 }
 
-template <typename Conf, template <class> class ExecPolicy>
-template <int Dim>
-void
-domain_comm<Conf, ExecPolicy>::send_phase_space(
-    phase_space<Conf, Dim> &data, const grid_t<Conf> &grid) const {
+// template <typename Conf, template <class> class ExecPolicy>
+// template <int Dim>
+// void
+// domain_comm<Conf, ExecPolicy>::send_phase_space(
+//     phase_space<Conf, Dim> &data, const grid_t<Conf> &grid) const {
 
-}
+// }
 
 template <typename Conf, template <class> class ExecPolicy>
 void

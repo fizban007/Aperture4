@@ -29,7 +29,7 @@
 #include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater.h"
 
-// #include "boundary_condition.hpp"
+#include "boundary_condition.hpp"
 
 using namespace std;
 using namespace Aperture;
@@ -52,8 +52,8 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
                                                                        &comm);
-  // auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
-  //     grid, &comm);
+  auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
+      grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 

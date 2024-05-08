@@ -1,0 +1,2 @@
+add_aperture_executable(fast_wave_2d_cartesian "main.cpp")
+add_dependencies(problems fast_wave_2d_cartesian)

@@ -48,13 +48,13 @@ main(int argc, char *argv[]) {
           grid, &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
-  auto moments =
-      env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  // auto moments =
+  //     env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
                                                                        &comm);
-  auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
-      grid, &comm);
+  // auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
+  //     grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 
@@ -62,8 +62,8 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *B, *E;
   env.get_data("B0", &B0);
-  env.get_data("B", &B);
-  env.get_data("E", &E);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &E);
 
   // Read parameters
   float Bp = 1.0e4;
@@ -109,6 +109,9 @@ main(int argc, char *argv[]) {
     return -deltaB * math::cos(kx * x + ky * y) * math::sin(theta);
   });
 
+  comm.send_guard_cells(*E);
+  comm.send_guard_cells(*B);
+
   // Fill the box with pairs
   ptc_injector_dynamic<Conf> injector(grid);
   injector.inject_pairs(
@@ -129,7 +132,7 @@ main(int argc, char *argv[]) {
         if (type == PtcType::electron) {
           return rho0 / qe / ppc;
         } else {
-          return 0.0;
+          return 0.0f;
         }
       });
 

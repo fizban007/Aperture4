@@ -38,6 +38,7 @@ int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
   auto &env = sim_environment::instance(&argc, &argv);
+  using value_t = typename Conf::value_t;
 
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_t<Conf> grid(comm);
@@ -59,24 +60,53 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *B, *E;
   env.get_data("B0", &B0);
+  env.get_data("B", &B);
+  env.get_data("E", &E);
 
   // Read parameters
   float Bp = 1.0e4;
   float qe = 1.0;
   float kT = 1.0e-3;
   float rho0 = 1.0;
+  float gamma = 5.0;
   int ppc = 20;
   env.params().get_value("Bp", Bp);
   env.params().get_value("ppc", ppc);
   env.params().get_value("qe", qe);
   env.params().get_value("kT", kT);
   env.params().get_value("rho0", rho0);
+  env.params().get_value("gamma", gamma);
 
   // Set dipole initial magnetic field
-  B0->set_values(0, [Bp](Scalar x, Scalar y, Scalar z) {
+  B0->set_values(1, [Bp](Scalar x, Scalar y, Scalar z) {
     return Bp;
+  });
+
+  float omega = 5.0;
+  float theta = M_PI / 4.0;
+  float deltaB = 1.0;
+  env.params().get_value("omega", omega);
+  env.params().get_value("theta", theta);
+  env.params().get_value("deltaB", deltaB);
+
+  E->set_values(2, [deltaB, theta, omega](Scalar x, Scalar y, Scalar z) {
+    value_t ky = omega * math::cos(theta);
+    value_t kx = omega * math::sin(theta);
+    return deltaB * math::cos(kx * x + ky * y);
+  });
+
+  B->set_values(0, [deltaB, theta, omega](Scalar x, Scalar y, Scalar z) {
+    value_t ky = omega * math::cos(theta);
+    value_t kx = omega * math::sin(theta);
+    return deltaB * math::cos(kx * x + ky * y) * math::cos(theta);
+  });
+
+  B->set_values(1, [deltaB, theta, omega](Scalar x, Scalar y, Scalar z) {
+    value_t ky = omega * math::cos(theta);
+    value_t kx = omega * math::sin(theta);
+    return -deltaB * math::cos(kx * x + ky * y) * math::sin(theta);
   });
 
   // Fill the box with pairs
@@ -84,11 +114,23 @@ main(int argc, char *argv[]) {
   injector.inject_pairs(
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
-      [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return rng_maxwell_juttner_3d(state, kT);
+      [kT, gamma] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+        // return rng_maxwell_juttner_3d(state, kT);
+        value_t beta = sqrt(1.0 - 1.0 / (gamma * gamma));
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT, beta);
+        value_t sign = 1.0f;
+
+        auto p1 = u_d[1] * sign;
+        auto p2 = u_d[0] * sign;
+        auto p3 = u_d[2] * sign;
+        return vec_t<value_t, 3>(p1, p2, p3);
       },
       [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
-        return rho0 / qe / ppc;
+        if (type == PtcType::electron) {
+          return rho0 / qe / ppc;
+        } else {
+          return 0.0;
+        }
       });
 
   env.run();

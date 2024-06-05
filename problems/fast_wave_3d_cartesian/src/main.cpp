@@ -58,8 +58,8 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *B, *E;
   env.get_data("B0", &B0);
-  env.get_data("B", &B);
-  env.get_data("E", &E);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &E);
 
   // Read parameters
   float Bp = 1.0e4;
@@ -80,8 +80,8 @@ main(int argc, char *argv[]) {
     return Bp;
   });
 
-  int kx_f = 8;
-  int kz_f = 6;
+  int kx_f = 4;
+  int kz_f = 3;
   float deltaB = 1.0;
   float seed_amplitude = 1.0e-6;
   value_t sizes[Conf::dim];
@@ -92,6 +92,8 @@ main(int argc, char *argv[]) {
   env.params().get_value("seed_amplitude", seed_amplitude);
   env.params().get_array("size", sizes);
   env.params().get_array("N", N);
+
+  Logger::print_info("deltaB is {}", deltaB);
 
   // Initialize a fast wave propagating in the x-z plane
   E->set_values(1, [deltaB, kx_f, kz_f, sizes](Scalar x, Scalar y, Scalar z) {
@@ -116,18 +118,18 @@ main(int argc, char *argv[]) {
 
   // initialize seed alfven waves
   B->set_values(1, [seed_amplitude, sizes](Scalar x, Scalar y, Scalar z) {
-    value_t k1x = 4 * 2.0 * M_PI / sizes[0];
-    value_t k1z = 8 * 2.0 * M_PI / sizes[2];    
-    value_t k2x = 4 * 2.0 * M_PI / sizes[0];    
-    value_t k2z = -2 * 2.0 * M_PI / sizes[2];
+    value_t k1x = 2 * 2.0 * M_PI / sizes[0];    
+    value_t k1z = 4 * 2.0 * M_PI / sizes[2];    
+    value_t k2x = 2 * 2.0 * M_PI / sizes[0];    
+    value_t k2z = -1 * 2.0 * M_PI / sizes[2];
     return seed_amplitude * (math::cos(k1x * x + k1z * z) + math::cos(k2x * x + k2z * z));
   });
 
   E->set_values(0, [seed_amplitude, sizes](Scalar x, Scalar y, Scalar z) {
-    value_t k1x = 4 * 2.0 * M_PI / sizes[0];    
-    value_t k1z = 8 * 2.0 * M_PI / sizes[2];    
-    value_t k2x = 4 * 2.0 * M_PI / sizes[0];    
-    value_t k2z = -2 * 2.0 * M_PI / sizes[2];
+    value_t k1x = 2 * 2.0 * M_PI / sizes[0];    
+    value_t k1z = 4 * 2.0 * M_PI / sizes[2];    
+    value_t k2x = 2 * 2.0 * M_PI / sizes[0];    
+    value_t k2z = -1 * 2.0 * M_PI / sizes[2];
     return seed_amplitude * (math::cos(k1x * x + k1z * z) + math::cos(k2x * x + k2z * z));
   });
 

@@ -32,6 +32,7 @@
 #include "systems/ptc_updater_impl.hpp"
 #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
+#include "systems/resonant_scattering_scheme.hpp"
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include "utils/vec.hpp"
@@ -41,6 +42,34 @@
 
 using namespace std;
 using namespace Aperture;
+
+template <typename Conf>
+class ptc_physics_policy_gravity_r {
+ public:
+  using value_t = typename Conf::value_t;
+
+  void init() { sim_env().params().get_value("gravity", m_g); }
+
+  template <typename PtcContext, typename IntT>
+  HD_INLINE void operator()(const Grid<Conf::dim, value_t>& grid,
+                            PtcContext& context,
+                            const vec_t<IntT, Conf::dim>& pos,
+                            value_t dt) const {
+    auto r = grid_sph_t<Conf>::radius(grid.coord(0, pos[0], context.x[0]));
+    context.p[0] -= m_g * dt;
+    context.gamma = sqrt(1.0f + context.p.dot(context.p));
+  }
+
+ private:
+  value_t m_g = 0.0f;
+};
+
+template class ptc_updater<Config<2>, exec_policy_dynamic,
+                           coord_policy_spherical_sync_cooling,
+                           ptc_physics_policy_gravity_r>;
+
+template class radiative_transfer<Config<2>, exec_policy_dynamic,
+                                  coord_policy_spherical, resonant_scattering_scheme>;
 
 int
 main(int argc, char *argv[]) {
@@ -52,7 +81,8 @@ main(int argc, char *argv[]) {
   // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      coord_policy_spherical_sync_cooling>>(
+                                      coord_policy_spherical_sync_cooling,
+                                      ptc_physics_policy_gravity_r>>(
           // coord_policy_spherical>>(
           grid, &comm);
   auto tracker =
@@ -63,8 +93,6 @@ main(int argc, char *argv[]) {
   //     Conf, exec_policy_dynamic, coord_policy_spherical,
   //     IC_radiation_scheme>>( grid, &comm);
   auto solver =
-      // env.register_system<field_solver<Conf, exec_policy_dynamic,
-      // coord_policy_spherical>>(
       env.register_system<field_solver<Conf, exec_policy_dynamic,
                                        coord_policy_spherical>>(
           grid, &comm);

@@ -51,19 +51,19 @@ main(int argc, char *argv[]) {
 
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // domain_comm<Conf> comm;
+  domain_comm<Conf, exec_policy_dynamic> comm;
   grid_ks_t<Conf> grid;
 
   auto solver = env.register_system<
-      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
+      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto pusher = env.register_system<
-      ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid);
+      ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto moments = env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto exporter =
-      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid);
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 

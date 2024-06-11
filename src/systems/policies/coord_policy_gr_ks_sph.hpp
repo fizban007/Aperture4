@@ -260,6 +260,9 @@ class coord_policy_gr_ks_sph {
                   rho[n][idx] *=
                       w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
+                // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
+                //   printf("j0 is %f\n", j[0][idx]);
+                // }
                 // }
                 typename Conf::value_t theta =
                     grid.template coord<1>(pos[1], true);

@@ -132,9 +132,9 @@ field_solver<Conf, ExecPolicy,
   DdotB = sim_env().register_data<scalar_field<Conf>>(
       "DdotB", this->m_grid, field_type::cell_centered, type);
   Bmag = sim_env().register_data<scalar_field<Conf>>(
-      "B", this->m_grid, field_type::cell_centered, type);
+      "Bmag", this->m_grid, field_type::cell_centered, type);
   Jmag = sim_env().register_data<scalar_field<Conf>>(
-      "J", this->m_grid, field_type::vert_centered, type);
+      "Jmag", this->m_grid, field_type::vert_centered, type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -645,6 +645,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
   }
   // this->Etotal->copy_from(*(this->E));
   // this->Btotal->copy_from(*(this->B));
+  compute_DdotB_J_B();
 }
 
 template <typename Conf, template <class> class ExecPolicy>

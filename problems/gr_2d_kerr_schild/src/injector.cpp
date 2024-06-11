@@ -35,6 +35,8 @@ template <typename Conf> void bh_injector<Conf>::init() {
   sim_env().get_data("B", B);
   sim_env().get_data("particles", ptc);
   sim_env().get_data("rng_states", m_rng_states);
+  sim_env().get_data("DdotB", DdotB);
+  sim_env().get_data("Bmag", Bmag);
 
   auto ext = m_grid.extent();
   m_num_per_cell.set_memtype(MemType::host_device);
@@ -75,10 +77,11 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   // Measure how many pairs to inject per cell
   exec_policy::launch(
       [a, inj_thr, sigma_thr, num_species] LAMBDA(
-          auto B, auto D, auto rho, auto num_per_cell, auto states) {
+          auto B, auto D, auto DdotB, auto Bmag,
+          auto rho, auto num_per_cell, auto states) {
         auto &grid = exec_policy::grid();
         auto ext = grid.extent();
-        auto interp = lerp<Conf::dim>{};
+        // auto interp = lerp<Conf::dim>{};
         rng_t<typename exec_policy::exec_tag> rng(states);
 
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
@@ -98,32 +101,33 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
               return;
 
-            value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
-            value_t D2 = interp(D[1], idx, stagger_t(0b101), stagger_t(0b111));
-            value_t D3 = interp(D[2], idx, stagger_t(0b011), stagger_t(0b111));
-            value_t B1 = interp(B[0], idx, stagger_t(0b001), stagger_t(0b111));
-            value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
-            value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
+            // value_t D1 = interp(D[0], idx, stagger_t(0b110), stagger_t(0b111));
+            // value_t D2 = interp(D[1], idx, stagger_t(0b101), stagger_t(0b111));
+            // value_t D3 = interp(D[2], idx, stagger_t(0b011), stagger_t(0b111));
+            // value_t B1 = interp(B[0], idx, stagger_t(0b001), stagger_t(0b111));
+            // value_t B2 = interp(B[1], idx, stagger_t(0b010), stagger_t(0b111));
+            // value_t B3 = interp(B[2], idx, stagger_t(0b100), stagger_t(0b111));
 
-            value_t sth = math::sin(th);
-            value_t cth = math::cos(th);
+            // value_t sth = math::sin(th);
+            // value_t cth = math::cos(th);
 
-            value_t DdotB = Metric_KS::dot_product_u({D1, D2, D3}, {B1, B2, B3},
-                                                     a, r, sth, cth);
-            value_t B_sqr = Metric_KS::dot_product_u({B1, B2, B3}, {B1, B2, B3},
-                                                     a, r, sth, cth);
+            // value_t DdotB = Metric_KS::dot_product_u({D1, D2, D3}, {B1, B2, B3},
+            //                                          a, r, sth, cth);
+            // value_t B_sqr = Metric_KS::dot_product_u({B1, B2, B3}, {B1, B2, B3},
+            //                                          a, r, sth, cth);
 
             value_t n = 1.0e-8f;
             for (int i = 0; i < num_species; i++) {
               n += math::abs(rho[i][idx]);
             }
+            value_t B_sqr = Bmag[idx] * Bmag[idx];
             value_t sigma = B_sqr / n;
 
             auto u = rng.template uniform<float>();
             // printf("u is %f\n", u);
-            if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr &&
-                u < 0.001f) {
-              // if (sigma > sigma_thr && math::abs(DdotB) / B_sqr > inj_thr) {
+            if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr &&
+                u < 0.02f) {
+            // if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
             } else {
               // printf("idx.linear is %ld\n", idx.linear);
@@ -135,18 +139,21 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           }
         });
       },
-      B, D, Rho, m_num_per_cell, m_rng_states);
+      B, D, DdotB, Bmag, Rho, m_num_per_cell, m_rng_states);
   exec_policy::sync();
 
   auto num_per_cell = adapt(typename exec_policy::exec_tag{}, m_num_per_cell);
+  auto ddotb_ptr = adapt(typename exec_policy::exec_tag{}, DdotB);
+  auto bmag = adapt(typename exec_policy::exec_tag{}, Bmag);
   // auto injector = ptc_injector_dynamic<Conf>(m_grid);
   ptc_injector_dynamic<Conf> injector(m_grid);
   injector.inject_pairs(
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        return true;
+      [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
+        auto idx = Conf::idx(pos, ext);
+        return num_per_cell[idx] > 0;
       },
       // Second function returns the number of particles injected in each cell.
       // This includes all species
@@ -162,8 +169,14 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [] LAMBDA(auto &x_global, PtcType type) {
-        return math::sin(x_global[1]);
+      [ddotb_ptr, bmag] LAMBDA(auto &x_global, PtcType type) {
+        index_t<Conf::dim> pos;
+        vec_t<value_t, 3> x;
+        auto &grid = exec_policy::grid();
+        grid.from_global(x_global, pos, x);
+        auto idx = Conf::idx(pos, grid.extent());
+        // return math::sin(x_global[1]);
+        return math::sin(x_global[1]) * (math::abs(ddotb_ptr[idx] / bmag[idx]) + 0.1);
       });
 }
 

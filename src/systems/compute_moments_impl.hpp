@@ -178,7 +178,7 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (step % m_fld_interval == 0) {
-    Logger::print_info("size is {}", m_size);
+    // Logger::print_info("size is {}", m_size);
     for (int n = 0; n < m_size; n++) {
       if (m_compute_first_moments) {
         ptc_num.init();
@@ -195,7 +195,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
         T33.init();
       }
     }
-    Logger::print_info("Initialized");
+    // Logger::print_info("Initialized");
 
     bool first = m_compute_first_moments;
     bool second = m_compute_second_moments;

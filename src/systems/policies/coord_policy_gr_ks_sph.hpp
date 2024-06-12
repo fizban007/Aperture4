@@ -93,6 +93,36 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
 
 template <typename value_t>
 HOST_DEVICE void
+gr_ks_momentum_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
+                       int n_iter = 3) {
+  vec_t<value_t, 3> u0 = u, u1 = u;
+
+  for (int i = 0; i < n_iter; i++) {
+    // auto x_tmp = (x0 + x) * 0.5;
+    auto u_tmp = (u0 + u1) * 0.5;
+    u1 = u0 + geodesic_ks_u_rhs(a, x, u_tmp, is_photon) * dt;
+  }
+  u = u1;
+}
+
+template <typename value_t>
+HOST_DEVICE void
+gr_ks_position_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
+                       int n_iter = 3) {
+  vec_t<value_t, 3> x0 = x, x1 = x;
+
+  for (int i = 0; i < n_iter; i++) {
+    auto x_tmp = (x0 + x1) * 0.5;
+    // auto u_tmp = (u0 + u1) * 0.5;
+    x1 = x0 + geodesic_ks_u_rhs(a, x_tmp, u, is_photon) * dt;
+  }
+  x = x1;
+}
+
+template <typename value_t>
+HOST_DEVICE void
 gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
                        vec_t<value_t, 3> &u, bool is_photon = false,
                        int n_iter = 3) {
@@ -100,13 +130,13 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
   vec_t<value_t, 3> u0 = u, u1 = u;
 
   for (int i = 0; i < n_iter; i++) {
-    auto x_tmp = (x0 + x) * 0.5;
-    auto u_tmp = (u0 + u) * 0.5;
+    auto x_tmp = (x0 + x1) * 0.5;
+    auto u_tmp = (u0 + u1) * 0.5;
     x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, is_photon) * dt;
     u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, is_photon) * dt;
-    x = x1;
-    u = u1;
   }
+  x = x1;
+  u = u1;
 }
 
 }  // namespace
@@ -252,16 +282,19 @@ class coord_policy_gr_ks_sph {
               [&grid, &ext, num_species, w, process_rho] LAMBDA(
                   auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
                 auto pos = get_pos(idx, ext);
+                value_t r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+                value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
                 // if (grid.is_in_bound(pos)) {
-                j[0][idx] *= w / grid_ptrs.Ad[0][idx];
-                j[1][idx] *= w / grid_ptrs.Ad[1][idx];
-                j[2][idx] *= w / grid_ptrs.Ad[2][idx];
+
+                j[0][idx] *= r * w / grid_ptrs.Ad[0][idx];
+                j[1][idx] *= r_s * w / grid_ptrs.Ad[1][idx];
+                j[2][idx] *= r_s * w / grid_ptrs.Ad[2][idx];
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] *=
-                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                      r_s * w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
                 // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
-                //   printf("j0 is %f\n", j[0][idx]);
+                //   printf("j0 is %f, r_s is %f\n", j[0][idx], r_s);
                 // }
                 // }
                 typename Conf::value_t theta =

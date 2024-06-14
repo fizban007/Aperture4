@@ -28,6 +28,7 @@
 #include "systems/grid_ks.h"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
+#include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater.h"
 #include "utils/util_functions.h"
 
@@ -38,6 +39,10 @@ namespace Aperture {
 template <typename Conf>
 void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
                          const grid_ks_t<Conf> &grid);
+template <typename Conf>
+void initial_nonrotating_vacuum_wald(vector_field<Conf> &B0,
+                                     vector_field<Conf> &D0,
+                                     const grid_ks_t<Conf> &grid);
 }  // namespace Aperture
 
 using namespace Aperture;
@@ -69,7 +74,7 @@ main(int argc, char *argv[]) {
 
   // Prepare initial condition here
   vector_field<Conf> *B, *D, *B0, *D0;
-  particle_data_t *ptc;
+  // particle_data_t *ptc;
   env.get_data("B0", &B0);
   env.get_data("E0", &D0);
   env.get_data("Bdelta", &B);
@@ -77,10 +82,40 @@ main(int argc, char *argv[]) {
   // env.get_data("particles", &ptc);
 
   initial_vacuum_wald(*B0, *D0, grid);
+  // initial_nonrotating_vacuum_wald(*B, *D, grid);
   // B->copy_from(*B0);
   // D->copy_from(*D0);
+  // initial_vacuum_wald(*B0, *D0, grid);
+  // initial_nonrotating_vacuum_wald(*B, *D, grid);
+  // B->add_by(*B0, -1.0);
+  // D->add_by(*D0, -1.0);
 
-  pusher->fill_multiplicity(1, 1.0);
+//   pusher->fill_multiplicity(5, 5.0);
+ptc_injector_dynamic<Conf> ptc_inj(grid);
+ptc_inj.inject_pairs(
+    // First function is the injection criterion for each cell. pos is an
+    // index_t<Dim> object marking the cell in the grid. Returns true for
+    // cells that inject and false for cells that do nothing.
+    [] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      return true;
+    },
+    // Second function returns the number of particles injected in each cell.
+    // This includes all species
+    [] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      return 10;
+    },
+    // Third function is the momentum distribution of the injected particles.
+    // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
+    // particular particle
+    [] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+      return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+    },
+    // Fourth function is the particle weight, which can depend on the global
+    // coordinate.
+    [] LAMBDA(auto &x_global, PtcType type) {
+      value_t r = grid_ks_t<Conf>::radius(x_global[0]);
+      return 500.0 * math::sin(x_global[1]);
+    });
 
   env.run();
 

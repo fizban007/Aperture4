@@ -59,6 +59,10 @@ template <typename Conf> void bh_injector<Conf>::init() {
     sim_env().get_data(std::string("Rho_") + ptc_type_name(i), Rho[i]);
   }
   Rho.copy_to_device();
+
+  pair_injected = sim_env().register_data<scalar_field<Conf>>(std::string("pair_injected"),
+    m_grid, field_type::cell_centered, default_mem_type);
+  pair_injected->reset_after_output(true);
 }
 
 template <typename Conf>
@@ -78,7 +82,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   exec_policy::launch(
       [a, inj_thr, sigma_thr, num_species] LAMBDA(
           auto B, auto D, auto DdotB, auto Bmag,
-          auto rho, auto num_per_cell, auto states) {
+          auto rho, auto num_per_cell, auto states, auto pair_injected) {
         auto &grid = exec_policy::grid();
         auto ext = grid.extent();
         // auto interp = lerp<Conf::dim>{};
@@ -96,7 +100,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t th =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
-            if (r <= 1.1f * Metric_KS::rH(a) || r > 5.0f ||
+            if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
                 th < grid.delta[1] || th > M_PI - grid.delta[1])
             // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
               return;
@@ -117,18 +121,22 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             //                                          a, r, sth, cth);
 
             value_t n = 1.0e-8f;
-            for (int i = 0; i < num_species; i++) {
-              n += math::abs(rho[i][idx]);
+            for (int sp = 0; sp < num_species; sp++) {
+              n += math::abs(rho[sp][idx]);
             }
             value_t B_sqr = Bmag[idx] * Bmag[idx];
             value_t sigma = B_sqr / n;
 
             auto u = rng.template uniform<float>();
             // // printf("u is %f\n", u);
-            if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr &&
-                u < 0.2f) {
+            // if (pos[1] == 512 && pos[0] == 100) {
+            //   printf("sigma is %f, n is %f, B_sqr is %f\n", sigma, n, B_sqr);
+            // }
+            if (sigma > sigma_thr && math::abs(DdotB[idx] / B_sqr) > inj_thr &&
+                u < 0.1f) {
             // if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
+              pair_injected[idx] += 2.0;
             } else {
               // printf("idx.linear is %ld\n", idx.linear);
               num_per_cell[idx] = 0;
@@ -139,45 +147,49 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           }
         });
       },
-      B, D, DdotB, Bmag, Rho, m_num_per_cell, m_rng_states);
+      B, D, DdotB, Bmag, Rho, m_num_per_cell, m_rng_states, pair_injected);
   exec_policy::sync();
 
   auto num_per_cell = adapt(typename exec_policy::exec_tag{}, m_num_per_cell);
   auto ddotb_ptr = adapt(typename exec_policy::exec_tag{}, DdotB);
   auto bmag = adapt(typename exec_policy::exec_tag{}, Bmag);
   // auto injector = ptc_injector_dynamic<Conf>(m_grid);
-  ptc_injector_dynamic<Conf> injector(m_grid);
-  injector.inject_pairs(
-      // First function is the injection criterion for each cell. pos is an
-      // index_t<Dim> object marking the cell in the grid. Returns true for
-      // cells that inject and false for cells that do nothing.
-      [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        auto idx = Conf::idx(pos, ext);
-        return num_per_cell[idx] > 0;
-      },
-      // Second function returns the number of particles injected in each cell.
-      // This includes all species
-      [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        auto idx = Conf::idx(pos, ext);
-        return num_per_cell[idx] * 2;
-      },
-      // Third function is the momentum distribution of the injected particles.
-      // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
-      // particular particle
-      [] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return vec_t<value_t, 3>(0.0, 0.0, 0.0);
-      },
-      // Fourth function is the particle weight, which can depend on the global
-      // coordinate.
-      [ddotb_ptr, bmag] LAMBDA(auto &x_global, PtcType type) {
-        index_t<Conf::dim> pos;
-        vec_t<value_t, 3> x;
-        auto &grid = exec_policy::grid();
-        grid.from_global(x_global, pos, x);
-        auto idx = Conf::idx(pos, grid.extent());
-        // return math::sin(x_global[1]);
-        return math::sin(x_global[1]) * (2.5 * math::abs(ddotb_ptr[idx] / bmag[idx]));
-      });
+  if (step * dt > 2.0) {
+    ptc_injector_dynamic<Conf> injector(m_grid);
+    injector.inject_pairs(
+        // First function is the injection criterion for each cell. pos is an
+        // index_t<Dim> object marking the cell in the grid. Returns true for
+        // cells that inject and false for cells that do nothing.
+        [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
+          auto idx = Conf::idx(pos, ext);
+          return num_per_cell[idx] > 0;
+        },
+        // Second function returns the number of particles injected in each cell.
+        // This includes all species
+        [num_per_cell] LAMBDA(auto &pos, auto &grid, auto &ext) {
+          auto idx = Conf::idx(pos, ext);
+          return num_per_cell[idx] * 2;
+        },
+        // Third function is the momentum distribution of the injected particles.
+        // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
+        // particular particle
+        [] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+          return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+        },
+        // Fourth function is the particle weight, which can depend on the global
+        // coordinate.
+        [ddotb_ptr, bmag, qe] LAMBDA(auto &x_global, PtcType type) {
+          index_t<Conf::dim> pos;
+          vec_t<value_t, 3> x;
+          auto &grid = exec_policy::grid();
+          grid.from_global(x_global, pos, x);
+          auto idx = Conf::idx(pos, grid.extent());
+          value_t r = grid_ks_t<Conf>::radius(x_global[0]);
+          // return math::sin(x_global[1]);
+          return math::sin(x_global[1]) * (0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]));
+          // return 0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]);
+        });
+  }
 }
 
 template class bh_injector<Config<2>>;

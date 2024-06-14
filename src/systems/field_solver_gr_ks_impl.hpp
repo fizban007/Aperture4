@@ -135,6 +135,8 @@ field_solver<Conf, ExecPolicy,
       "Bmag", this->m_grid, field_type::cell_centered, type);
   Jmag = sim_env().register_data<scalar_field<Conf>>(
       "Jmag", this->m_grid, field_type::vert_centered, type);
+  // Sigma = sim_env().register_data<scalar_field<Conf>>(
+  //     "sigma", this->m_grid, field_type::cell_centered, type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -333,7 +335,7 @@ void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
     vector_field<Conf>& dB_dt, const vector_field<Conf>& B,
     const vector_field<Conf>& D) {
-  vec_t<bool, Conf::dim* 2> is_boundary = true;
+  vec_t<bool, Conf::dim * 2> is_boundary = true;
   if (this->m_comm != nullptr) {
     is_boundary = this->m_comm->domain_info().is_boundary;
   }
@@ -657,7 +659,46 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_explicit(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {}
+field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
+  this->divE->init();
+  this->divB->init();
+  auto a = m_a;
+  ExecPolicy<Conf>::launch(
+      [a] LAMBDA(auto d, auto b, auto divD, auto divB, auto grid_ptrs) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+        ExecPolicy<Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+          auto pos = get_pos(idx, ext);
+          if (grid.is_in_bound(pos)) {
+            auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+            auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+            auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+            auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+
+            divB[idx] = (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
+                         b[0][idx] * grid_ptrs.Ab[0][idx] +
+                         b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
+                         b[1][idx] * grid_ptrs.Ab[1][idx]) /
+                grid_ptrs.Ab[2][idx];
+            divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                         d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                         d[1][idx] * grid_ptrs.Ad[1][idx] -
+                         d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
+                grid_ptrs.Ad[2][idx];
+            if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
+                math::abs(th + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
+              divD[idx.inc_y()] = (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
+                          d[0][idx.inc_y().dec_x()] * grid_ptrs.Ad[0][idx.inc_y().dec_x()] +
+                          d[1][idx.inc_y()] * grid_ptrs.Ad[1][idx.inc_y()] -
+                          d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                  grid_ptrs.Ad[2][idx.inc_y()];
+            }
+          }
+        });
+      }, this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
+  ExecPolicy<Conf>::sync();
+}
 
 template <typename Conf, template <class> class ExecPolicy>
 void

@@ -147,6 +147,7 @@ class coord_policy_gr_ks_sph {
  public:
   using value_t = typename Conf::value_t;
   using grid_type = grid_ks_t<Conf>;
+  using this_type = coord_policy_gr_ks_sph<Conf>;
 
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
       : m_grid(dynamic_cast<const grid_type &>(grid)) {
@@ -192,8 +193,8 @@ class coord_policy_gr_ks_sph {
                             const extent_t<Conf::dim> &ext, PtcContext &context,
                             index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_type::radius(x_global[0]);
-    x_global[1] = grid_type::theta(x_global[1]);
+    x_global[0] = x1(x_global[0]);
+    x_global[1] = x2(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
@@ -259,8 +260,8 @@ class coord_policy_gr_ks_sph {
                            ph_context<Conf::dim, value_t> &context,
                            index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_type::radius(x_global[0]);
-    x_global[1] = grid_type::theta(x_global[1]);
+    x_global[0] = x1(x_global[0]);
+    x_global[1] = x2(x_global[1]);
 
     move_ptc(grid, context, x_global, pos, dt, true);
   }
@@ -270,8 +271,9 @@ class coord_policy_gr_ks_sph {
   void process_J_Rho(vector_field<Conf> &J, data_array<scalar_field<Conf>> &Rho,
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
+    auto a = m_a;
     ExecPolicy::launch(
-        [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
+        [dt, num_species, process_rho, a] LAMBDA(auto j, auto rho,
                                               auto grid_ptrs) {
           auto &grid = ExecPolicy::grid();
           auto ext = grid.extent();
@@ -279,19 +281,20 @@ class coord_policy_gr_ks_sph {
           auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, num_species, w, process_rho] LAMBDA(
-                  auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
+              [&] LAMBDA(auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
                 auto pos = get_pos(idx, ext);
-                value_t r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
-                value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                value_t r_s = this_type::x1(grid.coord(0, pos[0], true));
+                value_t r = this_type::x1(grid.coord(0, pos[0], false));
+                value_t th_s = this_type::x2(grid.coord(1, pos[1], true));
+                value_t th = this_type::x2(grid.coord(1, pos[1], false));
                 // if (grid.is_in_bound(pos)) {
 
-                j[0][idx] *= r * w / grid_ptrs.Ad[0][idx];
-                j[1][idx] *= r_s * w / grid_ptrs.Ad[1][idx];
-                j[2][idx] *= r_s * w / grid_ptrs.Ad[2][idx];
+                j[0][idx] *= w / grid_ptrs.Ad[0][idx];
+                j[1][idx] *= w / grid_ptrs.Ad[1][idx];
+                j[2][idx] *= w / grid_ptrs.Ad[2][idx];
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] *=
-                      r_s * w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
                 // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
                 //   printf("j0 is %f, r_s is %f\n", j[0][idx], r_s);

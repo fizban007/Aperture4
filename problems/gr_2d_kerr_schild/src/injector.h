@@ -54,7 +54,7 @@ class bh_injector : public system_t {
   nonown_ptr<rng_states_t<exec_tag>> m_rng_states;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<vector_field<Conf>> B, D;
-  nonown_ptr<scalar_field<Conf>> DdotB, Bmag;
+  nonown_ptr<scalar_field<Conf>> DdotB, Bmag, pair_injected;
   // std::vector<const scalar_field<Conf>*> Rho;
   data_array<scalar_field<Conf>> Rho;
 

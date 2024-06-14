@@ -203,8 +203,8 @@ struct deposit_t<2, spline_t> {
         // j3 is simply v3 times rho at center
         atomic_add(&J[2][offset],
                    context.weight *
-                       // (context.new_x[2] - context.x[2]) / dt *
-                       context.p[2] / context.gamma *
+                       (context.new_x[2] - context.x[2]) / dt *
+                       // context.p[2] / context.gamma *
                        center2d(sx0, sx1, sy0, sy1));
         // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
 

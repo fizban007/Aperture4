@@ -114,7 +114,7 @@ ptc_inj.inject_pairs(
     // coordinate.
     [] LAMBDA(auto &x_global, PtcType type) {
       value_t r = grid_ks_t<Conf>::radius(x_global[0]);
-      return 500.0 * math::sin(x_global[1]);
+      return 10.0 * math::sin(x_global[1]) * r * r;
     });
 
   env.run();

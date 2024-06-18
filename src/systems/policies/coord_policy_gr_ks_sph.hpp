@@ -125,7 +125,7 @@ template <typename value_t>
 HOST_DEVICE void
 gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
                        vec_t<value_t, 3> &u, bool is_photon = false,
-                       int n_iter = 3) {
+                       int n_iter = 5) {
   vec_t<value_t, 3> x0 = x, x1 = x;
   vec_t<value_t, 3> u0 = u, u1 = u;
 
@@ -137,6 +137,21 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
   }
   x = x1;
   u = u1;
+  // auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
+  // auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
+  // auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                               is_photon);
+  // auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                               is_photon);
+  // auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                               is_photon);
+  // auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                               is_photon);
+  // auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+  // auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+
+  // x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
+  // u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
 }
 
 }  // namespace
@@ -329,7 +344,7 @@ class coord_policy_gr_ks_sph {
   void filter_field(scalar_field<Conf> &field,
                     typename Conf::multi_array_t &tmp,
                     const vec_t<bool, Conf::dim * 2> &is_boundary) const {
-    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ab[2],
+    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ad[2],
                                        is_boundary);
   }
 

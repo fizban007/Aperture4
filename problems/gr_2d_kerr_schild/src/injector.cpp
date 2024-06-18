@@ -100,7 +100,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             value_t th =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
 
-            if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
+            if (r <= 1.1f * Metric_KS::rH(a) || r > 4.0f ||
                 th < grid.delta[1] || th > M_PI - grid.delta[1])
             // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
               return;
@@ -133,7 +133,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
             //   printf("sigma is %f, n is %f, B_sqr is %f\n", sigma, n, B_sqr);
             // }
             if (sigma > sigma_thr && math::abs(DdotB[idx] / B_sqr) > inj_thr &&
-                u < 0.1f) {
+                u < 0.05) {
             // if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
               pair_injected[idx] += 2.0;
@@ -186,7 +186,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           auto idx = Conf::idx(pos, grid.extent());
           value_t r = grid_ks_t<Conf>::radius(x_global[0]);
           // return math::sin(x_global[1]);
-          return math::sin(x_global[1]) * (0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]));
+          return math::sin(x_global[1]) * (math::abs(ddotb_ptr[idx] / bmag[idx]));
           // return 0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]);
         });
   }

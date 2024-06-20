@@ -107,7 +107,9 @@ grid_ks_t<Conf>::compute_coef() {
     if (math::abs(th_s) < TINY) th_s = 0.01 * this->delta[1];
     if (math::abs(M_PI - th_s) < TINY) th_s = M_PI - 0.01 * this->delta[1];
 
-    double dth = (theta(this->template coord<1>(pos[1] + 1, true)) - th_s);
+    // double dth = (theta(this->template coord<1>(pos[1] + 1, true)) - th_s);
+
+    // B1 is staggered in r, not in theta
     m_Ab[0][idx] =
         gauss_quad([this, r_s](auto x) { return sqrt_gamma(a, r_s, x); }, th_s,
                    theta(this->template coord<1>(pos[1] + 1, true)));
@@ -116,7 +118,9 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ab0 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
-    double dr = (radius(this->template coord<0>(pos[0] + 1, true)) - r_s);
+    // double dr = (radius(this->template coord<0>(pos[0] + 1, true)) - r_s);
+
+    // B2 is staggered in theta, not in r
     m_Ab[1][idx] =
         gauss_quad([this, th_s](auto x) { return sqrt_gamma(a, x, th_s); }, r_s,
                    radius(this->template coord<0>(pos[0] + 1, true)));
@@ -125,6 +129,7 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ab1 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
+    // B3 is unstaggered in either r or theta
     m_Ab[2][idx] =
         gauss_quad(
         [this, r_s, pos](auto x) {
@@ -138,7 +143,7 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ab2 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
-    dth = th - theta(this->template coord<1>(pos[1] - 1, false));
+    // dth = th - theta(this->template coord<1>(pos[1] - 1, false));
     if (pos[1] == this->guard[1] && th_s < 0.1 * this->delta[1]) {
       m_Ad[0][idx] =
           2.0 * gauss_quad([this, r](auto x) { return sqrt_gamma(a, r, x); },
@@ -159,7 +164,7 @@ grid_ks_t<Conf>::compute_coef() {
       Logger::print_err("m_Ad0 at ({}, {}) is NaN!", pos[0], pos[1]);
     }
 
-    dr = r - radius(this->template coord<0>(pos[0] - 1, false));
+    // dr = r - radius(this->template coord<0>(pos[0] - 1, false));
     m_Ad[1][idx] =
         gauss_quad([this, th](auto x) { return sqrt_gamma(a, x, th); },
                    radius(this->template coord<0>(pos[0] - 1, false)), r);

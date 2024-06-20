@@ -139,7 +139,7 @@ main(int argc, char *argv[]) {
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
       [kT, gamma] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return rng_maxwell_juttner_3d(state, kT);
+        return rng_maxwell_juttner_3d<value_t>(state, kT);
       },
       [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
         return rho0 / qe / ppc;

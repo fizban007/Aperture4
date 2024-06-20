@@ -37,6 +37,7 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
+  using value_t = typename Config<2>::value_t;
   auto &env = sim_environment::instance(&argc, &argv);
 
   domain_comm<Conf, exec_policy_dynamic> comm;
@@ -92,7 +93,7 @@ main(int argc, char *argv[]) {
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
       [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return rng_maxwell_juttner_3d(state, kT);
+        return rng_maxwell_juttner_3d<value_t>(state, kT);
       },
       [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(

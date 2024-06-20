@@ -578,10 +578,12 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
             D[1][idx.dec_x()] = D[1][idx] + D0[1][idx] - D0[1][idx.dec_x()];
             D[2][idx.dec_x()] = D[2][idx] + D0[2][idx] - D0[2][idx.dec_x()];
             B[0][idx.dec_x()] = B[0][idx] + B0[0][idx] - B0[0][idx.dec_x()];
-            // B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
-            // B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
-            B[1][idx.dec_x()] = B[1][idx] = -B0[1][idx];
-            B[2][idx.dec_x()] = B[2][idx] = -B0[2][idx];
+            B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
+            B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
+            // B[1][idx.dec_x()] = -B0[1][idx.dec_x()];
+            // B[1][idx] = -B0[1][idx];
+            // B[2][idx.dec_x()] = -B0[2][idx.dec_x()];
+            // B[2][idx] = -B0[2][idx];
           });
         },
         D, B, this->E0, this->B0);

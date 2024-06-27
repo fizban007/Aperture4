@@ -41,6 +41,10 @@ add_aperture_executable(monopole "main_monopole.cpp")
 target_link_libraries(monopole gr_2d_kerr_schild)
 add_dependencies(problems monopole)
 
+add_aperture_executable(fluxhold "main_fluxhold.cpp")
+target_link_libraries(fluxhold gr_2d_kerr_schild)
+add_dependencies(problems fluxhold)
+
 add_aperture_executable(vacuum_wald "vacuum.cpp")
 target_link_libraries(vacuum_wald gr_2d_kerr_schild)
 add_dependencies(problems vacuum_wald)

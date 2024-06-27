@@ -213,7 +213,8 @@ class coord_policy_gr_ks_sph {
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, 0.5f * dt, context.q / context.m);
+                         context.E, dt, context.q / context.m);
+                        //  context.E, 0.5f * dt, context.q / context.m);
       // dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
@@ -221,21 +222,21 @@ class coord_policy_gr_ks_sph {
     move_ptc(grid, context, x_global, pos, dt, false);
 
     // Second half push
-    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      auto idx = typename Conf::idx_t(pos, ext);
-      auto interp = interp_t<1, Conf::dim>{};
-      context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
-      context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
-      context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
-      context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
-      context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
-      context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
+    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    //   auto idx = typename Conf::idx_t(pos, ext);
+    //   auto interp = interp_t<1, Conf::dim>{};
+    //   context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
+    //   context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
+    //   context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
+    //   context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
+    //   context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
+    //   context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-      // Note: context.p stores the lower components u_i, while gamma is upper
-      // u^0.
-      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, 0.5f * dt, context.q / context.m);
-    }
+    //   // Note: context.p stores the lower components u_i, while gamma is upper
+    //   // u^0.
+    //   gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
+    //                      context.E, 0.5f * dt, context.q / context.m);
+    // }
   }
 
   // Abstracted moving routine that is shared by both ptc and ph

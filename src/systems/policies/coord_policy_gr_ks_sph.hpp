@@ -93,20 +93,65 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
 
 template <typename value_t>
 HOST_DEVICE void
-gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+gr_ks_momentum_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
                        vec_t<value_t, 3> &u, bool is_photon = false,
                        int n_iter = 3) {
+  vec_t<value_t, 3> u0 = u, u1 = u;
+
+  for (int i = 0; i < n_iter; i++) {
+    // auto x_tmp = (x0 + x) * 0.5;
+    auto u_tmp = (u0 + u1) * 0.5;
+    u1 = u0 + geodesic_ks_u_rhs(a, x, u_tmp, is_photon) * dt;
+  }
+  u = u1;
+}
+
+template <typename value_t>
+HOST_DEVICE void
+gr_ks_position_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
+                       int n_iter = 3) {
+  vec_t<value_t, 3> x0 = x, x1 = x;
+
+  for (int i = 0; i < n_iter; i++) {
+    auto x_tmp = (x0 + x1) * 0.5;
+    // auto u_tmp = (u0 + u1) * 0.5;
+    x1 = x0 + geodesic_ks_u_rhs(a, x_tmp, u, is_photon) * dt;
+  }
+  x = x1;
+}
+
+template <typename value_t>
+HOST_DEVICE void
+gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
+                       vec_t<value_t, 3> &u, bool is_photon = false,
+                       int n_iter = 5) {
   vec_t<value_t, 3> x0 = x, x1 = x;
   vec_t<value_t, 3> u0 = u, u1 = u;
 
   for (int i = 0; i < n_iter; i++) {
-    auto x_tmp = (x0 + x) * 0.5;
-    auto u_tmp = (u0 + u) * 0.5;
+    auto x_tmp = (x0 + x1) * 0.5;
+    auto u_tmp = (u0 + u1) * 0.5;
     x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, is_photon) * dt;
     u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, is_photon) * dt;
-    x = x1;
-    u = u1;
   }
+  x = x1;
+  u = u1;
+  // auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
+  // auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
+  // auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                               is_photon);
+  // auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                               is_photon);
+  // auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                               is_photon);
+  // auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                               is_photon);
+  // auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+  // auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+
+  // x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
+  // u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
 }
 
 }  // namespace
@@ -117,6 +162,7 @@ class coord_policy_gr_ks_sph {
  public:
   using value_t = typename Conf::value_t;
   using grid_type = grid_ks_t<Conf>;
+  using this_type = coord_policy_gr_ks_sph<Conf>;
 
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
       : m_grid(dynamic_cast<const grid_type &>(grid)) {
@@ -162,12 +208,13 @@ class coord_policy_gr_ks_sph {
                             const extent_t<Conf::dim> &ext, PtcContext &context,
                             index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_type::radius(x_global[0]);
-    x_global[1] = grid_type::theta(x_global[1]);
+    x_global[0] = x1(x_global[0]);
+    x_global[1] = x2(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, 0.5f * dt, context.q / context.m);
+                         context.E, dt, context.q / context.m);
+                        //  context.E, 0.5f * dt, context.q / context.m);
       // dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
@@ -175,21 +222,21 @@ class coord_policy_gr_ks_sph {
     move_ptc(grid, context, x_global, pos, dt, false);
 
     // Second half push
-    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      auto idx = typename Conf::idx_t(pos, ext);
-      auto interp = interp_t<1, Conf::dim>{};
-      context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
-      context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
-      context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
-      context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
-      context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
-      context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
+    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    //   auto idx = typename Conf::idx_t(pos, ext);
+    //   auto interp = interp_t<1, Conf::dim>{};
+    //   context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
+    //   context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
+    //   context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
+    //   context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
+    //   context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
+    //   context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-      // Note: context.p stores the lower components u_i, while gamma is upper
-      // u^0.
-      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, 0.5f * dt, context.q / context.m);
-    }
+    //   // Note: context.p stores the lower components u_i, while gamma is upper
+    //   // u^0.
+    //   gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
+    //                      context.E, 0.5f * dt, context.q / context.m);
+    // }
   }
 
   // Abstracted moving routine that is shared by both ptc and ph
@@ -229,8 +276,8 @@ class coord_policy_gr_ks_sph {
                            ph_context<Conf::dim, value_t> &context,
                            index_t<Conf::dim> &pos, value_t dt) const {
     vec_t<value_t, 3> x_global = grid.coord_global(pos, context.x);
-    x_global[0] = grid_type::radius(x_global[0]);
-    x_global[1] = grid_type::theta(x_global[1]);
+    x_global[0] = x1(x_global[0]);
+    x_global[1] = x2(x_global[1]);
 
     move_ptc(grid, context, x_global, pos, dt, true);
   }
@@ -240,8 +287,9 @@ class coord_policy_gr_ks_sph {
   void process_J_Rho(vector_field<Conf> &J, data_array<scalar_field<Conf>> &Rho,
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
+    auto a = m_a;
     ExecPolicy::launch(
-        [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
+        [dt, num_species, process_rho, a] LAMBDA(auto j, auto rho,
                                               auto grid_ptrs) {
           auto &grid = ExecPolicy::grid();
           auto ext = grid.extent();
@@ -249,10 +297,14 @@ class coord_policy_gr_ks_sph {
           auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&grid, &ext, num_species, w, process_rho] LAMBDA(
-                  auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
+              [&] LAMBDA(auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
                 auto pos = get_pos(idx, ext);
+                value_t r_s = this_type::x1(grid.coord(0, pos[0], true));
+                value_t r = this_type::x1(grid.coord(0, pos[0], false));
+                value_t th_s = this_type::x2(grid.coord(1, pos[1], true));
+                value_t th = this_type::x2(grid.coord(1, pos[1], false));
                 // if (grid.is_in_bound(pos)) {
+
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ad[1][idx];
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
@@ -260,6 +312,9 @@ class coord_policy_gr_ks_sph {
                   rho[n][idx] *=
                       w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
+                // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
+                //   printf("j0 is %f, r_s is %f\n", j[0][idx], r_s);
+                // }
                 // }
                 typename Conf::value_t theta =
                     grid.template coord<1>(pos[1], true);
@@ -290,7 +345,7 @@ class coord_policy_gr_ks_sph {
   void filter_field(scalar_field<Conf> &field,
                     typename Conf::multi_array_t &tmp,
                     const vec_t<bool, Conf::dim * 2> &is_boundary) const {
-    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ab[2],
+    filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ad[2],
                                        is_boundary);
   }
 

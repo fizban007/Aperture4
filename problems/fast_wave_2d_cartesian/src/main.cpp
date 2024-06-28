@@ -120,7 +120,7 @@ main(int argc, char *argv[]) {
       [kT, gamma] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         // return rng_maxwell_juttner_3d(state, kT);
         value_t beta = sqrt(1.0 - 1.0 / (gamma * gamma));
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT, beta);
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting<value_t>(state, kT, beta);
         value_t sign = 1.0f;
 
         auto p1 = u_d[1] * sign;

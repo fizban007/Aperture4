@@ -25,7 +25,10 @@
 #include "systems/field_solver_gr_ks.h"
 #include "systems/gather_tracked_ptc.h"
 #include "systems/compute_moments.h"
+#include "systems/disk_boundary_condition.hpp"
 #include "systems/grid_ks.h"
+#include "systems/radiative_transfer_impl.hpp"
+#include "systems/radiation/default_radiation_scheme_gr.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
@@ -43,6 +46,15 @@ template <typename Conf>
 void initial_nonrotating_vacuum_wald(vector_field<Conf> &B0,
                                      vector_field<Conf> &D0,
                                      const grid_ks_t<Conf> &grid);
+
+template <typename Conf>
+void initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
+                             const grid_ks_t<Conf> &grid);
+
+// template class radiative_transfer<Config<2>, exec_policy_gpu,
+//                                   coord_policy_gr_ks_sph,
+//                                   default_radiation_scheme_gr>;
+
 }  // namespace Aperture
 
 using namespace Aperture;
@@ -59,14 +71,17 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_ks_t<Conf> grid;
 
-  auto solver = env.register_system<
-      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto moments = env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  // auto radiation = env.register_system<
+  //   radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
+  //                      default_radiation_scheme_gr>>(grid, &comm);
+  auto solver = env.register_system<
+      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto exporter =
       env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
@@ -81,7 +96,7 @@ main(int argc, char *argv[]) {
   env.get_data("Edelta", &D);
   // env.get_data("particles", &ptc);
 
-  initial_vacuum_wald(*B0, *D0, grid);
+  initial_vacuum_monopole(*B0, *D0, grid);
   // initial_nonrotating_vacuum_wald(*B, *D, grid);
   // B->copy_from(*B0);
   // D->copy_from(*D0);
@@ -97,12 +112,15 @@ ptc_inj.inject_pairs(
     // index_t<Dim> object marking the cell in the grid. Returns true for
     // cells that inject and false for cells that do nothing.
     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      return true;
+      if (pos[0] == 80 && pos[1] == 120)
+        return true;
+      else
+        return false;
     },
     // Second function returns the number of particles injected in each cell.
     // This includes all species
     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      return 10;
+      return 2;
     },
     // Third function is the momentum distribution of the injected particles.
     // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
@@ -114,7 +132,7 @@ ptc_inj.inject_pairs(
     // coordinate.
     [] LAMBDA(auto &x_global, PtcType type) {
       value_t r = grid_ks_t<Conf>::radius(x_global[0]);
-      return 10.0 * math::sin(x_global[1]);
+      return 10.0 * math::sin(x_global[1]) * r;
     });
 
   env.run();

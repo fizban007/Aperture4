@@ -15,8 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _BH_INJECTOR_H_
-#define _BH_INJECTOR_H_
+#pragma once
 
 #include "data/fields.h"
 #include "data/particle_data.h"
@@ -55,6 +54,7 @@ class bh_injector : public system_t {
   nonown_ptr<rng_states_t<exec_tag>> m_rng_states;
   nonown_ptr<particle_data_t> ptc;
   nonown_ptr<vector_field<Conf>> B, D;
+  nonown_ptr<scalar_field<Conf>> DdotB, Bmag, pair_injected;
   // std::vector<const scalar_field<Conf>*> Rho;
   data_array<scalar_field<Conf>> Rho;
 
@@ -64,4 +64,3 @@ class bh_injector : public system_t {
 
 }
 
-#endif  // _BH_INJECTOR_H_

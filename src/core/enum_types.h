@@ -98,6 +98,11 @@ enum class PtcFlag : uint32_t {
 // Since all the flag functions are insensitive of the actual type, one can use
 // them to set an extended flag on an existing uint32_t flag.
 
-enum class PhFlag : uint32_t { tracked = 1, ignore_pair_create };
+enum class PhFlag : uint32_t {
+  tracked = 1,
+  polarized,
+  pol_parallel, // photons can be either in parallel or perpendicular polarization
+  ignore_pair_create,
+};
 
 }  // namespace Aperture

@@ -18,6 +18,7 @@
 #pragma once
 
 #include "compute_moments.h"
+#include "data/fields.h"
 #include "framework/environment.h"
 
 namespace Aperture {
@@ -28,6 +29,7 @@ compute_moments<Conf, ExecPolicy>::init() {
   sim_env().get_data("particles", ptc);
   sim_env().get_data_optional("photons", ph);
   if (ph != nullptr) {
+    Logger::print_info("Photon data detected.");
     m_photon_data = true;
   }
 
@@ -41,11 +43,6 @@ compute_moments<Conf, ExecPolicy>::init() {
   if (m_photon_data) {
     m_size += 1;
   }
-}
-
-template <typename Conf, template <class> class ExecPolicy>
-void
-compute_moments<Conf, ExecPolicy>::register_data_components() {
   if (m_compute_first_moments) {
     ptc_num.resize(m_size);
     ptc_flux.resize(m_size);
@@ -54,18 +51,22 @@ compute_moments<Conf, ExecPolicy>::register_data_components() {
         // S.set(n, sim_env().register_data<field_t<4, Conf>>(
         //              std::string("flux_") + ptc_type_name(n), m_grid,
         //              ExecPolicy<Conf>::data_mem_type()));
-        ptc_num.set(n, sim_env().register_data<scalar_field<Conf>>(
-                          std::string("num_") + ptc_type_name(n), m_grid,
-                          ExecPolicy<Conf>::data_mem_type()));
-        ptc_flux.set(n, sim_env().register_data<field_t<3, Conf>>(
-                           std::string("flux_e") + ptc_type_name(n), m_grid,
-                           ExecPolicy<Conf>::data_mem_type()));
+        ptc_num.set(n,
+                    sim_env().register_data<scalar_field<Conf>>(
+                        std::string("num_") + ptc_type_name(n), m_grid,
+                        field_type::cell_centered,
+                        ExecPolicy<Conf>::data_mem_type()));
+        ptc_flux.set(n,
+                     sim_env().register_data<field_t<3, Conf>>(
+                         std::string("flux_") + ptc_type_name(n), m_grid,
+                         ExecPolicy<Conf>::data_mem_type()));
       } else {
         // S.set(n, sim_env().register_data<field_t<4, Conf>>(
         //              std::string("flux_ph"), m_grid,
         //              ExecPolicy<Conf>::data_mem_type()));
         ptc_num.set(n, sim_env().register_data<scalar_field<Conf>>(
                           std::string("num_ph"), m_grid,
+                          field_type::cell_centered,
                           ExecPolicy<Conf>::data_mem_type()));
         ptc_flux.set(n, sim_env().register_data<field_t<3, Conf>>(
                            std::string("flux_ph"), m_grid,
@@ -91,27 +92,34 @@ compute_moments<Conf, ExecPolicy>::register_data_components() {
         //              ExecPolicy<Conf>::data_mem_type()));
         T00.set(n, sim_env().register_data<scalar_field<Conf>>(
                        std::string("stress_") + ptc_type_name(n) + "00", m_grid,
+                       field_type::cell_centered,
                        ExecPolicy<Conf>::data_mem_type()));
         T0i.set(n, sim_env().register_data<field_t<3, Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "0", m_grid,
                         ExecPolicy<Conf>::data_mem_type()));
         T11.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "11", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T12.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "12", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T13.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "13", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T22.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "22", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T23.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "23", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T33.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_") + ptc_type_name(n) + "33", m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
       } else {
         // T.set(n, sim_env().register_data<field_t<10, Conf>>(
@@ -119,27 +127,34 @@ compute_moments<Conf, ExecPolicy>::register_data_components() {
         //              ExecPolicy<Conf>::data_mem_type()));
         T00.set(n, sim_env().register_data<scalar_field<Conf>>(
                        std::string("stress_ph00"), m_grid,
+                       field_type::cell_centered,
                        ExecPolicy<Conf>::data_mem_type()));
         T0i.set(n, sim_env().register_data<field_t<3, Conf>>(
                         std::string("stress_ph0"), m_grid,
                         ExecPolicy<Conf>::data_mem_type()));
         T11.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph11"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T12.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph12"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T13.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph13"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T22.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph22"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T23.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph23"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
         T33.set(n, sim_env().register_data<scalar_field<Conf>>(
                         std::string("stress_ph33"), m_grid,
+                        field_type::cell_centered,
                         ExecPolicy<Conf>::data_mem_type()));
       }
     }
@@ -156,8 +171,14 @@ compute_moments<Conf, ExecPolicy>::register_data_components() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+compute_moments<Conf, ExecPolicy>::register_data_components() {
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (step % m_fld_interval == 0) {
+    // Logger::print_info("size is {}", m_size);
     for (int n = 0; n < m_size; n++) {
       if (m_compute_first_moments) {
         ptc_num.init();
@@ -174,6 +195,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
         T33.init();
       }
     }
+    // Logger::print_info("Initialized");
 
     bool first = m_compute_first_moments;
     bool second = m_compute_second_moments;
@@ -196,17 +218,17 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             int sp = get_ptc_type(ptc.flag[n]);
             if (first) {
               atomic_add(&ptc_num[sp][idx], ptc.weight[n]);
-              atomic_add(&ptc_flux[sp][1][idx], ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
-              atomic_add(&ptc_flux[sp][2][idx], ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
-              atomic_add(&ptc_flux[sp][3][idx], ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][0][idx], ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][1][idx], ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][2][idx], ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
             }
             if (second) {
               // T00
               atomic_add(&T00[sp][idx], ptc.weight[n] * ptc.E[n]);
               // T0i
-              atomic_add(&T0i[sp][1][idx], ptc.weight[n] * ptc.p1[n]);
-              atomic_add(&T0i[sp][2][idx], ptc.weight[n] * ptc.p2[n]);
-              atomic_add(&T0i[sp][3][idx], ptc.weight[n] * ptc.p3[n]);
+              atomic_add(&T0i[sp][0][idx], ptc.weight[n] * ptc.p1[n]);
+              atomic_add(&T0i[sp][1][idx], ptc.weight[n] * ptc.p2[n]);
+              atomic_add(&T0i[sp][2][idx], ptc.weight[n] * ptc.p3[n]);
               // Tii
               atomic_add(&T11[sp][idx],
                          ptc.weight[n] * ptc.p1[n] * ptc.p1[n] / ptc.E[n]);
@@ -224,7 +246,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             }
           });
         },
-        ptc, ptc_num, ptc_flux, T00, T0i, T11, T12, T13, T22, T23, T33);
+        *ptc, ptc_num, ptc_flux, T00, T0i, T11, T12, T13, T22, T23, T33);
     ExecPolicy<Conf>::sync();
     // Then compute photon moments if applicable
     if (m_photon_data) {
@@ -268,7 +290,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 }
               });
             },
-            ph, ptc_num[m_size - 1], ptc_flux[m_size - 1], T00[m_size - 1],
+            *ph, ptc_num[m_size - 1], ptc_flux[m_size - 1], T00[m_size - 1],
             T0i[m_size - 1], T11[m_size - 1], T12[m_size - 1], T13[m_size - 1],
             T22[m_size - 1], T23[m_size - 1], T33[m_size - 1]);
         ExecPolicy<Conf>::sync();

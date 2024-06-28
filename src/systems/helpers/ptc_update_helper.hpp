@@ -183,37 +183,43 @@ struct deposit_t<2, spline_t> {
       value_t sy1 = interp(-context.new_x[1] - context.dc[1] + j);
 
       value_t djx = 0.0f;
+      auto offset_y = idx.inc_y(j);
       for (int i = i_0; i <= i_1; i++) {
         value_t sx0 = interp(-context.x[0] + i);
         value_t sx1 = interp(-context.new_x[0] - context.dc[0] + i);
 
         // j1 is movement in x1
-        auto offset = inc_y(idx + i, ext, j);
+        // auto offset = inc_y(idx + i, ext, j);
+        auto offset = offset_y.inc_x(i);
+        // auto pos = get_pos(offset, ext);
         djx += movement2d(sy0, sy1, sx0, sx1);
-        if (math::abs(djx) > TINY) {
-          atomic_add(&J[0][offset], -context.weight * djx / dt);
-        }
+        // if (math::abs(djx) > TINY) {
+        atomic_add(&J[0][offset], -context.weight * djx / dt);
+        // }
+        // printf("---- (%d, %d) J0 deposited is %f\n", i, j, -context.weight * djx / dt);
 
         // j2 is movement in x2
         djy[i - i_0] += movement2d(sx0, sx1, sy0, sy1);
-        if (math::abs(djy[i - i_0]) > TINY) {
-          atomic_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
-        }
+        // if (math::abs(djy[i - i_0]) > TINY) {
+        atomic_add(&J[1][offset], -context.weight * djy[i - i_0] / dt);
+        // printf("---- (%d, %d) J1 deposited is %f\n", i, j, -context.weight * djy[i - i_0] / dt);
+        // }
 
         // j3 is simply v3 times rho at center
         atomic_add(&J[2][offset],
                    context.weight *
-                       // (context.new_x[2] - context.x[2]) / dt *
-                       context.p[2] / context.gamma *
+                       (context.new_x[2] - context.x[2]) / dt *
+                       // context.p[2] / context.gamma *
                        center2d(sx0, sx1, sy0, sy1));
         // printf("---- v3 is %f, J3 is %f\n", v3, J[2][offset]);
 
         // rho is deposited at the final position
         if (deposit_rho) {
-          if (math::abs(sx1 * sy1) > TINY) {
-            atomic_add(&Rho[context.sp][offset], context.weight * sx1 * sy1);
-            // printf("---- rho deposit is %f\n", weight * sx1 * sy1);
-          }
+          // if (math::abs(sx1 * sy1) > TINY) {
+          atomic_add(&Rho[context.sp][offset], context.weight * sx1 * sy1);
+          // printf("---- (%d, %d) rho deposit is %f\n", i,  j, context.weight * sx1 * sy1);
+          // printf("coord is (%d, %d)\n", pos[0], pos[1]);
+          // }
         }
       }
     }

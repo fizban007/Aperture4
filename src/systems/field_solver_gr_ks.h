@@ -83,7 +83,8 @@ class field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   std::unique_ptr<vector_field<Conf>> m_tmpD, m_tmpB;
   std::unique_ptr<vector_field<Conf>> m_tmpdD_dt, m_tmpdB_dt;
   // Auxiliary fields E and H
-  std::unique_ptr<vector_field<Conf>> m_auxE, m_auxH;
+  // std::unique_ptr<vector_field<Conf>> m_auxE, m_auxH;
+  nonown_ptr<vector_field<Conf>> m_auxE, m_auxH;
   std::unique_ptr<vector_field<Conf>> m_dD_dt_prev3, m_dB_dt_prev3;
 };
 

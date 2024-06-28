@@ -154,10 +154,6 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
               if (math::abs(th_s) < TINY)
                 th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
 
-              // Both B^\phi and D^\phi are zero
-              B[2][idx] = 0.0f;
-              D[2][idx] = 0.0f;
-
               auto sth = math::sin(th);
               auto cth = math::cos(th);
               auto sth_s = math::sin(th_s);
@@ -175,6 +171,12 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
                        Metric_KS::sqrt_gamma(a, r, sth, cth);
               };
 
+              auto Bph = [a] LAMBDA(auto r, auto sth, auto cth) {
+                return a * (r * r - square(a * cth)) * sth /
+                       square(r * r + square(a * cth)) /
+                       Metric_KS::sqrt_gamma(a, r, sth, cth);
+              };
+
               auto Er = [a] LAMBDA(auto r, auto sth, auto cth) {
                 return -2.0 * a * r * cth / square(r * r + square(a * cth));
               };
@@ -186,25 +188,33 @@ initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
 
               B[0][idx] = Bp * Br(r_s, sth, cth);
               B[1][idx] = Bp * Bth(r, sth_s, cth_s);
+              B[2][idx] = Bp * Bph(r, sth, cth);
 
-              D[0][idx] =
-                  Bp *
-                  (Metric_KS::gu11(a, r, sth_s, cth_s) * Er(r, sth_s, cth_s) -
-                   Metric_KS::gu13(a, r, sth_s, cth_s) *
-                       Metric_KS::sq_gamma_beta(a, r, sth_s, cth_s) *
-                       Bth(r, sth_s, cth_s)) /
-                  Metric_KS::alpha(a, r, sth_s, cth_s);
-              D[1][idx] =
-                  Bp *
-                  (Metric_KS::gu22(a, r_s, sth, cth) * Eth(r_s, sth, cth)) /
-                  Metric_KS::alpha(a, r_s, sth, cth);
-              D[2][idx] = Bp *
-                          (Metric_KS::gu13(a, r_s, sth_s, cth_s) *
-                               Er(r_s, sth_s, cth_s) -
-                           Metric_KS::gu33(a, r_s, sth_s, cth_s) *
-                               Metric_KS::sq_gamma_beta(a, r_s, sth_s, cth_s) *
-                               Bth(r_s, sth_s, cth_s)) /
-                          Metric_KS::alpha(a, r_s, sth_s, cth_s);
+              // D[0][idx] =
+              //     Bp *
+              //     (Metric_KS::gu11(a, r, sth_s, cth_s) * Er(r, sth_s, cth_s) -
+              //      Metric_KS::gu13(a, r, sth_s, cth_s) *
+              //          Metric_KS::sq_gamma_beta(a, r, sth_s, cth_s) *
+              //          Bth(r, sth_s, cth_s)) /
+              //     Metric_KS::alpha(a, r, sth_s, cth_s);
+              // D[1][idx] =
+              //     Bp *
+              //     (Metric_KS::gu22(a, r_s, sth, cth) * Eth(r_s, sth, cth)) /
+              //     Metric_KS::alpha(a, r_s, sth, cth);
+              // D[2][idx] = Bp *
+              //             (Metric_KS::gu13(a, r_s, sth_s, cth_s) *
+              //                  Er(r_s, sth_s, cth_s) -
+              //              Metric_KS::gu33(a, r_s, sth_s, cth_s) *
+              //                  Metric_KS::sq_gamma_beta(a, r_s, sth_s, cth_s) *
+              //                  Bth(r_s, sth_s, cth_s)) /
+              //             Metric_KS::alpha(a, r_s, sth_s, cth_s);
+              D[0][idx] = Bp * (a * Metric_KS::alpha(a, r, sth_s, cth_s) / cube(r * r + square(a * cth_s))) *
+                  (-2.0) * r * (a * a + r * r) * cth_s;
+              D[1][idx] = Bp * (a * Metric_KS::alpha(a, r_s, sth, cth) / cube(r_s * r_s + square(a * cth))) *
+                  (-r_s * r_s + square(a * cth)) * sth;
+              D[2][idx] = Bp * (a * Metric_KS::alpha(a, r_s, sth_s, cth_s) / cube(r_s * r_s + square(a * cth_s))) *
+                  (-2.0) * a * r_s * cth_s;
+
             });
       },
       B, D, grid.a);

@@ -268,17 +268,17 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 typename Conf::idx_t idx = Conf::idx(cell, ext);
                 if (first) {
                   atomic_add(&ptc_num[idx], ph.weight[n]);
-                  atomic_add(&ptc_flux[1][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&ptc_flux[2][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
-                  atomic_add(&ptc_flux[3][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[0][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[1][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[2][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
                 }
                 if (second) {
                   // T00
                   atomic_add(&T00[idx], ph.weight[n] * ph.E[n]);
                   // T0i
-                  atomic_add(&T0i[1][idx], ph.weight[n] * ph.p1[n]);
-                  atomic_add(&T0i[2][idx], ph.weight[n] * ph.p2[n]);
-                  atomic_add(&T0i[3][idx], ph.weight[n] * ph.p3[n]);
+                  atomic_add(&T0i[0][idx], ph.weight[n] * ph.p1[n]);
+                  atomic_add(&T0i[1][idx], ph.weight[n] * ph.p2[n]);
+                  atomic_add(&T0i[2][idx], ph.weight[n] * ph.p3[n]);
                   // Tii
                   atomic_add(&T11[idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
                   atomic_add(&T22[idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);

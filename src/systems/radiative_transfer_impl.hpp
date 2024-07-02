@@ -142,10 +142,10 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy, RadiationPolicy>::update(
   } else {
     total_num = max_num = (*ph_number)[0] = ph->number();
   }
-  if (total_num > 0 || max_num > 0) {
-    Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
-                       total_num, max_num);
-  }
+  // if (total_num > 0 || max_num > 0) {
+  //   Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
+  //                      total_num, max_num);
+  // }
 }
 
 template <class Conf, template <class> class ExecPolicy,
@@ -168,6 +168,8 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   buffer<unsigned long long int> pos(1);
   pos[0] = 0;
   pos.copy_to_device();
+
+  // Logger::print_info("Before photon emission");
 
   // Loop over the particle array to test photon emission and produce photons
   ExecPolicy<Conf>::launch(
@@ -216,7 +218,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   pos.copy_to_host();
   ph->add_num(pos[0]);
 
-  // Logger::print_info("{} photons are produced!", pos[0]);
+  Logger::print_info("{} photons are produced!", pos[0]);
 }
 
 template <class Conf, template <class> class ExecPolicy,
@@ -288,7 +290,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   pos.copy_to_host();
   ptc->add_num(pos[0]);
 
-  // Logger::print_info("{} particles are created!", pos[0]);
+  Logger::print_info("{} particles are created!", pos[0]);
 }
 
 }  // namespace Aperture

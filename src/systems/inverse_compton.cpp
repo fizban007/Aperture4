@@ -39,6 +39,7 @@ beta(Scalar gamma) {
 template <typename Scalar>
 HOST_DEVICE Scalar
 sigma_ic(Scalar x) {
+  // In units of sigma_T
   if (x < 1.0e-3) {
     return 1.0f - 2.0f * x + 26.0f * x * x / 5.0f;
   } else {
@@ -52,7 +53,8 @@ sigma_ic(Scalar x) {
 template <typename Scalar>
 HOST_DEVICE Scalar
 sigma_gg(Scalar beta) {
-  return (1.0 - square(beta)) *
+  // In units of sigma_T
+  return 3.0 / 16.0 * (1.0 - square(beta)) *
          ((3.0 - beta * beta * beta * beta) * log((1.0 + beta) / (1.0 - beta)) -
           2.0 * beta * (2.0 - beta * beta));
 }
@@ -63,9 +65,11 @@ x_ic(Scalar gamma, Scalar e, Scalar mu) {
   return gamma * e * (1.0 - mu * beta(gamma));
 }
 
+// This is the IC spectrum
 template <typename Scalar>
 HOST_DEVICE Scalar
 sigma_lab(Scalar q, Scalar ge) {
+  // Used as an un-normalized PDF, so normalization does not matter
   return 2.0 * q * log(q) + (1.0 + 2.0 * q) * (1.0 - q) +
          0.5 * square(ge * q) * (1.0 - q) / (1.0 + q * ge);
 }
@@ -158,13 +162,6 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
         result += 0.5f * n_e(e) * sigma * (1.0f - beta(gamma) * mu) * e;
       }
     }
-    // double result = gauss_quad([gamma, emin, emax, n_e] (auto mu) {
-    //   return gauss_quad([gamma, n_e, mu] (auto log_e) {
-    //     double e = math::exp(log_e);
-    //     double x = x_ic(gamma, e, mu);
-    //     return 0.5f * n_e(e) * sigma_ic(x) * (1.0f - beta(gamma) * mu) * e;
-    //   }, math::log(emin), math::log(emax));
-    // }, -1.0, 1.0);
     // m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
     // m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
     m_ic_rate[n] = result * dmu * de * m_ic_opacity;
@@ -198,18 +195,8 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
           // {}", eph, s, b, sigma_gg(b));
         }
       }
-      // double result = gauss_quad([eph, n_e, emin, emax] (auto mu) {
-      //   return gauss_quad([eph, n_e, mu] (auto loge) {
-      //     double e = math::exp(loge);
-      //     double s = eph * e * (1.0 - mu) * 0.5;
-      //     if (s <= 1.0) return 0.0;
-      //     double b = sqrt(1.0 - 1.0 / s);
-      //     if (b == 1.0) return 0.0;
-      //     return sigma_gg(b) * (1.0 - mu) * n_e(e) * e;
-      //   }, math::log(emin), math::log(emax));
-      // }, -1.0, 1.0);
       // m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * (n0 * r_e_square);
-      m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * m_ic_opacity * 3.0 / (8.0 * M_PI);
+      m_gg_rate[n] = 0.5 * result * dmu * de * m_ic_opacity;
       // m_gg_rate[n] = 0.25 * result * M_PI * m_ic_opacity * 3.0 / (8.0 * M_PI);
       // if (n != 0)
       //   m_gg_rate[n] /= m_gg_rate[0];
@@ -238,12 +225,6 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
           // result += n_e(e) * sigma_lab(q, ge) / gamma;
           result += ne * sigma_lab(q, ge) / gamma * de;
       }
-      // double result = gauss_quad([e1, gamma, n_e] (auto log_e) {
-      //   double e = math::exp(log_e);
-      //   double ge = gamma * e * 4.0;
-      //   double q = e1 / (ge * (1.0 - e1));
-      //   return n_e(e) * sigma_lab(q, ge) / gamma;
-      // }, math::log(e1 / (1.0 - e1) / (4.0 * gamma)), math::log(gamma * e1));
       m_dNde(i, n) = result;
     }
     for (uint32_t i = 1; i < n_ep; i++) {
@@ -275,13 +256,6 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
           result += ne * sigma_lab(q, ge) / gamma * de;
       }
       m_dNde_thomson(i, n) = result * e1;
-      // double result = gauss_quad([e1, gamma, n_e] (auto log_e) {
-      //   double e = math::exp(log_e);
-      //   double ge = gamma * e * 4.0;
-      //   double q = e1 / (ge * (1.0 - e1));
-      //   return n_e(e) * sigma_lab(q, ge) / gamma;
-      // }, math::log(e1 / (1.0 - e1) / (4.0 * gamma)), math::log(gamma * e1));
-      // m_dNde_thomson(i, n) = result * e1;
     }
     for (uint32_t i = 1; i < n_ep; i++) {
       m_dNde_thomson(i, n) += m_dNde_thomson(i - 1, n);

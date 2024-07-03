@@ -33,7 +33,7 @@ constexpr double sigma_T = 8.0 * M_PI * r_e_square / 3.0;
 template <typename Scalar>
 HOST_DEVICE Scalar
 beta(Scalar gamma) {
-  return 1.0 / sqrt(1.0 - 1.0 / square(gamma));
+  return sqrt(1.0 - 1.0 / square(gamma));
 }
 
 template <typename Scalar>
@@ -85,7 +85,7 @@ inverse_compton_t::inverse_compton_t() {
 
   sim_env().params().get_value("n_gamma", n_gamma);
   sim_env().params().get_value("n_ep", n_ep);
-  sim_env().params().get_value("IC_compactness", m_ic_compactness);
+  sim_env().params().get_value("IC_opacity", m_ic_opacity);
 
   m_min_ep = 1.0e-10;
   sim_env().params().get_value("min_ep", m_min_ep);
@@ -120,7 +120,7 @@ inverse_compton_t::get_ic_module() {
   result.dep = m_dep;
   result.dlep = m_dlep;
   result.dgamma = m_dgamma;
-  result.compactness = m_ic_compactness;
+  result.opacity = m_ic_opacity; // opacity is essentially length unit / ic free path
   result.e_mean = m_e_mean;
   return result;
 }
@@ -167,13 +167,12 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
     // }, -1.0, 1.0);
     // m_ic_rate[n] = result * dmu * de * (r_e_square * n0) * 8.0 * M_PI / 3.0;
     // m_ic_rate[n] = result * dmu * de * n0 * sigma_T;
-    m_ic_rate[n] = result * dmu * de * m_ic_compactness / n_e.emean();
-    // m_ic_rate[n] = result * m_ic_compactness / n_e.emean();
+    m_ic_rate[n] = result * dmu * de * m_ic_opacity;
+    // m_ic_rate[n] = result * m_ic_opacity / n_e.emean();
     if (n % 10 == 0)
       Logger::print_info(
           "IC rate at gamma {} is {}, result is {}, factor is {}", gamma,
-          m_ic_rate[n], result,
-          dmu * de * m_ic_compactness / n_e.emean());
+          m_ic_rate[n], result, dmu * de * m_ic_opacity);
   }
   m_ic_rate.copy_to_device();
 
@@ -210,8 +209,8 @@ inverse_compton_t::compute_coefficients(const Spectrum& n_e, value_t emin,
       //   }, math::log(emin), math::log(emax));
       // }, -1.0, 1.0);
       // m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * (n0 * r_e_square);
-      m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * m_ic_compactness * 3.0 / (8.0 * M_PI);
-      // m_gg_rate[n] = 0.25 * result * M_PI * m_ic_compactness * 3.0 / (8.0 * M_PI);
+      m_gg_rate[n] = 0.25 * result * dmu * de * M_PI * m_ic_opacity * 3.0 / (8.0 * M_PI);
+      // m_gg_rate[n] = 0.25 * result * M_PI * m_ic_opacity * 3.0 / (8.0 * M_PI);
       // if (n != 0)
       //   m_gg_rate[n] /= m_gg_rate[0];
       if (n % 10 == 0)

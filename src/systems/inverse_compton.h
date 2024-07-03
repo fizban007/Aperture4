@@ -15,8 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _INVERSE_COMPTON_H_
-#define _INVERSE_COMPTON_H_
+// #ifndef _INVERSE_COMPTON_H_
+// #define _INVERSE_COMPTON_H_
+#pragma once
 
 #include "core/multi_array.hpp"
 #include "core/typedefs_and_constants.h"
@@ -56,9 +57,9 @@ class inverse_compton_t : public system_t {
   multi_array<value_t, 2, idx_col_major_t<2>> m_dNde_thomson;
   buffer<value_t> m_ic_rate, m_gg_rate;
   value_t m_min_ep, m_dgamma, m_dep, m_dlep, m_e_mean;
-  value_t m_ic_compactness = 0.01;
+  value_t m_ic_opacity = 0.01; // Opacity is essentially length unit / free path
 };
 
 }  // namespace Aperture
 
-#endif  // _INVERSE_COMPTON_H_
+// #endif  // _INVERSE_COMPTON_H_

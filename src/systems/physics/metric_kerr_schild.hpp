@@ -280,6 +280,78 @@ rH(Scalar a) {
   return 1.0f + math::sqrt(1.0f - a * a);
 }
 
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_to_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+  vec_t<Float, 4> result;
+
+  auto sth = math::sin(th);
+  auto cth = math::cos(th);
+  auto A = Sigma(a, r, sth, cth);
+  auto D = Delta(a, r);
+  auto S = rho2(a, r, sth, cth);
+
+  result[0] = u[0] * math::sqrt(A / S / D) + u[3] * 2.0 * a * r / math::sqrt(A * D * S);
+  result[1] = (2.0 * r * u[0] + D * u[1] + a * u[3]) / math::sqrt(D * S);
+  result[2] = u[2] / math::sqrt(S);
+  result[3] = math::sqrt(S / A) * u[3] / sth;
+  return result;
+}
+
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_from_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+  vec_t<Float, 4> result;
+
+  auto sth = math::sin(th);
+  auto cth = math::cos(th);
+  auto A = Sigma(a, r, sth, cth);
+  auto D = Delta(a, r);
+  auto S = rho2(a, r, sth, cth);
+
+  result[0] = (u[0] * S * math::sqrt(D) - u[3] * 2.0 * a * r * sth) / math::sqrt(A * S);
+  result[1] = -2.0 * r * math::sqrt(S / D / A) * u[0] + math::sqrt(S / D) * u[1] +
+      (4.0 * r * r - A) * a * sth * u[3] / math::sqrt(A * S) / D;
+  result[2] = u[2] * math::sqrt(S);
+  result[3] = math::sqrt(A / S) * u[3] * sth;
+  return result;
+}
+
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+  vec_t<Float, 4> result;
+
+  auto sth = math::sin(th);
+  auto cth = math::cos(th);
+  auto sqrtS = math::sqrt(rho2(a, r, sth, cth));
+  auto alf = alpha(a, r, sth, cth);
+
+  result[0] = u[0] / alf - u[1] * alf * Z(a, r, th);
+  result[1] = alf * u[1];
+  result[2] = u[2] / sqrtS;
+  result[3] = (a * sth * u[1] + u[3] / sth) / sqrtS;
+  return result;
+}
+
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+  vec_t<Float, 4> result;
+
+  auto sth = math::sin(th);
+  auto cth = math::cos(th);
+  auto sqrtS = math::sqrt(rho2(a, r, sth, cth));
+  auto alf = alpha(a, r, sth, cth);
+
+  result[0] = alf * (u[0] + u[1] * Z(a, r, th));
+  result[1] = u[1] / alf;
+  result[2] = u[2] * sqrtS;
+  result[3] = sqrtS * sth * u[3] - a * sth * sth * u[1] / alf;
+  return result;
+}
+
+
 }  // namespace Metric_KS
 
 }  // namespace Aperture

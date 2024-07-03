@@ -112,16 +112,16 @@ ptc_inj.inject_pairs(
     // index_t<Dim> object marking the cell in the grid. Returns true for
     // cells that inject and false for cells that do nothing.
     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      if (pos[0] == 80 && pos[1] == 120)
-        return true;
-      else
-        return false;
-      // return true;
+      // if (pos[0] == 80 && pos[1] == 120)
+      //   return true;
+      // else
+      //   return false;
+      return true;
     },
     // Second function returns the number of particles injected in each cell.
     // This includes all species
     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      return 2;
+      return 20;
     },
     // Third function is the momentum distribution of the injected particles.
     // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this

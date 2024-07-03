@@ -76,27 +76,42 @@ struct gr_ks_ic_radiation_scheme_fido {
     const value_t& r = x_global[0];
     const value_t& th = x_global[1];
 
-    if (r < Metric_KS::rH(m_a) + 0.1f || r > 6.0f) {
+    // if (r < Metric_KS::rH(m_a) + 0.1f || r > 6.0f ||
+    //     th < 0.1 * grid.guard[1] || math::abs(th - M_PI) < 0.1 * grid.guard[1]) {
+    if (r < Metric_KS::rH(m_a) || r > 6.0f) {
       return 0;
     }
 
     // Obtain the lower 4-momentum components
-    // vec_t<value_t, 3> u(ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
-    value_t u_0 = Metric_KS::u_0(m_a, r, sth, cth, {ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]}, false);
+    vec_t<value_t, 3> u3(ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
+    value_t u_0 = Metric_KS::u_0(m_a, r, sth, cth, u3, false);
+    // if (u_0 != u_0) {
+    //   printf("u0 is %f, p is (%f, %f, %f), r is %f, th is %f\n", u_0, ptc.p1[tid], ptc.p2[tid], ptc.p3[tid], r, th);
+    // }
     vec_t<value_t, 4> u(u_0, ptc.p1[tid], ptc.p2[tid], ptc.p3[tid]);
 
-    // transform the lower momentum components to ZAMO frame
+    // transform the lower momentum components to FIDO frame
     auto u_fido = Metric_KS::convert_to_FIDO_lower(u, m_a, r, x_global[1]);
 
     // dt = dt * sqrt_delta * sqrt_rho2 / sqrt_sigma;
     auto gamma = -u_fido[0];
-    auto gamma0 = gamma;
-    auto p0 = math::sqrt(gamma0 * gamma0 - 1.0);
-    value_t alf = Metric_KS::alpha(m_a, r, x_global[1]);
+    if (gamma < 1.1f) {
+      // Lorentz factor is too low, won't be able to emit a pair-producing photon anyway
+      return 0;
+    }
+
+    // if (gamma != gamma) {
+    //   // guard against nan
+    //   printf("u is (%f, %f, %f, %f), u_fido[0] is %f\n", u[0], u[1], u[2], u[3], u_fido[0]);
+    //   return 0;
+    // }
+    value_t gamma0 = gamma;
+    value_t p0 = math::sqrt(gamma0 * gamma0 - 1.0);
+    value_t alf = Metric_KS::alpha(m_a, r, th);
     value_t ic_prob = m_ic_module.ic_scatter_rate(gamma) * alf * dt;
 
     // printf("gamma is %f, ic_prob is %f, e_ph is %f\n", gamma, ic_prob, e_ph);
-    printf("gamma is %f, ic_prob is %f\n", gamma, ic_prob);
+    // printf("gamma is %f, ic_prob is %f\n", gamma, ic_prob);
 
     value_t rand = rng_uniform<value_t>(state);
     if (rand >= ic_prob) {
@@ -108,15 +123,16 @@ struct gr_ks_ic_radiation_scheme_fido {
     // e_ph is a number between 0 and 1, the fraction of the photon energy with
     // respect to the electron energy
     value_t e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
-    printf("emitting photon with energy e_ph %f\n", e_ph);
+    if (e_ph > gamma - 1.1f) {
+      e_ph = gamma - 1.1f;
+    }
+    // printf("u_fido is (%f, %f, %f, %f)\n", u_fido[0], u_fido[1], u_fido[2], u_fido[3]);
+    // printf("gamma is %f, e_ph %f\n", gamma, e_ph);
 
     // Regardless of whether the photon is tracked, subtract its energy from the particle
     gamma -= e_ph;
-    if (gamma < 1.0f) {
-      gamma = 1.0f;
-    }
     u_fido[0] = -gamma;
-    auto p_new = math::sqrt(gamma * gamma - 1.0); 
+    value_t p_new = math::sqrt(gamma * gamma - 1.0); 
     u_fido[1] *= p_new / p0;
     u_fido[2] *= p_new / p0;
     u_fido[3] *= p_new / p0;
@@ -126,8 +142,12 @@ struct gr_ks_ic_radiation_scheme_fido {
     ptc.p2[tid] = u[2];
     ptc.p3[tid] = u[3];
     ptc.E[tid] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    // if (ptc.E[tid] != ptc.E[tid]) {
+    //   printf("nan detected! u_fido is (%f, %f, %f, %f)\n", u_fido[0], u_fido[1], u_fido[2], u_fido[3]);
+    // }
 
-    if (e_ph < 2.1f) {
+    if (e_ph < 5.1f) {
+      // Do not track low energy photons
       return 0;
     }
 
@@ -143,22 +163,15 @@ struct gr_ks_ic_radiation_scheme_fido {
     ph.x3[offset] = ptc.x3[tid];
     ph.cell[offset] = ptc.cell[tid];
     ph.weight[offset] = ptc.weight[tid];
-    // // In ZAMO frame, photon lower u_i are aligned with particle lower u_i. Not
-    // // necessarily true for KS coords. We need to transform from ZAMO back to KS
-    // // ph.p1[offset] =
-    // //     -2.0f * r * sqrt_rho2 * e_ph * zamo_u_0 / (sqrt_delta * sqrt_sigma) +
-    // //     sqrt_rho2 * zamo_u_1_ph / sqrt_delta +
-    // //     (4.0f * r * r - square(sqrt_sigma)) * m_a * sth * zamo_u_3_ph /
-    // //         (square(sqrt_delta) * sqrt_sigma * sqrt_rho2);
-    // // ph.p2[offset] = sqrt_rho2 * zamo_u_2_ph;
-    // // ph.p3[offset] = (sqrt_sigma / sqrt_rho2) * zamo_u_3_ph;
+
     ph.p1[offset] = u[1];
     ph.p2[offset] = u[2];
     ph.p3[offset] = u[3];
     ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    ph.flag[offset] = 0;
 
     return offset;
-    // return 0;
+    return 0;
   }
 
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
@@ -167,83 +180,72 @@ struct gr_ks_ic_radiation_scheme_fido {
                                   unsigned long long int *ptc_pos,
                                   rand_state &state, value_t dt) {
     // First obtain the global position of the photon
-//     vec_t<value_t, 3> x(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
-//     auto idx = Conf::idx(ph.cell[tid], ext);
-//     auto pos = get_pos(idx, ext);
+    vec_t<value_t, 3> x(ph.x1[tid], ph.x2[tid], ph.x3[tid]);
+    auto idx = Conf::idx(ph.cell[tid], ext);
+    auto pos = get_pos(idx, ext);
 
-//     vec_t<value_t, 3> x_global = grid.coord_global(pos, x);
-//     x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
-//     x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
-//     value_t sth = math::sin(x_global[1]);
-//     value_t cth = math::cos(x_global[1]);
-//     value_t r = x_global[0];
+    vec_t<value_t, 3> x_global = grid.coord_global(pos, x);
+    x_global[0] = grid_ks_t<Conf>::radius(x_global[0]);
+    x_global[1] = grid_ks_t<Conf>::theta(x_global[1]);
+    value_t sth = math::sin(x_global[1]);
+    value_t cth = math::cos(x_global[1]);
+    const value_t& r = x_global[0];
+    const value_t& th = x_global[1];
 
-//     // Censor photons at large distances
-//     if (r < Metric_KS::rH(m_a) || r > 5.0f) {
-//       ph.cell[tid] = empty_cell;
-//       return 0;
-//     }
+    // Censor photons at large distances
+    // TODO: potentially deposit the photon at large radii to form raytracing
+    if (r < Metric_KS::rH(m_a) || r > 6.0f) {
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
 
-//     // if (r < Metric_KS::rH(m_a) + 0.1f) {
-//     if (r < Metric_KS::rH(m_a) + 0.01f || r > 5.0f) {
-//       return 0;
-//     }
+    // Obtain the lower 4-momentum components
+    // vec_t<value_t, 3> u(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
+    value_t u_0 = Metric_KS::u_0(m_a, r, sth, cth, {ph.p1[tid], ph.p2[tid], ph.p3[tid]}, true);
+    vec_t<value_t, 4> u(u_0, ph.p1[tid], ph.p2[tid], ph.p3[tid]);
 
-//     // Obtain the lower 4-momentum components
-//     vec_t<value_t, 3> u(ph.p1[tid], ph.p2[tid], ph.p3[tid]);
-//     value_t u_0 = Metric_KS::u_0(m_a, r, sth, cth, u, true);
+    // transform the lower momentum components to FIDO frame
+    auto u_fido = Metric_KS::convert_to_FIDO_lower(u, m_a, r, th);
 
-//     // transform the lower momentum components to ZAMO frame
-//     value_t sqrt_rho2 = math::sqrt(Metric_KS::rho2(m_a, r, sth, cth));
-//     value_t sqrt_delta = math::sqrt(Metric_KS::Delta(m_a, r));
-//     value_t sqrt_sigma = math::sqrt(Metric_KS::Sigma(m_a, r, sth, cth));
-//     // U_0 in zamo is the photon energy (with a minus sign?)
-//     value_t zamo_u_0 = (sqrt_sigma * u_0 + 2.0f * m_a * r * u[2] / sqrt_sigma) /
-//                        (sqrt_delta * sqrt_rho2);
-//     if (math::abs(zamo_u_0) < 100.1f) {
-//       ph.cell[tid] = empty_cell;
-//       return 0;
-//     }
+    value_t alf = Metric_KS::alpha(m_a, r, th);
+    value_t gg_prob = m_ic_module.gg_scatter_rate(-u_fido[0]) * alf * dt;
+    // printf("u_0 is %f, gg_prob is %f\n", -u_fido[0], gg_prob);
 
-//     // Transform the photon interval into dt in ZAMO
-//     value_t delta_x1 = (Metric_KS::gu11(m_a, r, sth, cth) * u[0] +
-//                         Metric_KS::gu13(m_a, r, sth, cth) * u[2]) /
-//                            Metric_KS::u0(m_a, r, sth, cth, u, true) -
-//                        Metric_KS::beta1(m_a, r, sth, cth);
-//     dt = dt * sqrt_delta * sqrt_rho2 / sqrt_sigma -
-//          2.0f * r * sqrt_rho2 / (sqrt_delta * sqrt_sigma) * delta_x1;
-//     value_t gg_prob = m_ic_module.gg_scatter_rate(math::abs(zamo_u_0)) * dt;
+    if (rng_uniform<value_t>(state) >= gg_prob) {
+      return 0;  // Does not produce a pair
+    }
 
-//     if (rng_uniform<value_t>(state) >= gg_prob) {
-//       return 0;  // Does not produce a pair
-//     }
+    size_t offset = ptc_num + atomic_add(ptc_pos, 2);
+    size_t offset_e = offset;
+    size_t offset_p = offset + 1;
 
-//     size_t offset = ptc_num + atomic_add(ptc_pos, 2);
-//     size_t offset_e = offset;
-//     size_t offset_p = offset + 1;
+    ptc.x1[offset_e] = ptc.x1[offset_p] = ph.x1[tid];
+    ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];
+    ptc.x3[offset_e] = ptc.x3[offset_p] = ph.x3[tid];
 
-//     ptc.x1[offset_e] = ptc.x1[offset_p] = ph.x1[tid];
-//     ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];
-//     ptc.x3[offset_e] = ptc.x3[offset_p] = ph.x3[tid];
+    u_fido *= 0.5f;
+    u = Metric_KS::convert_from_FIDO_lower(u_fido, m_a, r, th);
 
-//     // At very high energies in ZAMO, this approximation should be valid
-//     ptc.p1[offset_e] = ptc.p1[offset_p] = 0.5f * ph.p1[tid];
-//     ptc.p2[offset_e] = ptc.p2[offset_p] = 0.5f * ph.p2[tid];
-//     ptc.p3[offset_e] = ptc.p3[offset_p] = 0.5f * ph.p3[tid];
+    ptc.p1[offset_e] = ptc.p1[offset_p] = u[1];
+    ptc.p2[offset_e] = ptc.p2[offset_p] = u[2];
+    ptc.p3[offset_e] = ptc.p3[offset_p] = u[3];
+
+    ptc.E[offset_e] = ptc.E[offset_p] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
 
 // #ifndef NDEBUG
 //     assert(ptc.cell[offset_e] == empty_cell);
 //     assert(ptc.cell[offset_p] == empty_cell);
 // #endif
-//     ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
-//     ptc.cell[offset_e] = ptc.cell[offset_p] = ph.cell[tid];
-//     ptc.flag[offset_e] =
-//         set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::electron);
-//     ptc.flag[offset_p] =
-//         set_ptc_type_flag(flag_or(PtcFlag::secondary), PtcType::positron);
+    ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
+    ptc.cell[offset_e] = ptc.cell[offset_p] = ph.cell[tid];
+    uint32_t base_flag = flag_or(PtcFlag::secondary);
+    ptc.flag[offset_e] =
+        set_ptc_type_flag(base_flag, PtcType::electron);
+    ptc.flag[offset_p] =
+        set_ptc_type_flag(base_flag, PtcType::positron);
 
-//     return offset;
-    return 0;
+    return offset;
+    // return 0;
   }
 };
 

@@ -36,15 +36,15 @@ struct gr_ks_ic_radiation_scheme_fido {
   const grid_t<Conf> &m_grid;
   ic_scatter_t m_ic_module;
   value_t m_a = 0.99;
+  value_t m_ic_opacity = 1.0;
 
   gr_ks_ic_radiation_scheme_fido(const grid_t<Conf> &grid) : m_grid(grid) {}
 
   void init() {
     value_t ph_kT = 1.0e-3;
     sim_env().params().get_value("ph_kT", ph_kT);
-    value_t ic_path = 1.0;
-    sim_env().params().get_value("ic_path", ic_path);
     sim_env().params().get_value("bh_spin", m_a);
+    sim_env().params().get_value("IC_opacity", m_ic_opacity);
 
     // Configure the spectrum here and initialize the ic module
     // Spectra::broken_power_law spec(1.25, 1.1, emin, 1.0e-10, 0.1);
@@ -78,7 +78,7 @@ struct gr_ks_ic_radiation_scheme_fido {
 
     // if (r < Metric_KS::rH(m_a) + 0.1f || r > 6.0f ||
     //     th < 0.1 * grid.guard[1] || math::abs(th - M_PI) < 0.1 * grid.guard[1]) {
-    if (r < Metric_KS::rH(m_a) || r > 6.0f) {
+    if (r < Metric_KS::rH(m_a)) {
       return 0;
     }
 
@@ -146,8 +146,8 @@ struct gr_ks_ic_radiation_scheme_fido {
     //   printf("nan detected! u_fido is (%f, %f, %f, %f)\n", u_fido[0], u_fido[1], u_fido[2], u_fido[3]);
     // }
 
-    if (e_ph < 5.1f) {
-      // Do not track low energy photons
+    if (e_ph < 5.1f || r > 6.0f) {
+      // Do not track low energy photons or photons too far away
       return 0;
     }
 
@@ -210,6 +210,11 @@ struct gr_ks_ic_radiation_scheme_fido {
     value_t alf = Metric_KS::alpha(m_a, r, th);
     value_t gg_prob = m_ic_module.gg_scatter_rate(-u_fido[0]) * alf * dt;
     // printf("u_0 is %f, gg_prob is %f\n", -u_fido[0], gg_prob);
+    if (gg_prob < dt * m_ic_opacity * 1e-4) {
+      // censor photons that have too low chance of producing a pair
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
 
     if (rng_uniform<value_t>(state) >= gg_prob) {
       return 0;  // Does not produce a pair

@@ -253,9 +253,9 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
     tally_ptc_number(*ptc);
   }
   Logger::print_detail("Finished sorting");
-  // if (ph != nullptr) {
-  // tally_ptc_number(*ph);
-  // }
+  if (ph != nullptr) {
+    tally_ptc_number(*ph);
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy,
@@ -482,7 +482,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::sort_particles() {
   // m_grid.extent().size());
   ptc_sort_by_cell(typename ExecPolicy<Conf>::exec_tag{}, *ptc,
                    m_grid.extent().size());
-  Logger::print_info("Sorting complete, there are {} particles in the pool",
+  Logger::print_debug("Sorting complete, there are {} particles in the pool",
                      ptc->number());
   Logger::print_detail_all("There are {} particles in the pool", ptc->number());
   if (ph != nullptr) {
@@ -490,7 +490,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::sort_particles() {
     // m_grid.extent().size());
     ptc_sort_by_cell(typename ExecPolicy<Conf>::exec_tag{}, *ph,
                      m_grid.extent().size());
-    Logger::print_info("Sorting complete, there are {} photons in the pool",
+    Logger::print_debug("Sorting complete, there are {} photons in the pool",
                        ph->number());
     Logger::print_detail_all("There are {} photons in the pool", ph->number());
   }
@@ -527,10 +527,10 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::tally_ptc_number(
     total_num = max_num = (*ptc_number)[0] = ptc.number();
   }
   if (std::is_same<PtcType, ptc_buffer>::value) {
-    Logger::print_debug("Total ptc number: {}, max ptc number on a rank: {}",
+    Logger::print_info("Total ptc number: {}, max ptc number on a rank: {}",
                         total_num, max_num);
   } else if (std::is_same<PtcType, ph_buffer>::value) {
-    Logger::print_debug("Total ph number: {}, max ph number on a rank: {}",
+    Logger::print_info("Total ph number: {}, max ph number on a rank: {}",
                         total_num, max_num);
   }
 }

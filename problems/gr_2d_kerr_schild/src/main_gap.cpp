@@ -68,7 +68,7 @@ main(int argc, char *argv[]) {
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
   domain_comm<Conf, exec_policy_dynamic> comm;
-  grid_ks_t<Conf> grid;
+  grid_ks_t<Conf> grid(comm);
 
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);

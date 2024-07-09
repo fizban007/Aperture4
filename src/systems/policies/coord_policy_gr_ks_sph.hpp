@@ -249,12 +249,23 @@ class coord_policy_gr_ks_sph {
     // Both new_x and u are updated
     gr_ks_geodesic_advance(m_a, dt, new_x, context.p, is_photon);
 
+    if (new_x[1] < 0.0) {
+      new_x[1] = -new_x[1];
+      new_x[2] += M_PI;
+      context.p[1] = -context.p[1];
+    } else if (new_x[1] >= M_PI) {
+      new_x[1] = 2.0 * M_PI - new_x[1];
+      new_x[2] -= M_PI;
+      context.p[1] = -context.p[1];
+    }
+
     context.new_x[0] = context.x[0] + (grid_type::from_radius(new_x[0]) -
                                        grid_type::from_radius(x_global[0])) *
                                           grid.inv_delta[0];
     context.new_x[1] = context.x[1] + (grid_type::from_theta(new_x[1]) -
                                        grid_type::from_theta(x_global[1])) *
                                           grid.inv_delta[1];
+    
     // if constexpr (Conf::dim == 2) {
     if (Conf::dim == 2) {
       context.new_x[2] = new_x[2];

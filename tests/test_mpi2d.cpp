@@ -22,7 +22,7 @@
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
 #include "utils/logger.h"
-#include "systems/policies/exec_policy_host.hpp"
+#include "systems/policies/exec_policy_gpu.hpp"
 
 using namespace Aperture;
 
@@ -43,24 +43,24 @@ main(int argc, char* argv[]) {
   env.params().add("ph_buffer_size", int64_t(100));
 
   // auto comm = env.register_system<domain_comm<Conf, exec_policy_host>>();
-  domain_comm<Conf, exec_policy_host> comm;
+  domain_comm<Conf, exec_policy_gpu> comm;
   auto grid = env.register_system<grid_t<Conf>>(comm);
 
-  particles_t ptc(100, MemType::host_only);
-  photons_t ph(100, MemType::host_only);
+  particles_t ptc(100, MemType::host_device);
+  photons_t ph(100, MemType::host_device);
   ptc.set_segment_size(1);
   ph.set_segment_size(1);
   int N1 = grid->dims[0];
   ptc.set_num(18);
   if (comm.rank() == 0) {
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
-    ptc_append(exec_tags::host{}, ptc, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
-    ptc_append(exec_tags::host{}, ph, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
+    ptc_append(exec_tags::device{}, ph, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
   }
   Logger::print_debug_all("initially Rank {} has {} particles:", comm.rank(),
                           ptc.number());
@@ -68,8 +68,8 @@ main(int argc, char* argv[]) {
   // ph.sort_by_cell(grid->size());
   comm.send_particles(ptc, *grid);
   comm.send_particles(ph, *grid);
-  ptc_sort_by_cell(exec_tags::host{}, ptc, grid->size());
-  ptc_sort_by_cell(exec_tags::host{}, ph, grid->size());
+  ptc_sort_by_cell(exec_tags::device{}, ptc, grid->size());
+  ptc_sort_by_cell(exec_tags::device{}, ph, grid->size());
 
   Logger::print_debug_all("Rank {} has {} particles:", comm.rank(),
                           ptc.number());

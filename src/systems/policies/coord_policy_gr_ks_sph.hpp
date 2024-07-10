@@ -296,19 +296,20 @@ class coord_policy_gr_ks_sph {
   // Extra processing routines
   template <typename ExecPolicy>
   void process_J_Rho(vector_field<Conf> &J, data_array<scalar_field<Conf>> &Rho,
-                     value_t dt, bool process_rho) const {
+                     scalar_field<Conf> &rho_total, value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     auto a = m_a;
     ExecPolicy::launch(
         [dt, num_species, process_rho, a] LAMBDA(auto j, auto rho,
-                                              auto grid_ptrs) {
+                                                 auto rho_total, auto grid_ptrs) {
           auto &grid = ExecPolicy::grid();
           auto ext = grid.extent();
 
           auto w = grid.cell_size();
           ExecPolicy::loop(
               Conf::begin(ext), Conf::end(ext),
-              [&] LAMBDA(auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
+              // [&] LAMBDA(auto idx, auto &j, auto &rho, const auto &grid_ptrs) {
+              [&] LAMBDA(auto idx) {
                 auto pos = get_pos(idx, ext);
                 value_t r_s = this_type::x1(grid.coord(0, pos[0], true));
                 value_t r = this_type::x1(grid.coord(0, pos[0], false));
@@ -319,6 +320,8 @@ class coord_policy_gr_ks_sph {
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ad[1][idx];
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
+                rho_total[idx] *=
+                    w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] *=
                       w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
@@ -333,10 +336,10 @@ class coord_policy_gr_ks_sph {
                     math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
                   j[2][idx] = 0.0f;
                 }
-              },
-              j, rho, grid_ptrs);
+              });
+              // j, rho, grid_ptrs);
         },
-        J, Rho, m_grid.get_grid_ptrs());
+        J, Rho, rho_total, m_grid.get_grid_ptrs());
     ExecPolicy::sync();
   }
 

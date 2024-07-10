@@ -143,10 +143,11 @@ class coord_policy_spherical_base {
   // Extra processing routines
   template <typename ExecPolicy>
   void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
+                     scalar_field<Conf>& rho_total,
                      value_t dt, bool process_rho) const {
     auto num_species = Rho.size();
     ExecPolicy::launch(
-        [dt, num_species, process_rho] LAMBDA(auto j, auto rho,
+        [dt, num_species, process_rho] LAMBDA(auto j, auto rho, auto rho_total,
                                               auto grid_ptrs) {
           auto& grid = ExecPolicy::grid();
           auto ext = grid.extent();
@@ -169,6 +170,7 @@ class coord_policy_spherical_base {
                     grid.template coord<1>(pos[1], true);
                 j[2][idx] *= w / grid_ptrs.Ae[2][idx];
 
+                rho_total[idx] /= grid_ptrs.dV[idx];
                 for (int n = 0; n < num_species; n++) {
                   rho[n][idx] /= grid_ptrs.dV[idx];
                 }
@@ -180,7 +182,7 @@ class coord_policy_spherical_base {
               });
           // j, rho, grid_ptrs);
         },
-        J, Rho, m_grid.get_grid_ptrs());
+        J, Rho, rho_total, m_grid.get_grid_ptrs());
     ExecPolicy::sync();
   }
 

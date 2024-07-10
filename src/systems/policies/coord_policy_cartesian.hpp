@@ -122,7 +122,7 @@ class coord_policy_cartesian_base {
   // Extra processing routines
   template <typename ExecPolicy>
   void process_J_Rho(vector_field<Conf>& J, data_array<scalar_field<Conf>>& Rho,
-                     value_t dt, bool process_rho) const {
+                     scalar_field<Conf>& rho_total, value_t dt, bool process_rho) const {
     ExecPolicy::launch(
         [dt] LAMBDA(auto j) {
           auto& grid = ExecPolicy::grid();

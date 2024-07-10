@@ -75,7 +75,7 @@ class ptc_updater : public system_t {
   nonown_ptr<photon_data_t> ph;
   nonown_ptr<vector_field<Conf>> E, B, J;
   data_array<scalar_field<Conf>> Rho;
-  nonown_ptr<scalar_field<Conf>> rho_ph;
+  nonown_ptr<scalar_field<Conf>> rho_ph, rho_total;
   nonown_ptr<rng_states_t<typename ExecPolicy<Conf>::exec_tag>> rng_states;
   nonown_ptr<multi_array_data<uint32_t, Conf::dim>> ptc_number;
 

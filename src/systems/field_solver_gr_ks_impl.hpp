@@ -666,6 +666,11 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
   this->divE->init();
   this->divB->init();
   auto a = m_a;
+  // if (this->m_comm != nullptr) {
+  //   this->m_comm->send_guard_cells(*(this->B));
+  //   this->m_comm->send_guard_cells(*(this->E));
+  // }
+
   ExecPolicy<Conf>::launch(
       [a] LAMBDA(auto d, auto b, auto divD, auto divB, auto grid_ptrs) {
         auto& grid = ExecPolicy<Conf>::grid();
@@ -690,7 +695,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
                          d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
                 grid_ptrs.Ad[2][idx];
             if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
-                math::abs(th + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
+                math::abs(th_s + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
               divD[idx.inc_y()] = (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
                           d[0][idx.inc_y().dec_x()] * grid_ptrs.Ad[0][idx.inc_y().dec_x()] +
                           d[1][idx.inc_y()] * grid_ptrs.Ad[1][idx.inc_y()] -
@@ -701,6 +706,10 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
         });
       }, this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
+  if (this->m_comm != nullptr) {
+    this->m_comm->send_guard_cells(*(this->divB));
+    this->m_comm->send_guard_cells(*(this->divE));
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy>

@@ -135,6 +135,11 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
       ExecPolicy<Conf>::data_mem_type());
   J->include_in_snapshot(true);
 
+  rho_total = sim_env().register_data<scalar_field<Conf>>(
+    "Rho_total", m_grid, field_type::vert_centered,
+    ExecPolicy<Conf>::data_mem_type());
+  rho_total->include_in_snapshot(true);
+
   sim_env().params().get_value("num_species", m_num_species);
   if (m_num_species > max_ptc_types) {
     Logger::print_err("Too many species of particles requested! Aborting");
@@ -202,6 +207,8 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   if (m_comm != nullptr) {
     m_comm->send_add_guard_cells(*J);
     m_comm->send_guard_cells(*J);
+    m_comm->send_add_guard_cells(*rho_total);
+    m_comm->send_guard_cells(*rho_total);
     // if ((step + 1) % m_data_interval == 0) {
     if (step % m_rho_interval == 0) {
       for (uint32_t i = 0; i < Rho.size(); i++) {
@@ -251,10 +258,10 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   if (m_sort_interval > 0 && (step % m_sort_interval) == 0) {
     sort_particles();
     tally_ptc_number(*ptc);
-  }
-  Logger::print_detail("Finished sorting");
-  if (ph != nullptr) {
-    tally_ptc_number(*ph);
+    Logger::print_detail("Finished sorting");
+    if (ph != nullptr) {
+      tally_ptc_number(*ph);
+    }
   }
 }
 
@@ -265,6 +272,7 @@ void
 ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
     value_t dt, uint32_t step, size_t begin, size_t end) {
   J->init();
+  rho_total->init();
   for (int i = 0; i < Rho.size(); i++) {
     Rho[i]->init();
   }
@@ -282,7 +290,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
   ExecPolicy<Conf>::launch(
       [begin, end, dt, rho_interval, deposit_rho, charges, masses, coord_policy,
        phys_policy] LAMBDA(auto ptc, auto E, auto B, auto J, auto Rho,
-                           auto states) {
+                           auto rho_total, auto states) {
         auto &grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         rng_t<typename ExecPolicy<Conf>::exec_tag> rng(states);
@@ -339,7 +347,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
           if (!check_flag(context.flag, PtcFlag::ignore_current) &&
               !check_flag(context.flag, PtcFlag::test_particle)) {
             deposit_t<Conf::dim, typename Conf::spline_t> deposit{};
-            deposit(context, J, Rho, idx, ext, dt, deposit_rho);
+            deposit(context, J, Rho, rho_total, idx, ext, dt, deposit_rho);
           }
 
           ptc.x1[n] = context.new_x[0];
@@ -350,12 +358,12 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
         });
         // ptc, E, B, J, Rho, grid, phys_policy);
       },
-      *ptc, *E, *B, *J, Rho, *rng_states);
+      *ptc, *E, *B, *J, Rho, *rho_total, *rng_states);
   ExecPolicy<Conf>::sync();
   // timer::show_duration_since_stamp("ptc update loop", "ms", "ptc");
 
   // timer::stamp("process");
-  coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, dt,
+  coord_policy.template process_J_Rho<ExecPolicy<Conf>>(*J, Rho, *rho_total, dt,
                                                         deposit_rho);
   // timer::show_duration_since_stamp("ptc update process J rho", "ms",
   // "process");
@@ -622,6 +630,12 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
       m_comm->send_guard_cells(*J);
     }
 
+    m_coord_policy->template filter_field<ExecPolicy<Conf>>(
+        *rho_total, m_tmpj, is_boundary);
+    if (m_comm != nullptr) {
+      m_comm->send_guard_cells(*rho_total);
+    }
+        
     if (step % m_rho_interval == 0) {
       for (int sp = 0; sp < m_num_species; sp++) {
         m_coord_policy->template filter_field<ExecPolicy<Conf>>(

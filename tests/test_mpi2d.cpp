@@ -46,15 +46,15 @@ main(int argc, char* argv[]) {
   domain_comm<Conf, exec_policy_gpu> comm;
   auto grid = env.register_system<grid_t<Conf>>(comm);
 
-  particles_t ptc(100, MemType::host_device);
-  photons_t ph(100, MemType::host_device);
-  ptc.set_segment_size(1);
-  ph.set_segment_size(1);
+  particles_t ptc(100, MemType::device_only);
+  photons_t ph(100, MemType::device_only);
+  ptc.set_segment_size(10);
+  ph.set_segment_size(10);
   int N1 = grid->dims[0];
   ptc.set_num(18);
   if (comm.rank() == 0) {
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + 7 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + (N1 - 2) * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
     ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
     ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
     ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);

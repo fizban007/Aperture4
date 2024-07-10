@@ -201,7 +201,8 @@ sim_environment_impl::run() {
   }
 
   Logger::print_debug("Max steps is: {}", max_steps);
-  for (int n = step; n <= max_steps; n++) {
+  // for (int n = step; n <= max_steps; n++) {
+  while (step <= max_steps) {
     update();
   }
 }

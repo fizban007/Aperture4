@@ -536,19 +536,17 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     // Set new B and D at n+1
     m_tmpB->copy_from(*(this->B));
     m_tmpD->copy_from(*(this->E));
-    m_tmpB->add_by(*m_tmpdB_dt, dt * 0.5f);
-    m_tmpB->add_by(*m_dB_dt, dt * 0.5f);
-    m_tmpD->add_by(*m_tmpdD_dt, dt * 0.5f);
-    m_tmpD->add_by(*m_dD_dt, dt * 0.5f);
-    // this->B->add_by(*m_tmpdB_dt, dt * 0.5f);
-    // this->B->add_by(*m_dB_dt, dt * 0.5f);
-    // this->E->add_by(*m_tmpdD_dt, dt * 0.5f);
-    // this->E->add_by(*m_dD_dt, dt * 0.5f);
+    // m_tmpB->add_by(*m_tmpdB_dt, dt * 0.5f);
+    // m_tmpB->add_by(*m_dB_dt, dt * 0.5f);
+    // m_tmpD->add_by(*m_tmpdD_dt, dt * 0.5f);
+    // m_tmpD->add_by(*m_dD_dt, dt * 0.5f);
+    m_tmpB->add_by(*m_tmpdB_dt, dt * this->m_beta);
+    m_tmpB->add_by(*m_dB_dt, dt * this->m_alpha);
+    m_tmpD->add_by(*m_tmpdD_dt, dt * this->m_beta);
+    m_tmpD->add_by(*m_dD_dt, dt * this->m_alpha);
 
     // Communicate the result
     if (this->m_comm != nullptr) {
-      // this->m_comm->send_guard_cells(*(this->B));
-      // this->m_comm->send_guard_cells(*(this->E));
       this->m_comm->send_guard_cells(*m_tmpB);
       this->m_comm->send_guard_cells(*m_tmpD);
     }

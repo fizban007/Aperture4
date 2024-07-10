@@ -20,8 +20,9 @@
 #include "core/buffer.hpp"
 #include "core/domain_info.h"
 #include "core/particles.h"
-#include "data/fields.h"
-#include "data/phase_space.hpp"
+
+#include "data/phase_space_vlasov.hpp"
+
 #include "framework/system.h"
 #include "utils/mpi_helper.h"
 #include <mpi.h>
@@ -48,8 +49,12 @@ class domain_comm : public system_t {
   int rank() const { return m_rank; }
   int size() const { return m_size; }
   void resize_buffers(const typename Conf::grid_t& grid) const;
-  void resize_phase_space_buffers(const typename Conf::grid_t& grid) const;
 
+  template <int Dim_P>
+  void resize_phase_space_buffers(const typename Conf::grid_t& grid,
+                                  const extent_t<Dim_P>& momentum_ext) const;
+
+  void send_guard_cells(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid) const;
   void send_guard_cells(vector_field<Conf>& field) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_guard_cells(typename Conf::multi_array_t& array,
@@ -60,8 +65,9 @@ class domain_comm : public system_t {
                                     const typename Conf::grid_t& grid) const;
   virtual void send_particles(particles_t& ptc, const grid_t<Conf>& grid) const;
   virtual void send_particles(photons_t& ptc, const grid_t<Conf>& grid) const;
-  template <int Dim>
-  void send_phase_space(phase_space<Conf, Dim>& data, const grid_t<Conf>& grid) const;
+
+  void send_phase_space_single_direction(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid,
+                                         int dim, int dir) const;
   void get_total_num_offset(const uint64_t& num, uint64_t& total,
                             uint64_t& offset) const;
 
@@ -96,11 +102,18 @@ class domain_comm : public system_t {
   // to use a const domain_comm reference to invoke communications, but
   // communication will necessarily need to modify these buffers.
   typedef typename Conf::multi_array_t multi_array_t;
+  typedef typename Conf::value_t value_t;
 
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<multi_array_t> m_send_vec_buffers;
   mutable std::vector<multi_array_t> m_recv_vec_buffers;
+
+  mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_send_buffers1d;
+  mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_recv_buffers1d;
+  mutable std::vector<multi_array<value_t, Conf::dim + 2>> m_phase_space_send_buffers2d;
+  mutable std::vector<multi_array<value_t, Conf::dim + 2>> m_phase_space_recv_buffers2d;
+
   // mutable std::vector<multi_array_t> m_send_phase_space_buffers;
   // mutable std::vector<multi_array_t> m_recv_phase_space_buffers;
   // mutable std::vector<particles_t> m_ptc_buffers;
@@ -152,6 +165,7 @@ class domain_comm : public system_t {
   buffer<int>& ptc_buffer_nums(const photons_t& ph) const {
     return m_ph_buffer_num;
   }
+
 };
 
 }  // namespace Aperture

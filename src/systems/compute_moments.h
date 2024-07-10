@@ -53,10 +53,18 @@ class compute_moments : public system_t {
   nonown_ptr<photons_t> ph;
 
   // This is the first moment, aka particle flux
-  data_array<field_t<4, Conf>> S;
+  data_array<scalar_field<Conf>> ptc_num;
+  data_array<field_t<3, Conf>> ptc_flux;
   // This is the second moment, aka stress energy tensor. 0 component is T00,
   // 1-3 are T0i, 4-6 are Tii, and 7-9 are Tij
-  data_array<field_t<10, Conf>> T;
+  data_array<scalar_field<Conf>> T00;
+  data_array<field_t<3, Conf>> T0i;
+  data_array<scalar_field<Conf>> T11;
+  data_array<scalar_field<Conf>> T12;
+  data_array<scalar_field<Conf>> T13;
+  data_array<scalar_field<Conf>> T22;
+  data_array<scalar_field<Conf>> T23;
+  data_array<scalar_field<Conf>> T33;
 };
 
 }  // namespace Aperture

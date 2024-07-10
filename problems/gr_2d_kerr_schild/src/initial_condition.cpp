@@ -55,27 +55,31 @@ initial_nonrotating_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
               if (math::abs(th_s) < TINY)
                 th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];
 
+                
               B[2][idx] = 0.0f;
 
               auto r2 = r_s * r_s;
-              B[0][idx] = Bp * r_s * r_s * math::sin(2.0f * th) /
-                          Metric_KS::sqrt_gamma(a, r_s, th);
+              //Martin added factor of 1/2 
+              B[0][idx] =1.0/2.0 * Bp * r_s * r_s * math::sin(2.0f * th) /
+                           Metric_KS::sqrt_gamma(a, r_s, th);
 
               auto sth2 = square(math::sin(th_s));
               auto cth2 = square(math::cos(th_s));
               auto sth = math::sin(th_s);
               auto cth = math::cos(th_s);
               r2 = r * r;
-              B[1][idx] = -2.0 * Bp * r * square(math::sin(th_s)) /
+              //Martin added factor of 1/2 
+              B[1][idx] = - Bp * r * square(math::sin(th_s)) /
                           Metric_KS::sqrt_gamma(a, r, th_s);
               // if (pos[1] == 2 && pos[0] == 10)
               //   printf("Bth is %f, gamma is %f, th_s is %f\n", B[1][idx],
               //   Metric_KS::sqrt_gamma(a, r, th_s), th_s);
 
+              //Martin added factor of 1/2 
               r2 = r_s * r_s;
-              D[2][idx] = (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
+              D[2][idx] =  (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
                            Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
-                          2.0 * Bp * r_s * square(math::sin(th)) /
+                           Bp * r_s * square(math::sin(th)) /
                           Metric_KS::sqrt_gamma(a, r_s, th);
             });
       },

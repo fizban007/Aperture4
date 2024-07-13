@@ -441,6 +441,21 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
         m_comm->get_total_num_offset(ptc_num, total, offset);
       }
       read_ptc_snapshot(*ptr, it.first, snapfile, ptc_num, total, offset);
+    } else if (auto* ptr = dynamic_cast<photon_data_t*>(data)) {
+      size_t ph_num;
+      int rank = 0;
+      if (is_multi_rank()) {
+        rank = m_comm->rank();
+        snapfile.read_subset(&ph_num, 1, "ph_num", rank, 1, 0);
+      } else {
+        snapfile.read_array(&ph_num, 1, "ph_num");
+      }
+      Logger::print_info_all("rank {} has ph_num {}", rank, ph_num);
+      uint64_t total = ph_num, offset = 0;
+      if (is_multi_rank()) {
+        m_comm->get_total_num_offset(ph_num, total, offset);
+      }
+      read_ptc_snapshot(*ptr, it.first, snapfile, ph_num, total, offset);
     } else if (auto* ptr = dynamic_cast<rng_states_t<exec_tag>*>(data)) {
       read(*ptr, it.first, snapfile, true);
     }

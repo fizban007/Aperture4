@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgr_2d_kerr_schild.a  CMakeFiles/gr_2d_kerr_schild.dir/injector.cpp.o CMakeFiles/gr_2d_kerr_schild.dir/initial_condition.cpp.o
-/usr/bin/ranlib libgr_2d_kerr_schild.a

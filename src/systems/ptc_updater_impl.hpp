@@ -138,7 +138,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
   rho_total = sim_env().register_data<scalar_field<Conf>>(
     "Rho_total", m_grid, field_type::vert_centered,
     ExecPolicy<Conf>::data_mem_type());
-  rho_total->include_in_snapshot(true);
+  // rho_total->include_in_snapshot(true);
 
   sim_env().params().get_value("num_species", m_num_species);
   if (m_num_species > max_ptc_types) {

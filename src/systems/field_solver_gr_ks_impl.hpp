@@ -415,19 +415,22 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
-                if (pos[1] == grid.guard[1] && is_boundary[2]) {
+                if (pos[1] == grid.guard[1] && 
+                    math::abs(th) < 0.1 * grid.delta[1]) {
                   dD_dt[0][idx] =
-                      (2.0 * auxH[2][idx]) / grid_ptrs.Ad[0][idx] - J[0][idx];
+                      (auxH[2][idx]) / grid_ptrs.Ad[0][idx]
+                      -J[0][idx];
                 } else {
                   dD_dt[0][idx] = (auxH[2][idx] - auxH[2][idx.dec_y()]) /
                                       grid_ptrs.Ad[0][idx] -
                                   J[0][idx];
+                  // dD_dt[0][idx] = -J[0][idx];
                 }
                 // At theta = pi boundary, do an additional update
                 if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
                     math::abs(th + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
                   dD_dt[0][idx.inc_y()] =
-                      (-2.0f * auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()]
+                      (-auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()]
                       - J[0][idx.inc_y()];
                   // if (pos[0] == 100) {
                   //   printf("pi boundary for D0!\n");
@@ -444,6 +447,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                 dD_dt[1][idx] = (auxH[2][idx.dec_x()] - auxH[2][idx]) /
                                     grid_ptrs.Ad[1][idx] -
                                 J[1][idx];
+                // dD_dt[1][idx] = -J[1][idx];
 
                 if (pos[1] == grid.guard[1] && is_boundary[2]) {
                   dD_dt[2][idx] = 0.0f;
@@ -576,12 +580,12 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
             D[1][idx.dec_x()] = D[1][idx] + D0[1][idx] - D0[1][idx.dec_x()];
             D[2][idx.dec_x()] = D[2][idx] + D0[2][idx] - D0[2][idx.dec_x()];
             B[0][idx.dec_x()] = B[0][idx] + B0[0][idx] - B0[0][idx.dec_x()];
-            B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
-            B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
-            // B[1][idx.dec_x()] = -B0[1][idx.dec_x()];
-            // B[1][idx] = -B0[1][idx];
-            // B[2][idx.dec_x()] = -B0[2][idx.dec_x()];
-            // B[2][idx] = -B0[2][idx];
+            // B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
+            // B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
+            B[1][idx.dec_x()] = -B0[1][idx.dec_x()];
+            B[1][idx] = -B0[1][idx];
+            B[2][idx.dec_x()] = -B0[2][idx.dec_x()];
+            B[2][idx] = -B0[2][idx];
           });
         },
         D, B, this->E0, this->B0);
@@ -692,11 +696,17 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
                          d[1][idx] * grid_ptrs.Ad[1][idx] -
                          d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
                 grid_ptrs.Ad[2][idx];
+            if (pos[1] == grid.guard[1] &&
+                math::abs(th_s) < 0.1 * grid.delta[1]) {
+              divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                           d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                           d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                  grid_ptrs.Ad[2][idx];
+            }
             if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
                 math::abs(th_s + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
               divD[idx.inc_y()] = (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
-                          d[0][idx.inc_y().dec_x()] * grid_ptrs.Ad[0][idx.inc_y().dec_x()] +
-                          d[1][idx.inc_y()] * grid_ptrs.Ad[1][idx.inc_y()] -
+                          d[0][idx.inc_y().dec_x()] * grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
                           d[1][idx] * grid_ptrs.Ad[1][idx]) /
                   grid_ptrs.Ad[2][idx.inc_y()];
             }

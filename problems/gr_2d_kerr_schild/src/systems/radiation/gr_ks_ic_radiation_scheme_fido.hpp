@@ -43,12 +43,17 @@ struct gr_ks_ic_radiation_scheme_fido {
   void init() {
     value_t ph_kT = 1.0e-3;
     sim_env().params().get_value("ph_kT", ph_kT);
+    value_t e_min = 1.0e-3, e_max = 0.5, spec_alpha = 1.5;
     sim_env().params().get_value("bh_spin", m_a);
     sim_env().params().get_value("IC_opacity", m_ic_opacity);
+    sim_env().params().get_value("spectrum_emin", e_min);
+    sim_env().params().get_value("spectrum_emax", e_max);
+    sim_env().params().get_value("spectrum_alpha", spec_alpha);
 
     // Configure the spectrum here and initialize the ic module
     // Spectra::broken_power_law spec(1.25, 1.1, emin, 1.0e-10, 0.1);
     Spectra::black_body spec(ph_kT);
+    // Spectra::power_law_soft spec(spec_alpha, e_min, 0.5);
 
     auto ic = sim_env().register_system<inverse_compton_t>();
     // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 /
@@ -194,7 +199,7 @@ struct gr_ks_ic_radiation_scheme_fido {
 
     // Censor photons at large distances
     // TODO: potentially deposit the photon at large radii to form raytracing
-    if (r < Metric_KS::rH(m_a) || r > 6.0f) {
+    if (r < Metric_KS::rH(m_a)*1.05 || r > 6.0f) {
       ph.cell[tid] = empty_cell;
       return 0;
     }

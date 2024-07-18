@@ -37,23 +37,59 @@ struct field_filter<1> {
   }
 };
 
-template <int Dim>
-struct field_filter {
+template <>
+struct field_filter<2> {
   template <typename Array>
   static HD_INLINE typename Array::value_t apply(
       const typename Array::idx_t& idx, const Array& f,
-      const vec_t<bool, Dim * 2>& is_boundary) {
-    auto boundary_lower = is_boundary.template subset<0, (Dim - 1) * 2>();
-    auto f_m = field_filter<Dim - 1>::apply(idx, f, boundary_lower);
+      const vec_t<bool, 4>& is_boundary) {
+    return 0.25f * f[idx] 
+         + 0.125f * f[idx.inc_x(!is_boundary[1])] 
+         + 0.125f * f[idx.dec_x(!is_boundary[0])]
+         + 0.125f * f[idx.inc_y(!is_boundary[3])]
+         + 0.125f * f[idx.dec_y(!is_boundary[2])]
+         + 0.0625f * f[idx.inc_y(!is_boundary[3]).inc_x(!is_boundary[1])]
+         + 0.0625f * f[idx.inc_y(!is_boundary[3]).dec_x(!is_boundary[0])]
+         + 0.0625f * f[idx.dec_y(!is_boundary[2]).inc_x(!is_boundary[1])]
+         + 0.0625f * f[idx.dec_y(!is_boundary[2]).dec_x(!is_boundary[0])];
+  }
+};
 
-    auto idx_l = idx.template dec<Dim - 1>(!is_boundary[(Dim - 1) * 2]);
-    auto f_l = field_filter<Dim - 1>::apply(idx_l, f, boundary_lower);
+template <>
+struct field_filter<3> {
+  template <typename Array>
+  static HD_INLINE typename Array::value_t apply(
+      const typename Array::idx_t& idx, const Array& f,
+      const vec_t<bool, 6>& is_boundary) {
+    auto boundary_lower = is_boundary.template subset<0, 4>();
+    auto f_m = field_filter<2>::apply(idx, f, boundary_lower);
 
-    auto idx_r = idx.template inc<Dim - 1>(!is_boundary[(Dim - 1) * 2 + 1]);
-    auto f_r = field_filter<Dim - 1>::apply(idx_r, f, boundary_lower);
+    auto idx_l = idx.template dec<2>(!is_boundary[4]);
+    auto f_l = field_filter<2>::apply(idx_l, f, boundary_lower);
+
+    auto idx_r = idx.template inc<2>(!is_boundary[5]);
+    auto f_r = field_filter<2>::apply(idx_r, f, boundary_lower);
     return 0.25f * f_l + 0.5f * f_m + 0.25f * f_r;
   }
 };
+
+// template <int Dim>
+// struct field_filter {
+//   template <typename Array>
+//   static HD_INLINE typename Array::value_t apply(
+//       const typename Array::idx_t& idx, const Array& f,
+//       const vec_t<bool, Dim * 2>& is_boundary) {
+//     auto boundary_lower = is_boundary.template subset<0, (Dim - 1) * 2>();
+//     auto f_m = field_filter<Dim - 1>::apply(idx, f, boundary_lower);
+
+//     auto idx_l = idx.template dec<Dim - 1>(!is_boundary[(Dim - 1) * 2]);
+//     auto f_l = field_filter<Dim - 1>::apply(idx_l, f, boundary_lower);
+
+//     auto idx_r = idx.template inc<Dim - 1>(!is_boundary[(Dim - 1) * 2 + 1]);
+//     auto f_r = field_filter<Dim - 1>::apply(idx_r, f, boundary_lower);
+//     return 0.25f * f_l + 0.5f * f_m + 0.25f * f_r;
+//   }
+// };
 
 template <int Dim>
 struct field_filter_with_geom_factor;
@@ -72,26 +108,69 @@ struct field_filter_with_geom_factor<1> {
   }
 };
 
-template <int Dim>
-struct field_filter_with_geom_factor {
+template <>
+struct field_filter_with_geom_factor<2> {
   template <typename Array, typename ConstArray>
   static HD_INLINE typename Array::value_t apply(
       const typename Array::idx_t& idx, const Array& f,
-      const ConstArray& factor, const vec_t<bool, Dim * 2>& is_boundary) {
-    auto boundary_lower = is_boundary.template subset<0, (Dim - 1) * 2>();
-    auto f_m = field_filter_with_geom_factor<Dim - 1>::apply(idx, f, factor,
-                                                             boundary_lower);
-
-    auto idx_l = idx.template dec<Dim - 1>(!is_boundary[(Dim - 1) * 2]);
-    auto f_l = field_filter_with_geom_factor<Dim - 1>::apply(idx_l, f, factor,
-                                                             boundary_lower);
-
-    auto idx_r = idx.template inc<Dim - 1>(!is_boundary[(Dim - 1) * 2 + 1]);
-    auto f_r = field_filter_with_geom_factor<Dim - 1>::apply(idx_r, f, factor,
-                                                             boundary_lower);
-    return 0.25f * f_l + 0.5f * f_m + 0.25f * f_r;
+      const ConstArray& factor, const vec_t<bool, 4>& is_boundary) {
+    return 0.25f * f[idx] * factor[idx]
+         + 0.125f * f[idx.inc_x(!is_boundary[1])] * factor[idx.inc_x(!is_boundary[1])]
+         + 0.125f * f[idx.dec_x(!is_boundary[0])] * factor[idx.dec_x(!is_boundary[0])]
+         + 0.125f * f[idx.inc_y(!is_boundary[3])] * factor[idx.inc_y(!is_boundary[3])]
+         + 0.125f * f[idx.dec_y(!is_boundary[2])] * factor[idx.dec_y(!is_boundary[2])]
+         + 0.0625f * f[idx.inc_y(!is_boundary[3]).inc_x(!is_boundary[1])]
+                   * factor[idx.inc_y(!is_boundary[3]).inc_x(!is_boundary[1])]
+         + 0.0625f * f[idx.inc_y(!is_boundary[3]).dec_x(!is_boundary[0])]
+                   * factor[idx.inc_y(!is_boundary[3]).dec_x(!is_boundary[0])]
+         + 0.0625f * f[idx.dec_y(!is_boundary[2]).inc_x(!is_boundary[1])]
+                   * factor[idx.dec_y(!is_boundary[2]).inc_x(!is_boundary[1])]
+         + 0.0625f * f[idx.dec_y(!is_boundary[2]).dec_x(!is_boundary[0])]
+                   * factor[idx.dec_y(!is_boundary[2]).dec_x(!is_boundary[0])];
   }
 };
+
+template <>
+struct field_filter_with_geom_factor<3> {
+  template <typename Array, typename ConstArray>
+  static HD_INLINE typename Array::value_t apply(
+      const typename Array::idx_t& idx, const Array& f,
+      const ConstArray& factor, const vec_t<bool, 6>& is_boundary) {
+      auto boundary_lower = is_boundary.template subset<0, 4>();
+      auto f_m = field_filter_with_geom_factor<2>::apply(idx, f, factor,
+                                                               boundary_lower);
+
+      auto idx_l = idx.template dec<2>(!is_boundary[4]);
+      auto f_l = field_filter_with_geom_factor<2>::apply(idx_l, f, factor,
+                                                               boundary_lower);
+
+      auto idx_r = idx.template inc<2>(!is_boundary[5]);
+      auto f_r = field_filter_with_geom_factor<2>::apply(idx_r, f, factor,
+                                                               boundary_lower);
+      return 0.25f * f_l + 0.5f * f_m + 0.25f * f_r;
+    }
+};
+
+// template <int Dim>
+// struct field_filter_with_geom_factor {
+//   template <typename Array, typename ConstArray>
+//   static HD_INLINE typename Array::value_t apply(
+//       const typename Array::idx_t& idx, const Array& f,
+//       const ConstArray& factor, const vec_t<bool, Dim * 2>& is_boundary) {
+//     auto boundary_lower = is_boundary.template subset<0, (Dim - 1) * 2>();
+//     auto f_m = field_filter_with_geom_factor<Dim - 1>::apply(idx, f, factor,
+//                                                              boundary_lower);
+
+//     auto idx_l = idx.template dec<Dim - 1>(!is_boundary[(Dim - 1) * 2]);
+//     auto f_l = field_filter_with_geom_factor<Dim - 1>::apply(idx_l, f, factor,
+//                                                              boundary_lower);
+
+//     auto idx_r = idx.template inc<Dim - 1>(!is_boundary[(Dim - 1) * 2 + 1]);
+//     auto f_r = field_filter_with_geom_factor<Dim - 1>::apply(idx_r, f, factor,
+//                                                              boundary_lower);
+//     return 0.25f * f_l + 0.5f * f_m + 0.25f * f_r;
+//   }
+// };
 
 }  // namespace detail
 

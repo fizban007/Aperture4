@@ -199,7 +199,7 @@ struct gr_ks_ic_radiation_scheme_fido {
 
     // Censor photons at large distances
     // TODO: potentially deposit the photon at large radii to form raytracing
-    if (r < Metric_KS::rH(m_a)*1.05 || r > 6.0f) {
+    if (r < Metric_KS::rH(m_a) || r > 6.0f) {
       ph.cell[tid] = empty_cell;
       return 0;
     }

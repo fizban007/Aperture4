@@ -250,9 +250,11 @@ class coord_policy_gr_ks_sph {
 
     if (new_x[1] < 0.0) {
       new_x[1] = -new_x[1];
+      new_x[2] += M_PI;
       context.p[1] = -context.p[1];
     } else if (new_x[1] >= M_PI) {
       new_x[1] = 2.0 * M_PI - new_x[1];
+      new_x[2] -= M_PI;
       context.p[1] = -context.p[1];
     }
 
@@ -314,6 +316,15 @@ class coord_policy_gr_ks_sph {
                 value_t th = this_type::x2(grid.coord(1, pos[1], false));
                 // if (grid.is_in_bound(pos)) {
 
+                // if (pos[0] == 40 && pos[1] == grid.guard[1]) {
+                //     // && th_s < 0.1 * grid.delta[1]) {
+                //   printf("at %d, j1 is %f, j0 is %f, rho is %f\n",
+                //          pos[0], j[1][idx], j[0][idx], rho_total[idx] / dt);
+                // }
+                // if (pos[0] == 39 && pos[1] == grid.guard[1]) {
+                //   printf("at %d, j0 is %f\n",
+                //          pos[0], j[0][idx]);
+                // }
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ad[1][idx];
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
@@ -323,14 +334,9 @@ class coord_policy_gr_ks_sph {
                   rho[n][idx] *=
                       w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
                 }
-                typename Conf::value_t theta =
-                    grid.template coord<1>(pos[1], true);
-                // if (pos[0] == 40 && pos[1] == grid.guard[1] - 1 && theta < 0.0) {
-                //   printf("j1 is %f, j1_plus is %f\n", j[1][idx], j[1][idx.inc_y()]);
                 // }
-                // }
-                if (theta < 0.1 * grid.delta[1] ||
-                    math::abs(theta - M_PI) < 0.1 * grid.delta[1]) {
+                if (th_s < 0.1 * grid.delta[1] ||
+                    math::abs(th_s - M_PI) < 0.1 * grid.delta[1]) {
                   j[2][idx] = 0.0f;
                 }
               });

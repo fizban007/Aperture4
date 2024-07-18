@@ -448,6 +448,11 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                                     grid_ptrs.Ad[1][idx] -
                                 J[1][idx];
                 // dD_dt[1][idx] = -J[1][idx];
+                // if (pos[1] == grid.guard[1] && 
+                //     math::abs(th) < 0.1 * grid.delta[1] &&
+                //     (pos[0] == 40 || pos[0] == 39)) {
+                //   printf("At %d, %d, D0 is %f, D1 is %f\n", pos[0], pos[1], dD_dt[0][idx], dD_dt[1][idx]);
+                // }
 
                 if (pos[1] == grid.guard[1] && is_boundary[2]) {
                   dD_dt[2][idx] = 0.0f;

@@ -149,7 +149,7 @@ class data_exporter : public system_t {
   buffer<uint64_t> tmp_ptc_data64;
   buffer<uint32_t> tmp_ptc_data32;
   /// tmp_grid_data stores the temporary downsampled data for output
-  multi_array<float, Conf::dim> tmp_grid_data;
+  multi_array<output_type, Conf::dim> tmp_grid_data;
   grid_t<Conf> m_output_grid;
 
   /// Sets the directory of all the data files
@@ -186,7 +186,7 @@ class data_exporter : public system_t {
                          size_t offset);
   void write_multi_array_helper(
       const std::string& name,
-      const multi_array<float, Conf::dim, typename Conf::idx_t>& array,
+      const multi_array<output_type, Conf::dim, typename Conf::idx_t>& array,
       const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
       H5File& file);
 };

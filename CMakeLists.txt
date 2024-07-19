@@ -9,6 +9,7 @@ message("CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
 
 option(use_cuda "Include the Cuda part of the code" OFF)
 option(use_double "Use double precision" OFF)
+option(use_double_for_output "Use double precision in output files" OFF)
 option(use_hip "Include the HIP part of the code" OFF)
 option(build_tests "Build the test suite" ON)
 option(build_docs "Build the documentation" OFF)
@@ -42,11 +43,13 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 # set(CMAKE_CXX_FLAGS "-DUSE_BMI2")
 set(CXX_EXTRA_FLAGS "-DNO_WARN_X86_INTRINSICS -Wno-inconsistent-missing-override")
+
 if(use_boost_filesystem)
   set(CXX_EXTRA_FLAGS "${CXX_EXTRA_FLAGS} -D__USE_BOOST_FILESYSTEM__")
   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__USE_BOOST_FILESYSTEM__")
   set(CUDA_EXTRA_FLAGS "${CUDA_EXTRA_FLAGS} -D__USE_BOOST_FILESYSTEM__")
 endif()
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_EXTRA_FLAGS}")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
   set(CMAKE_CXX_FLAGS_RELEASE
@@ -141,6 +144,9 @@ endif()
 
 if(use_double)
   add_definitions(-DUSE_DOUBLE)
+endif()
+if(use_double_for_output)
+  add_definitions(-DUSE_DOUBLE_OUTPUT)
 endif()
 
 # if(use_simd)

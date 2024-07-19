@@ -157,6 +157,7 @@ copy(exec_tags::device, multi_array<T, Rank>& dst,
 INSTANTIATE_RESAMPLE_DEV(float, float);
 INSTANTIATE_RESAMPLE_DEV(float, double);
 INSTANTIATE_RESAMPLE_DEV(double, float);
+INSTANTIATE_RESAMPLE_DEV(double, double);
 
 #define INSTANTIATE_ADD_DEV(type, dim)                                        \
   template void add(exec_tags::device, multi_array<type, dim>& dst,           \

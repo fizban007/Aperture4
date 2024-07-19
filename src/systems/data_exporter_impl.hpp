@@ -509,11 +509,11 @@ data_exporter<Conf, ExecPolicy>::write_grid() {
   H5File meshfile = hdf_create(meshfilename, create_mode);
 
   // std::vector<float> x1_array(out_ext.x);
-  multi_array<float, Conf::dim> x1_array(m_output_grid.extent_less(),
+  multi_array<output_type, Conf::dim> x1_array(m_output_grid.extent_less(),
                                          MemType::host_only);
-  multi_array<float, Conf::dim> x2_array(m_output_grid.extent_less(),
+  multi_array<output_type, Conf::dim> x2_array(m_output_grid.extent_less(),
                                          MemType::host_only);
-  multi_array<float, Conf::dim> x3_array(m_output_grid.extent_less(),
+  multi_array<output_type, Conf::dim> x3_array(m_output_grid.extent_less(),
                                          MemType::host_only);
 
   // All data output points are cell centers
@@ -658,7 +658,7 @@ template <typename Conf, template <class> class ExecPolicy>
 void
 data_exporter<Conf, ExecPolicy>::write_multi_array_helper(
     const std::string& name,
-    const multi_array<float, Conf::dim, typename Conf::idx_t>& array,
+    const multi_array<output_type, Conf::dim, typename Conf::idx_t>& array,
     const extent_t<Conf::dim>& global_ext, const index_t<Conf::dim>& offsets,
     H5File& file) {
   if (is_multi_rank()) {

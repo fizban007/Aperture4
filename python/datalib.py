@@ -105,7 +105,7 @@ class Data:
     ]
     if len(self.ptc_steps) > 0:
       self.ptc_steps.sort()
-      self._current_ptc_step = self.ptc_steps[-1]
+      self._current_ptc_step = self.ptc_steps[0]
       f_ptc = h5py.File(
         os.path.join(self._path, f"ptc.{self._current_ptc_step:05d}.h5"),
         "r",

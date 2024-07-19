@@ -40,12 +40,15 @@ using fd = finite_diff<Dim, 2>;
 template <typename Conf, template <class> class ExecPolicy>
 void
 damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
-                 int damping_length, typename Conf::value_t damping_coef) {
+                 vector_field<Conf>& e0, vector_field<Conf>& b0,
+                 int damping_length, typename Conf::value_t damping_coef,
+                 bool damp_to_background = true) {
   typedef typename Conf::idx_t idx_t;
   typedef typename Conf::value_t value_t;
   // kernel_launch(
   ExecPolicy<Conf>::launch(
-      [damping_length, damping_coef] LAMBDA(auto e, auto b) {
+      [damping_length, damping_coef, damp_to_background] 
+        LAMBDA(auto e, auto e0, auto b, auto b0) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto n1 : grid_stride_range(0, grid.dims[1])) {
@@ -55,16 +58,25 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t lambda =
                 1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
-            e[0][idx] *= lambda;
-            e[1][idx] *= lambda;
-            e[2][idx] *= lambda;
-            b[0][idx] *= lambda;
-            b[1][idx] *= lambda;
-            b[2][idx] *= lambda;
+            if (damp_to_background) {
+              e[0][idx] *= lambda;
+              e[1][idx] *= lambda;
+              e[2][idx] *= lambda;
+              b[0][idx] *= lambda;
+              b[1][idx] *= lambda;
+              b[2][idx] *= lambda;
+            } else {
+              e[0][idx] = lambda * (e[0][idx] + e0[0][idx]) - e0[0][idx];
+              e[1][idx] = lambda * (e[1][idx] + e0[1][idx]) - e0[1][idx];
+              e[2][idx] = lambda * (e[2][idx] + e0[2][idx]) - e0[2][idx];
+              b[0][idx] = lambda * (b[0][idx] + b0[0][idx]) - b0[0][idx];
+              b[1][idx] = lambda * (b[1][idx] + b0[1][idx]) - b0[1][idx];
+              b[2][idx] = lambda * (b[2][idx] + b0[2][idx]) - b0[2][idx];
+            }
           }
         });
       },
-      e, b);
+      e, e0, b, b0);
   ExecPolicy<Conf>::sync();
 }
 
@@ -90,6 +102,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
   sim_env().params().get_value("implicit_beta", this->m_beta);
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("damp_to_background", m_damp_to_background);
 
   auto type = ExecPolicy<Conf>::data_mem_type();
   m_dD_dt = std::make_unique<vector_field<Conf>>(
@@ -653,7 +666,9 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
   {
     damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
-                                       m_damping_length, m_damping_coef);
+                                       *(this->E0), *(this->B0),
+                                       m_damping_length, m_damping_coef,
+                                       m_damp_to_background);
   }
   // this->Etotal->copy_from(*(this->E));
   // this->Btotal->copy_from(*(this->B));

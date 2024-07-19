@@ -33,6 +33,12 @@ constexpr float eps_float = 1.0e-8f;
 constexpr double eps_double = 1.0e-14;
 constexpr int default_interp_order = 1;
 
+#ifndef USE_DOUBLE_OUTPUT
+typedef double output_type;
+#else
+typedef float output_type;
+#endif
+
 #ifndef USE_DOUBLE
 typedef float Scalar;
 // typedef float Mom_t;

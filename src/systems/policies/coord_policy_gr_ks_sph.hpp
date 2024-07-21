@@ -257,6 +257,8 @@ class coord_policy_gr_ks_sph {
       new_x[2] -= M_PI;
       context.p[1] = -context.p[1];
     }
+    auto r = new_x[0];
+    auto th = new_x[1];
 
     context.new_x[0] = context.x[0] + (grid_type::from_radius(new_x[0]) -
                                        grid_type::from_radius(x_global[0])) *
@@ -279,6 +281,9 @@ class coord_policy_gr_ks_sph {
       pos[i] += context.dc[i];
       context.new_x[i] -= (value_t)context.dc[i];
     }
+
+    // Update the energy of the particle for reference
+    context.gamma = Metric_KS::u0(m_a, r, th, context.p, is_photon);
   }
 
   // Inline functions to be called in the photon update loop

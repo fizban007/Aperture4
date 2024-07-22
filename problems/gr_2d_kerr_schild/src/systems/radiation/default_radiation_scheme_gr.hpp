@@ -66,10 +66,6 @@ struct default_radiation_scheme_gr {
     auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[tid]));
     auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ptc.x2[tid]));
 
-    if (r < rH) {
-      return 0;
-    }
-
     // value_t u_1 = ptc.p1[tid];
     // value_t u_2 = ptc.p2[tid];
     // value_t u_3 = ptc.p3[tid];
@@ -99,6 +95,11 @@ struct default_radiation_scheme_gr {
     u[2] = ptc.p3[tid] = p3 * pf / pi;
     ptc.E[tid] = Metric_KS::u0(a, r, th, u);
     // ptc.E[tid] = gamma - Eph * ph_per_scatter;
+
+    // do no actually produce photon within the horizon
+    if (r < rH) {
+      return 0;
+    }
 
     size_t offset = ph_num + atomic_add(ph_pos, ph_per_scatter);
     value_t lph = photon_path;
@@ -138,7 +139,8 @@ struct default_radiation_scheme_gr {
     auto idx = Conf::idx_t(cell, ext);
     auto pos = get_pos(idx, ext);
     auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[tid]));
-    if (r < rH) {
+    if (r < rH*1.0 || r > 6.0) {
+      ph.cell[tid] = empty_cell;
       return 0;
     }
     auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ptc.x2[tid]));

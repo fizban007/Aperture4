@@ -120,7 +120,7 @@ ptc_inj.inject_pairs(
     // Second function returns the number of particles injected in each cell.
     // This includes all species
     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      return 20;
+      return 2;
     },
     // Third function is the momentum distribution of the injected particles.
     // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
@@ -132,7 +132,7 @@ ptc_inj.inject_pairs(
     // coordinate.
     [] LAMBDA(auto &x_global, PtcType type) {
       value_t r = grid_ks_t<Conf>::radius(x_global[0]);
-      return 10.0 * math::sin(x_global[1]) * r;
+      return math::sin(x_global[1]);
     });
 
   env.run();

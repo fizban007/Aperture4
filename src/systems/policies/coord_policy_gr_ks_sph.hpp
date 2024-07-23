@@ -129,29 +129,38 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
   vec_t<value_t, 3> x0 = x, x1 = x;
   vec_t<value_t, 3> u0 = u, u1 = u;
 
-  for (int i = 0; i < n_iter; i++) {
-    auto x_tmp = (x0 + x1) * 0.5;
-    auto u_tmp = (u0 + u1) * 0.5;
-    x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, is_photon) * dt;
-    u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, is_photon) * dt;
-  }
-  x = x1;
-  u = u1;
-  // auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
-  // auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
-  // auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
-  //                               is_photon);
-  // auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
-  //                               is_photon);
-  // auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
-  //                               is_photon);
-  // auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
-  //                               is_photon);
-  // auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
-  // auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+  if (is_photon) {
+    // Use simple RK4 for photon
+    auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
+    auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
+    auto kx2 = geodesic_ks_x_rhs(a, x + 0.5 * dt * kx1, u + 0.5 * dt * ku1,
+                                  is_photon);
+    auto ku2 = geodesic_ks_u_rhs(a, x + 0.5 * dt * kx1, u + 0.5 * dt * ku1,
+                                  is_photon);
+    auto kx3 = geodesic_ks_x_rhs(a, x + 0.5 * dt * kx2, u + 0.5 * dt * ku2,
+                                  is_photon);
+    auto ku3 = geodesic_ks_u_rhs(a, x + 0.5 * dt * kx2, u + 0.5 * dt * ku2,
+                                  is_photon);
+    auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+    auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
 
-  // x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
-  // u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
+    x = x0 + (dt / 6.0) * (kx1 + 2.0 * kx2 + 2.0 * kx3 + kx4);
+    u = u0 + (dt / 6.0) * (ku1 + 2.0 * ku2 + 2.0 * ku3 + ku4);
+    // printf("x is %f, %f, %f, u is %f, %f, %f\n", x[0], x[1], x[2], u[0], u[1], u[2]);
+    // printf("u_0 is %f\n", Metric_KS::u_0(a, x[0], x[1], u));
+  } else {
+    // Use predictor-corrector for particle
+    for (int i = 0; i < n_iter; i++) {
+      auto x_tmp = (x0 + x1) * 0.5;
+      auto u_tmp = (u0 + u1) * 0.5;
+      x1 = x0 + geodesic_ks_x_rhs(a, x_tmp, u_tmp, is_photon) * dt;
+      u1 = u0 + geodesic_ks_u_rhs(a, x_tmp, u_tmp, is_photon) * dt;
+    }
+    // printf("x is %f, %f, %f, u is %f, %f, %f\n", x1[0], x1[1], x1[2], u1[0], u1[1], u1[2]);
+    // printf("u_0 is %f\n", Metric_KS::u_0(a, x1[0], x1[1], u1));
+    x = x1;
+    u = u1;
+  }
 }
 
 }  // namespace
@@ -213,29 +222,30 @@ class coord_policy_gr_ks_sph {
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
       gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                        //  context.E, dt, context.q / context.m);
-                         context.E, 0.5f * dt, context.q / context.m);
+                         context.E, dt, context.q / context.m);
+                        //  context.E, 0.5f * dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
 
     move_ptc(grid, context, x_global, pos, dt, false);
+    // move_ptc(grid, context, x_global, pos, dt, true);
 
     // Second half push
-    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      auto idx = typename Conf::idx_t(pos, ext);
-      auto interp = interp_t<1, Conf::dim>{};
-      context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
-      context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
-      context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
-      context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
-      context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
-      context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
+    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+    //   auto idx = typename Conf::idx_t(pos, ext);
+    //   auto interp = interp_t<1, Conf::dim>{};
+    //   context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
+    //   context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
+    //   context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
+    //   context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
+    //   context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
+    //   context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-      // Note: context.p stores the lower components u_i, while gamma is upper
-      // u^0.
-      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, 0.5f * dt, context.q / context.m);
-    }
+    //   // Note: context.p stores the lower components u_i, while gamma is upper
+    //   // u^0.
+    //   gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
+    //                      context.E, 0.5f * dt, context.q / context.m);
+    // }
   }
 
   // Abstracted moving routine that is shared by both ptc and ph

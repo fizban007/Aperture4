@@ -19,6 +19,7 @@
 
 #include "core/buffer.hpp"
 #include "core/particle_structs.h"
+#include "core/typedefs_and_constants.h"
 #include "data/particle_data.h"
 #include "framework/data.h"
 
@@ -34,9 +35,9 @@ class tracked_ptc : public data_t {
   size_t number() { return m_number; }
   void set_number(size_t n) { m_number = n; }
 
-  buffer<float> x1, x2, x3;
-  buffer<float> p1, p2, p3, E;
-  buffer<float> weight;
+  buffer<output_type> x1, x2, x3;
+  buffer<output_type> p1, p2, p3, E;
+  buffer<output_type> weight;
   buffer<uint32_t> flag;
   buffer<uint64_t> id;
 

@@ -48,10 +48,10 @@ Z(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / rho2(a, r, sth, cth);
 }
 
-// HD_INLINE Scalar
-// Delta(Scalar a, Scalar r) {
-//   return r * r + a * a - 2.0f * r;
-// }
+HD_INLINE Scalar
+Delta(Scalar a, Scalar r) {
+  return r * r + a * a - 2.0f * r;
+}
 
 HD_INLINE Scalar
 Sigma(Scalar a, Scalar r, Scalar th) {
@@ -64,6 +64,16 @@ HD_INLINE Scalar
 Sigma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   Scalar r2a2 = r * r + a * a;
   return square(r2a2) - square(a * sth) * (r2a2 - 2.0f * r);
+}
+
+HD_INLINE Scalar
+alpha(Scalar a, Scalar r, Scalar th) {
+  return math::sqrt(rho2(a, r, th) * Delta(a, r) / Sigma(a, r, th));
+}
+
+HD_INLINE Scalar
+beta3(Scalar a, Scalar r, Scalar th) {
+  return -2.0f * a * r / Sigma(a, r, th);
 }
 
 HD_INLINE Scalar
@@ -85,12 +95,38 @@ gu22(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 HD_INLINE Scalar
 gu33(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   Scalar rho2v = rho2(a, r, sth, cth);
-  return (rho2v - 2.0f * r) / (a * a + r * r - 2.0f * r) / rho2v / square(sth);
+  // return (rho2v - 2.0f * r) / (a * a + r * r - 2.0f * r) / rho2v / square(sth);
+  return rho2v / Sigma(a, r, sth, cth) / square(sth);
 }
 
 HD_INLINE Scalar
 gu03(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return -2.0f * a * r / (a * a + r * r - 2.0 * r) / rho2(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
+dot_product_l(const vec_t<Scalar, 3>& v1,
+              const vec_t<Scalar, 3>& v2,
+              Scalar a, Scalar r, Scalar th) {
+  Scalar sth = math::sin(th);
+  Scalar cth = math::cos(th);
+  return gu11(a, r, sth, cth) * v1[0] * v2[0] +
+         gu22(a, r, sth, cth) * v1[1] * v2[1] +
+         gu33(a, r, sth, cth) * v1[2] * v2[2];
+}
+
+HD_INLINE Scalar
+u0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3> &u,
+   bool is_photon = false) {
+  return math::sqrt(dot_product_l(u, u, a, r, th) + (is_photon ? 0.0f : 1.0f)) /
+         alpha(a, r, th);
+}
+
+HD_INLINE Scalar
+u_0(Scalar a, Scalar r, Scalar th, const vec_t<Scalar, 3> &u,
+    bool is_photon = false) {
+  return u[2] * beta3(a, r, th) - math::sqrt(dot_product_l(u, u, a, r, th) + (is_photon ? 0.0f : 1.0f)) *
+         alpha(a, r, th);
 }
 
 }  // namespace Metric_BL

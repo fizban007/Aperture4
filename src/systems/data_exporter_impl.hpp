@@ -54,6 +54,7 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
   sim_env().params().get_value("snapshot_interval", m_snapshot_interval);
   sim_env().params().get_value("output_dir", m_output_dir);
   sim_env().params().get_value("downsample", m_downsample);
+  sim_env().params().get_value("num_snapshots", m_num_snapshots);
 
   // Resize the tmp data array
   size_t max_ptc_num = 100, max_ph_num = 100;
@@ -306,8 +307,12 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
   // Save snapshot
   if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0 && step > 0) {
-    write_snapshot((fs::path(m_output_dir) / "snapshot.h5").string(), step,
+    std::string snapshot_name("snapshot");
+    snapshot_name += std::to_string(m_current_snapshot) + ".h5";
+    write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
                    time);
+    m_current_snapshot += 1;
+    m_current_snapshot = m_current_snapshot % m_num_snapshots;
   }
 }
 
@@ -372,6 +377,7 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
   snapfile.write(m_ptc_num, "output_ptc_num");
   snapfile.write(m_fld_output_interval, "output_fld_interval");
   snapfile.write(m_ptc_output_interval, "output_ptc_interval");
+  snapfile.write(m_current_snapshot, "current_snapshot");
   int num_ranks = 1;
   if (m_comm != nullptr) num_ranks = m_comm->size();
 
@@ -379,7 +385,7 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
 
   // Copy the current data.xmf file to a snapshot one
   std::string xmf_file = m_output_dir + "data.xmf";
-  std::string xmf_snapshot_file = m_output_dir + "snapshot.xmf";
+  std::string xmf_snapshot_file = m_output_dir + "snapshot" + std::to_string(m_current_snapshot) + ".xmf";
   Logger::print_detail("Copying xmf file from {} to {}", xmf_file,
                        xmf_snapshot_file);
 #ifndef USE_BOOST_FILESYSTEM
@@ -390,7 +396,7 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
                 fs::copy_option::overwrite_if_exists);
 #endif
 
-  Logger::print_info("Finishd writing snapshot at time {}, step {}",
+  Logger::print_info("Finished writing snapshot at time {}, step {}",
                      time, step);
 }
 
@@ -399,6 +405,8 @@ void
 data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
                                                uint32_t& step, double& time) {
   H5File snapfile(filename, H5OpenMode::read_parallel);
+  std::string xmf_stem = fs::path(filename).stem().string();
+  std::string xmf_filename = xmf_stem + ".xmf";
 
   // Read simulation stats
   step = snapfile.read_scalar<uint32_t>("step");
@@ -407,6 +415,8 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
   Logger::print_info("Snapshot time is {}", time);
   m_fld_num = snapfile.read_scalar<int>("output_fld_num");
   m_ptc_num = snapfile.read_scalar<int>("output_ptc_num");
+  m_current_snapshot = snapfile.read_scalar<int>("current_snapshot") + 1;
+  m_current_snapshot = m_current_snapshot % m_num_snapshots;
 
   // Walk over all data components and read them from the snapshot file
   // according to their `include_in_snapshot`
@@ -466,7 +476,7 @@ data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
 
   // Copy snapshot.xmf back to data.xmf
   std::string xmf_file = m_output_dir + "data.xmf";
-  std::string xmf_snapshot_file = m_output_dir + "snapshot.xmf";
+  std::string xmf_snapshot_file = m_output_dir + xmf_filename;
   Logger::print_detail("Copying xmf file from {} to {}", xmf_snapshot_file,
                        xmf_file);
 #ifndef USE_BOOST_FILESYSTEM

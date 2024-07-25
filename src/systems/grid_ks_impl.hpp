@@ -288,7 +288,7 @@ grid_ks_t<Conf>::compute_coef() {
 
     m_gbetadth_d[idx] =
         gauss_quad([this, r_s](auto x) { return sq_gamma_beta(a, r_s, x); },
-                   theta(this->template coord<1>(pos[1] - 1, false)), r);
+                   theta(this->template coord<1>(pos[1] - 1, false)), th);
     if (m_gbetadth_d[idx] != m_gbetadth_d[idx]) {
       Logger::print_err("m_gbetadth_d at ({}, {}) is NaN!", pos[0], pos[1]);
     }

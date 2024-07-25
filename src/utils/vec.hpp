@@ -189,7 +189,7 @@ class vec_t {
     return result;
   }
 
-  HD_INLINE self_type& operator*=(T v) {
+  HD_INLINE self_type& operator*=(type_identity_t<T> v) {
 #pragma unroll
     for (int i = 0; i < Rank; i++) {
       memory[i] *= v;
@@ -197,7 +197,7 @@ class vec_t {
     return *this;
   }
 
-  HD_INLINE self_type operator*(T v) const {
+  HD_INLINE self_type operator*(type_identity_t<T> v) const {
     self_type result = *this;
     result *= v;
     return result;
@@ -283,7 +283,8 @@ vec(Args... args) {
 
 template <typename T, int Rank>
 HD_INLINE vec_t<T, Rank>
-operator*(const T& q, const vec_t<T, Rank>& v) {
+// operator*(const T& q, const vec_t<T, Rank>& v) {
+operator*(const type_identity_t<T>& q, const vec_t<T, Rank>& v) {
   return v * q;
 }
 

@@ -133,19 +133,19 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
     // Use simple RK4 for photon
     auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
     auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
-    auto kx2 = geodesic_ks_x_rhs(a, x + 0.5 * dt * kx1, u + 0.5 * dt * ku1,
+    auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
                                   is_photon);
-    auto ku2 = geodesic_ks_u_rhs(a, x + 0.5 * dt * kx1, u + 0.5 * dt * ku1,
+    auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
                                   is_photon);
-    auto kx3 = geodesic_ks_x_rhs(a, x + 0.5 * dt * kx2, u + 0.5 * dt * ku2,
+    auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
                                   is_photon);
-    auto ku3 = geodesic_ks_u_rhs(a, x + 0.5 * dt * kx2, u + 0.5 * dt * ku2,
+    auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
                                   is_photon);
     auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
     auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
 
-    x = x0 + (dt / 6.0) * (kx1 + 2.0 * kx2 + 2.0 * kx3 + kx4);
-    u = u0 + (dt / 6.0) * (ku1 + 2.0 * ku2 + 2.0 * ku3 + ku4);
+    x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
+    u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
     // printf("x is %f, %f, %f, u is %f, %f, %f\n", x[0], x[1], x[2], u[0], u[1], u[2]);
     // printf("u_0 is %f\n", Metric_KS::u_0(a, x[0], x[1], u));
   } else {

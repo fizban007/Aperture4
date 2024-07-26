@@ -129,26 +129,26 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
   vec_t<value_t, 3> x0 = x, x1 = x;
   vec_t<value_t, 3> u0 = u, u1 = u;
 
-  if (is_photon) {
-    // Use simple RK4 for photon
-    auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
-    auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
-    auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
-                                  is_photon);
-    auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
-                                  is_photon);
-    auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
-                                  is_photon);
-    auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
-                                  is_photon);
-    auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
-    auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+  // if (is_photon) {
+  //   // Use simple RK4 for photon
+  //   auto kx1 = geodesic_ks_x_rhs(a, x, u, is_photon);
+  //   auto ku1 = geodesic_ks_u_rhs(a, x, u, is_photon);
+  //   auto kx2 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                                 is_photon);
+  //   auto ku2 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx1, u + 0.5f * dt * ku1,
+  //                                 is_photon);
+  //   auto kx3 = geodesic_ks_x_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                                 is_photon);
+  //   auto ku3 = geodesic_ks_u_rhs(a, x + 0.5f * dt * kx2, u + 0.5f * dt * ku2,
+  //                                 is_photon);
+  //   auto kx4 = geodesic_ks_x_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
+  //   auto ku4 = geodesic_ks_u_rhs(a, x + dt * kx3, u + dt * ku3, is_photon);
 
-    x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
-    u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
-    // printf("x is %f, %f, %f, u is %f, %f, %f\n", x[0], x[1], x[2], u[0], u[1], u[2]);
-    // printf("u_0 is %f\n", Metric_KS::u_0(a, x[0], x[1], u));
-  } else {
+  //   x = x0 + (dt / 6.0f) * (kx1 + 2.0f * kx2 + 2.0f * kx3 + kx4);
+  //   u = u0 + (dt / 6.0f) * (ku1 + 2.0f * ku2 + 2.0f * ku3 + ku4);
+  //   // printf("x is %f, %f, %f, u is %f, %f, %f\n", x[0], x[1], x[2], u[0], u[1], u[2]);
+  //   // printf("u_0 is %f\n", Metric_KS::u_0(a, x[0], x[1], u));
+  // } else {
     // Use predictor-corrector for particle
     for (int i = 0; i < n_iter; i++) {
       auto x_tmp = (x0 + x1) * 0.5;
@@ -160,7 +160,7 @@ gr_ks_geodesic_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
     // printf("u_0 is %f\n", Metric_KS::u_0(a, x1[0], x1[1], u1));
     x = x1;
     u = u1;
-  }
+  // }
 }
 
 }  // namespace

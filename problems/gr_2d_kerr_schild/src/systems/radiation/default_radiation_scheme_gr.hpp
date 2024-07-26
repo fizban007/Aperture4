@@ -156,7 +156,7 @@ struct default_radiation_scheme_gr {
     value_t p1 = ph.p1[tid];
     value_t p2 = ph.p2[tid];
     value_t p3 = ph.p3[tid];
-    value_t Eph2 = ph.E[tid];
+    // value_t Eph2 = ph.E[tid];
     // if (Eph2 < 4.01f) Eph2 = 4.01f;
 
     value_t ratio = 0.5;

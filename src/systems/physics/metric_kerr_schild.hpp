@@ -319,15 +319,13 @@ convert_from_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
 
 template <typename Float>
 HOST_DEVICE vec_t<Float, 4>
-convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth, Float cth) {
   vec_t<Float, 4> result;
 
-  auto sth = math::sin(th);
-  auto cth = math::cos(th);
   auto sqrtS = math::sqrt(rho2(a, r, sth, cth));
   auto alf = alpha(a, r, sth, cth);
 
-  result[0] = u[0] / alf - u[1] * alf * Z(a, r, th);
+  result[0] = u[0] / alf - u[1] * alf * Z(a, r, sth, cth);
   result[1] = alf * u[1];
   result[2] = u[2] / sqrtS;
   result[3] = (a * sth * u[1] + u[3] / sth) / sqrtS;
@@ -336,21 +334,34 @@ convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
 
 template <typename Float>
 HOST_DEVICE vec_t<Float, 4>
-convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
-  vec_t<Float, 4> result;
-
+convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
   auto sth = math::sin(th);
   auto cth = math::cos(th);
+  return convert_to_FIDO_lower(u, a, r, sth, cth);
+}
+
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth, Float cth) {
+  vec_t<Float, 4> result;
+
   auto sqrtS = math::sqrt(rho2(a, r, sth, cth));
   auto alf = alpha(a, r, sth, cth);
 
-  result[0] = alf * (u[0] + u[1] * Z(a, r, th));
+  result[0] = alf * (u[0] + u[1] * Z(a, r, sth, cth));
   result[1] = u[1] / alf;
   result[2] = u[2] * sqrtS;
   result[3] = sqrtS * sth * u[3] - a * sth * sth * u[1] / alf;
   return result;
 }
 
+template <typename Float>
+HOST_DEVICE vec_t<Float, 4>
+convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
+  auto sth = math::sin(th);
+  auto cth = math::cos(th);
+  return convert_from_FIDO_lower(u, a, r, sth, cth);
+}
 
 }  // namespace Metric_KS
 

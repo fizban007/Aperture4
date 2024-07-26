@@ -93,6 +93,48 @@ gr_ks_boris_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
 
 template <typename value_t>
 HOST_DEVICE void
+gr_ks_vay_update(value_t a, const vec_t<value_t, 3> &x, vec_t<value_t, 3> &u,
+                 value_t &gamma, const vec_t<value_t, 3> &B,
+                 const vec_t<value_t, 3> &D, value_t dt, value_t e_over_m) {
+  value_t sth = math::sin(x[1]);
+  value_t cth = math::cos(x[1]);
+  vec_t<value_t, 4> u_4;
+  u_4[0] = Metric_KS::u_0(a, x[0], sth, cth, u, false);
+  u_4[1] = u[0];
+  u_4[2] = u[1];
+  u_4[3] = u[2];
+
+  auto u_fido = Metric_KS::convert_to_FIDO_lower(u_4, a, x[0], sth, cth);
+  u_fido[0] = -u_fido[0]; // convert u_0 to gamma
+  value_t g_11 = Metric_KS::g_11(a, x[0], sth, cth);
+  value_t g_22 = Metric_KS::g_22(a, x[0], sth, cth);
+  value_t g_33 = Metric_KS::g_33(a, x[0], sth, cth);
+  value_t g_13 = Metric_KS::g_13(a, x[0], sth, cth);
+  value_t sqrt_g11 = math::sqrt(g_11);
+  value_t sqrt_g22 = math::sqrt(g_22);
+  value_t sqrt_factor = math::sqrt(g_33 - g_13 * g_13 / g_11);
+
+  value_t E1 = (D[0] * g_11 + D[2] * g_13) / sqrt_g11;
+  value_t E2 = D[1] * sqrt_g22;
+  value_t E3 = D[2] * sqrt_factor;
+  value_t B1 = (B[0] * g_11 + B[2] * g_13) / sqrt_g11;
+  value_t B2 = B[1] * sqrt_g22;
+  value_t B3 = B[2] * sqrt_factor;
+
+  vay_pusher pusher;
+  pusher(u_fido[1], u_fido[2], u_fido[3], u_fido[0], E1, E2, E3, B1, B2, B3,
+         dt * e_over_m * 0.5f, dt);
+  u_fido[0] = -u_fido[0]; // convert gamma back to u_0
+
+  u_4 = Metric_KS::convert_from_FIDO_lower(u_fido, a, x[0], sth, cth);
+  u[0] = u_4[1];
+  u[1] = u_4[2];
+  u[2] = u_4[3];
+  gamma = Metric_KS::u0(a, x[0], sth, cth, u, false);
+}
+
+template <typename value_t>
+HOST_DEVICE void
 gr_ks_momentum_advance(value_t a, value_t dt, vec_t<value_t, 3> &x,
                        vec_t<value_t, 3> &u, bool is_photon = false,
                        int n_iter = 3) {
@@ -221,9 +263,9 @@ class coord_policy_gr_ks_sph {
     x_global[1] = x2(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-                         context.E, dt, context.q / context.m);
-                        //  context.E, 0.5f * dt, context.q / context.m);
+      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
+                       // context.E, dt, context.q / context.m);
+                         context.E, 0.5f * dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
 
@@ -231,21 +273,21 @@ class coord_policy_gr_ks_sph {
     // move_ptc(grid, context, x_global, pos, dt, true);
 
     // Second half push
-    // if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-    //   auto idx = typename Conf::idx_t(pos, ext);
-    //   auto interp = interp_t<1, Conf::dim>{};
-    //   context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
-    //   context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
-    //   context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
-    //   context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
-    //   context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
-    //   context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
+    if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
+      auto idx = typename Conf::idx_t(pos, ext);
+      auto interp = interp_t<1, Conf::dim>{};
+      context.E[0] = interp(context.new_x, m_E[0], idx, ext, stagger_t(0b110));
+      context.E[1] = interp(context.new_x, m_E[1], idx, ext, stagger_t(0b101));
+      context.E[2] = interp(context.new_x, m_E[2], idx, ext, stagger_t(0b011));
+      context.B[0] = interp(context.new_x, m_B[0], idx, ext, stagger_t(0b001));
+      context.B[1] = interp(context.new_x, m_B[1], idx, ext, stagger_t(0b010));
+      context.B[2] = interp(context.new_x, m_B[2], idx, ext, stagger_t(0b100));
 
-    //   // Note: context.p stores the lower components u_i, while gamma is upper
-    //   // u^0.
-    //   gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
-    //                      context.E, 0.5f * dt, context.q / context.m);
-    // }
+      // Note: context.p stores the lower components u_i, while gamma is upper
+      // u^0.
+      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
+                         context.E, 0.5f * dt, context.q / context.m);
+    }
   }
 
   // Abstracted moving routine that is shared by both ptc and ph

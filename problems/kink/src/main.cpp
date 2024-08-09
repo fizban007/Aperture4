@@ -44,8 +44,8 @@ using namespace Aperture;
 namespace Aperture {
 
 template <typename Conf>
-void kink_deriven(vector_field<Conf> &B, particle_data_t &ptc,
-                     rng_states_t<exec_tags::device> &states);
+void kink_initial_condition(vector_field<Conf> &B, particle_data_t &ptc,
+                            rng_states_t<exec_tags::device> &states);
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
                            coord_policy_cartesian_sync_cooling>;
@@ -55,14 +55,14 @@ template class ptc_updater<Config<2>, exec_policy_dynamic,
 int
 main(int argc, char *argv[]) {
   typedef Config<3> Conf;
-  // sim_environment env(&argc, &argv);
   auto &env = sim_environment::instance(&argc, &argv);
 
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf, exec_policy_dynamic> comm;
-  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  grid_t<Conf> grid(comm);
+  // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       coord_policy_cartesian>>(
@@ -74,9 +74,6 @@ main(int argc, char *argv[]) {
       env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
-  // auto momentum =
-  //     env.register_system<gather_momentum_space<Conf,
-  //     exec_policy_gpu>>(grid);
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
                                                                       &comm);
@@ -84,15 +81,15 @@ main(int argc, char *argv[]) {
       grid, &comm);
   env.init();
 
-  vector_field<Conf> *Bdelta;
+  vector_field<Conf> *B0;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("Bdelta", &Bdelta);
+  env.get_data("B0", &B0);
   //env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
-  kink_deriven(*Bdelta, *ptc, *states);
+  kink_initial_condition(*B0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

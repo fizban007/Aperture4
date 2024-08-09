@@ -84,7 +84,7 @@ main(int argc, char *argv[]) {
   vector_field<Conf> *B0;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("B0", &B0);
+  env.get_data("Bdelta", &B0);
   //env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);

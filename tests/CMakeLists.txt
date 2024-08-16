@@ -17,6 +17,7 @@ add_executable(tests
   "test_mem_layout.cpp"
   "test_lorentz.cpp"
   "test_rng.cpp"
+  "test_gr_ks_sph.cpp"
   )
 # target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 target_link_libraries(tests PUBLIC

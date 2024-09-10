@@ -17,8 +17,8 @@ namespace Aperture {
 
 template <typename Conf>
 void
-kink_initial_condition(vector_field<Conf> &B, particle_data_t &ptc,
-                       rng_states_t<exec_tags::device> &states) {
+kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
+                        rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   value_t B0 = sim_env().params().get_as<double>("B0", 100.0);
   value_t B_z = sim_env().params().get_as<double>("B_z_ratio", 0.0);
@@ -108,7 +108,7 @@ kink_initial_condition(vector_field<Conf> &B, particle_data_t &ptc,
 
 
 
-template void kink_initial_condition<Config<3>>(vector_field<Config<3>> &B,
+template void kink_pressure_supported<Config<3>>(vector_field<Config<3>> &B,
                                                 particle_data_t &ptc,
                                                 rng_states_t<exec_tags::device> &states);
                                       

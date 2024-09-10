@@ -44,8 +44,8 @@ using namespace Aperture;
 namespace Aperture {
 
 template <typename Conf>
-void kink_initial_condition(vector_field<Conf> &B, particle_data_t &ptc,
-                            rng_states_t<exec_tags::device> &states);
+void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
+                             rng_states_t<exec_tags::device> &states);
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
                            coord_policy_cartesian_sync_cooling>;
@@ -89,7 +89,7 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
-  kink_initial_condition(*B0, *ptc, *states);
+  kink_pressure_supported(*B0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

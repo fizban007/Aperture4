@@ -40,6 +40,8 @@ class compute_moments : public system_t {
   virtual void init() override;
   virtual void update(double dt, uint32_t step) override;
 
+  void init_components();
+
  protected:
   const grid_t<Conf>& m_grid;
   bool m_compute_first_moments = true;

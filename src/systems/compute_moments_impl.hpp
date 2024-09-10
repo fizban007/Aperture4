@@ -176,26 +176,32 @@ compute_moments<Conf, ExecPolicy>::register_data_components() {
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+compute_moments<Conf, ExecPolicy>::init_components() {
+  // Logger::print_info("size is {}", m_size);
+  for (int n = 0; n < m_size; n++) {
+    if (m_compute_first_moments) {
+      ptc_num.init();
+      ptc_flux.init();
+    }
+    if (m_compute_second_moments) {
+      T00.init();
+      T0i.init();
+      T11.init();
+      T12.init();
+      T13.init();
+      T22.init();
+      T23.init();
+      T33.init();
+    }
+  }
+  // Logger::print_info("Initialized");
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (step % m_fld_interval == 0) {
-    // Logger::print_info("size is {}", m_size);
-    for (int n = 0; n < m_size; n++) {
-      if (m_compute_first_moments) {
-        ptc_num.init();
-        ptc_flux.init();
-      }
-      if (m_compute_second_moments) {
-        T00.init();
-        T0i.init();
-        T11.init();
-        T12.init();
-        T13.init();
-        T22.init();
-        T23.init();
-        T33.init();
-      }
-    }
-    // Logger::print_info("Initialized");
+    init_components();
 
     bool first = m_compute_first_moments;
     bool second = m_compute_second_moments;

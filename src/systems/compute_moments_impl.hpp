@@ -39,6 +39,7 @@ compute_moments<Conf, ExecPolicy>::init() {
                                m_compute_second_moments);
   sim_env().params().get_value("fld_output_interval", m_fld_interval);
   sim_env().params().get_value("num_species", m_num_species);
+  sim_env().params().get_value("q_e", m_qe);
   m_size = m_num_species;
   if (m_photon_data) {
     m_size += 1;
@@ -206,10 +207,11 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     bool first = m_compute_first_moments;
     bool second = m_compute_second_moments;
     size_t num = ptc->number();
+    value_t qe = m_qe;
     // int num_species = m_num_species;
     // First compute particle moments
     ExecPolicy<Conf>::launch(
-        [first, second, num] LAMBDA(auto ptc, auto ptc_num, auto ptc_flux,
+        [first, second, num, qe] LAMBDA(auto ptc, auto ptc_num, auto ptc_flux,
                                     auto T00, auto T0i, auto T11, auto T12,
                                     auto T13, auto T22, auto T23, auto T33) {
           auto& grid = ExecPolicy<Conf>::grid();
@@ -223,32 +225,32 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             typename Conf::idx_t idx = Conf::idx(cell, ext);
             int sp = get_ptc_type(ptc.flag[n]);
             if (first) {
-              atomic_add(&ptc_num[sp][idx], ptc.weight[n]);
-              atomic_add(&ptc_flux[sp][0][idx], ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
-              atomic_add(&ptc_flux[sp][1][idx], ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
-              atomic_add(&ptc_flux[sp][2][idx], ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
+              atomic_add(&ptc_num[sp][idx], qe * ptc.weight[n]);
+              atomic_add(&ptc_flux[sp][0][idx], qe * ptc.weight[n] * ptc.p1[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][1][idx], qe * ptc.weight[n] * ptc.p2[n] / ptc.E[n]);
+              atomic_add(&ptc_flux[sp][2][idx], qe * ptc.weight[n] * ptc.p3[n] / ptc.E[n]);
             }
             if (second) {
               // T00
-              atomic_add(&T00[sp][idx], ptc.weight[n] * ptc.E[n]);
+              atomic_add(&T00[sp][idx], qe * ptc.weight[n] * ptc.E[n]);
               // T0i
-              atomic_add(&T0i[sp][0][idx], ptc.weight[n] * ptc.p1[n]);
-              atomic_add(&T0i[sp][1][idx], ptc.weight[n] * ptc.p2[n]);
-              atomic_add(&T0i[sp][2][idx], ptc.weight[n] * ptc.p3[n]);
+              atomic_add(&T0i[sp][0][idx], qe * ptc.weight[n] * ptc.p1[n]);
+              atomic_add(&T0i[sp][1][idx], qe * ptc.weight[n] * ptc.p2[n]);
+              atomic_add(&T0i[sp][2][idx], qe * ptc.weight[n] * ptc.p3[n]);
               // Tii
               atomic_add(&T11[sp][idx],
-                         ptc.weight[n] * ptc.p1[n] * ptc.p1[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p1[n] * ptc.p1[n] / ptc.E[n]);
               atomic_add(&T22[sp][idx],
-                         ptc.weight[n] * ptc.p2[n] * ptc.p2[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p2[n] * ptc.p2[n] / ptc.E[n]);
               atomic_add(&T33[sp][idx],
-                         ptc.weight[n] * ptc.p3[n] * ptc.p3[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p3[n] * ptc.p3[n] / ptc.E[n]);
               // Tij
               atomic_add(&T23[sp][idx],
-                         ptc.weight[n] * ptc.p2[n] * ptc.p3[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p2[n] * ptc.p3[n] / ptc.E[n]);
               atomic_add(&T13[sp][idx],
-                         ptc.weight[n] * ptc.p3[n] * ptc.p1[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p3[n] * ptc.p1[n] / ptc.E[n]);
               atomic_add(&T12[sp][idx],
-                         ptc.weight[n] * ptc.p1[n] * ptc.p2[n] / ptc.E[n]);
+                         qe * ptc.weight[n] * ptc.p1[n] * ptc.p2[n] / ptc.E[n]);
             }
           });
         },
@@ -259,7 +261,7 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       size_t ph_num = ph->number();
       if (ph_num > 0) {
         ExecPolicy<Conf>::launch(
-            [first, second, ph_num] LAMBDA(auto ph, auto ptc_num, auto ptc_flux,
+            [first, second, ph_num, qe] LAMBDA(auto ph, auto ptc_num, auto ptc_flux,
                                             auto T00, auto T0i, auto T11,
                                             auto T12, auto T13, auto T22,
                                             auto T23, auto T33) {
@@ -273,26 +275,26 @@ compute_moments<Conf, ExecPolicy>::update(double dt, uint32_t step) {
 
                 typename Conf::idx_t idx = Conf::idx(cell, ext);
                 if (first) {
-                  atomic_add(&ptc_num[idx], ph.weight[n]);
-                  atomic_add(&ptc_flux[0][idx], ph.weight[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&ptc_flux[1][idx], ph.weight[n] * ph.p2[n] / ph.E[n]);
-                  atomic_add(&ptc_flux[2][idx], ph.weight[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&ptc_num[idx], qe * ph.weight[n]);
+                  atomic_add(&ptc_flux[0][idx], qe * ph.weight[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[1][idx], qe * ph.weight[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&ptc_flux[2][idx], qe * ph.weight[n] * ph.p3[n] / ph.E[n]);
                 }
                 if (second) {
                   // T00
-                  atomic_add(&T00[idx], ph.weight[n] * ph.E[n]);
+                  atomic_add(&T00[idx], qe * ph.weight[n] * ph.E[n]);
                   // T0i
-                  atomic_add(&T0i[0][idx], ph.weight[n] * ph.p1[n]);
-                  atomic_add(&T0i[1][idx], ph.weight[n] * ph.p2[n]);
-                  atomic_add(&T0i[2][idx], ph.weight[n] * ph.p3[n]);
+                  atomic_add(&T0i[0][idx], qe * ph.weight[n] * ph.p1[n]);
+                  atomic_add(&T0i[1][idx], qe * ph.weight[n] * ph.p2[n]);
+                  atomic_add(&T0i[2][idx], qe * ph.weight[n] * ph.p3[n]);
                   // Tii
-                  atomic_add(&T11[idx], ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&T22[idx], ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
-                  atomic_add(&T33[idx], ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&T11[idx], qe * ph.weight[n] * ph.p1[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T22[idx], qe * ph.weight[n] * ph.p2[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&T33[idx], qe * ph.weight[n] * ph.p3[n] * ph.p3[n] / ph.E[n]);
                   // Tij
-                  atomic_add(&T23[idx], ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
-                  atomic_add(&T13[idx], ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
-                  atomic_add(&T12[idx], ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
+                  atomic_add(&T23[idx], qe * ph.weight[n] * ph.p2[n] * ph.p3[n] / ph.E[n]);
+                  atomic_add(&T13[idx], qe * ph.weight[n] * ph.p3[n] * ph.p1[n] / ph.E[n]);
+                  atomic_add(&T12[idx], qe * ph.weight[n] * ph.p1[n] * ph.p2[n] / ph.E[n]);
                 }
               });
             },

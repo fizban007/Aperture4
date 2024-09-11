@@ -47,6 +47,7 @@ class compute_moments : public system_t {
   bool m_compute_first_moments = true;
   bool m_compute_second_moments = true;
   bool m_photon_data = false;
+  value_t m_qe = 1.0;
   int m_num_species = 2;
   int m_size = 2;
   int m_fld_interval = 100;

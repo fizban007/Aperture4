@@ -47,10 +47,15 @@ template <typename Conf>
 void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
                              rng_states_t<exec_tags::device> &states);
 
-template class ptc_updater<Config<2>, exec_policy_dynamic,
+template <typename Conf>
+void kink_force_free<Conf>(vector_field<Conf> &B, particle_data_t &ptc,
+                              rng_states_t<exec_tags::device> &states);
+
+template class ptc_updater<Config<3>, exec_policy_dynamic,
                            coord_policy_cartesian_sync_cooling>;
 
 }  // namespace Aperture
+
 
 int
 main(int argc, char *argv[]) {
@@ -89,7 +94,8 @@ main(int argc, char *argv[]) {
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
-  kink_pressure_supported(*B0, *ptc, *states);
+  // kink_pressure_supported(*B0, *ptc, *states);
+  kink_force_free(*B0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

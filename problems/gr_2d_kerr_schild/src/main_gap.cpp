@@ -24,7 +24,7 @@
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
 #include "systems/gather_tracked_ptc.h"
-#include "systems/compute_moments.h"
+#include "systems/compute_moments_gr_ks.h"
 #include "systems/grid_ks.h"
 #include "systems/radiative_transfer_impl.hpp"
 #include "systems/radiation/gr_ks_ic_radiation_scheme_fido.hpp"
@@ -72,7 +72,7 @@ main(int argc, char *argv[]) {
 
   auto pusher = env.register_system<
       ptc_updater<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
-  auto moments = env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
+  auto moments = env.register_system<compute_moments_gr_ks<Conf, exec_policy_dynamic>>(grid);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);

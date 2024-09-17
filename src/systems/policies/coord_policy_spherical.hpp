@@ -191,11 +191,11 @@ class coord_policy_spherical_base {
                     typename Conf::multi_array_t& tmp,
                     const vec_t<bool, Conf::dim * 2>& is_boundary) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ae[0],
-                                       is_boundary);
+                                       is_boundary, field.stagger(0));
     filter_field_component<ExecPolicy>(field.at(1), tmp, m_grid.m_Ae[1],
-                                       is_boundary);
+                                       is_boundary, field.stagger(1));
     filter_field_component<ExecPolicy>(field.at(2), tmp, m_grid.m_Ae[2],
-                                       is_boundary);
+                                       is_boundary, field.stagger(2));
   }
 
   template <typename ExecPolicy>
@@ -203,7 +203,7 @@ class coord_policy_spherical_base {
                     typename Conf::multi_array_t& tmp,
                     const vec_t<bool, Conf::dim * 2>& is_boundary) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_dV,
-                                       is_boundary);
+                                       is_boundary, field.stagger());
   }
 
  private:

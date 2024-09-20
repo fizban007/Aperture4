@@ -211,11 +211,16 @@ struct gr_ks_ic_radiation_scheme_fido {
 
     // transform the lower momentum components to FIDO frame
     auto u_fido = Metric_KS::convert_to_FIDO_lower(u, m_a, r, th);
+    if (-u_fido[0] < 2.2f) {
+      // photon does not have enough energy, kill it and return 0
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
 
     value_t alf = Metric_KS::alpha(m_a, r, th);
     value_t gg_prob = m_ic_module.gg_scatter_rate(-u_fido[0]) * alf * dt;
     // printf("u_0 is %f, gg_prob is %f\n", -u_fido[0], gg_prob);
-    if (gg_prob < dt * m_ic_opacity * 1e-4) {
+    if (gg_prob < dt * m_ic_opacity * 5e-4) {
       // censor photons that have too low chance of producing a pair
       ph.cell[tid] = empty_cell;
       return 0;
@@ -233,7 +238,13 @@ struct gr_ks_ic_radiation_scheme_fido {
     ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];
     ptc.x3[offset_e] = ptc.x3[offset_p] = ph.x3[tid];
 
-    u_fido *= 0.5f;
+    // u_fido *= 0.5f;
+    value_t eph = -u_fido[0];
+    value_t p = math::sqrt(square(0.5 * eph) - 1.0);
+    u_fido[0] = -0.5 * eph;
+    u_fido[1] *= p / eph;
+    u_fido[2] *= p / eph;
+    u_fido[3] *= p / eph;
     u = Metric_KS::convert_from_FIDO_lower(u_fido, m_a, r, th);
 
     ptc.p1[offset_e] = ptc.p1[offset_p] = u[1];

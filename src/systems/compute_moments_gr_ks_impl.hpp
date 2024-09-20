@@ -129,7 +129,7 @@ compute_moments_gr_ks<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 value_t alpha = Metric_KS::alpha(a, r, th);
                 value_t inv_sqrt_g = grid.cell_size() / grid_ptrs.Ad[2][idx] / alpha;
                 // value_t inv_sqrt_g = grid.cell_size() / grid_ptrs.Ad[2][idx];
-                value_t u_0 = Metric_KS::u_0(a, r, th, {ph.p1[n], ph.p2[n], ph.p3[n]});
+                value_t u_0 = Metric_KS::u_0(a, r, th, {ph.p1[n], ph.p2[n], ph.p3[n]}, true);
                 if (first) {
                   atomic_add(&ptc_num[idx], qe * ph.weight[n] * inv_sqrt_g * u_0 / ph.E[n]);
                   atomic_add(&ptc_flux[0][idx], qe * ph.weight[n] * inv_sqrt_g * ph.p1[n] / ph.E[n]);

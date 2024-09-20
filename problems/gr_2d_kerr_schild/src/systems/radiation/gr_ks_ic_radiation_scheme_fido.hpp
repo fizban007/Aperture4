@@ -172,7 +172,7 @@ struct gr_ks_ic_radiation_scheme_fido {
     ph.p1[offset] = u[1];
     ph.p2[offset] = u[2];
     ph.p3[offset] = u[3];
-    ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>(), true);
     ph.flag[offset] = 0;
 
     return offset;

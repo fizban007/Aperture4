@@ -44,8 +44,8 @@ main(int argc, char *argv[]) {
   grid_sph_t<Conf> grid(comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      coord_policy_spherical_sync_cooling>>(
-          // coord_policy_spherical>>(
+                                      // coord_policy_spherical_sync_cooling>>(
+          coord_policy_spherical>>(
           grid, &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
@@ -61,8 +61,10 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *Bdelta, *Edelta;
   env.get_data("B0", &B0);
+  env.get_data("Bdelta", &Bdelta);
+  env.get_data("Edelta", &Edelta);
 
   // Read parameters
   float Bp = 1.0e4;
@@ -86,6 +88,38 @@ main(int argc, char *argv[]) {
     Scalar r = grid_sph_t<Conf>::radius(x);
     return Bp * sin(theta) / cube(r);
   });
+
+  // float w0 = 0.1;
+  // float freq = 5.0;
+  // int num_lambda = 4;
+  // sim_env().params().get_value("w0", w0);
+  // sim_env().params().get_value("wave_freq", freq);
+  // sim_env().params().get_value("num_lambda", num_lambda);
+
+  // float lower[2] = {0.0, 0.0};
+  // sim_env().params().get_array("lower", lower);
+
+  // Bdelta->set_values(1, [Bp, w0, freq, num_lambda, lower](Scalar x, Scalar th, Scalar phi) {
+  //   auto r = grid_sph_t<Conf>::radius(x);
+  //   auto r_lower = grid_sph_t<Conf>::radius(lower[0]);
+  //   Scalar phase = 2.0 * M_PI * freq * (r - r_lower);
+  //   if (phase < 2.0 * M_PI * num_lambda) {
+  //     return Bp * w0 * math::sin(phase) * math::sin(th) / r;
+  //   } else {
+  //     return (value_t)0.0;
+  //   }
+  // });
+
+  // Edelta->set_values(2, [Bp, w0, freq, num_lambda, lower](Scalar x, Scalar th, Scalar phi) {
+  //   auto r = grid_sph_t<Conf>::radius(x);
+  //   auto r_lower = grid_sph_t<Conf>::radius(lower[0]);
+  //   Scalar phase = 2.0 * M_PI * freq * (r - r_lower);
+  //   if (phase < 2.0 * M_PI * num_lambda) {
+  //     return -Bp * w0 * math::sin(phase) * math::sin(th) / r;
+  //   } else {
+  //     return (value_t)0.0;
+  //   }
+  // });
 
   // Fill the magnetosphere with pairs
   ptc_injector_dynamic<Conf> injector(grid);

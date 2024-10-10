@@ -44,8 +44,8 @@ main(int argc, char *argv[]) {
   grid_sph_t<Conf> grid(comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      // coord_policy_spherical_sync_cooling>>(
-          coord_policy_spherical>>(
+                                      coord_policy_spherical_sync_cooling>>(
+          // coord_policy_spherical>>(
           grid, &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
@@ -134,7 +134,7 @@ main(int argc, char *argv[]) {
             exec_policy_dynamic<Conf>::grid());
         auto r = grid.radius(x_global[0]);
         auto th = grid.theta(x_global[1]);
-        return rho0 * math::sin(th) / qe / ppc;
+        return rho0 * math::sin(th) / r / qe / ppc;
       });
 
   env.run();

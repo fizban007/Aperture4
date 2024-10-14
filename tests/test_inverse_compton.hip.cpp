@@ -17,9 +17,12 @@
 
 #include "core/buffer.hpp"
 #include "core/random.h"
+#include "data/rng_states.h"
 #include "systems/inverse_compton.h"
 #include "systems/physics/spectra.hpp"
 #include "utils/hdf_wrapper.h"
+#include "utils/timer.h"
+#include "utils/kernel_helper.hpp"
 
 using namespace Aperture;
 
@@ -46,29 +49,50 @@ main(int argc, char *argv[]) {
   file.write(ic.dlep(), "dlep");
 
   auto ic_module = ic.get_ic_module();
-  int N = 1000000;
+  size_t N = 300'000;
   int n_scatter = 1000;
   // buffer<double> gamma_e(N);
   // buffer<double> eph(n_scatter * N);
-  rand_state state;
+  rng_states_t<exec_tags::device> states;
+  states.init();
   // rng_t rng(&state);
 
-  buffer<double> g1(N), g2(N), g3(N), g4(N), g5(N);
+  buffer<double> photon_e(N), gammas(N);
   // Prepare electron spectrum
-  for (int i = 0; i < N; i++) {
-    // auto u = rng.uniform<double>();
-    g1[i] = ic_module.gen_photon_e(10, state);
-    g2[i] = ic_module.gen_photon_e(100, state);
-    g3[i] = ic_module.gen_photon_e(1000, state);
-    g4[i] = ic_module.gen_photon_e(10000, state);
-    g5[i] = ic_module.gen_photon_e(100000, state);
-  }
+  timer::stamp();
+  kernel_launch(
+    {rng_states_t<exec_tags::device>::block_num,
+     rng_states_t<exec_tags::device>::thread_num},
+     [N] LAMBDA (auto gammas, auto states) {
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        rand_state& state = states[id];
+        for (int i = id; i < N; i += blockDim.x * gridDim.x) {
+          gammas[i] = std::exp(1.0 + 5.0 * rng_uniform<double>(state));
+        }
+  }, gammas.dev_ptr(), states.states().dev_ptr());
+  GpuSafeCall(cudaDeviceSynchronize());
+  timer::show_duration_since_stamp("gen_gammas", "us");
+  
+  timer::stamp();
+  // Prepare electron spectrum
+  kernel_launch(
+    {rng_states_t<exec_tags::device>::block_num,
+     rng_states_t<exec_tags::device>::thread_num},
+     [ic_module, N] LAMBDA (auto gammas, auto ph_e, auto states) {
+        int id = threadIdx.x + blockIdx.x * blockDim.x;
+        rand_state& state = states[id];
+        for (int i = id; i < N; i += blockDim.x * gridDim.x) {
+          ph_e[i] = ic_module.gen_photon_e(gammas[i], state) * gammas[i];
+        }
+  }, gammas.dev_ptr(), photon_e.dev_ptr(), states.states().dev_ptr());
+  GpuSafeCall(cudaDeviceSynchronize());
+  timer::show_duration_since_stamp("gen_photon_e", "us");
 
-  file.write(g1, "mono1e1");
-  file.write(g2, "mono1e2");
-  file.write(g3, "mono1e3");
-  file.write(g4, "mono1e4");
-  file.write(g5, "mono1e5");
+  // file.write(g1, "mono1e1");
+  // file.write(g2, "mono1e2");
+  // file.write(g3, "mono1e3");
+  // file.write(g4, "mono1e4");
+  // file.write(g5, "mono1e5");
 
   file.close();
 

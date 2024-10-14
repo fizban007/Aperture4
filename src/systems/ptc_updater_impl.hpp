@@ -418,7 +418,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_photons(
           ph.p2[n] = context.p[1];
           ph.p3[n] = context.p[2];
           // Photon enery should not change
-          // ph.E[n] = context.gamma;
+          ph.E[n] = context.gamma;
 
           // auto idx_new = Conf::idx(pos + context.dc, ext);
           auto idx_new = Conf::idx(pos, ext);

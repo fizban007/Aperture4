@@ -101,7 +101,8 @@ struct gr_ks_ic_radiation_scheme_fido {
     // dt = dt * sqrt_delta * sqrt_rho2 / sqrt_sigma;
     auto gamma = -u_fido[0];
     if (gamma < 1.1f) {
-      // Lorentz factor is too low, won't be able to emit a pair-producing photon anyway
+      // Lorentz factor is too low, won't be able to emit a pair-producing photon anyway, and we don't want to process
+      // IC cooling for such low Lorentz factor
       return 0;
     }
 
@@ -125,8 +126,8 @@ struct gr_ks_ic_radiation_scheme_fido {
     }
 
     // draw emitted photon energy.
-    // e_ph is a number between 0 and 1, the fraction of the photon energy with
-    // respect to the electron energy
+    // gen_photon_e gives a number between 0 and 1, the fraction of the photon energy with
+    // respect to the electron energy. It is multiplied by gamma to make an energy
     value_t e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
     if (e_ph > gamma - 1.1f) {
       e_ph = gamma - 1.1f;
@@ -146,7 +147,8 @@ struct gr_ks_ic_radiation_scheme_fido {
     ptc.p1[tid] = u[1];
     ptc.p2[tid] = u[2];
     ptc.p3[tid] = u[3];
-    ptc.E[tid] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    // ptc.E[tid] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>(), false);
+    ptc.E[tid] = Metric_KS::u0(m_a, r, th, {u[1], u[2], u[3]}, false);
     // if (ptc.E[tid] != ptc.E[tid]) {
     //   printf("nan detected! u_fido is (%f, %f, %f, %f)\n", u_fido[0], u_fido[1], u_fido[2], u_fido[3]);
     // }
@@ -172,11 +174,12 @@ struct gr_ks_ic_radiation_scheme_fido {
     ph.p1[offset] = u[1];
     ph.p2[offset] = u[2];
     ph.p3[offset] = u[3];
-    ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>(), true);
+    // ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>(), true);
+    ph.E[offset] = Metric_KS::u0(m_a, r, th, {u[1], u[2], u[3]}, true);
     ph.flag[offset] = 0;
 
     return offset;
-    return 0;
+    // return 0;
   }
 
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,
@@ -211,11 +214,16 @@ struct gr_ks_ic_radiation_scheme_fido {
 
     // transform the lower momentum components to FIDO frame
     auto u_fido = Metric_KS::convert_to_FIDO_lower(u, m_a, r, th);
+    if (-u_fido[0] < 2.2f) {
+      // photon does not have enough energy, kill it and return 0
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
 
     value_t alf = Metric_KS::alpha(m_a, r, th);
     value_t gg_prob = m_ic_module.gg_scatter_rate(-u_fido[0]) * alf * dt;
     // printf("u_0 is %f, gg_prob is %f\n", -u_fido[0], gg_prob);
-    if (gg_prob < dt * m_ic_opacity * 1e-4) {
+    if (gg_prob < dt * m_ic_opacity * 5e-4) {
       // censor photons that have too low chance of producing a pair
       ph.cell[tid] = empty_cell;
       return 0;
@@ -233,14 +241,22 @@ struct gr_ks_ic_radiation_scheme_fido {
     ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];
     ptc.x3[offset_e] = ptc.x3[offset_p] = ph.x3[tid];
 
-    u_fido *= 0.5f;
+    // u_fido *= 0.5f;
+    // u_fido[0] = Metric_KS::u_0(m_a, r, th, u_fido.template subset<1, 4>(), false);
+    value_t eph = -u_fido[0];
+    value_t p = math::sqrt(square(0.5 * eph) - 1.0);
+    u_fido[0] = -0.5 * eph;
+    u_fido[1] *= p / eph;
+    u_fido[2] *= p / eph;
+    u_fido[3] *= p / eph;
     u = Metric_KS::convert_from_FIDO_lower(u_fido, m_a, r, th);
 
     ptc.p1[offset_e] = ptc.p1[offset_p] = u[1];
     ptc.p2[offset_e] = ptc.p2[offset_p] = u[2];
     ptc.p3[offset_e] = ptc.p3[offset_p] = u[3];
 
-    ptc.E[offset_e] = ptc.E[offset_p] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    // ptc.E[offset_e] = ptc.E[offset_p] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>());
+    ptc.E[offset_e] = ptc.E[offset_p] = Metric_KS::u0(m_a, r, th, {u[1], u[2], u[3]}, false);
 
 // #ifndef NDEBUG
 //     assert(ptc.cell[offset_e] == empty_cell);

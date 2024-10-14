@@ -97,7 +97,7 @@ class boundary_condition : public system_t {
                     grid_sph_t<Conf>::theta(grid.coord(1, n1, true));
                 b[0][idx2] = 0.0;
                 e[1][idx2] = 0.0;
-                e[2][idx2] = -omega * sin(theta) * r * Bp;
+                e[2][idx2] = -omega * sin(theta) * Bp / r;
               }
             });
           },

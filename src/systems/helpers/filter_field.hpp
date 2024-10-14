@@ -185,20 +185,14 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
       [is_boundary, stagger] LAMBDA(auto result, auto f) {
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
-        vec_t<int, Dim> offsets;
-        bool extra_boundary = false;
-        for (int i = 0; i < Dim; i++) {
-          offsets[i] = stagger[i];
-        }
+        // vec_t<int, Dim> offsets;
+        // for (int i = 0; i < Dim; i++) {
+        //   offsets[i] = (stagger[i] ? 1 : 0);
+        // }
         ExecPolicy::loop(
             Idx_t(0, ext), Idx_t(ext.size(), ext), [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
-              for (int i = 0; i < Dim; i++) {
-                extra_boundary = extra_boundary || 
-                                 (stagger[i] && is_boundary[i * 2 + 1] 
-                                  && pos[i] == grid.dims[i] - grid.guard[i]);
-              }
-              if (grid.is_in_bound(pos) || extra_boundary) {
+              if (grid.is_in_bound(pos, stagger)) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
 #pragma unroll
                 for (int i = 0; i < Dim; i++) {
@@ -206,7 +200,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                       is_boundary[i * 2] && (pos[i] == grid.guard[i]);
                   boundary_cell[i * 2 + 1] =
                       is_boundary[i * 2 + 1] &&
-                      (pos[i] == grid.dims[i] - grid.guard[i] - 1 + offsets[i]);
+                      (pos[i] == grid.dims[i] - grid.guard[i] - 1 + stagger[i]);
                   result[idx] =
                       detail::field_filter<Dim>::apply(idx, f, boundary_cell);
                 }
@@ -231,23 +225,18 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
       [is_boundary, stagger] LAMBDA(auto result, auto f, auto factor) {
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
-        vec_t<int, Dim> offsets;
-        bool extra_boundary = false;
-        for (int i = 0; i < Dim; i++) {
-          offsets[i] = stagger[i];
-        }
+        // vec_t<int, Dim> offsets;
+        // bool extra_boundary = false;
+        // for (int i = 0; i < Dim; i++) {
+        //   offsets[i] = stagger[i];
+        // }
         ExecPolicy::loop(
             Idx_t(0, ext), Idx_t(ext.size(), ext),
             // 0, ext.size(),
             [&] LAMBDA(auto idx) {
               // auto idx = Idx_t(n, ext);
               auto pos = get_pos(idx, ext);
-              for (int i = 0; i < Dim; i++) {
-                extra_boundary = extra_boundary || 
-                                 (stagger[i] && is_boundary[i * 2 + 1] 
-                                  && pos[i] == grid.dims[i] - grid.guard[i]);
-              }
-              if (grid.is_in_bound(pos) || extra_boundary) {
+              if (grid.is_in_bound(pos, stagger)) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
 #pragma unroll
                 for (int i = 0; i < Dim; i++) {
@@ -255,7 +244,7 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                       is_boundary[i * 2] && (pos[i] == grid.guard[i]);
                   boundary_cell[i * 2 + 1] =
                       is_boundary[i * 2 + 1] &&
-                      (pos[i] == grid.dims[i] - grid.guard[i] - 1 + offsets[i]);
+                      (pos[i] == grid.dims[i] - grid.guard[i] - 1 + stagger[i]);
                   result[idx] =
                       detail::field_filter_with_geom_factor<Dim>::apply(
                           idx, f, factor, boundary_cell) /

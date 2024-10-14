@@ -150,45 +150,45 @@ struct Grid {
   }
 
   template <int n>
-  HD_INLINE value_t coord(const index_t<Dim>& idx, value_t pos_in_cell) const {
-    return coord<n>(idx[n], pos_in_cell);
+  HD_INLINE value_t coord(const index_t<Dim>& pos, value_t pos_in_cell) const {
+    return coord<n>(pos[n], pos_in_cell);
   }
 
   template <int n>
-  HD_INLINE value_t coord(const index_t<Dim>& idx, stagger_t st) const {
-    return coord<n>(idx[n], st[n]);
+  HD_INLINE value_t coord(const index_t<Dim>& pos, stagger_t st) const {
+    return coord<n>(pos[n], st[n]);
   }
 
   // template <typename value_t = Scalar>
   HD_INLINE vec_t<value_t, 3> coord_global(
-      const index_t<Dim>& idx, const vec_t<value_t, 3>& rel_x) const {
+      const index_t<Dim>& pos, const vec_t<value_t, 3>& rel_x) const {
     vec_t<value_t, 3> result = rel_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      result[i] = coord(i, idx[i], rel_x[i]);
+      result[i] = coord(i, pos[i], rel_x[i]);
     }
     return result;
   }
 
   HD_INLINE vec_t<value_t, 3> coord_global(
-      const index_t<Dim>& idx) const {
+      const index_t<Dim>& pos) const {
     vec_t<value_t, 3> result;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      result[i] = coord(i, idx[i], false);
+      result[i] = coord(i, pos[i], false);
     }
     return result;
   }
 
   template <typename FloatT>
   HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
-                             index_t<Dim>& idx, vec_t<FloatT, 3>& rel_x) const {
+                             index_t<Dim>& pos, vec_t<FloatT, 3>& rel_x) const {
     rel_x = global_x;
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      idx[i] = int(floor((global_x[i] - lower[i]) / delta[i]));
-      rel_x[i] = (global_x[i] - lower[i] - idx[i] * delta[i]) * inv_delta[i];
-      idx[i] += guard[i];
+      pos[i] = int(floor((global_x[i] - lower[i]) / delta[i]));
+      rel_x[i] = (global_x[i] - lower[i] - pos[i] * delta[i]) * inv_delta[i];
+      pos[i] += guard[i];
     }
   }
 
@@ -221,10 +221,20 @@ struct Grid {
     return result;
   }
 
-  HD_INLINE bool is_in_bound(const index_t<Dim>& idx) const {
+  HD_INLINE bool is_in_bound(const index_t<Dim>& pos) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      if (idx[i] < guard[i] || idx[i] >= N[i] + guard[i]) return false;
+      if (pos[i] < guard[i] || pos[i] >= N[i] + guard[i]) return false;
+    }
+    return true;
+  }
+
+  HD_INLINE bool is_in_bound(const index_t<Dim>& pos, stagger_t stagger) const {
+#pragma unroll
+    for (int i = 0; i < Dim; i++) {
+      // The convention is that stagger moves the grid point from 0.5 to 0, therefore
+      // we need to include an extra cell at the very end
+      if (pos[i] < guard[i] || pos[i] >= N[i] + guard[i] + stagger[i]) return false;
     }
     return true;
   }
@@ -240,10 +250,10 @@ struct Grid {
     return get_pos(idx, ext);
   }
 
-  HD_INLINE bool is_in_grid(const index_t<Dim>& idx) const {
+  HD_INLINE bool is_in_grid(const index_t<Dim>& pos) const {
 #pragma unroll
     for (int i = 0; i < Dim; i++) {
-      if (idx[i] >= dims[i]) return false;
+      if (pos[i] >= dims[i]) return false;
     }
     return true;
   }

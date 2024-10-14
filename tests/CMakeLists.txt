@@ -176,5 +176,7 @@ add_aperture_executable(test_sync_polarization "test_sync_polarization.cpp")
 
 # # add_executable(test_omp "test_omp.cpp")
 
-# add_executable(test_inverse_compton "test_inverse_compton.cpp")
-# target_link_libraries(test_inverse_compton Aperture_dev)
+add_executable(test_inverse_compton "test_inverse_compton.cpp")
+target_link_libraries(test_inverse_compton Aperture_dev)
+
+add_aperture_executable(test_ic_gpu "test_inverse_compton.hip.cpp")

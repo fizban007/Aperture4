@@ -235,7 +235,12 @@ kink_pressure_supported_moving(vector_field<Conf> &B, vector_field<Conf> &E, dou
   // TODO: check sign
   E.set_values(0, [Bphi, beta_z, gamma_z](auto x, auto y, auto z) {
     auto r = math::sqrt(x*x + y*y);
-    return gamma_z * beta_z * Bphi(r);
+    return gamma_z * beta_z * Bphi(r) * x / r;
+  });
+
+  E.set_values(1, [Bphi, beta_z, gamma_z](auto x, auto y, auto z) {
+    auto r = math::sqrt(x*x + y*y);
+    return gamma_z * beta_z * Bphi(r) * y / r;
   });
 
   // profiles of physical quantities
@@ -274,22 +279,26 @@ kink_pressure_supported_moving(vector_field<Conf> &B, vector_field<Conf> &E, dou
         value_t n_e = gamma_z * (n_e0 + s_e0 * beta_z);
         value_t s_e = gamma_z * (s_e0 + n_e0 * beta_z);
 
-        // value_t kT = P_profile(r) / n_profile(r) / 2.0;
+        value_t kT = P_profile(r) / n_profile(r) / 2.0;
         value_t kT_e = P_profile(r) / n_e / 2.0;
         value_t kT_p = P_profile(r) / n_p / 2.0;
 
-        // value_t beta_d =  100.0 * std::exp(1.0 - std::sqrt(x * x + y * y)) * (2.0 - std::sqrt(x * x + y * y))
-        //                         / (n_0 + (n_c - n_0) / square(std::cosh(2.0 * std::sqrt(x * x + y * y))));
+        // This is the drift beta in the comoving frame
         value_t beta_d = jz_profile(r) / n_profile(r) / 2.0;
 
-        vec_t<value_t, 3> u_e = rng_maxwell_juttner_drifting(state, kT_e, s_e / n_e);
-        vec_t<value_t, 3> u_p = rng_maxwell_juttner_drifting(state, kT_p, s_p / n_p);
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT, beta_d);
+        value_t sign = 1.0f;
+        if (type == PtcType::electron) sign *= -1.0f;
 
-        if (type == PtcType::electron) {
-          return vec_t<value_t, 3>(u_e[1], u_e[2], u_e[0]);
-        } else {
-          return vec_t<value_t, 3>(u_p[1], u_p[2], u_p[0]);
-        }
+        auto p1 = u_d[1] * sign;
+        auto p2 = u_d[2] * sign;
+        auto p3 = u_d[0] * sign;
+        auto gamma = math::sqrt(1.0 + p1*p1 + p2*p2 + p3*p3);
+
+        // vec_t<value_t, 3> u_e = rng_maxwell_juttner_drifting(state, kT_e, s_e / n_e);
+        // vec_t<value_t, 3> u_p = rng_maxwell_juttner_drifting(state, kT_p, s_p / n_p);
+
+        return vec_t<value_t, 3>(p1, p2, gamma_z * (p3 + beta_z * gamma));
       },
       // Particle weight
       [jz_profile, n_profile, ppc, q_e, beta_z, gamma_z] LAMBDA(auto &x_global, PtcType type) {

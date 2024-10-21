@@ -37,6 +37,7 @@
 #include <iostream>
 
 #include "initial_condition.hpp"
+#include "boundary_condition.hpp"
 
 using namespace std;
 using namespace Aperture;
@@ -48,11 +49,17 @@ void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
                              rng_states_t<exec_tags::device> &states);
 
 template <typename Conf>
-void kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
+void kink_force_free<Conf>(vector_field<Conf> &B, particle_data_t &ptc,
                               rng_states_t<exec_tags::device> &states);
+
+template <typename Conf>
+void kink_pressure_supported_moving(vector_field<Conf> &B, vector_field<Conf> &E,
+                                   double beta_z, particle_data_t &ptc,
+                                   rng_states_t<exec_tags::device> &states);
 
 template class ptc_updater<Config<3>, exec_policy_dynamic,
                            coord_policy_cartesian_sync_cooling>;
+template class boundary_condition<Config<3>, exec_policy_dynamic>;
 
 }  // namespace Aperture
 
@@ -86,16 +93,19 @@ main(int argc, char *argv[]) {
       grid, &comm);
   env.init();
 
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B, *E;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("Bdelta", &B0);
+  env.get_data("Bdelta", &B);
+  env.get_data("Edelta", &E);
   //env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
+  double beta_z = 0.5;
+  env.params().get_value("beta_z", beta_z);
 
-  // kink_pressure_supported(*B0, *ptc, *states);
-  kink_force_free(*B0, *ptc, *states);
+  kink_pressure_supported_moving(*B, *E, beta_z, *ptc, *states);
+  // kink_force_free(*B0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

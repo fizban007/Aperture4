@@ -2,6 +2,12 @@
 add_aperture_executable(kink "main.cpp")
 add_dependencies(problems kink)
 
+add_aperture_executable(kink_lab "main_lab.cpp")
+add_dependencies(problems kink_lab)
+
+add_aperture_executable(kink_cooling "main_cooling.cpp")
+add_dependencies(problems kink_cooling)
+
 
 # file(GLOB reconnection_src_files *.cu *.hip.cpp)
 # if (use_cuda AND CMAKE_CUDA_COMPILER)

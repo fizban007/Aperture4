@@ -61,7 +61,7 @@ struct default_radiation_scheme_gr {
                                  unsigned long long int* ph_pos,
                                  rand_state& state, value_t dt) {
     auto cell = ptc.cell[tid];
-    auto idx = Conf::idx_t(cell, ext);
+    auto idx = Conf::idx(cell, ext);
     auto pos = get_pos(idx, ext);
     auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[tid]));
     auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ptc.x2[tid]));
@@ -136,7 +136,7 @@ struct default_radiation_scheme_gr {
     //   return 0;  // 0 means no pairs are produced
     // }
     auto cell = ph.cell[tid];
-    auto idx = Conf::idx_t(cell, ext);
+    auto idx = Conf::idx(cell, ext);
     auto pos = get_pos(idx, ext);
     auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[tid]));
     if (r < rH*1.0 || r > 6.0) {

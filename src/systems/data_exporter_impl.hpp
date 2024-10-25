@@ -826,10 +826,7 @@ data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data,
       namestr = name + std::to_string(i + 1);
     }
 
-    if (!snapshot) {
-      write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
-      write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
-    } else {
+    auto write_fullres_output = [&] () {
       extent_t<Conf::dim> ext_total, ext;
       index_t<Conf::dim> pos_src, pos_dst;
       compute_snapshot_ext_offset(ext_total, ext, pos_src, pos_dst);
@@ -845,6 +842,18 @@ data_exporter<Conf, ExecPolicy>::write(field_t<N, Conf>& data,
       } else {
         datafile.write(data[i], namestr);
       }
+    };
+
+    if (!snapshot) {
+      write_grid_multiarray(namestr, data[i], data.stagger(i), datafile);
+      write_xmf_field_entry(m_xmf_buffer, m_fld_num, namestr);
+
+      if (data.fullres_output(i)) {
+        namestr += "_fullres";
+        write_fullres_output();
+      }
+    } else {
+      write_fullres_output();
     }
   }
 }

@@ -65,6 +65,7 @@ field_t<N, Conf>::init() {
   // Logger::print_debug("field init, memtype {}", (int)m_memtype);
   for (int i = 0; i < N; i++) {
     m_data[i].assign(0.0);
+    m_fullres_output[i] = false;
   }
 }
 

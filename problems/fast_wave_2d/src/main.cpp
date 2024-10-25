@@ -61,10 +61,15 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *B0, *Bdelta, *Edelta, *Btotal, *Etotal;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
+  env.get_data("B", &Btotal);
+  env.get_data("E", &Etotal);
+
+  Etotal->set_fullres_output(2, true);
+  Btotal->set_fullres_output(1, true);
 
   // Read parameters
   float Bp = 1.0e4;

@@ -204,9 +204,12 @@ class field_t : public data_t {
   }
 
   const Grid_t& grid() const { return *m_grid; }
+  bool fullres_output(int i = 0) const { return m_fullres_output[i]; }
+  void set_fullres_output(int i, bool b) { m_fullres_output[i] = b; }
 
  private:
   std::array<typename Conf::multi_array_t, N> m_data;
+  std::array<bool, N> m_fullres_output;
   vec_t<stagger_t, N> m_stagger;
   const typename Conf::grid_t* m_grid = nullptr;
   MemType m_memtype;

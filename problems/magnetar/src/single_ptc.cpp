@@ -15,12 +15,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/math.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-// #include "systems/field_solver_sph.h"
+#include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
-#include "systems/ptc_updater_magnetar.h"
-#include "systems/rt_magnetar.h"
+#include "systems/field_solver_sph.h"
+#include "systems/gather_tracked_ptc.h"
+#include "systems/grid_sph.hpp"
+#include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/coord_policy_spherical_sync_cooling.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
+#include "systems/ptc_injector_new.h"
+#include "systems/ptc_updater_impl.hpp"
+#include "systems/resonant_scattering_scheme.hpp"
 // #include "systems/boundary_condition.h"
 #include <iostream>
 
@@ -30,18 +38,20 @@ using namespace Aperture;
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
-  sim_environment env(&argc, &argv);
+  using value_t = typename Config<2>::value_t;
+  auto &env = sim_environment::instance(&argc, &argv);
 
-  env.params().add("log_level", (int64_t)LogLevel::debug);
-
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
-  auto grid = env.register_system<grid_sph_t<Conf>>(env);
-  auto pusher = env.register_system<ptc_updater_magnetar<Conf>>(env, *grid);
-  auto rt = env.register_system<rt_magnetar<Conf>>(env, *grid);
-  // auto solver =
-  //     env.register_system<field_solver_sph_cu<Conf>>(env, *grid);
-  // auto bc = env.register_system<boundary_condition<Conf>>(env, *grid);
-  auto exporter = env.register_system<data_exporter<Conf>>(env, *grid);
+  domain_comm<Conf, exec_policy_dynamic> comm;
+  grid_sph_t<Conf> grid(comm);
+  auto pusher =
+      env.register_system<ptc_updater<Conf, exec_policy_dynamic,
+                                      coord_policy_spherical>>(
+          grid, &comm);
+  auto rad = env.register_system<radiative_transfer<
+      Conf, exec_policy_dynamic, coord_policy_spherical,
+      resonant_scattering_scheme>>( grid, &comm);
+  auto exporter =
+      env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
 
@@ -69,7 +79,7 @@ main(int argc, char *argv[]) {
 
   // Add a single particle to the magnetosphere
   Scalar p0 = 100.0f;
-  for (int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 5000; i++) {
     ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],
                     100.0);
   }

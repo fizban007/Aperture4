@@ -17,3 +17,6 @@
 # endif()
 add_aperture_executable(magnetar "main.cpp")
 add_dependencies(problems magnetar)
+
+add_aperture_executable(magnetar_single_ptc "single_ptc")
+add_dependencies(problems magnetar_single_ptc)

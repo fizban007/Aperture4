@@ -28,9 +28,15 @@
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_impl.hpp"
+#include "systems/radiative_transfer_impl.hpp"
 #include "systems/resonant_scattering_scheme.hpp"
 // #include "systems/boundary_condition.h"
 #include <iostream>
+
+namespace Aperture {
+  template class radiative_transfer<Config<2>, exec_policy_dynamic,
+                                  coord_policy_spherical, resonant_scattering_scheme>;
+}
 
 using namespace std;
 using namespace Aperture;
@@ -79,9 +85,14 @@ main(int argc, char *argv[]) {
 
   // Add a single particle to the magnetosphere
   Scalar p0 = 100.0f;
+  Scalar r0 = 1.1f;
+  Scalar th0 = 0.23f;
   for (int i = 0; i < 5000; i++) {
-    ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],
-                    100.0);
+    // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],
+    //                 100.0);
+    ptc_append_global(exec_policy_dynamic<Conf>::exec_tag{}, *ptc, grid,
+                      {grid_sph_t<Conf>::from_radius(r0), th0, 0.0f},
+                      {p0, 0.0f, 0.0f}, 1.0f, flag_or(PtcFlag::tracked));
   }
 
   env.run();

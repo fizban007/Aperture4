@@ -61,10 +61,17 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *B0, *Bdelta, *Edelta, *Btotal, *Etotal;
   env.get_data("B0", &B0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
+  env.get_data("B", &Btotal);
+  env.get_data("E", &Etotal);
+
+  Etotal->set_fullres_output(2, true);
+  Etotal->set_fullres_output(1, true);
+  Btotal->set_fullres_output(2, true);
+  Btotal->set_fullres_output(1, true);
 
   // Read parameters
   float Bp = 1.0e4;
@@ -134,7 +141,7 @@ main(int argc, char *argv[]) {
             exec_policy_dynamic<Conf>::grid());
         auto r = grid.radius(x_global[0]);
         auto th = grid.theta(x_global[1]);
-        return rho0 * math::sin(th) / r / qe / ppc;
+        return rho0 * math::sin(th) / qe / ppc;
       });
 
   env.run();

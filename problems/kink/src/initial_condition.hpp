@@ -144,7 +144,7 @@ kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
   };
 
   auto Jphi_profile = [B0, zeta] LAMBDA (auto r) {
-    return 2.0 * r * zeta / std::pow(1.0 + r*r, 1 + zeta);
+    return B0 * 2.0 * r * zeta / std::pow(1.0 + r*r, 1 + zeta);
   };
 
 

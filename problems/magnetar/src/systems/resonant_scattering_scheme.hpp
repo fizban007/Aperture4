@@ -37,6 +37,7 @@ struct resonant_scattering_scheme{
   value_t star_kT = 1.0e-3;
   value_t res_drag_coef = 4.72e13; // This is the default value from Beloborodov
                                    // 2013, normalized to time unit Rstar/c
+                                   // I/e alpha *c/4/lambda_bar*(Rstar/c), alpha = 1/137
   value_t ph_path = 0.0f;
   int downsample = 8;
   // int num_bins[Conf::dim];
@@ -131,9 +132,9 @@ struct resonant_scattering_scheme{
     value_t gamma_para = math::sqrt(1.0f + p_para_signed * p_para_signed);
     // This beta is the absolute value of v_parallel/c
     value_t beta = math::sqrt(1.0f - 1.0f / square(gamma_para));
-    // TODO: check whether this definition of y is correct
+    // TODO: check whether this definition of y is correct (N) seems good)
     value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
-
+    
     if (y > 20.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
 
@@ -149,10 +150,13 @@ struct resonant_scattering_scheme{
     // Now we need to compute the outgoing photon energy. It is a fixed energy
     // in the electron rest frame, but needs to be Lorenz transformed to the lab
     // frame. We start with generating a random cos theta from -1 to 1
-    float u = 2.0f * rng_uniform<float>(state) - 1.0f;
-    // TODO: check Eph expression!
+    float u = 2.0f * rng_uniform<float>(state) - 1.0f;// u= cos(theta) for isotropic emission
+    
+    // In electron rest frame Eph = m_e c^2*(1-1/sqrt(1+2b)) emitted isotropically
     value_t Eph = math::abs(gamma * (1.0f + beta * u) *
-                            (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));
+                            (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
+    value_t Emax = math::abs(gamma*(1.0f + beta)*(1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1 
+    // value_t Eavg = math::abs(gamma * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
 
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
@@ -175,11 +179,16 @@ struct resonant_scattering_scheme{
     bool produce_photon = false;
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
-    if (Eph > 2.0f) { // Photon energy larger than 1MeV, treat as discrete photon
-      if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
-        // Produce a photon when Nph > 1 or when a dice roll is lower than the rate
+    //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
+    if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
+      // always produce a photon if Nph > 1, otherwise draw from poisson?
+      //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
+        // Always produce a photon (we are assuming Nph is very close to 1)
+        // Technically real number of photons is drawn from a poisson
+        // But this code doesn't know how to deal with multiple photon creations
+        // value_t N_pois = rng_poisson<float>(state, Nph);
         produce_photon = true;
-      }
+      //}
     } else {
       // Just do drag and deposit the photon into an angle bin
 
@@ -197,6 +206,9 @@ struct resonant_scattering_scheme{
       ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
 
       // TODO: deposit the outgoing photon into some array
+      // This array is ph_flux, which is a 2D array of theta and energy
+      // Start off with a simple c=inf case, i.e it gets deposited into the
+      // edge of the simulation box immeditely
       value_t th_ph = math::acos(n_ph3);
       // value_t
       // value_t phi_ph = math::atan2()

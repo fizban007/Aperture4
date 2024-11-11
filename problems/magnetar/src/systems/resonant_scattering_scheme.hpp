@@ -47,7 +47,9 @@ struct resonant_scattering_scheme{
   vec_t<value_t, 2> lower;
   vec_t<value_t, 2> upper;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
+  ndptr<value_t, Conf::dim> m_ph_poisson_diag;
   ndptr<value_t, Conf::dim + 2> m_ph_flux;
+  extent_t<Conf::dim + 2> m_ext_flux;
 
   resonant_scattering_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
 
@@ -84,6 +86,19 @@ struct resonant_scattering_scheme{
     m_ph_flux = ph_flux->data.dev_ndptr();
 #else
     m_ph_flux = ph_flux->data.host_ndptr();
+#endif
+    m_ext_flux = ph_flux->data.extent();
+
+    nonown_ptr<scalar_field<Conf>> ph_poisson;
+    ph_poisson = sim_env().register_data<scalar_field<Conf>>(
+      std::string("ph_poisson_diag"), m_grid, default_mem_type
+    );
+    ph_poisson->reset_after_output(true);
+
+#ifdef GPU_ENABLED
+    m_ph_poisson_diag = ph_poisson->dev_ndptr();
+#else
+    m_ph_poisson_diag = ph_poisson->host_ndptr();
 #endif
   }
 
@@ -180,14 +195,22 @@ struct resonant_scattering_scheme{
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
-    if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
+    // if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
+    if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
         // Always produce a photon (we are assuming Nph is very close to 1)
         // Technically real number of photons is drawn from a poisson
         // But this code doesn't know how to deal with multiple photon creations
-        // value_t N_pois = rng_poisson<float>(state, Nph);
-        produce_photon = true;
+        value_t N_pois = rng_poisson<float>(state, Nph);
+        if (N_pois >= 1) {
+          produce_photon = true;
+          Nph = 1; // We enforce a max of 1 for now
+          if (N_pois > 1) {
+            atomic_add(&m_ph_poisson_diag[idx], 1);
+          }
+        }
+        //produce_photon = true;
       //}
     } else {
       // Just do drag and deposit the photon into an angle bin
@@ -210,8 +233,24 @@ struct resonant_scattering_scheme{
       // Start off with a simple c=inf case, i.e it gets deposited into the
       // edge of the simulation box immeditely
       value_t th_ph = math::acos(n_ph3);
-      // value_t
-      // value_t phi_ph = math::atan2()
+
+      // Figure out the spatial index in the ph_flux array
+      index_t<Conf::dim + 2> pos_flux;
+      
+      for (int i = 2; i < Conf::dim + 2; i++) {
+        pos_flux[i] = pos[i - 2] / downsample;
+      }
+
+      // Figure out the theta, Eph index in the ph_flux array
+      int n_Eph = std::floor((math::log(Eph) - math::log(lower[0])) /
+                             (math::log(upper[0]) - math::log(lower[0])) * num_bins[0]);
+      pos_flux[0] = clamp(n_Eph, 0, num_bins[0] - 1);
+      pos_flux[1] = clamp(std::floor(th_ph / M_PI * num_bins[1]), 0, num_bins[1] - 1);
+      idx_col_major_t<Conf::dim + 2> idx_flux(pos_flux, m_ext_flux);
+      atomic_add(&m_ph_flux[idx_flux], Nph * ptc.weight[tid]);
+      if (tid == 0) {
+        printf("(r, th) of ptc is (%f, %f), gamma is %f, b is %f, Eph is %f\n", r, x_global[1], gamma, b, Eph);
+      }
       return 0;
     }
 

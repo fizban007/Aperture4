@@ -186,10 +186,12 @@ struct resonant_scattering_scheme{
     value_t n2 = p2 / p;
     value_t n3 = p3 / p;
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
-
+  // plane perpendicular to momentum direction defined by
+  // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
+  // We use phi to access a specific direction in this plane
     value_t n_ph1 = n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np;
     value_t n_ph2 = n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np;
-    value_t n_ph3 = n3 * u - sth * (-np * sphi);
+    value_t n_ph3 = n3 * u + sth * (-np * sphi);
 
     bool produce_photon = false;
     // Need to take Nph < 1 and > 1 differently, since the photon production
@@ -232,8 +234,9 @@ struct resonant_scattering_scheme{
       // This array is ph_flux, which is a 2D array of theta and energy
       // Start off with a simple c=inf case, i.e it gets deposited into the
       // edge of the simulation box immeditely
-      value_t th_ph = math::acos(n_ph3);
-
+      value_t th = grid_sph_t<Conf>::theta(x_global[1]);
+      value_t th_ph = math::acos(n_ph1 * math::cos(th) - n_ph2 * math::sin(th));
+      //value_t th_ph = math::acos(n_ph1 * math::cos(th) + n_ph2 * math::sin(th));
       // Figure out the spatial index in the ph_flux array
       index_t<Conf::dim + 2> pos_flux;
       

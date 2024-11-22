@@ -92,7 +92,7 @@ main(int argc, char *argv[]) {
     //                 100.0);
     ptc_append_global(exec_policy_dynamic<Conf>::exec_tag{}, *ptc, grid,
                       {grid_sph_t<Conf>::from_radius(r0), th0, 0.0f},
-                      {p0, 0.0f, 0.0f}, 1.0f, flag_or(PtcFlag::tracked));
+                      {2.0*p0*cos(th0), p0*sin(th0), 0.0f}, 1.0f, flag_or(PtcFlag::tracked));
   }
 
   env.run();

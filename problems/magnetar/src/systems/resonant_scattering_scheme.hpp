@@ -177,14 +177,17 @@ struct resonant_scattering_scheme{
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
     float cphi = math::cos(phi_p);
     float sphi = math::sin(phi_p);
-    value_t sth = sqrt(1.0f - u * u);
 
     // Lorentz transform u to the lab frame
     // TODO: Check whether this is correct
     u = (u + beta) / (1 + beta * u);
-    value_t n1 = p1 / p;
-    value_t n2 = p2 / p;
-    value_t n3 = p3 / p;
+    value_t sth = sqrt(1.0f - u * u);
+    // value_t n1 = p1 / p;//pr
+    // value_t n2 = p2 / p;//ptheta
+    // value_t n3 = p3 / p;//pphi as orthonormal basis
+    value_t n1 = sgn(pdotB) * math::abs(B[0] / B_mag);
+    value_t n2 = sgn(pdotB) * math::abs(B[1] / B_mag);
+    value_t n3 = sgn(pdotB) * math::abs(B[2] / B_mag);
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
@@ -236,7 +239,7 @@ struct resonant_scattering_scheme{
       // edge of the simulation box immeditely
       value_t th = grid_sph_t<Conf>::theta(x_global[1]);
       value_t th_ph = math::acos(n_ph1 * math::cos(th) - n_ph2 * math::sin(th));
-      //value_t th_ph = math::acos(n_ph1 * math::cos(th) + n_ph2 * math::sin(th));
+      //value_t th_ph = math::acos(n_ph1 * math::sin(th) + n_ph2 * math::cos(th));
       // Figure out the spatial index in the ph_flux array
       index_t<Conf::dim + 2> pos_flux;
       

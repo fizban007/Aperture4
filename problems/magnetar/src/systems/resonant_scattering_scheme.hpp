@@ -139,7 +139,8 @@ struct resonant_scattering_scheme{
     value_t B_mag = math::sqrt(B.dot(B));
     value_t b = B_mag / BQ;
     value_t p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
-    value_t p_para = (p1 * B[0] + p2 * B[1] + p3 * B[2]) / B_mag;
+    value_t pdotB = p1 * B[0] + p2 * B[1] + p3 * B[2];
+    value_t p_para = pdotB / B_mag;
 
     // Compute resonant cooling and emit photon if necessary
     value_t mu = math::abs(B[0] / B_mag); // mu is already absolute value
@@ -149,8 +150,8 @@ struct resonant_scattering_scheme{
     value_t beta = math::sqrt(1.0f - 1.0f / square(gamma_para));
     // TODO: check whether this definition of y is correct (N) seems good)
     value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
-    
-    if (y > 20.0f || y <= 0.0f)
+
+    if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
 
     // This is based on Beloborodov 2013, Eq. B4. The resonant drag coefficient
@@ -166,11 +167,11 @@ struct resonant_scattering_scheme{
     // in the electron rest frame, but needs to be Lorenz transformed to the lab
     // frame. We start with generating a random cos theta from -1 to 1
     float u = 2.0f * rng_uniform<float>(state) - 1.0f;// u= cos(theta) for isotropic emission
-    
+
     // In electron rest frame Eph = m_e c^2*(1-1/sqrt(1+2b)) emitted isotropically
     value_t Eph = math::abs(gamma * (1.0f + beta * u) *
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
-    value_t Emax = math::abs(gamma*(1.0f + beta)*(1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1 
+    value_t Emax = math::abs(gamma*(1.0f + beta)*(1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
     // value_t Eavg = math::abs(gamma * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
 
     // Photon direction
@@ -182,12 +183,12 @@ struct resonant_scattering_scheme{
     // TODO: Check whether this is correct
     u = (u + beta) / (1 + beta * u);
     value_t sth = sqrt(1.0f - u * u);
-    // value_t n1 = p1 / p;//pr
-    // value_t n2 = p2 / p;//ptheta
-    // value_t n3 = p3 / p;//pphi as orthonormal basis
-    value_t n1 = sgn(pdotB) * math::abs(B[0] / B_mag);
-    value_t n2 = sgn(pdotB) * math::abs(B[1] / B_mag);
-    value_t n3 = sgn(pdotB) * math::abs(B[2] / B_mag);
+    // value_t n1 = p1 / p;
+    // value_t n2 = p2 / p;
+    // value_t n3 = p3 / p;
+    value_t n1 = sgn(pdotB) * math::abs(B[0]) / B_mag;
+    value_t n2 = sgn(pdotB) * math::abs(B[1]) / B_mag;
+    value_t n3 = sgn(pdotB) * math::abs(B[2]) / B_mag;
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
@@ -200,17 +201,22 @@ struct resonant_scattering_scheme{
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
-    // if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
-    if (false) {
+    if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
+    // if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
         // Always produce a photon (we are assuming Nph is very close to 1)
         // Technically real number of photons is drawn from a poisson
         // But this code doesn't know how to deal with multiple photon creations
-        value_t N_pois = rng_poisson<float>(state, Nph);
+        int N_pois = rng_poisson<float>(state, Nph);
         if (N_pois >= 1) {
-          produce_photon = true;
-          Nph = 1; // We enforce a max of 1 for now
+          // if (tid == 0) {
+            // printf("poisson is %d, Nph is %f\n", N_pois, Nph);
+          // }
+          if (Eph > 2.0f) {
+            produce_photon = true;
+          }
+          // Nph = 1.0; // We enforce a max of 1 for now
           if (N_pois > 1) {
             atomic_add(&m_ph_poisson_diag[idx], 1);
           }
@@ -223,6 +229,9 @@ struct resonant_scattering_scheme{
       // Compute analytically the drag force on the particle and apply it. This is taken
       // from Beloborodov 2013, Eq. B6. Need to check the sign. TODO
       value_t drag_coef = coef * star_kT * y * (gamma_para * mu - p_para_signed);
+      // if (tid == 0){
+      //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
+      // }
       if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
       p1 += B[0] * dt * drag_coef / B_mag;
       p2 += B[1] * dt * drag_coef / B_mag;
@@ -238,11 +247,12 @@ struct resonant_scattering_scheme{
       // Start off with a simple c=inf case, i.e it gets deposited into the
       // edge of the simulation box immeditely
       value_t th = grid_sph_t<Conf>::theta(x_global[1]);
-      value_t th_ph = math::acos(n_ph1 * math::cos(th) - n_ph2 * math::sin(th));
+      value_t cos_ph = n_ph1 * math::cos(th) - n_ph2 * math::sin(th);
+      value_t th_ph = math::acos(cos_ph);
       //value_t th_ph = math::acos(n_ph1 * math::sin(th) + n_ph2 * math::cos(th));
       // Figure out the spatial index in the ph_flux array
       index_t<Conf::dim + 2> pos_flux;
-      
+
       for (int i = 2; i < Conf::dim + 2; i++) {
         pos_flux[i] = pos[i - 2] / downsample;
       }
@@ -252,11 +262,12 @@ struct resonant_scattering_scheme{
                              (math::log(upper[0]) - math::log(lower[0])) * num_bins[0]);
       pos_flux[0] = clamp(n_Eph, 0, num_bins[0] - 1);
       pos_flux[1] = clamp(std::floor(th_ph / M_PI * num_bins[1]), 0, num_bins[1] - 1);
+      // pos_flux[1] = clamp(std::floor((cos_ph + 1.0) * 0.5 * num_bins[1]), 0, num_bins[1] - 1);
       idx_col_major_t<Conf::dim + 2> idx_flux(pos_flux, m_ext_flux);
       atomic_add(&m_ph_flux[idx_flux], Nph * ptc.weight[tid]);
-      if (tid == 0) {
-        printf("(r, th) of ptc is (%f, %f), gamma is %f, b is %f, Eph is %f\n", r, x_global[1], gamma, b, Eph);
-      }
+      // if (tid == 0) {
+      //   printf("(r, th) of ptc is (%f, %f), beta is %f, th_ph is %f, Eph is %f\n", r, x_global[1], beta, cos_ph, Eph);
+      // }
       return 0;
     }
 
@@ -327,8 +338,11 @@ struct resonant_scattering_scheme{
       return 0;
 
     value_t chi = 0.5f * eph * b * sinth;
-    // TODO: Is there any rescaling that we need to do? Also check units
+    // TODO: Is there any rescaling that we need to do? Also check units. The
+    // actual prefactor doesn't seem to matter much, since the exponential dependence
+    // on chi is so strong.
     value_t prob = 4.3e7 * 1e6 * b * math::exp(-4.0 / 3.0 / chi) * dt;
+    // value_t prob = 1.0;
 
     value_t u = rng_uniform<value_t>(state);
     if (u < prob) {

@@ -53,6 +53,8 @@ main(int argc, char *argv[]) {
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       coord_policy_spherical>>(
           grid, &comm);
+  auto tracker =
+      env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_dynamic, coord_policy_spherical,
       resonant_scattering_scheme>>( grid, &comm);
@@ -87,12 +89,13 @@ main(int argc, char *argv[]) {
   Scalar p0 = 1000.0f;
   Scalar r0 = 1.1f;
   Scalar th0 = 0.338f;
-  for (int i = 0; i < 5000; i++) {
+  int N = 5000;
+  for (int i = 0; i < N; i++) {
     // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],
     //                 100.0);
     ptc_append_global(exec_policy_dynamic<Conf>::exec_tag{}, *ptc, grid,
                       {grid_sph_t<Conf>::from_radius(r0), th0, 0.0f},
-                      {2.0*p0*cos(th0), p0*sin(th0), 0.0f}, 1.0f, flag_or(PtcFlag::tracked));
+                      {p0 * 2.0 * std::cos(th0), p0 * std::sin(th0), 0.0f}, 1.0f, flag_or(PtcFlag::tracked));
   }
 
   env.run();

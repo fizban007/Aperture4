@@ -74,6 +74,7 @@ template class radiative_transfer<Config<2>, exec_policy_dynamic,
 int
 main(int argc, char *argv[]) {
   typedef Config<2> Conf;
+  using value_t = typename Conf::value_t;
   auto &env = sim_environment::instance(&argc, &argv);
 
   domain_comm<Conf, exec_policy_dynamic> comm;
@@ -112,11 +113,15 @@ main(int argc, char *argv[]) {
   float Bp = 1.0e2;
   float twist_omega = 0.01;
   float qe = 1.0;
-  int ppc = 100;
+  int ppc = 20;
   env.params().get_value("Bp", Bp);
   env.params().get_value("ppc", ppc);
   env.params().get_value("twist_omega", twist_omega);
   env.params().get_value("qe", qe);
+  float kT = 1.0e-3;
+  float rho0 = 1.0e4;
+  env.params().get_value("kT", kT);
+  env.params().get_value("rho0", rho0);
 
   // Set dipole initial magnetic field
   B0->set_values(0, [Bp](Scalar x, Scalar theta, Scalar phi) {
@@ -129,8 +134,22 @@ main(int argc, char *argv[]) {
     return Bp * sin(theta) / cube(r);
   });
 
-  // Fill the magnetosphere with some multiplicity
-  pusher->fill_multiplicity(ppc, Bp * twist_omega / qe / ppc);
+  // Fill the magnetosphere with pairs
+  ptc_injector_dynamic<Conf> injector(grid);
+  injector.inject_pairs(
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
+      [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+        return rng_maxwell_juttner_3d<value_t>(state, kT);
+      },
+      [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
+        auto &grid = static_cast<const grid_sph_t<Conf> &>(
+            exec_policy_dynamic<Conf>::grid());
+        auto r = grid.radius(x_global[0]);
+        auto th = grid.theta(x_global[1]);
+        // This naturally gives rho ~ 1/r^3 dependence
+        return rho0 * math::sin(th) / qe / ppc;
+      });
 
   env.run();
   return 0;

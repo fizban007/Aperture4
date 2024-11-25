@@ -243,9 +243,9 @@ grid_sph_t<Conf>::compute_coef() {
     // Area elements for E field
     this->m_Ae[0][idx] = r * r * (std::cos(th_minus) - std::cos(th));
     if (math::abs(ths) < 0.1 * this->delta[1]) {
-      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
+      this->m_Ae[0][idx] = r * r * (1.0 - std::cos(theta(0.5 * this->delta[1])));
     } else if (math::abs(ths - M_PI) < 0.1 * this->delta[1]) {
-      this->m_Ae[0][idx] = r * r * 2.0 * (1.0 - std::cos(theta(0.5 * this->delta[1])));
+      this->m_Ae[0][idx] = r * r * (1.0 - std::cos(theta(0.5 * this->delta[1])));
     }
     // if constexpr (Conf::dim == 3) {
     if (Conf::dim == 3) {

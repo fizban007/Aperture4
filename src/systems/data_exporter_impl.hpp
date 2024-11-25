@@ -1137,7 +1137,7 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
                                        H5File& datafile, bool snapshot) {
   // No need to specifically write tracked_ptc into snapshot
   if (!snapshot) {
-    timer::stamp("write_tracked_ptc");
+    // timer::stamp();
     size_t number = data.number();
     size_t total = number;
     size_t offset = 0;
@@ -1178,8 +1178,7 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       datafile.write(data.weight.host_ptr(), number, name + "_weight");
       datafile.write(data.id.host_ptr(), number, name + "_id");
     }
-    timer::show_duration_since_stamp("write_tracked_ptc", "ms",
-                                     "write_tracked_ptc");
+    // timer::show_duration_since_stamp("write_tracked_ptc", "ms");
   }
 }
 

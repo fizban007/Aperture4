@@ -67,10 +67,10 @@ main(int argc, char *argv[]) {
 
   double Bp = 10000.0;
   double BQ = 1000.0;
-  double tube_rmax_1 = 8.0;
-  double tube_rmax_2 = 9.0;
+  double tube_rmax_1 = 4.0;
+  double tube_rmax_2 = 6.0;
   env.params().get_value("Bp", Bp);
-  env.params().get_value("BQ", BQ);
+  env.params().get_value("B_Q", BQ);
   env.params().get_value("tube_rmax_1", tube_rmax_1);
   env.params().get_value("tube_rmax_2", tube_rmax_2);
   // Set initial condition
@@ -114,7 +114,7 @@ main(int argc, char *argv[]) {
         }
         },
       // Number injected per cell
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return 200; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return 5000; },
         // Initialize particle momentum
       [Bp,BQ] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(

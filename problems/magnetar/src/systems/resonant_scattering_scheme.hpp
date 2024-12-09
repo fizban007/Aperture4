@@ -232,7 +232,7 @@ struct resonant_scattering_scheme{
       // if (tid == 0){
       //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
       // }
-      if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
+      // if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
       // p1 += B[0] * dt * drag_coef / B_mag;
       // p2 += B[1] * dt * drag_coef / B_mag;
       // p3 += B[2] * dt * drag_coef / B_mag;

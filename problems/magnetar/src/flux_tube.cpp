@@ -60,17 +60,19 @@ main(int argc, char *argv[]) {
       resonant_scattering_scheme>>( grid, &comm);
   auto exporter =
       env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
+    auto moments =
+    env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
 
   env.init();
 
   double Bp = 10000.0;
   double BQ = 1000.0;
-  double tube_rmax_1 = 3.0;
-  double tube_rmax_2 = 5.0;
+  double tube_rmax_1 = 8.0;
+  double tube_rmax_2 = 9.0;
   env.params().get_value("Bp", Bp);
   env.params().get_value("BQ", BQ);
-    env.params().get_value("tube_rmax_1", tube_rmax_1);
-    env.params().get_value("tube_rmax_2", tube_rmax_2);
+  env.params().get_value("tube_rmax_1", tube_rmax_1);
+  env.params().get_value("tube_rmax_2", tube_rmax_2);
   // Set initial condition
   // set_initial_condition(env, *grid, 0, 1.0, Bp);
   vector_field<Conf> *B0, *B;
@@ -101,8 +103,7 @@ main(int argc, char *argv[]) {
     // Injection criterion (in flux tube)
       [tube_rmax_1,tube_rmax_2] LAMBDA(auto &pos, auto &grid, auto &ext) { 
         //TODO check if this is the actual r we are trying to input
-        // What is pos?
-        auto r = math::exp(grid.template coord<0>(pos, 0.5f));// Since r = log(r)
+        auto r = math::exp(grid.template coord<0>(pos, 0.5f));// Since r_grid = log(r)
         auto th = grid.template coord<1>(pos, 0.5f);
         auto r_max_check = r / (sin(th) * sin(th));
         if (r_max_check > tube_rmax_1 && r_max_check < tube_rmax_2) {
@@ -118,13 +119,14 @@ main(int argc, char *argv[]) {
       [Bp,BQ] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(
             exec_policy_dynamic<Conf>::grid());
-        auto r =grid.radius(x_global[0]);// Since r = log(r)
+        auto r =grid.radius(x_global[0]);
         auto th = grid.theta(x_global[1]);
         // From Belobodorov 2013 gamma is 100b where b = B/BQ
         //TODO check if this is the correct conversion to momentum
-        value_t gamma = 100*math::sqrt(Bp/ cube(r) * (4*cos(th)*cos(th) + sin(th)*sin(th)))/BQ; // i.e Sqrt(B1^2+B2^2)/BQ
+        //value_t gamma = 100*math::sqrt(Bp/ cube(r) * (4*cos(th)*cos(th) + sin(th)*sin(th)))/BQ; // i.e Sqrt(B1^2+B2^2)/BQ
+        value_t gamma = 100* Bp/BQ / cube(r) * math::sqrt( 1 + 3*cos(th)*cos(th));
         value_t p0 = math::sqrt(gamma*gamma-1); // gamma = sqrt(1+p^2)
-        p0 = p0 / math::sqrt( ( 4* cos(th)*cos(th) + sin(th)*sin(th) ) ); // Normalization
+        p0 = p0 / math::sqrt( 1 + 3 * cos(th)*cos(th) ); // Normalization
         if (th <= M_PI/2) {
           return vec_t<value_t, 3>(p0 * 2.0 * cos(th), p0 * sin(th), 0);
         } else {

@@ -172,7 +172,7 @@ struct resonant_scattering_scheme{
     value_t Eph = math::abs(gamma * (1.0f + beta * u) *
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
     value_t Emax = math::abs(gamma*(1.0f + beta)*(1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
-    // value_t Eavg = math::abs(gamma * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
+    value_t Eavg = math::abs(gamma * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
 
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
@@ -186,9 +186,9 @@ struct resonant_scattering_scheme{
     // value_t n1 = p1 / p;
     // value_t n2 = p2 / p;
     // value_t n3 = p3 / p;
-    value_t n1 = sgn(pdotB) * math::abs(B[0]) / B_mag;
-    value_t n2 = sgn(pdotB) * math::abs(B[1]) / B_mag;
-    value_t n3 = sgn(pdotB) * math::abs(B[2]) / B_mag;
+    value_t n1 = sgn(pdotB) * B[0] / B_mag;
+    value_t n2 = sgn(pdotB) * B[1] / B_mag;
+    value_t n3 = sgn(pdotB) * B[2] / B_mag;
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
@@ -202,7 +202,7 @@ struct resonant_scattering_scheme{
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
     if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
-    // if (false) {
+    //  if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
         // Always produce a photon (we are assuming Nph is very close to 1)
@@ -233,9 +233,12 @@ struct resonant_scattering_scheme{
       //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
       // }
       if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
-      p1 += B[0] * dt * drag_coef / B_mag;
-      p2 += B[1] * dt * drag_coef / B_mag;
-      p3 += B[2] * dt * drag_coef / B_mag;
+      // p1 += B[0] * dt * drag_coef / B_mag;
+      // p2 += B[1] * dt * drag_coef / B_mag;
+      // p3 += B[2] * dt * drag_coef / B_mag;
+      p1 += p1*dt*drag_coef/p;
+      p2 += p2*dt*drag_coef/p;
+      p3 += p3*dt*drag_coef/p;
 
       ptc.p1[tid] = p1;
       ptc.p2[tid] = p2;

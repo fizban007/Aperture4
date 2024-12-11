@@ -69,10 +69,12 @@ main(int argc, char *argv[]) {
   double BQ = 1000.0;
   double tube_rmax_1 = 4.0;
   double tube_rmax_2 = 6.0;
+  int ppc = 10;
   env.params().get_value("Bp", Bp);
   env.params().get_value("B_Q", BQ);
   env.params().get_value("tube_rmax_1", tube_rmax_1);
   env.params().get_value("tube_rmax_2", tube_rmax_2);
+  env.params().get_value("ppc", ppc);
   // Set initial condition
   // set_initial_condition(env, *grid, 0, 1.0, Bp);
   vector_field<Conf> *B0, *B;
@@ -114,7 +116,7 @@ main(int argc, char *argv[]) {
         }
         },
       // Number injected per cell
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return 5000; },
+      [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return ppc; },
         // Initialize particle momentum
       [Bp,BQ] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(
@@ -124,10 +126,10 @@ main(int argc, char *argv[]) {
         // From Belobodorov 2013 gamma is 100b where b = B/BQ
         //TODO check if this is the correct conversion to momentum
         //value_t gamma = 100*math::sqrt(Bp/ cube(r) * (4*cos(th)*cos(th) + sin(th)*sin(th)))/BQ; // i.e Sqrt(B1^2+B2^2)/BQ
-        value_t gamma = 100* Bp/BQ / cube(r) * math::sqrt( 1 + 3*cos(th)*cos(th));
-        value_t p0 = math::sqrt(gamma*gamma-1); // gamma = sqrt(1+p^2)
-        p0 = p0 / math::sqrt( 1 + 3 * cos(th)*cos(th) ); // Normalization
-        if (th <= M_PI/2) {
+        value_t gamma = 100 * Bp/BQ / cube(r) * math::sqrt( 1 + 3*cos(th)*cos(th));
+        value_t p0 = math::sqrt(gamma*gamma - 1.0); // gamma = sqrt(1+p^2)
+        p0 = p0 / math::sqrt( 1.0 + 3.0 * cos(th)*cos(th) ); // Normalization
+        if (th <= M_PI / 2.0) {
           return vec_t<value_t, 3>(p0 * 2.0 * cos(th), p0 * sin(th), 0);
         } else {
           return vec_t<value_t, 3>(-p0 * 2.0 * cos(th), -p0 * sin(th), 0);

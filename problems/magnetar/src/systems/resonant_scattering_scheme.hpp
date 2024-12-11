@@ -129,6 +129,7 @@ struct resonant_scattering_scheme{
     // x_global gives the global coordinate of the particle
     auto x_global = grid.coord_global(pos, rel_x);
     value_t r = grid_sph_t<Conf>::radius(x_global[0]);
+    value_t th = grid_sph_t<Conf>::theta(x_global[1]);
 
     // Get local B field
     vec_t<value_t, 3> B;
@@ -141,15 +142,16 @@ struct resonant_scattering_scheme{
     value_t p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
     value_t pdotB = p1 * B[0] + p2 * B[1] + p3 * B[2];
     value_t p_para = pdotB / B_mag;
+    // Sign of this is very tricky! If we use sign of p1, then it can be easily contaminated by gyration when Br is near 0
+    value_t p_para_signed = sgn(pdotB * B[0]) * math::abs(p_para);
+    value_t beta_para = p_para_signed / gamma;
+    value_t gamma_para = 1.0 / math::sqrt(1.0 - beta_para * beta_para);
 
     // Compute resonant cooling and emit photon if necessary
     value_t mu = math::abs(B[0] / B_mag); // mu is already absolute value
-    value_t p_para_signed = sgn(p1) * math::abs(p_para);
-    value_t gamma_para = math::sqrt(1.0f + p_para_signed * p_para_signed);
-    // This beta is the absolute value of v_parallel/c
-    value_t beta = math::sqrt(1.0f - 1.0f / square(gamma_para));
     // TODO: check whether this definition of y is correct (N) seems good)
-    value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
+    // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
+    value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu)));
 
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
@@ -169,10 +171,10 @@ struct resonant_scattering_scheme{
     float u = 2.0f * rng_uniform<float>(state) - 1.0f;// u= cos(theta) for isotropic emission
 
     // In electron rest frame Eph = m_e c^2*(1-1/sqrt(1+2b)) emitted isotropically
-    value_t Eph = math::abs(gamma * (1.0f + beta * u) *
+    value_t Eph = math::abs(gamma_para * (1.0f + beta_para * u) *
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
-    value_t Emax = math::abs(gamma*(1.0f + beta)*(1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
-    value_t Eavg = math::abs(gamma * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
+    value_t Emax = math::abs(gamma_para * (1.0f + beta_para) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
+    value_t Eavg = math::abs(gamma_para * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
 
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
@@ -181,7 +183,7 @@ struct resonant_scattering_scheme{
 
     // Lorentz transform u to the lab frame
     // TODO: Check whether this is correct
-    u = (u + beta) / (1 + beta * u);
+    u = (u + beta_para) / (1 + beta_para * u);
     value_t sth = sqrt(1.0f - u * u);
     // value_t n1 = p1 / p;
     // value_t n2 = p2 / p;
@@ -198,6 +200,7 @@ struct resonant_scattering_scheme{
     value_t n_ph3 = n3 * u + sth * (-np * sphi);
 
     bool produce_photon = false;
+    bool deposit_photon = false;
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
@@ -215,6 +218,8 @@ struct resonant_scattering_scheme{
           // }
           if (Eph > 2.0f) {
             produce_photon = true;
+          } else {
+            deposit_photon = true;
           }
           // Nph = 1.0; // We enforce a max of 1 for now
           if (N_pois > 1) {
@@ -228,28 +233,69 @@ struct resonant_scattering_scheme{
 
       // Compute analytically the drag force on the particle and apply it. This is taken
       // from Beloborodov 2013, Eq. B6. Need to check the sign. TODO
-      value_t drag_coef = coef * star_kT * y * (gamma_para * mu - p_para_signed);
+      value_t drag_coef = coef * star_kT * y * gamma_para * (mu - beta_para);
+      // if (p_para_signed < 0.0f && B[0] < 0.0f) {
+      //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f, dp is %f\n", 
+      //           drag_coef, y, gamma_para, B[0] / B_mag, p_para_signed, drag_coef * dt);
+      // }
       // if (tid == 0){
       //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
       // }
-      // if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
-      // p1 += B[0] * dt * drag_coef / B_mag;
-      // p2 += B[1] * dt * drag_coef / B_mag;
-      // p3 += B[2] * dt * drag_coef / B_mag;
-      p1 += p1*dt*drag_coef/p;
-      p2 += p2*dt*drag_coef/p;
-      p3 += p3*dt*drag_coef/p;
+      if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
+      p1 += B[0] * dt * drag_coef / B_mag;
+      p2 += B[1] * dt * drag_coef / B_mag;
+      p3 += B[2] * dt * drag_coef / B_mag;
+      // p1 += p1*dt*drag_coef/p;
+      // p2 += p2*dt*drag_coef/p;
+      // p3 += p3*dt*drag_coef/p;
 
       ptc.p1[tid] = p1;
       ptc.p2[tid] = p2;
       ptc.p3[tid] = p3;
       ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+      // if (ptc.E[tid] > gamma) {
+      //   printf("Energy gained!!!! gamma %f, E %f, beta_para %f, r %f, th %f, p1 %f, drag_coef %f\n",
+      //    gamma, ptc.E[tid], beta_para, r, th - M_PI/2.0, p1, drag_coef);
+      // }
 
+      deposit_photon = true;
+
+      // if (beta_para < 0.0) {
+      //   printf("beta_para is %f, Emax is %f, gamma_para is %f, dp is %f\n", beta_para, Emax, gamma_para, dt * drag_coef);
+      // }
+    }
+
+    if (produce_photon) {
+      // value_t ph1 = Eph * (n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np);
+      // value_t ph2 = Eph * (n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np);
+      // value_t ph3 = Eph * (n3 * u - sth * (-np * sphi));
+      // printf("beta_para is %f, Emax is %f, gamma_para is %f, Eph is %f\n", beta_para, Emax, gamma_para, Eph);
+
+      ptc.p1[tid] = (p1 -= Eph * n_ph1);
+      ptc.p2[tid] = (p2 -= Eph * n_ph2);
+      ptc.p3[tid] = (p3 -= Eph * n_ph3);
+      ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
+      // Actually produce the photons
+      size_t offset = ph_num + atomic_add(ph_pos, 1);
+      ph.x1[offset] = ptc.x1[tid];
+      ph.x2[offset] = ptc.x2[tid];
+      ph.x3[offset] = ptc.x3[tid];
+      ph.p1[offset] = Eph * n_ph1;
+      ph.p2[offset] = Eph * n_ph2;
+      ph.p3[offset] = Eph * n_ph3;
+      ph.E[offset] = Eph;
+      ph.weight[offset] = ptc.weight[tid];
+      ph.path_left[offset] = ph_path;
+      ph.cell[offset] = ptc.cell[tid];
+      // TODO: Set polarization
+
+      return offset;
+    } else if (deposit_photon) {
       // TODO: deposit the outgoing photon into some array
       // This array is ph_flux, which is a 2D array of theta and energy
       // Start off with a simple c=inf case, i.e it gets deposited into the
       // edge of the simulation box immeditely
-      value_t th = grid_sph_t<Conf>::theta(x_global[1]);
       value_t cos_ph = n_ph1 * math::cos(th) - n_ph2 * math::sin(th);
       value_t th_ph = math::acos(cos_ph);
       //value_t th_ph = math::acos(n_ph1 * math::sin(th) + n_ph2 * math::cos(th));
@@ -273,33 +319,7 @@ struct resonant_scattering_scheme{
       // }
       return 0;
     }
-
-    if (!produce_photon) return 0;
-
-    // value_t ph1 = Eph * (n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np);
-    // value_t ph2 = Eph * (n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np);
-    // value_t ph3 = Eph * (n3 * u - sth * (-np * sphi));
-
-    ptc.p1[tid] = (p1 -= Eph * n_ph1);
-    ptc.p2[tid] = (p2 -= Eph * n_ph2);
-    ptc.p3[tid] = (p3 -= Eph * n_ph3);
-    ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
-
-    // Actually produce the photons
-    size_t offset = ph_num + atomic_add(ph_pos, 1);
-    ph.x1[offset] = ptc.x1[tid];
-    ph.x2[offset] = ptc.x2[tid];
-    ph.x3[offset] = ptc.x3[tid];
-    ph.p1[offset] = Eph * n_ph1;
-    ph.p2[offset] = Eph * n_ph2;
-    ph.p3[offset] = Eph * n_ph3;
-    ph.E[offset] = Eph;
-    ph.weight[offset] = ptc.weight[tid];
-    ph.path_left[offset] = ph_path;
-    ph.cell[offset] = ptc.cell[tid];
-    // TODO: Set polarization
-
-    return offset;
+    return 0;
   }
 
   HOST_DEVICE size_t produce_pair(const Grid<Conf::dim, value_t> &grid,

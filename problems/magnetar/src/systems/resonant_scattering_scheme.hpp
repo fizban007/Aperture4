@@ -219,6 +219,12 @@ struct resonant_scattering_scheme{
           if (Eph > 2.0f) {
             produce_photon = true;
           } else {
+
+            ptc.p1[tid] = (p1 -= Eph * n_ph1);
+            ptc.p2[tid] = (p2 -= Eph * n_ph2);
+            ptc.p3[tid] = (p3 -= Eph * n_ph3);
+            ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
+
             deposit_photon = true;
           }
           // Nph = 1.0; // We enforce a max of 1 for now

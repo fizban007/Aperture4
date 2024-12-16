@@ -64,7 +64,13 @@ main(int argc, char *argv[]) {
   env.init();
 
   double Bp = 10000.0;
+  double BQ = 1000.0;
+  double ptc_rmax = 8.0;
+  double ptc_r_init = 1.1;
   env.params().get_value("Bp", Bp);
+  env.params().get_value("B_Q", BQ);
+  env.params().get_value("ptc_rmax", ptc_rmax);
+  env.params().get_value("ptc_r_init", ptc_r_init);
 
   // Set initial condition
   // set_initial_condition(env, *grid, 0, 1.0, Bp);
@@ -86,9 +92,16 @@ main(int argc, char *argv[]) {
   });
 
   // Add a single particle to the magnetosphere
-  Scalar p0 = 1000.0f;
-  Scalar r0 = 1.1f;
-  Scalar th0 = 0.338f;
+  // Scalar p0 = 1000.0f;
+  // Scalar r0 = 1.1f;
+  // Scalar th0 = 0.338f;
+  value_t th0 = math::asin(math::sqrt(ptc_r_init / ptc_rmax));
+  value_t r0 = ptc_r_init;
+
+  value_t gamma = 100* Bp/BQ / cube(r0) * math::sqrt( 1 + 3*cos(th0)*cos(th0));
+  value_t p0 = math::sqrt(gamma*gamma-1); // gamma = sqrt(1+p^2)
+  p0 = p0 / math::sqrt( 1 + 3 * cos(th0)*cos(th0) ); // Normalization
+     
   int N = 5000;
   for (int i = 0; i < N; i++) {
     // ptc->append(exec_tags::device{}, {0.5f, 0.5f, 0.0f}, {p0, 0.0f, 0.0f}, 10 + 60 * grid->dims[0],

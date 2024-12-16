@@ -54,3 +54,4 @@ Doxyfile
 /env/
 /.ignore
 /.clang-tidy
+/data

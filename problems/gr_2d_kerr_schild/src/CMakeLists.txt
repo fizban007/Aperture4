@@ -56,3 +56,8 @@ add_dependencies(problems vacuum_wald)
 add_aperture_executable(gr_single_ptc "test_particle.cpp")
 target_link_libraries(gr_single_ptc gr_2d_kerr_schild)
 add_dependencies(problems gr_single_ptc)
+
+
+add_aperture_executable(torus "main_torus.cpp")
+target_link_libraries(torus gr_2d_kerr_schild)
+add_dependencies(problems torus)

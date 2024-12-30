@@ -1165,6 +1165,12 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
                               offset, number, 0, name + "_weight");
       datafile.write_parallel(data.id.host_ptr(), data.size(), total, offset,
                               number, 0, name + "_id");
+      if (std::is_same_v<BufferType, ptc_buffer>) {
+        datafile.write_parallel(data.work_para.host_ptr(), data.size(), total,
+                                offset, number, 0, name + "_work_para");
+        datafile.write_parallel(data.work_perp.host_ptr(), data.size(), total,
+                                offset, number, 0, name + "_work_perp");
+      }
     } else {
       if (total == 0) return;
       datafile.write(data.x1.host_ptr(), number, name + "_x1");
@@ -1177,6 +1183,10 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       datafile.write(data.flag.host_ptr(), number, name + "_flag");
       datafile.write(data.weight.host_ptr(), number, name + "_weight");
       datafile.write(data.id.host_ptr(), number, name + "_id");
+      if (std::is_same_v<BufferType, ptc_buffer>) {
+        datafile.write(data.work_para.host_ptr(), number, name + "_work_para");
+        datafile.write(data.work_perp.host_ptr(), number, name + "_work_perp");
+      }
     }
     // timer::show_duration_since_stamp("write_tracked_ptc", "ms");
   }

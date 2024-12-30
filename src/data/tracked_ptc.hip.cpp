@@ -31,6 +31,8 @@ tracked_ptc<BufferType>::tracked_ptc(size_t max_size, MemType type)
       p2(max_size, type),
       p3(max_size, type),
       E(max_size, type),
+      work_para(max_size, type),
+      work_perp(max_size, type),
       weight(max_size, type),
       flag(max_size, type),
       id(max_size, type) {

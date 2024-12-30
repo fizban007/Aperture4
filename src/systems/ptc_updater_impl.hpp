@@ -339,6 +339,24 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
 
           phys_policy(grid, context, pos, dt);
 
+          // Compute the parallel and perpendicular components of the EdotV work
+          // done by the electric field
+          value_t EdotB = context.E.dot(context.B);
+          value_t Bmag = context.B.norm();
+          value_t Epara1 = EdotB * context.B[0] / Bmag;
+          value_t Epara2 = EdotB * context.B[1] / Bmag;
+          value_t Epara3 = EdotB * context.B[2] / Bmag;
+          value_t Eperp1 = context.E[0] - Epara1;
+          value_t Eperp2 = context.E[1] - Epara2;
+          value_t Eperp3 = context.E[2] - Epara3;
+
+          ptc.work_para[n] += context.weight * (Epara1 * context.p[0] +
+                                                Epara2 * context.p[1] +
+                                                Epara3 * context.p[2]);
+          ptc.work_perp[n] += context.weight * (Eperp1 * context.p[0] +
+                                                Eperp2 * context.p[1] +
+                                                Eperp3 * context.p[2]);
+
           ptc.p1[n] = context.p[0];
           ptc.p2[n] = context.p[1];
           ptc.p3[n] = context.p[2];

@@ -260,6 +260,8 @@ class vec_t {
     return result;
   }
 
+  HD_INLINE T norm()const { return math::sqrt(dot(*this)); }
+
   constexpr int rank() const { return Rank; }
 
   const T* data() const { return memory; }

@@ -201,7 +201,11 @@ rng_maxwell_juttner(rand_state& local_state, Float theta) {
       }
     }
   } else {
-    u = rng_gaussian<Float>(local_state, math::sqrt(theta));
+    Float ux = rng_gaussian<Float>(local_state, math::sqrt(theta));
+    Float uy = rng_gaussian<Float>(local_state, math::sqrt(theta));
+    Float uz = rng_gaussian<Float>(local_state, math::sqrt(theta));
+    u = math::sqrt(ux*ux + uy*uy + uz*uz);
+    u *= 1.0 / math::sqrt(1.0 - u*u);
   }
   return u;
 }

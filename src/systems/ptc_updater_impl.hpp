@@ -341,21 +341,40 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
 
           // Compute the parallel and perpendicular components of the EdotV work
           // done by the electric field
-          value_t EdotB = context.E.dot(context.B);
-          value_t Bmag = context.B.norm();
-          value_t Epara1 = EdotB * context.B[0] / Bmag;
-          value_t Epara2 = EdotB * context.B[1] / Bmag;
-          value_t Epara3 = EdotB * context.B[2] / Bmag;
-          value_t Eperp1 = context.E[0] - Epara1;
-          value_t Eperp2 = context.E[1] - Epara2;
-          value_t Eperp3 = context.E[2] - Epara3;
+          value_t Emag = math::sqrt(context.E[0]*context.E[0] + context.E[1]*context.E[1] + context.E[2]*context.E[2]);
+          value_t Bmag = math::sqrt(context.B[0]*context.B[0] + context.B[1]*context.B[1] + context.B[2]*context.B[2]);
+          if (Bmag > 0.0f && Emag > 0.0f) {
+            value_t EdotB = context.E[0]*context.B[0] + context.E[1]*context.B[1] + context.E[2]*context.B[2];
+            value_t Epara1 = EdotB * context.B[0] / Bmag / Bmag;
+            value_t Epara2 = EdotB * context.B[1] / Bmag / Bmag;
+            value_t Epara3 = EdotB * context.B[2] / Bmag / Bmag;
+            value_t Eperp1 = context.E[0] - Epara1;
+            value_t Eperp2 = context.E[1] - Epara2;
+            value_t Eperp3 = context.E[2] - Epara3;
+            // value_t p1 = 0.5f * (context.p[0] + ptc.p1[n]);
+            // value_t p2 = 0.5f * (context.p[1] + ptc.p2[n]);
+            // value_t p3 = 0.5f * (context.p[2] + ptc.p3[n]);
+            value_t p1 = ptc.p1[n];
+            value_t p2 = ptc.p2[n];
+            value_t p3 = ptc.p3[n];
+            value_t gamma = ptc.E[n];
+            // value_t gamma = math::sqrt(1.0 + p1*p1 + p2*p2 + p3*p3);
 
-          ptc.work_para[n] += context.weight * (Epara1 * context.p[0] +
-                                                Epara2 * context.p[1] +
-                                                Epara3 * context.p[2]);
-          ptc.work_perp[n] += context.weight * (Eperp1 * context.p[0] +
-                                                Eperp2 * context.p[1] +
-                                                Eperp3 * context.p[2]);
+            ptc.work_para[n] += dt * context.q * (Epara1 * p1 +
+                                                  Epara2 * p2 +
+                                                  Epara3 * p3) / gamma;
+            ptc.work_perp[n] += dt * context.q * (Eperp1 * p1 +
+                                                  Eperp2 * p2 +
+                                                  Eperp3 * p3) / gamma;
+
+            // if (n == 0) {
+            //   printf("Bmag is %f, Eperp is %f, Epara is %f, Emag is %f, EdotB is %f\n", Bmag, 
+            //   math::sqrt(Eperp1*Eperp1 + Eperp2*Eperp2 + Eperp3*Eperp3),
+            //   math::sqrt(Epara1*Epara1 + Epara2*Epara2 + Epara3*Epara3),
+            //   Emag, EdotB);
+            //   // ptc.work_perp[n], ptc.work_para[n]);
+            // }
+          }
 
           ptc.p1[n] = context.p[0];
           ptc.p2[n] = context.p[1];

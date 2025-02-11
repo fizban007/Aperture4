@@ -152,6 +152,8 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.p3[offset_p] = p[2];
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
+                ptc.work_para[offset_e] = ptc.work_perp[offset_p] = 0.0;
+
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
                 ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
                 uint32_t local_flag = flag;

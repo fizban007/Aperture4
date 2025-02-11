@@ -219,6 +219,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   ph->add_num(pos[0]);
 
   Logger::print_info("{} photons are produced!", pos[0]);
+  Logger::print_detail_all("{} photons are produced!", pos[0]);
 }
 
 template <class Conf, template <class> class ExecPolicy,
@@ -291,6 +292,7 @@ radiative_transfer<Conf, ExecPolicy, CoordPolicy,
   ptc->add_num(pos[0]);
 
   Logger::print_info("{} particles are created!", pos[0]);
+  Logger::print_detail_all("{} particles are created!", pos[0]);
 }
 
 }  // namespace Aperture

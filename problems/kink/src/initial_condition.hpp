@@ -107,7 +107,7 @@ kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
 
 template <typename Conf>
 void
-kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
+kink_force_free(vector_field<Conf> &Bbg, vector_field<Conf> &Bdelta, particle_data_t &ptc,
                 rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   value_t B0 = sim_env().params().get_as<double>("B0", 100.0);
@@ -118,10 +118,13 @@ kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
   // always assume R_c = 1 since it's our unit
 
   value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
-  value_t ppc = sim_env().params().get_as<int64_t>("ppc", 5);
+  int ppc = sim_env().params().get_as<int64_t>("ppc", 5);
+  int pml_len = sim_env().params().get_as<int64_t>("pml_length", 16);
 
-  auto &grid = B.grid();
+  auto &grid = Bdelta.grid();
   auto ext = grid.extent();
+  // value_t rmax = grid.sizes[0] + grid.lower[0];
+  value_t rmax = 10.0;
 
   // Initialize the magnetic field values
   auto Bz_profile = [B0, zeta] (auto r) {
@@ -139,49 +142,92 @@ kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
     } else {
       return B0 * 2.0 * r*r * zeta * std::pow(1.0 + r*r, -1.0 - zeta) / 
              math::sqrt((std::pow(1 + r*r, 2.0 * zeta) - 1.0 - 2.0 * zeta * r*r)
-                                   / (2.0 * zeta - 1));
+                                   / (2.0 * zeta - 1.0));
     }
   };
 
   auto Jphi_profile = [B0, zeta] LAMBDA (auto r) {
-    return B0 * 2.0 * r * zeta / std::pow(1.0 + r*r, 1 + zeta);
+    return B0 * 2.0 * r * zeta / std::pow(1.0 + r*r, 1.0 + zeta);
   };
 
+  // auto bg_split_profile = [rmax] (value_t x, value_t y, value_t z) {
+  //   if (std::abs(x) < 0.9 * rmax && std::abs(y) < 0.9 * rmax) {
+  //     return value_t(0.0);
+  //   } else {
+  //     value_t factor = 1.0;
+  //     if (std::abs(x) >= 0.9 * rmax) {
+  //       factor *= std::min(square((std::abs(x) - 0.9 * rmax) / rmax / 0.09), 1.0);
+  //     }
+  //     if (std::abs(y) >= 0.9 * rmax) {
+  //       factor *= std::min(square((std::abs(y) - 0.9 * rmax) / rmax / 0.09), 1.0);
+  //     }
+  //     return factor;
+  //   }
+  // };
 
-  B.set_values(0, [Bphi_profile](auto x, auto y, auto z) {
+  Bdelta.set_values(0, [Bphi_profile](auto x, auto y, auto z) {
     auto r = math::sqrt(x*x + y*y);
     return -y * Bphi_profile(r) / r;
   });
-  B.set_values(1, [Bphi_profile](auto x, auto y, auto z) {
+  Bdelta.set_values(1, [Bphi_profile](auto x, auto y, auto z) {
     auto r = math::sqrt(x*x + y*y);
     return x * Bphi_profile(r) / r;
   });
-  B.set_values(2, [Bz_profile](auto x, auto y, auto z) {
+  Bdelta.set_values(2, [Bz_profile](auto x, auto y, auto z) {
     auto r = math::sqrt(x*x + y*y);
     return Bz_profile(r);
   });
+  // Bbg.set_values(0, [Bphi_profile](auto x, auto y, auto z) {
+  //   auto r = math::sqrt(x*x + y*y);
+  //   return -y * Bphi_profile(r) / r;
+  // });
+  // Bbg.set_values(1, [Bphi_profile](auto x, auto y, auto z) {
+  //   auto r = math::sqrt(x*x + y*y);
+  //   return x * Bphi_profile(r) / r;
+  // });
+  // Bbg.set_values(2, [Bz_profile](auto x, auto y, auto z) {
+  //   auto r = math::sqrt(x*x + y*y);
+  //   return Bz_profile(r);
+  // });
+
 
   ptc_injector_dynamic<Conf> injector(grid);
 
   // Jet particles
   injector.inject_pairs( 
       // Injection criterion
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) {
+        auto x = grid.coord(0, pos[0], false);
+        auto y = grid.coord(1, pos[1], false);
+
+        // if (std::abs(x) < 9 && std::abs(y) < 9) {
+        //   return true; 
+        // } else {
+        //   return false;
+        // }
+        return true;
+      },
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) {return 2 * ppc; },
       [Jz_profile, Jphi_profile, n_0, kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         auto x = x_global[0];
         auto y = x_global[1];
         auto r = math::sqrt(x*x + y*y);
 
-        value_t beta_z = Jz_profile(r) / n_0 / 2.0;
-        value_t beta_phi = Jphi_profile(r) / n_0 / 2.0;
+        value_t beta_z = Jz_profile(r) / n_0 / 1.8;
+        value_t beta_phi = Jphi_profile(r) / n_0 / 1.8;
         value_t beta = math::sqrt(beta_z * beta_z + beta_phi * beta_phi);
         value_t gamma = 1.0 / math::sqrt(1.0 - beta*beta);
+        // value_t gamma_z = 1.0 / math::sqrt(1.0 - beta_z*beta_z);
+        // value_t gamma_phi = 1.0 / math::sqrt(1.0 - beta_phi*beta_phi);
 
         vec_t<value_t, 3> u = rng_maxwell_juttner_3d(state, kT);
         value_t sign = 1.0f;
         if (type == PtcType::electron) sign *= -1.0f;
 
+        // value_t gamma = gamma_z * gamma_phi;
+        // auto p1 = -y * beta_phi / (r + 1e-4) * gamma_phi * sign + u[0];
+        // auto p2 = x * beta_phi / (r + 1e-4) * gamma_phi * sign + u[1];
+        // auto p3 = beta_z * gamma_z * gamma_phi * sign + u[2];
         auto p1 = -y * beta_phi / (r + 1e-4) * gamma * sign + u[0];
         auto p2 = x * beta_phi / (r + 1e-4) * gamma * sign + u[1];
         auto p3 = beta_z * gamma * sign + u[2];
@@ -328,7 +374,7 @@ template void kink_pressure_supported<Config<3>>(vector_field<Config<3>> &B,
                                                 particle_data_t &ptc,
                                                 rng_states_t<exec_tags::device> &states);
 
-template void kink_force_free<Config<3>>(vector_field<Config<3>> &B, particle_data_t &ptc,
+template void kink_force_free<Config<3>>(vector_field<Config<3>> &Bbg, vector_field<Config<3>> &Bdelta, particle_data_t &ptc,
                               rng_states_t<exec_tags::device> &states);
 
 template void kink_pressure_supported_moving(vector_field<Config<3>> &B, vector_field<Config<3>> &E,

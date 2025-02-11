@@ -48,7 +48,7 @@ void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
                              rng_states_t<exec_tags::device> &states);
 
 template <typename Conf>
-void kink_force_free<Conf>(vector_field<Conf> &B, particle_data_t &ptc,
+void kink_force_free<Conf>(vector_field<Conf> &Bbg, vector_field<Conf> &B, particle_data_t &ptc,
                               rng_states_t<exec_tags::device> &states);
 
 template class ptc_updater<Config<3>, exec_policy_dynamic,
@@ -86,16 +86,17 @@ main(int argc, char *argv[]) {
       grid, &comm);
   env.init();
 
-  vector_field<Conf> *B0;
+  vector_field<Conf> *B0, *B;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
-  env.get_data("Bdelta", &B0);
+  env.get_data("B0", &B0);
+  env.get_data("Bdelta", &B);
   //env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
   // kink_pressure_supported(*B0, *ptc, *states);
-  kink_force_free(*B0, *ptc, *states);
+  kink_force_free(*B0, *B, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

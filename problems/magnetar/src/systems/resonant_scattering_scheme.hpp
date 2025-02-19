@@ -39,6 +39,10 @@ struct resonant_scattering_scheme{
                                    // 2013, normalized to time unit Rstar/c
                                    // I/e alpha *c/4/lambda_bar*(Rstar/c), alpha = 1/137
   value_t ph_path = 0.0f;
+  // Variables describing the reflected photons
+  value_t reflect_fraction = 0.0f; // Fraction of interacting photons that are reflected vs simply thermal from the star
+  value_t reflect_R = 12.0f; // The emitting point of "reflected" photons 
+
   int downsample = 8;
   // int num_bins[Conf::dim];
   // value_t lower[Conf::dim];
@@ -57,6 +61,8 @@ struct resonant_scattering_scheme{
     sim_env().params().get_value("B_Q", BQ);
     sim_env().params().get_value("star_kT", star_kT);
     sim_env().params().get_value("res_drag_coef", res_drag_coef);
+    sim_env().params().get_value("reflect_fraction", reflect_fraction);
+    sim_env().params().get_value("reflect_R", reflect_R);
 
     nonown_ptr<vector_field<Conf>> B;
     // This is total B field, i.e. B0 + Bdelta
@@ -148,20 +154,43 @@ struct resonant_scattering_scheme{
     value_t gamma_para = 1.0 / math::sqrt(1.0 - beta_para * beta_para);
 
     // Compute resonant cooling and emit photon if necessary
-    value_t mu = math::abs(B[0] / B_mag); // mu is already absolute value
-    // TODO: check whether this definition of y is correct (N) seems good)
+
+    // mu for photons emitted from the surface of the star
+    value_t mu = B[0] / B_mag; // mu is already absolute value
+
+    // computing mu_R for reflected photons (reflected i.e emitted from r_R on equatorial plane)
+    // Could easily be updated for a more general photon emission point
+    value_t A = math::sqrt(r*r + reflect_R*reflect_R - 2*r*reflect_R*math::sin(th));
+    if (A < 1e-3) { // to take care of the region RIGHT by emission where we could divide by zero
+      return 0;
+    }
+    value_t Bx =B[0]*math::sin(th)+B[1]*math::cos(th);//Used in constructing mu_R from /vec(B)dot vec(n) where n is unit vector pointing from reflect_R to r
+    value_t By = B[0]*math::cos(th)-B[1]*math::sin(th);
+    
+    value_t mu_R = (Bx*(r*math::sin(th)-reflect_R)+By*r*math::cos(th))/A/B_mag; // Bdotn/(AB) where n is the vector pointing from  reflect_R to r
+   
+    // Swap the mu over to reflected computation
+    // mu = mu_R;
+
+    // Our computations assume the electron is moving in the direction of the field line
+    // It truly moves "along" but we don't know the direction
+    if (pdotB < 0.0f){mu = -mu;}
+
+
+    // TODO: check whether this definition of y is correct
     // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
     value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu)));
 
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
 
+      
     // This is based on Beloborodov 2013, Eq. B4. The resonant drag coefficient
     // is the main rescaling parameter, res_drag_coef = alpha * c / 4 / lambda_bar
     value_t coef = res_drag_coef * square(star_kT) * y * y /
         (r * r * (math::exp(y) - 1.0f));
     value_t Nph = math::abs(coef) * dt / gamma;
-    // This is the general energy of the outgoing photon, in the electron rest frame
+    // This is the general energy of the outgoing photon, in the electron rest frame for reference
     // value_t Eph =
     //     std::min(g - 1.0f, g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B_mag / BQ)));
 
@@ -247,10 +276,14 @@ struct resonant_scattering_scheme{
       // if (tid == 0){
       //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
       // }
-      if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
-      p1 += B[0] * dt * drag_coef / B_mag;
-      p2 += B[1] * dt * drag_coef / B_mag;
-      p3 += B[2] * dt * drag_coef / B_mag;
+      // if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
+      value_t sign_pdotB = 1.0f;
+      if (pdotB < 0.0f) {
+        sign_pdotB = -1.0f;
+      }
+      p1 += sign_pdotB*B[0] * dt * drag_coef / B_mag;
+      p2 += sign_pdotB*B[1] * dt * drag_coef / B_mag;
+      p3 += sign_pdotB*B[2] * dt * drag_coef / B_mag;
       // p1 += p1*dt*drag_coef/p;
       // p2 += p2*dt*drag_coef/p;
       // p3 += p3*dt*drag_coef/p;
@@ -309,7 +342,8 @@ struct resonant_scattering_scheme{
       index_t<Conf::dim + 2> pos_flux;
 
       for (int i = 2; i < Conf::dim + 2; i++) {
-        pos_flux[i] = pos[i - 2] / downsample;
+        // pos_flux[i] = pos[i - 2] / downsample;// didn't include guard cells
+        pos_flux[i] = (pos[i - 2] - grid.guard[i - 2]) / downsample;
       }
 
       // Figure out the theta, Eph index in the ph_flux array

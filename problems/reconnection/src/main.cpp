@@ -41,7 +41,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                           rng_states_t &states);
 
 template <typename Conf>
-void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+void double_harris_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle_data_t &ptc,
                                  rng_states_t &states);
 
 } // namespace Aperture
@@ -74,11 +74,12 @@ int main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *Bdelta, *Edelta;
+  vector_field<Conf> *B0, *Bdelta, *Edelta, *J0;
   particle_data_t *ptc;
   // curand_states_t *states;
   rng_states_t *states;
   env.get_data("B0", &B0);
+  env.get_data("J0", &J0);
   env.get_data("Bdelta", &Bdelta);
   env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);

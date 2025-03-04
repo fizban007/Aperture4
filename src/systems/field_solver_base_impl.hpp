@@ -83,6 +83,8 @@ field_solver_base<Conf>::register_data_components_impl(MemType type) {
   B0->include_in_snapshot(true);
   J = sim_env().register_data<vector_field<Conf>>(
       "J", m_grid, field_type::edge_centered, type);
+  J0 = sim_env().register_data<vector_field<Conf>>(
+      "J0", m_grid, field_type::edge_centered, type);
   divB = sim_env().register_data<scalar_field<Conf>>(
       "divB", m_grid, field_type::cell_centered, type);
   divE = sim_env().register_data<scalar_field<Conf>>(

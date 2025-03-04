@@ -136,7 +136,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
 
   ExecPolicy<Conf>::launch(
       [dt, pml_len, damping] LAMBDA(auto result, auto e1, auto e2, auto b,
-                                    auto e_init, auto b_init, auto stagger, auto j) {
+                                    auto e_init, auto b_init, auto stagger, auto j, auto j0) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
@@ -267,14 +267,14 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] *
                   // (sigma_0 > 0.0f ? alpha : 1.0f);
                   result[0][idx] =
-                      e1[0][idx] + e2[0][idx] + e_init[0][idx] - dt * j[0][idx] * alpha_0;
+                      e1[0][idx] + e2[0][idx] + e_init[0][idx] - dt * (j[0][idx] + j0[0][idx]) * alpha_0;
                   // result[0][idx] = e1[0][idx] + e2[0][idx];
                 } else {
                   result[0][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl0(b, idx, stagger, grid) -
                             // j[0][idx] * (sigma_0 > 0.0f ? alpha : 1.0f));
-                            j[0][idx] * alpha_0);
+                            (j[0][idx] + j0[0][idx]) * alpha_0);
                 }
 
                 // evolve E1
@@ -312,14 +312,14 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] *
                   // (sigma_1 > 0.0f ? alpha : 1.0f);
                   result[1][idx] =
-                      e1[1][idx] + e2[1][idx] + e_init[1][idx] - dt * j[1][idx] * alpha_1;
+                      e1[1][idx] + e2[1][idx] + e_init[1][idx] - dt * (j[1][idx] + j0[1][idx]) * alpha_1;
                   // result[1][idx] = e1[1][idx] + e2[1][idx];
                 } else {
                   result[1][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl1(b, idx, stagger, grid) -
                             // j[1][idx] * (sigma_1 > 0.0f ? alpha : 1.0f));
-                            j[1][idx] * alpha_1);
+                            (j[1][idx] + j0[1][idx]) * alpha_1);
                 }
 
                 // evolve E2
@@ -357,20 +357,20 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] *
                   // (sigma_2 > 0.0f ? alpha : 1.0f);
                   result[2][idx] =
-                      e1[2][idx] + e2[2][idx] + e_init[2][idx] - dt * j[2][idx] * alpha_2;
+                      e1[2][idx] + e2[2][idx] + e_init[2][idx] - dt * (j[2][idx] + j0[2][idx]) * alpha_2;
                   // result[2][idx] = e1[2][idx] + e2[2][idx];
                 } else {
                   result[2][idx] +=
                       dt * (cherenkov_factor *
                                 fd<Conf>::curl2(b, idx, stagger, grid) -
                             // j[2][idx] * (sigma_2 > 0.0f ? alpha : 1.0f));
-                            j[2][idx] * alpha_2);
+                            (j[2][idx] + j0[2][idx]) * alpha_2);
                 }
               }
             });
       },
       this->E, this->m_tmp_e1, this->m_tmp_e2, this->B, *m_E_init, *m_B_init, this->B->stagger_vec(),
-      this->J);
+      this->J, this->J0);
   ExecPolicy<Conf>::sync();
 }
 
@@ -384,7 +384,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update(
   auto& J = *(this->J);
 
   ExecPolicy<Conf>::launch(
-      [dt] LAMBDA(auto result, auto b, auto stagger, auto j) {
+      [dt] LAMBDA(auto result, auto b, auto stagger, auto j, auto j0) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
@@ -397,23 +397,23 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update(
                 result[0][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl0(b, idx, stagger, grid) -
-                     j[0][idx]);
+                     j[0][idx] - j0[0][idx]);
 
                 // evolve E1
                 result[1][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl1(b, idx, stagger, grid) -
-                     j[1][idx]);
+                     j[1][idx] - j0[1][idx]);
 
                 // evolve E2
                 result[2][idx] +=
                     dt *
                     (cherenkov_factor * fd<Conf>::curl2(b, idx, stagger, grid) -
-                     j[2][idx]);
+                     j[2][idx] - j0[2][idx]);
               }
             });
       },
-      this->E, this->B, this->B->stagger_vec(), this->J);
+      this->E, this->B, this->B->stagger_vec(), this->J, this->J0);
   ExecPolicy<Conf>::sync();
 }
 

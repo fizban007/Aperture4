@@ -267,7 +267,9 @@ boosted_harris_sheet(vector_field<Conf> &B, particle_data_t &ptc,
 
 template <typename Conf>
 void
-double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+double_harris_current_sheet(vector_field<Conf> &B,
+                            vector_field<Conf> &J0,
+                            particle_data_t &ptc,
                             rng_states_t<exec_tags::dynamic> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
@@ -307,6 +309,15 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
     return double_current_sheet_Bx(B0, y, ysize, delta);
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
+  J0.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
+    value_t j = 0.0f;
+    if (y < 0.0f) {
+      j = B0 / delta / square(cosh((y + 0.25f * ysize) / delta));
+    } else {
+      j = -B0 / delta / square(cosh((y - 0.25f * ysize) / delta));
+    }
+    return j;
+  });
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
@@ -361,6 +372,9 @@ double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         auto p1 = u_d[1] * sign;
         auto p2 = u_d[2] * sign;
         auto p3 = u_d[0] * sign;
+        if (p1 != p1 || p2 != p2 || p3 != p3) {
+          printf("NaN in current sheet! y = %f\n", y);
+        }
         return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &pos, auto &grid,
@@ -517,10 +531,12 @@ template void boosted_harris_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               rng_states_t<exec_tags::dynamic> &states);
 
 template void double_harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
+                                                     vector_field<Config<2>> &J0,
                                                      particle_data_t &ptc,
                                                      rng_states_t<exec_tags::dynamic> &states);
 
 template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
+                                                     vector_field<Config<3>> &J0,
                                                      particle_data_t &ptc,
                                                      rng_states_t<exec_tags::dynamic> &states);
 

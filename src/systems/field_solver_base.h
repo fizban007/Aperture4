@@ -53,6 +53,8 @@ class field_solver_base : public system_t {
   const grid_t<Conf>& m_grid;
 
   nonown_ptr<vector_field<Conf>> E, B, Etotal, Btotal, E0, B0, J;
+  // The field J0 is supposed to encapsulate -curl B0
+  nonown_ptr<vector_field<Conf>> J0;
   nonown_ptr<scalar_field<Conf>> divE, divB, EdotB, flux, E_sqr, B_sqr;
 
   bool m_use_implicit = false;

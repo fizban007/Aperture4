@@ -46,7 +46,7 @@ void harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                           rng_states_t<exec_tags::device> &states);
 
 template <typename Conf>
-void double_harris_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+void double_harris_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle_data_t &ptc,
                                  rng_states_t<exec_tags::device> &states);
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
@@ -89,15 +89,16 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *Bdelta;
+  vector_field<Conf> *Bdelta, *J0;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
   env.get_data("Bdelta", &Bdelta);
+  env.get_data("J0", &J0);
   //env.get_data("Edelta", &Edelta);
   env.get_data("particles", &ptc);
   env.get_data("rng_states", &states);
 
-  double_harris_current_sheet(*Bdelta, *ptc, *states);
+  double_harris_current_sheet(*Bdelta, *J0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

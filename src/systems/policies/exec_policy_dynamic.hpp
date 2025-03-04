@@ -18,17 +18,32 @@
 #pragma once
 
 #include "core/gpu_translation_layer.h"
+#include "core/exec_tags.h"
 
 #ifdef GPU_ENABLED
 #include "systems/policies/exec_policy_gpu.hpp"
 namespace Aperture {
 template <typename Conf>
 using exec_policy_dynamic = exec_policy_gpu<Conf>;
+
+namespace exec_tags {
+
+using dynamic = device;
+
+}  // namespace exec_tag
+
 }
 #else
 #include "systems/policies/exec_policy_host.hpp"
 namespace Aperture {
 template <typename Conf>
 using exec_policy_dynamic = exec_policy_host<Conf>;
+
+namespace exec_tags {
+
+using dynamic = host;
+
+}  // namespace exec_tag
+
 }
 #endif

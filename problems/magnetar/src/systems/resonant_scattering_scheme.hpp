@@ -181,6 +181,9 @@ struct resonant_scattering_scheme{
     // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
     value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu)));
 
+    // if (tid == 0) {
+    //   printf("y is %f, mu is %f\n", y, mu);
+    // }
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
 
@@ -257,9 +260,9 @@ struct resonant_scattering_scheme{
             deposit_photon = true;
           }
           // Nph = 1.0; // We enforce a max of 1 for now
-          if (N_pois > 1) {
-            atomic_add(&m_ph_poisson_diag[idx], 1);
-          }
+          // if (N_pois > 1) {
+          //   atomic_add(&m_ph_poisson_diag[idx], 1);
+          // }
         }
         //produce_photon = true;
       //}
@@ -386,6 +389,8 @@ struct resonant_scattering_scheme{
     // Compute the angle between photon and B field and compute the quantum
     // parameter chi value_t chi = quantum_chi(p, B, m_BQ);
     value_t B_mag = math::sqrt(B.dot(B));
+    if (B_mag <= 0.0) 
+      return 0;
     value_t eph = ph.E[tid];
     auto pxB = cross(p, B);
     auto pdotB = p.dot(B);

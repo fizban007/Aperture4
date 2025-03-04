@@ -60,6 +60,7 @@ class field_solver<Conf, ExecPolicy, coord_policy_cartesian>
   // These are temporary fields required for pml
   nonown_ptr<vector_field<Conf>> m_tmp_b1, m_tmp_b2, m_tmp_e1, m_tmp_e2;
   std::unique_ptr<vector_field<Conf>> m_B_prev, m_B_mid;
+  std::unique_ptr<vector_field<Conf>> m_E_init, m_B_init;
 };
 
 }  // namespace Aperture

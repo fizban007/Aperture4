@@ -583,6 +583,7 @@ void
 field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
     vector_field<Conf>& D, vector_field<Conf>& B) {
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
+  // if (false) {
     // Inner boundary inside horizon
     ExecPolicy<Conf>::launch(
         [] LAMBDA(auto D, auto B, auto D0, auto B0) {
@@ -596,12 +597,16 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
             D[1][idx.dec_x()] = D[1][idx] + D0[1][idx] - D0[1][idx.dec_x()];
             D[2][idx.dec_x()] = D[2][idx] + D0[2][idx] - D0[2][idx.dec_x()];
             B[0][idx.dec_x()] = B[0][idx] + B0[0][idx] - B0[0][idx.dec_x()];
-            // B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
-            // B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
-            B[1][idx.dec_x()] = -B0[1][idx.dec_x()];
-            B[1][idx] = -B0[1][idx];
-            B[2][idx.dec_x()] = -B0[2][idx.dec_x()];
-            B[2][idx] = -B0[2][idx];
+            B[1][idx.dec_x()] = B[1][idx] + B0[1][idx] - B0[1][idx.dec_x()];
+            B[2][idx.dec_x()] = B[2][idx] + B0[2][idx] - B0[2][idx.dec_x()];
+            // B[0][idx.dec_x()] = -B0[0][idx.dec_x()];
+            // B[1][idx.dec_x()] = -B0[1][idx.dec_x()];
+            // B[2][idx.dec_x()] = -B0[2][idx.dec_x()];
+            // D[0][idx.dec_x()] = -D0[0][idx.dec_x()];
+            // D[1][idx.dec_x()] = -D0[1][idx.dec_x()];
+            // D[2][idx.dec_x()] = -D0[2][idx.dec_x()];
+            // B[1][idx] = -B0[1][idx];
+            // B[2][idx] = -B0[2][idx];
           });
         },
         D, B, this->E0, this->B0);

@@ -74,6 +74,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::field_solver(
       this->m_grid, field_type::face_centered, type);
   m_B_mid = std::make_unique<vector_field<Conf>>(
       this->m_grid, field_type::face_centered, type);
+  m_B_init = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::face_centered, type);
+  m_E_init = std::make_unique<vector_field<Conf>>(
+      this->m_grid, field_type::edge_centered, type);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -88,6 +92,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::init() {
     if (m_comm != nullptr && m_comm->domain_info().is_boundary[i] != true) {
       m_damping[i] = false;
     }
+    Logger::print_info_all("m_damping[{}] is {}", i, m_damping[i]);
   }
 }
 
@@ -131,7 +136,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
 
   ExecPolicy<Conf>::launch(
       [dt, pml_len, damping] LAMBDA(auto result, auto e1, auto e2, auto b,
-                                    auto stagger, auto j) {
+                                    auto e_init, auto b_init, auto stagger, auto j) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
@@ -232,8 +237,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e1[0][idx] +=
                       dt *
                       ((Conf::dim > 1 ? cherenkov_factor *
-                                            diff<1>(b[2], idx, stagger[2],
-                                                    order_tag<diff_order>{}) *
+                                            (diff<1>(b[2], idx, stagger[2],
+                                                    order_tag<diff_order>{}) -
+                                             diff<1>(b_init[2], idx, stagger[2],
+                                                    order_tag<diff_order>{})) *
                                             grid.inv_delta[1]
                                       : 0.0f) -
                        e1[0][idx] * sigma_1);
@@ -245,8 +252,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e2[0][idx] +=
                       dt *
                       ((Conf::dim > 2 ? cherenkov_factor *
-                                            (-diff<2>(b[1], idx, stagger[1],
-                                                      order_tag<diff_order>{}) *
+                                            (-(diff<2>(b[1], idx, stagger[1],
+                                                      order_tag<diff_order>{}) - 
+                                               diff<2>(b_init[1], idx, stagger[1],
+                                                      order_tag<diff_order>{})) *
                                              grid.inv_delta[2])
                                       : 0.0f) -
                        e2[0][idx] * sigma_2);
@@ -258,7 +267,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[0][idx] = e1[0][idx] + e2[0][idx] - dt * j[0][idx] *
                   // (sigma_0 > 0.0f ? alpha : 1.0f);
                   result[0][idx] =
-                      e1[0][idx] + e2[0][idx] - dt * j[0][idx] * alpha_0;
+                      e1[0][idx] + e2[0][idx] + e_init[0][idx] - dt * j[0][idx] * alpha_0;
                   // result[0][idx] = e1[0][idx] + e2[0][idx];
                 } else {
                   result[0][idx] +=
@@ -273,8 +282,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e1[1][idx] +=
                       dt *
                       ((Conf::dim > 2 ? cherenkov_factor *
-                                            diff<2>(b[0], idx, stagger[0],
-                                                    order_tag<diff_order>{}) *
+                                            (diff<2>(b[0], idx, stagger[0],
+                                                    order_tag<diff_order>{}) - 
+                                             diff<2>(b_init[0], idx, stagger[0],
+                                                    order_tag<diff_order>{})) *
                                             grid.inv_delta[2]
                                       : 0.0f) -
                        e1[1][idx] * sigma_2);
@@ -286,8 +297,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e2[1][idx] +=
                       dt *
                       ((Conf::dim > 0 ? cherenkov_factor *
-                                            (-diff<0>(b[2], idx, stagger[2],
-                                                      order_tag<diff_order>{}) *
+                                            (-(diff<0>(b[2], idx, stagger[2],
+                                                      order_tag<diff_order>{}) -
+                                               diff<0>(b_init[2], idx, stagger[2],
+                                                      order_tag<diff_order>{})) *
                                              grid.inv_delta[0])
                                       : 0.0f) -
                        e2[1][idx] * sigma_0);
@@ -299,7 +312,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[1][idx] = e1[1][idx] + e2[1][idx] - dt * j[1][idx] *
                   // (sigma_1 > 0.0f ? alpha : 1.0f);
                   result[1][idx] =
-                      e1[1][idx] + e2[1][idx] - dt * j[1][idx] * alpha_1;
+                      e1[1][idx] + e2[1][idx] + e_init[1][idx] - dt * j[1][idx] * alpha_1;
                   // result[1][idx] = e1[1][idx] + e2[1][idx];
                 } else {
                   result[1][idx] +=
@@ -314,8 +327,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e1[2][idx] +=
                       dt *
                       ((Conf::dim > 0 ? cherenkov_factor *
-                                            diff<0>(b[1], idx, stagger[1],
-                                                    order_tag<diff_order>{}) *
+                                            (diff<0>(b[1], idx, stagger[1],
+                                                    order_tag<diff_order>{}) - 
+                                             diff<0>(b_init[1], idx, stagger[1],
+                                                    order_tag<diff_order>{})) *
                                             grid.inv_delta[0]
                                       : 0.0f) -
                        e1[2][idx] * sigma_0);
@@ -327,8 +342,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   e2[2][idx] +=
                       dt *
                       ((Conf::dim > 1 ? cherenkov_factor *
-                                            (-diff<1>(b[0], idx, stagger[0],
-                                                      order_tag<diff_order>{}) *
+                                            (-(diff<1>(b[0], idx, stagger[0],
+                                                      order_tag<diff_order>{}) - 
+                                               diff<1>(b_init[0], idx, stagger[0],
+                                                      order_tag<diff_order>{})) *
                                              grid.inv_delta[1])
                                       : 0.0f) -
                        e2[2][idx] * sigma_1);
@@ -340,7 +357,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
                   // result[2][idx] = e1[2][idx] + e2[2][idx] - dt * j[2][idx] *
                   // (sigma_2 > 0.0f ? alpha : 1.0f);
                   result[2][idx] =
-                      e1[2][idx] + e2[2][idx] - dt * j[2][idx] * alpha_2;
+                      e1[2][idx] + e2[2][idx] + e_init[2][idx] - dt * j[2][idx] * alpha_2;
                   // result[2][idx] = e1[2][idx] + e2[2][idx];
                 } else {
                   result[2][idx] +=
@@ -352,7 +369,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_e_update_pml(
               }
             });
       },
-      this->E, this->m_tmp_e1, this->m_tmp_e2, this->B, this->B->stagger_vec(),
+      this->E, this->m_tmp_e1, this->m_tmp_e2, this->B, *m_E_init, *m_B_init, this->B->stagger_vec(),
       this->J);
   ExecPolicy<Conf>::sync();
 }
@@ -412,7 +429,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
 
   ExecPolicy<Conf>::launch(
       [dt, pml_len, damping] LAMBDA(auto result, auto b1, auto b2, auto e,
-                                    auto stagger) {
+                                    auto e_init, auto b_init, auto stagger) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
@@ -479,8 +496,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b1[0][idx] +=
                       dt *
                       (-(Conf::dim > 1 ? cherenkov_factor *
-                                             diff<1>(e[2], idx, stagger[2],
-                                                     order_tag<diff_order>{}) *
+                                             (diff<1>(e[2], idx, stagger[2],
+                                                     order_tag<diff_order>{}) -
+                                              diff<1>(e_init[2], idx, stagger[2],
+                                                     order_tag<diff_order>{})) *
                                              grid.inv_delta[1]
                                        : 0.0f) -
                        b1[0][idx] * sigma_1);
@@ -488,13 +507,15 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b2[0][idx] +=
                       dt * (-(Conf::dim > 2
                                   ? cherenkov_factor *
-                                        (-diff<2>(e[1], idx, stagger[1],
-                                                  order_tag<diff_order>{}) *
+                                        (-(diff<2>(e[1], idx, stagger[1],
+                                                  order_tag<diff_order>{}) -
+                                           diff<2>(e_init[1], idx, stagger[1],
+                                                  order_tag<diff_order>{})) *
                                          grid.inv_delta[2])
                                   : 0.0f) -
                             b2[0][idx] * sigma_2);
 
-                  result[0][idx] = b1[0][idx] + b2[0][idx];
+                  result[0][idx] = b1[0][idx] + b2[0][idx] + b_init[0][idx];
                 } else {
                   result[0][idx] += -dt * cherenkov_factor *
                                     fd<Conf>::curl0(e, idx, stagger, grid);
@@ -505,8 +526,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b1[1][idx] +=
                       dt *
                       (-(Conf::dim > 2 ? cherenkov_factor *
-                                             diff<2>(e[0], idx, stagger[0],
-                                                     order_tag<diff_order>{}) *
+                                             (diff<2>(e[0], idx, stagger[0],
+                                                     order_tag<diff_order>{}) -
+                                              diff<2>(e_init[0], idx, stagger[0],
+                                                     order_tag<diff_order>{})) *
                                              grid.inv_delta[2]
                                        : 0.0f) -
                        b1[1][idx] * sigma_2);
@@ -514,13 +537,15 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b2[1][idx] +=
                       dt * (-(Conf::dim > 0
                                   ? cherenkov_factor *
-                                        (-diff<0>(e[2], idx, stagger[2],
-                                                  order_tag<diff_order>{}) *
+                                        (-(diff<0>(e[2], idx, stagger[2],
+                                                  order_tag<diff_order>{}) -
+                                           diff<0>(e_init[2], idx, stagger[2],
+                                                  order_tag<diff_order>{})) *
                                          grid.inv_delta[0])
                                   : 0.0f) -
                             b2[1][idx] * sigma_0);
 
-                  result[1][idx] = b1[1][idx] + b2[1][idx];
+                  result[1][idx] = b1[1][idx] + b2[1][idx] + b_init[1][idx];
                 } else {
                   result[1][idx] += -dt * cherenkov_factor *
                                     fd<Conf>::curl1(e, idx, stagger, grid);
@@ -531,8 +556,10 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b1[2][idx] +=
                       dt *
                       (-(Conf::dim > 0 ? cherenkov_factor *
-                                             diff<0>(e[1], idx, stagger[1],
-                                                     order_tag<diff_order>{}) *
+                                             (diff<0>(e[1], idx, stagger[1],
+                                                     order_tag<diff_order>{}) -
+                                              diff<0>(e_init[1], idx, stagger[1],
+                                                     order_tag<diff_order>{})) *
                                              grid.inv_delta[0]
                                        : 0.0f) -
                        b1[2][idx] * sigma_0);
@@ -540,13 +567,15 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
                   b2[2][idx] +=
                       dt * (-(Conf::dim > 1
                                   ? cherenkov_factor *
-                                        (-diff<1>(e[0], idx, stagger[0],
-                                                  order_tag<diff_order>{}) *
+                                        (-(diff<1>(e[0], idx, stagger[0],
+                                                  order_tag<diff_order>{}) -
+                                           diff<1>(e_init[0], idx, stagger[0],
+                                                  order_tag<diff_order>{})) *
                                          grid.inv_delta[1])
                                   : 0.0f) -
                             b2[2][idx] * sigma_1);
 
-                  result[2][idx] = b1[2][idx] + b2[2][idx];
+                  result[2][idx] = b1[2][idx] + b2[2][idx] + b_init[2][idx];
                 } else {
                   result[2][idx] += -dt * cherenkov_factor *
                                     fd<Conf>::curl2(e, idx, stagger, grid);
@@ -554,7 +583,7 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::compute_b_update_pml(
               }
             });
       },
-      this->B, this->m_tmp_b1, this->m_tmp_b2, this->E, this->E->stagger_vec());
+      this->B, this->m_tmp_b1, this->m_tmp_b2, this->E, *m_E_init, *m_B_init, this->E->stagger_vec());
   ExecPolicy<Conf>::sync();
 }
 
@@ -676,6 +705,11 @@ field_solver<Conf, ExecPolicy, coord_policy_cartesian>::update(double dt,
   //                                0.5f * dt, this->m_pml_length, damping);
   //   if (this->m_comm != nullptr) this->m_comm->send_guard_cells(*(this->E));
   // }
+
+  if (step == 0) {
+    m_E_init->operator=(*(this->E));
+    m_B_init->operator=(*(this->B));
+  }
 
   if (this->m_update_b) {
     double dt_b = dt;

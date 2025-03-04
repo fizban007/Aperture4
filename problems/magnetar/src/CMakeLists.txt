@@ -18,8 +18,8 @@
 add_aperture_executable(magnetar "main.cpp")
 add_dependencies(problems magnetar)
 
-add_aperture_executable(magnetar_single_ptc "single_ptc")
+add_aperture_executable(magnetar_single_ptc "single_ptc.cpp")
 add_dependencies(problems magnetar_single_ptc)
 
-add_aperture_executable(magnetar_flux_tube "flux_tube")
+add_aperture_executable(magnetar_flux_tube "flux_tube.cpp")
 add_dependencies(problems magnetar_flux_tube)

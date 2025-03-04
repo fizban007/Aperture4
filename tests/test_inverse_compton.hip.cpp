@@ -49,7 +49,7 @@ main(int argc, char *argv[]) {
   file.write(ic.dlep(), "dlep");
 
   auto ic_module = ic.get_ic_module();
-  size_t N = 300'000;
+  size_t N = 3'000'000;
   int n_scatter = 1000;
   // buffer<double> gamma_e(N);
   // buffer<double> eph(n_scatter * N);

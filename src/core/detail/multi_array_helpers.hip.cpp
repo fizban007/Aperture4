@@ -25,6 +25,56 @@
 
 namespace Aperture {
 
+/* template <typename T, typename U, int Rank>
+void
+downsample(exec_tags::device, const multi_array<T, Rank>& from,
+           multi_array<U, Rank>& to, const index_t<Rank>& offset_src,
+           const index_t<Rank>& offset_dst, stagger_t st_src, stagger_t st_dst,
+           int downsample, const gpuStream_t* stream) {
+  auto ext = to.extent();
+  auto ext_src = from.extent();
+  auto downsample_kernel = [downsample, ext, ext_src] __device__(
+                             auto p_src, auto p_dst, auto offset_src,
+                             auto offset_dst, auto st_src, auto st_dst) {
+    using idx_t = idx_col_major_t<Rank>;
+    auto interp = lerp<Rank>{};
+    extent_t<Rank> sample_ext;
+    sample_ext.set(downsample);
+    sample_ext.get_strides();
+
+    for (auto n : grid_stride_range(0, ext.size())) {
+      auto idx = p_dst.idx_at(n, ext);
+      // auto pos = idx.get_pos();
+      auto pos = get_pos(idx, ext);
+      bool in_bound = true;
+#pragma unroll
+      for (int i = 0; i < Rank; i++) {
+        if (pos[i] < offset_dst[i] || pos[i] >= ext[i] - offset_dst[i])
+          in_bound = false;
+      }
+      if (!in_bound) continue;
+      // average over all the downsample points
+      p_dst[idx] = U(0.0);
+      for (auto sample_idx :
+           range(idx_t(0, sample_ext), idx_t(sample_ext.size(), sample_ext))) {
+        auto sample_pos = get_pos(sample_idx, sample_ext);
+        auto idx_src = p_src.get_idx(
+            (pos - offset_dst) * downsample + sample_pos + offset_src, ext_src);
+        p_dst[idx] += interp(p_src, idx_src, st_src, st_dst);
+      }
+      p_dst[idx] /= pow(downsample, Rank);
+    }
+  };
+  kernel_exec_policy p;
+  configure_grid(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
+                 offset_src, offset_dst, st_src, st_dst);
+  if (stream != nullptr) p.set_stream(*stream);
+  kernel_launch(p, resample_kernel, from.dev_ndptr_const(), to.dev_ndptr(),
+                offset_src, offset_dst, st_src, st_dst);
+  GpuSafeCall(gpuDeviceSynchronize());
+}
+
+ */
 template <typename T, typename U, int Rank>
 void
 resample(exec_tags::device, const multi_array<T, Rank>& from,
@@ -108,10 +158,10 @@ add(exec_tags::device, multi_array<T, Rank>& dst,
   }
 }
 
-template <typename T, int Rank>
+template <typename T, typename U, int Rank>
 void
 copy(exec_tags::device, multi_array<T, Rank>& dst,
-     const multi_array<T, Rank>& src, const index_t<Rank>& dst_pos,
+     const multi_array<U, Rank>& src, const index_t<Rank>& dst_pos,
      const index_t<Rank>& src_pos, const extent_t<Rank>& ext,
      const gpuStream_t* stream) {
   // auto copy_kernel = [ext] __device__(auto dst_ptr, auto src_ptr, auto dst_pos,
@@ -173,19 +223,23 @@ INSTANTIATE_ADD_DEV(double, 1);
 INSTANTIATE_ADD_DEV(double, 2);
 INSTANTIATE_ADD_DEV(double, 3);
 
-#define INSTANTIATE_COPY_DEV(type, dim)                                        \
-  template void copy(exec_tags::device, multi_array<type, dim>& dst,           \
-                     const multi_array<type, dim>& src,                        \
+#define INSTANTIATE_COPY_DEV(type1, type2, dim)                                        \
+  template void copy(exec_tags::device, multi_array<type1, dim>& dst,           \
+                     const multi_array<type2, dim>& src,                        \
                      const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                      const extent_t<dim>& ext, const gpuStream_t* stream)
 
-INSTANTIATE_COPY_DEV(float, 1);
-INSTANTIATE_COPY_DEV(float, 2);
-INSTANTIATE_COPY_DEV(float, 3);
-INSTANTIATE_COPY_DEV(float, 4);
-INSTANTIATE_COPY_DEV(double, 1);
-INSTANTIATE_COPY_DEV(double, 2);
-INSTANTIATE_COPY_DEV(double, 3);
-INSTANTIATE_COPY_DEV(double, 4);
+INSTANTIATE_COPY_DEV(float, float, 1);
+INSTANTIATE_COPY_DEV(float, float, 2);
+INSTANTIATE_COPY_DEV(float, float, 3);
+INSTANTIATE_COPY_DEV(float, float, 4);
+INSTANTIATE_COPY_DEV(double, double, 1);
+INSTANTIATE_COPY_DEV(double, double, 2);
+INSTANTIATE_COPY_DEV(double, double, 3);
+INSTANTIATE_COPY_DEV(double, double, 4);
+INSTANTIATE_COPY_DEV(float, double, 1);
+INSTANTIATE_COPY_DEV(float, double, 2);
+INSTANTIATE_COPY_DEV(float, double, 3);
+INSTANTIATE_COPY_DEV(float, double, 4);
 
 }  // namespace Aperture

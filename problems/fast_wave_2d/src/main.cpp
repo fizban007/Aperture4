@@ -68,8 +68,10 @@ main(int argc, char *argv[]) {
   env.get_data("B", &Btotal);
   env.get_data("E", &Etotal);
 
+  Etotal->set_fullres_output(1, true);
   Etotal->set_fullres_output(2, true);
   Btotal->set_fullres_output(1, true);
+  Btotal->set_fullres_output(2, true);
 
   // Read parameters
   float Bp = 1.0e4;

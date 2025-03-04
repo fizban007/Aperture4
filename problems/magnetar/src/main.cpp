@@ -80,6 +80,10 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_sph_t<Conf> grid(comm);
   // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  auto solver =
+      env.register_system<field_solver<Conf, exec_policy_dynamic,
+                                       coord_policy_spherical>>(
+          grid, &comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       coord_policy_spherical_sync_cooling,
@@ -88,17 +92,13 @@ main(int argc, char *argv[]) {
           grid, &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  auto rad = env.register_system<radiative_transfer<
+      Conf, exec_policy_dynamic, coord_policy_spherical,
+      resonant_scattering_scheme>>( grid, &comm);
   auto moments =
       env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
-  // auto rad = env.register_system<radiative_transfer<
-  //     Conf, exec_policy_dynamic, coord_policy_spherical,
-  //     IC_radiation_scheme>>( grid, &comm);
-  auto solver =
-      env.register_system<field_solver<Conf, exec_policy_dynamic,
-                                       coord_policy_spherical>>(
-          grid, &comm);
-  auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
-      grid, &comm);
+  // auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
+  //     grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 
@@ -150,6 +150,8 @@ main(int argc, char *argv[]) {
         // This naturally gives rho ~ 1/r^3 dependence
         return rho0 * math::sin(th) / qe / ppc;
       });
+      // },
+      // flag_or(PtcFlag::ignore_radiation));
 
   env.run();
   return 0;

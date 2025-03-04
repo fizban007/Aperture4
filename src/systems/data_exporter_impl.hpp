@@ -55,6 +55,7 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
   sim_env().params().get_value("output_dir", m_output_dir);
   sim_env().params().get_value("downsample", m_downsample);
   sim_env().params().get_value("num_snapshots", m_num_snapshots);
+  sim_env().params().get_value("fld_output_resample", m_resample);
 
   // Resize the tmp data array
   size_t max_ptc_num = 100, max_ph_num = 100;
@@ -649,8 +650,13 @@ data_exporter<Conf, ExecPolicy>::write_grid_multiarray(
   //   index_t<Conf::dim>{},
   //            stagger, m_output_stagger, m_downsample);
   // }
-  resample(exec_tag{}, array, tmp_grid_data, m_grid.guards(),
-           index_t<Conf::dim>{}, stagger, m_output_stagger, m_downsample);
+  if (m_resample || m_downsample != 1) {
+    resample(exec_tag{}, array, tmp_grid_data, m_grid.guards(),
+             index_t<Conf::dim>{}, stagger, m_output_stagger, m_downsample);
+  } else {
+    copy(exec_tag{}, tmp_grid_data, array, index_t<Conf::dim>{}, m_grid.guards(),
+         tmp_grid_data.extent());
+  }
   tmp_grid_data.copy_to_host();
   // } else {
   //   tmp_grid_data.copy_from(array);
@@ -1165,12 +1171,14 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
                               offset, number, 0, name + "_weight");
       datafile.write_parallel(data.id.host_ptr(), data.size(), total, offset,
                               number, 0, name + "_id");
+#ifdef PARA_PERP
       if (std::is_same_v<BufferType, ptc_buffer>) {
         datafile.write_parallel(data.work_para.host_ptr(), data.size(), total,
                                 offset, number, 0, name + "_work_para");
         datafile.write_parallel(data.work_perp.host_ptr(), data.size(), total,
                                 offset, number, 0, name + "_work_perp");
       }
+#endif
     } else {
       if (total == 0) return;
       datafile.write(data.x1.host_ptr(), number, name + "_x1");
@@ -1183,10 +1191,12 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       datafile.write(data.flag.host_ptr(), number, name + "_flag");
       datafile.write(data.weight.host_ptr(), number, name + "_weight");
       datafile.write(data.id.host_ptr(), number, name + "_id");
+#ifdef PARA_PERP
       if (std::is_same_v<BufferType, ptc_buffer>) {
         datafile.write(data.work_para.host_ptr(), number, name + "_work_para");
         datafile.write(data.work_perp.host_ptr(), number, name + "_work_perp");
       }
+#endif
     }
     // timer::show_duration_since_stamp("write_tracked_ptc", "ms");
   }

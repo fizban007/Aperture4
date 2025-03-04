@@ -16,6 +16,8 @@ option(build_docs "Build the documentation" OFF)
 option(lib_only "Only build the core Aperture library" OFF)
 option(use_boost_filesystem "Use boost filesystem instead of std::filesystem" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
+option(enable_para_perp "Enable tracking of parallel vs perpendicular E.v work" OFF)
+set(cuda_target_gpu "A100" CACHE STRING "The CUDA GPU target, which determines the CUDA_ARCHITECTURE variable")
 
 # set(CMAKE_CXX_COMPILER "g++")
 
@@ -147,6 +149,9 @@ if(use_double)
 endif()
 if(use_double_for_output)
   add_definitions(-DUSE_DOUBLE_OUTPUT)
+endif()
+if(enable_para_perp)
+  add_definitions(-DPARA_PERP)
 endif()
 
 # if(use_simd)

@@ -339,6 +339,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
 
           phys_policy(grid, context, pos, dt);
 
+#ifdef PARA_PERP
           // Compute the parallel and perpendicular components of the EdotV work
           // done by the electric field
           value_t Emag = math::sqrt(context.E[0]*context.E[0] + context.E[1]*context.E[1] + context.E[2]*context.E[2]);
@@ -366,7 +367,6 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
             ptc.work_perp[n] += dt * context.q * (Eperp1 * p1 +
                                                   Eperp2 * p2 +
                                                   Eperp3 * p3) / gamma;
-
             // if (n == 0) {
             //   printf("Bmag is %f, Eperp is %f, Epara is %f, Emag is %f, EdotB is %f\n", Bmag, 
             //   math::sqrt(Eperp1*Eperp1 + Eperp2*Eperp2 + Eperp3*Eperp3),
@@ -375,6 +375,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
             //   // ptc.work_perp[n], ptc.work_para[n]);
             // }
           }
+#endif
 
           ptc.p1[n] = context.p[0];
           ptc.p2[n] = context.p[1];

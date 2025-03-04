@@ -163,6 +163,7 @@ class data_exporter : public system_t {
   int m_downsample = 1;
   int m_num_snapshots = 2;
   int m_current_snapshot = 0;
+  bool m_resample = false;
   // extent_t<Conf::dim> m_local_ext;
   // index_t<Conf::dim> m_local_offset;
   extent_t<Conf::dim> m_global_ext;

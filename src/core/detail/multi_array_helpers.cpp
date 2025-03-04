@@ -59,9 +59,9 @@ add(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
   }
 }
 
-template <typename T, int Rank>
+template <typename T, typename U, int Rank>
 void
-copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<U, Rank>& src,
      const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
      const extent_t<Rank>& ext) {
   using idx_t = idx_col_major_t<Rank>;
@@ -102,20 +102,24 @@ INSTANTIATE_ADD(double, 1);
 INSTANTIATE_ADD(double, 2);
 INSTANTIATE_ADD(double, 3);
 
-#define INSTANTIATE_COPY(type, dim)                                            \
-  template void copy(exec_tags::host, multi_array<type, dim>& dst,                              \
-                     const multi_array<type, dim>& src,                        \
+#define INSTANTIATE_COPY(type1, type2, dim)                                            \
+  template void copy(exec_tags::host, multi_array<type1, dim>& dst,                              \
+                     const multi_array<type2, dim>& src,                        \
                      const index_t<dim>& dst_pos, const index_t<dim>& src_pos, \
                      const extent_t<dim>& ext)
 
-INSTANTIATE_COPY(float, 1);
-INSTANTIATE_COPY(float, 2);
-INSTANTIATE_COPY(float, 3);
-INSTANTIATE_COPY(float, 4);
-INSTANTIATE_COPY(double, 1);
-INSTANTIATE_COPY(double, 2);
-INSTANTIATE_COPY(double, 3);
-INSTANTIATE_COPY(double, 4);
+INSTANTIATE_COPY(float, float, 1);
+INSTANTIATE_COPY(float, float, 2);
+INSTANTIATE_COPY(float, float, 3);
+INSTANTIATE_COPY(float, float, 4);
+INSTANTIATE_COPY(double, double, 1);
+INSTANTIATE_COPY(double, double, 2);
+INSTANTIATE_COPY(double, double, 3);
+INSTANTIATE_COPY(double, double, 4);
+INSTANTIATE_COPY(float, double, 1);
+INSTANTIATE_COPY(float, double, 2);
+INSTANTIATE_COPY(float, double, 3);
+INSTANTIATE_COPY(float, double, 4);
 
 // #if !defined(CUDA_ENABLED) && !defined(HIP_ENABLED)
 // template <typename T, int Rank>

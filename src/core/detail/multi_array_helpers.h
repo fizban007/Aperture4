@@ -53,13 +53,13 @@ void add(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank
          const extent_t<Rank>& ext, T scale = 1.0,
          const gpuStream_t* stream = nullptr);
 
-template <typename T, int Rank>
-void copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+template <typename T, typename U, int Rank>
+void copy(exec_tags::host, multi_array<T, Rank>& dst, const multi_array<U, Rank>& src,
           const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
           const extent_t<Rank>& ext);
 
-template <typename T, int Rank>
-void copy(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<T, Rank>& src,
+template <typename T, typename U, int Rank>
+void copy(exec_tags::device, multi_array<T, Rank>& dst, const multi_array<U, Rank>& src,
           const index_t<Rank>& dst_pos, const index_t<Rank>& src_pos,
           const extent_t<Rank>& ext, const gpuStream_t* stream = nullptr);
 

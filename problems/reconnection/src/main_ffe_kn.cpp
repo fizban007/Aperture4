@@ -67,11 +67,12 @@ main(int argc, char *argv[]) {
   // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf, exec_policy_dynamic> comm;
   auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      coord_policy_cartesian_sync_cooling>>(
+                                      coord_policy_cartesian>>(
           grid, &comm);
   auto rad = env.register_system<radiative_transfer<
       Conf, exec_policy_dynamic, coord_policy_cartesian, IC_radiation_scheme>>(

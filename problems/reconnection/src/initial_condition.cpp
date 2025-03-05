@@ -40,20 +40,20 @@ HOST_DEVICE Scalar double_current_sheet_Bx(Scalar B0, Scalar y, Scalar ysize, Sc
   }
 }
 
-HOST_DEVICE Scalar double_ffe_sheet_Bz(Scalar B0, Scalar y, Scalar ysize, Scalar delta, Scalar b_g) {
-  if (y < 0.0f) {
-    return B0 * sqrt(sech((y + 0.25f * ysize) / delta)**2 + b_g**2);
-  } else {
-    return B0 * sqrt(sech((y - 0.25f * ysize) / delta)**2 + b_g**2);
-  }
-}
-
 HOST_DEVICE Scalar sech(Scalar x) {
     return 1.0f / std::cosh(x);
 }
 
+HOST_DEVICE Scalar double_ffe_sheet_Bz(Scalar B0, Scalar y, Scalar ysize, Scalar delta, Scalar b_g) {
+  if (y < 0.0f) {
+    return B0 * math::sqrt(square(sech((y + 0.25f * ysize) / delta)) + b_g * b_g);
+  } else {
+    return B0 * math::sqrt(square(sech((y - 0.25f * ysize) / delta)) + b_g * b_g);
+  }
+}
+
 HOST_DEVICE Scalar drift_frac(Scalar yarg, Scalar b_g) {
-    return sech(yarg) * sqrt((1.0f + b_g*b_g) / (1.0f + square(b_g * std::cosh(yarg))));
+    return sech(yarg) * math::sqrt((1.0f + b_g * b_g) / (1.0f + square(b_g * std::cosh(yarg))));
 }
 
 }
@@ -416,131 +416,6 @@ double_harris_current_sheet(vector_field<Conf> &B,
 
 template <typename Conf>
 void
-ffe_current_sheet(vector_field<Conf> &B,
-                  particle_data_t &ptc,
-                  rng_states_t<exec_tags::dynamic> &states) {
-  using value_t = typename Conf::value_t;
-  // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
-  value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
-  value_t sigma = sim_env().params().get_as<double>("sigma", 1.0e3);
-  value_t kT_cs = sim_env().params().get_as<double>("current_sheet_kT", 1.0);
-  value_t kT_upstream = sim_env().params().get_as<double>("upstream_kT", 0.01);
-  value_t beta_d =
-      sim_env().params().get_as<double>("current_sheet_drift", 0.5);
-  value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
-
-  value_t delta = 2.0f * kT_cs / (math::sqrt(sigma) * gamma_d * beta_d);
-  value_t n_d = gamma_d * sigma / (4.0f * kT_cs);
-
-  value_t global_sizes[Conf::dim];
-  value_t global_lower[Conf::dim];
-
-  sim_env().params().get_array("size", global_sizes);
-  sim_env().params().get_array("lower", global_lower);
-
-  int n_cs = sim_env().params().get_as<int64_t>("current_sheet_n", 15);
-  int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
-  value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
-
-  // Our unit for length will be upstream c/\omega_p, therefore sigma determines
-  // the upstream field strength
-  value_t B0 = math::sqrt(sigma);
-  auto &grid = B.grid();
-  auto ext = grid.extent();
-  value_t ysize = global_sizes[1];
-  // value_t ylower = global_lower[1];
-
-  // Initialize the magnetic field values. Note that the current sheet is in the
-  // x-z plane, and the B field changes sign in the y direction. This should be
-  // reflected in the grid setup as well.
-  B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
-    return double_current_sheet_Bx(B0, y, ysize, delta);
-  });
-  B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
-
-  // auto injector =
-  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  // ptc_injector<Conf, exec_policy_gpu> injector(grid);
-  ptc_injector_dynamic<Conf> injector(grid);
-
-  // Background (upstream) particles
-  injector.inject_pairs(
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
-      [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        return 2 * n_upstream;
-      },
-      // [kT_upstream] LAMBDA(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::dynamic> &rng,
-      //                          PtcType type) {
-      //   return rng.maxwell_juttner_3d(kT_upstream);
-      [kT_upstream, ysize, B_g, delta] LAMBDA(auto &x_global,
-                                       rand_state &state, PtcType type) {
-        value_t y = x_global[1];
-        value_t Bx = double_current_sheet_Bx(1.0, y, ysize, delta);
-        value_t B = math::sqrt(Bx * Bx + B_g * B_g);
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT_upstream);
-
-        value_t pdotB = (u_d[0] * Bx + u_d[2] * B_g) / B;
-        return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
-      },
-      // [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      [n_upstream, q_e] LAMBDA(auto &x_global, PtcType type) {
-        return 1.0 / q_e / n_upstream;
-      });
-
-  // Current sheet particles
-  injector.inject_pairs(
-      [delta, ysize] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        value_t y = grid.template coord<1>(pos, 0.5f);
-        value_t cs_y = 3.0f * delta;
-        value_t y1 = 0.25 * ysize;
-        value_t y2 = -0.25 * ysize;
-        if (math::abs(y - y1) < cs_y || math::abs(y - y2) < cs_y) {
-          return true;
-        } else {
-          return false;
-        }
-      },
-      [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] LAMBDA(auto &x_global, rand_state &state,
-                                 PtcType type) {
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
-        value_t y = x_global[1];
-        value_t sign = (y < 0 ? 1.0f : -1.0f);
-        if (type == PtcType::positron) sign *= -1.0f;
-
-        auto p1 = u_d[1] * sign;
-        auto p2 = u_d[2] * sign;
-        auto p3 = u_d[0] * sign;
-        return vec_t<value_t, 3>(p1, p2, p3);
-      },
-      // [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &pos, auto &grid,
-      // auto &ext) {
-      [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &x_global, PtcType type) {
-        // auto y = grid.coord(1, pos[1], 0.5f);
-        auto y = x_global[1];
-        value_t j = 0.0;
-        if (y < 0.0f) {
-          j = -B0 / delta / square(cosh((y + 0.25f * ysize) / delta));
-        } else {
-          j = B0 / delta / square(cosh((y - 0.25f * ysize) / delta));
-        }
-        value_t w = math::abs(j) / q_e / n_cs / (2.0f * beta_d);
-        return w;
-      },
-      // flag_or(PtcFlag::exclude_from_spectrum));
-      flag_or(PtcFlag::exclude_from_spectrum, PtcFlag::ignore_tracking));
-
-  Logger::print_info("After initial condition, there are {} particles",
-                     ptc.number());
-}
-
-<<<<<<< Updated upstream
-template void ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
-                                           particle_data_t &ptc,
-                                           rng_states_t<exec_tags::dynamic> &states);
-=======
-template <typename Conf>
-void
 double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
                             rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
@@ -553,8 +428,8 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       sim_env().params().get_as<double>("current_sheet_drift", 0.5);
   value_t gamma_d = 1.0f / math::sqrt(1.0f - beta_d * beta_d);
 
-  value_t delta = 2.0f * kT_cs / (math::sqrt(sigma) * gamma_d * beta_d);
-  value_t n_d = gamma_d * sigma / (4.0f * kT_cs);
+  // value_t delta = 2.0f * kT_cs / (math::sqrt(sigma) * gamma_d * beta_d);
+  // value_t n_d = gamma_d * sigma / (4.0f * kT_cs);
 
   value_t global_sizes[Conf::dim];
   value_t global_lower[Conf::dim];
@@ -573,6 +448,8 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   auto ext = grid.extent();
   value_t ysize = global_sizes[1];
   // value_t ylower = global_lower[1];
+
+  value_t delta = B0 / (2.0f * beta_d);
 
   // Initialize the magnetic field values. Note that the current sheet is in the
   // x-z plane, and the B field changes sign in the y direction. This should be
@@ -596,9 +473,13 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
         return 2 * n_upstream;
       },
-      [kT_upstream] LAMBDA(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
-                               PtcType type) {
-        return rng.maxwell_juttner_3d(kT_upstream);
+      // [kT_upstream] LAMBDA(auto &pos, auto &grid, auto &ext, rng_t<exec_tags::device> &rng,
+      //                          PtcType type) {
+      [kT_upstream] LAMBDA(auto &x_global, rand_state &state,
+                                 PtcType type) {
+        // return rng.maxwell_juttner_3d(kT_upstream);
+        return rng_maxwell_juttner_3d(state, kT_upstream);
+      },
       // [kT_upstream, ysize, B_g, delta] LAMBDA(auto &x_global,
       //                                  rand_state &state, PtcType type) {
       //   value_t y = x_global[1];
@@ -610,6 +491,9 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       //   return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       // },
       // [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      // [n_upstream, q_e] LAMBDA(auto &x_global, PtcType type) {
+      //   return 1.0 / q_e / n_upstream;
+      // });
       [n_upstream, q_e, delta, ysize, B_g] LAMBDA(auto &x_global, PtcType type) {
         auto y = x_global[1];
         value_t yarg = 0.0;
@@ -618,14 +502,15 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         } else {
           yarg = (y - 0.25f * ysize) / delta;
         }
-        return 1.0 / q_e / n_upstream * (1.0f - drift_frac(yarg, B_g));
+        return 1.0 / q_e / n_upstream * std::max(0.0, (1.0f - drift_frac(yarg, B_g)));
+        // return 1.0 / q_e / n_upstream;
       });
 
   // Current sheet particles
   injector.inject_pairs(
       [delta, ysize] LAMBDA(auto &pos, auto &grid, auto &ext) {
         value_t y = grid.template coord<1>(pos, 0.5f);
-        value_t cs_y = 3.0f * delta;
+        value_t cs_y = 5.0f * delta;
         value_t y1 = 0.25 * ysize;
         value_t y2 = -0.25 * ysize;
         if (math::abs(y - y1) < cs_y || math::abs(y - y2) < cs_y) {
@@ -637,22 +522,51 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
       [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
       [kT_cs, beta_d, delta, ysize, B_g] LAMBDA(auto &x_global, rand_state &state,
                                  PtcType type) {
+        // Note that particle drift velocity, betad, is along u_d[0]
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t y = x_global[1];
         value_t sign = (y < 0 ? 1.0f : -1.0f);
+        // drift_dir_[x|z]: Unit vectors pointing in the particle drift
+        // direction. These rotate through the current layer(s) to rotate
+        // the resulting current density J
         value_t drift_dir_x;
-        value t drift_dir_z;
+        value_t drift_dir_z;
         value_t yarg = 0.0;
         if (y < 0.0f) {
           yarg = (y + 0.25f * ysize) / delta;
         } else {
           yarg = (y - 0.25f * ysize) / delta;
         }
-        if (type == PtcType::positron) sign *= -1.0f;
+        drift_dir_x = -tanh(yarg) / sqrt(1.0f + B_g * B_g);
+        drift_dir_z = -sqrt(square(sech(yarg)) + B_g * B_g) / sqrt(1.0f + B_g * B_g);
+        // drift_dir_x does not need to be corrected here because x-drift is
+        // the same in both the top and bottom layers
+        drift_dir_z *= sign;
 
-        auto p1 = u_d[1] * sign;
-        auto p2 = u_d[2] * sign;
-        auto p3 = u_d[0] * sign;
+        // if (type == PtcType::positron) sign *= -1.0f;
+        // At this point, the drift velocity is exactly what it needs to be for
+        // positrons. It needs to be changed by an overall sign if we are
+        // dealing with electrons
+        // if (type == PtcType::electron) {
+        //     sign = -1.0f;
+        // } else {
+        //     sign = 1.0f;
+        // }
+        sign = (type == PtcType::electron ? -1.0f : 1.0f);
+
+        // Rotate particle drift velocity so that drift direction is drift_dir
+        // Rotation is in the x/z plane
+        auto p1 = drift_dir_x * u_d[0] + 0.0 * u_d[1] - drift_dir_z * u_d[2];
+        auto p2 =         0.0 * u_d[0] + 1.0 * u_d[1] +         0.0 * u_d[2];
+        auto p3 = drift_dir_z * u_d[0] + 0.0 * u_d[1] + drift_dir_x * u_d[2];
+
+        p1 = p1 * sign;
+        p2 = p2 * sign;
+        p3 = p3 * sign;
+
+        // auto p1 = u_d[1] * sign;
+        // auto p2 = u_d[2] * sign;
+        // auto p3 = u_d[0] * sign;
         return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [B0, n_cs, q_e, beta_d, delta, ysize] LAMBDA(auto &pos, auto &grid,
@@ -661,8 +575,6 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
         // auto y = grid.coord(1, pos[1], 0.5f);
         auto y = x_global[1];
         value_t j = 0.0;
-        value_t numdens_cs = 0.0;
-        value_t shutoff = 1.0;
         value_t yarg = 0.0;
         j = (B0 / delta) * (1.0f / (2.0f * beta_d));
         if (y < 0.0f) {
@@ -682,7 +594,6 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   Logger::print_info("After initial condition, there are {} particles",
                      ptc.number());
 }
->>>>>>> Stashed changes
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                               particle_data_t &ptc,
@@ -697,13 +608,17 @@ template void double_harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                                      particle_data_t &ptc,
                                                      rng_states_t<exec_tags::dynamic> &states);
 
-template void double_ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
-                                                     particle_data_t &ptc,
-                                                     rng_states_t<exec_tags::device> &states);
-
 template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                      vector_field<Config<3>> &J0,
                                                      particle_data_t &ptc,
                                                      rng_states_t<exec_tags::dynamic> &states);
+
+template void double_ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
+                                                     particle_data_t &ptc,
+                                                     rng_states_t<exec_tags::device> &states);
+
+template void double_ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
+                                                     particle_data_t &ptc,
+                                                     rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture

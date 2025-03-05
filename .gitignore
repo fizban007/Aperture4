@@ -55,3 +55,6 @@ Doxyfile
 /.ignore
 /.clang-tidy
 /data
+
+# vim files
+*.swp

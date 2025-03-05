@@ -12,6 +12,10 @@ add_aperture_executable(cooling_3d "main_cooling_3d.cpp")
 target_link_libraries(cooling_3d reconnection)
 add_dependencies(problems cooling_3d)
 
+add_aperture_executable(ffe_kn "main_ffe_kn.cpp")
+target_link_libraries(ffe_kn reconnection)
+add_dependencies(problems ffe_kn)
+
 # file(GLOB reconnection_src_files *.cu *.hip.cpp)
 # if (use_cuda AND CMAKE_CUDA_COMPILER)
 #   set_source_files_properties(

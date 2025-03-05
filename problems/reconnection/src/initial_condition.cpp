@@ -52,6 +52,14 @@ HOST_DEVICE Scalar double_ffe_sheet_Bz(Scalar B0, Scalar y, Scalar ysize, Scalar
   }
 }
 
+HOST_DEVICE Scalar beta_dx(Scalar B0, Scalar b_g, Scalar yarg, Scalar beta_d) {
+  return -beta_d / math::sqrt(1.0f + b_g*b_g) * std::tanh(yarg);
+}
+
+HOST_DEVICE Scalar beta_dz(Scalar B0, Scalar b_g, Scalar yarg, Scalar beta_d) {
+  return beta_d / math::sqrt(1.0f + b_g*b_g) * math::sqrt(square(sech(yarg)) + b_g*b_g);
+}
+
 HOST_DEVICE Scalar drift_frac(Scalar yarg, Scalar b_g) {
     return sech(yarg) * math::sqrt((1.0f + b_g * b_g) / (1.0f + square(b_g * std::cosh(yarg))));
 }
@@ -416,7 +424,7 @@ double_harris_current_sheet(vector_field<Conf> &B,
 
 template <typename Conf>
 void
-double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
+double_ffe_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle_data_t &ptc,
                             rng_states_t<exec_tags::device> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
@@ -449,6 +457,7 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   value_t ysize = global_sizes[1];
   // value_t ylower = global_lower[1];
 
+  // implicitly assuming n_cs = 1.0 for each species
   value_t delta = B0 / (2.0f * beta_d);
 
   // Initialize the magnetic field values. Note that the current sheet is in the
@@ -460,6 +469,30 @@ double_ffe_current_sheet(vector_field<Conf> &B, particle_data_t &ptc,
   // B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
   B.set_values(2, [B0, delta, ysize, B_g](auto x, auto y, auto z) {
     return double_ffe_sheet_Bz(B0, y, ysize, delta, B_g);
+  });
+  // J0 is set to be the negative of curl B
+  J0.set_values(0, [B0, delta, ysize, beta_d, B_g](auto x, auto y, auto z) {
+    Scalar yarg = 0.0;
+    if (y < 0.0f) {
+      yarg = (y + 0.25f * ysize) / delta;
+    } else {
+      yarg = (y - 0.25f * ysize) / delta;
+    }
+
+    return -2.0 * beta_dx(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
+  });
+  J0.set_values(2, [B0, delta, ysize, beta_d, B_g](auto x, auto y, auto z) {
+    Scalar yarg = 0.0;
+    if (y < 0.0f) {
+      yarg = (y + 0.25f * ysize) / delta;
+    } else {
+      yarg = (y - 0.25f * ysize) / delta;
+    }
+    if (y < 0.0f) {
+      return 2.0 * beta_dz(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
+    } else {
+      return -2.0 * beta_dz(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
+    }
   });
 
   // auto injector =
@@ -614,11 +647,13 @@ template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                      rng_states_t<exec_tags::dynamic> &states);
 
 template void double_ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
-                                                     particle_data_t &ptc,
-                                                     rng_states_t<exec_tags::device> &states);
+                                                  vector_field<Config<2>> &J0,
+                                                  particle_data_t &ptc,
+                                                  rng_states_t<exec_tags::device> &states);
 
 template void double_ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
-                                                     particle_data_t &ptc,
-                                                     rng_states_t<exec_tags::device> &states);
+                                                  vector_field<Config<3>> &J0,
+                                                  particle_data_t &ptc,
+                                                  rng_states_t<exec_tags::device> &states);
 
 }  // namespace Aperture

@@ -169,8 +169,8 @@ struct IC_radiation_scheme {
     // printf("gamma is %f, IC loss is %f, weight is %f\n", gamma, IC_loss_dt, ptc.weight[tid]);
     // We don't care too much about the radiation from lowest energy particles.
     // Just cool them using usual formula
-    // if (gamma < 2.0f) {
-    if (true) {
+    if (gamma < 2.0f) {
+    // if (true) {
       // if (gamma < 1.0001) return 0;
 
       ptc.p1[tid] -=
@@ -260,7 +260,55 @@ struct IC_radiation_scheme {
                                   size_t tid, ptc_ptrs &ptc, size_t ptc_num,
                                   unsigned long long int *ptc_pos,
                                   rand_state &state, value_t dt) {
-    return 0;
+    if (ph.cell[tid] == empty_cell) {
+      return 0;
+    }
+    // Censor photons that have too low energy
+    value_t eph = ph.E[tid];
+    if (eph < 2.0f) {
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
+
+    // Compute the probability of producing a pair
+    value_t gg_prob = m_ic_module.gg_scatter_rate(eph) * dt;
+    if (rng_uniform<value_t>(state) >= gg_prob) {
+      return 0;  // Does not produce a pair
+    }
+
+    // Produce a pair
+    size_t offset = ptc_num + atomic_add(ptc_pos, 2);
+    size_t offset_e = offset;
+    size_t offset_p = offset + 1;
+
+    ptc.x1[offset_e] = ptc.x1[offset_p] = ph.x1[tid];
+    ptc.x2[offset_e] = ptc.x2[offset_p] = ph.x2[tid];
+    ptc.x3[offset_e] = ptc.x3[offset_p] = ph.x3[tid];
+
+    value_t p = math::sqrt(square(0.5 * eph) - 1.0);
+    
+    ptc.p1[offset_e] = ptc.p1[offset_p] = p * ph.p1[tid] / eph;
+    ptc.p2[offset_e] = ptc.p2[offset_p] = p * ph.p2[tid] / eph;
+    ptc.p3[offset_e] = ptc.p3[offset_p] = p * ph.p3[tid] / eph;
+    ptc.E[offset_e] = ptc.E[offset_p] = 0.5 * eph;
+
+#ifdef PARA_PERP
+    ptc.work_para[offset_e] = ptc.work_para[offset_p] = 0.0;
+    ptc.work_perp[offset_e] = ptc.work_perp[offset_p] = 0.0;
+#endif
+// #ifndef NDEBUG
+//     assert(ptc.cell[offset_e] == empty_cell);
+//     assert(ptc.cell[offset_p] == empty_cell);
+// #endif
+    ptc.weight[offset_e] = ptc.weight[offset_p] = ph.weight[tid];
+    ptc.cell[offset_e] = ptc.cell[offset_p] = ph.cell[tid];
+    uint32_t base_flag = flag_or(PtcFlag::secondary);
+    ptc.flag[offset_e] =
+        set_ptc_type_flag(base_flag, PtcType::electron);
+    ptc.flag[offset_p] =
+        set_ptc_type_flag(base_flag, PtcType::positron);
+
+    return offset;
   }
 };
 

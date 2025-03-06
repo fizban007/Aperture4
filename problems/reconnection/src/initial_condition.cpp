@@ -462,6 +462,7 @@ double_harris_current_sheet(vector_field<Conf> &B,
 
 template <typename Conf> void ffe_current_sheet(
         vector_field<Conf> &B,
+        vector_field<Conf> &Bbg,
         vector_field<Conf> &J0,
         particle_data_t &ptc,
         rng_states_t<exec_tags::device> &states
@@ -509,10 +510,10 @@ template <typename Conf> void ffe_current_sheet(
   // Initialize the magnetic field values. Note that the current sheet is in the
   // x-z plane, and the B field changes sign in the y direction. This should be
   // reflected in the grid setup as well.
-  B.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+  Bbg.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
     return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
   });
-  B.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+  Bbg.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
     return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
   });
   B.set_values(2, [B0, delta, B_g](auto x, auto y, auto z) {
@@ -522,10 +523,10 @@ template <typename Conf> void ffe_current_sheet(
   // Refer to formulae in Mehlhaff+ 2024, MNRAS 527 11587
   // Note since we set to the negative of curl B, these J0 differ by an
   // overall minus sign from Mehlhaff+ 2024.
-  J0.set_values(0, [B0, delta, beta_d, B_g](auto x, auto y, auto z) {
-    Scalar yarg = y / delta;
-    return -2.0 * beta_dx(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
-  });
+  // J0.set_values(0, [B0, delta, beta_d, B_g](auto x, auto y, auto z) {
+  //   Scalar yarg = y / delta;
+  //   return -2.0 * beta_dx(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
+  // });
   J0.set_values(2, [B0, delta, beta_d, B_g](auto x, auto y, auto z) {
     Scalar yarg = y / delta;
     return 2.0 * beta_dz(B0, B_g, yarg, beta_d) * drift_frac(yarg, B_g);
@@ -865,11 +866,13 @@ template void double_ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                   rng_states_t<exec_tags::device> &states);
 
 template void ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
+                                                  vector_field<Config<2>> &B0,
                                                   vector_field<Config<2>> &J0,
                                                   particle_data_t &ptc,
                                                   rng_states_t<exec_tags::device> &states);
 
 template void ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
+                                                  vector_field<Config<3>> &B0,
                                                   vector_field<Config<3>> &J0,
                                                   particle_data_t &ptc,
                                                   rng_states_t<exec_tags::device> &states);

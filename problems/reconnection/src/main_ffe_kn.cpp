@@ -56,6 +56,7 @@ void double_ffe_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, par
 
 template <typename Conf> void ffe_current_sheet(
         vector_field<Conf> &B,
+        vector_field<Conf> &B0,
         vector_field<Conf> &J0,
         particle_data_t &ptc,
         rng_states_t<exec_tags::device> &states
@@ -103,9 +104,10 @@ main(int argc, char *argv[]) {
 
   env.init();
 
-  vector_field<Conf> *B0, *J0;
+  vector_field<Conf> *Bdelta, *B0, *J0;
   particle_data_t *ptc;
   rng_states_t<exec_tags::device> *states;
+  env.get_data("Bdelta", &Bdelta);
   env.get_data("B0", &B0);
   env.get_data("J0", &J0);
   //env.get_data("Edelta", &Edelta);
@@ -114,7 +116,7 @@ main(int argc, char *argv[]) {
 
   // double_harris_current_sheet(*Bdelta, *ptc, *states);
   // double_ffe_current_sheet(*B0, *J0, *ptc, *states);
-  ffe_current_sheet(*B0, *J0, *ptc, *states);
+  ffe_current_sheet(*Bdelta, *B0, *J0, *ptc, *states);
 
 #ifdef GPU_ENABLED
   size_t free_mem, total_mem;

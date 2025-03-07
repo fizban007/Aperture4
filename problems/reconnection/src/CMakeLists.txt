@@ -16,6 +16,10 @@ add_aperture_executable(ffe_kn "main_ffe_kn.cpp")
 target_link_libraries(ffe_kn reconnection)
 add_dependencies(problems ffe_kn)
 
+add_aperture_executable(harris_kn "main_harris_kn.cpp")
+target_link_libraries(harris_kn reconnection)
+add_dependencies(problems harris_kn)
+
 # file(GLOB reconnection_src_files *.cu *.hip.cpp)
 # if (use_cuda AND CMAKE_CUDA_COMPILER)
 #   set_source_files_properties(

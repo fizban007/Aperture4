@@ -80,16 +80,29 @@ struct IC_radiation_scheme {
     // ic->compute_coefficients(spec, spec.emin(), spec.emax(), 1.5e24 /
     // ic_path);
     Logger::print_info("Using background spectrum {}", spec_type);
+    value_t emean = 0.0;
     if (spec_type == "soft_power_law") {
       Spectra::power_law_soft spec(ic_alpha, emin, 1.0);
       ic->compute_coefficients(spec, spec.emin(), spec.emax());
+      emean = spec.emean();
     } else if (spec_type == "black_body") {
       Spectra::black_body spec(bb_kT);
       ic->compute_coefficients(spec, spec.emin(), spec.emax());
+      emean = spec.emean();
     } else {
       Logger::err("Spectrum type {} is not recognized!", spec_type);
       exit(1);
     }
+
+    // If the config file specifies an IC opacity, then we
+    // use that to determine IC_compactness.
+    if (sim_env().params().has("IC_opacity")) {
+      value_t IC_opacity;
+      sim_env().params().get_value("IC_opacity", IC_opacity);
+      m_IC_compactness = IC_opacity * emean;
+    }
+
+    Logger::print_info("IC compactness is {}", m_IC_compactness);
 
     m_ic_module = ic->get_ic_module();
 
@@ -201,11 +214,15 @@ struct IC_radiation_scheme {
     index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
 
     value_t lambda = m_ic_module.ic_scatter_rate(gamma) * dt;
-    // printf("ic_prob is %f\n", lambda);
-    int num_scattering = rng_poisson(state, lambda);
+    // if (tid == 0) {
+    //   printf("ic_prob is %f, gamma is %f\n", lambda, gamma);
+    // }
+    // int num_scattering = rng_poisson(state, lambda);
+    int num_scattering = (rng_uniform<value_t>(state) < lambda ? 1 : 0);
 
+    value_t e_ph = 0.0;
     for (int i = 0; i < num_scattering; i++) {
-      value_t e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
+      e_ph = m_ic_module.gen_photon_e(gamma, state) * gamma;
       // printf("num_scattering is %d, e_ph is %f, gamma is %f\n", num_scattering, e_ph, gamma);
       // value_t e_ph = m_ic_module.e_mean * gamma * gamma;
       if (e_ph <= 0.0) {
@@ -251,6 +268,24 @@ struct IC_radiation_scheme {
     ptc.p2[tid] = p2 * new_p / p_i;
     ptc.p3[tid] = p3 * new_p / p_i;
     ptc.E[tid] = gamma;
+
+    if (e_ph > 2.0) {
+      size_t offset = ph_num + atomic_add(ph_pos, 1);
+      ph.x1[offset] = ptc.x1[tid];
+      ph.x2[offset] = ptc.x2[tid];
+      ph.x3[offset] = ptc.x3[tid];
+      ph.cell[offset] = ptc.cell[tid];
+      ph.weight[offset] = ptc.weight[tid];
+
+      ph.p1[offset] = p1 * e_ph / p_i;
+      ph.p2[offset] = p2 * e_ph / p_i;
+      ph.p3[offset] = p3 * e_ph / p_i;
+      // ph.E[offset] = Metric_KS::u0(m_a, r, th, u.template subset<1, 4>(), true);
+      ph.E[offset] = e_ph;
+      ph.flag[offset] = 0;
+
+      return offset;
+    }
 
     return 0;
   }

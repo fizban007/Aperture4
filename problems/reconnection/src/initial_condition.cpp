@@ -128,7 +128,16 @@ harris_current_sheet(vector_field<Conf> &B,
 
   sim_env().params().get_array("size", global_sizes);
   sim_env().params().get_array("lower", global_lower);
-  value_t upstream_rho = sim_env().params().get_as<double>("upstream_rho", 1.0);
+  value_t rho_upstream = sim_env().params().get_as<double>("upstream_rho", 1.0);
+
+  // The "sigma_cs" parameter triggers using current sheet density for normalization
+  if (sim_env().params().has("sigma_cs")) {
+    sigma = sim_env().params().get_as<double>("sigma_cs", sigma);
+    value_t B0 = math::sqrt(sigma);
+    delta = B0 / 2.0 / beta_d;
+    n_d = 1.0; // n_d is actually not used in our setup
+    kT_cs = sigma / 4.0;
+  }
 
   int n_cs = sim_env().params().get_as<int64_t>("current_sheet_n", 15);
   int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
@@ -150,10 +159,10 @@ harris_current_sheet(vector_field<Conf> &B,
     return B0 * tanh(y / delta);
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
-  J0.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
-    value_t j = B0 / delta / square(cosh(y / delta));
-    return j;
-  });
+  // J0.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
+  //   value_t j = B0 / delta / square(cosh(y / delta));
+  //   return j;
+  // });
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
@@ -180,8 +189,8 @@ harris_current_sheet(vector_field<Conf> &B,
         return vec_t<value_t, 3>(pdotB * Bx / B, 0.0, pdotB * B_g / B);
       },
       // [n_upstream] LAMBDA(auto &pos, auto &grid, auto &ext) {
-      [n_upstream, upstream_rho, q_e] LAMBDA(auto &x_global, PtcType type) {
-        return upstream_rho / q_e / n_upstream;
+      [n_upstream, rho_upstream, q_e] LAMBDA(auto &x_global, PtcType type) {
+        return rho_upstream / q_e / n_upstream;
       });
 
   // Current sheet particles

@@ -107,6 +107,7 @@ HOST_DEVICE Scalar drift_frac(Scalar yarg, Scalar b_g) {
 template <typename Conf>
 void
 harris_current_sheet(vector_field<Conf> &B, 
+                     vector_field<Conf> &Bdelta,
                      vector_field<Conf> &J0,
                      particle_data_t &ptc,
                      rng_states_t<exec_tags::dynamic> &states) {
@@ -149,7 +150,11 @@ harris_current_sheet(vector_field<Conf> &B,
   auto &grid = B.grid();
   auto ext = grid.extent();
   value_t ysize = global_sizes[1];
-  // value_t ylower = global_lower[1];
+  value_t xsize = global_sizes[0];
+
+  value_t perturb_amp = sim_env().params().get_as<double>("perturbation_amp", 0.0);
+  value_t perturb_lambda = sim_env().params().get_as<double>("perturbation_wavelength", 2*xsize);
+  value_t perturb_phase = sim_env().params().get_as<double>("perturbation_phase", 0.0);
 
   // Initialize the magnetic field values. Note that the current sheet is in the
   // x-z plane, and the B field changes sign in the y direction. This should be
@@ -159,10 +164,16 @@ harris_current_sheet(vector_field<Conf> &B,
     return B0 * tanh(y / delta);
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
-  // J0.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
-  //   value_t j = B0 / delta / square(cosh(y / delta));
-  //   return j;
-  // });
+  J0.set_values(2, [B0, delta, ysize](auto x, auto y, auto z) {
+    value_t j = B0 / delta / square(cosh(y / delta));
+    return j;
+  });
+  Bdelta.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+    return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase) - B0 * tanh(y / delta);
+  });
+  Bdelta.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+    return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
+  });
 
   // auto injector =
   //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
@@ -748,6 +759,7 @@ double_ffe_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle
 }
 
 template void harris_current_sheet<Config<2>>(vector_field<Config<2>> &B,
+                                              vector_field<Config<2>> &Bdelta, 
                                               vector_field<Config<2>> &J0,
                                               particle_data_t &ptc,
                                               rng_states_t<exec_tags::dynamic> &states);

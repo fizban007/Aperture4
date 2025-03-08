@@ -307,6 +307,11 @@ struct IC_radiation_scheme {
 
     // Compute the probability of producing a pair
     value_t gg_prob = m_ic_module.gg_scatter_rate(eph) * dt;
+    if (gg_prob <= 1e-5) {
+      // censor photons that are unlikely to produce pairs
+      ph.cell[tid] = empty_cell;
+      return 0;
+    }
     if (rng_uniform<value_t>(state) >= gg_prob) {
       return 0;  // Does not produce a pair
     }

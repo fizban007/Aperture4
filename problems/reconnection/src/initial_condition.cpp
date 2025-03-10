@@ -160,7 +160,6 @@ harris_current_sheet(vector_field<Conf> &B,
   // x-z plane, and the B field changes sign in the y direction. This should be
   // reflected in the grid setup as well.
   B.set_values(0, [B0, delta, ysize](auto x, auto y, auto z) {
-    // return double_current_sheet_Bx(B0, y, ysize, delta);
     return B0 * tanh(y / delta);
   });
   B.set_values(2, [B0, B_g](auto x, auto y, auto z) { return B0 * B_g; });
@@ -175,9 +174,6 @@ harris_current_sheet(vector_field<Conf> &B,
     return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
   });
 
-  // auto injector =
-  //     sim_env().register_system<ptc_injector<Conf, exec_policy_gpu>>(grid);
-  // ptc_injector<Conf, exec_policy_gpu> injector(grid);
   ptc_injector_dynamic<Conf> injector(grid);
 
   // Background (upstream) particles

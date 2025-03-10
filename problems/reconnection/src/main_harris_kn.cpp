@@ -70,9 +70,9 @@ main(int argc, char *argv[]) {
 
   // env.params().add("log_level", (int64_t)LogLevel::debug);
 
-  // auto comm = env.register_system<domain_comm<Conf>>(env);
   domain_comm<Conf, exec_policy_dynamic> comm;
-  auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  // auto &grid = *(env.register_system<grid_t<Conf>>(comm));
+  grid_t<Conf> grid(comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       coord_policy_cartesian>>(
@@ -87,6 +87,7 @@ main(int argc, char *argv[]) {
   auto solver = env.register_system<
       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid,
                                                                       &comm);
+  auto bc = env.register_system<boundary_condition<Conf>>(grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 

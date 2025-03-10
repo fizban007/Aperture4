@@ -1,4 +1,5 @@
-add_aperture_library(reconnection "initial_condition.cpp")
+add_aperture_library(reconnection "initial_condition.cpp"
+                                  "systems/boundary_condition.hip.cpp")
 
 add_aperture_executable(no_cooling "main_no_cooling.cpp")
 target_link_libraries(no_cooling reconnection)

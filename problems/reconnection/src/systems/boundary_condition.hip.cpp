@@ -51,10 +51,20 @@ boundary_condition<Conf>::boundary_condition(
   sim_env().params().get_value("upstream_n", m_upstream_n);
   sim_env().params().get_value("guide_field", m_Bg);
   sim_env().params().get_value("boost_beta", m_boost_beta);
+  sim_env().params().get_value("upstream_rho", m_rho_upstream);
+  sim_env().params().get_value("rho_floor", m_rho_floor);
   // m_inj_length = m_damping_length / 2;
   m_inj_length = m_damping_length;
 
   Logger::print_info("Boundary condition Bp is {}", m_Bp);
+  Logger::print_info(
+      "m_rho_upstream = {}; m_rho_floor = {}",
+      m_rho_upstream, m_rho_floor
+  );
+  Logger::print_info(
+      "2 * m_rho_floor - 2 * m_rho_upstream / upstream_n = {}",
+      2.0f * m_rho_floor - 2.0f * m_rho_upstream / m_upstream_n
+  );
   // m_prev_E1 = std::make_unique<multi_array_t>(
   //     extent(m_damping_length, m_grid.dims[1]), MemType::device_only);
   // m_prev_E2 = std::make_unique<multi_array_t>(
@@ -118,7 +128,7 @@ template <typename Conf>
 void
 boundary_condition<Conf>::update(double dt, uint32_t step) {
   damp_fields();
-  // inject_plasma();
+  inject_plasma();
 }
 
 template <typename Conf>
@@ -263,18 +273,18 @@ boundary_condition<Conf>::inject_plasma() {
   auto rho_p_ptr = rho_p->dev_ndptr();
   auto ext_inj = extent_t<2>(m_grid.reduced_dim(0), inj_length);
   auto inj_size = inj_length * m_grid.delta[1];
+  auto rho_upstream = m_rho_upstream;
+  auto rho_floor = m_rho_floor;
+  // rho_upstream is the (mass) density from one species; upstream_n is # ppc per species
+  // rho_floor is the density floor for one species (half the total density floor)
+  auto weight_per_upstream_ptc = rho_upstream / (1.0f * upstream_n);
   injector->inject_pairs(
-      [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(
+      [rho_e_ptr, rho_p_ptr, rho_floor, weight_per_upstream_ptc] __device__(
           auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
-
-        if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size &&
-             is_boundary[3]) ||
-            (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
-          auto idx = Conf::idx(pos, ext);
-          return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 3.0f / upstream_n;
-        }
-        return false;
+        auto idx = Conf::idx(pos, ext);
+        return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f * rho_floor - 2.0f * weight_per_upstream_ptc;
+        // return false;
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
       [upstream_kT, boost_beta] __device__(auto &x_global,
@@ -301,7 +311,47 @@ boundary_condition<Conf>::inject_plasma() {
         // 0.0f, 0.0f); return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-      [upstream_n] __device__(auto &x_global, PtcType type) { return 1.0 / upstream_n; });
+      [weight_per_upstream_ptc] __device__(auto &x_global, PtcType type) { return weight_per_upstream_ptc; });
+
+  // injector->inject_pairs(
+  //     [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(
+  //         auto &pos, auto &grid, auto &ext) {
+  //       auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
+
+  //       if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size &&
+  //            is_boundary[3]) ||
+  //           (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
+  //         auto idx = Conf::idx(pos, ext);
+  //         return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f - 3.0f / upstream_n;
+  //       }
+  //       return false;
+  //     },
+  //     [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
+  //     [upstream_kT, boost_beta] __device__(auto &x_global,
+  //                                          rand_state &state, PtcType type) {
+  //       // vec_t<value_t, 3> u_d =
+  //       // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
+
+  //       // auto p1 = u_d[0];
+  //       // auto p2 = u_d[1];
+  //       // auto p3 = u_d[2];
+  //       // auto p = vec_t<value_t, 3>(p1, p2, p3);
+  //       // // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
+  //       // value_t gamma = math::sqrt(1.0f + p.dot(p));
+  //       // // return lorentz_transform_momentum(p, {boost_beta, 0.0, 0.0});
+  //       // vec_t<value_t, 4> p_prime = lorentz_transform_vector(gamma, p,
+  //       // {boost_beta, 0.0, 0.0}); return p_prime.template subset<1, 4>();
+  //       return rng_maxwell_juttner_3d(state, upstream_kT);
+  //       // auto p1 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // auto p2 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // auto p3 = rng.gaussian<value_t>(2.0f * upstream_kT);
+  //       // // value_t gamma = math::sqrt(1.0f + p1*p1 + p2*p2 + p3*p3);
+  //       // // value_t beta = p1 / gamma;
+  //       // // return vec_t<value_t, 3>(beta / math::sqrt(1.0f - beta*beta),
+  //       // 0.0f, 0.0f); return vec_t<value_t, 3>(p1, p2, p3);
+  //     },
+  //     // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
+  //     [upstream_n] __device__(auto &x_global, PtcType type) { return 1.0 / upstream_n; });
 
   // buffer<int> offset(1, MemType::host_device);
   // offset[0] = num;

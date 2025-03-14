@@ -45,11 +45,16 @@ HOST_DEVICE Scalar current_sheet_Bx(Scalar B0, Scalar y, Scalar delta) {
     return B0 * tanh(y / delta);
 }
 
+HOST_DEVICE Scalar logcosh(Scalar x) {
+    Scalar absx = std::abs(x);
+    return ((absx > 18.5) ? absx - std::log(2.0) : std::log(std::cosh(x)));
+}
+
 HOST_DEVICE Scalar perturbed_Az(Scalar B0, Scalar x, Scalar y, Scalar ysize, Scalar delta, Scalar amp, Scalar lambda, Scalar phase) {
     Scalar result;
     result  = B0 * delta;
     result *= (1 - amp * std::sin(2 * M_PI * (x - phase) / lambda) * square(std::cos(2 * M_PI * y / ysize)));
-    result *= (std::log(std::cosh(y / delta)) - std::log(std::cosh(ysize / (2 * delta))));
+    result *= (logcosh(y / delta) - logcosh(ysize / (2 * delta)));
     return result;
 }
 
@@ -139,6 +144,8 @@ harris_current_sheet(vector_field<Conf> &B,
     n_d = 1.0; // n_d is actually not used in our setup
     kT_cs = sigma / 4.0;
   }
+  // Logger::print_info("CS delta = {}", delta);
+  // Logger::print_info("sigma = {}", sigma);
 
   int n_cs = sim_env().params().get_as<int64_t>("current_sheet_n", 15);
   int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
@@ -151,6 +158,9 @@ harris_current_sheet(vector_field<Conf> &B,
   auto ext = grid.extent();
   value_t ysize = global_sizes[1];
   value_t xsize = global_sizes[0];
+  value_t ylower = global_lower[1];
+  value_t xlower = global_lower[0];
+  value_t xmid = xlower + 0.5 * xsize;
 
   value_t perturb_amp = sim_env().params().get_as<double>("perturbation_amp", 0.0);
   value_t perturb_lambda = sim_env().params().get_as<double>("perturbation_wavelength", 2*xsize);
@@ -173,6 +183,15 @@ harris_current_sheet(vector_field<Conf> &B,
   Bdelta.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
     return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
   });
+
+  // Logger::print_info(
+  //     "B0 = {}; delta = {}; J0 = B0 / delta = {}; beta_drift = {}",
+  //     B0, delta, B0 / delta, beta_d
+  // );
+  // Logger::print_info(
+  //     "square(cosh(0)) = {}",
+  //     square(cosh(0.0))
+  // );
 
   ptc_injector_dynamic<Conf> injector(grid);
 
@@ -212,17 +231,26 @@ harris_current_sheet(vector_field<Conf> &B,
         }
       },
       [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d] LAMBDA(auto &x_global, rand_state &state,
+      [kT_cs, beta_d, xmid, delta] LAMBDA(auto &x_global, rand_state &state,
                                  PtcType type) {
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         value_t y = x_global[1];
+        value_t x = x_global[0];
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
         // value_t sign = (y < 0 ? 1.0f : -1.0f);
         value_t sign = 1.0f;
         if (type == PtcType::positron) sign *= -1.0f;
 
+        // Remove pressure support in middle of CS by making plasma cold there
+        if (square((x-xmid)/(10*delta)) < 1.0f) {
+            u_d[0] = beta_d;
+            u_d[1] = 0.0f;
+            u_d[2] = 0.0f;
+        }
+
         auto p1 = u_d[1] * sign;
         auto p2 = u_d[2] * sign;
         auto p3 = u_d[0] * sign;
+
         if (p1 != p1 || p2 != p2 || p3 != p3) {
           printf("NaN in current sheet! y = %f\n", y);
         }

@@ -25,12 +25,53 @@
 #include "systems/grid.h"
 #include "utils/interpolation.hpp"
 #include "utils/util_functions.h"
+// #include <cstdlib>
+
+template <typename T>
+HD_INLINE int
+sgn(T val) {
+  // if (val == 0) return 1;// To hopefully stop division by zero errors
+  return (T(0) <= val) - (val < T(0));
+}
 
 namespace Aperture {
+template <typename T>
+static HD_INLINE T nonan(T val,T a, T epsilon = 1e-10) {// regularized_denominator
+      // Ensures value stays at least epsilon away from 'a' to prevent numerical instabilities
+    if (math::abs(val-a) < epsilon) {
+        return a+ ((val>a)?epsilon:-epsilon);
+    }
+    return val;
+}
 
 template <typename Conf>
 struct resonant_scattering_scheme{
   using value_t = typename Conf::value_t;
+  HD_INLINE void check_nan(const char* name, value_t val) {
+      //  unsigned int bits = *(unsigned int*)&val;
+    unsigned int bits = *(unsigned int*)&val;
+    bool is_nan_bits = (bits & 0x7F800000) == 0x7F800000 && (bits & 0x007FFFFF) != 0;
+    bool is_inf_bits = (bits & 0x7FFFFFFF) == 0x7F800000;
+    
+    if (isnan(val) || is_nan_bits) {
+        printf("NaN detected in %s: %f (isnan=%d, isinf=%d, hex=%x, nan_bits=%d)\n", 
+               name, val, (int)isnan(val), (int)isinf(val), bits, (int)is_nan_bits);
+        asm("trap;");
+    }
+    if (isinf(val) || is_inf_bits) {
+        printf("Inf detected in %s: %f (isnan=%d, isinf=%d, hex=%x, inf_bits=%d)\n", 
+               name, val, (int)isnan(val), (int)isinf(val), bits, (int)is_inf_bits);
+        asm("trap;");
+    }
+        
+    }
+    static HD_INLINE value_t max_a(value_t val, value_t a) {
+        // Ensures value does not exceed magnitude 'a'
+        if (val > a) return a;
+        if (val < -a) return -a;
+        return val;
+    }
+    
 
   const grid_t<Conf> &m_grid;
   value_t BQ = 1.0e7;
@@ -52,6 +93,7 @@ struct resonant_scattering_scheme{
   vec_t<value_t, 2> upper;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_B;
   ndptr<value_t, Conf::dim> m_ph_poisson_diag;
+  ndptr<value_t, Conf::dim> m_ph_poisson_diag_eq1;
   ndptr<value_t, Conf::dim + 2> m_ph_flux;
   extent_t<Conf::dim + 2> m_ext_flux;
 
@@ -96,15 +138,26 @@ struct resonant_scattering_scheme{
     m_ext_flux = ph_flux->data.extent();
 
     nonown_ptr<scalar_field<Conf>> ph_poisson;
+    
+    nonown_ptr<scalar_field<Conf>> ph_poisson_eq1;
     ph_poisson = sim_env().register_data<scalar_field<Conf>>(
       std::string("ph_poisson_diag"), m_grid, default_mem_type
     );
+    ph_poisson_eq1 = sim_env().register_data<scalar_field<Conf>>(
+      std::string("ph_poisson_diag_eq1"), m_grid, default_mem_type
+    );
     ph_poisson->reset_after_output(true);
+    ph_poisson_eq1->reset_after_output(true);
 
 #ifdef GPU_ENABLED
     m_ph_poisson_diag = ph_poisson->dev_ndptr();
 #else
     m_ph_poisson_diag = ph_poisson->host_ndptr();
+#endif
+#ifdef GPU_ENABLED
+    m_ph_poisson_diag_eq1 = ph_poisson->dev_ndptr();
+#else
+    m_ph_poisson_diag_eq1 = ph_poisson->host_ndptr();
 #endif
   }
 
@@ -126,11 +179,16 @@ struct resonant_scattering_scheme{
     auto cell = ptc.cell[tid];
     auto idx = Conf::idx(cell, ext);
     auto pos = get_pos(idx, ext);
-
+    
     value_t gamma = ptc.E[tid];
     value_t p1 = ptc.p1[tid];
     value_t p2 = ptc.p2[tid];
     value_t p3 = ptc.p3[tid];
+    check_nan("p1", p1);
+    check_nan("p2", p2);
+    check_nan("p3", p3);
+    check_nan("gamma", gamma);
+  
     vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
     // x_global gives the global coordinate of the particle
     auto x_global = grid.coord_global(pos, rel_x);
@@ -143,32 +201,56 @@ struct resonant_scattering_scheme{
     B[0] = interp(rel_x, m_B[0], idx, ext, stagger_t(0b001));
     B[1] = interp(rel_x, m_B[1], idx, ext, stagger_t(0b010));
     B[2] = interp(rel_x, m_B[2], idx, ext, stagger_t(0b100));
+    // value_t nonan = 0;//1e-7;
     value_t B_mag = math::sqrt(B.dot(B));
     value_t b = B_mag / BQ;
     value_t p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
     value_t pdotB = p1 * B[0] + p2 * B[1] + p3 * B[2];
-    value_t p_para = pdotB / B_mag;
+    value_t p_para = pdotB / (B_mag);
     // Sign of this is very tricky! If we use sign of p1, then it can be easily contaminated by gyration when Br is near 0
-    value_t p_para_signed = sgn(pdotB * B[0]) * math::abs(p_para);
-    value_t beta_para = p_para_signed / gamma;
+    // value_t p_para_signed = sgn(pdotB * B[0]) * math::abs(p_para);
+    // value_t beta_para = p_para_signed / gamma;
+    value_t beta_para = p_para / gamma;
+    // beta_para = max_a(beta_para, 0.9999999);// gamma ~2,236 // try a taylor expansion
     value_t gamma_para = 1.0 / math::sqrt(1.0 - beta_para * beta_para);
+    // if (abs(beta_para) < 0.999999){ =1.0 / math::sqrt(1.0 - beta_para * beta_para);
+    // }else{gamma_para = 1/math::sqrt(2-2*beta_para)}// accounting for beta close to 1 having to compare 1 with beta^2, this need only compare 1 with beta
+    
+    
+    check_nan("B_mag", B_mag);
+    check_nan("b", b);
+    check_nan("p", p);
+    check_nan("pdotB", pdotB);
+    
 
+    check_nan("p_para", p_para);
+    // check_nan("p_para_signed", p_para_signed);
+    check_nan("beta_para", beta_para);
+    check_nan("gamma_para", gamma_para);
+    
     // Compute resonant cooling and emit photon if necessary
 
     // mu for photons emitted from the surface of the star
-    value_t mu = B[0] / B_mag; // mu is already absolute value
+    B_mag = nonan(B_mag, 0.0f);
+    value_t mu = B[0] / (B_mag); // mu is already absolute value
+
+    check_nan("mu", mu);
 
     // computing mu_R for reflected photons (reflected i.e emitted from r_R on equatorial plane)
     // Could easily be updated for a more general photon emission point
-    value_t A = math::sqrt(r*r + reflect_R*reflect_R - 2*r*reflect_R*math::sin(th));
-    if (A < 1e-3) { // to take care of the region RIGHT by emission where we could divide by zero
-      return 0;
-    }
-    value_t Bx =B[0]*math::sin(th)+B[1]*math::cos(th);//Used in constructing mu_R from /vec(B)dot vec(n) where n is unit vector pointing from reflect_R to r
-    value_t By = B[0]*math::cos(th)-B[1]*math::sin(th);
+    // value_t A = math::sqrt(r*r + reflect_R*reflect_R - 2*r*reflect_R*math::sin(th));
+    // A = nonan(A, 0.0f);
+    // // if (A < 1e-3) { // to take care of the region RIGHT by emission where we could divide by zero
+    // //   return 0;
+    // // }
+    // // th might be broken out of the range [0, pi] due to numerical errors
+    // if (th > M_PI) th = M_PI;
+    // if (th < 0.0f) th = 0.0f;
+    // value_t Bx =B[0]*math::sin(th)+B[1]*math::cos(th);//Used in constructing mu_R from /vec(B)dot vec(n) where n is unit vector pointing from reflect_R to r
+    // value_t By = B[0]*math::cos(th)-B[1]*math::sin(th);
     
-    value_t mu_R = (Bx*(r*math::sin(th)-reflect_R)+By*r*math::cos(th))/A/B_mag; // Bdotn/(AB) where n is the vector pointing from  reflect_R to r
-   
+    // value_t mu_R = (Bx*(r*math::sin(th)-reflect_R)+By*r*math::cos(th))/A/B_mag; // Bdotn/(AB) where n is the vector pointing from  reflect_R to r
+    // check_nan("mu_R", mu_R);
     // Swap the mu over to reflected computation
     // mu = mu_R;
 
@@ -179,20 +261,21 @@ struct resonant_scattering_scheme{
 
     // TODO: check whether this definition of y is correct
     // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
-    value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu)));
-
-    // if (tid == 0) {
-    //   printf("y is %f, mu is %f\n", y, mu);
-    // }
+    value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - math::abs(beta_para) * mu))); // abs from beta dot photon direction
+    check_nan("y", y);
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
 
       
     // This is based on Beloborodov 2013, Eq. B4. The resonant drag coefficient
     // is the main rescaling parameter, res_drag_coef = alpha * c / 4 / lambda_bar
+    value_t exp_term_y = math::exp(y)-1.0f;
+    exp_term_y = nonan(exp_term_y, 0.0f);
     value_t coef = res_drag_coef * square(star_kT) * y * y /
-        (r * r * (math::exp(y) - 1.0f));
+        (r * r * exp_term_y);
+    check_nan("coef", coef);
     value_t Nph = math::abs(coef) * dt / gamma;
+    check_nan("Nph", Nph);
     // This is the general energy of the outgoing photon, in the electron rest frame for reference
     // value_t Eph =
     //     std::min(g - 1.0f, g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B_mag / BQ)));
@@ -203,40 +286,55 @@ struct resonant_scattering_scheme{
     float u = 2.0f * rng_uniform<float>(state) - 1.0f;// u= cos(theta) for isotropic emission
 
     // In electron rest frame Eph = m_e c^2*(1-1/sqrt(1+2b)) emitted isotropically
-    value_t Eph = math::abs(gamma_para * (1.0f + beta_para * u) *
+    value_t Eph = math::abs(gamma_para * (1.0f + math::abs(beta_para) * u) *
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
-    value_t Emax = math::abs(gamma_para * (1.0f + beta_para) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
+    value_t Emax = math::abs(gamma_para * (1.0f + math::abs(beta_para)) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
     value_t Eavg = math::abs(gamma_para * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
-
+    check_nan("Eph", Eph);
+    check_nan("Emax", Emax);
+    check_nan("Eavg", Eavg);
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
     float cphi = math::cos(phi_p);
     float sphi = math::sin(phi_p);
-
     // Lorentz transform u to the lab frame
     // TODO: Check whether this is correct
-    u = (u + beta_para) / (1 + beta_para * u);
+    // value_t u_boost_den =(1 + math::abs(beta_para) * u);// effectively the energy boost
+    // u_boost_den = nonan(u_boost_den,0.0f);
+    u = (u + beta_para) / (1 + math::abs(beta_para) * u); // Try a taylor expansion
+    u = max_a(u,0.9999999);
+
     value_t sth = sqrt(1.0f - u * u);
     // value_t n1 = p1 / p;
     // value_t n2 = p2 / p;
     // value_t n3 = p3 / p;
-    value_t n1 = sgn(pdotB) * B[0] / B_mag;
-    value_t n2 = sgn(pdotB) * B[1] / B_mag;
-    value_t n3 = sgn(pdotB) * B[2] / B_mag;
+    value_t n1 = B[0] / B_mag;
+    value_t n2 = B[1] / B_mag;
+    value_t n3 = B[2] / B_mag;
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
+    np = nonan(np, 0.0f);
+    
+    check_nan("n1", n1);
+    check_nan("n2", n2);
+    check_nan("n3", n3);
+    check_nan("np", np);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
   // We use phi to access a specific direction in this plane
     value_t n_ph1 = n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np;
     value_t n_ph2 = n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np;
     value_t n_ph3 = n3 * u + sth * (-np * sphi);
-
+    check_nan("n_ph1", n_ph1);
+    check_nan("n_ph2", n_ph2);
+    check_nan("n_ph3", n_ph3);
+  
     bool produce_photon = false;
     bool deposit_photon = false;
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
     if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
+  
     //  if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
@@ -249,6 +347,7 @@ struct resonant_scattering_scheme{
             // printf("poisson is %d, Nph is %f\n", N_pois, Nph);
           // }
           if (Eph > 2.0f) {
+            
             produce_photon = true;
           } else {
 
@@ -260,9 +359,12 @@ struct resonant_scattering_scheme{
             deposit_photon = true;
           }
           // Nph = 1.0; // We enforce a max of 1 for now
-          // if (N_pois > 1) {
-          //   atomic_add(&m_ph_poisson_diag[idx], 1);
-          // }
+          if (N_pois > 1) {
+            atomic_add(&m_ph_poisson_diag[idx], 1);
+          }
+          else {
+            atomic_add(&m_ph_poisson_diag_eq1[idx], 1);
+          }
         }
         //produce_photon = true;
       //}
@@ -271,40 +373,23 @@ struct resonant_scattering_scheme{
 
       // Compute analytically the drag force on the particle and apply it. This is taken
       // from Beloborodov 2013, Eq. B6. Need to check the sign. TODO
-      value_t drag_coef = coef * star_kT * y * gamma_para * (mu - beta_para);
-      // if (p_para_signed < 0.0f && B[0] < 0.0f) {
-      //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f, dp is %f\n", 
-      //           drag_coef, y, gamma_para, B[0] / B_mag, p_para_signed, drag_coef * dt);
-      // }
-      // if (tid == 0){
-      //   printf("drag_coef is %f, y is %f, gamma_para is %f, mu is %f, p_para_signed is %f\n", drag_coef, y, gamma_para, mu, p_para_signed);
-      // }
-      // if (B[0] < 0.0f) drag_coef = -drag_coef; // To account for the direction of B field
+      value_t beta_para_r = math::abs(beta_para)*sgn(p1);
+      value_t drag_coef = coef * star_kT * y * gamma_para * (math::abs(mu) - beta_para_r);
+
       value_t sign_pdotB = 1.0f;
-      if (pdotB < 0.0f) {
+      if (B[0] < 0.0f) { // accounting for the southern hemisphere
         sign_pdotB = -1.0f;
       }
       p1 += sign_pdotB*B[0] * dt * drag_coef / B_mag;
       p2 += sign_pdotB*B[1] * dt * drag_coef / B_mag;
       p3 += sign_pdotB*B[2] * dt * drag_coef / B_mag;
-      // p1 += p1*dt*drag_coef/p;
-      // p2 += p2*dt*drag_coef/p;
-      // p3 += p3*dt*drag_coef/p;
 
       ptc.p1[tid] = p1;
       ptc.p2[tid] = p2;
       ptc.p3[tid] = p3;
       ptc.E[tid] = math::sqrt(1.0f + p1 * p1 + p2 * p2 + p3 * p3);
-      // if (ptc.E[tid] > gamma) {
-      //   printf("Energy gained!!!! gamma %f, E %f, beta_para %f, r %f, th %f, p1 %f, drag_coef %f\n",
-      //    gamma, ptc.E[tid], beta_para, r, th - M_PI/2.0, p1, drag_coef);
-      // }
 
       deposit_photon = true;
-
-      // if (beta_para < 0.0) {
-      //   printf("beta_para is %f, Emax is %f, gamma_para is %f, dp is %f\n", beta_para, Emax, gamma_para, dt * drag_coef);
-      // }
     }
 
     if (produce_photon) {

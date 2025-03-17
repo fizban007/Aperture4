@@ -241,7 +241,7 @@ harris_current_sheet(vector_field<Conf> &B,
         if (type == PtcType::positron) sign *= -1.0f;
 
         // Remove pressure support in middle of CS by making plasma cold there
-        if (square((x-xmid)/(10*delta)) < 1.0f) {
+        if (square((x-1.5*xmid)/(10*delta)) < 1.0f) {
             u_d[0] = beta_d;
             u_d[1] = 0.0f;
             u_d[2] = 0.0f;

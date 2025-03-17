@@ -120,6 +120,7 @@ domain_comm<Conf, ExecPolicy>::setup_domain() {
   }
   for (int i = 0; i < Conf::dim; i++) {
     m_domain_info.is_periodic[i] = periodic[i];
+    // Logger::print_detail_all("is_periodic[{}] = {}", i, periodic[i]);
   }
 
   // Create a cartesian MPI group for communication

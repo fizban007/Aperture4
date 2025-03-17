@@ -56,6 +56,17 @@ boundary_condition<Conf>::boundary_condition(
   // m_inj_length = m_damping_length / 2;
   m_inj_length = m_damping_length;
 
+  // bool m_periodic[Conf::dim];
+
+  // auto m_periodic = sim_env().params().template get_as<std::vector<bool>>(
+  //     "periodic_boundary");
+  // if (m_periodic.size() < Conf::dim) {
+  //   m_periodic.resize(Conf::dim, false);
+  // }
+  // for (int i = 0; i < Conf::dim; i++) {
+  //   m_periodic[i] = periodic[i];
+  // }
+
   Logger::print_info("Boundary condition Bp is {}", m_Bp);
   Logger::print_info(
       "m_rho_upstream = {}; m_rho_floor = {}",
@@ -146,103 +157,125 @@ boundary_condition<Conf>::damp_fields() {
     }
   }
 
-  // Apply damping boundary condition on both X boundaries
-  kernel_launch(
-      [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
-                                       auto damping_length, auto damping_coef) {
-        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        // auto ext_damping = extent(damping_length, grid.dims[0]);
-        for (auto n1 : grid_stride_range(0, grid.dims[1])) {
-          // x = 0 boundary
-          if (is_boundary[0] == true) {
-            for (int i = 0; i < damping_length; i++) {
-              int n0 = i;
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              value_t lambda =
-                  1.0f - damping_coef * square((value_t)(damping_length - i) /
-                                             (damping_length - 1));
-              e[0][idx] *= lambda;
-              e[1][idx] *= lambda;
-              e[2][idx] *= lambda;
-              // b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
-              // b[0][idx] *= lambda;
-              b[1][idx] *= lambda;
-              b[2][idx] *= lambda;
-              // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+  bool is_periodic[Conf::dim];
+  for (int i = 0; i < Conf::dim; i++) {
+    if (m_comm != nullptr) {
+      is_boundary[i] = m_comm->domain_info().is_periodic[i];
+      Logger::print_info("m_comm NOT null; i = {}", i);
+    } else {
+      Logger::print_info("m_comm null; i = {}", i);
+      is_periodic[i] = false;
+    }
+  }
+
+  Logger::print_info("is_periodic = ({}, {})", is_periodic[0], is_periodic[1]);
+
+  // bool is_periodic[Conf::dim];
+  // for (int i = 0; i < Conf::dim; i++) {
+  //     is_periodic[i] = m_periodic[i];
+  // }
+
+  if (!is_periodic[0]) {
+      // Apply damping boundary condition on both X boundaries
+      kernel_launch(
+          [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
+                                           auto damping_length, auto damping_coef) {
+            auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            auto ext = grid.extent();
+            // auto ext_damping = extent(damping_length, grid.dims[0]);
+            for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+              // x = 0 boundary
+              if (is_boundary[0] == true) {
+                for (int i = 0; i < damping_length; i++) {
+                  int n0 = i;
+                  auto idx = idx_t(index_t<2>(n0, n1), ext);
+                  value_t lambda =
+                      1.0f - damping_coef * square((value_t)(damping_length - i) /
+                                                 (damping_length - 1));
+                  e[0][idx] *= lambda;
+                  e[1][idx] *= lambda;
+                  e[2][idx] *= lambda;
+                  // b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
+                  // b[0][idx] *= lambda;
+                  b[1][idx] *= lambda;
+                  b[2][idx] *= lambda;
+                  // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+                }
+              }
+              // x = x_max boundary
+              if (is_boundary[1] == true) {
+                for (int i = 0; i < damping_length; i++) {
+                  int n0 = grid.dims[0] - damping_length + i;
+                  auto idx = idx_t(index_t<2>(n0, n1), ext);
+                  value_t lambda =
+                      1.0f - damping_coef * square((value_t)i / (damping_length - 1));
+                  e[0][idx] *= lambda;
+                  e[1][idx] *= lambda;
+                  e[2][idx] *= lambda;
+                  // b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
+                  // b[0][idx] *= lambda;
+                  b[1][idx] *= lambda;
+                  // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+                  b[2][idx] *= lambda;
+                }
+              }
             }
-          }
-          // x = x_max boundary
-          if (is_boundary[1] == true) {
-            for (int i = 0; i < damping_length; i++) {
-              int n0 = grid.dims[0] - damping_length + i;
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              value_t lambda =
-                  1.0f - damping_coef * square((value_t)i / (damping_length - 1));
-              e[0][idx] *= lambda;
-              e[1][idx] *= lambda;
-              e[2][idx] *= lambda;
-              // b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
-              // b[0][idx] *= lambda;
-              b[1][idx] *= lambda;
-              // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
-              b[2][idx] *= lambda;
-            }
-          }
-        }
-      },
-      E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
-      m_damping_length, m_damping_coef);
+          },
+          E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
+          m_damping_length, m_damping_coef);
+  }
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
   
-  // Apply damping boundary condition on both Y boundaries
-  kernel_launch(
-      [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
-                                       auto damping_length, auto damping_coef) {
-        auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
-        auto ext = grid.extent();
-        // auto ext_damping = extent(damping_length, grid.dims[0]);
-        for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-          // y = -ymax boundary
-          if (is_boundary[2] == true) {
-            for (int i = 0; i < damping_length; i++) {
-              int n1 = i;
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              value_t lambda =
-                  1.0f - damping_coef * square((value_t)(damping_length - i) /
-                                             (damping_length - 1));
-              e[0][idx] *= lambda;
-              e[1][idx] *= lambda;
-              e[2][idx] *= lambda;
-              // b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
-              b[0][idx] *= lambda;
-              b[1][idx] *= lambda;
-              b[2][idx] *= lambda;
-              // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+  if (!is_periodic[1]) {
+      // Apply damping boundary condition on both Y boundaries
+      kernel_launch(
+          [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
+                                           auto damping_length, auto damping_coef) {
+            auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            auto ext = grid.extent();
+            // auto ext_damping = extent(damping_length, grid.dims[0]);
+            for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+              // y = -ymax boundary
+              if (is_boundary[2] == true) {
+                for (int i = 0; i < damping_length; i++) {
+                  int n1 = i;
+                  auto idx = idx_t(index_t<2>(n0, n1), ext);
+                  value_t lambda =
+                      1.0f - damping_coef * square((value_t)(damping_length - i) /
+                                                 (damping_length - 1));
+                  e[0][idx] *= lambda;
+                  e[1][idx] *= lambda;
+                  e[2][idx] *= lambda;
+                  // b[0][idx] = lambda * (b[0][idx] + Bp) - Bp;
+                  b[0][idx] *= lambda;
+                  b[1][idx] *= lambda;
+                  b[2][idx] *= lambda;
+                  // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+                }
+              }
+              // y = y_max boundary
+              if (is_boundary[3] == true) {
+                for (int i = 0; i < damping_length; i++) {
+                  int n1 = grid.dims[1] - damping_length + i;
+                  auto idx = idx_t(index_t<2>(n0, n1), ext);
+                  value_t lambda =
+                      1.0f - damping_coef * square((value_t)i / (damping_length - 1));
+                  e[0][idx] *= lambda;
+                  e[1][idx] *= lambda;
+                  e[2][idx] *= lambda;
+                  // b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
+                  b[0][idx] *= lambda;
+                  b[1][idx] *= lambda;
+                  // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
+                  b[2][idx] *= lambda;
+                }
+              }
             }
-          }
-          // y = y_max boundary
-          if (is_boundary[3] == true) {
-            for (int i = 0; i < damping_length; i++) {
-              int n1 = grid.dims[1] - damping_length + i;
-              auto idx = idx_t(index_t<2>(n0, n1), ext);
-              value_t lambda =
-                  1.0f - damping_coef * square((value_t)i / (damping_length - 1));
-              e[0][idx] *= lambda;
-              e[1][idx] *= lambda;
-              e[2][idx] *= lambda;
-              // b[0][idx] = lambda * (b[0][idx] - Bp) + Bp;
-              b[0][idx] *= lambda;
-              b[1][idx] *= lambda;
-              // b[2][idx] = lambda * (b[2][idx] - Bp * Bg) + Bp * Bg;
-              b[2][idx] *= lambda;
-            }
-          }
-        }
-      },
-      E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
-      m_damping_length, m_damping_coef);
+          },
+          E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
+          m_damping_length, m_damping_coef);
+  }
   CudaSafeCall(cudaDeviceSynchronize());
   CudaCheckError();
 }
@@ -263,6 +296,15 @@ boundary_condition<Conf>::inject_plasma() {
     }
   }
 
+  bool is_periodic[Conf::dim];
+  for (int i = 0; i < Conf::dim; i++) {
+    if (m_comm != nullptr) {
+      is_boundary[i] = m_comm->domain_info().is_periodic[i];
+    } else {
+      is_periodic[i] = false;
+    }
+  }
+
   auto inj_length = m_inj_length;
   value_t upstream_kT = m_upstream_kT;
   auto upstream_n = m_upstream_n;
@@ -275,16 +317,31 @@ boundary_condition<Conf>::inject_plasma() {
   auto inj_size = inj_length * m_grid.delta[1];
   auto rho_upstream = m_rho_upstream;
   auto rho_floor = m_rho_floor;
+
   // rho_upstream is the (mass) density from one species; upstream_n is # ppc per species
   // rho_floor is the density floor for one species (half the total density floor)
   auto weight_per_upstream_ptc = rho_upstream / (1.0f * upstream_n);
   injector->inject_pairs(
-      [rho_e_ptr, rho_p_ptr, rho_floor, weight_per_upstream_ptc] __device__(
+      [rho_e_ptr, rho_p_ptr, inj_size, is_periodic, is_boundary, rho_floor, weight_per_upstream_ptc] __device__(
           auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
         auto idx = Conf::idx(pos, ext);
-        return rho_p_ptr[idx] - rho_e_ptr[idx] < 2.0f * rho_floor - 2.0f * weight_per_upstream_ptc;
-        // return false;
+        auto result = rho_p_ptr[idx] - rho_e_ptr[idx] <
+            2.0f * rho_floor - 2.0f * weight_per_upstream_ptc;
+        if (!is_periodic[0]) {
+            // Apply density floor everywhere if not periodic in x
+            return result;
+        } else if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size &&
+             is_boundary[3]) ||
+            (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
+            // If periodic in x, just apply density floor near y boundaries
+            // where plasma will probably get depleted.
+            return result;
+        } else {
+            // This is when x is periodic and we're far from y boundaries.
+            // Don't inject plasma.
+            return false;
+        }
       },
       [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
       [upstream_kT, boost_beta] __device__(auto &x_global,

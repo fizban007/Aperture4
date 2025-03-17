@@ -160,15 +160,15 @@ boundary_condition<Conf>::damp_fields() {
   bool is_periodic[Conf::dim];
   for (int i = 0; i < Conf::dim; i++) {
     if (m_comm != nullptr) {
-      is_boundary[i] = m_comm->domain_info().is_periodic[i];
-      Logger::print_info("m_comm NOT null; i = {}", i);
+      is_periodic[i] = m_comm->domain_info().is_periodic[i];
+      // Logger::print_info("m_comm NOT null; i = {}", i);
     } else {
-      Logger::print_info("m_comm null; i = {}", i);
+      // Logger::print_info("m_comm null; i = {}", i);
       is_periodic[i] = false;
     }
   }
 
-  Logger::print_info("is_periodic = ({}, {})", is_periodic[0], is_periodic[1]);
+  // Logger::print_info("is_periodic = ({}, {})", is_periodic[0], is_periodic[1]);
 
   // bool is_periodic[Conf::dim];
   // for (int i = 0; i < Conf::dim; i++) {
@@ -299,7 +299,7 @@ boundary_condition<Conf>::inject_plasma() {
   bool is_periodic[Conf::dim];
   for (int i = 0; i < Conf::dim; i++) {
     if (m_comm != nullptr) {
-      is_boundary[i] = m_comm->domain_info().is_periodic[i];
+      is_periodic[i] = m_comm->domain_info().is_periodic[i];
     } else {
       is_periodic[i] = false;
     }

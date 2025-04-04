@@ -73,6 +73,8 @@ class H5File {
 
   template <typename T, int Dim>
   multi_array<T, Dim> read_multi_array(const std::string& name);
+  template <typename T, int Dim>
+  void read_multi_array(const std::string& name, multi_array<T, Dim>& array);
   template <typename T>
   buffer<T> read_array(const std::string& name);
   template <typename T>

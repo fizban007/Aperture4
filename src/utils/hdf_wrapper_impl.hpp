@@ -218,8 +218,8 @@ H5File::write_parallel(const T* array, size_t array_size, size_t len_total,
 }
 
 template <typename T, int Dim>
-multi_array<T, Dim>
-H5File::read_multi_array(const std::string& name) {
+void
+H5File::read_multi_array(const std::string& name, multi_array<T, Dim>& array) {
   extent_t<Dim> ext;
 
   auto dataset = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
@@ -234,13 +234,20 @@ H5File::read_multi_array(const std::string& name) {
     ext[i] = dims[dim - i - 1];
   }
   // ext.get_strides();
+  array.resize(ext);
 
-  multi_array<T, Dim> result(ext, MemType::host_only);
   H5Dread(dataset, h5datatype<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
-          result.host_ptr());
+          array.host_ptr());
 
   H5Dclose(dataset);
   H5Sclose(dataspace);
+}
+
+template <typename T, int Dim>
+multi_array<T, Dim>
+H5File::read_multi_array(const std::string& name) {
+  multi_array<T, Dim> result(MemType::host_only);
+  read_multi_array(name, result);
   return result;
 }
 

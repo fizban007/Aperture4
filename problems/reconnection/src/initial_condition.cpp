@@ -177,12 +177,12 @@ harris_current_sheet(vector_field<Conf> &B,
     value_t j = B0 / delta / square(cosh(y / delta));
     return j;
   });
-  Bdelta.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
-    return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase) - B0 * tanh(y / delta);
-  });
-  Bdelta.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
-    return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
-  });
+  // Bdelta.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+  //   return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase) - B0 * tanh(y / delta);
+  // });
+  // Bdelta.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+  //   return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
+  // });
 
   // Logger::print_info(
   //     "B0 = {}; delta = {}; J0 = B0 / delta = {}; beta_drift = {}",

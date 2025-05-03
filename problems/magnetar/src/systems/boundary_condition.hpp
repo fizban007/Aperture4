@@ -55,6 +55,8 @@ class boundary_condition : public system_t {
     sim_env().get_data("rng_states", rng_states);
 
     sim_env().params().get_value("atm_time", m_atm_time);
+    
+    sim_env().params().get_value("ramp_time", ramp_time);
     sim_env().params().get_value("twist_omega", m_twist_omega);
     sim_env().params().get_value("twist_time", m_twist_time);
     sim_env().params().get_value("twist_rmax_1", m_twist_rmax_1);
@@ -75,17 +77,17 @@ class boundary_condition : public system_t {
 
     value_t time = sim_env().get_time();
     value_t omega;
-    value_t ramp_time = 1.0;
     if (time <= m_atm_time) {
       omega = 0.0;
     } else if (time <= m_atm_time + m_twist_time) {
+      value_t  t_after_atm = time - m_atm_time;
       omega = m_twist_omega;
-      if (time - m_atm_time < ramp_time) {
-        omega *= square(std::sin(0.5 * M_PI * (time - m_atm_time) / ramp_time));
+      if (t_after_atm < ramp_time) {
+        omega *= square(std::sin(0.5 * M_PI * t_after_atm / ramp_time));
       }
-      if (m_twist_time - time - m_atm_time < ramp_time) {
+      if (m_twist_time - t_after_atm < ramp_time) {
         omega *= square(std::sin(
-            0.5 * M_PI * (m_twist_time - time - m_atm_time) / ramp_time));
+            0.5 * M_PI * (m_twist_time - t_after_atm) / ramp_time));
       }
 
       // omega = m_twist_omega *
@@ -114,7 +116,10 @@ class boundary_condition : public system_t {
                 grid_sph_t<Conf>::theta(grid.template coord<1>(n1, true));
             if ((theta_s >= twist_th1 && theta < twist_th2) ||
                 (theta_s < M_PI - twist_th1 && theta >= M_PI - twist_th2)) {
-              value_t s = (theta > 0.5f * M_PI ? -1.0f : 1.0f);
+              value_t s = (theta > 0.5f * M_PI ? -1.0f : 1.0f); // enforcing sign of the twist to be hemisphere dependent
+              if (theta > 0.5f * M_PI) {
+                th_m = M_PI - th_m;
+              }
               // For quantities that are not continuous across the surface
               for (int n0 = 0; n0 < grid.guard[0]; n0++) {
                 auto idx = idx_t(index_t<2>(n0, n1), ext);
@@ -163,7 +168,7 @@ class boundary_condition : public system_t {
           ExecPolicy<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
             value_t theta =
                 grid_sph_t<Conf>::theta(grid.template coord<1>(n1, false));
-            int n0 = grid.guard[0] + 1;
+            int n0 = grid.guard[0] + 3;
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t E_surface = e[0][idx];
 
@@ -176,6 +181,7 @@ class boundary_condition : public system_t {
               }
 
               float u = rng.template uniform<float>();
+              // ptc_offset is electron and ptc_offset + 1 is positron
               ptc.x1[ptc_offset] = ptc.x1[ptc_offset + 1] = 0.0f;
               ptc.x2[ptc_offset] = ptc.x2[ptc_offset + 1] = u;
               ptc.x3[ptc_offset] = ptc.x3[ptc_offset + 1] = 0.0f;
@@ -221,6 +227,8 @@ class boundary_condition : public system_t {
   value_t m_tracked_fraction = 0.1;
   value_t m_min_surface_E = 0.01;
   uint64_t m_track_rank = 0;
+
+  value_t ramp_time = 1.0;
 
   nonown_ptr<vector_field<Conf>> E, B, E0, B0;
   nonown_ptr<particles_t> ptc;

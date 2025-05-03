@@ -186,7 +186,7 @@ struct resonant_scattering_scheme{
     check_nan("p1", p1);
     check_nan("p2", p2);
     check_nan("p3", p3);
-    // check_nan("gamma", gamma);
+    check_nan("gamma", gamma);
   
     vec_t<value_t, 3> rel_x(ptc.x1[tid], ptc.x2[tid], ptc.x3[tid]);
     // x_global gives the global coordinate of the particle
@@ -229,8 +229,9 @@ struct resonant_scattering_scheme{
       force_dir3 = B[2]/B_mag * sgn<value_t>(B[0]);
     }
     value_t beta_para = p_para_mag / gamma;// This is strictly positive
-    // if (beta_para > 1.0) {
+    // if (beta_para > 0.9999999) {
     //   printf("beta_para is %f", beta_para);
+    //   beta_para = 0.9999999;
     // }
     // value_t gamma_para;
     // if (beta_para > 0.999999) {
@@ -247,9 +248,9 @@ struct resonant_scattering_scheme{
       // And so is the gamma for lorenz boosting
     value_t gamma_para = 1.0 / math::sqrt(1.0 - beta_para * beta_para);
     // }
-    check_nan("B_mag", B_mag);
-    check_nan("b", b);
-    check_nan("p", p);
+    // check_nan("B_mag", B_mag);
+    // check_nan("b", b);
+    // check_nan("p", p);
     // check_nan("pdotB", pdotB);
     
 
@@ -271,7 +272,7 @@ struct resonant_scattering_scheme{
     }
     // value_t mu = B[0]/B_mag*sgn(B[0]);
     // else {value_t mu = B[0]/B_mag} // mu is already absolute value
-    check_nan("mu", mu);
+    // check_nan("mu", mu);
 
     // computing mu_R for reflected photons (reflected i.e emitted from r_R on equatorial plane)
     // Could easily be updated for a more general photon emission point
@@ -294,7 +295,7 @@ struct resonant_scattering_scheme{
     // TODO: check whether this definition of y is correct
     // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
     value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu))); // abs from beta dot photon direction
-    check_nan("y", y);
+    // check_nan("y", y);
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
     // printf("in resonance");
@@ -305,9 +306,9 @@ struct resonant_scattering_scheme{
     // exp_term_y = nonan(exp_term_y, 0.0f);
     value_t coef = res_drag_coef * square(star_kT) * y * y /
         (r * r * exp_term_y);
-    check_nan("coef", coef);
+    // check_nan("coef", coef);
     value_t Nph = math::abs(coef) * dt / gamma;
-    check_nan("Nph", Nph);
+    // check_nan("Nph", Nph);
     // This is the general energy of the outgoing photon, in the electron rest frame for reference
     // value_t Eph =
     //     std::min(g - 1.0f, g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B_mag / BQ)));
@@ -322,9 +323,9 @@ struct resonant_scattering_scheme{
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
     value_t Emax = math::abs(gamma_para * (1.0f + beta_para) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
     value_t Eavg = math::abs(gamma_para * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
-    check_nan("Eph", Eph);
-    check_nan("Emax", Emax);
-    check_nan("Eavg", Eavg);
+    // check_nan("Eph", Eph);
+    // check_nan("Emax", Emax);
+    // check_nan("Eavg", Eavg);
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
     float cphi = math::cos(phi_p);
@@ -355,19 +356,19 @@ struct resonant_scattering_scheme{
     }
     // np = nonan(np, 0.0f);
     
-    check_nan("n1", n1);
-    check_nan("n2", n2);
-    check_nan("n3", n3);
-    check_nan("np", np);
+    // check_nan("n1", n1);
+    // check_nan("n2", n2);
+    // check_nan("n3", n3);
+    // check_nan("np", np);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
   // We use phi to access a specific direction in this plane
     value_t n_ph1 = n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np;
     value_t n_ph2 = n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np;
     value_t n_ph3 = n3 * u + sth * (-np * sphi);
-      check_nan("n_ph1", n_ph1);
-      check_nan("n_ph2", n_ph2);
-      check_nan("n_ph3", n_ph3);
+      // check_nan("n_ph1", n_ph1);
+      // check_nan("n_ph2", n_ph2);
+      // check_nan("n_ph3", n_ph3);
     
     bool produce_photon = false;
     bool deposit_photon = false;
@@ -375,7 +376,7 @@ struct resonant_scattering_scheme{
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
     if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
-  
+    // if (gamma > 10.0f) {
     //  if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
@@ -489,9 +490,6 @@ struct resonant_scattering_scheme{
       // pos_flux[1] = clamp(std::floor((cos_ph + 1.0) * 0.5 * num_bins[1]), 0, num_bins[1] - 1);
       idx_col_major_t<Conf::dim + 2> idx_flux(pos_flux, m_ext_flux);
       atomic_add(&m_ph_flux[idx_flux], Nph * ptc.weight[tid]);
-      // if (tid == 0) {
-      //   printf("(r, th) of ptc is (%f, %f), beta is %f, th_ph is %f, Eph is %f\n", r, x_global[1], beta, cos_ph, Eph);
-      // }
       return 0;
     }
     return 0;

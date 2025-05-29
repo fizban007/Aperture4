@@ -166,6 +166,11 @@ harris_current_sheet(vector_field<Conf> &B,
   value_t perturb_lambda = sim_env().params().get_as<double>("perturbation_wavelength", 2*xsize);
   value_t perturb_phase = sim_env().params().get_as<double>("perturbation_phase", 0.0);
 
+  // Don't remove pressure support from the initial current sheet unless asked
+  // to explicitly
+  value_t depressurize_x = sim_env().params().get_as<double>("depressurize_at_x", xlower - xsize);
+  value_t depressurize_cs_widths = sim_env().params().get_as<double>("depressurize_cs_widths", 0.0);
+
   // Initialize the magnetic field values. Note that the current sheet is in the
   // x-z plane, and the B field changes sign in the y direction. This should be
   // reflected in the grid setup as well.
@@ -231,8 +236,9 @@ harris_current_sheet(vector_field<Conf> &B,
         }
       },
       [n_cs] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * n_cs; },
-      [kT_cs, beta_d, xmid, delta] LAMBDA(auto &x_global, rand_state &state,
-                                 PtcType type) {
+      [kT_cs, beta_d, xmid, delta, depressurize_x, depressurize_cs_widths] 
+          LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+
         value_t y = x_global[1];
         value_t x = x_global[0];
         vec_t<value_t, 3> u_d = rng_maxwell_juttner_drifting(state, kT_cs, beta_d);
@@ -241,7 +247,7 @@ harris_current_sheet(vector_field<Conf> &B,
         if (type == PtcType::positron) sign *= -1.0f;
 
         // Remove pressure support in middle of CS by making plasma cold there
-        if (square((x-1.5*xmid)/(10*delta)) < 1.0f) {
+        if (math::abs(x - depressurize_x) < depressurize_cs_widths * delta) {
             u_d[0] = beta_d;
             u_d[1] = 0.0f;
             u_d[2] = 0.0f;
@@ -431,14 +437,29 @@ template <typename Conf> void ffe_current_sheet(
 
   sim_env().params().get_array("size", global_sizes);
   sim_env().params().get_array("lower", global_lower);
+  value_t rho_upstream = sim_env().params().get_as<double>("upstream_rho", 1.0);
+  value_t n_d;
+
+  // Our unit for length will be upstream c/\omega_p, therefore sigma determines
+  // the upstream field strength
+  value_t B0 = math::sqrt(sigma);
+  //
+  // implicitly assuming n_cs = 1.0 for each species
+  value_t delta = B0 / (2.0f * beta_d);
+
+  // The "sigma_cs" parameter triggers using current sheet density for normalization
+  if (sim_env().params().has("sigma_cs")) {
+    sigma = sim_env().params().get_as<double>("sigma_cs", sigma);
+    value_t B0 = math::sqrt(sigma);
+    delta = B0 / 2.0 / beta_d;
+    n_d = 1.0; // n_d is actually not used in our setup
+    kT_cs = sigma / 4.0;
+  }
 
   int n_cs = sim_env().params().get_as<int64_t>("current_sheet_n", 15);
   int n_upstream = sim_env().params().get_as<int64_t>("upstream_n", 5);
   value_t q_e = sim_env().params().get_as<double>("q_e", 1.0);
 
-  // Our unit for length will be upstream c/\omega_p, therefore sigma determines
-  // the upstream field strength
-  value_t B0 = math::sqrt(sigma);
   auto &grid = B.grid();
   auto ext = grid.extent();
   value_t ysize = global_sizes[1];
@@ -449,14 +470,14 @@ template <typename Conf> void ffe_current_sheet(
   value_t perturb_lambda = sim_env().params().get_as<double>("perturbation_wavelength", 2*xsize);
   value_t perturb_phase = sim_env().params().get_as<double>("perturbation_phase", 0.0);
 
-  // implicitly assuming n_cs = 1.0 for each species
-  value_t delta = B0 / (2.0f * beta_d);
-
   // Initialize the magnetic field values. Note that the current sheet is in the
   // x-z plane, and the B field changes sign in the y direction. This should be
   // reflected in the grid setup as well.
   Bbg.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
-    return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);
+    return B0 * tanh(y / delta);
+  });
+  B.set_values(0, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
+    return perturbed_current_sheet_Bx(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase) - B0 * tanh(y / delta);
   });
   B.set_values(1, [B0, ysize, delta, perturb_amp, perturb_lambda, perturb_phase](auto x, auto y, auto z) {
     return perturbed_current_sheet_By(B0, x, y, ysize, delta, perturb_amp, perturb_lambda, perturb_phase);

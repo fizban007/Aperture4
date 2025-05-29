@@ -44,12 +44,14 @@ gather_tracked_ptc<Conf, ExecPolicy>::init() {
   m_tracked_num.set_memtype(ExecPolicy<Conf>::data_mem_type());
   m_tracked_num.resize(1);
 
-  sim_env().get_data_optional("particles", ptc);
+  // sim_env().get_data_optional("particles", ptc);
+  sim_env().get_data("particles", ptc);
   if (ptc != nullptr) {
     tracked_ptc = sim_env().register_data<tracked_particles_t>(
         "tracked_ptc", m_max_tracked, ExecPolicy<Conf>::data_mem_type());
   }
-  sim_env().get_data_optional("photons", ph);
+  // sim_env().get_data_optional("photons", ph);
+  sim_env().get_data("photons", ph);
   if (ph != nullptr) {
     tracked_ph = sim_env().register_data<tracked_photons_t>(
         "tracked_ph", m_max_tracked, ExecPolicy<Conf>::data_mem_type());

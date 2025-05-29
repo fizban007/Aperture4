@@ -51,6 +51,21 @@ struct IC_radiation_scheme {
   int m_ph_nphi = 64;
   extent_t<3> m_ext_ph_dist;
 
+  // JM: Adding a flexible Lorentz factor
+  // For particles with gamma < m_gmin_emit, particles are cooled according
+  // to the Thomson IC formula and they do not emit photons (presumably because
+  // we expect their photons to be all too low-energy to produce pairs).
+  value_t m_gmin_emit = 2.0;
+
+  // JM: Adding a flexible 4-velocity, u = gamma v, below which radiation is
+  // artificially turned off.
+  // Specifically, radiation is suppressed by the factor
+  //     min(max((u - m_urad_cut)/(m_urad_cut - m_urad_cut/2), 0), 1)
+  // which takes radiative cooling to zero between m_urad_cut and
+  // m_urad_cut / 2.
+  // Set m_urad_cut = 0.0 to suppress this feature.
+  value_t m_urad_cut = 0.0;
+
   IC_radiation_scheme(const grid_t<Conf> &grid) : m_grid(grid) {}
 
   void init() {
@@ -60,9 +75,19 @@ struct IC_radiation_scheme {
     sim_env().params().get_value("IC_alpha", ic_alpha);
     value_t bb_kT = 1e-5;
     sim_env().params().get_value("IC_bb_kT", bb_kT);
+    value_t emono = 1e-5;
+    sim_env().params().get_value("IC_monochrome_en", emono);
     std::string spec_type = "soft_power_law";
     sim_env().params().get_value("IC_bg_spectrum", spec_type);
     sim_env().params().get_value("IC_compactness", m_IC_compactness);
+
+    // JM: Reading in these parameters if they've been specified
+    if (sim_env().params().has("IC_Thomson_switch")) {
+        sim_env().params().get_value("IC_Thomson_switch", m_gmin_emit);
+    }
+    if (sim_env().params().has("IC_urad_cut")) {
+        sim_env().params().get_value("IC_urad_cut", m_urad_cut);
+    }
 
     // If the config file specifies an IC gamma_rad, then we
     // use that to determine IC_compactness.
@@ -87,6 +112,10 @@ struct IC_radiation_scheme {
       emean = spec.emean();
     } else if (spec_type == "black_body") {
       Spectra::black_body spec(bb_kT);
+      ic->compute_coefficients(spec, spec.emin(), spec.emax());
+      emean = spec.emean();
+    } else if (spec_type == "quasi_monochrome") {
+      Spectra::very_narrow_gaussian spec(emono);
       ic->compute_coefficients(spec, spec.emin(), spec.emax());
       emean = spec.emean();
     } else {
@@ -171,6 +200,13 @@ struct IC_radiation_scheme {
     value_t p = math::sqrt(p1*p1 + p2*p2 + p3*p3);
     auto flag = ptc.flag[tid];
 
+    value_t ic_cutoff_fac;
+
+    ic_cutoff_fac = 1.0;
+    if (m_urad_cut > 0.0) {
+      ic_cutoff_fac = min(max(0.0, (p - 0.5 * m_urad_cut) / (0.5 * m_urad_cut)), 1.0);
+    }
+
     if (check_flag(flag, PtcFlag::ignore_radiation)) {
       return 0;
     }
@@ -182,16 +218,16 @@ struct IC_radiation_scheme {
     // printf("gamma is %f, IC loss is %f, weight is %f\n", gamma, IC_loss_dt, ptc.weight[tid]);
     // We don't care too much about the radiation from lowest energy particles.
     // Just cool them using usual formula
-    if (gamma < 2.0f) {
+    if (gamma < m_gmin_emit) {
     // if (true) {
       // if (gamma < 1.0001) return 0;
 
       ptc.p1[tid] -=
-          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p1[tid] * dt;
+          (4.0f / 3.0f) * ic_cutoff_fac * m_IC_compactness * gamma * ptc.p1[tid] * dt;
       ptc.p2[tid] -=
-          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p2[tid] * dt;
+          (4.0f / 3.0f) * ic_cutoff_fac * m_IC_compactness * gamma * ptc.p2[tid] * dt;
       ptc.p3[tid] -=
-          (4.0f / 3.0f) * m_IC_compactness * gamma * ptc.p3[tid] * dt;
+          (4.0f / 3.0f) * ic_cutoff_fac * m_IC_compactness * gamma * ptc.p3[tid] * dt;
 
       ptc.E[tid] = math::sqrt(1.0f + square(ptc.p1[tid]) + square(ptc.p2[tid]) +
                               square(ptc.p3[tid]));
@@ -213,7 +249,7 @@ struct IC_radiation_scheme {
     auto ext_spec = extent_t<Conf::dim + 1>(m_num_bins, ext_out);
     index_t<Conf::dim + 1> pos_out(0, (pos - grid.guards()) / m_downsample);
 
-    value_t lambda = m_ic_module.ic_scatter_rate(gamma) * dt;
+    value_t lambda = ic_cutoff_fac * m_ic_module.ic_scatter_rate(gamma) * dt;
     // if (tid == 0) {
     //   printf("ic_prob is %f, gamma is %f\n", lambda, gamma);
     // }
@@ -269,7 +305,10 @@ struct IC_radiation_scheme {
     ptc.p3[tid] = p3 * new_p / p_i;
     ptc.E[tid] = gamma;
 
-    if (e_ph > 2.0) {
+    // JM: I am enforcing photon censoring to the emission stage.
+    // Do not create a photon if the energy is too small or if the pair-
+    // production probability is too small.
+    if (e_ph > 2.0 && m_ic_module.gg_scatter_rate(e_ph) * dt > 1e-5) {
       size_t offset = ph_num + atomic_add(ph_pos, 1);
       ph.x1[offset] = ptc.x1[tid];
       ph.x2[offset] = ptc.x2[tid];

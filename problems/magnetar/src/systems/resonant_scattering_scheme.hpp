@@ -50,17 +50,16 @@ struct resonant_scattering_scheme{
   HD_INLINE void check_nan(const char* name, value_t val) {
       //  unsigned int bits = *(unsigned int*)&val;
     unsigned int bits = *(unsigned int*)&val;
-    bool is_nan_bits = (bits & 0x7F800000) == 0x7F800000 && (bits & 0x007FFFFF) != 0;
-    bool is_inf_bits = (bits & 0x7FFFFFFF) == 0x7F800000;
     
-    if (isnan(val) || is_nan_bits) {
-        printf("NaN detected in %s: %f (isnan=%d, isinf=%d, hex=%x, nan_bits=%d)\n", 
-               name, val, (int)isnan(val), (int)isinf(val), bits, (int)is_nan_bits);
+    
+    if (isnan(val)) {
+        printf("NaN detected in %s: %f (isnan=%d, isinf=%d)\n", 
+               name, val, (int)isnan(val), (int)isinf(val));
         asm("trap;");
     }
-    if (isinf(val) || is_inf_bits) {
-        printf("Inf detected in %s: %f (isnan=%d, isinf=%d, hex=%x, inf_bits=%d)\n", 
-               name, val, (int)isnan(val), (int)isinf(val), bits, (int)is_inf_bits);
+    if (isinf(val)) {
+        printf("Inf detected in %s: %f (isnan=%d, isinf=%d)\n", 
+               name, val, (int)isnan(val), (int)isinf(val));
         asm("trap;");
     }
         
@@ -81,8 +80,8 @@ struct resonant_scattering_scheme{
                                    // I/e alpha *c/4/lambda_bar*(Rstar/c), alpha = 1/137
   value_t ph_path = 0.0f;
   // Variables describing the reflected photons
-  value_t reflect_fraction = 0.0f; // Fraction of interacting photons that are reflected vs simply thermal from the star
-  value_t reflect_R = 12.0f; // The emitting point of "reflected" photons 
+  // value_t reflect_fraction = 0.0f; // Fraction of interacting photons that are reflected vs simply thermal from the star
+  // value_t reflect_R = 12.0f; // The emitting point of "reflected" photons 
 
   int downsample = 8;
   // int num_bins[Conf::dim];
@@ -103,8 +102,8 @@ struct resonant_scattering_scheme{
     sim_env().params().get_value("B_Q", BQ);
     sim_env().params().get_value("star_kT", star_kT);
     sim_env().params().get_value("res_drag_coef", res_drag_coef);
-    sim_env().params().get_value("reflect_fraction", reflect_fraction);
-    sim_env().params().get_value("reflect_R", reflect_R);
+    // sim_env().params().get_value("reflect_fraction", reflect_fraction);
+    // sim_env().params().get_value("reflect_R", reflect_R);
 
     nonown_ptr<vector_field<Conf>> B;
     // This is total B field, i.e. B0 + Bdelta
@@ -201,29 +200,61 @@ struct resonant_scattering_scheme{
     B[0] = interp(rel_x, m_B[0], idx, ext, stagger_t(0b001));
     B[1] = interp(rel_x, m_B[1], idx, ext, stagger_t(0b010));
     B[2] = interp(rel_x, m_B[2], idx, ext, stagger_t(0b100));
-    // value_t nonan = 0;//1e-7;
     value_t B_mag = math::sqrt(B.dot(B));
     value_t b = B_mag / BQ;
     value_t p = math::sqrt(p1 * p1 + p2 * p2 + p3 * p3);
-    value_t pdotB = p1 * B[0] + p2 * B[1] + p3 * B[2];
-    value_t p_para = pdotB / (B_mag);
-    // Sign of this is very tricky! If we use sign of p1, then it can be easily contaminated by gyration when Br is near 0
-    // value_t p_para_signed = sgn(pdotB * B[0]) * math::abs(p_para);
-    // value_t beta_para = p_para_signed / gamma;
-    value_t beta_para = p_para / gamma;
-    // beta_para = max_a(beta_para, 0.9999999);// gamma ~2,236 // try a taylor expansion
+    value_t pdot_Bhat = (p1 * B[0] + p2 * B[1] + p3 * B[2])/B_mag;
+    // The component of momentum parallel to the magnetic field as a vector
+    value_t p_para1 = pdot_Bhat *B[0]/ (B_mag);
+    value_t p_para2 = pdot_Bhat *B[1]/ (B_mag);
+    value_t p_para3 = pdot_Bhat *B[2]/ (B_mag);
+    
+    value_t p_para_mag = math::sqrt(p_para1*p_para1 + p_para2*p_para2 + p_para3*p_para3);
+    // We need to account for a motionless particle
+    // In this case the lorentz boost is undefined
+    // and mu is meaningless
+    value_t no_p = false;
+    if (p_para_mag == 0.0f) {
+      no_p = true;
+    }
+    value_t force_dir1 = p_para1/p_para_mag;
+    value_t force_dir2 = p_para2/p_para_mag;
+    value_t force_dir3 = p_para3/p_para_mag;
+    if (no_p) {
+      // If the particle is motionless, we use the B field direction as the force direction
+      // But ensure the force direction is always towards the equatorial plane
+      // i.e in the southern hemisphere we want positive force to have neg theta
+      force_dir1 = B[0]/B_mag * sgn<value_t>(B[0]);
+      force_dir2 = B[1]/B_mag * sgn<value_t>(B[0]);
+      force_dir3 = B[2]/B_mag * sgn<value_t>(B[0]);
+    }
+    value_t beta_para = p_para_mag / gamma;// This is strictly positive
+    // if (beta_para > 0.9999999) {
+    //   printf("beta_para is %f", beta_para);
+    //   beta_para = 0.9999999;
+    // }
+    // value_t gamma_para;
+    // if (beta_para > 0.999999) {
+    //   value_t delta_beta = 1.0 - beta_para;
+    //   // printf("delta_beta is %f", delta_beta);
+    //   check_nan("delta_beta close 0", 1/delta_beta);
+    //   // We approximate The lorentz factor as 1/(sqrt(2delta_beta))
+    //   gamma_para = 1.0 / math::sqrt(2.0 * delta_beta);
+    //   // value_t beta_para = 1.0 - 1.0 / (gamma_para * gamma_para);
+    // }
+    // else {
+      // beta_para = max_a(beta_para, 0.9999999);// gamma ~2,236 
+      // This is basically the gamma associated with the frame of the center of gyration
+      // And so is the gamma for lorenz boosting
     value_t gamma_para = 1.0 / math::sqrt(1.0 - beta_para * beta_para);
-    // if (abs(beta_para) < 0.999999){ =1.0 / math::sqrt(1.0 - beta_para * beta_para);
-    // }else{gamma_para = 1/math::sqrt(2-2*beta_para)}// accounting for beta close to 1 having to compare 1 with beta^2, this need only compare 1 with beta
-    
-    
-    check_nan("B_mag", B_mag);
-    check_nan("b", b);
-    check_nan("p", p);
-    check_nan("pdotB", pdotB);
+    // }
+    // check_nan("B_mag", B_mag);
+    // check_nan("b", b);
+    // check_nan("p", p);
+    // check_nan("pdotB", pdotB);
     
 
-    check_nan("p_para", p_para);
+    // check_nan("p_para", p_para);
     // check_nan("p_para_signed", p_para_signed);
     check_nan("beta_para", beta_para);
     check_nan("gamma_para", gamma_para);
@@ -231,10 +262,17 @@ struct resonant_scattering_scheme{
     // Compute resonant cooling and emit photon if necessary
 
     // mu for photons emitted from the surface of the star
-    B_mag = nonan(B_mag, 0.0f);
-    value_t mu = B[0] / (B_mag); // mu is already absolute value
-
-    check_nan("mu", mu);
+    // B_mag = nonan(B_mag, 0.0f);
+    // value_t mu = sgn(pdotB)*B[0] / (B_mag); // mu is already absolute value
+    // p_para_mag = nonan(p_para_mag, 0.0f);
+    // if (p_para_mag != 0.0) {
+    value_t mu = force_dir1;// default mu is Fr for motionless particles, this should only change lorentz boost
+    if (not no_p) {
+      mu = p_para1/p_para_mag;
+    }
+    // value_t mu = B[0]/B_mag*sgn(B[0]);
+    // else {value_t mu = B[0]/B_mag} // mu is already absolute value
+    // check_nan("mu", mu);
 
     // computing mu_R for reflected photons (reflected i.e emitted from r_R on equatorial plane)
     // Could easily be updated for a more general photon emission point
@@ -248,34 +286,29 @@ struct resonant_scattering_scheme{
     // if (th < 0.0f) th = 0.0f;
     // value_t Bx =B[0]*math::sin(th)+B[1]*math::cos(th);//Used in constructing mu_R from /vec(B)dot vec(n) where n is unit vector pointing from reflect_R to r
     // value_t By = B[0]*math::cos(th)-B[1]*math::sin(th);
-    
     // value_t mu_R = (Bx*(r*math::sin(th)-reflect_R)+By*r*math::cos(th))/A/B_mag; // Bdotn/(AB) where n is the vector pointing from  reflect_R to r
     // check_nan("mu_R", mu_R);
     // Swap the mu over to reflected computation
     // mu = mu_R;
 
-    // Our computations assume the electron is moving in the direction of the field line
-    // It truly moves "along" but we don't know the direction
-    if (pdotB < 0.0f){mu = -mu;}
-
 
     // TODO: check whether this definition of y is correct
     // value_t y = math::abs(b / (star_kT * (gamma_para - p_para_signed * mu)));
-    value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - math::abs(beta_para) * mu))); // abs from beta dot photon direction
-    check_nan("y", y);
+    value_t y = math::abs(b / (star_kT * gamma_para * (1.0 - beta_para * mu))); // abs from beta dot photon direction
+    // check_nan("y", y);
     if (y > 30.0f || y <= 0.0f)
       return 0; // Way out of resonance, do not do anything
-
+    // printf("in resonance");
       
     // This is based on Beloborodov 2013, Eq. B4. The resonant drag coefficient
     // is the main rescaling parameter, res_drag_coef = alpha * c / 4 / lambda_bar
     value_t exp_term_y = math::exp(y)-1.0f;
-    exp_term_y = nonan(exp_term_y, 0.0f);
+    // exp_term_y = nonan(exp_term_y, 0.0f);
     value_t coef = res_drag_coef * square(star_kT) * y * y /
         (r * r * exp_term_y);
-    check_nan("coef", coef);
+    // check_nan("coef", coef);
     value_t Nph = math::abs(coef) * dt / gamma;
-    check_nan("Nph", Nph);
+    // check_nan("Nph", Nph);
     // This is the general energy of the outgoing photon, in the electron rest frame for reference
     // value_t Eph =
     //     std::min(g - 1.0f, g * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * B_mag / BQ)));
@@ -286,13 +319,13 @@ struct resonant_scattering_scheme{
     float u = 2.0f * rng_uniform<float>(state) - 1.0f;// u= cos(theta) for isotropic emission
 
     // In electron rest frame Eph = m_e c^2*(1-1/sqrt(1+2b)) emitted isotropically
-    value_t Eph = math::abs(gamma_para * (1.0f + math::abs(beta_para) * u) *
+    value_t Eph = math::abs(gamma_para * (1.0f + beta_para * u) *
                             (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b))); // lorenz boosted with emission angle dependence (i.e beamed)
-    value_t Emax = math::abs(gamma_para * (1.0f + math::abs(beta_para)) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
+    value_t Emax = math::abs(gamma_para * (1.0f + beta_para) * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Emax when u=1
     value_t Eavg = math::abs(gamma_para * (1.0f - 1.0f / math::sqrt(1.0f + 2.0f * b)));//Eavg when u=0
-    check_nan("Eph", Eph);
-    check_nan("Emax", Emax);
-    check_nan("Eavg", Eavg);
+    // check_nan("Eph", Eph);
+    // check_nan("Emax", Emax);
+    // check_nan("Eavg", Eavg);
     // Photon direction
     float phi_p = 2.0f * M_PI * rng_uniform<float>(state);
     float cphi = math::cos(phi_p);
@@ -301,40 +334,49 @@ struct resonant_scattering_scheme{
     // TODO: Check whether this is correct
     // value_t u_boost_den =(1 + math::abs(beta_para) * u);// effectively the energy boost
     // u_boost_den = nonan(u_boost_den,0.0f);
-    u = (u + beta_para) / (1 + math::abs(beta_para) * u); // Try a taylor expansion
+    u = (u + beta_para) / (1 + beta_para * u); 
     u = max_a(u,0.9999999);
 
     value_t sth = sqrt(1.0f - u * u);
     // value_t n1 = p1 / p;
     // value_t n2 = p2 / p;
     // value_t n3 = p3 / p;
-    value_t n1 = B[0] / B_mag;
-    value_t n2 = B[1] / B_mag;
-    value_t n3 = B[2] / B_mag;
+    // Defining the boost direction
+    // TODO: Set up the boost direction for the motionless particle case
+
+    value_t n1 = p_para1 / p_para_mag;
+    value_t n2 = p_para2 / p_para_mag;
+    value_t n3 = p_para3 / p_para_mag;
     value_t np = math::sqrt(n1 * n1 + n2 * n2);
-    np = nonan(np, 0.0f);
+    if (no_p) { // TODO: check if this is correct
+      n1 = force_dir1;
+      n2 = force_dir2;
+      n3 = force_dir3;
+      np = 1.0f;
+    }
+    // np = nonan(np, 0.0f);
     
-    check_nan("n1", n1);
-    check_nan("n2", n2);
-    check_nan("n3", n3);
-    check_nan("np", np);
+    // check_nan("n1", n1);
+    // check_nan("n2", n2);
+    // check_nan("n3", n3);
+    // check_nan("np", np);
   // plane perpendicular to momentum direction defined by
   // {n2/np, -n1/np, 0} and {n3*n1/np, -n3*n2/np, np}
   // We use phi to access a specific direction in this plane
     value_t n_ph1 = n1 * u + sth * (n2 * cphi + n1 * n3 * sphi) / np;
     value_t n_ph2 = n2 * u + sth * (-n1 * cphi + n2 * n3 * sphi) / np;
     value_t n_ph3 = n3 * u + sth * (-np * sphi);
-    check_nan("n_ph1", n_ph1);
-    check_nan("n_ph2", n_ph2);
-    check_nan("n_ph3", n_ph3);
-  
+      // check_nan("n_ph1", n_ph1);
+      // check_nan("n_ph2", n_ph2);
+      // check_nan("n_ph3", n_ph3);
+    
     bool produce_photon = false;
     bool deposit_photon = false;
     // Need to take Nph < 1 and > 1 differently, since the photon production
     // may take a significant amount of energy from the emitting particle
     //old if (Eph > 2.0f) {//>2m_ec^2 // Photon energy larger than 1MeV, treat as discrete photon
     if (Emax > 2.0f) {//>2m_ec^2 // max Photon energy larger than 1MeV, treat as discrete photon
-  
+    // if (gamma > 10.0f) {
     //  if (false) {
       // always produce a photon if Nph > 1, otherwise draw from poisson?
       //if (Nph > 1.0f || rng_uniform<float>(state) < Nph) {
@@ -373,16 +415,22 @@ struct resonant_scattering_scheme{
 
       // Compute analytically the drag force on the particle and apply it. This is taken
       // from Beloborodov 2013, Eq. B6. Need to check the sign. TODO
-      value_t beta_para_r = math::abs(beta_para)*sgn(p1);
-      value_t drag_coef = coef * star_kT * y * gamma_para * (math::abs(mu) - beta_para_r);
+      // defining the direction of positive drag force
+      // value_t B_out1 = B[0]/B_mag *sgn(B[0]);
+      // value_t B_out2 = B[1]/B_mag *sgn(B[0]);
+      // value_t B_out3 = B[2]/B_mag *sgn(B[0]);
 
-      value_t sign_pdotB = 1.0f;
-      if (B[0] < 0.0f) { // accounting for the southern hemisphere
-        sign_pdotB = -1.0f;
-      }
-      p1 += sign_pdotB*B[0] * dt * drag_coef / B_mag;
-      p2 += sign_pdotB*B[1] * dt * drag_coef / B_mag;
-      p3 += sign_pdotB*B[2] * dt * drag_coef / B_mag;
+      // value_t mu_min_beta =((1-p_para1/gamma_para)*p_para1 // Since photon direction is purely radial
+      //                       +(p_para2/gamma_para)* p_para2
+      //                       + (p_para3/gamma_para) * p_para3)/p_para_mag;
+      // value_t mu_min_beta = force_dir1;
+      value_t drag_force = coef * star_kT * y * gamma_para * (mu-beta_para);
+      if (no_p) {drag_force = -drag_force;}// TODO: check if this is correct my sign might be weird
+      // I think its flipped because force_dir I might have defined as negative for motionless particles
+      // printf("mu_min_beta is %f, drag_force is %f\n", mu_min_beta, drag_force);
+      p1 += force_dir1 * dt * drag_force;
+      p2 += force_dir2 * dt * drag_force;
+      p3 += force_dir3 * dt * drag_force;
 
       ptc.p1[tid] = p1;
       ptc.p2[tid] = p2;
@@ -442,9 +490,6 @@ struct resonant_scattering_scheme{
       // pos_flux[1] = clamp(std::floor((cos_ph + 1.0) * 0.5 * num_bins[1]), 0, num_bins[1] - 1);
       idx_col_major_t<Conf::dim + 2> idx_flux(pos_flux, m_ext_flux);
       atomic_add(&m_ph_flux[idx_flux], Nph * ptc.weight[tid]);
-      // if (tid == 0) {
-      //   printf("(r, th) of ptc is (%f, %f), beta is %f, th_ph is %f, Eph is %f\n", r, x_global[1], beta, cos_ph, Eph);
-      // }
       return 0;
     }
     return 0;

@@ -16,10 +16,10 @@
  */
 
 #include "core/math.hpp"
-#include "cxxopts.hpp"
+#include "cxxopts.hpp"//
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.hpp"
+#include "systems/boundary_condition.hpp"//
 #include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver_sph.h"
@@ -30,7 +30,7 @@
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_impl.hpp"
-#include "systems/radiation/IC_radiation_scheme.hpp"
+// #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
 #include "systems/resonant_scattering_scheme.hpp"
 #include "utils/hdf_wrapper.h"
@@ -65,8 +65,9 @@ class ptc_physics_policy_gravity_r {
 };
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
-                           coord_policy_spherical_sync_cooling,
-                           ptc_physics_policy_gravity_r>;
+                          //  coord_policy_spherical_sync_cooling,
+                          coord_policy_spherical>;
+                           //ptc_physics_policy_gravity_r>;
 
 template class radiative_transfer<Config<2>, exec_policy_dynamic,
                                   coord_policy_spherical, resonant_scattering_scheme>;
@@ -86,8 +87,9 @@ main(int argc, char *argv[]) {
           grid, &comm);
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
-                                      coord_policy_spherical_sync_cooling,
-                                      ptc_physics_policy_gravity_r>>(
+                                      // coord_policy_spherical_sync_cooling,
+                                      coord_policy_spherical>>(
+                                      //ptc_physics_policy_gravity_r>>(
           // coord_policy_spherical>>(
           grid, &comm);
   auto tracker =
@@ -97,8 +99,11 @@ main(int argc, char *argv[]) {
       resonant_scattering_scheme>>( grid, &comm);
   auto moments =
       env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
-  // auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
-  //     grid, &comm);
+  // auto rad = env.register_system<radiative_transfer<
+  //     Conf, exec_policy_dynamic, coord_policy_spherical,
+  //     IC_radiation_scheme>>( grid, &comm);
+  auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
+      grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
       grid, &comm);
 
@@ -137,10 +142,11 @@ main(int argc, char *argv[]) {
   // Fill the magnetosphere with pairs
   ptc_injector_dynamic<Conf> injector(grid);
   injector.inject_pairs(
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true; },
+      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true;},
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
       [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         return rng_maxwell_juttner_3d<value_t>(state, kT);
+        // return vec_t<value_t, 3>(0.0, 0.0, 0.0);
       },
       [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(

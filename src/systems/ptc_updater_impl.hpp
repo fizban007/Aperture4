@@ -367,6 +367,51 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
             ptc.work_perp[n] += dt * context.q * (Eperp1 * p1 +
                                                   Eperp2 * p2 +
                                                   Eperp3 * p3) / gamma;
+
+            // Need to compute curvature drift
+            // value_t w_E_1 = (context.E[1] * context.B[2] - context.E[2] * context.B[1]) / (Emag*Emag + Bmag*Bmag);
+            // value_t w_E_2 = (context.E[2] * context.B[0] - context.E[0] * context.B[2]) / (Emag*Emag + Bmag*Bmag);
+            // value_t w_E_3 = (context.E[0] * context.B[1] - context.E[1] * context.B[0]) / (Emag*Emag + Bmag*Bmag);
+            // value_t w_E_sqr = min(w_E_1*w_E_1 + w_E_2*w_E_2 + w_E_3*w_E_3, 0.25);
+            // w_E_1 /= math::sqrt(w_E_sqr);
+            // w_E_2 /= math::sqrt(w_E_sqr);
+            // w_E_3 /= math::sqrt(w_E_sqr);
+            // value_t w_E_factor = (1.0 - math::sqrt(1.0 - 4.0 * w_E_sqr)) / (2.0 * w_E_sqr);
+            // w_E_sqr *= w_E_factor * w_E_factor;
+            // value_t kappa_sqr = 1.0 / (1.0 - w_E_sqr);
+            
+            value_t delta = grid.delta[0] * 0.1;
+            value_t b1 = context.B[0] / Bmag;
+            value_t b2 = context.B[1] / Bmag;
+            value_t b3 = context.B[2] / Bmag;
+            value_t p_para = p1*b1 + p2*b2 + p3*b3;
+            
+            auto x_up = context.x;
+            auto x_down = context.x;
+            x_up[0] += delta * b1;
+            x_up[1] += delta * b2;
+            x_up[2] += delta * b3;
+            x_down[0] -= delta * b1;
+            x_down[1] -= delta * b2;
+            x_down[2] -= delta * b3;
+            value_t B1_up = interp(x_up, B[0], idx, ext, stagger_t(0b001));
+            value_t B2_up = interp(x_up, B[1], idx, ext, stagger_t(0b010));
+            value_t B3_up = interp(x_up, B[2], idx, ext, stagger_t(0b100));
+            value_t B1_down = interp(x_down, B[0], idx, ext, stagger_t(0b001));
+            value_t B2_down = interp(x_down, B[1], idx, ext, stagger_t(0b010));
+            value_t B3_down = interp(x_down, B[2], idx, ext, stagger_t(0b100));
+            value_t B_up = math::sqrt(B1_up*B1_up + B2_up*B2_up + B3_up*B3_up);
+            value_t B_down = math::sqrt(B1_down*B1_down + B2_down*B2_down + B3_down*B3_down);
+            
+            value_t bDb1 = (B1_up/B_up - B1_down/B_down) / (2.0 * delta);
+            value_t bDb2 = (B2_up/B_up - B2_down/B_down) / (2.0 * delta);
+            value_t bDb3 = (B3_up/B_up - B3_down/B_down) / (2.0 * delta);
+            value_t v_c1 = (b2 * bDb3 - b3 * bDb2)
+            value_t v_c2 = (b3 * bDb1 - b1 * bDb3);
+            value_t v_c3 = (b1 * bDb2 - b2 * bDb1);
+            ptc.work_curv[n] += dt * context.q * (E1 * v_c1 + E2 * v_c2 + E3 * v_c3)
+                                * p_para * p_para / gamma / Bmag;
+
             // if (n == 0) {
             //   printf("Bmag is %f, Eperp is %f, Epara is %f, Emag is %f, EdotB is %f\n", Bmag, 
             //   math::sqrt(Eperp1*Eperp1 + Eperp2*Eperp2 + Eperp3*Eperp3),

@@ -153,7 +153,9 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
 #ifdef PARA_PERP
-                ptc.work_para[offset_e] = ptc.work_perp[offset_p] = 0.0;
+                ptc.work_para[offset_e] = ptc.work_para[offset_p] = 0.0;
+                ptc.work_perp[offset_e] = ptc.work_perp[offset_p] = 0.0;
+                ptc.work_curv[offset_e] = ptc.work_curv[offset_p] = 0.0;
 #endif
 
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);

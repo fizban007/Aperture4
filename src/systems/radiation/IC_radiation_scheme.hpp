@@ -374,6 +374,7 @@ struct IC_radiation_scheme {
 #ifdef PARA_PERP
     ptc.work_para[offset_e] = ptc.work_para[offset_p] = 0.0;
     ptc.work_perp[offset_e] = ptc.work_perp[offset_p] = 0.0;
+    ptc.work_curv[offset_e] = ptc.work_curv[offset_p] = 0.0;
 #endif
 // #ifndef NDEBUG
 //     assert(ptc.cell[offset_e] == empty_cell);

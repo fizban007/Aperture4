@@ -64,10 +64,87 @@ called right after the constructor of the system, in ``register_system()``.
 init()
 ^^^^^^
 
+The ``init()`` function is called by the simulation environment after all systems
+have registered their data components. This is where systems should perform any
+necessary initialization of their internal state, parameters, or data structures.
+For example, a particle updater system might initialize its random number
+generator states or allocate temporary buffers here.
+
 update()
 ^^^^^^^^
+
+The ``update()`` function is the main workhorse of each system. It is called at
+every timestep with two parameters:
+
+- ``dt``: The size of the timestep
+- ``step``: The current timestep number
+
+This is where systems perform their core functionality. For example:
+- A field solver updates electromagnetic fields
+- A particle updater pushes particles and computes currents
+- A data exporter writes output files
 
 Data Components
 ---------------
 
-Every data component derives from the common base class :ref:`data_t`.
+Every data component derives from the common base class :ref:`data_t`. Data
+components are responsible for storing and managing simulation data. They provide
+a unified interface for:
+
+1. Initialization (``init()``)
+2. Memory management (host/device allocation)
+3. Data I/O (serialization/deserialization)
+4. Snapshot handling
+
+Common data component types include:
+
+- Fields (``vector_field``, ``scalar_field``)
+- Particles (``particle_data_t``, ``photon_data_t``)
+- Phase space distributions (``phase_space``, ``phase_space_vlasov``)
+- Tracked particles (``tracked_particles_t``, ``tracked_photons_t``)
+
+Each data component can be configured to:
+- Skip output (``skip_output()``)
+- Include in snapshots (``include_in_snapshot()``)
+- Reset after output (``reset_after_output()``)
+
+The Simulation Environment
+-------------------------
+
+The simulation environment (``sim_environment``) is the central coordinator that:
+
+1. Manages the registry of systems and data components
+2. Handles system initialization and updates
+3. Controls the main simulation loop
+4. Provides parameter management
+5. Handles MPI communication and domain decomposition
+6. Manages data I/O and snapshots
+
+Key features:
+- Systems are called in registration order
+- Data components are uniquely identified by name
+- Parameters can be loaded from configuration files
+- Support for restarting from snapshots
+- Built-in performance monitoring
+
+Example Usage
+------------
+
+Here's a typical workflow for setting up a simulation:
+
+.. code-block:: cpp
+
+   // Create simulation environment
+   sim_environment env;
+   
+   // Register systems
+   auto grid = env.register_system<grid_t<Config<3>>>();
+   auto field_solver = env.register_system<field_solver<Config<3>>>(grid);
+   auto ptc_updater = env.register_system<ptc_updater<Config<3>>>(grid);
+   auto data_exporter = env.register_system<data_exporter<Config<3>>>(grid);
+   
+   // Initialize everything
+   env.init();
+   
+   // Run simulation
+   env.run();

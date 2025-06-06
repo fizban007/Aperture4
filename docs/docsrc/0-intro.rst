@@ -81,14 +81,21 @@ controls some compile-time configurations:
   options. In that case, it will try to compile the code through the HIP but
   using its CUDA implementation.
 * ``-Dbuild_tests=1``: If this option is 1, build the unit test suite.
+* ``-Dbuild_docs=0``: If this option is 1, build the documentation.
 * ``-Duse_double=0``: If this option is 1, use double precision for all floating
   point calculations.
+* ``-Duse_double_for_output=0``: If this option is 1, use double precision in output files.
 * ``-Dlib_only=0``: If this option is 1, only build the *Aperture* library, but
   not any simulation setups in the ``problems`` directory.
+* ``-Duse_boost_filesystem=0``: If this option is 1, use Boost filesystem instead of std::filesystem.
 * ``-Duse_libcpp=0``: This option is specifically for the situation where you want
   to compile the code with ``clang`` and link to ``libc++`` instead of ``libstdc++``.
   Generally keep it off unless you know what you are doing. Even then, it is not
   guaranteed to work.
+* ``-Denable_para_perp=0``: If this option is 1, enable tracking of parallel vs perpendicular E.v work.
+* ``-Dcuda_target_gpu="A100"``: The CUDA GPU target, which determines the CUDA_ARCHITECTURE variable.
+  Supported values include: "V100", "A100", "A40", "RTX3090", "RTXA6000", "RTX4090", 
+  "RTX6000", "RTX5090", "H100", "H200", "B100", "B200".
 
 Apart from these options, standard CMake options apply as well. For example, the
 code will compile in `Release` mode by default. To change it to `Debug`, append

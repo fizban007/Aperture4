@@ -22,6 +22,7 @@
 #include "utils/vec.hpp"
 #include "visit_struct/visit_struct.hpp"
 #include <string>
+#include <vector>
 
 namespace Aperture {
 

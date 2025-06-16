@@ -38,7 +38,7 @@ class tracked_ptc : public data_t {
   buffer<output_type> x1, x2, x3;
   buffer<output_type> p1, p2, p3, E;
 #ifdef PARA_PERP
-  buffer<output_type> work_para, work_perp;
+  buffer<output_type> work_para, work_perp, work_curv;
 #endif
   buffer<output_type> weight;
   buffer<uint32_t> flag;

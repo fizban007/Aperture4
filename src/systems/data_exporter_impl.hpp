@@ -1177,6 +1177,8 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
                                 offset, number, 0, name + "_work_para");
         datafile.write_parallel(data.work_perp.host_ptr(), data.size(), total,
                                 offset, number, 0, name + "_work_perp");
+        datafile.write_parallel(data.work_curv.host_ptr(), data.size(), total,
+                                offset, number, 0, name + "_work_curv");
       }
 #endif
     } else {
@@ -1195,6 +1197,7 @@ data_exporter<Conf, ExecPolicy>::write(tracked_ptc<BufferType>& data,
       if (std::is_same_v<BufferType, ptc_buffer>) {
         datafile.write(data.work_para.host_ptr(), number, name + "_work_para");
         datafile.write(data.work_perp.host_ptr(), number, name + "_work_perp");
+        datafile.write(data.work_curv.host_ptr(), number, name + "_work_curv");
       }
 #endif
     }

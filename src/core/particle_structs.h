@@ -81,6 +81,7 @@ DEF_PARTICLE_STRUCT(ptc,
 #ifdef PARA_PERP
                     (Aperture::Scalar, work_para, 0.0)
                     (Aperture::Scalar, work_perp, 0.0)
+                    (Aperture::Scalar, work_curv, 0.0)
 #endif
                     (uint32_t, cell, empty_cell)
                     (uint64_t, id, 0)

@@ -198,6 +198,9 @@ gather_tracked_ptc<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       gather_tracked_ptc_attr(tracked_ptc->work_perp, tracked_map, tracked_num,
                               [ext] LAMBDA(uint32_t n, auto ptc, auto E,
                                            auto B) { return ptc.work_perp[n]; });
+      gather_tracked_ptc_attr(tracked_ptc->work_curv, tracked_map, tracked_num,
+                              [ext] LAMBDA(uint32_t n, auto ptc, auto E,
+                                           auto B) { return ptc.work_curv[n]; });
 #endif
       gather_tracked_ptc_attr(tracked_ptc->weight, tracked_map, tracked_num,
                               [ext] LAMBDA(uint32_t n, auto ptc, auto E,

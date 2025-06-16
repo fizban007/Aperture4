@@ -517,7 +517,7 @@ template <typename Conf> void ffe_current_sheet(
           auto &x_global, PtcType type) {
         auto y = x_global[1];
         value_t yarg = y / delta;
-        return 1.0 / q_e / n_upstream * std::max(0.0, (1.0f - drift_frac(yarg, B_g)));
+        return 1.0 / q_e / n_upstream * std::max(value_t(0.0), (1.0f - drift_frac(yarg, B_g)));
       });
 
   // Current sheet particles
@@ -710,7 +710,7 @@ double_ffe_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle
         } else {
           yarg = (y - 0.25f * ysize) / delta;
         }
-        return 1.0 / q_e / n_upstream * std::max(0.0, (1.0f - drift_frac(yarg, B_g)));
+        return 1.0 / q_e / n_upstream * std::max(value_t(0.0), (1.0f - drift_frac(yarg, B_g)));
         // return 1.0 / q_e / n_upstream;
       });
 

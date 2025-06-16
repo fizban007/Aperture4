@@ -1,0 +1,103 @@
+Data Base Class System
+=====================
+
+The data base class system in Aperture provides a unified interface for managing different types of data components in the simulation. All data components inherit from the base class ``data_t``, which provides common functionality for initialization, output control, and snapshot management.
+
+Base Class Interface
+------------------
+
+The ``data_t`` base class provides the following key functionality:
+
+- **Initialization**: The virtual ``init()`` method is called by the simulation environment to initialize data components to their "zero" state. This method should not handle resource allocation, which should be done in the constructor.
+
+- **Output Control**: By default, all data components participate in data output. You can opt-out of output using ``skip_output(bool)``.
+
+- **Snapshot Management**: By default, data components are not included in snapshots. You can opt-in using ``include_in_snapshot(bool)``.
+
+- **Reset Control**: Data components can be reset after each output using ``reset_after_output(bool)``, which is useful for accumulating quantities between outputs.
+
+Example Implementation
+--------------------
+
+Here's an example of implementing a custom data class that tracks particle statistics:
+
+.. code-block:: cpp
+
+    #include "framework/data.h"
+    #include "core/multi_array.hpp"
+
+    namespace Aperture {
+
+    template <typename Conf>
+    class particle_stats : public data_t {
+    public:
+        using value_t = typename Conf::value_t;
+        
+        // Constructor
+        particle_stats(const typename Conf::grid_t& grid, MemType memtype = default_mem_type)
+            : m_grid(grid) {
+            // Initialize multi-arrays for storing statistics
+            m_energy_hist.resize(grid.extent());
+            m_momentum_hist.resize(grid.extent());
+        }
+
+        // Required initialization method
+        void init() override {
+            // Reset statistics to zero
+            m_energy_hist.assign(0.0);
+            m_momentum_hist.assign(0.0);
+        }
+
+        // Methods to update statistics
+        void update_energy(const value_t& energy, const index_t<Conf::dim>& pos) {
+            m_energy_hist[pos] += energy;
+        }
+
+        void update_momentum(const value_t& momentum, const index_t<Conf::dim>& pos) {
+            m_momentum_hist[pos] += momentum;
+        }
+
+        // Access methods
+        const typename Conf::multi_array_t& energy_hist() const { return m_energy_hist; }
+        const typename Conf::multi_array_t& momentum_hist() const { return m_momentum_hist; }
+
+    private:
+        const typename Conf::grid_t& m_grid;
+        typename Conf::multi_array_t m_energy_hist;
+        typename Conf::multi_array_t m_momentum_hist;
+    };
+
+    } // namespace Aperture
+
+Key Points
+---------
+
+1. **Inheritance**: All data classes must inherit from ``data_t``.
+
+2. **Initialization**: Implement the ``init()`` method to reset data to its initial state.
+
+3. **Memory Management**: Resource allocation should be done in the constructor, not in ``init()``.
+
+4. **Output Control**: Use the provided methods to control output behavior:
+   - ``skip_output(bool)`` to opt-out of data output
+   - ``include_in_snapshot(bool)`` to include in snapshots
+   - ``reset_after_output(bool)`` to reset after each output
+
+5. **Configuration**: Use the ``Conf`` template parameter to maintain consistency with the simulation's configuration.
+
+Usage Example
+------------
+
+To use the custom data class in a simulation:
+
+.. code-block:: cpp
+
+    // Register the data component
+    auto stats = sim_env().register_data<particle_stats<Conf>>("particle_stats", grid);
+
+    // Access and update statistics
+    stats->update_energy(1.0, index_t<Conf::dim>({10, 10}));
+    stats->update_momentum(2.0, index_t<Conf::dim>({10, 10}));
+
+    // The data will be automatically initialized and included in output
+    // unless explicitly opted out

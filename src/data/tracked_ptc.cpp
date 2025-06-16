@@ -34,6 +34,7 @@ tracked_ptc<BufferType>::tracked_ptc(size_t max_size, MemType type)
 #ifdef PARA_PERP
       work_para(max_size, type),
       work_perp(max_size, type),
+      work_curv(max_size, type),
 #endif
       weight(max_size, type),
       flag(max_size, type),

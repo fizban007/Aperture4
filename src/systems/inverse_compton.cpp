@@ -279,5 +279,7 @@ template void inverse_compton_t::compute_coefficients<Spectra::mono_energetic>(
     const Spectra::mono_energetic& n_e, value_t emin, value_t emax);
 template void inverse_compton_t::compute_coefficients<Spectra::broken_power_law>(
     const Spectra::broken_power_law& n_e, value_t emin, value_t emax);
+template void inverse_compton_t::compute_coefficients<Spectra::very_narrow_gaussian>(
+    const Spectra::very_narrow_gaussian& n_e, value_t emin, value_t emax);
 
 }  // namespace Aperture

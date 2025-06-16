@@ -131,22 +131,22 @@ struct mono_energetic {
   Scalar e0_, de_;
 };
 
-struct very_narrow_gaussian {
-  Scalar sig_;
-  Scalar pi_ = acos(-1.0);
-
-  HOST_DEVICE very_narrow_gaussian(Scalar e0) : e0_(e0) {sig_ = 1e-2 * e0_;}
-
-  HD_INLINE Scalar operator()(Scalar e) const {
-      return exp(-(e - e0_) * (e - e0_) / (2.0 * sig_ * sig_)) / sqrt(2 * pi * sig_ * sig_);
-  }
-
-  HD_INLINE Scalar emean() const { return e0_; }
-  HD_INLINE Scalar emin() const { return e0_ - 5.0 * sig_; }
-  HD_INLINE Scalar emax() const { return e0_ + 5.0 * sig_; }
-
-  Scalar e0_;
-};
+// struct very_narrow_gaussian {
+//   // Scalar sig_;
+//   // Scalar pi_ = acos(-1.0);
+// 
+//   HOST_DEVICE very_narrow_gaussian(Scalar e0) : e0_(e0) {sig_ = 1e-2 * e0_; pi_ = acos(-1.0);}
+// 
+//   HD_INLINE Scalar operator()(Scalar e) const {
+//       return exp(-(e - e0_) * (e - e0_) / (2.0 * sig_ * sig_)) / sqrt(2 * pi_ * sig_ * sig_);
+//   }
+// 
+//   HD_INLINE Scalar emean() const { return e0_; }
+//   HD_INLINE Scalar emin() const { return e0_ - 5.0 * sig_; }
+//   HD_INLINE Scalar emax() const { return e0_ + 5.0 * sig_; }
+// 
+//   Scalar e0_, sig_, pi_;
+// };
 
 }  // namespace Spectra
 

@@ -25,6 +25,7 @@
 #endif
 #include <fstream>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <memory>
 #include <type_traits>
 #include <variant>

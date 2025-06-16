@@ -114,10 +114,10 @@ struct IC_radiation_scheme {
       Spectra::black_body spec(bb_kT);
       ic->compute_coefficients(spec, spec.emin(), spec.emax());
       emean = spec.emean();
-    } else if (spec_type == "quasi_monochrome") {
-      Spectra::very_narrow_gaussian spec(emono);
-      ic->compute_coefficients(spec, spec.emin(), spec.emax());
-      emean = spec.emean();
+    // } else if (spec_type == "quasi_monochrome") {
+    //   Spectra::very_narrow_gaussian spec(emono);
+    //   ic->compute_coefficients(spec, spec.emin(), spec.emax());
+    //   emean = spec.emean();
     } else {
       Logger::err("Spectrum type {} is not recognized!", spec_type);
       exit(1);

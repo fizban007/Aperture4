@@ -49,7 +49,7 @@ void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
                              rng_states_t<exec_tags::device> &states);
 
 template <typename Conf>
-void kink_force_free<Conf>(vector_field<Conf> &B, particle_data_t &ptc,
+void kink_force_free(vector_field<Conf> &B, particle_data_t &ptc,
                               rng_states_t<exec_tags::device> &states);
 
 template <typename Conf>

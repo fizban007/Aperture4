@@ -65,7 +65,7 @@ main(int argc, char *argv[]) {
         // printf("eph is %f\n", eph[tid]);
       }
     }, rng_states.states().dev_ptr(), eph.dev_ptr());
-  cudaDeviceSynchronize();
+  gpuDeviceSynchronize();
 
   H5File outfile = hdf_create("eph_output.h5");
   outfile.write(eph.dev_ptr(), eph.size(), "eph");

@@ -188,15 +188,15 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
               // }
             } else {
               auxE[0][idx] =
-                  // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0] +
                   grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+                  0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
+                         grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
+                  // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0] +
                   // 0.5 *
                   //     (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus +
                   //      Metric_KS::ag_13(a, r_plus, th) * D[2][idx.inc_x()] *
                   //          r_plus) *
                   //     grid.delta[0];
-                  0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
-                         grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
               // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] +
               // D[2][idx.inc_x()]); 0.5 * Metric_KS::ag_13(a, r, th) *
               // (D[2][idx] + D[2][idx.inc_x()]);

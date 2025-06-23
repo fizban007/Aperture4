@@ -21,7 +21,9 @@
 #include "utils/logger.h"
 #include "utils/vec.hpp"
 #include "visit_struct/visit_struct.hpp"
+#include <vector>
 #include <string>
+#include <vector>
 
 namespace Aperture {
 

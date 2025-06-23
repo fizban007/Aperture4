@@ -224,8 +224,8 @@ boundary_condition<Conf>::damp_fields() {
           E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
           m_damping_length, m_damping_coef);
   }
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
   
   if (!is_periodic[1]) {
       // Apply damping boundary condition on both Y boundaries
@@ -276,8 +276,8 @@ boundary_condition<Conf>::damp_fields() {
           E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
           m_damping_length, m_damping_coef);
   }
-  CudaSafeCall(cudaDeviceSynchronize());
-  CudaCheckError();
+  GpuSafeCall(gpuDeviceSynchronize());
+  GpuCheckError();
 }
 
 template <typename Conf>

@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 #include "data.h"
 #include "framework/params_store.h"

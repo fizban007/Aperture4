@@ -43,6 +43,8 @@
 using namespace std;
 using namespace Aperture;
 
+namespace Aperture {
+
 template <typename Conf>
 class ptc_physics_policy_gravity_r {
  public:
@@ -71,6 +73,8 @@ template class ptc_updater<Config<2>, exec_policy_dynamic,
 
 template class radiative_transfer<Config<2>, exec_policy_dynamic,
                                   coord_policy_spherical, resonant_scattering_scheme>;
+
+}
 
 int
 main(int argc, char *argv[]) {

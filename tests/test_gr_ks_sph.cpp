@@ -41,17 +41,17 @@ TEST_CASE("GR Kerr-Schild Geodesic Pusher - Advanced", "[gr_ks_geodesic_advanced
         gr_ks_geodesic_advance(a, dt, x, u, is_photon, n_iter);
 
         // Check that r remains approximately constant
-        CHECK_THAT(x[0], Catch::Matchers::WithinRel(initial_r, 1e-3));
+        CHECK_THAT(x[0], Catch::Matchers::WithinRel(initial_r, value_t(1e-3)));
 
         // Check that θ remains close to π/2 (equatorial plane)
-        CHECK_THAT(x[1], Catch::Matchers::WithinRel(M_PI / 2, 1e-3));
+        CHECK_THAT(x[1], Catch::Matchers::WithinRel(M_PI / 2.0, 1e-3));
 
         // Check that φ has increased (orbital motion)
         CHECK(x[2] > 0.0);
 
         // Check conservation of Carter constant
         value_t final_carter = carter_constant(a, x, u);
-        CHECK_THAT(final_carter, Catch::Matchers::WithinRel(initial_carter, 1e-3));
+        CHECK_THAT(final_carter, Catch::Matchers::WithinRel(initial_carter, value_t(1e-3)));
     }
 
     // SECTION("Photon motion near black hole") {

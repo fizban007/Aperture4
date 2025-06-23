@@ -70,7 +70,7 @@ main(int argc, char *argv[]) {
           gammas[i] = std::exp(1.0 + 5.0 * rng_uniform<double>(state));
         }
   }, gammas.dev_ptr(), states.states().dev_ptr());
-  GpuSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("gen_gammas", "us");
   
   timer::stamp();
@@ -85,7 +85,7 @@ main(int argc, char *argv[]) {
           ph_e[i] = ic_module.gen_photon_e(gammas[i], state) * gammas[i];
         }
   }, gammas.dev_ptr(), photon_e.dev_ptr(), states.states().dev_ptr());
-  GpuSafeCall(cudaDeviceSynchronize());
+  GpuSafeCall(gpuDeviceSynchronize());
   timer::show_duration_since_stamp("gen_photon_e", "us");
 
   // file.write(g1, "mono1e1");

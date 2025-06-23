@@ -1,0 +1,124 @@
+The System Base Class
+===================
+
+The ``system_t`` class is a fundamental building block of the Aperture framework. It serves as the base class for all systems that perform operations on simulation data. A system is a module that gets called at every time step to manipulate any number of data components.
+
+Key Features
+-----------
+
+- Virtual interface with three main methods that can be overridden:
+  - ``register_data_components()``: Called right after system construction to register required data. This is used to manage **crucial** data components that the system needs to function. This method is called by the environment after the system is constructed, and it is used to register the data components that the system needs to work on.
+  - ``init()``: Called during environment initialization to set up the system. This is called by the environment before the system is used, and it is used to set up the system's parameters and data. Note that ``init()`` is called after ``register_data_components()`` of all systems, so that it can access all registered data components. Optional data components should be registered in ``init()`` as opposed to ``register_data_components()``, since they are not crucial for the system to work.
+  - ``update(double dt, uint32_t step)``: Called at every time step to perform the system's main operations
+
+- Built-in pause functionality:
+  - ``is_paused()``: Check if system is paused
+  - ``pause()``: Pause the system
+  - ``unpause()``: Resume the system
+
+- System identification:
+  - Every system must implement a static ``name()`` method that returns a unique identifier. This is used to identify the system in the environment, so that the environment can find the system by name. No two systems can have the same name.
+
+Simple Example
+-------------
+
+Here's a simple example of a custom system that tracks particle counts:
+
+.. code-block:: cpp
+
+    class particle_counter : public system_t {
+    public:
+        static std::string name() { return "particle_counter"; }
+        
+        void register_data_components() override {
+            // Register the particle data we want to count
+            m_particles = sim_env().register_data<particles_t>("particles");
+        }
+        
+        void init() override {
+            // Initialize any counters or parameters
+            m_total_count = 0;
+        }
+        
+        void update(double dt, uint32_t step) override {
+            // Count particles every 100 steps
+            if (step % 100 == 0) {
+                m_total_count = m_particles->number();
+                Logger::print_info("Total particles: {}", m_total_count);
+            }
+        }
+        
+    private:
+        nonown_ptr<particles_t> m_particles;
+        uint32_t m_total_count;
+    };
+
+Advanced Example
+--------------
+
+Here's a more complex example of a field solver system that evolves electromagnetic fields:
+
+.. code-block:: cpp
+
+    template <typename Conf>
+    class field_solver : public system_t {
+    public:
+        static std::string name() { return "field_solver"; }
+        
+        field_solver(const grid_t<Conf>& grid) : m_grid(grid) {}
+        
+        void register_data_components() override {
+            // Register all required field components
+            E = sim_env().register_data<vector_field<Conf>>("E", m_grid);
+            B = sim_env().register_data<vector_field<Conf>>("B", m_grid);
+            J = sim_env().register_data<vector_field<Conf>>("J", m_grid);
+        }
+        
+        void init() override {
+            // Initialize fields and parameters
+            sim_env().params().get_value("use_implicit", m_use_implicit);
+            if (m_use_implicit) {
+                sim_env().params().get_value("implicit_beta", m_beta);
+                m_alpha = 1.0 - m_beta;
+            }
+        }
+        
+        void update(double dt, uint32_t step) override {
+            double time = sim_env().get_time();
+            
+            // Choose update scheme based on parameters
+            if (m_use_implicit) {
+                update_semi_implicit(dt, m_alpha, m_beta, time);
+            } else {
+                update_explicit(dt, time);
+            }
+            
+            // Compute diagnostics periodically
+            if (step % m_data_interval == 0) {
+                compute_divs_e_b();
+                compute_EB_sqr();
+            }
+        }
+        
+    protected:
+        const grid_t<Conf>& m_grid;
+        nonown_ptr<vector_field<Conf>> E, B, J;
+        
+        bool m_use_implicit = false;
+        double m_alpha = 0.45;
+        double m_beta = 0.55;
+        int m_data_interval = 100;
+        
+        virtual void update_explicit(double dt, double time) = 0;
+        virtual void update_semi_implicit(double dt, double alpha, double beta, double time) = 0;
+        virtual void compute_divs_e_b() = 0;
+        virtual void compute_EB_sqr() = 0;
+    };
+
+Best Practices
+-------------
+
+1. Make the main computation logic in ``update()`` clear and efficient
+2. Use the pause functionality when appropriate (e.g., for debugging)
+3. Document any parameters that can be configured through the environment
+4. Consider using templates for systems that need to work with different configurations

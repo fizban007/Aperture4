@@ -58,3 +58,4 @@ Doxyfile
 
 # vim files
 *.swp
+.aider*

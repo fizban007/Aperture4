@@ -406,10 +406,10 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update_particles(
             value_t bDb1 = (B1_up/B_up - B1_down/B_down) / (2.0 * delta);
             value_t bDb2 = (B2_up/B_up - B2_down/B_down) / (2.0 * delta);
             value_t bDb3 = (B3_up/B_up - B3_down/B_down) / (2.0 * delta);
-            value_t v_c1 = (b2 * bDb3 - b3 * bDb2)
+            value_t v_c1 = (b2 * bDb3 - b3 * bDb2);
             value_t v_c2 = (b3 * bDb1 - b1 * bDb3);
             value_t v_c3 = (b1 * bDb2 - b2 * bDb1);
-            ptc.work_curv[n] += dt * context.q * (E1 * v_c1 + E2 * v_c2 + E3 * v_c3)
+            ptc.work_curv[n] += dt * context.q * (context.E[0] * v_c1 + context.E[1] * v_c2 + context.E[2] * v_c3)
                                 * p_para * p_para / gamma / Bmag;
 
             // if (n == 0) {

@@ -23,8 +23,9 @@
 #ifdef GPU_ENABLED
 #include "systems/policies/exec_policy_gpu.hpp"
 namespace Aperture {
-template <typename Conf>
-using exec_policy_dynamic = exec_policy_gpu<Conf>;
+// template <typename Conf>
+// using exec_policy_dynamic = exec_policy_gpu<Conf>;
+#define exec_policy_dynamic exec_policy_gpu
 
 namespace exec_tags {
 
@@ -36,8 +37,9 @@ using dynamic = device;
 #else
 #include "systems/policies/exec_policy_host.hpp"
 namespace Aperture {
-template <typename Conf>
-using exec_policy_dynamic = exec_policy_host<Conf>;
+// template <typename Conf>
+// using exec_policy_dynamic = exec_policy_host<Conf>;
+#define exec_policy_dynamic exec_policy_host
 
 namespace exec_tags {
 

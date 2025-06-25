@@ -13,7 +13,17 @@ Welcome to Aperture's documentation!
    :caption: Usage
    :glob:
 
-   docsrc/*
+   docsrc/0-intro.rst
+   docsrc/1-architecture.rst
+   docsrc/2-setup.rst
+   docsrc/3-framework.rst
+   docsrc/3.1-system.rst
+   docsrc/3.2-data.rst
+   docsrc/3.3-environment.rst
+   docsrc/3.4-data-output.rst
+   docsrc/4-config-file.rst
+   docsrc/5-units.rst
+   docsrc/6-two-stream.rst
 
 .. toctree::
    :maxdepth: 2

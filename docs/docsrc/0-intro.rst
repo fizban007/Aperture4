@@ -106,4 +106,4 @@ Running Simulations
 To run a quick test simulation, checkout the ``training`` directory in
 ``problems``. It contains several self-contained simple setups that can run
 without fiddling with configuration files. For a more in-depth guide on
-simulation setup, checkout :doc:`Setting up a Simulation <1-setup>`.
+simulation setup, checkout :doc:`Setting up a Simulation <2-setup>`.

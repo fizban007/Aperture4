@@ -1,0 +1,301 @@
+===========================
+The Simulation Environment
+===========================
+
+The ``sim_environment`` class is the central coordinator of Aperture simulations, 
+implementing a singleton pattern that manages the entire simulation lifecycle. It 
+maintains registries of systems and data components, handles MPI coordination, and 
+orchestrates the main simulation loop.
+
+Overview
+========
+
+The environment serves as:
+
+* **System Registry**: Manages all physics modules (field solvers, particle updaters, diagnostics)
+* **Data Registry**: Maintains all simulation data (fields, particles, configuration)
+* **MPI Coordinator**: Handles distributed memory parallelization
+* **GPU Manager**: Coordinates device initialization and memory management
+* **Configuration Hub**: Integrates command-line arguments and TOML configuration files
+* **Simulation Orchestrator**: Controls the main update loop and timing
+
+Architecture
+============
+
+The environment implements the Entity-Component-System (ECS) paradigm:
+
+.. code-block:: cpp
+
+    auto& env = sim_environment::instance(&argc, &argv, true);
+    
+    // Register systems (physics modules)
+    auto solver = env.register_system<field_solver<Conf, ExecPolicy>>(grid, &comm);
+    auto pusher = env.register_system<ptc_updater<Conf, ExecPolicy>>(grid, &comm);
+    
+    // Register data components
+    auto fields = env.register_data<vector_field<Conf>>("B");
+    auto particles = env.register_data<particle_data_t>("particles");
+    
+    // Initialize and run
+    env.init();
+    env.run();
+
+System Registration
+===================
+
+Systems represent physics modules that operate on data. Each system must:
+
+* Inherit from ``system_t``
+* Implement a static ``name()`` method returning a unique identifier
+* Provide ``init()`` and ``update(dt, step)`` methods
+
+.. code-block:: cpp
+
+    template <typename System, typename... Args>
+    auto register_system(Args&&... args) -> nonown_ptr<System>
+
+Systems are executed in registration order during each timestep. The environment 
+tracks execution time for performance monitoring.
+
+Data Registration
+=================
+
+Data components store simulation state and must inherit from ``data_t``. Multiple 
+instances of the same type can be registered with different names:
+
+.. code-block:: cpp
+
+    template <typename Data, typename... Args>
+    auto register_data(const std::string& name, Args&&... args) -> nonown_ptr<Data>
+
+Common data components include:
+
+* ``vector_field<Conf>`` - Electromagnetic fields (E, B)
+* ``scalar_field<Conf>`` - Scalar quantities (charge density, current)
+* ``particle_data`` - Particle arrays
+* ``rng_states`` - Random number generator states
+
+MPI Integration
+===============
+
+The environment automatically handles MPI initialization and domain decomposition:
+
+.. code-block:: cpp
+
+    sim_environment_impl(int* argc, char*** argv, bool use_mpi = true)
+
+**Key MPI features:**
+
+* Automatic ``MPI_Init()`` and ``MPI_Finalize()``
+* Rank-based logging configuration
+* Domain communication coordination
+* Collective operations support
+
+The ``domain_comm`` system manages inter-process communication, including:
+
+* Guard cell exchanges for field data
+* Particle migration between domains
+* GPU device assignment (``device_id = rank % n_devices``)
+
+GPU Device Management
+=====================
+
+When GPU support is enabled, the environment coordinates device initialization:
+
+**Device Assignment:**
+  Each MPI rank is automatically assigned a GPU device in round-robin fashion
+
+**Memory Monitoring:**
+  GPU memory usage is logged during initialization:
+  
+  .. code-block:: text
+  
+      GPU memory: free=23.651GiB/31.996GiB
+
+**Constant Memory:**
+  Frequently accessed data (grid parameters, physical constants) is copied to 
+  GPU constant memory for optimal performance
+
+Configuration System
+=====================
+
+The environment integrates multiple configuration sources:
+
+Command Line Arguments
+----------------------
+
+.. code-block:: bash
+
+    ./simulation -c config.toml -r snapshot.h5 --dry-run
+
+**Supported options:**
+
+* ``-c, --config`` - Configuration file (default: ``config.toml``)
+* ``-r, --restart`` - Restart from snapshot file
+* ``-d, --dry-run`` - Initialize only, don't run simulation
+* ``-h, --help`` - Display help message
+
+TOML Configuration Files
+-------------------------
+
+Parameters are loaded from TOML files using the ``params_store``:
+
+.. code-block:: toml
+
+    # Simulation parameters
+    max_steps = 10000
+    dt = 0.01
+    log_level = 1
+    
+    # Grid configuration
+    [Grid]
+    N = [512, 512, 1]
+    guard = [2, 2, 0]
+    
+    # Field solver settings
+    [FieldSolver]
+    damping = 0.01
+
+Parameters can be accessed in systems:
+
+.. code-block:: cpp
+
+    auto max_steps = env.params().get_as<int64_t>("max_steps", 1000);
+    auto dt = env.params().get_as<double>("dt", 0.01);
+
+Simulation Lifecycle
+====================
+
+The environment manages the complete simulation workflow:
+
+Initialization Phase
+--------------------
+
+.. code-block:: cpp
+
+    env.init();
+
+1. **Configure Logging**: Set log level from parameters
+2. **Load Parameters**: Parse timestep, max_steps, performance intervals
+3. **Initialize Systems**: Call ``init()`` on all registered systems in order
+4. **Initialize Data**: Call ``init()`` on all data components
+5. **GPU Setup**: Log memory usage and initialize device constants
+
+Main Loop
+---------
+
+.. code-block:: cpp
+
+    env.run();
+
+The main loop continues until ``step > max_steps``:
+
+1. **Performance Logging**: Log timestep information at specified intervals
+2. **System Updates**: Call ``update(dt, step)`` on all active systems
+3. **Timing**: Track per-system execution times
+4. **Increment**: Update simulation time and step counter
+
+**Performance Output:**
+
+.. code-block:: text
+
+    === Time step 1000, Time is 10.00000 ===
+    >>> Time for field_solver is 12.34ms
+    >>> Time for ptc_updater is 8.76ms
+    >>>>>>>>>>> Time for a step is 25.67ms
+
+Restart Capability
+==================
+
+The environment supports simulation restarts from checkpoint files:
+
+.. code-block:: bash
+
+    ./simulation --restart snapshot_001000.h5
+
+**Restart Process:**
+
+1. Environment detects restart flag and stores filename
+2. Systems can check ``env.is_restart()`` during initialization
+3. Systems load their state from the restart file
+4. Simulation resumes from the checkpointed timestep
+
+Error Handling
+==============
+
+The environment provides robust error handling:
+
+* **Parameter Validation**: Missing required parameters throw exceptions
+* **System Dependencies**: Failed system retrieval logs errors
+* **GPU Errors**: Comprehensive GPU error checking with ``GpuSafeCall()``
+* **MPI Coordination**: Proper cleanup of MPI resources
+
+Best Practices
+==============
+
+**System Design:**
+  - Keep systems focused on single responsibilities
+  - Use dependency injection for system communication
+  - Implement proper resource cleanup in destructors
+
+**Performance:**
+  - Register computationally expensive systems early
+  - Use appropriate execution policies (CPU/GPU)
+  - Monitor system timing with performance intervals
+
+**Configuration:**
+  - Provide sensible defaults for all parameters
+  - Document parameter meanings and units
+  - Use hierarchical TOML sections for organization
+
+**Testing:**
+  - Use dry-run mode for initialization testing
+  - Implement unit tests for individual systems
+  - Test restart functionality regularly
+
+Example Usage
+=============
+
+Here's a complete example of setting up a basic PIC simulation:
+
+.. code-block:: cpp
+
+    #include "framework/environment.h"
+    #include "framework/config.h"
+    #include "systems/field_solver_cartesian_impl.hpp"
+    #include "systems/ptc_updater_impl.hpp"
+    #include "systems/data_exporter_impl.hpp"
+
+    int main(int argc, char* argv[]) {
+        using Conf = Config<2>;  // 2D simulation
+        using ExecPolicy = exec_policy_gpu<Conf>;
+        
+        // Initialize environment
+        auto& env = sim_environment::instance(&argc, &argv, true);
+        
+        // Setup domain communication
+        domain_comm<Conf, exec_policy_gpu> comm;
+        grid_t<Conf> grid(comm);
+        
+        // Register core systems
+        auto solver = env.register_system<
+            field_solver<Conf, ExecPolicy, coord_policy_cartesian>>(grid, &comm);
+        auto pusher = env.register_system<
+            ptc_updater<Conf, ExecPolicy, coord_policy_cartesian>>(grid, &comm);
+        auto exporter = env.register_system<
+            data_exporter<Conf, ExecPolicy>>(grid, &comm);
+        
+        // Register data components
+        env.register_data<vector_field<Conf>>("E");
+        env.register_data<vector_field<Conf>>("B");
+        env.register_data<particle_data_t>("particles");
+        
+        // Run simulation
+        env.init();
+        env.run();
+        
+        return 0;
+    }
+
+This creates a complete 2D electromagnetic PIC simulation with field evolution, 
+particle dynamics, and data output capabilities.

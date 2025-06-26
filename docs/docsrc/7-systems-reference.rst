@@ -10,13 +10,14 @@ This section provides detailed documentation for each major system category, exp
    :maxdepth: 2
    :caption: Core Systems
 
-   7.1-field-solvers.rst
-   7.2-particle-systems.rst
+   7.1-field-solvers
+   7.2-particle-systems
+   7.3-radiative-transfer
    ..
-      7.3-grid-systems.rst
-      7.4-parallel-computing.rst
-      7.5-data-io.rst
-      7.6-physics-modules.rst
+      7.4-grid-systems
+      7.5-parallel-computing
+      7.6-data-io
+      7.7-physics-modules
 
 System Architecture Overview
 ============================

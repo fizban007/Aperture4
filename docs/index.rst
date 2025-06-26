@@ -17,6 +17,7 @@ Welcome to Aperture's documentation!
    docsrc/1-architecture.rst
    docsrc/2-setup.rst
    docsrc/3-framework.rst
+   docsrc/7-systems-reference.rst
    docsrc/4-config-file.rst
    docsrc/5-units.rst
    docsrc/6-two-stream.rst

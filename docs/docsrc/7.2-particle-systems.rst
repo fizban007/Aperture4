@@ -1,0 +1,364 @@
+================
+Particle Systems
+================
+
+Particle systems handle the evolution of charged particles and photons in electromagnetic fields. *Aperture* implements a sophisticated particle-in-cell (PIC) framework with support for multiple coordinate systems, advanced physics processes, and high-performance computing on both CPUs and GPUs.
+
+========
+
+Overview
+========
+
+The particle system architecture is built around the ``ptc_updater`` class, which uses policy-based templates to support different coordinate systems, execution targets, and physics models. The system handles both massive charged particles (electrons, positrons, ions) and massless photons.
+
+=====================
+
+Core Particle Updater
+=====================
+
+**Class**: ``ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>``
+
+**Files**: ``ptc_updater.{h,cpp,hip.cpp}``, ``ptc_updater_impl.hpp``
+
+The particle updater is the primary system responsible for:
+
+- Particle trajectory integration (pusher algorithms)
+- Current deposition onto the electromagnetic grid
+- Field interpolation to particle positions
+- Particle boundary conditions and domain communication
+- Memory management and particle sorting
+
+Template Parameters
+-------------------
+
+- ``Conf`` - Configuration class defining simulation parameters
+- ``ExecPolicy`` - Execution policy (CPU/GPU/OpenMP)
+- ``CoordPolicy`` - Coordinate system policy
+- ``PhysicsPolicy`` - Physics processes (radiation, cooling, etc.)
+
+Key Methods
+-----------
+
+Based on the actual Aperture4 implementation:
+
+.. code-block:: cpp
+
+   template <class Conf, class ExecPolicy, class CoordPolicy, class PhysicsPolicy>
+   class ptc_updater : public system_t {
+   public:
+       // Primary update methods
+       void update_particles(value_t dt, uint32_t step);
+       void update_particles(value_t dt, uint32_t step, size_t begin, size_t end);
+       void update_photons(value_t dt, uint32_t step);
+       
+       // Memory management and particle operations
+       void clear_guard_cells();
+       void sort_particles();
+       void filter_current(int num_times, uint32_t step);
+       
+       // Utility methods
+       template <typename PtcType>
+       void tally_ptc_number(particles_base<PtcType>& ptc);
+       void fill_multiplicity(int mult, value_t weight = 1.0, value_t dp = 0.0);
+   };
+
+**Key Data Components**:
+
+- ``ptc`` - Main particle data (electrons, positrons, ions)
+- ``ph`` - Photon data (separate from particles)
+- ``E``, ``B``, ``J`` - Electromagnetic fields and current
+- ``rho_total`` - Total charge density
+- ``rng_states`` - Random number generator states for each thread
+
+==========================
+
+Particle Pusher Algorithms
+==========================
+
+Aperture4 implements three relativistic particle pushers in ``systems/physics/pushers.hpp``:
+
+--------------------
+
+Vay Pusher (Default)
+--------------------
+
+**Implementation**: ``push_p_vay()`` - Currently the default pusher
+
+The Vay pusher (Vay, 2008) solves the relativistic equations of motion more accurately than Boris:
+
+**Key Features**:
+- **Relativistic accuracy**: Handles ultra-relativistic particles correctly
+- **Implicit gamma solution**: Solves for Lorentz factor using quadratic formula
+- **Better energy conservation**: Improved compared to standard Boris
+- **Default choice**: Set as default pusher in Aperture4
+
+**Algorithm**: Solves implicitly for the new Lorentz factor γ and updates momentum accordingly.
+
+------------
+
+Boris Pusher
+------------
+
+**Implementation**: ``push_p_boris()`` - Standard relativistic Boris algorithm
+
+The traditional Boris pusher with magnetic field rotation:
+
+**Key Features**:
+- **Magnetic rotation**: Uses rotation vector approach for B-field
+- **Two-step process**: Electric acceleration followed by magnetic rotation
+- **Widely tested**: Standard algorithm in plasma simulation
+- **Available option**: Can be selected instead of Vay pusher
+
+--------------
+
+Higuera Pusher  
+--------------
+
+**Implementation**: ``push_p_higuera()`` - Alternative relativistic pusher
+
+The Higuera-Cary pusher (Higuera & Cary, 2017):
+
+**Key Features**:
+- **Alternative relativistic**: Different approach to relativistic momentum update
+- **Energy conservation**: Claims improved energy conservation properties
+- **Research option**: Available for comparison studies
+
+**Pusher Selection**:
+
+The pusher algorithm is selected at compile time through the coordinate policy. The default implementation uses the Vay pusher for all coordinate systems.
+
+==================
+
+Current Deposition
+==================
+
+Aperture4 implements **charge-conserving current deposition** using the Esirkepov method in ``systems/helpers/ptc_update_helper.hpp``:
+
+---------------------------
+
+Charge-Conserving Algorithm
+---------------------------
+
+**Implementation**: Based on particle movement rather than simple velocity weighting
+
+**Key Features**:
+- **Charge conservation**: Ensures ``∇·J + ∂ρ/∂t = 0`` exactly
+- **Movement-based**: Current calculated from particle movement between time steps
+- **Esirkepov method**: Uses differences in spline shape functions
+- **Multi-dimensional**: Specialized 1D, 2D, and 3D implementations
+
+**Algorithm**:
+
+The current is computed as:
+
+.. math::
+
+   J_i = -\sum_p q_p \frac{\Delta W_i}{\Delta t}
+
+where ``ΔW_i`` is the change in the spline weight function at grid point ``i`` due to particle movement.
+
+------------------------
+
+B-Spline Shape Functions
+------------------------
+
+**Implementation**: Configurable spline order via ``Conf::spline_t``
+
+**Available Orders**:
+- **Order 0**: Nearest Grid Point (NGP) - top-hat function
+- **Order 1**: Cloud-in-Cell (CIC) - linear interpolation  
+- **Order 2**: Triangular Shaped Cloud (TSC) - quadratic B-spline
+- **Order 3**: Cubic B-spline - highest accuracy
+
+**Shape Function Properties**:
+- **Smooth**: Higher-order splines reduce numerical noise
+- **Local support**: Compact support for computational efficiency
+- **Charge conserving**: All orders maintain exact charge conservation
+
+=======================
+
+Particle Data Structure
+=======================
+
+Aperture4 uses a **Structure-of-Arrays (SoA)** design for optimal memory performance:
+
+---------------------------------------
+
+Regular Particles (``particle_data_t``)
+---------------------------------------
+
+**Core Data Arrays** (``core/particle_structs.h``):
+
+- **Position**: ``x1``, ``x2``, ``x3`` - Cell-relative coordinates (0.0 to 1.0)
+- **Momentum**: ``p1``, ``p2``, ``p3`` - Relativistic momentum in code units
+- **Energy**: ``E`` - Lorentz factor γ for relativistic calculations
+- **Properties**: ``weight`` - Computational particle weight
+- **Grid**: ``cell`` - Cell index for spatial sorting
+- **Identification**: ``id``, ``flag`` - Particle ID and status flags
+
+**Photons** (``photon_data_t``):
+
+- Similar structure but with ``path_left`` for photon propagation tracking
+- Used for radiative transfer and pair production processes
+
+**Species Support**:
+
+Aperture4 supports multiple particle species:
+
+- **Electrons**: charge = -e, mass = m_e  
+- **Positrons**: charge = +e, mass = m_e
+- **Ions**: configurable mass and charge
+- **Up to 16 species**: 4-bit species encoding in particle flags
+
+**Memory Layout Benefits**:
+
+- **GPU optimization**: Coalesced memory access patterns
+- **Vectorization**: Efficient SIMD operations on arrays
+- **Cache efficiency**: Better memory locality for particle operations
+
+=========================
+
+Coordinate System Support
+=========================
+
+Aperture4 supports multiple coordinate systems through coordinate policy templates:
+
+---------------------
+
+Cartesian Coordinates
+---------------------
+
+**Policy**: ``coord_policy_cartesian``
+
+**Implementation Details**:
+- **Direct momentum evolution**: Standard relativistic Lorentz force
+- **Simple interpolation**: Straightforward field interpolation from grid
+- **Uniform grid**: Regular Cartesian grid spacing
+
+---------------------
+
+Spherical Coordinates  
+---------------------
+
+**Policy**: ``coord_policy_spherical``
+
+**Implementation Approach**:
+- **Cartesian momentum space**: Particles move in Cartesian momentum coordinates
+- **Coordinate transformation**: Position transformations handled at boundaries
+- **Weight functions**: Proper ``sin(θ)`` weighting for spherical geometry
+- **Logarithmic radial grid**: Compatible with spherical field solver
+
+**Key Feature**: Uses hybrid approach - Cartesian momentum evolution with spherical coordinate position tracking.
+
+--------------------------------
+
+General Relativistic Coordinates
+--------------------------------
+
+**Policy**: ``coord_policy_gr_ks_sph``
+
+**Kerr-Schild Implementation**:
+- **Curved spacetime**: Full general relativistic particle dynamics
+- **Geodesic integration**: Proper time evolution in curved spacetime
+- **Black hole effects**: Frame dragging and gravitational effects
+- **Horizon crossing**: Stable evolution through event horizons
+
+-----------------------
+
+Other Coordinate Systems
+-----------------------
+
+**Available Policies**:
+- ``coord_policy_polar`` - 2D polar coordinates
+- ``coord_policy_cylindrical_rtheta`` - Cylindrical coordinates
+- Various specialized variants with GCA (guiding center approximation)
+
+**Coordinate Policy Pattern**:
+
+Each coordinate policy implements:
+- Coordinate transformations and metric factors
+- Proper boundary condition handling  
+- Compatible field interpolation methods
+
+================
+
+Particle Sorting
+================
+
+**Algorithm**: Cell-based sorting for improved memory locality
+
+**Implementation** (``core/particles_functions.h``):
+- **Z-order sorting**: Morton curve ordering for 3D simulations
+- **Segmented sorting**: Handles large particle numbers efficiently  
+- **GPU and CPU**: Parallel implementations for both architectures
+- **Configurable interval**: Default sorting every 20 timesteps (``m_sort_interval``)
+
+**Benefits**:
+- **Cache efficiency**: Particles in same cell stored contiguously
+- **Memory bandwidth**: Improved GPU memory coalescing
+- **Field interpolation**: Better spatial locality for field access
+
+========================
+
+Configuration Parameters
+========================
+
+Based on the actual Aperture4 particle updater implementation:
+
+**Core Parameters**:
+
+.. code-block:: toml
+
+   [ptc_updater]
+   # Species configuration
+   num_species = 2                    # Number of particle species (default: 2)
+   
+   # Particle management intervals
+   sort_interval = 20                 # Sort particles every N steps (default: 20)
+   data_interval = 1                  # Data output interval  
+   rho_interval = 1                   # Charge density calculation interval
+   
+   # Current filtering
+   filter_times = 0                   # Number of current filtering passes (default: 0)
+
+**Species Configuration**:
+
+Charge and mass arrays are configured per species:
+
+.. code-block:: toml
+
+   [ptc_updater.species]
+   # Charges in units of elementary charge
+   charges = [-1.0, 1.0]              # [electron, positron]
+   
+   # Masses in units of electron mass  
+   masses = [1.0, 1.0]                # [electron, positron]
+
+==========================
+
+Key Implementation Details
+==========================
+
+**Template Structure**: ``ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>``
+
+**Default Algorithms**:
+- **Pusher**: Vay pusher (relativistic, energy-conserving)
+- **Current deposition**: Charge-conserving Esirkepov method
+- **Interpolation**: B-spline interpolation (configurable order)
+- **Sorting**: Z-order Morton curve for 3D, cell-based for 2D
+
+**Memory Architecture**:
+- **Structure-of-Arrays**: Optimized for vectorization and GPU memory coalescing
+- **Dual storage**: Automatic CPU-GPU memory synchronization
+- **Dynamic sizing**: Particle arrays resize based on population
+
+**Coordinate Support**:
+- All coordinate systems supported through policy-based design
+- Same algorithmic implementation works across different geometries
+- Physics processes can be combined through physics policy templates
+
+**Performance Features**:
+- **CPU**: Vectorized operations with SIMD instructions
+- **GPU**: Memory coalescing and optimized thread block sizes  
+- **MPI**: Efficient particle migration between domains
+- **Hybrid**: CPU-GPU mixed execution with automatic load balancing

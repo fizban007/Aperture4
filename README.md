@@ -2,7 +2,7 @@
 
 Aperture is a high-performance, parallel, Particle-in-Cell (PIC) code framework for plasma simulation. It is designed to be fast, flexible, and easy to extend, and it can run on both traditional CPUs and modern GPUs (NVIDIA and AMD).
 
-For a more detailed introduction, please see the [full documentation](docs/index.rst).
+For a more detailed introduction, please see the [full documentation](https://fizban007.github.io/Aperture4/).
 
 ## Features
 

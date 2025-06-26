@@ -187,4 +187,4 @@ Notes
 4. String values are specified in quotes (e.g., "black_body")
 5. Comments can be added using # or //
 
-The configuration file should be placed in the simulation directory and named according to your needs (e.g., config_kn.toml).
+The configuration file should be placed in the simulation directory and named according to your needs (e.g., ``config_kn.toml``).

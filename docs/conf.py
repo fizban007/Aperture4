@@ -45,14 +45,38 @@ exclude_patterns = ['sphinx', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
 
 html_favicon = html_logo
+
+# -- Furo theme options ------------------------------------------------------
+
+html_theme_options = {
+    "light_css_variables": {
+        "color-brand-primary": "#336790",
+        "color-brand-content": "#336790",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#E8B910",
+        "color-brand-content": "#E8B910",
+    },
+    "sidebar_hide_name": True,
+    "navigation_with_keys": True,
+    "top_of_page_button": "edit",
+    "source_repository": "https://github.com/fizban007/Aperture4/",
+    "source_branch": "master",
+    "source_directory": "docs/",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# Custom CSS files
+html_css_files = [
+    'custom.css',
+]
 
 # Tell sphinx what the primary language being documented is.
 primary_domain = 'cpp'

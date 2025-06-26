@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('.'))
 # -- Project information -----------------------------------------------------
 
 project = 'Aperture'
-copyright = '2023, Alex Chen'
+copyright = '2025, Alex Chen'
 author = 'Alex Chen'
 html_logo = '../logo_icon.png'
 
@@ -28,7 +28,6 @@ html_logo = '../logo_icon.png'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-  "breathe",
   "sphinx.ext.autosectionlabel",
 ]
 
@@ -54,14 +53,6 @@ html_favicon = html_logo
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-
-# Breathe Configuration
-breathe_projects = {
-  "Aperture": "./doxygen/xml"
-}
-
-#
-breathe_default_project = "Aperture"
 
 # Tell sphinx what the primary language being documented is.
 primary_domain = 'cpp'

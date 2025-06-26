@@ -50,8 +50,8 @@ gather_tracked_ptc<Conf, ExecPolicy>::init() {
     tracked_ptc = sim_env().register_data<tracked_particles_t>(
         "tracked_ptc", m_max_tracked, ExecPolicy<Conf>::data_mem_type());
   }
-  // sim_env().get_data_optional("photons", ph);
-  sim_env().get_data("photons", ph);
+  sim_env().get_data_optional("photons", ph);
+  // sim_env().get_data("photons", ph);
   if (ph != nullptr) {
     tracked_ph = sim_env().register_data<tracked_photons_t>(
         "tracked_ph", m_max_tracked, ExecPolicy<Conf>::data_mem_type());

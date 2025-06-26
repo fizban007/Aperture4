@@ -21,14 +21,6 @@ Welcome to Aperture's documentation!
    docsrc/5-units.rst
    docsrc/6-two-stream.rst
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
-
-   api/core/index
-   api/framework/index
-   api/data/index
-
 ..
    Indices and tables
    ==================

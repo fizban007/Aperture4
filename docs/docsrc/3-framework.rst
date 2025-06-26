@@ -27,7 +27,11 @@ that ties things together. It keeps a registry of systems and data components,
 and calls every system in order in a giant loop for the duration of the
 simulation.
 
-For detailed information about systems and data components, please refer to:
+.. toctree::
+   :maxdepth: 1
+   :caption: Framework Components
 
-- :doc:`2.1-system` - Documentation about systems and their lifecycle
-- :doc:`2.2-data` - Documentation about data components and their usage
+   3.1-system.rst
+   3.2-data.rst
+   3.3-environment.rst
+   3.4-data-output.rst

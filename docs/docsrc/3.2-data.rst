@@ -1,10 +1,11 @@
-Data Base Class System
-=====================
+=================
+ Data Base Class
+=================
 
 The data base class system in Aperture provides a unified interface for managing different types of data components in the simulation. All data components inherit from the base class ``data_t``, which provides common functionality for initialization, output control, and snapshot management.
 
 Base Class Interface
-------------------
+====================
 
 The ``data_t`` base class provides the following key functionality:
 
@@ -17,7 +18,7 @@ The ``data_t`` base class provides the following key functionality:
 - **Reset Control**: Data components can be reset after each output using ``reset_after_output(bool)``, which is useful for accumulating quantities between outputs.
 
 Example Implementation
---------------------
+======================
 
 Here's an example of implementing a custom data class that tracks particle statistics:
 
@@ -70,7 +71,7 @@ Here's an example of implementing a custom data class that tracks particle stati
     } // namespace Aperture
 
 Key Points
----------
+==========
 
 1. **Inheritance**: All data classes must inherit from ``data_t``.
 
@@ -86,7 +87,7 @@ Key Points
 5. **Configuration**: Use the ``Conf`` template parameter to maintain consistency with the simulation's configuration.
 
 Usage Example
-------------
+=============
 
 To use the custom data class in a simulation:
 

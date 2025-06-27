@@ -16,10 +16,10 @@
  */
 
 #include "core/math.hpp"
-#include "cxxopts.hpp"//
+// #include "cxxopts.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.hpp"//
+#include "systems/boundary_condition.hpp"
 #include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver_sph.h"
@@ -39,9 +39,6 @@
 #include <fstream>
 #include <memory>
 #include <vector>
-
-using namespace std;
-using namespace Aperture;
 
 namespace Aperture {
 
@@ -75,6 +72,9 @@ template class radiative_transfer<Config<2>, exec_policy_dynamic,
                                   coord_policy_spherical, resonant_scattering_scheme>;
 
 }
+
+using namespace std;
+using namespace Aperture;
 
 int
 main(int argc, char *argv[]) {

@@ -416,7 +416,7 @@ template <typename Conf> void ffe_current_sheet(
         vector_field<Conf> &Bbg,
         vector_field<Conf> &J0,
         particle_data_t &ptc,
-        rng_states_t<exec_tags::device> &states
+        rng_states_t<exec_tags::dynamic> &states
     )
 {
 
@@ -600,7 +600,7 @@ template <typename Conf> void ffe_current_sheet(
 template <typename Conf>
 void
 double_ffe_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0, particle_data_t &ptc,
-                            rng_states_t<exec_tags::device> &states) {
+                            rng_states_t<exec_tags::dynamic> &states) {
   using value_t = typename Conf::value_t;
   // auto delta = sim_env().params().get_as<double>("current_sheet_delta", 5.0);
   value_t B_g = sim_env().params().get_as<double>("guide_field", 0.0);
@@ -826,23 +826,23 @@ template void double_harris_current_sheet<Config<3>>(vector_field<Config<3>> &B,
 template void double_ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                                   vector_field<Config<2>> &J0,
                                                   particle_data_t &ptc,
-                                                  rng_states_t<exec_tags::device> &states);
+                                                  rng_states_t<exec_tags::dynamic> &states);
 
 template void double_ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                   vector_field<Config<3>> &J0,
                                                   particle_data_t &ptc,
-                                                  rng_states_t<exec_tags::device> &states);
+                                                  rng_states_t<exec_tags::dynamic> &states);
 
 template void ffe_current_sheet<Config<2>>(vector_field<Config<2>> &B,
                                                   vector_field<Config<2>> &B0,
                                                   vector_field<Config<2>> &J0,
                                                   particle_data_t &ptc,
-                                                  rng_states_t<exec_tags::device> &states);
+                                                  rng_states_t<exec_tags::dynamic> &states);
 
 template void ffe_current_sheet<Config<3>>(vector_field<Config<3>> &B,
                                                   vector_field<Config<3>> &B0,
                                                   vector_field<Config<3>> &J0,
                                                   particle_data_t &ptc,
-                                                  rng_states_t<exec_tags::device> &states);
+                                                  rng_states_t<exec_tags::dynamic> &states);
 
 }  // namespace Aperture

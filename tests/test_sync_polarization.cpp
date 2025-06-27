@@ -16,7 +16,6 @@
  */
 
 #include "core/math.hpp"
-#include "cxxopts.hpp"
 #include "data/rng_states.h"
 #include "framework/config.h"
 #include "framework/environment.h"

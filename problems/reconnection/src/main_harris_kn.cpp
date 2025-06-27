@@ -47,13 +47,13 @@ void harris_current_sheet(
         vector_field<Conf> &Bdelta,
         vector_field<Conf>& J0,
         particle_data_t &ptc,
-        rng_states_t<exec_tags::device> &states
+        rng_states_t<exec_tags::dynamic> &states
 );
 
 template <typename Conf>
 void double_harris_current_sheet(vector_field<Conf> &B, vector_field<Conf> &J0,
                                  particle_data_t &ptc,
-                                 rng_states_t<exec_tags::device> &states);
+                                 rng_states_t<exec_tags::dynamic> &states);
 
 // template class ptc_updater<Config<2>, exec_policy_dynamic,
 //                            coord_policy_cartesian, phys_policy_IC_cooling>;
@@ -95,7 +95,7 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *J0, *Bdelta;
   particle_data_t *ptc;
-  rng_states_t<exec_tags::device> *states;
+  rng_states_t<exec_tags::dynamic> *states;
   env.get_data("B0", &B0);
   env.get_data("J0", &J0);
   env.get_data("Bdelta", &Bdelta);

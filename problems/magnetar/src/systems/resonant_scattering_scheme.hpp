@@ -27,14 +27,19 @@
 #include "utils/util_functions.h"
 // #include <cstdlib>
 
-template <typename T>
-HD_INLINE int
-sgn(T val) {
-  // if (val == 0) return 1;// To hopefully stop division by zero errors
-  return (T(0) <= val) - (val < T(0));
-}
 
 namespace Aperture {
+
+template <typename T>
+HD_INLINE bool isnan(T val) {
+    return val != val;
+}
+
+template <typename T>
+HD_INLINE bool isinf(T val) {
+    return (val > std::numeric_limits<T>::max() || val < -std::numeric_limits<T>::max());
+}
+
 template <typename T>
 static HD_INLINE T nonan(T val,T a, T epsilon = 1e-10) {// regularized_denominator
       // Ensures value stays at least epsilon away from 'a' to prevent numerical instabilities
@@ -47,30 +52,28 @@ static HD_INLINE T nonan(T val,T a, T epsilon = 1e-10) {// regularized_denominat
 template <typename Conf>
 struct resonant_scattering_scheme{
   using value_t = typename Conf::value_t;
-  HD_INLINE void check_nan(const char* name, value_t val) {
-      //  unsigned int bits = *(unsigned int*)&val;
-    unsigned int bits = *(unsigned int*)&val;
-    
-    
+  HD_INLINE void check_nan(const char *name, value_t val) {
+    //  unsigned int bits = *(unsigned int*)&val;
+    unsigned int bits = *(unsigned int *)&val;
+
     if (isnan(val)) {
-        printf("NaN detected in %s: %f (isnan=%d, isinf=%d)\n", 
-               name, val, (int)isnan(val), (int)isinf(val));
-        asm("trap;");
+      printf("NaN detected in %s: %f (isnan=%d, isinf=%d)\n", name, val,
+             (int)isnan(val), (int)isinf(val));
+      // asm("trap;");
     }
     if (isinf(val)) {
-        printf("Inf detected in %s: %f (isnan=%d, isinf=%d)\n", 
-               name, val, (int)isnan(val), (int)isinf(val));
-        asm("trap;");
+      printf("Inf detected in %s: %f (isnan=%d, isinf=%d)\n", name, val,
+             (int)isnan(val), (int)isinf(val));
+      // asm("trap;");
     }
-        
-    }
-    static HD_INLINE value_t max_a(value_t val, value_t a) {
-        // Ensures value does not exceed magnitude 'a'
-        if (val > a) return a;
-        if (val < -a) return -a;
-        return val;
-    }
-    
+  }
+
+  static HD_INLINE value_t max_a(value_t val, value_t a) {
+    // Ensures value does not exceed magnitude 'a'
+    if (val > a) return a;
+    if (val < -a) return -a;
+    return val;
+  }
 
   const grid_t<Conf> &m_grid;
   value_t BQ = 1.0e7;

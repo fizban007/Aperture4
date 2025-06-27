@@ -53,10 +53,17 @@ swap_values(T& a, T& b) {
   b = tmp;
 }
 
+// template <typename T>
+// HD_INLINE int
+// sgn(T val) {
+//   return (T(0) < val) - (val < T(0));
+// }
+
 template <typename T>
 HD_INLINE int
 sgn(T val) {
-  return (T(0) < val) - (val < T(0));
+  // if (val == 0) return 1;// To hopefully stop division by zero errors
+  return (T(0) <= val) - (val < T(0));
 }
 
 template <typename T>

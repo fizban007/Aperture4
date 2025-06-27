@@ -20,7 +20,7 @@
 #include "framework/config.h"
 #include "systems/grid.h"
 #include "systems/physics/lorentz_transform.hpp"
-#include "systems/policies/exec_policy_gpu.hpp"
+#include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -38,7 +38,7 @@ pml_sigma(Scalar x, Scalar xh, Scalar pmlscale, Scalar sig0) {
 
 template <typename Conf>
 boundary_condition<Conf>::boundary_condition(
-    const grid_t<Conf> &grid, const domain_comm<Conf, exec_policy_gpu> *comm)
+    const grid_t<Conf> &grid, const domain_comm<Conf, exec_policy_dynamic> *comm)
     : m_grid(grid), m_comm(comm) {
   using multi_array_t = typename Conf::multi_array_t;
 
@@ -132,7 +132,7 @@ boundary_condition<Conf>::init() {
   sim_env().get_data("Rho_e", rho_e);
   sim_env().get_data("Rho_p", rho_p);
 
-  injector = std::make_unique<ptc_injector<Conf, exec_policy_gpu>>(m_grid);
+  injector = std::make_unique<ptc_injector<Conf, exec_policy_dynamic>>(m_grid);
 }
 
 template <typename Conf>
@@ -177,13 +177,16 @@ boundary_condition<Conf>::damp_fields() {
 
   if (!is_periodic[0]) {
       // Apply damping boundary condition on both X boundaries
-      kernel_launch(
-          [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
+      // kernel_launch(
+    exec_policy_dynamic<Conf>::launch(
+          [Bp, Bg, is_boundary] LAMBDA (auto e, auto b, auto prev_e, auto prev_b,
                                            auto damping_length, auto damping_coef) {
-            auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            // auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            auto &grid = exec_policy_dynamic<Conf>::grid();
             auto ext = grid.extent();
             // auto ext_damping = extent(damping_length, grid.dims[0]);
-            for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+            // for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+            exec_policy_dynamic<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
               // x = 0 boundary
               if (is_boundary[0] == true) {
                 for (int i = 0; i < damping_length; i++) {
@@ -219,23 +222,26 @@ boundary_condition<Conf>::damp_fields() {
                   b[2][idx] *= lambda;
                 }
               }
-            }
+            });
           },
           E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
           m_damping_length, m_damping_coef);
   }
-  GpuSafeCall(gpuDeviceSynchronize());
-  GpuCheckError();
+  // GpuSafeCall(gpuDeviceSynchronize());
+  exec_policy_dynamic<Conf>::sync();
+  // GpuCheckError();
   
   if (!is_periodic[1]) {
       // Apply damping boundary condition on both Y boundaries
-      kernel_launch(
-          [Bp, Bg, is_boundary] __device__(auto e, auto b, auto prev_e, auto prev_b,
+      // kernel_launch(
+    exec_policy_dynamic<Conf>::launch(
+          [Bp, Bg, is_boundary] LAMBDA (auto e, auto b, auto prev_e, auto prev_b,
                                            auto damping_length, auto damping_coef) {
-            auto &grid = dev_grid<Conf::dim, typename Conf::value_t>();
+            auto &grid = exec_policy_dynamic<Conf>::grid();
             auto ext = grid.extent();
             // auto ext_damping = extent(damping_length, grid.dims[0]);
-            for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+            // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+            exec_policy_dynamic<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n0) {
               // y = -ymax boundary
               if (is_boundary[2] == true) {
                 for (int i = 0; i < damping_length; i++) {
@@ -271,13 +277,14 @@ boundary_condition<Conf>::damp_fields() {
                   b[2][idx] *= lambda;
                 }
               }
-            }
+            });
           },
           E->get_ptrs(), B->get_ptrs(), m_prev_E.dev_ptr(), m_prev_B.dev_ptr(),
           m_damping_length, m_damping_coef);
   }
-  GpuSafeCall(gpuDeviceSynchronize());
-  GpuCheckError();
+  exec_policy_dynamic<Conf>::sync();
+  // GpuSafeCall(gpuDeviceSynchronize());
+  // GpuCheckError();
 }
 
 template <typename Conf>
@@ -322,30 +329,30 @@ boundary_condition<Conf>::inject_plasma() {
   // rho_floor is the density floor for one species (half the total density floor)
   auto weight_per_upstream_ptc = rho_upstream / (1.0f * upstream_n);
   injector->inject_pairs(
-      [rho_e_ptr, rho_p_ptr, inj_size, is_periodic, is_boundary, rho_floor, weight_per_upstream_ptc] __device__(
-          auto &pos, auto &grid, auto &ext) {
+      [rho_e_ptr, rho_p_ptr, inj_size, is_periodic, is_boundary, rho_floor,
+       weight_per_upstream_ptc] LAMBDA (auto &pos, auto &grid, auto &ext) {
         auto x_global = grid.coord_global(pos, {0.5f, 0.5f, 0.0f});
         auto idx = Conf::idx(pos, ext);
         auto result = rho_p_ptr[idx] - rho_e_ptr[idx] <
             2.0f * rho_floor - 2.0f * weight_per_upstream_ptc;
         if (!is_periodic[0]) {
-            // Apply density floor everywhere if not periodic in x
-            return result;
+          // Apply density floor everywhere if not periodic in x
+          return result;
         } else if ((x_global[1] >= grid.lower[1] + grid.sizes[1] - inj_size &&
              is_boundary[3]) ||
             (x_global[1] < grid.lower[1] + inj_size && is_boundary[2])) {
-            // If periodic in x, just apply density floor near y boundaries
-            // where plasma will probably get depleted.
-            return result;
+          // If periodic in x, just apply density floor near y boundaries
+          // where plasma will probably get depleted.
+          return result;
         } else {
-            // This is when x is periodic and we're far from y boundaries.
-            // Don't inject plasma.
-            return false;
+          // This is when x is periodic and we're far from y boundaries.
+          // Don't inject plasma.
+          return false;
         }
       },
-      [] __device__(auto &pos, auto &grid, auto &ext) { return 2; },
-      [upstream_kT, boost_beta] __device__(auto &x_global,
-                                           rand_state &state, PtcType type) {
+      [] LAMBDA (auto &pos, auto &grid, auto &ext) { return 2; },
+      [upstream_kT, boost_beta] LAMBDA (auto &x_global, rand_state &state,
+                                           PtcType type) {
         // vec_t<value_t, 3> u_d =
         // rng.maxwell_juttner_drifting<value_t>(upstream_kT, 0.995f);
 
@@ -368,7 +375,9 @@ boundary_condition<Conf>::inject_plasma() {
         // 0.0f, 0.0f); return vec_t<value_t, 3>(p1, p2, p3);
       },
       // [upstream_n] __device__(auto &pos, auto &grid, auto &ext) {
-      [weight_per_upstream_ptc] __device__(auto &x_global, PtcType type) { return weight_per_upstream_ptc; });
+      [weight_per_upstream_ptc] LAMBDA (auto &x_global, PtcType type) {
+        return weight_per_upstream_ptc;
+      });
 
   // injector->inject_pairs(
   //     [rho_e_ptr, rho_p_ptr, inj_size, upstream_n, is_boundary] __device__(

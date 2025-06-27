@@ -349,7 +349,6 @@ Coordinate policies separate geometric calculations from the core simulation log
    }
 
 =============================
-
 Available Coordinate Systems
 =============================
 
@@ -791,7 +790,7 @@ Cartesian Grid Setup
 
    #include "core/grid.hpp"
    
-   // Grid parameters
+   // Grid parameters (typically read from TOML config)
    vec_t<uint32_t, 3> N = {256, 256, 256};           // Physical dimensions
    vec_t<uint32_t, 3> guard = {2, 2, 2};             // Guard cells per side
    vec_t<float, 3> sizes = {20.0, 20.0, 20.0};       // Domain sizes
@@ -820,7 +819,7 @@ Spherical Grid for Astrophysics
    // [grid]
    // N = [256, 128, 64]  # (r, θ, φ) resolution
    // lower = [1.0, 0.0, 0.0]         # Domain bounds
-   // upper = [1000.0, 3.14159, 6.28318]
+   // size = [999.0, 3.04, 6.28318]   # Domain size
    // 
    // [grid.spherical] 
    // log_spacing = [true, false, false]  # Logarithmic radial spacing
@@ -844,11 +843,11 @@ Black Hole Simulation Grid
    // [grid]
    // N = [256, 128, 64]
    // lower = [1.1, 0.1, 0.0]           # Domain bounds
-   // upper = [100.0, 3.04, 6.28318]    # Avoid polar singularities
+   // size = [98.9, 2.94, 6.28318]     # Domain size (avoid polar singularities)
    // 
    // [grid.kerr_schild]
-   // bh_mass = 1.0              # M = 1 (code units)
-   // bh_spin = 0.9              # a = 0.9 M (near-maximal)
+   // bh_mass = 1.0                     # M = 1 (code units)
+   // bh_spin = 0.9                     # a = 0.9 M (near-maximal)
    
    // Access metric coefficients (pre-computed)
    auto alpha = grid.get_alpha();        // Lapse function
@@ -858,23 +857,93 @@ Black Hole Simulation Grid
 Configuration Parameters
 ------------------------
 
-Grid setup is typically done through TOML configuration files:
+Grid setup is done through TOML configuration files read by the parameter system:
+
+**Domain Bounds Convention**: Aperture uses ``lower + size`` specification (not ``lower + upper``):
 
 .. code-block:: toml
 
    [grid]
    N = [256, 256, 256]                    # Physical grid dimensions
-   guard = [2, 2, 2]                      # Guard cells per direction
+   guard = [2, 2, 2]                      # Guard cells per direction (minimum 2)
    lower = [-10.0, -10.0, -10.0]          # Domain lower bounds
    size = [20.0, 20.0, 20.0]              # Domain sizes (upper = lower + size)
    
+   # MPI domain decomposition (optional)
+   nodes = [2, 2, 1]                      # 2×2×1 MPI grid
+   
    # Boundary conditions
-   periodic = [false, false, true]        # Periodic in z-direction only
+   periodic_boundary = [false, false, true]     # Periodic in z-direction only
    
    # Coordinate system specific parameters
    [grid.spherical]
    log_spacing = [true, false, false]     # Logarithmic radial spacing
    
    [grid.kerr_schild]
-   bh_mass = 1.0                  # Black hole mass in code units
-   bh_spin = 0.9                  # Dimensionless spin parameter
+   bh_mass = 1.0                          # Black hole mass in code units
+   bh_spin = 0.9                          # Dimensionless spin parameter
+
+**Examples from the Codebase**:
+
+.. code-block:: toml
+
+   # Two-stream instability (problems/two_stream/)
+   [grid]
+   N = [256, 64]                          # 256×64 grid
+   guard = [2, 2]                         # 2 guard cells per side
+   lower = [0.0, 0.0]                     # Start at origin
+   size = [2.0, 0.5]                      # 2.0 × 0.5 domain
+   nodes = [2, 4]                         # 2×4 MPI decomposition
+   
+   # Reconnection (problems/reconnection/)
+   [grid]
+   N = [512, 512]                        # 512×512 grid
+   guard = [3, 3]                         # 3 guard cells per side
+   lower = [0.0, 0.0]                     # Start at origin
+   size = [5.0, 5.0]                      # 5.0 × 5.0 domain
+
+=================
+
+Advanced Features
+=================
+
+Non-Uniform Grids
+-----------------
+
+Support for stretched grids with variable spacing:
+
+.. code-block:: cpp
+
+   // Custom spacing implemented through specialized grid classes
+   // or coordinate transformation functions in coordinate policies
+   
+   template <typename Conf>
+   class custom_grid_t : public grid_t<Conf> {
+       value_t custom_coord(int dir, int i, value_t offset) const {
+           if (dir == 0) {
+               // Custom spacing in x-direction
+               return custom_spacing_function(i, offset);
+           }
+           return this->coord(dir, i, offset);  // Default for other directions
+       }
+   };
+
+Grid Refinement
+---------------
+
+Adaptive mesh refinement capabilities:
+
+- **Static refinement**: Fixed high-resolution regions
+- **Dynamic refinement**: Adaptive refinement based on solution gradients
+- **Patch-based**: Hierarchical grid patches
+
+Coordinate Singularity Handling
+-------------------------------
+
+Special treatment for coordinate singularities:
+
+- **Polar axis**: Regularization at θ = 0, π in spherical coordinates
+- **Origin**: Proper boundary conditions at r = 0
+- **Horizons**: Excision or penetrating coordinates for black holes
+
+The grid system provides the essential geometric foundation that enables *Aperture* to handle complex coordinate systems and geometries while maintaining high performance across different computing architectures.

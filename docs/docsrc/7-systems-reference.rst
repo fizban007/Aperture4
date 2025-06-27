@@ -13,8 +13,8 @@ This section provides detailed documentation for each major system category, exp
    7.1-field-solvers
    7.2-particle-systems
    7.3-radiative-transfer
+   7.4-grid-systems
    ..
-      7.4-grid-systems
       7.5-parallel-computing
       7.6-data-io
       7.7-physics-modules

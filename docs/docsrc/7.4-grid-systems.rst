@@ -1,0 +1,880 @@
+============
+Grid Systems
+============
+
+Grid systems in *Aperture* provide the coordinate system foundation for all simulations. The grid architecture consists of four key design components: grid structure setup, multi-dimensional array implementation, index translation mechanisms, and coordinate policy abstraction.
+
+=================
+
+Design Philosophy
+=================
+
+Aperture's grid system follows a modular design where geometry-specific calculations are separated from the core grid data structure. This allows the same grid infrastructure to support multiple coordinate systems through policy-based templates.
+
+===================
+
+Core Grid Structure
+===================
+
+**Location**: ``src/core/grid.hpp``
+
+The ``Grid<Dim, value_t>`` struct provides the fundamental grid representation:
+
+.. code-block:: cpp
+
+   template <int Dim, typename value_t>
+   struct Grid {
+       uint32_t dims[Dim];      // Total dimensions including guard cells
+       uint32_t N[Dim];         // Physical dimensions (excluding guard cells)
+       int guard[Dim];          // Number of guard cells at each end
+       
+       value_t delta[Dim];      // Grid spacing in each direction
+       value_t inv_delta[Dim];  // Inverse grid spacing (cached for performance)
+       
+       value_t lower[Dim];      // Lower bounds of the domain
+       value_t sizes[Dim];      // Size of the domain in coordinate space
+       
+       int offset[Dim];         // Offset in global domain decomposition
+   };
+
+**Design Principle**: The grid is a simple struct rather than a class hierarchy. This design choice prioritizes performance and simplicity over object-oriented abstractions. All grid operations are implemented as template functions rather than virtual methods.
+
+**Guard Cell Architecture**:
+
+.. code-block:: cpp
+
+   // Total grid size includes guard cells for boundary conditions
+   dims[i] = N[i] + 2 * guard[i];
+   
+   // Physical coordinate calculation accounts for guard cells  
+   template <int n>
+   HD_INLINE value_t coord(int i, value_t pos_in_cell) const {
+       return lower[n] + delta[n] * (i - guard[n] + pos_in_cell);
+   }
+   
+   // Grid spacing calculation
+   delta[i] = sizes[i] / N[i];  // Based on physical size, not total grid
+
+**Key Methods**:
+
+.. code-block:: cpp
+
+   // Coordinate calculation with staggering support
+   template <int n>
+   HD_INLINE value_t coord(int i, value_t pos_in_cell) const {
+       return lower[n] + delta[n] * (i - guard[n] + pos_in_cell);
+   }
+   
+   // Boundary checking with stagger awareness
+   HD_INLINE bool is_in_bound(const index_t<Dim>& pos, stagger_t stagger) const;
+   
+   // Global to local coordinate conversion
+   template <typename FloatT>
+   HD_INLINE void from_global(const vec_t<value_t, 3>& global_x,
+                              index_t<Dim>& pos, vec_t<FloatT, 3>& rel_x) const;
+
+======================================
+
+Multi-Dimensional Array Implementation
+======================================
+
+**Location**: ``src/core/multi_array.hpp``
+
+The ``multi_array<T, Rank, Idx_t>`` class provides the core data structure for storing field and grid data:
+
+.. code-block:: cpp
+
+   template <typename T, int Rank, typename Idx_t = default_idx_t<Rank>>
+   class multi_array : public buffer<T> {
+   private:
+       extent_t<Rank> m_ext;  // Extent object storing dimensions and strides
+   
+   public:
+       // Template-based indexing with compile-time optimization
+       template <typename... Args>
+       inline T& operator()(Args... args) {
+           auto idx = get_idx(args...);
+           return this->m_data_h[idx.linear];
+       }
+   };
+
+**Design Philosophy**: Multi-dimensional arrays are built on top of linear memory buffers. This design provides several benefits:
+
+1. **Memory Efficiency**: All data is stored in contiguous linear memory
+2. **Performance**: Cache-friendly access patterns for both CPU and GPU
+3. **Flexibility**: Supports different indexing schemes through template parameters
+4. **GPU Compatibility**: Unified memory management for host/device execution
+
+**Memory Type Management**:
+
+.. code-block:: cpp
+
+   enum class MemType : char {
+       host_only = 0,        // CPU memory only
+       host_device,          // Separate host and device copies
+       device_managed,       // Unified memory (GPU-managed)
+       device_only           // GPU memory only
+   };
+
+**Reference Types for GPU Kernels**:
+
+.. code-block:: cpp
+
+   class ref_t {
+       HD_INLINE value_t& operator[](const idx_t& idx) {
+   #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+           return m_dev_ptr[idx];  // Use device pointer in GPU code
+   #else
+           return m_ptr[idx];      // Use host pointer in CPU code
+   #endif
+       }
+   };
+
+This design allows the same array reference to work correctly in both CPU and GPU code without performance overhead.
+
+============================
+
+Index Translation Mechanisms
+============================
+
+**Location**: ``src/utils/index.hpp``
+
+Index translation converts between multi-dimensional indices and linear memory addresses. Aperture supports three indexing schemes:
+
+**Column-Major Indexing (Default)**:
+
+.. code-block:: cpp
+
+   template <int Rank>
+   struct idx_col_major_t : public idx_base_t<idx_col_major_t<Rank>, Rank> {
+       const extent_t<Rank>& ext;
+       
+       HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
+           return pos.dot(ext.strides());  // Efficient dot product with precomputed strides
+       }
+       
+       inline index_t<Rank> pos(int64_t linear) const {
+           auto result = index_t<Rank>{};
+           auto n = linear;
+           result[0] = n % this->ext[0];
+           for (int i = 1; i < Rank; i++) {
+               n /= this->ext[i - 1];
+               result[i] = n % this->ext[i];
+           }
+           return result;
+       }
+   };
+
+**Row-Major Indexing**:
+
+.. code-block:: cpp
+
+   template <int Rank>
+   struct idx_row_major_t {
+       HD_INLINE int64_t to_linear(const index_t<Rank>& pos) const {
+           int64_t result = pos[Rank - 1];
+           int64_t stride = this->ext[Rank - 1];
+           for (int i = Rank - 2; i >= 0; i--) {
+               result += pos[i] * stride;
+               stride *= this->ext[i];
+           }
+           return result;
+       }
+   };
+
+**Z-Order (Morton) Indexing**:
+
+.. code-block:: cpp
+
+   template <>
+   struct idx_zorder_t<2> {
+       HD_INLINE uint64_t to_linear(const index_t<2>& pos) const {
+           return morton2d<uint32_t>(pos[0], pos[1]).key;
+       }
+       
+       HD_INLINE index_t<2> pos(uint64_t linear) const {
+           uint64_t x, y;
+           morton2(linear).decode(x, y);
+           return index_t<2>(x, y);
+       }
+   };
+
+**Design Rationale**: Different indexing schemes optimize for different access patterns:
+
+- **Column-major**: Optimal for physics field operations (default)
+- **Row-major**: Better for some mathematical libraries
+- **Z-order**: Improved cache locality for 2D/3D spatial operations
+
+**Efficient Index Operations**:
+
+.. code-block:: cpp
+
+   // Specialized increment operations for common directions
+   template <int Dir>
+   HD_INLINE self_type inc(int n = 1) const {
+       auto result = *this;
+       result.linear += n * ext.strides()[Dir];  // Direct stride multiplication
+       return result;
+   }
+   
+   HD_INLINE self_type inc_x(int n = 1) const { return inc<0>(n); }
+   HD_INLINE self_type inc_y(int n = 1) const { return inc<1>(n); }
+   HD_INLINE self_type inc_z(int n = 1) const { return inc<2>(n); }
+
+=============================
+
+Coordinate Policy Abstraction
+=============================
+
+**Location**: ``src/systems/policies/coord_policy_*.hpp``
+
+Coordinate policies separate geometric calculations from the core simulation logic. This design allows the same physics systems to work with different coordinate systems.
+
+**Policy-Based Design Pattern**:
+
+.. code-block:: cpp
+
+   template <typename Conf, typename ExecPolicy, typename CoordPolicy>
+   class field_solver : public system_t {
+       void update(double dt) override {
+           // Physics calculations are coordinate-independent
+           ExecPolicy::launch([=] LAMBDA (auto& E, auto& B) {
+               auto ext = ExecPolicy::grid().extent();
+               ExecPolicy::loop(Conf::begin(ext), Conf::end(ext),
+                   [=] LAMBDA (auto idx) {
+                       // Field update uses coordinate policy for metric terms
+                       CoordPolicy::update_fields(E, B, idx, dt);
+                   });
+           }, *m_E, *m_B);
+       }
+   };
+
+**Cartesian Coordinate Policy**:
+
+.. code-block:: cpp
+
+   template <typename Conf>
+   class coord_policy_cartesian_base {
+   public:
+       // Identity transformations for Cartesian coordinates
+       HD_INLINE static value_t weight_func(value_t x1, value_t x2, value_t x3 = 0.0f) {
+           return 1.0f;  // Uniform weight in Cartesian coordinates
+       }
+       
+       HD_INLINE static value_t x1(value_t x) { return x; }
+       HD_INLINE static value_t x2(value_t x) { return x; }
+       HD_INLINE static value_t x3(value_t x) { return x; }
+       
+       // Particle movement in Cartesian coordinates
+       template <typename PtcContext, typename UIntT>
+       HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
+                               PtcContext& context, vec_t<UIntT, Conf::dim>& pos,
+                               value_t dt) const {
+           for (int i = 0; i < Conf::dim; i++) {
+               context.new_x[i] = context.x[i] + 
+                   (context.p[i] * dt / context.gamma) * grid.inv_delta[i];
+               context.dc[i] = floor(context.new_x[i]);
+               pos[i] += context.dc[i];
+               context.new_x[i] -= to_float(context.dc[i]);
+           }
+       }
+   };
+
+**Spherical Coordinate Policy**:
+
+.. code-block:: cpp
+
+   template <typename Conf>
+   class coord_policy_spherical_base {
+   public:
+       // Spherical coordinate weight function (volume element)
+       HD_INLINE static value_t weight_func(value_t x1, value_t x2, value_t x3 = 0.0f) {
+           return math::sin(grid_type::theta(x2));  // sin(θ) factor
+       }
+       
+       // Coordinate transformations
+       HD_INLINE static value_t x1(value_t x) { return grid_type::radius(x); }
+       HD_INLINE static value_t x2(value_t x) { return grid_type::theta(x); }
+       HD_INLINE static value_t x3(value_t x) { return x; }
+       
+       // Complex particle movement with coordinate transformations
+       template <typename PtcContext>
+       HD_INLINE void move_ptc(const Grid<Conf::dim, value_t>& grid,
+                               PtcContext& context, index_t<Conf::dim>& pos,
+                               value_t dt) const {
+           // Convert to Cartesian for movement
+           vec_t<value_t, 3> x_global_old = get_global_position(grid, pos, context);
+           vec_t<value_t, 3> x_global_cart = grid_type::coord_to_cart(x_global_old);
+           
+           // Transform momentum to Cartesian
+           grid_type::vec_to_cart(context.p, x_global_old);
+           
+           // Move in Cartesian coordinates
+           x_global_cart += context.p * (dt / context.gamma);
+           
+           // Convert back to spherical
+           vec_t<value_t, 3> x_global_sph_new = grid_type::coord_from_cart(x_global_cart);
+           grid_type::vec_from_cart(context.p, x_global_sph_new);
+           
+           // Update grid position
+           update_grid_position(grid, pos, context, x_global_old, x_global_sph_new);
+       }
+   };
+
+**Key Design Benefits**:
+
+1. **Separation of Concerns**: Physics algorithms are independent of coordinate system details
+2. **Code Reuse**: Same field solver works for Cartesian, spherical, and other geometries
+3. **Performance**: Coordinate-specific optimizations can be implemented in each policy
+4. **Extensibility**: New coordinate systems can be added without modifying existing code
+
+**Policy Integration with Multi-Array Indexing**:
+
+.. code-block:: cpp
+
+   // Coordinate policies work with any indexing scheme
+   template <typename Conf, typename CoordPolicy>
+   void field_operation() {
+       auto& field = get_field();
+       auto ext = field.extent();
+       
+       // Policy handles geometry while indexing handles memory layout
+       for (auto idx : field.indices()) {
+           auto pos = idx.get_pos();  // Multi-dimensional position
+           auto coord = CoordPolicy::get_coordinate(pos);  // Physical coordinate
+           auto weight = CoordPolicy::weight_func(coord[0], coord[1], coord[2]);
+           
+           field[idx] *= weight;  // Apply coordinate-dependent factor
+       }
+   }
+
+=============================
+
+Available Coordinate Systems
+=============================
+
+Cartesian Grid
+--------------
+
+**Class**: ``grid_t<Conf>``
+
+**Files**: ``src/systems/grid.h``, ``src/core/grid.hpp``
+
+The Cartesian grid provides uniform spacing in all dimensions.
+
+**Features**:
+
+- Uniform grid spacing: :math:`\Delta x = \text{const}`
+- Simple coordinate transformations
+- Optimal performance for Cartesian field solvers
+- Support for non-cubic domains
+
+**Coordinate System**:
+
+.. math::
+
+   x_i = x_{\text{min}} + (i - n_{\text{guard}} + 0.5) \Delta x
+   
+   y_j = y_{\text{min}} + (j - n_{\text{guard}} + 0.5) \Delta y
+   
+   z_k = z_{\text{min}} + (k - n_{\text{guard}} + 0.5) \Delta z
+
+where :math:`n_{\text{guard}}` is the number of guard cells, and the 0.5 offset places field values at cell centers for unstaggered quantities.
+
+**Key Methods**:
+
+.. code-block:: cpp
+
+   template <class Conf>
+   class grid_t : public Grid<Conf::dim, typename Conf::value_t> {
+   public:
+       // Coordinate transformations
+       vec_t<Conf::value_t, 3> cart_coord(const index_t<Conf::dim>& idx) const;
+       
+       // Global/local coordinate conversion
+       Conf::value_t x_global(int d, int idx) const;
+       int from_x_global(int d, Conf::value_t x) const;
+   };
+
+Spherical Grid
+--------------
+
+**Class**: ``grid_sph_t<Conf>``
+
+**Files**: ``src/systems/grid_sph.hpp``, ``src/systems/grid_sph.cpp``
+
+The spherical grid handles spherical coordinates with support for both linear and logarithmic radial spacing.
+
+**Features**:
+
+- Logarithmic radial spacing for astrophysical simulations
+- Uniform angular spacing
+- Proper handling of polar coordinate singularities
+- Coordinate transformation utilities
+
+**Coordinate System**:
+
+Spherical coordinates :math:`(r, \theta, \phi)` with:
+
+.. math::
+
+   r_i = r_{\text{min}} \left(\frac{r_{\text{max}}}{r_{\text{min}}}\right)^{i/N_r} \quad \text{(logarithmic)}
+
+   \theta_j = \frac{\pi j}{N_\theta} \quad \text{(uniform)}
+
+   \phi_k = \frac{2\pi k}{N_\phi} \quad \text{(uniform)}
+
+**Key Features**:
+
+- **Logarithmic radial grid**: Efficiently covers large radial ranges
+- **Polar axis treatment**: Special handling at :math:`\theta = 0, \pi`
+- **Coordinate conversions**: Efficient spherical ↔ Cartesian transformations
+
+**Key Methods**:
+
+.. code-block:: cpp
+
+   template <class Conf>
+   class grid_sph_t : public grid_t<Conf> {
+   public:
+       // Coordinate transformations
+       vec_t<Conf::value_t, 3> coord_from_cart(const vec_t<Conf::value_t, 3>& cart) const;
+       vec_t<Conf::value_t, 3> coord_to_cart(const vec_t<Conf::value_t, 3>& coord) const;
+       
+       // Metric functions
+       Conf::value_t sqrt_gamma(const index_t<3>& idx) const;
+   };
+
+Polar Grid  
+----------
+
+**Class**: ``grid_polar_t<Conf>``
+
+**Files**: ``src/systems/grid_polar.hpp``
+
+A 2D cylindrical coordinate grid for axisymmetric simulations.
+
+**Features**:
+
+- 2D cylindrical coordinates :math:`(r, \phi, z)`
+- Axisymmetric problem optimization
+- Efficient for pulsar magnetosphere simulations
+
+**Coordinate System**:
+
+.. math::
+
+   r_i = r_{\text{min}} + i \Delta r
+   
+   z_k = z_{\text{min}} + k \Delta z
+
+General Relativistic Grid
+-------------------------
+
+**Class**: ``grid_ks_t<Conf>``
+
+**Files**: ``src/systems/grid_ks.hpp``
+
+The Kerr-Schild grid implements spacetime coordinates for general relativistic simulations around black holes.
+
+**Features**:
+
+- Kerr-Schild coordinates for rotating black holes
+- Pre-computed metric coefficients
+- Horizon-penetrating coordinate system
+- Support for arbitrary black hole spin
+
+**Spacetime Metric**:
+
+The Kerr-Schild metric in spherical coordinates:
+
+.. math::
+
+   ds^2 = -\left(1 - \frac{2Mr}{\rho^2}\right)dt^2 + \frac{4Mar\sin^2\theta}{\rho^2}dt d\phi + \frac{\rho^2}{\Delta}dr^2 + \rho^2 d\theta^2 + \sin^2\theta\left(r^2 + a^2 + \frac{2Ma^2r\sin^2\theta}{\rho^2}\right)d\phi^2
+
+where:
+
+.. math::
+
+   \rho^2 = r^2 + a^2\cos^2\theta, \quad \Delta = r^2 - 2Mr + a^2
+
+**Key Methods**:
+
+.. code-block:: cpp
+
+   template <class Conf>
+   class grid_ks_t : public grid_sph_t<Conf> {
+   public:
+       // Metric coefficients (pre-computed)
+       multi_array<Conf::value_t, Conf::dim> alpha;     // Lapse function
+       multi_array<vec_t<Conf::value_t, 3>, Conf::dim> beta;  // Shift vector
+       multi_array<mat_t<Conf::value_t, 3, 3>, Conf::dim> gamma;  // 3-metric
+       
+       // Coordinate utilities
+       Conf::value_t radius(const index_t<3>& idx) const;
+       Conf::value_t theta(const index_t<3>& idx) const;
+       
+       // Black hole parameters
+       void set_black_hole_mass(Conf::value_t mass);
+       void set_black_hole_spin(Conf::value_t spin);
+   };
+
+**Applications**:
+
+- Black hole magnetosphere simulations
+- Accretion disk modeling
+- Relativistic jet formation
+- Tests of general relativity
+
+==========================
+
+Coordinate Transformations
+==========================
+
+Position Calculations
+---------------------
+
+All grids provide methods to convert between grid indices and physical coordinates:
+
+.. code-block:: cpp
+
+   // Convert grid index to physical coordinate
+   auto coord = grid.coord(dim, index, stagger_offset);
+   
+   // Convert physical coordinate to grid index and relative position
+   index_t<Dim> pos;
+   vec_t<float, 3> rel_pos;
+   grid.from_global(global_coord, pos, rel_pos);
+
+**Yee Mesh and Field Staggering**
+
+Aperture implements the standard **Yee mesh** for electromagnetic field discretization, where electric and magnetic field components are positioned at different locations within each grid cell to ensure proper coupling between Maxwell's equations.
+
+**Field Types and Stagger Patterns**:
+
+**Location**: ``src/data/fields.h``, ``src/utils/stagger.h``
+
+.. code-block:: cpp
+
+   enum field_type : char {
+       face_centered,    // B-field components
+       edge_centered,    // E-field components  
+       cell_centered,    // Scalar quantities
+       vert_centered     // Vertex-centered quantities
+   };
+
+**Binary Stagger Encoding**:
+
+Aperture uses a sophisticated binary encoding for stagger patterns:
+
+.. code-block:: cpp
+
+   class stagger_t {
+       unsigned char stagger;  // Bit pattern for stagger directions
+   public:
+       stagger_t(unsigned char s) : stagger(s) {};
+       
+       // Extract stagger status for dimension i
+       HD_INLINE int operator[](int i) const { return (stagger >> i) & 1UL; }
+   };
+
+**Yee Mesh Convention**:
+
+.. code-block:: cpp
+
+   // B-field: Face-centered (staggered in one direction)
+   if (type == field_type::face_centered) {
+       m_stagger[0] = stagger_t(0b001);  // Bx: staggered in x-direction only
+       m_stagger[1] = stagger_t(0b010);  // By: staggered in y-direction only  
+       m_stagger[2] = stagger_t(0b100);  // Bz: staggered in z-direction only
+   }
+   
+   // E-field: Edge-centered (staggered in two directions)
+   else if (type == field_type::edge_centered) {
+       m_stagger[0] = stagger_t(0b110);  // Ex: staggered in y,z directions
+       m_stagger[1] = stagger_t(0b101);  // Ey: staggered in x,z directions
+       m_stagger[2] = stagger_t(0b011);  // Ez: staggered in x,y directions
+   }
+
+**Physical Positioning**:
+
+The stagger affects coordinate calculations:
+
+.. code-block:: cpp
+
+   template <int n>
+   HD_INLINE value_t coord(int i, int stagger) const {
+       return lower[n] + delta[n] * (i - guard[n] + (0.5 - 0.5 * stagger));
+   }
+
+- ``stagger = 0``: Cell center (offset +0.5)
+- ``stagger = 1``: Cell boundary (offset 0.0)
+
+**Key Properties**:
+
+1. **E-field components** live on **cell edges** (edge-centered)
+2. **B-field components** live on **cell faces** (face-centered)  
+3. **Scalar fields** live at **cell centers** (cell-centered)
+4. This arrangement ensures **proper electromagnetic coupling** in Maxwell's equations
+
+**Field Initialization Example**:
+
+.. code-block:: cpp
+
+   #include "data/fields.h"
+   
+   // Register electromagnetic fields with automatic Yee staggering
+   auto& E = env.register_data<vector_field<Conf>>(
+       "E", grid, field_type::edge_centered, MemType::host_device);
+   auto& B = env.register_data<vector_field<Conf>>(
+       "B", grid, field_type::face_centered, MemType::host_device);
+   
+   // Set initial field values using stagger-aware coordinates
+   E.set_values([](int n, double x, double y, double z) {
+       // n=0: Ex, n=1: Ey, n=2: Ez
+       // (x,y,z) are automatically stagger-adjusted coordinates
+       return initial_E_field(n, x, y, z);
+   });
+   
+   // Verify stagger patterns
+   assert(E.stagger(0) == stagger_t(0b110));  // Ex staggered in y,z
+   assert(B.stagger(0) == stagger_t(0b001));  // Bx staggered in x only
+
+Coordinate Conversions
+---------------------
+
+Grids provide coordinate system conversion utilities:
+
+.. code-block:: cpp
+
+   // Spherical grid coordinate conversions
+   auto cartesian = grid.coord_to_cart({r, theta, phi});
+   auto spherical = grid.coord_from_cart({x, y, z});
+
+===================
+
+Metric Calculations
+===================
+
+Metric Tensors
+--------------
+
+For curved coordinate systems, grids compute metric tensor components:
+
+.. math::
+
+   ds^2 = g_{\mu\nu} dx^\mu dx^\nu
+
+**Spherical Coordinates**:
+
+.. math::
+
+   g_{rr} = 1, \quad g_{\theta\theta} = r^2, \quad g_{\phi\phi} = r^2\sin^2\theta
+
+**Kerr-Schild Coordinates**: Full 4D spacetime metric with black hole effects.
+
+Volume Elements
+---------------
+
+Proper volume elements for integration:
+
+.. math::
+
+   dV = \sqrt{g} \, dr \, d\theta \, d\phi
+
+where :math:`\sqrt{g}` is the square root of the metric determinant.
+
+.. code-block:: cpp
+
+   // Volume element at grid point
+   auto volume = grid.cell_volume(index);
+   
+   // Metric determinant
+   auto sqrt_gamma = grid.sqrt_gamma(index);
+
+====================
+
+Domain Decomposition
+====================
+
+MPI Parallelization
+-------------------
+
+Grids support MPI domain decomposition for parallel simulations:
+
+.. code-block:: cpp
+
+   template <class Conf>
+   class grid_t {
+       // Local domain information
+       extent_t<Conf::dim> m_partition;      // MPI rank grid
+       index_t<Conf::dim> m_rank_coord;      // This rank's coordinate
+       extent_t<Conf::dim> m_local_dims;     // Local grid dimensions
+       
+   public:
+       // Domain queries
+       bool is_boundary(int dim, int side) const;
+       extent_t<Conf::dim> guard_extent() const;
+   };
+
+**Features**:
+
+- **Cartesian MPI topology**: Efficient nearest-neighbor communication
+- **Load balancing**: Equal distribution of grid points across ranks
+- **Guard cells**: Overlap regions for inter-domain communication
+
+Guard Cell Management
+--------------------
+
+Guard cells (ghost zones) handle boundaries between MPI domains:
+
+.. code-block:: cpp
+
+   // Guard cell setup
+   constexpr int guard_width = 2;  // Number of guard cell layers
+   
+   // Total grid including guard cells
+   auto total_dims = local_dims + 2 * guard_width;
+
+**Communication Pattern**:
+
+1. **Field updates**: Exchange guard cell values after field evolution
+2. **Particle communication**: Transfer particles crossing domain boundaries
+3. **Synchronization**: Ensure consistent state across all domains
+
+Performance Considerations
+==========================
+
+Memory Layout
+-------------
+
+Grids use efficient memory layouts for different access patterns:
+
+- **Structure of Arrays (SoA)**: Better vectorization and GPU performance
+- **Contiguous storage**: Optimal cache performance for grid traversals
+- **Aligned memory**: SIMD and GPU memory alignment requirements
+
+Cache Optimization
+------------------
+
+Grid traversal patterns optimized for cache performance:
+
+.. code-block:: cpp
+
+   // Cache-friendly loop ordering (innermost dimension varies fastest)
+   for (int k = 0; k < dims[2]; ++k) {
+       for (int j = 0; j < dims[1]; ++j) {
+           for (int i = 0; i < dims[0]; ++i) {
+               // Process grid point (i, j, k)
+           }
+       }
+   }
+
+GPU Memory Management
+--------------------
+
+Efficient GPU memory access patterns:
+
+- **Coalesced access**: Memory access patterns optimized for GPU hardware
+- **Shared memory**: Utilize GPU shared memory for coordinate calculations
+- **Constant memory**: Store grid parameters in constant memory
+
+======================
+
+Configuration Examples
+======================
+
+Cartesian Grid Setup
+--------------------
+
+.. code-block:: cpp
+
+   #include "core/grid.hpp"
+   
+   // Grid parameters
+   vec_t<uint32_t, 3> N = {256, 256, 256};           // Physical dimensions
+   vec_t<uint32_t, 3> guard = {2, 2, 2};             // Guard cells per side
+   vec_t<float, 3> sizes = {20.0, 20.0, 20.0};       // Domain sizes
+   vec_t<float, 3> lower = {-10.0, -10.0, -10.0};    // Lower bounds
+   
+   // Create grid using factory function
+   auto grid = make_grid(N, guard, sizes, lower);
+   
+   // Access grid properties directly (struct-based interface)
+   auto spacing_x = grid.delta[0];        // Grid spacing in x
+   auto total_nx = grid.dims[0];          // Total cells including guard
+   auto physical_nx = grid.N[0];          // Physical cells only
+
+Spherical Grid for Astrophysics
+-------------------------------
+
+.. code-block:: cpp
+
+   #include "systems/grid_sph.hpp"
+   
+   // Spherical grid configuration through environment
+   auto& env = sim_environment::instance();
+   auto& grid = env.register_system<grid_sph_t<Config>>();
+   
+   // Configuration typically done through TOML config file:
+   // [grid]
+   // N = [256, 128, 64]  # (r, θ, φ) resolution
+   // lower = [1.0, 0.0, 0.0]         # Domain bounds
+   // upper = [1000.0, 3.14159, 6.28318]
+   // 
+   // [grid.spherical] 
+   // log_spacing = [true, false, false]  # Logarithmic radial spacing
+   
+   // Access spherical grid properties
+   auto r_min = grid.lower[0];           // Minimum radius
+   auto theta_spacing = grid.delta[1];   // Angular spacing
+
+Black Hole Simulation Grid
+--------------------------
+
+.. code-block:: cpp
+
+   #include "systems/grid_ks.h"
+   
+   // Black hole grid setup through configuration
+   auto& env = sim_environment::instance();
+   auto& grid = env.register_system<grid_ks_t<Config>>();
+   
+   // Configuration through TOML file:
+   // [grid]
+   // N = [256, 128, 64]
+   // lower = [1.1, 0.1, 0.0]           # Domain bounds
+   // upper = [100.0, 3.04, 6.28318]    # Avoid polar singularities
+   // 
+   // [grid.kerr_schild]
+   // bh_mass = 1.0              # M = 1 (code units)
+   // bh_spin = 0.9              # a = 0.9 M (near-maximal)
+   
+   // Access metric coefficients (pre-computed)
+   auto alpha = grid.get_alpha();        // Lapse function
+   auto beta = grid.get_beta();          // Shift vector 
+   auto gamma = grid.get_gamma();        // 3-metric
+
+Configuration Parameters
+------------------------
+
+Grid setup is typically done through TOML configuration files:
+
+.. code-block:: toml
+
+   [grid]
+   N = [256, 256, 256]                    # Physical grid dimensions
+   guard = [2, 2, 2]                      # Guard cells per direction
+   lower = [-10.0, -10.0, -10.0]          # Domain lower bounds
+   size = [20.0, 20.0, 20.0]              # Domain sizes (upper = lower + size)
+   
+   # Boundary conditions
+   periodic = [false, false, true]        # Periodic in z-direction only
+   
+   # Coordinate system specific parameters
+   [grid.spherical]
+   log_spacing = [true, false, false]     # Logarithmic radial spacing
+   
+   [grid.kerr_schild]
+   bh_mass = 1.0                  # Black hole mass in code units
+   bh_spin = 0.9                  # Dimensionless spin parameter

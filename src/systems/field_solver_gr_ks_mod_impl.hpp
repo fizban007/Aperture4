@@ -176,21 +176,38 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
             value_t r_minus = grid_ks_t<Conf>::radius(
                 grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
             value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+            value_t w_minus;
+            value_t w_plus;
 
+            // E_1 = alpha D_1 = alpha (gamma_11 D^1 + gamma_13 D^3)
             // Handle coordinate axis
             if (math::abs(th) < 0.1f * grid.delta[1] ||
                 math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
-              auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
+              auxE[0][idx] =
+                  r * grid.delta[0] * Metric_KS::ag_11(a, r, th) * D[0][idx];
+              // auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
               // auxE[0][idx] =
                   // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0];
               // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
               //   printf("auxE0 is %f, D0 is %f\n", auxE[0][idx], D[0][idx]);
               // }
             } else {
+              w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+              w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
               auxE[0][idx] =
-                  grid_ptrs.ag11dr_e[idx] * D[0][idx] +
-                  0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
-                         grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
+                  r * grid.delta[0] * Metric_KS::alpha(a, r, th) * (
+                      Metric_KS::g_11(a, r, th) * (
+                          D[0][idx]
+                      ) +
+                      Metric_KS::g_13(a, r, th) * (
+                          (w_minus * D[2][idx] + w_plus * D[2][idx.inc_x()]) /
+                          (w_minus + w_plus)
+                      )
+                  );
+              // auxE[0][idx] =
+              //     grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+              //     0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
+              //            grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
                   // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0] +
                   // 0.5 *
                   //     (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus +
@@ -208,39 +225,77 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                                               0.5f * grid.delta[0]);
             th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
+            // E_2 = alpha D_2          - sqrt(gam) beta^1 B^3
+            //     = alpha gamma_22 D^2 - sqrt(gam) beta^1 B^3
+            w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+            w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
             auxE[1][idx] =
-                // Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
-                    grid_ptrs.ag22dth_e[idx] * D[1][idx] -
-                // 0.5 *
-                //     (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
-                //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                //          B[2][idx.dec_x()]) *
-                //     grid.delta[1];
-            0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
-                   grid_ptrs.gbetadth_b[idx.dec_x()] *
-                   B[2][idx.dec_x()]);
+                grid.delta[1] * (
+                    Metric_KS::alpha(a, r, th) * Metric_KS::g_22(a, r, th) * (
+                        D[1][idx]
+                    ) -
+                    Metric_KS::sqrt_gamma(a, r, th) * Metric_KS::beta1(a, r, th) * (
+                        (w_minus * B[2][idx.dec_x()] + w_plus * B[2][idx]) /
+                        (w_minus + w_plus)
+                    )  
+                );
+            // auxE[1][idx] =
+            //     // Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
+            //         grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+            //     // 0.5 *
+            //     //     (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
+            //     //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
+            //     //          B[2][idx.dec_x()]) *
+            //     //     grid.delta[1];
+            // 0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
+            //        grid_ptrs.gbetadth_b[idx.dec_x()] *
+            //        B[2][idx.dec_x()]);
             // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] +
             // B[2][idx.dec_x()]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
             // * (B[2][idx] + B[2][idx.dec_x()]);
 
             th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
+            w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+            w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
+
+            // E_3 = alpha D_3                   + sqrt(gam) beta^1 B^2
+            //     = alpha (g_33 D^3 + g_31 D^1) + sqrt(gam) beta^1 B^2
             // Handle coordinate axis
             if (math::abs(th) < 0.1f * grid.delta[1] ||
                 math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
               auxE[2][idx] =
-                  0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-                         Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]);
+                  Metric_KS::alpha(a, r, th) * Metric_KS::g_13(a, r, th) * (
+                      (w_minus * D[0][idx.dec_x()] + w_plus * D[0][idx]) / 
+                      (w_minus + w_plus)
+                  );
+              // auxE[2][idx] =
+              //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+              //            Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]);
               // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
               // D[0][idx.dec_x()]);
             } else {
               auxE[2][idx] =
-                  Metric_KS::ag_33(a, r, th) * D[2][idx] +
-                  0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-                         Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]) +
-                  0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
-                         Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                             B[1][idx.dec_x()]);
+                  Metric_KS::alpha(a, r, th) * (
+                      Metric_KS::g_33(a, r, th) * (
+                          D[2][idx]
+                      ) +
+                      Metric_KS::g_13(a, r, th) * (
+                          (w_minus * D[0][idx.dec_x()] + w_plus * D[0][idx]) / 
+                          (w_minus + w_plus)
+                      )
+                  ) +
+                  Metric_KS::sqrt_gamma(a, r, th) * Metric_KS::beta1(a, r, th) * (
+                      (w_minus * B[1][idx.dec_x()] + w_plus * B[1][idx]) / 
+                      (w_minus + w_plus)
+                  );
+              // auxE[2][idx] =
+              //     Metric_KS::ag_33(a, r, th) * D[2][idx] +
+              //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+              //            Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]) +
+              //     0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
+              //            Metric_KS::sq_gamma_beta(a, r_minus, th) *
+              //                B[1][idx.dec_x()]);
               // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
               // D[0][idx.dec_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r,
               // th) * (B[1][idx] + B[1][idx.dec_x()]);
@@ -277,20 +332,33 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                     grid.coord(0, pos[0], true) - 0.5f * grid.delta[0]);
                 value_t th =
                     grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+                value_t w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+                value_t w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
 
+                // H_1 = alpha B_1 = alpha (gamma_11 B^1 + gamma_13 B^3)
                 auxH[0][idx] =
-                    grid_ptrs.ag11dr_h[idx] * B[0][idx] +
-                    // Metric_KS::ag_11(a, r, th) * B[0][idx] * r * grid.delta[0] +
-                    // 0.5 *
-                    //     (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] *
-                    //          r_minus +
-                    //      Metric_KS::ag_13(a, r_plus, th) * B[2][idx] * r_plus) *
-                    //     grid.delta[0];
-                0.5 * (grid_ptrs.ag13dr_b[idx.dec_x()] * B[2][idx.dec_x()] +
-                       grid_ptrs.ag13dr_b[idx] * B[2][idx]);
-                // 0.5 * grid_ptrs.ag13dr_h[idx] * (B[2][idx.dec_x()] +
-                // B[2][idx]); 0.5 * Metric_KS::ag_13(a, r, th) *
-                // (B[2][idx.dec_x()] + B[2][idx]);
+                    r * grid.delta[0] * Metric_KS::alpha(a, r, th) * (
+                        Metric_KS::g_11(a, r, th) * (
+                            B[0][idx]
+                        ) +
+                        Metric_KS::g_13(a, r, th) * (
+                            (w_minus * B[2][idx.dec_x()] + w_plus * B[2][idx]) /
+                            (w_minus + w_plus)
+                        ) 
+                    );
+                // auxH[0][idx] =
+                //     grid_ptrs.ag11dr_h[idx] * B[0][idx] +
+                //     // Metric_KS::ag_11(a, r, th) * B[0][idx] * r * grid.delta[0] +
+                //     // 0.5 *
+                //     //     (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] *
+                //     //          r_minus +
+                //     //      Metric_KS::ag_13(a, r_plus, th) * B[2][idx] * r_plus) *
+                //     //     grid.delta[0];
+                // 0.5 * (grid_ptrs.ag13dr_b[idx.dec_x()] * B[2][idx.dec_x()] +
+                //        grid_ptrs.ag13dr_b[idx] * B[2][idx]);
+                // // 0.5 * grid_ptrs.ag13dr_h[idx] * (B[2][idx.dec_x()] +
+                // // B[2][idx]); 0.5 * Metric_KS::ag_13(a, r, th) *
+                // // (B[2][idx.dec_x()] + B[2][idx]);
 
                 r_minus = r;
                 r = r_plus;
@@ -298,39 +366,73 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                                                  0.5f * grid.delta[0]);
                 th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
+                w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+                w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
+
+                // H_2 = alpha B_2          + sqrt(gam) beta^1 D^3
+                //     = alpha gamma_22 B^2 + sqrt(gam) beta^1 D^3
                 // Handle coordinate axis
                 if (math::abs(th) < 0.1f * grid.delta[1] ||
                     math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
                   auxH[1][idx] = 0.0f;
                 } else {
                   auxH[1][idx] =
-                      grid_ptrs.ag22dth_h[idx] * B[1][idx] +
-                      // Metric_KS::ag_22(a, r, th) * B[1][idx] * grid.delta[1] +
-                      // 0.5 *
-                      //     (Metric_KS::sq_gamma_beta(a, r_plus, th) *
-                      //          D[2][idx.inc_x()] +
-                      //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
-                      //          D[2][idx]) *
-                      //     grid.delta[1];
-                  0.5 * (grid_ptrs.gbetadth_d[idx.inc_x()] *
-                             D[2][idx.inc_x()] +
-                         grid_ptrs.gbetadth_d[idx] *
-                             D[2][idx]);
-                  // 0.5 * grid_ptrs.gbetadth_h[idx] * (D[2][idx.inc_x()] +
-                  // D[2][idx]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th) *
-                  // (D[2][idx.inc_x()] + D[2][idx]);
+                      grid.delta[1] * (
+                          Metric_KS::alpha(a, r, th) * Metric_KS::g_22(a, r, th) * (
+                              B[1][idx]
+                          ) +
+                          Metric_KS::sqrt_gamma(a, r, th) * Metric_KS::beta1(a, r, th) * (
+                              (w_minus * D[2][idx] + w_plus * D[2][idx.inc_x()]) /
+                              (w_minus + w_plus)
+                          )
+                      );
+                  // auxH[1][idx] =
+                  //     grid_ptrs.ag22dth_h[idx] * B[1][idx] +
+                  //     // Metric_KS::ag_22(a, r, th) * B[1][idx] * grid.delta[1] +
+                  //     // 0.5 *
+                  //     //     (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                  //     //          D[2][idx.inc_x()] +
+                  //     //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                  //     //          D[2][idx]) *
+                  //     //     grid.delta[1];
+                  // 0.5 * (grid_ptrs.gbetadth_d[idx.inc_x()] *
+                  //            D[2][idx.inc_x()] +
+                  //        grid_ptrs.gbetadth_d[idx] *
+                  //            D[2][idx]);
+                  // // 0.5 * grid_ptrs.gbetadth_h[idx] * (D[2][idx.inc_x()] +
+                  // // D[2][idx]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th) *
+                  // // (D[2][idx.inc_x()] + D[2][idx]);
                 }
 
                 th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
+                w_minus = Metric_KS::sqrt_gamma(a, r_minus, th);
+                w_plus = Metric_KS::sqrt_gamma(a, r_plus, th);
+
+                // H_3 = alpha B_3                           - sqrt(gam) beta^1 D^2
+                //     = alpha (gamma_31 B^1 + gamma_33 B^3) - sqrt(gam) beta^1 D^2
                 auxH[2][idx] =
-                    Metric_KS::ag_33(a, r, th) * B[2][idx] +
-                    0.5 * (Metric_KS::ag_13(a, r_plus, th) * B[0][idx.inc_x()] +
-                           Metric_KS::ag_13(a, r_minus, th) * B[0][idx]) -
-                    0.5 *
-                        (Metric_KS::sq_gamma_beta(a, r_plus, th) *
-                             D[1][idx.inc_x()] +
-                         Metric_KS::sq_gamma_beta(a, r_minus, th) * D[1][idx]);
+                    Metric_KS::alpha(a, r, th) * (
+                        Metric_KS::g_33(a, r, th) * (
+                            B[2][idx]
+                        ) +
+                        Metric_KS::g_13(a, r, th) * (
+                            (w_minus * B[0][idx] + w_plus * B[0][idx.inc_x()]) /
+                            (w_minus + w_plus)
+                        )
+                    ) -
+                    Metric_KS::sqrt_gamma(a, r, th) * Metric_KS::beta1(a, r, th) * (
+                        (w_minus * D[1][idx] + w_plus * D[1][idx.inc_x()]) /
+                        (w_minus + w_plus)
+                    );
+                // auxH[2][idx] =
+                //     Metric_KS::ag_33(a, r, th) * B[2][idx] +
+                //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * B[0][idx.inc_x()] +
+                //            Metric_KS::ag_13(a, r_minus, th) * B[0][idx]) -
+                //     0.5 *
+                //         (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                //              D[1][idx.inc_x()] +
+                //          Metric_KS::sq_gamma_beta(a, r_minus, th) * D[1][idx]);
                 // 0.5 * Metric_KS::ag_13(a, r, th) * (B[0][idx] +
                 // B[0][idx.inc_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
                 // * (D[1][idx] + D[1][idx.inc_x()]);

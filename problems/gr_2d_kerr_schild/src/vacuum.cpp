@@ -20,6 +20,7 @@
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
 #include "systems/field_solver_gr_ks.h"
+#include "systems/field_solver_gr_ks_mod.h"
 #include "systems/grid_ks.h"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
@@ -48,9 +49,21 @@ main(int argc, char *argv[]) {
   domain_comm<Conf, exec_policy_dynamic> comm;
   grid_ks_t<Conf> grid(comm);
 
-  auto solver = env.register_system<
-      field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid,
-                                                                       &comm);
+  bool use_modded_solve;
+  env.params().get_value("use_modified_field_solve", use_modded_solve);
+
+  if (use_modded_solve) {
+      auto solver = env.register_system<
+          field_solver_mod<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid,
+                                                                           &comm);
+      Logger::print_info("Using modified field solve.");
+  } else {
+      auto solver = env.register_system<
+          field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid,
+                                                                           &comm);
+      Logger::print_info("Using original field solve.");
+  }
+
   auto exporter =
       env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 

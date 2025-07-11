@@ -24,6 +24,7 @@
 #include "systems/policies/coord_policy_polar.hpp"
 // #include "systems/policies/coord_policy_polar_sync_cooling.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
+#include "systems/policies/coord_policy_spherical_gca.hpp"
 // #include "systems/policies/coord_policy_spherical_sync_cooling.hpp"
 #include "systems/policies/exec_policy_gpu.hpp"
 #include "systems/policies/ptc_physics_policy_empty.hpp"
@@ -46,6 +47,7 @@ template class ptc_updater<Config<3>, exec_policy_gpu,
                            coord_policy_cartesian_gca_lite>;
 
 template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical>;
+template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical_gca>;
 // template class ptc_updater<Config<3>, exec_policy_gpu, coord_policy_spherical>;
 
 // template class ptc_updater<Config<2>, exec_policy_gpu, coord_policy_spherical_sync_cooling>;

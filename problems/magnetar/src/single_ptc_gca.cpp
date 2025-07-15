@@ -28,7 +28,7 @@
 #include "systems/ptc_injector_new.h"
 #include "systems/ptc_updater_impl.hpp"
 #include "systems/radiative_transfer_impl.hpp"
-#include "systems/resonant_scattering_scheme.hpp"
+#include "systems/resonant_scattering_scheme_gca.hpp"
 // #include "systems/boundary_condition.h"
 #include <iostream>
 

@@ -191,7 +191,7 @@ namespace Aperture {
     Scalar sinth = math::sin(th);
     Scalar prefactor = 2.0 * M_PI * Temp/math::sqrt(Deltav* sinth * sinth);
     Scalar Eminv = Emin(r, th, a, Lz);
-    Scalar blS_t = prefactor * ( (Temp-Emax) * math::exp( -(Emax-E0)/Temp) - (Temp-Eminv) * math::exp( -(Eminv-E0)/Temp) );
+    Scalar blS_t = prefactor * ( (Temp+Emax) * math::exp( -(Emax-E0)/Temp) - (Temp+Eminv) * math::exp( -(Eminv-E0)/Temp) );
     Scalar blS_phi = prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
     return Metric_KS::alpha(r, th, a) * blSt;
@@ -306,7 +306,7 @@ main(int argc, char  * argv[]) {
   //this is the radius of the inner edge of the torus
   double r_lower = 10.0;
   env.params().get_value("torus_r_lower", r_lower);
-  //this is the radius of maximum density
+  //this is an upper bound on the radius of maximum density
   double r_max = 14.0;
   env.params().get_value("torus_r_max", r_max);
   double spin = 0.999;
@@ -319,7 +319,7 @@ main(int argc, char  * argv[]) {
   double E0= globalEmin(spin, r_max);
   double Lz = AngularMomentum(spin, r_max, E0);
   double Emax = energyMax(spin, r_lower, Lz);
-  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);
+  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);//This is wrong
 
   // Prepare initial field 
   vector_field<Conf> *B, *D, *B0, *D0;
@@ -353,17 +353,17 @@ exec_policy_dynamic<Conf>::launch(
                           torus_Density(r_s-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
               Scalar dAdth = (torus_Density(r_s,th_s+eps,spin, E0,Emax, temp, Lz)-
                             torus_Density(r_s,th_s-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-                                      
+              //Only Aphi in kerr schild               
               B[0][idx] = prefactor * dAdth;
               B[1][idx] = - prefactor * dAdr;
-              B[2][idx] = - ksalpha(r_s, th_s, spin)/Delta(r_s,spin) * prefactor * dAdth;
+              // B[2][idx] = - ksalpha(r_s, th_s, spin)/Delta(r_s,spin) * prefactor * dAdth;
             }
             else{
               B[0][idx] = 0.0;
               B[1][idx] = 0.0;
-              B[2][idx] = 0.0;
             }
-            
+
+            B[2][idx] = 0.0;
             D[0][idx] = 0.0;
             D[1][idx] = 0.0;
             D[2][idx] = 0.0;

@@ -192,7 +192,7 @@ namespace Aperture {
     Scalar prefactor = 2.0 * M_PI * Temp/math::sqrt(Deltav* sinth * sinth);
     Scalar Eminv = Emin(r, th, a, Lz);
     Scalar blS_t = prefactor * ( (Temp+Emax) * math::exp( -(Emax-E0)/Temp) - (Temp+Eminv) * math::exp( -(Eminv-E0)/Temp) );
-    Scalar blS_phi = prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
+    Scalar blS_phi = Lz * prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
     return Metric_KS::alpha(r, th, a) * blSt;
   }
@@ -345,24 +345,18 @@ exec_policy_dynamic<Conf>::launch(
             auto th_s =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
             if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
-            Scalar prefactor =  Bp / max_density /math::sqrt( ksDetGamma(r_s,th_s,spin) );
+            Scalar cutoff=0.2;
             Scalar eps = 1e-6;//come up with a better standard for this. 
-            Scalar rho=torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz);
-            if(rho/max_density > 0.2){//cut off to avoid magnetization blow up 
-              Scalar dAdr = (torus_Density(r_s+eps,th_s,spin, E0,Emax, temp, Lz)-
+            Scalar rho=torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz)/ max_density; 
+            Scalar profile = math::exp(1/(rho*rho-cutoff)+1/cutoff);
+            Scalar prefactor =  Bp* profile/ max_density /math::sqrt( ksDetGamma(r_s,th_s,spin) );
+            Scalar dAdr = (torus_Density(r_s+eps,th_s,spin, E0,Emax, temp, Lz)-
                           torus_Density(r_s-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-              Scalar dAdth = (torus_Density(r_s,th_s+eps,spin, E0,Emax, temp, Lz)-
+            Scalar dAdth = (torus_Density(r_s,th_s+eps,spin, E0,Emax, temp, Lz)-
                             torus_Density(r_s,th_s-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-              //Only Aphi in kerr schild               
-              B[0][idx] = prefactor * dAdth;
-              B[1][idx] = - prefactor * dAdr;
-              // B[2][idx] = - ksalpha(r_s, th_s, spin)/Delta(r_s,spin) * prefactor * dAdth;
-            }
-            else{
-              B[0][idx] = 0.0;
-              B[1][idx] = 0.0;
-            }
-
+            //Only Aphi in kerr schild               
+            B[0][idx] = prefactor * dAdth;
+            B[1][idx] = - prefactor * dAdr;
             B[2][idx] = 0.0;
             D[0][idx] = 0.0;
             D[1][idx] = 0.0;

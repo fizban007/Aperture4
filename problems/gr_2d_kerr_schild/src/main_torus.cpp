@@ -35,8 +35,6 @@
 #include "utils/util_functions.h"
 #include "utils/hdf_wrapper.h"
 #include "utils/interpolation.hpp"
-#define BOOST_MATH_DISABLE_FLOAT128
-#include "boost/math/special_functions/gamma.hpp"
 
 using namespace std;
 
@@ -162,12 +160,12 @@ namespace Aperture {
       // printf("Emin >=  Emax: r - >%f, th - >%f, Emin - >%f, Emax - >%f\n", r, th, Emin_val,Emax);
       return vec_t<Scalar, 3>{0, 0, 0};
     }
-    Scalar That = Temp/(alpha * C);
     Scalar Deltav = Delta(r,a);
-    //if T<<1
-    Scalar u1 =  rng_uniform<Scalar>(state);
+    Scalar That = Temp/(alpha * C);
     Scalar phatval = (Emax + beta3 * Lz)/(alpha * C);
     Scalar phatmax2 =  phatval * phatval - 1;
+    //if T<<1
+    Scalar u1 =  rng_uniform<Scalar>(state);
     Scalar Z = 1 - math::exp( - phatmax2/(2.0 * That));
     Scalar phat = math::sqrt( - 2.0 * That * math::log(1 - u1 * Z));
     Scalar energy =  - beta3 * Lz + alpha * C * math::sqrt(1 + phat * phat);
@@ -175,13 +173,7 @@ namespace Aperture {
     Scalar blp_r = C * math::sqrt(Sigmav/Deltav) * phat * math::cos(2.0 * M_PI * u2);
     Scalar blp_th = C * math::sqrt(Sigmav) * phat * math::sin(2.0 * M_PI * u2);
     Scalar ksp_r = blp_r - (a * Lz - 2.0 * r * energy) / Deltav;
-    // printf("r - >%f, th - >%f, Emin - >%f, Emax - >%f, pt - >%f, pr - >%f, pth - >%f,pphi - >%f,phat - >%f,phatmax - >%f\n", r, th, Emin_val,Emax, - energy,ksp_r,blp_th,Lz,phat,math::sqrt(phatmax2));
-    // Scalar s = 0.01;
-    // if(14 + s>r && r>14 - s && th>M_PI/2 - s && th<M_PI/2 + s){
-    //   printf("%f,",phat);
-    // }
     return vec_t<Scalar, 3>{ksp_r, blp_th, Lz};
-    // printf("Failed: r = %f, th = %f, Emin = %f,Emax = %f, \n", r, th, Emin_val,Emax);
   }
   
   HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar E0, Scalar Emax, Scalar Temp, Scalar Lz) {
@@ -196,77 +188,7 @@ namespace Aperture {
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
     return Metric_KS::alpha(r, th, a) * blSt;
   }
-
-//   template <typename Conf> void magnetic_loop(vector_field<Conf> &B0, vector_field<Conf> &D0, const grid_ks_t<Conf> &grid) {
-//     typename Conf::value_t Bp = 1.0;
-//     sim_env().params().get_value("Bp", Bp);
-//     int ppc = 20;
-//     sim_env().params().get_value("ppc", ppc);
-//     double set_max_density = 1.0;
-//     sim_env().params().get_value("torus_max_density", set_max_density);
-//     //this is the radius of the inner edge of the torus
-//     double r_lower = 10.0;
-//     sim_env().params().get_value("torus_r_lower", r_lower);
-//     //this is the radius of maximum density
-//     double r_max = 14.0;
-//     sim_env().params().get_value("torus_r_max", r_max);
-//     double spin = 0.999;
-//     sim_env().params().get_value("bh_spin", spin);
-//     double temp = 0.001;
-//     sim_env().params().get_value("torus_temp", temp);
-//     double E0= globalEmin(spin, r_max);
-//     double Lz = AngularMomentum(spin, r_max, E0);
-//     double Emax = energyMax(spin, r_lower, Lz);
-//     double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);
-
-//     exec_policy_dynamic<Conf>::launch(
-//         [Bp] LAMBDA(auto B, auto D, auto a) {
-//           auto &grid = exec_policy_dynamic<Conf>::grid();
-//           auto ext = grid.extent();
-
-//           // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
-//           // {
-//           exec_policy_dynamic<Conf>::loop(
-//               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-//                 auto pos = get_pos(idx, ext);
-//                 auto r = grid_ks_t<Conf>::radius(
-//                     grid.template coord<0>(pos[0], false));
-//                 auto r_s =
-//                     grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
-//                 auto th =
-//                     grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
-//                 auto th_s =
-//                     grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
-//                 if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
-//                 //this is the correct 
-//                 Scalar prefactor =  Bp / max_density /math::sqrt{ (r_s * r_s + a * a * math::cos(th_s) * math::cos(th_s)) * 
-//                                           (r_s * r_s - 2.0* r_s + a * a * math::cos(th_s) * math::cos(th_s))  *
-//                                            math::sin(th_s) * math::sin(th_s) };
-//                 Scalar eps = 1e-6;
-
-//                 if(torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz)/max_density < 0.2){//cut off to avoid magnetization blow up 
-//                   B[0][idx] = 0.0;
-//                   B[1][idx] = 0.0;
-//                 }
-//                 else{
-//                   B[0][idx] = prefactor * (torus_Density(r_s,th_s+eps,spin, E0,Emax, temp, Lz)-
-//                                           torus_Density(r_s,th_s-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-//                   B[1][idx] =  prefactor * (torus_Density(r_s+eps,th_s,spin, E0,Emax, temp, Lz)-
-//                                           torus_Density(r_s-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-//                 }
-                
-//                 B[2][idx] = 0.0;
-
-//                 D[0][idx] = 0.0;
-//                 D[1][idx] = 0.0;
-//                 D[2][idx] = 0.0;
-//               });
-//         },
-//         B0, D0, grid.a);
-//   exec_policy_dynamic<Conf>::sync();
-// }
   
-
 
 }  // namespace Aperture
 
@@ -330,7 +252,7 @@ main(int argc, char  * argv[]) {
 
 //magnetic field loop
 exec_policy_dynamic<Conf>::launch(
-    [Bp, E0, Emax, Lz, temp, spin, max_density] LAMBDA(auto B, auto D, auto a) {
+    [Bp, E0, Emax, Lz, temp, spin, r_lower ,max_density] LAMBDA(auto B, auto D, auto a) {
       auto &grid = exec_policy_dynamic<Conf>::grid();
       auto ext = grid.extent();
       exec_policy_dynamic<Conf>::loop(
@@ -345,18 +267,23 @@ exec_policy_dynamic<Conf>::launch(
             auto th_s =
                 grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
             if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
-            Scalar cutoff=0.2;
+            Scalar rho=torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz); 
             Scalar eps = 1e-6;//come up with a better standard for this. 
-            Scalar rho=torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz)/ max_density; 
-            Scalar profile = math::exp(1/(rho*rho-cutoff)+1/cutoff);
-            Scalar prefactor =  Bp* profile/ max_density /math::sqrt( ksDetGamma(r_s,th_s,spin) );
-            Scalar dAdr = (torus_Density(r_s+eps,th_s,spin, E0,Emax, temp, Lz)-
-                          torus_Density(r_s-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-            Scalar dAdth = (torus_Density(r_s,th_s+eps,spin, E0,Emax, temp, Lz)-
-                            torus_Density(r_s,th_s-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
-            //Only Aphi in kerr schild               
-            B[0][idx] = prefactor * dAdth;
-            B[1][idx] = - prefactor * dAdr;
+            Scalar prefactor =  Bp / max_density /(2.0 * eps)/math::sqrt( ksDetGamma(r_s, th_s, spin));
+            if(rho/max_density > 0.2 && r_s>r_lower){
+              Scalar dAdr = torus_Density(r_s + eps, th_s, spin, E0, Emax, temp, Lz)-
+                          torus_Density(r_s - eps, th_s, spin, E0, Emax, temp, Lz);          
+              Scalar dAdth = torus_Density(r_s, th_s+eps, spin, E0, Emax, temp, Lz)-
+                            torus_Density(r_s, th_s-eps, spin, E0, Emax, temp, Lz);
+                                      
+              B[0][idx] = prefactor * dAdth;
+              B[1][idx] = - prefactor * dAdr;
+            }
+            else{
+              B[0][idx] = 0.0;
+              B[1][idx] = 0.0;
+              
+            }
             B[2][idx] = 0.0;
             D[0][idx] = 0.0;
             D[1][idx] = 0.0;

@@ -52,21 +52,6 @@ namespace Aperture {
     return r * r + a * a * math::cos(th) * math::cos(th);
   }
 
-  // HOST_DEVICE Scalar blnormLower(Scalar r, Scalar th, Scalar a, Scalar p_t, Scalar p_r, Scalar p_th, Scalar Lz){
-  //   Scalar Delta = blDelta(r,a);
-  //   Scalar Sigma = blSigma(r,th,a);
-  //   Scalar sin2 =  math::sin(th) * math::sin(th);
-  //   Scalar cos2 =  math::cos(th) * math::cos(th);
-  //   Scalar numerator =  p_t * p_t * (a * a * Delta * sin2 - (a * a + r * r) * (a * a + r * r)) + 
-  //                     p_r * p_r * Delta * Delta + 
-  //                     p_th * p_th * Delta + 
-  //                     Lz * Lz * (Sigma - 2.0 * r)/sin2
-  //                      - 4.0 * a * r * Lz * p_t;
-  //   return numerator/(Delta * Sigma);
-  // }
-  
-  
-
   HOST_DEVICE Scalar A(Scalar r, Scalar th, Scalar a){ 
     return (a * a + r * r) * (a * a + r * r) - a * a * Delta(r,a) * math::sin(th) * math::sin(th);
   }
@@ -90,17 +75,6 @@ namespace Aperture {
     return common * (r * r + 2.0 * r + a * a * costh * costh) * sinth * sinth;
   } 
 
-  // HOST_DEVICE Scalar energy(Scalar r, Scalar th, Scalar a, Scalar p_r, Scalar p_th, Scalar lz){
-  //   Scalar Delta = blDelta(r,a);
-  //   Scalar Sigma = blSigma(r,th,a);
-  //   Scalar sinth =  math::sin(th);
-  //   Scalar discriminant = p_r * p_r * Delta * Delta + 
-  //                     p_th * p_th * Delta + 
-  //                     Lz * Lz * (Sigma - 2.0 * r)/sin2+1;
-  //   return  blalpha(r, th, a)*math::sqrt(discriminant)- blbetaphi(r, th, a) * Lz;
-  // }
-
-  //Emin is in in the middle
   HOST_DEVICE Scalar Emin(Scalar r, Scalar th, Scalar a, Scalar Lz){
     Scalar Av = A(r, th, a);
     Scalar C = math::sqrt(Lz * Lz * Sigma(r,th,a)/(Av * math::sin(th) * math::sin(th)) + 1.0);//unsure what to call this
@@ -131,43 +105,26 @@ namespace Aperture {
     return Emin(rmin,M_PI/2, a, Lz); 
   }
 
-
-  // HOST_DEVICE Scalar blp_r_max(Scalar r, Scalar th, Scalar a, Scalar Emax, Scalar Lz) {
-  //   Scalar Delta = Metric_KS::Delta(a, r);
-  //   Scalar Sigma = Metric_KS::rho2(a, r, th);
-  //   return math::sqrt(Sigma/Delta * invp_t(r, th, a, Emax, Lz));
-  // }
-
-  // HOST_DEVICE Scalar blp_th_max(Scalar r, Scalar th, Scalar a, Scalar Emax, Scalar Lz) {
-  //   Scalar Sigma = Metric_KS::rho2(a, r, th);
-  //   return math::sqrt(Sigma * invp_t(r, th, a, Emax, Lz));
-  // }
- 
-  
-
-
-
-
   HOST_DEVICE vec_t<Scalar,3> torus_momentum(Scalar r, Scalar th, Scalar a, Scalar Emax, Scalar Temp, Scalar Lz, rand_state& state) {
     // Minimum allowed energy at this position
     Scalar Sigmav = Sigma(r,th,a);
     Scalar Av = A(r, th, a);
-    Scalar C = math::sqrt(Lz * Lz * Sigmav/(Av * math::sin(th) * math::sin(th)) + 1);//unsure what to call this
+    Scalar C = math::sqrt(Lz * Lz * Sigmav/(Av * math::sin(th) * math::sin(th)) + 1);
     Scalar alpha = blalpha(r, th, a);
     Scalar beta3 = blbetaphi(r, th, a);
     Scalar Emin_val =  - beta3 * Lz + alpha * C;
-    if ( Emin_val >=   Emax) {
-      // printf("Emin >=  Emax: r - >%f, th - >%f, Emin - >%f, Emax - >%f\n", r, th, Emin_val,Emax);
+    if ( Emin_val >=   Emax) {//avoid problems out boundary
       return vec_t<Scalar, 3>{0, 0, 0};
     }
     Scalar Deltav = Delta(r,a);
     Scalar That = Temp/(alpha * C);
-    Scalar phatval = (Emax + beta3 * Lz)/(alpha * C);
-    Scalar phatmax2 =  phatval * phatval - 1;
-    //if T<<1
+    Scalar phatmaxval = (Emax + beta3 * Lz)/(alpha * C);
+    Scalar phatmax2 =  phatmaxval * phatmaxval - 1.0;
+    //sampling
     Scalar u1 =  rng_uniform<Scalar>(state);
-    Scalar Z = 1 - math::exp( - phatmax2/(2.0 * That));
-    Scalar phat = math::sqrt( - 2.0 * That * math::log(1 - u1 * Z));
+    Scalar Zscaled = 1.0 - math::exp(-(math::sqrt(1.0 + phatmax2) - 1.0) / That);
+    Scalar phatval = 1.0 - That * math::log(1.0 - u1 * Zscaled);
+    Scalar phat = math::sqrt(phatval*phatval - 1.0);
     Scalar energy =  - beta3 * Lz + alpha * C * math::sqrt(1 + phat * phat);
     Scalar u2 =  rng_uniform<Scalar>(state);
     Scalar blp_r = C * math::sqrt(Sigmav/Deltav) * phat * math::cos(2.0 * M_PI * u2);
@@ -175,24 +132,21 @@ namespace Aperture {
     Scalar ksp_r = blp_r - (a * Lz - 2.0 * r * energy) / Deltav;
     return vec_t<Scalar, 3>{ksp_r, blp_th, Lz};
   }
-  
-  HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar E0, Scalar Emax, Scalar Temp, Scalar Lz) {
+
+  HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar Emax, Scalar Temp, Scalar Lz) {
     Scalar Deltav = Delta(r,a);
     Scalar Sigmav = Sigma(r, th, a);
     Scalar Av = A(r, th, a);
     Scalar sinth = math::sin(th);
     Scalar prefactor = 2.0 * M_PI * Temp/math::sqrt(Deltav* sinth * sinth);
     Scalar Eminv = Emin(r, th, a, Lz);
-    Scalar blS_t = prefactor * ( (Temp+Emax) * math::exp( -(Emax-E0)/Temp) - (Temp+Eminv) * math::exp( -(Eminv-E0)/Temp) );
-    Scalar blS_phi = Lz * prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
+    Scalar blS_t = prefactor * ( (Temp+Emax) - (Temp+Eminv) * math::exp((Emax-Eminv)/Temp) );
+    Scalar blS_phi = Lz * prefactor * (math::exp((Emax-Eminv)/Temp) - (Temp+Emax) );
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
     return Metric_KS::alpha(r, th, a) * blSt;
   }
-  
 
 }  // namespace Aperture
-
-
 
 using namespace Aperture;
 
@@ -241,56 +195,16 @@ main(int argc, char  * argv[]) {
   double E0= globalEmin(spin, r_max);
   double Lz = AngularMomentum(spin, r_max, E0);
   double Emax = energyMax(spin, r_lower, Lz);
-  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);//This is wrong
-
-  // Prepare initial field 
+  //this is not exaclty the max density because r_max is not exactly the radius of max density, but is close for smaller torus
+  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);
+  
+  //Prepare zero initial field 
   vector_field<Conf> *B, *D, *B0, *D0;
   env.get_data("B0", &B0);
   env.get_data("E0", &D0);
   env.get_data("Bdelta", &B);
   env.get_data("Edelta", &D);
 
-//magnetic field loop
-exec_policy_dynamic<Conf>::launch(
-    [Bp, E0, Emax, Lz, temp, spin, r_lower ,max_density] LAMBDA(auto B, auto D, auto a) {
-      auto &grid = exec_policy_dynamic<Conf>::grid();
-      auto ext = grid.extent();
-      exec_policy_dynamic<Conf>::loop(
-          Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-            auto pos = get_pos(idx, ext);
-            auto r = grid_ks_t<Conf>::radius(
-                grid.template coord<0>(pos[0], false));
-            auto r_s =
-                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
-            auto th =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
-            auto th_s =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
-            if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
-            Scalar rho=torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz); 
-            Scalar eps = 1e-6;//come up with a better standard for this. 
-            Scalar prefactor =  Bp / max_density /(2.0 * eps)/math::sqrt( ksDetGamma(r_s, th_s, spin));
-            if(rho/max_density > 0.2 && r_s>r_lower){
-              Scalar dAdr = torus_Density(r_s + eps, th_s, spin, E0, Emax, temp, Lz)-
-                          torus_Density(r_s - eps, th_s, spin, E0, Emax, temp, Lz);          
-              Scalar dAdth = torus_Density(r_s, th_s+eps, spin, E0, Emax, temp, Lz)-
-                            torus_Density(r_s, th_s-eps, spin, E0, Emax, temp, Lz);
-                                      
-              B[0][idx] = prefactor * dAdth;
-              B[1][idx] = - prefactor * dAdr;
-            }
-            else{
-              B[0][idx] = 0.0;
-              B[1][idx] = 0.0;
-              
-            }
-            B[2][idx] = 0.0;
-            D[0][idx] = 0.0;
-            D[1][idx] = 0.0;
-            D[2][idx] = 0.0;
-          });
-      },
-        *B, *D, grid.a);
   exec_policy_dynamic<Conf>::sync();
 
   ptc_injector_dynamic<Conf> ptc_inj(grid);
@@ -320,12 +234,12 @@ exec_policy_dynamic<Conf>::launch(
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [ppc,spin,Lz,E0,Emax,temp,set_max_density,max_density,r_lower] LAMBDA(auto &x_global, PtcType type) {
+      [ppc,spin,Lz,Emax,temp,set_max_density,max_density,r_lower] LAMBDA(auto &x_global, PtcType type) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t th = grid_ks_t<Conf>::theta(x_global[1]);
         if (r < r_lower) {return 0.0;}
         if( Emin(r,th, spin, Lz)  >=   Emax) {return 0.0;}
-        value_t density= torus_Density(r, th, spin, E0, Emax, temp, Lz);
+        value_t density= torus_Density(r, th, spin, Emax, temp, Lz);
         value_t sqrt_gamma = Metric_KS::sqrt_gamma(spin, r, th);
         return set_max_density/max_density * (density * r * sqrt_gamma) / ppc; 
       });

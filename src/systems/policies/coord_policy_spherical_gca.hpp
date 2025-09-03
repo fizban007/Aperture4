@@ -130,8 +130,8 @@ class coord_policy_spherical_gca : public coord_policy_spherical<Conf> {
     constexpr int n_iter = 5;
     for (int i = 0; i < n_iter; i++) {
       // TODO: dx is not correct. Need to transform to Cartesian, evaluate, then transform back?
-      move_ptc_gca(grid, x_iter, b, B_iter, vE, vE_iter,
-                 Gamma_new, context.gamma, u_par_new, dt);
+      move_ptc_gca(grid, x_global, x_iter, b, B_iter, vE, vE_iter,
+                   Gamma_new, context.gamma, u_par_new, dt);
       // printf("x_iter is (%f, %f, %f)\n", x_iter[0], x_iter[1], x_iter[2]);
 
       grid.from_global(x_iter, pos_iter, context.new_x);
@@ -172,6 +172,7 @@ class coord_policy_spherical_gca : public coord_policy_spherical<Conf> {
   }
 
   HD_INLINE void move_ptc_gca(const Grid<Conf::dim, value_t>& grid,
+                              const vec_t<value_t, 3>& x_orig,
                               vec_t<value_t, 3>& x_global,
                               vec_t<value_t, 3> b,
                               vec_t<value_t, 3> b_iter,
@@ -182,6 +183,7 @@ class coord_policy_spherical_gca : public coord_policy_spherical<Conf> {
     using grid_type = grid_sph_t<Conf>;
     // Transform the momentum vector to cartesian at the current location
     vec_t<value_t, 3> x_global_cart = grid_type::coord_to_cart(x_global);
+    vec_t<value_t, 3> x_orig_cart = grid_type::coord_to_cart(x_orig);
 
     // Transform the b vector to cartesian at the current location
     grid_type::vec_to_cart(b, x_global);
@@ -190,8 +192,8 @@ class coord_policy_spherical_gca : public coord_policy_spherical<Conf> {
     grid_type::vec_to_cart(vE_iter, x_global);
 
     // Move in Cartesian coordinates
-    x_global_cart += 0.5f * dt * u_par * (b / gamma + b_iter / gamma_iter) +
-                     0.5f * dt * (vE + vE_iter);
+    x_global_cart = x_orig_cart + 0.5f * dt * u_par * (b / gamma + b_iter / gamma_iter) +
+                    0.5f * dt * (vE + vE_iter);
 
     // Compute the new spherical location
     x_global = grid_type::coord_from_cart(x_global_cart);

@@ -444,14 +444,21 @@ struct resonant_scattering_scheme{
       if (no_p) {drag_force = -drag_force;}// TODO: check if this is correct my sign might be weird
       // I think its flipped because force_dir I might have defined as negative for motionless particles
       // printf("mu_min_beta is %f, drag_force is %f\n", mu_min_beta, drag_force);
-      p_para += drag_force * dt ; // change p_para appropriately
+      // value_t sgn = 1.0f;
+      value_t sgn = 1.0f;
+      // if (th > M_PI / 2 ) {sgn = -1.0f;}// ensure drag force always points towards equator
+      if (p_para < 0.0f) {sgn = -1.0f;}// 
+      p_para += sgn * drag_force * dt ; // change p_para appropriately
+      
+      // if (p_para < 0.0f) {sgn = -1.0f};
+      // p_para += sgn*drag_force * dt ; // change p_para appropriately
       ptc.p1[tid] = p_para;
       // ptc.p2[tid] = p2; magnetic moment is not changed
       // ptc.p3[tid] = p3; undefined in this scheme
       // ptc.E[tid] = math::sqrt(1.0f + p_para * p_para + p_perp*p_perp);
       ptc.E[tid] = coord_policy_spherical_gca<Conf>::f_Gamma(p_para, moment_mu, B_mag,
                                                              vE);
-      printf("p1 is %f, E is %f\n", ptc.p1[tid], ptc.E[tid]);
+      // printf("p1 is %f, E is %f\n", ptc.p1[tid], ptc.E[tid]);
       // check_nan("ptc.E[tid]", ptc.E[tid]);
 
       deposit_photon = true;

@@ -19,12 +19,13 @@
 // #include "cxxopts.hpp"
 #include "framework/config.h"
 #include "framework/environment.h"
-#include "systems/boundary_condition.hpp"
+#include "systems/boundary_condition_gca.hpp"
 #include "systems/compute_moments.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver_sph.h"
 #include "systems/gather_tracked_ptc.h"
 #include "systems/grid_sph.hpp"
+#include "systems/policies/coord_policy_spherical_gca.hpp"
 #include "systems/policies/coord_policy_spherical.hpp"
 #include "systems/policies/coord_policy_spherical_sync_cooling.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
@@ -32,7 +33,7 @@
 #include "systems/ptc_updater_impl.hpp"
 // #include "systems/radiation/IC_radiation_scheme.hpp"
 #include "systems/radiative_transfer_impl.hpp"
-#include "systems/resonant_scattering_scheme.hpp"
+#include "systems/resonant_scattering_scheme_gca.hpp"
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include "utils/vec.hpp"
@@ -65,11 +66,11 @@ class ptc_physics_policy_gravity_r {
 
 template class ptc_updater<Config<2>, exec_policy_dynamic,
                           //  coord_policy_spherical_sync_cooling,
-                          coord_policy_spherical>;
+                          coord_policy_spherical_gca>;
                            //ptc_physics_policy_gravity_r>;
 
 template class radiative_transfer<Config<2>, exec_policy_dynamic,
-                                  coord_policy_spherical, resonant_scattering_scheme>;
+                                  coord_policy_spherical_gca, resonant_scattering_scheme>;
 
 }
 
@@ -92,20 +93,17 @@ main(int argc, char *argv[]) {
   auto pusher =
       env.register_system<ptc_updater<Conf, exec_policy_dynamic,
                                       // coord_policy_spherical_sync_cooling,
-                                      coord_policy_spherical>>(
+                                      coord_policy_spherical_gca>>(
                                       //ptc_physics_policy_gravity_r>>(
           // coord_policy_spherical>>(
           grid, &comm);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto rad = env.register_system<radiative_transfer<
-      Conf, exec_policy_dynamic, coord_policy_spherical,
+      Conf, exec_policy_dynamic, coord_policy_spherical_gca,
       resonant_scattering_scheme>>( grid, &comm);
   auto moments =
       env.register_system<compute_moments<Conf, exec_policy_dynamic>>(grid);
-  // auto rad = env.register_system<radiative_transfer<
-  //     Conf, exec_policy_dynamic, coord_policy_spherical,
-  //     IC_radiation_scheme>>( grid, &comm);
   auto bc = env.register_system<boundary_condition<Conf, exec_policy_dynamic>>(
       grid, &comm);
   auto exporter = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(
@@ -149,8 +147,8 @@ main(int argc, char *argv[]) {
       [] LAMBDA(auto &pos, auto &grid, auto &ext) { return true;},
       [ppc] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2 * ppc; },
       [kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return rng_maxwell_juttner_3d<value_t>(state, kT);
-        // return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+        // return rng_maxwell_juttner_3d<value_t>(state, kT);
+        return vec_t<value_t, 3>(0.0, 0.0, 0.0);
       },
       [rho0, qe, ppc] LAMBDA(auto &x_global, PtcType type) {
         auto &grid = static_cast<const grid_sph_t<Conf> &>(
@@ -159,9 +157,9 @@ main(int argc, char *argv[]) {
         auto th = grid.theta(x_global[1]);
         // This naturally gives rho ~ 1/r^3 dependence
         return rho0 * math::sin(th) / qe / ppc;
-      });
-      // },
-      // flag_or(PtcFlag::ignore_radiation));
+      // });
+      },
+      flag_or(PtcFlag::ignore_radiation));
 
   env.run();
   return 0;

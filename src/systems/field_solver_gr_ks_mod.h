@@ -71,6 +71,8 @@ class field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   float m_a = 0.99;  // BH spin parameter a
   float m_damping_coef = 0.001;
   int m_damping_length = 20;
+  int m_damping_length_horizon = 20;
+  float m_damping_coef_horizon = 0.001;
   bool m_damp_to_background = true;
   const grid_ks_t<Conf>& m_ks_grid;
   const domain_comm<Conf, ExecPolicy>* m_comm = nullptr;

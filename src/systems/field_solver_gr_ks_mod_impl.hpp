@@ -101,7 +101,9 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
   Logger::print_info("bh_spin in field solver is {}", m_a);
   sim_env().params().get_value("implicit_beta", this->m_beta);
   sim_env().params().get_value("damping_length", m_damping_length);
+  sim_env().params().get_value("damping_length_horizon", m_damping_length_horizon);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("damping_coef_horizon", m_damping_coef_horizon);
   sim_env().params().get_value("damp_to_background", m_damp_to_background);
 
   auto type = ExecPolicy<Conf>::data_mem_type();
@@ -671,7 +673,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   boundary_conditions(*m_tmpD, *m_tmpB);
 
   // Iterate EC several times
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < 4; i++) {
     // Compute the RHS using new values at n+1
     compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
     compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));
@@ -707,9 +709,16 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
     vector_field<Conf>& D, vector_field<Conf>& B) {
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
   // if (false) {
+    int damping_length = m_damping_length_horizon;
+    typename Conf::value_t damping_coef = m_damping_coef_horizon;
+    // bool damp_to_background = m_damp_to_background;
+    bool damp_to_background = false; // always damp to zero inside the horizon
+    typedef typename Conf::idx_t idx_t;
+    typedef typename Conf::value_t value_t;
     // Inner boundary inside horizon
     ExecPolicy<Conf>::launch(
-        [] LAMBDA(auto D, auto B, auto D0, auto B0) {
+        [damping_length, damping_coef, damp_to_background] 
+        LAMBDA(auto D, auto B, auto D0, auto B0) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
 
@@ -731,6 +740,30 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
             // B[1][idx] = -B0[1][idx];
             // B[2][idx] = -B0[2][idx];
           });
+        
+          // ExecPolicy<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
+          //   for (int i = 0; i < damping_length; i++) {
+          //     int n0 = grid.guard[0] + damping_length - 2 - i;
+          //     auto idx = idx_t(index_t<2>(n0, n1), ext);
+          //     value_t lambda =
+          //         1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+          //     if (damp_to_background) {
+          //       D[0][idx] *= lambda;
+          //       D[1][idx] *= lambda;
+          //       D[2][idx] *= lambda;
+          //       B[0][idx] *= lambda;
+          //       B[1][idx] *= lambda;
+          //       B[2][idx] *= lambda;
+          //     } else {
+          //       D[0][idx] = lambda * (D[0][idx] + D0[0][idx]) - D0[0][idx];
+          //       D[1][idx] = lambda * (D[1][idx] + D0[1][idx]) - D0[1][idx];
+          //       D[2][idx] = lambda * (D[2][idx] + D0[2][idx]) - D0[2][idx];
+          //       B[0][idx] = lambda * (B[0][idx] + B0[0][idx]) - B0[0][idx];
+          //       B[1][idx] = lambda * (B[1][idx] + B0[1][idx]) - B0[1][idx];
+          //       B[2][idx] = lambda * (B[2][idx] + B0[2][idx]) - B0[2][idx];
+          //     }
+          //   }
+          // });
         },
         D, B, this->E0, this->B0);
     ExecPolicy<Conf>::sync();

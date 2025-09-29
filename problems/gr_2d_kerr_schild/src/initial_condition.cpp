@@ -128,6 +128,55 @@ initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
 
 template <typename Conf>
 void
+initial_vacuum_wald_limited(vector_field<Conf> &B0, vector_field<Conf> &D0,
+                            const grid_ks_t<Conf> &grid, Scalar r_in, Scalar r_out) {
+  typename Conf::value_t Bp = 1.0;
+  sim_env().params().get_value("Bp", Bp);
+
+  exec_policy_dynamic<Conf>::launch(
+      [Bp, r_in, r_out] LAMBDA(auto B, auto D, auto a) {
+        auto &grid = exec_policy_dynamic<Conf>::grid();
+        auto ext = grid.extent();
+
+        // for (auto idx : grid_stride_range(Conf::begin(ext), Conf::end(ext)))
+        // {
+        exec_policy_dynamic<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              auto r = grid_ks_t<Conf>::radius(
+                  grid.template coord<0>(pos[0], false));
+              auto r_s =
+                  grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
+              auto th =
+                  grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
+              auto th_s =
+                  grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
+
+              if (r * math::sin(th) < r_in || r * math::sin(th) > r_out) {
+                B[0][idx] = 0.0;
+                B[1][idx] = 0.0;
+                B[2][idx] = 0.0;
+                D[0][idx] = 0.0;
+                D[1][idx] = 0.0;
+                D[2][idx] = 0.0;
+              } else {
+                B[0][idx] = gr_wald_solution_B(a, r_s, th, Bp, 0);
+                B[1][idx] = gr_wald_solution_B(a, r, th_s, Bp, 1);
+                B[2][idx] = gr_wald_solution_B(a, r, th, Bp, 2);
+
+                D[0][idx] = gr_wald_solution_D(a, r, th_s, Bp, 0);
+                D[1][idx] = gr_wald_solution_D(a, r_s, th, Bp, 1);
+                D[2][idx] = gr_wald_solution_D(a, r_s, th_s, Bp, 2);
+              }
+            });
+      },
+      B0, D0, grid.a);
+  exec_policy_dynamic<Conf>::sync();
+}
+
+
+template <typename Conf>
+void
 initial_vacuum_monopole(vector_field<Conf> &B, vector_field<Conf> &D,
                         const grid_ks_t<Conf> &grid) {
   Scalar Bp = 1.0;
@@ -228,6 +277,11 @@ template void initial_nonrotating_vacuum_wald(
 template void initial_vacuum_wald(vector_field<Config<2>> &B0,
                                   vector_field<Config<2>> &D0,
                                   const grid_ks_t<Config<2>> &grid);
+
+template void initial_vacuum_wald_limited(vector_field<Config<2>> &B0,
+                                          vector_field<Config<2>> &D0,
+                                          const grid_ks_t<Config<2>> &grid,
+                                          Scalar r_in, Scalar r_out);
 
 template void initial_vacuum_monopole(vector_field<Config<2>> &B,
                                       vector_field<Config<2>> &D,

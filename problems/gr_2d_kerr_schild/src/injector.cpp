@@ -73,6 +73,11 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
   value_t qe = m_qe;
   int num_species = Rho.size();
 
+  auto time = sim_env().get_time();
+  if (time < 250.0) {
+    return;
+  }
+
   // m_num_per_cell.assign_dev(0);
   m_num_per_cell.assign(0);
 
@@ -133,7 +138,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
               // printf("sigma is %f, sigma_thr is %f, n is %f, B_sqr is %f\n", sigma, sigma_thr, n, B_sqr);
             // }
             if (sigma > sigma_thr && math::abs(DdotB[idx] / B_sqr) > inj_thr &&
-                u < 0.01) {
+                u < 0.02) {
             // if (sigma > sigma_thr && math::abs(DdotB[idx]) / B_sqr > inj_thr) {
               num_per_cell[idx] = 1;
               pair_injected[idx] += 2.0;
@@ -186,7 +191,7 @@ void bh_injector<Conf>::update(double dt, uint32_t step) {
           auto idx = Conf::idx(pos, grid.extent());
           value_t r = grid_ks_t<Conf>::radius(x_global[0]);
           // return math::sin(x_global[1]);
-          return math::sin(x_global[1]) * (0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]));
+          return math::sin(x_global[1]) * (50.0 * math::abs(ddotb_ptr[idx] / bmag[idx]));
           // return (0.5 * math::abs(ddotb_ptr[idx] / bmag[idx])) * 10.0f / qe;
           // return 0.5 * math::abs(ddotb_ptr[idx] / bmag[idx]);
         });

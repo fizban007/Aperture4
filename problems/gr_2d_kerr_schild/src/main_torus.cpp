@@ -22,7 +22,7 @@
 #include "injector.h"
 #include "systems/data_exporter.h"
 #include "systems/domain_comm.h"
-#include "systems/field_solver_gr_ks.h"
+#include "systems/field_solver_gr_ks_mod.h"
 #include "systems/gather_tracked_ptc.h"
 #include "systems/compute_moments_gr_ks.h"
 #include "systems/grid_ks.h"
@@ -35,6 +35,8 @@
 #include "utils/util_functions.h"
 #include "utils/hdf_wrapper.h"
 #include "utils/interpolation.hpp"
+// #define BOOST_MATH_DISABLE_FLOAT128
+// #include "boost/math/special_functions/gamma.hpp"
 
 using namespace std;
 
@@ -43,6 +45,10 @@ namespace Aperture {
   template <typename Conf>
   void initial_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
                           const grid_ks_t<Conf> &grid);
+
+  HOST_DEVICE Scalar A_smooth(Scalar rho, Scalar rho_floor, Scalar k) {
+    return (rho - rho_floor + math::log(1.0 + math::exp(-k * (rho - rho_floor))) / k);
+  }
 
   HOST_DEVICE Scalar Delta(Scalar r, Scalar a){
     return r * r - 2.0 * r + a * a;
@@ -170,7 +176,7 @@ main(int argc, char  * argv[]) {
   //   radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
   //                     //  default_radiation_scheme_gr>>(grid, &comm);
   //                      gr_ks_ic_radiation_scheme_fido>>(grid, &comm);
-  auto solver = env.register_system<field_solver<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
+  auto solver = env.register_system<field_solver_mod<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph>>(grid, &comm);
   auto exporter  = env.register_system<data_exporter<Conf, exec_policy_dynamic>>(grid, &comm);
 
   env.init();
@@ -205,6 +211,56 @@ main(int argc, char  * argv[]) {
   env.get_data("Bdelta", &B);
   env.get_data("Edelta", &D);
 
+//magnetic field loop
+exec_policy_dynamic<Conf>::launch(
+    [Bp, E0, Emax, Lz, temp, spin, max_density] LAMBDA(auto B, auto D, auto a) {
+      auto &grid = exec_policy_dynamic<Conf>::grid();
+      auto ext = grid.extent();
+      exec_policy_dynamic<Conf>::loop(
+          Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+            auto pos = get_pos(idx, ext);
+            auto r = grid_ks_t<Conf>::radius(
+                grid.template coord<0>(pos[0], false));
+            auto r_s =
+                grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], true));
+            auto th =
+                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], false));
+            auto th_s =
+                grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1], true));
+            if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
+            Scalar prefactor =  Bp / max_density / math::sqrt( ksDetGamma(r_s,th_s,spin) );
+            Scalar eps = 1e-4;//come up with a better standard for this. 
+            Scalar rho = torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz);
+            // if(rho/max_density > 0.4){//cut off to avoid magnetization blow up 
+            if (rho/max_density > 0.001) {
+              Scalar A_rplus = A_smooth(torus_Density(r+eps,th_s,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_rminus = A_smooth(torus_Density(r-eps,th_s,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              // Scalar dAdr = (torus_Density(r+eps,th_s,spin, E0,Emax, temp, Lz)-
+              //             torus_Density(r-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
+              Scalar dAdr = (A_rplus - A_rminus)/(2.0 * eps);
+              Scalar A_thplus = A_smooth(torus_Density(r_s,th+eps,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_thminus = A_smooth(torus_Density(r_s,th-eps,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              // Scalar dAdth = (torus_Density(r_s,th+eps,spin, E0,Emax, temp, Lz)-
+              //             torus_Density(r_s,th-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
+              Scalar dAdth = (A_thplus - A_thminus)/(2.0 * eps);
+                                      
+              B[0][idx] = -prefactor * dAdth;
+              B[1][idx] = prefactor * dAdr;
+              // B[2][idx] = ksalpha(r_s, th_s, spin)/Delta(r_s,spin) * prefactor * dAdth;
+              B[2][idx] = 0.0;
+            }
+            else{
+              B[0][idx] = 0.0;
+              B[1][idx] = 0.0;
+              B[2][idx] = 0.0;
+            }
+            
+            D[0][idx] = 0.0;
+            D[1][idx] = 0.0;
+            D[2][idx] = 0.0;
+          });
+      },
+      *B, *D, grid.a);
   exec_policy_dynamic<Conf>::sync();
 
   ptc_injector_dynamic<Conf> ptc_inj(grid);

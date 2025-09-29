@@ -61,3 +61,7 @@ add_dependencies(problems gr_single_ptc)
 add_aperture_executable(torus "main_torus.cpp")
 target_link_libraries(torus gr_2d_kerr_schild)
 add_dependencies(problems torus)
+
+add_aperture_executable(torus_vertB "main_torus_vertB.cpp")
+target_link_libraries(torus_vertB gr_2d_kerr_schild)
+add_dependencies(problems torus_vertB)

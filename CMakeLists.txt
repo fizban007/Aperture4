@@ -9,7 +9,9 @@ endif ()
 # or if it is the master project.
 if (NOT DEFINED FMT_MASTER_PROJECT)
   set(FMT_MASTER_PROJECT OFF)
-  if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  # NOTE: source vs current_source detection is unreliable
+  # this heuristic is more generally applicable esp w.r.t FetchContent
+  if (NOT DEFINED PROJECT_NAME)
     set(FMT_MASTER_PROJECT ON)
     message(STATUS "CMake version: ${CMAKE_VERSION}")
   endif ()
@@ -27,18 +29,15 @@ endfunction()
 # DEPRECATED! Should be merged into add_module_library.
 function(enable_module target)
   if (MSVC)
-    if(CMAKE_GENERATOR STREQUAL "Ninja")
-      # Ninja dyndep expects the .ifc output to be located in a specific relative path
-      file(RELATIVE_PATH BMI_DIR "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target}.dir")
-    else()
+    if(NOT CMAKE_GENERATOR STREQUAL "Ninja")
       set(BMI_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+      file(TO_NATIVE_PATH "${BMI_DIR}/${target}.ifc" BMI)
+      target_compile_options(${target}
+        PRIVATE /interface /ifcOutput ${BMI}
+        INTERFACE /reference fmt=${BMI})
+      set_target_properties(${target} PROPERTIES ADDITIONAL_CLEAN_FILES ${BMI})
+      set_source_files_properties(${BMI} PROPERTIES GENERATED ON)
     endif()
-    file(TO_NATIVE_PATH "${BMI_DIR}/${target}.ifc" BMI)
-    target_compile_options(${target}
-      PRIVATE /interface /ifcOutput ${BMI}
-      INTERFACE /reference fmt=${BMI})
-    set_target_properties(${target} PROPERTIES ADDITIONAL_CLEAN_FILES ${BMI})
-    set_source_files_properties(${BMI} PROPERTIES GENERATED ON)
   endif ()
 endfunction()
 
@@ -164,7 +163,7 @@ option(FMT_WERROR "Halt the compilation with an error on compiler warnings."
 
 # Options that control generation of various targets.
 option(FMT_DOC "Generate the doc target." ${FMT_MASTER_PROJECT})
-option(FMT_INSTALL "Generate the install target." ON)
+option(FMT_INSTALL "Generate the install target." ${FMT_MASTER_PROJECT})
 option(FMT_TEST "Generate the test target." ${FMT_MASTER_PROJECT})
 option(FMT_FUZZ "Generate the fuzz target." OFF)
 option(FMT_CUDA_TEST "Generate the cuda-test target." OFF)

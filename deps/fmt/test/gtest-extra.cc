@@ -11,16 +11,16 @@
 
 using fmt::file;
 
-output_redirect::output_redirect(FILE* f, bool flush) : file_(f) {
-  if (flush) this->flush();
+output_redirect::output_redirect(FILE* f) : file_(f) {
+  flush();
   int fd = FMT_POSIX(fileno(f));
   // Create a file object referring to the original file.
   original_ = file::dup(fd);
   // Create a pipe.
-  auto pipe = fmt::pipe();
-  read_end_ = std::move(pipe.read_end);
+  file write_end;
+  file::pipe(read_end_, write_end);
   // Connect the passed FILE object to the write end of the pipe.
-  pipe.write_end.dup2(fd);
+  write_end.dup2(fd);
 }
 
 output_redirect::~output_redirect() noexcept {

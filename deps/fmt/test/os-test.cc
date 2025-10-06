@@ -10,7 +10,6 @@
 #include <cstdlib>  // std::exit
 #include <cstring>
 #include <memory>
-#include <thread>
 
 #include "gtest-extra.h"
 #include "util.h"
@@ -19,24 +18,63 @@ using fmt::buffered_file;
 using testing::HasSubstr;
 using wstring_view = fmt::basic_string_view<wchar_t>;
 
-static auto uniq_file_name(unsigned line_number) -> std::string {
-  return "test-file" + std::to_string(line_number);
-}
-
-auto safe_fopen(const char* filename, const char* mode) -> FILE* {
-#if defined(_WIN32) && !defined(__MINGW32__)
-  // Fix MSVC warning about "unsafe" fopen.
-  FILE* f = nullptr;
-  errno = fopen_s(&f, filename, mode);
-  return f;
-#else
-  return std::fopen(filename, mode);
-#endif
-}
-
 #ifdef _WIN32
 
 #  include <windows.h>
+
+TEST(util_test, utf16_to_utf8) {
+  auto s = std::string("ёжик");
+  fmt::detail::utf16_to_utf8 u(L"\x0451\x0436\x0438\x043A");
+  EXPECT_EQ(s, u.str());
+  EXPECT_EQ(s.size(), u.size());
+}
+
+TEST(util_test, utf16_to_utf8_empty_string) {
+  std::string s = "";
+  fmt::detail::utf16_to_utf8 u(L"");
+  EXPECT_EQ(s, u.str());
+  EXPECT_EQ(s.size(), u.size());
+}
+
+template <typename Converter, typename Char>
+void check_utf_conversion_error(const char* message,
+                                fmt::basic_string_view<Char> str =
+                                    fmt::basic_string_view<Char>(nullptr, 1)) {
+  fmt::memory_buffer out;
+  fmt::detail::format_windows_error(out, ERROR_INVALID_PARAMETER, message);
+  auto error = std::system_error(std::error_code());
+  try {
+    (Converter)(str);
+  } catch (const std::system_error& e) {
+    error = e;
+  }
+  EXPECT_EQ(ERROR_INVALID_PARAMETER, error.code().value());
+  EXPECT_THAT(error.what(), HasSubstr(fmt::to_string(out)));
+}
+
+TEST(util_test, utf16_to_utf8_error) {
+  check_utf_conversion_error<fmt::detail::utf16_to_utf8, wchar_t>(
+      "cannot convert string from UTF-16 to UTF-8");
+}
+
+TEST(util_test, utf16_to_utf8_convert) {
+  fmt::detail::utf16_to_utf8 u;
+  EXPECT_EQ(ERROR_INVALID_PARAMETER, u.convert(wstring_view(nullptr, 1)));
+  EXPECT_EQ(ERROR_INVALID_PARAMETER,
+            u.convert(wstring_view(L"foo", INT_MAX + 1u)));
+}
+
+TEST(os_test, format_std_error_code) {
+  EXPECT_EQ("generic:42",
+            fmt::format(FMT_STRING("{0}"),
+                        std::error_code(42, std::generic_category())));
+  EXPECT_EQ("system:42",
+            fmt::format(FMT_STRING("{0}"),
+                        std::error_code(42, fmt::system_category())));
+  EXPECT_EQ("system:-42",
+            fmt::format(FMT_STRING("{0}"),
+                        std::error_code(-42, fmt::system_category())));
+}
 
 TEST(os_test, format_windows_error) {
   LPWSTR message = nullptr;
@@ -45,8 +83,7 @@ TEST(os_test, format_windows_error) {
           FORMAT_MESSAGE_IGNORE_INSERTS,
       nullptr, ERROR_FILE_EXISTS, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
       reinterpret_cast<LPWSTR>(&message), 0, nullptr);
-  auto utf8_message =
-      fmt::detail::to_utf8<wchar_t>(wstring_view(message, result - 2));
+  fmt::detail::utf16_to_utf8 utf8_message(wstring_view(message, result - 2));
   LocalFree(message);
   fmt::memory_buffer actual_message;
   fmt::detail::format_windows_error(actual_message, ERROR_FILE_EXISTS, "test");
@@ -71,8 +108,7 @@ TEST(os_test, format_long_windows_error) {
     LocalFree(message);
     return;
   }
-  auto utf8_message =
-      fmt::detail::to_utf8<wchar_t>(wstring_view(message, result - 2));
+  fmt::detail::utf16_to_utf8 utf8_message(wstring_view(message, result - 2));
   LocalFree(message);
   fmt::memory_buffer actual_message;
   fmt::detail::format_windows_error(actual_message, provisioning_not_allowed,
@@ -103,24 +139,13 @@ TEST(os_test, report_windows_error) {
                fmt::to_string(out));
 }
 
-#  if FMT_USE_FCNTL && !defined(__MINGW32__)
-TEST(file_test, open_windows_file) {
-  using fmt::file;
-  file out = file::open_windows_file(L"test-file",
-                                     file::WRONLY | file::CREATE | file::TRUNC);
-  out.write("x", 1);
-  file in = file::open_windows_file(L"test-file", file::RDONLY);
-  EXPECT_READ(in, "x");
-}
-#  endif  // FMT_USE_FCNTL && !defined(__MINGW32__)
-
 #endif  // _WIN32
 
 #if FMT_USE_FCNTL
 
 using fmt::file;
 
-auto isclosed(int fd) -> bool {
+bool isclosed(int fd) {
   char buffer;
   auto result = std::streamsize();
   SUPPRESS_ASSERT(result = FMT_POSIX(read(fd, &buffer, 1)));
@@ -128,11 +153,12 @@ auto isclosed(int fd) -> bool {
 }
 
 // Opens a file for reading.
-auto open_file() -> file {
-  auto pipe = fmt::pipe();
-  pipe.write_end.write(file_content, std::strlen(file_content));
-  pipe.write_end.close();
-  return std::move(pipe.read_end);
+file open_file() {
+  file read_end, write_end;
+  file::pipe(read_end, write_end);
+  write_end.write(file_content, std::strlen(file_content));
+  write_end.close();
+  return read_end;
 }
 
 // Attempts to write a string to a file.
@@ -248,74 +274,69 @@ TEST(buffered_file_test, descriptor) {
 }
 
 TEST(ostream_test, move) {
-  fmt::ostream out = fmt::output_file(uniq_file_name(__LINE__));
+  fmt::ostream out = fmt::output_file("test-file");
   fmt::ostream moved(std::move(out));
   moved.print("hello");
 }
 
 TEST(ostream_test, move_while_holding_data) {
-  auto test_file = uniq_file_name(__LINE__);
   {
-    fmt::ostream out = fmt::output_file(test_file);
+    fmt::ostream out = fmt::output_file("test-file");
     out.print("Hello, ");
     fmt::ostream moved(std::move(out));
     moved.print("world!\n");
   }
   {
-    file in(test_file, file::RDONLY);
+    file in("test-file", file::RDONLY);
     EXPECT_READ(in, "Hello, world!\n");
   }
 }
 
 TEST(ostream_test, print) {
-  auto test_file = uniq_file_name(__LINE__);
-  fmt::ostream out = fmt::output_file(test_file);
-  out.print("The answer is {}.\n", 42);
+  fmt::ostream out = fmt::output_file("test-file");
+  out.print("The answer is {}.\n",
+            fmt::join(std::initializer_list<int>{42}, ", "));
   out.close();
-  file in(test_file, file::RDONLY);
+  file in("test-file", file::RDONLY);
   EXPECT_READ(in, "The answer is 42.\n");
 }
 
 TEST(ostream_test, buffer_boundary) {
   auto str = std::string(4096, 'x');
-  auto test_file = uniq_file_name(__LINE__);
-  fmt::ostream out = fmt::output_file(test_file);
+  fmt::ostream out = fmt::output_file("test-file");
   out.print("{}", str);
   out.print("{}", str);
   out.close();
-  file in(test_file, file::RDONLY);
+  file in("test-file", file::RDONLY);
   EXPECT_READ(in, str + str);
 }
 
 TEST(ostream_test, buffer_size) {
-  auto test_file = uniq_file_name(__LINE__);
-  fmt::ostream out = fmt::output_file(test_file, fmt::buffer_size = 1);
+  fmt::ostream out = fmt::output_file("test-file", fmt::buffer_size = 1);
   out.print("{}", "foo");
   out.close();
-  file in(test_file, file::RDONLY);
+  file in("test-file", file::RDONLY);
   EXPECT_READ(in, "foo");
 }
 
 TEST(ostream_test, truncate) {
-  auto test_file = uniq_file_name(__LINE__);
   {
-    fmt::ostream out = fmt::output_file(test_file);
+    fmt::ostream out = fmt::output_file("test-file");
     out.print("0123456789");
   }
   {
-    fmt::ostream out = fmt::output_file(test_file);
+    fmt::ostream out = fmt::output_file("test-file");
     out.print("foo");
   }
-  file in(test_file, file::RDONLY);
+  file in("test-file", file::RDONLY);
   EXPECT_EQ("foo", read(in, 4));
 }
 
 TEST(ostream_test, flush) {
-  auto test_file = uniq_file_name(__LINE__);
-  auto out = fmt::output_file(test_file);
+  auto out = fmt::output_file("test-file");
   out.print("x");
   out.flush();
-  auto in = fmt::file(test_file, file::RDONLY);
+  auto in = fmt::file("test-file", file::RDONLY);
   EXPECT_READ(in, "x");
 }
 
@@ -325,11 +346,10 @@ TEST(file_test, default_ctor) {
 }
 
 TEST(file_test, open_buffered_file_in_ctor) {
-  auto test_file = uniq_file_name(__LINE__);
-  FILE* fp = safe_fopen(test_file.c_str(), "w");
+  FILE* fp = safe_fopen("test-file", "w");
   std::fputs(file_content, fp);
   std::fclose(fp);
-  file f(test_file.c_str(), file::RDONLY);
+  file f("test-file", file::RDONLY);
   // Check if the file is open by reading one character from it.
   char buffer;
   bool isopen = FMT_POSIX(read(f.descriptor(), &buffer, 1)) == 1;
@@ -440,7 +460,7 @@ TEST(file_test, read) {
 }
 
 TEST(file_test, read_error) {
-  file f(uniq_file_name(__LINE__), file::WRONLY | file::CREATE);
+  file f("test-file", file::WRONLY);
   char buf;
   // We intentionally read from a file opened in the write-only mode to
   // cause error.
@@ -448,14 +468,15 @@ TEST(file_test, read_error) {
 }
 
 TEST(file_test, write) {
-  auto pipe = fmt::pipe();
-  write(pipe.write_end, "test");
-  pipe.write_end.close();
-  EXPECT_READ(pipe.read_end, "test");
+  file read_end, write_end;
+  file::pipe(read_end, write_end);
+  write(write_end, "test");
+  write_end.close();
+  EXPECT_READ(read_end, "test");
 }
 
 TEST(file_test, write_error) {
-  file f(uniq_file_name(__LINE__), file::RDONLY | file::CREATE);
+  file f("test-file", file::RDONLY);
   // We intentionally write to a file opened in the read-only mode to
   // cause error.
   EXPECT_SYSTEM_ERROR(f.write(" ", 1), EBADF, "cannot write to file");
@@ -509,91 +530,18 @@ TEST(file_test, dup2_noexcept_error) {
 }
 
 TEST(file_test, pipe) {
-  auto pipe = fmt::pipe();
-  EXPECT_NE(-1, pipe.read_end.descriptor());
-  EXPECT_NE(-1, pipe.write_end.descriptor());
-  write(pipe.write_end, "test");
-  EXPECT_READ(pipe.read_end, "test");
+  file read_end, write_end;
+  file::pipe(read_end, write_end);
+  EXPECT_NE(-1, read_end.descriptor());
+  EXPECT_NE(-1, write_end.descriptor());
+  write(write_end, "test");
+  EXPECT_READ(read_end, "test");
 }
 
 TEST(file_test, fdopen) {
-  auto pipe = fmt::pipe();
-  int read_fd = pipe.read_end.descriptor();
-  EXPECT_EQ(read_fd, FMT_POSIX(fileno(pipe.read_end.fdopen("r").get())));
+  file read_end, write_end;
+  file::pipe(read_end, write_end);
+  int read_fd = read_end.descriptor();
+  EXPECT_EQ(read_fd, FMT_POSIX(fileno(read_end.fdopen("r").get())));
 }
-
-// Windows CRT implements _IOLBF incorrectly (full buffering).
-#  ifndef _WIN32
-TEST(file_test, line_buffering) {
-  auto pipe = fmt::pipe();
-
-  int write_fd = pipe.write_end.descriptor();
-  auto write_end = pipe.write_end.fdopen("w");
-  setvbuf(write_end.get(), nullptr, _IOLBF, 4096);
-  write_end.print("42\n");
-  close(write_fd);
-  try {
-    write_end.close();
-  } catch (const std::system_error&) {
-  }
-
-  auto read_end = pipe.read_end.fdopen("r");
-  std::thread reader([&]() {
-    int n = 0;
-    int result = fscanf(read_end.get(), "%d", &n);
-    (void)result;
-    EXPECT_EQ(n, 42);
-  });
-
-  reader.join();
-}
-#  endif  // _WIN32
-
-TEST(file_test, buffer_boundary) {
-  auto pipe = fmt::pipe();
-
-  auto write_end = pipe.write_end.fdopen("w");
-  setvbuf(write_end.get(), nullptr, _IOFBF, 4096);
-  for (int i = 3; i < 4094; i++)
-    write_end.print("{}", (i % 73) != 0 ? 'x' : '\n');
-  write_end.print("{} {}", 1234, 567);
-  write_end.close();
-
-  auto read_end = pipe.read_end.fdopen("r");
-  char buf[4091] = {};
-  size_t n = fread(buf, 1, sizeof(buf), read_end.get());
-  EXPECT_EQ(n, sizeof(buf));
-  EXPECT_STREQ(fgets(buf, sizeof(buf), read_end.get()), "1234 567");
-}
-
-TEST(file_test, io_putting) {
-  auto pipe = fmt::pipe();
-  auto read_end = pipe.read_end.fdopen("r");
-  auto write_end = pipe.write_end.fdopen("w");
-
-  size_t read_size = 0;
-  auto reader = std::thread([&]() {
-    size_t n = 0;
-    do {
-      char buf[4096] = {};
-      n = fread(buf, 1, sizeof(buf), read_end.get());
-      read_size += n;
-    } while (n != 0);
-  });
-
-  // This initialize buffers but doesn't set _IO_CURRENTLY_PUTTING.
-  fseek(write_end.get(), 0, SEEK_SET);
-
-  size_t write_size = 0;
-  for (int i = 0; i <= 20000; ++i) {
-    auto s = fmt::format("{}\n", i);
-    fmt::print(write_end.get(), "{}", s);
-    write_size += s.size();
-  }
-
-  write_end.close();
-  reader.join();
-  EXPECT_EQ(read_size, write_size);
-}
-
 #endif  // FMT_USE_FCNTL

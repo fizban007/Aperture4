@@ -17,27 +17,14 @@
 
 template <typename T> class mock_allocator {
  public:
-  using value_type = T;
-  using size_type = size_t;
-
-  using pointer = T*;
-  using const_pointer = const T*;
-  using reference = T&;
-  using const_reference = const T&;
-  using difference_type = ptrdiff_t;
-
-  template <typename U> struct rebind {
-    using other = mock_allocator<U>;
-  };
-
   mock_allocator() {}
   mock_allocator(const mock_allocator&) {}
-
-  MOCK_METHOD(T*, allocate, (size_t));
-  MOCK_METHOD(void, deallocate, (T*, size_t));
+  using value_type = T;
+  MOCK_METHOD1_T(allocate, T*(size_t n));
+  MOCK_METHOD2_T(deallocate, void(T* p, size_t n));
 };
 
-template <typename Allocator, bool PropagateOnMove = true> class allocator_ref {
+template <typename Allocator> class allocator_ref {
  private:
   Allocator* alloc_;
 
@@ -48,8 +35,6 @@ template <typename Allocator, bool PropagateOnMove = true> class allocator_ref {
 
  public:
   using value_type = typename Allocator::value_type;
-  using propagate_on_container_move_assignment =
-      fmt::bool_constant<PropagateOnMove>;
 
   explicit allocator_ref(Allocator* alloc = nullptr) : alloc_(alloc) {}
 
@@ -68,21 +53,12 @@ template <typename Allocator, bool PropagateOnMove = true> class allocator_ref {
   }
 
  public:
-  auto get() const -> Allocator* { return alloc_; }
+  Allocator* get() const { return alloc_; }
 
-  auto allocate(size_t n) -> value_type* {
+  value_type* allocate(size_t n) {
     return std::allocator_traits<Allocator>::allocate(*alloc_, n);
   }
   void deallocate(value_type* p, size_t n) { alloc_->deallocate(p, n); }
-
-  friend auto operator==(allocator_ref a, allocator_ref b) noexcept -> bool {
-    if (a.alloc_ == b.alloc_) return true;
-    return a.alloc_ && b.alloc_ && *a.alloc_ == *b.alloc_;
-  }
-
-  friend auto operator!=(allocator_ref a, allocator_ref b) noexcept -> bool {
-    return !(a == b);
-  }
 };
 
 #endif  // FMT_MOCK_ALLOCATOR_H_

@@ -183,12 +183,6 @@ def update_site(env):
         with rewrite(index) as b:
             b.data = b.data.replace(
                 'doc/latest/index.html#format-string-syntax', 'syntax.html')
-        # Fix issues in syntax.rst.
-        index = os.path.join(target_doc_dir, 'syntax.rst')
-        with rewrite(index) as b:
-            b.data = b.data.replace(
-                '..productionlist:: sf\n', '.. productionlist:: sf\n ')
-            b.data = b.data.replace('Examples:\n', 'Examples::\n')
         # Build the docs.
         html_dir = os.path.join(env.build_dir, 'html')
         if os.path.exists(html_dir):
@@ -276,9 +270,9 @@ def release(args):
 
     # Create a release on GitHub.
     fmt_repo.push('origin', 'release')
-    auth_headers = {'Authorization': 'token ' + os.getenv('FMT_TOKEN')}
+    params = {'access_token': os.getenv('FMT_TOKEN')}
     r = requests.post('https://api.github.com/repos/fmtlib/fmt/releases',
-                      headers=auth_headers,
+                      params=params,
                       data=json.dumps({'tag_name': version,
                                        'target_commitish': 'release',
                                        'body': changes, 'draft': True}))
@@ -289,8 +283,8 @@ def release(args):
     package = 'fmt-{}.zip'.format(version)
     r = requests.post(
         '{}/{}/assets?name={}'.format(uploads_url, id, package),
-        headers={'Content-Type': 'application/zip'} | auth_headers,
-        data=open('build/fmt/' + package, 'rb'))
+        headers={'Content-Type': 'application/zip'},
+        params=params, data=open('build/fmt/' + package, 'rb'))
     if r.status_code != 201:
         raise Exception('Failed to upload an asset ' + str(r))
 

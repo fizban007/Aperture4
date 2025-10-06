@@ -196,6 +196,43 @@ TEST(fp_test, multiply) {
   EXPECT_EQ(v.e, 4 + 8 + 64);
 }
 
+TEST(fp_test, get_cached_power) {
+  using limits = std::numeric_limits<double>;
+  for (auto exp = limits::min_exponent; exp <= limits::max_exponent; ++exp) {
+    int dec_exp = 0;
+    auto power = fmt::detail::get_cached_power(exp, dec_exp);
+    bigint exact, cache(power.f);
+    if (dec_exp >= 0) {
+      exact.assign_pow10(dec_exp);
+      if (power.e <= 0)
+        exact <<= -power.e;
+      else
+        cache <<= power.e;
+      exact.align(cache);
+      cache.align(exact);
+      auto exact_str = fmt::to_string(exact);
+      auto cache_str = fmt::to_string(cache);
+      EXPECT_EQ(exact_str.size(), cache_str.size());
+      EXPECT_EQ(exact_str.substr(0, 15), cache_str.substr(0, 15));
+      int diff = cache_str[15] - exact_str[15];
+      if (diff == 1)
+        EXPECT_GT(exact_str[16], '8');
+      else
+        EXPECT_EQ(diff, 0);
+    } else {
+      cache.assign_pow10(-dec_exp);
+      cache *= power.f + 1;  // Inexact check.
+      exact = 1;
+      exact <<= -power.e;
+      exact.align(cache);
+      auto exact_str = fmt::to_string(exact);
+      auto cache_str = fmt::to_string(cache);
+      EXPECT_EQ(exact_str.size(), cache_str.size());
+      EXPECT_EQ(exact_str.substr(0, 16), cache_str.substr(0, 16));
+    }
+  }
+}
+
 TEST(fp_test, dragonbox_max_k) {
   using fmt::detail::dragonbox::floor_log10_pow2;
   using float_info = fmt::detail::dragonbox::float_info<float>;
@@ -205,18 +242,66 @@ TEST(fp_test, dragonbox_max_k) {
           floor_log10_pow2(std::numeric_limits<float>::min_exponent -
                            fmt::detail::num_significand_bits<float>() - 1));
   using double_info = fmt::detail::dragonbox::float_info<double>;
-  EXPECT_EQ(fmt::detail::const_check(double_info::max_k),
-            double_info::kappa -
-                floor_log10_pow2(
-                    std::numeric_limits<double>::min_exponent -
-                    2 * fmt::detail::num_significand_bits<double>() - 1));
+  EXPECT_EQ(
+      fmt::detail::const_check(double_info::max_k),
+      double_info::kappa -
+          floor_log10_pow2(std::numeric_limits<double>::min_exponent -
+                           fmt::detail::num_significand_bits<double>() - 1));
+}
+
+TEST(fp_test, get_round_direction) {
+  using fmt::detail::get_round_direction;
+  using fmt::detail::round_direction;
+  EXPECT_EQ(get_round_direction(100, 50, 0), round_direction::down);
+  EXPECT_EQ(get_round_direction(100, 51, 0), round_direction::up);
+  EXPECT_EQ(get_round_direction(100, 40, 10), round_direction::down);
+  EXPECT_EQ(get_round_direction(100, 60, 10), round_direction::up);
+  for (size_t i = 41; i < 60; ++i)
+    EXPECT_EQ(get_round_direction(100, i, 10), round_direction::unknown);
+  uint64_t max = max_value<uint64_t>();
+  EXPECT_THROW(get_round_direction(100, 100, 0), assertion_failure);
+  EXPECT_THROW(get_round_direction(100, 0, 100), assertion_failure);
+  EXPECT_THROW(get_round_direction(100, 0, 50), assertion_failure);
+  // Check that remainder + error doesn't overflow.
+  EXPECT_EQ(get_round_direction(max, max - 1, 2), round_direction::up);
+  // Check that 2 * (remainder + error) doesn't overflow.
+  EXPECT_EQ(get_round_direction(max, max / 2 + 1, max / 2),
+            round_direction::unknown);
+  // Check that remainder - error doesn't overflow.
+  EXPECT_EQ(get_round_direction(100, 40, 41), round_direction::unknown);
+  // Check that 2 * (remainder - error) doesn't overflow.
+  EXPECT_EQ(get_round_direction(max, max - 1, 1), round_direction::up);
+}
+
+TEST(fp_test, fixed_handler) {
+  struct handler : fmt::detail::gen_digits_handler {
+    char buffer[10];
+    handler(int prec = 0) : fmt::detail::gen_digits_handler() {
+      buf = buffer;
+      precision = prec;
+    }
+  };
+  handler().on_digit('0', 100, 99, 0, false);
+  EXPECT_THROW(handler().on_digit('0', 100, 100, 0, false), assertion_failure);
+  namespace digits = fmt::detail::digits;
+  EXPECT_EQ(handler(1).on_digit('0', 100, 10, 10, false), digits::error);
+  // Check that divisor - error doesn't overflow.
+  EXPECT_EQ(handler(1).on_digit('0', 100, 10, 101, false), digits::error);
+  // Check that 2 * error doesn't overflow.
+  uint64_t max = max_value<uint64_t>();
+  EXPECT_EQ(handler(1).on_digit('0', max, 10, max - 1, false), digits::error);
+}
+
+TEST(fp_test, grisu_format_compiles_with_on_ieee_double) {
+  auto buf = fmt::memory_buffer();
+  format_float(0.42, -1, fmt::detail::float_specs(), buf);
 }
 
 TEST(format_impl_test, format_error_code) {
   std::string msg = "error 42", sep = ": ";
   {
     auto buffer = fmt::memory_buffer();
-    fmt::format_to(fmt::appender(buffer), "garbage");
+    format_to(fmt::appender(buffer), "garbage");
     fmt::detail::format_error_code(buffer, 42, "test");
     EXPECT_EQ(to_string(buffer), "test: " + msg);
   }
@@ -246,6 +331,13 @@ TEST(format_impl_test, format_error_code) {
   }
 }
 
+TEST(format_impl_test, compute_width) {
+  EXPECT_EQ(4,
+            fmt::detail::compute_width(
+                fmt::basic_string_view<fmt::detail::char8_type>(
+                    reinterpret_cast<const fmt::detail::char8_type*>("ёжик"))));
+}
+
 // Tests fmt::detail::count_digits for integer type Int.
 template <typename Int> void test_count_digits() {
   for (Int i = 0; i < 10; ++i) EXPECT_EQ(1u, fmt::detail::count_digits(i));
@@ -261,16 +353,6 @@ TEST(format_impl_test, count_digits) {
   test_count_digits<uint64_t>();
 }
 
-TEST(format_impl_test, countl_zero) {
-  constexpr auto num_bits = fmt::detail::num_bits<uint32_t>();
-  uint32_t n = 1u;
-  for (int i = 1; i < num_bits - 1; i++) {
-    n <<= 1;
-    EXPECT_EQ(fmt::detail::countl_zero(n - 1), num_bits - i);
-    EXPECT_EQ(fmt::detail::countl_zero(n), num_bits - i - 1);
-  }
-}
-
 #if FMT_USE_FLOAT128
 TEST(format_impl_test, write_float128) {
   auto s = std::string();
@@ -283,44 +365,39 @@ struct double_double {
   double a;
   double b;
 
-  constexpr explicit double_double(double a_val = 0, double b_val = 0)
+  explicit constexpr double_double(double a_val = 0, double b_val = 0)
       : a(a_val), b(b_val) {}
 
   operator double() const { return a + b; }
   auto operator-() const -> double_double { return double_double(-a, -b); }
 };
 
-auto format_as(double_double d) -> double { return d; }
-
-auto operator>=(const double_double& lhs, const double_double& rhs) -> bool {
+bool operator>=(const double_double& lhs, const double_double& rhs) {
   return lhs.a + lhs.b >= rhs.a + rhs.b;
 }
 
 struct slow_float {
   float value;
 
-  constexpr explicit slow_float(float val = 0) : value(val) {}
+  explicit constexpr slow_float(float val = 0) : value(val) {}
   operator float() const { return value; }
   auto operator-() const -> slow_float { return slow_float(-value); }
 };
 
-auto format_as(slow_float f) -> float { return f; }
-
 namespace std {
+template <> struct is_floating_point<double_double> : std::true_type {};
 template <> struct numeric_limits<double_double> {
   // is_iec559 is true for double-double in libstdc++.
   static constexpr bool is_iec559 = true;
   static constexpr int digits = 106;
-  static constexpr int digits10 = 33;
 };
 
+template <> struct is_floating_point<slow_float> : std::true_type {};
 template <> struct numeric_limits<slow_float> : numeric_limits<float> {};
 }  // namespace std
 
 FMT_BEGIN_NAMESPACE
 namespace detail {
-template <> struct is_floating_point<double_double> : std::true_type {};
-template <> struct is_floating_point<slow_float> : std::true_type {};
 template <> struct is_fast_float<slow_float> : std::false_type {};
 namespace dragonbox {
 template <> struct float_info<slow_float> {
@@ -342,10 +419,10 @@ TEST(format_impl_test, write_dragon_even) {
   auto s = std::string();
   fmt::detail::write<char>(std::back_inserter(s), slow_float(33554450.0f), {});
   // Specializing is_floating_point is broken in MSVC.
-  if (!FMT_MSC_VERSION) EXPECT_EQ(s, "3.355445e+07");
+  if (!FMT_MSC_VERSION) EXPECT_EQ(s, "33554450");
 }
 
-#if defined(_WIN32) && !defined(FMT_USE_WRITE_CONSOLE)
+#ifdef _WIN32
 #  include <windows.h>
 
 TEST(format_impl_test, write_console_signature) {
@@ -356,11 +433,11 @@ TEST(format_impl_test, write_console_signature) {
 
 // A public domain branchless UTF-8 decoder by Christopher Wellons:
 // https://github.com/skeeto/branchless-utf8
-constexpr auto unicode_is_surrogate(uint32_t c) -> bool {
+constexpr bool unicode_is_surrogate(uint32_t c) {
   return c >= 0xD800U && c <= 0xDFFFU;
 }
 
-FMT_CONSTEXPR auto utf8_encode(char* s, uint32_t c) -> char* {
+FMT_CONSTEXPR char* utf8_encode(char* s, uint32_t c) {
   if (c >= (1UL << 16)) {
     s[0] = static_cast<char>(0xf0 | (c >> 18));
     s[1] = static_cast<char>(0x80 | ((c >> 12) & 0x3f));
@@ -467,11 +544,4 @@ TEST(format_impl_test, utf8_decode_bogus_byte_sequences) {
   len = fmt::detail::utf8_decode(buf2, &c, &e) - buf2;
   EXPECT_NE(e, 0);    // "bogus [c0 0a] 0x%02x U+%04lx", e, (unsigned long)c
   EXPECT_EQ(len, 2);  // "bogus [c0 0a] recovery %d", len);
-}
-
-TEST(format_impl_test, to_utf8) {
-  auto s = std::string("ёжик");
-  auto u = fmt::detail::to_utf8<wchar_t>(L"\x0451\x0436\x0438\x043A");
-  EXPECT_EQ(s, u.str());
-  EXPECT_EQ(s.size(), u.size());
 }

@@ -12,12 +12,13 @@
 
 #include <string>
 
-#include "fmt/os.h"
-#include "gmock/gmock.h"
+#ifdef FMT_MODULE_TEST
+import fmt;
+#else
+#  include "fmt/os.h"
+#endif  // FMG_MODULE_TEST
 
-#ifdef _MSC_VER
-#  include <crtdbg.h>
-#endif
+#include "gmock/gmock.h"
 
 #define FMT_TEST_THROW_(statement, expected_exception, expected_message, fail) \
   GTEST_AMBIGUOUS_ELSE_BLOCKER_                                                \
@@ -81,7 +82,7 @@ class output_redirect {
   void restore();
 
  public:
-  explicit output_redirect(FILE* file, bool flush = true);
+  explicit output_redirect(FILE* file);
   ~output_redirect() noexcept;
 
   output_redirect(const output_redirect&) = delete;

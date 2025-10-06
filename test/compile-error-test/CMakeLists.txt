@@ -1,6 +1,6 @@
 # Test if compile errors are produced where necessary.
 
-cmake_minimum_required(VERSION 3.8...3.25)
+cmake_minimum_required(VERSION 3.1...3.18)
 project(compile-error-test CXX)
 
 set(fmt_headers "
@@ -64,7 +64,7 @@ function (run_tests)
   ")
 
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/test/CMakeLists.txt" "
-    cmake_minimum_required(VERSION 3.8...3.25)
+    cmake_minimum_required(VERSION 3.1...3.18)
     project(tests CXX)
     add_subdirectory(${FMT_DIR} fmt)
     ${cmake_targets}
@@ -115,7 +115,8 @@ function (run_tests)
   endif ()
 endfunction ()
 
-# Check if the source file skeleton compiles.
+
+# check if the source file skeleton compiles
 expect_compile(check "")
 expect_compile(check-error "compilation_error" ERROR)
 
@@ -164,6 +165,31 @@ expect_compile(format-lots-of-arguments-with-function "
   void (*f)();
   fmt::format(\"\", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, f);
 " ERROR)
+
+# Check if user-defined literals are available
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_FLAGS ${CXX_STANDARD_FLAG})
+check_cxx_source_compiles("
+  void operator\"\" _udl(long double);
+  int main() {}"
+  SUPPORTS_USER_DEFINED_LITERALS)
+set(CMAKE_REQUIRED_FLAGS )
+if (NOT SUPPORTS_USER_DEFINED_LITERALS)
+  set (SUPPORTS_USER_DEFINED_LITERALS OFF)
+endif ()
+
+# Make sure that compiler features detected in the header
+# match the features detected in CMake.
+if (SUPPORTS_USER_DEFINED_LITERALS)
+  set(supports_udl 1)
+else ()
+  set(supports_udl 0)
+endif ()
+expect_compile(udl-check "
+  #if FMT_USE_USER_DEFINED_LITERALS != ${supports_udl}
+  # error
+  #endif
+")
 
 if (CMAKE_CXX_STANDARD GREATER_EQUAL 20)
   # Compile-time argument type check

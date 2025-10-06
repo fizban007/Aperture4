@@ -1,12 +1,26 @@
 add_subdirectory(gtest)
 
-include(CheckSymbolExists)
-
 set(TEST_MAIN_SRC test-main.cc gtest-extra.cc gtest-extra.h util.cc)
 add_library(test-main STATIC ${TEST_MAIN_SRC})
 target_include_directories(test-main PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>)
 target_link_libraries(test-main gtest fmt)
+
+function(add_fmt_executable name)
+  add_executable(${name} ${ARGN})
+  # (Wstringop-overflow) - [meta-bug] bogus/missing -Wstringop-overflow warnings
+  #   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=88443
+  # Bogus -Wstringop-overflow warning
+  #   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100395
+  # [10 Regression] spurious -Wstringop-overflow writing to a trailing array plus offset
+  #   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95353
+  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
+      NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0)
+    target_compile_options(${name} PRIVATE -Wno-stringop-overflow)
+    # The linker flag is needed for LTO.
+    target_link_libraries(${name} -Wno-stringop-overflow)
+  endif ()
+endfunction()
 
 # Adds a test.
 # Usage: add_fmt_test(name srcs...)
@@ -21,17 +35,13 @@ function(add_fmt_test name)
       set(PEDANTIC_COMPILE_FLAGS ${PEDANTIC_COMPILE_FLAGS} -Wno-weak-vtables)
     endif ()
   elseif (ADD_FMT_TEST_MODULE)
-    set(libs test-main test-module)
+    set(libs gtest test-module)
     set_source_files_properties(${name}.cc PROPERTIES OBJECT_DEPENDS test-module)
   else ()
     set(libs test-main fmt)
   endif ()
-  add_executable(${name} ${sources})
+  add_fmt_executable(${name} ${sources})
   target_link_libraries(${name} ${libs})
-
-  if (ADD_FMT_TEST_HEADER_ONLY AND NOT FMT_UNICODE)
-    target_compile_definitions(${name} PUBLIC FMT_UNICODE=0)
-  endif ()
 
   # Define if certain C++ features can be used.
   if (FMT_PEDANTIC)
@@ -43,15 +53,11 @@ function(add_fmt_test name)
   add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-if (FMT_MODULE)
-  return ()
-endif ()
-
 add_fmt_test(args-test)
-add_fmt_test(base-test)
 add_fmt_test(assert-test)
 add_fmt_test(chrono-test)
 add_fmt_test(color-test)
+add_fmt_test(core-test)
 add_fmt_test(gtest-extra-test)
 add_fmt_test(format-test mock-allocator.h)
 if (MSVC)
@@ -62,21 +68,14 @@ if (NOT (MSVC AND BUILD_SHARED_LIBS))
 endif ()
 add_fmt_test(ostream-test)
 add_fmt_test(compile-test)
-add_fmt_test(compile-fp-test)
+add_fmt_test(compile-fp-test HEADER_ONLY)
 if (MSVC)
   # Without this option, MSVC returns 199711L for the __cplusplus macro.
   target_compile_options(compile-fp-test PRIVATE /Zc:__cplusplus)
 endif()
 add_fmt_test(printf-test)
 add_fmt_test(ranges-test ranges-odr-test.cc)
-add_fmt_test(no-builtin-types-test HEADER_ONLY)
-
-add_fmt_test(scan-test HEADER_ONLY)
-check_symbol_exists(strptime "time.h" HAVE_STRPTIME)
-if (HAVE_STRPTIME)
-  target_compile_definitions(scan-test PRIVATE FMT_HAVE_STRPTIME)
-endif ()
-
+add_fmt_test(scan-test)
 add_fmt_test(std-test)
 try_compile(compile_result_unused
             ${CMAKE_CURRENT_BINARY_DIR}
@@ -95,16 +94,13 @@ add_fmt_test(enforce-checks-test)
 target_compile_definitions(enforce-checks-test PRIVATE
                            -DFMT_ENFORCE_COMPILE_STRING)
 
-add_executable(perf-sanity perf-sanity.cc)
-target_link_libraries(perf-sanity fmt::fmt)
-
-if (FMT_MODULE)
+if (FMT_CAN_MODULE)
   # The tests need {fmt} to be compiled as traditional library
   # because of visibility of implementation details.
   # If module support is present the module tests require a
   # test-only module to be built from {fmt}
   add_library(test-module OBJECT ${CMAKE_SOURCE_DIR}/src/fmt.cc)
-  target_compile_features(test-module PUBLIC cxx_std_11)
+  target_compile_features(test-module PUBLIC ${FMT_REQUIRED_FEATURES})
   target_include_directories(test-module PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>)
   enable_module(test-module)
@@ -130,16 +126,13 @@ if (NOT DEFINED MSVC_STATIC_RUNTIME AND MSVC)
 endif()
 
 if (NOT MSVC_STATIC_RUNTIME)
-  add_executable(posix-mock-test
+  add_fmt_executable(posix-mock-test
     posix-mock-test.cc ../src/format.cc ${TEST_MAIN_SRC})
   target_include_directories(
     posix-mock-test PRIVATE ${PROJECT_SOURCE_DIR}/include)
   target_link_libraries(posix-mock-test gtest)
   if (FMT_PEDANTIC)
     target_compile_options(posix-mock-test PRIVATE ${PEDANTIC_COMPILE_FLAGS})
-  endif ()
-  if (MSVC)
-    target_compile_options(posix-mock-test PRIVATE /utf-8)
   endif ()
   add_test(NAME posix-mock-test COMMAND posix-mock-test)
   add_fmt_test(os-test)
@@ -170,12 +163,7 @@ if (FMT_PEDANTIC)
 endif ()
 
 # These tests are disabled on Windows because they take too long.
-# They are disabled on GCC < 4.9 because it can not parse UDLs without
-# a space after `operator""` but that is an incorrect syntax for any more
-# modern compiler.
-if (FMT_PEDANTIC AND NOT WIN32 AND NOT (
-    CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
-    CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9))
+if (FMT_PEDANTIC AND NOT WIN32)
   # Test if incorrect API usages produce compilation error.
   add_test(compile-error-test ${CMAKE_CTEST_COMMAND}
     --build-and-test
@@ -221,7 +209,7 @@ if (FMT_PEDANTIC AND NOT WIN32 AND NOT (
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
 endif ()
 
-# This test is disabled on Windows because it is POSIX-specific.
+# This test are disabled on Windows because it is only *NIX issue.
 if (FMT_PEDANTIC AND NOT WIN32)
   add_test(static-export-test ${CMAKE_CTEST_COMMAND}
     -C ${CMAKE_BUILD_TYPE}

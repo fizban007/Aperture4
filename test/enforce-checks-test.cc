@@ -8,14 +8,12 @@
 #include <iterator>
 #include <vector>
 
-#define I 42  // simulate https://en.cppreference.com/w/c/numeric/complex/I
 #include "fmt/chrono.h"
 #include "fmt/color.h"
 #include "fmt/format.h"
 #include "fmt/ostream.h"
 #include "fmt/ranges.h"
 #include "fmt/xchar.h"
-#undef I
 
 // Exercise the API to verify that everything we expect to can compile.
 void test_format_api() {

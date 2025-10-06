@@ -79,6 +79,10 @@ if(use_cuda OR use_hip)
     WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 endif()
 
+if (use_hip AND on_frontier)
+  add_aperture_executable(test_frontier_mpi "test_frontier_mpi.hip.cpp")
+endif()
+
 if (use_cuda AND CMAKE_CUDA_COMPILER)
   # add_executable(test_summit_mpi "test_summit_mpi.cu")
   # target_link_libraries(test_summit_mpi Aperture_dev)

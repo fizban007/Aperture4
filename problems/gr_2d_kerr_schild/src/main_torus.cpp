@@ -202,7 +202,7 @@ main(int argc, char  * argv[]) {
   double Lz = AngularMomentum(spin, r_max, E0);
   double Emax = energyMax(spin, r_lower, Lz);
   //this is not exaclty the max density because r_max is not exactly the radius of max density, but is close for smaller torus
-  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);
+  double max_density = torus_Density(r_max, M_PI/2, spin, Emax, temp, Lz);
   
   //Prepare zero initial field 
   vector_field<Conf> *B, *D, *B0, *D0;
@@ -230,16 +230,16 @@ exec_policy_dynamic<Conf>::launch(
             if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
             Scalar prefactor =  Bp / max_density / math::sqrt( ksDetGamma(r_s,th_s,spin) );
             Scalar eps = 1e-4;//come up with a better standard for this. 
-            Scalar rho = torus_Density(r_s, th_s, spin, E0,Emax, temp, Lz);
+            Scalar rho = torus_Density(r_s, th_s, spin, Emax, temp, Lz);
             // if(rho/max_density > 0.4){//cut off to avoid magnetization blow up 
             if (rho/max_density > 0.001) {
-              Scalar A_rplus = A_smooth(torus_Density(r+eps,th_s,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
-              Scalar A_rminus = A_smooth(torus_Density(r-eps,th_s,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_rplus = A_smooth(torus_Density(r+eps,th_s,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_rminus = A_smooth(torus_Density(r-eps,th_s,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
               // Scalar dAdr = (torus_Density(r+eps,th_s,spin, E0,Emax, temp, Lz)-
               //             torus_Density(r-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
               Scalar dAdr = (A_rplus - A_rminus)/(2.0 * eps);
-              Scalar A_thplus = A_smooth(torus_Density(r_s,th+eps,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
-              Scalar A_thminus = A_smooth(torus_Density(r_s,th-eps,spin, E0,Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_thplus = A_smooth(torus_Density(r_s,th+eps,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_thminus = A_smooth(torus_Density(r_s,th-eps,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
               // Scalar dAdth = (torus_Density(r_s,th+eps,spin, E0,Emax, temp, Lz)-
               //             torus_Density(r_s,th-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
               Scalar dAdth = (A_thplus - A_thminus)/(2.0 * eps);

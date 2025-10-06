@@ -25,13 +25,21 @@
 #include <cmath>
 #include <string>
 
+// #ifdef __HIP_DEVICE_COMPILE__
+// #pragma message("HIP_DEVICE_COMPILE__ is defined")
+// #endif
+// #ifdef __HIPCC__
+// #pragma message("HIPCC__ is defined")
+// #endif
+
 namespace Aperture {
 
 template <typename T>
 HD_INLINE T
 atomic_add(T* addr, type_identity_t<T> value) {
 // atomic_add(T* addr, T value) {
-#if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+// #if defined(__CUDACC__) || defined(__HIP_DEVICE_COMPILE__)
+#if defined(__CUDACC__) || defined(__HIPCC__)
   auto result = atomicAdd(addr, value);
   return result;
 #else

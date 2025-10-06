@@ -17,7 +17,9 @@ option(lib_only "Only build the core Aperture library" OFF)
 option(use_boost_filesystem "Use boost filesystem instead of std::filesystem" OFF)
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 option(enable_para_perp "Enable tracking of parallel vs perpendicular E.v work" OFF)
+option(on_frontier "Compile on frontier" OFF)
 set(cuda_target_gpu "A100" CACHE STRING "The CUDA GPU target, which determines the CUDA_ARCHITECTURE variable")
+set(hip_target_gpu "GFX90A" CACHE STRING "The HIP GPU target, which determines the HIP_ARCHITECTURE variable")
 
 # set(CMAKE_CXX_COMPILER "g++")
 
@@ -51,6 +53,13 @@ if(use_boost_filesystem)
   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__USE_BOOST_FILESYSTEM__")
   set(CUDA_EXTRA_FLAGS "${CUDA_EXTRA_FLAGS} -D__USE_BOOST_FILESYSTEM__")
 endif()
+
+if(on_frontier)
+  set(ROCM_PATH $ENV{ROCM_PATH})
+  set(HIP_EXTRA_FLAGS "${CXX_EXTRA_FLAGS} -std=c++17 -D__HIP_ROCclr__ -D__HIP_ARCH_GFX90A__=1 --rocm-path=${ROCM_PATH} --offload-arch=gfx90a -x hip")
+  set(CXX_EXTRA_FLAGS "-D__HIP_ROCclr__")
+endif()
+
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_EXTRA_FLAGS}")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
@@ -92,6 +101,10 @@ set(CXXOPT_INCLUDE_DIR deps/cxxopts/include)
 set(GSL_INCLUDE_DIR deps/gsl/include)
 set(VECTORCLASS_INCLUDE_DIR deps/vectorclass1)
 
+if(on_frontier)
+  set(HIP_INCLUDE_DIR ${ROCM_PATH}/include)
+endif()
+
 include_directories(
   ${BOOST_INCLUDE_DIR}
   ${MPI_INCLUDE_PATH}
@@ -103,6 +116,7 @@ include_directories(
   ${CXXOPT_INCLUDE_DIR}
   ${GSL_INCLUDE_DIR}
   ${VECTORCLASS_INCLUDE_DIR}
+  ${HIP_INCLUDE_DIR}
   src)
 
 # Check for cuda support
@@ -212,11 +226,15 @@ if(use_hip)
     set(HDF5_DIR $ENV{HDF5_DIR})
     include_directories("${HDF5_DIR}/include")
     set(CRAY_XPMEM_POST_LINK_OPTS $ENV{CRAY_XPMEM_POST_LINK_OPTS})
-    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics")
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics -Wno-pass-failed")
     set(CMAKE_HIP_LINK_FLAGS "${CMAKE_HIP_LINK_FLAGS} --hip-link -fgpu-rdc ")
     # set(CMAKE_HIP_LINK_EXECUTABLE "hipcc <FLAGS> <CMAKE_HIP_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
     # set(CMAKE_CXX_LINK_EXECUTABLE "hipcc <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
-    set(CMAKE_HIP_ARCHITECTURES "gfx1151")
+    if(hip_target_gpu STREQUAL "GFX90A" OR on_frontier)
+      set(CMAKE_HIP_ARCHITECTURES "gfx90a")
+    elseif(hip_target_gpu STREQUAL "GFX1151")
+      set(CMAKE_HIP_ARCHITECTURES "gfx1151")
+    endif()
     if(use_libcpp)
       set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -stdlib=libc++")
     endif()

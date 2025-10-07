@@ -56,7 +56,7 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
   sim_env().params().get_value("downsample", m_downsample);
   sim_env().params().get_value("num_snapshots", m_num_snapshots);
   sim_env().params().get_value("fld_output_resample", m_resample);
-  sim_env().params().get_value("special_snapshot_step", m_special_snapshot_step);
+  sim_env().params().get_value("special_snapshot_interval", m_special_snapshot_interval);
 
   // Resize the tmp data array
   size_t max_ptc_num = 100, max_ph_num = 100;
@@ -313,7 +313,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     snapshot_name += std::to_string(m_current_snapshot) + ".h5";
     write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
                    time);
-    if (m_special_snapshot_step > 0 && step == m_special_snapshot_step) {
+    if (m_special_snapshot_interval > 0 && step % m_special_snapshot_interval == 0 && step > 0) {
       snapshot_name = std::string("snapshot") + std::to_string(step) + ".h5";
       write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
                      time);

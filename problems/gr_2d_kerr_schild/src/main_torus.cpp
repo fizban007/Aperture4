@@ -28,6 +28,7 @@
 #include "systems/grid_ks.h"
 #include "systems/radiative_transfer_impl.hpp"
 #include "systems/radiation/gr_ks_ic_radiation_scheme_fido.hpp"
+#include "systems/radiation/default_radiation_scheme_gr.hpp"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
@@ -139,15 +140,15 @@ namespace Aperture {
     return vec_t<Scalar, 3>{ksp_r, blp_th, Lz};
   }
 
-  HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar Emax, Scalar Temp, Scalar Lz) {
+  HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar E0, Scalar Emax, Scalar Temp, Scalar Lz) {
     Scalar Deltav = Delta(r,a);
     Scalar Sigmav = Sigma(r, th, a);
     Scalar Av = A(r, th, a);
     Scalar sinth = math::sin(th);
     Scalar prefactor = 2.0 * M_PI * Temp/math::sqrt(Deltav* sinth * sinth);
     Scalar Eminv = Emin(r, th, a, Lz);
-    Scalar blS_t = prefactor * ( (Temp+Emax) - (Temp+Eminv) * math::exp((Emax-Eminv)/Temp) );
-    Scalar blS_phi = Lz * prefactor * (math::exp((Emax-Eminv)/Temp) - (Temp+Emax) );
+    Scalar blS_t = prefactor * ( (Temp-Emax) * math::exp( -(Emax-E0)/Temp) - (Temp-Eminv) * math::exp( -(Eminv-E0)/Temp) );
+    Scalar blS_phi = prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
     return Metric_KS::alpha(r, th, a) * blSt;
   }
@@ -172,6 +173,9 @@ main(int argc, char  * argv[]) {
   auto moments = env.register_system<compute_moments_gr_ks<Conf, exec_policy_dynamic>>(grid);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker  =  env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
+  auto radiation = env.register_system<
+    radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
+                       default_radiation_scheme_gr>>(grid, &comm);
   // auto radiation = env.register_system<
   //   radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
   //                     //  default_radiation_scheme_gr>>(grid, &comm);
@@ -202,7 +206,7 @@ main(int argc, char  * argv[]) {
   double Lz = AngularMomentum(spin, r_max, E0);
   double Emax = energyMax(spin, r_lower, Lz);
   //this is not exaclty the max density because r_max is not exactly the radius of max density, but is close for smaller torus
-  double max_density = torus_Density(r_max, M_PI/2, spin, Emax, temp, Lz);
+  double max_density = torus_Density(r_max, M_PI/2, spin, E0, Emax, temp, Lz);
   
   //Prepare zero initial field 
   vector_field<Conf> *B, *D, *B0, *D0;
@@ -230,16 +234,16 @@ exec_policy_dynamic<Conf>::launch(
             if (math::abs(th_s) < TINY){th_s = (th_s < 0.0f ? -1.0f : 1.0f) * 0.01 * grid.delta[1];}
             Scalar prefactor =  Bp / max_density / math::sqrt( ksDetGamma(r_s,th_s,spin) );
             Scalar eps = 1e-4;//come up with a better standard for this. 
-            Scalar rho = torus_Density(r_s, th_s, spin, Emax, temp, Lz);
+            Scalar rho = torus_Density(r_s, th_s, spin, E0, Emax, temp, Lz);
             // if(rho/max_density > 0.4){//cut off to avoid magnetization blow up 
             if (rho/max_density > 0.001) {
-              Scalar A_rplus = A_smooth(torus_Density(r+eps,th_s,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
-              Scalar A_rminus = A_smooth(torus_Density(r-eps,th_s,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_rplus = A_smooth(torus_Density(r+eps,th_s,spin, E0, Emax, temp, Lz) / max_density, 0.1, 30.0);
+              Scalar A_rminus = A_smooth(torus_Density(r-eps,th_s,spin, E0, Emax, temp, Lz) / max_density, 0.1, 30.0);
               // Scalar dAdr = (torus_Density(r+eps,th_s,spin, E0,Emax, temp, Lz)-
               //             torus_Density(r-eps,th_s,spin, E0,Emax, temp, Lz))/(2.0 * eps);
               Scalar dAdr = (A_rplus - A_rminus)/(2.0 * eps);
-              Scalar A_thplus = A_smooth(torus_Density(r_s,th+eps,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
-              Scalar A_thminus = A_smooth(torus_Density(r_s,th-eps,spin, Emax, temp, Lz) / max_density, 0.2, 30.0);
+              Scalar A_thplus = A_smooth(torus_Density(r_s,th+eps,spin, E0, Emax, temp, Lz) / max_density, 0.1, 30.0);
+              Scalar A_thminus = A_smooth(torus_Density(r_s,th-eps,spin, E0, Emax, temp, Lz) / max_density, 0.1, 30.0);
               // Scalar dAdth = (torus_Density(r_s,th+eps,spin, E0,Emax, temp, Lz)-
               //             torus_Density(r_s,th-eps,spin, E0,Emax, temp, Lz))/(2.0 * eps);
               Scalar dAdth = (A_thplus - A_thminus)/(2.0 * eps);
@@ -290,12 +294,12 @@ exec_policy_dynamic<Conf>::launch(
       },
       // Fourth function is the particle weight, which can depend on the global
       // coordinate.
-      [ppc,spin,Lz,Emax,temp,set_max_density,max_density,r_lower] LAMBDA(auto &x_global, PtcType type) {
+      [ppc,spin,Lz,E0,Emax,temp,set_max_density,max_density,r_lower] LAMBDA(auto &x_global, PtcType type) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t th = grid_ks_t<Conf>::theta(x_global[1]);
         if (r < r_lower) {return 0.0;}
         if( Emin(r,th, spin, Lz)  >=   Emax) {return 0.0;}
-        value_t density= torus_Density(r, th, spin, Emax, temp, Lz);
+        value_t density= torus_Density(r, th, spin, E0, Emax, temp, Lz);
         value_t sqrt_gamma = Metric_KS::sqrt_gamma(spin, r, th);
         return set_max_density/max_density * (density * r * sqrt_gamma) / ppc; 
       });

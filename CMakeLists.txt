@@ -263,13 +263,13 @@ function(add_aperture_executable target_name)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
   elseif (use_hip AND CMAKE_HIP_COMPILER)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
+    set_target_properties(${target_name} PROPERTIES
+      LINKER_LANGUAGE HIP)
   endif()
   add_executable(${target_name} ${ARGN})
   target_link_libraries(${target_name}
     Aperture
     $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
-  set_target_properties(${target_name} PROPERTIES
-    LINKER_LANGUAGE HIP)
 endfunction()
 
 function(add_aperture_library target_name)

@@ -334,7 +334,8 @@ main(int argc, char  * argv[]) {
   env.get_data("Edelta", &D);
 
 
-  initial_vacuum_wald_limited(*B0, *D0, grid, r_lower*0.95, 1000.0);
+  // initial_vacuum_wald_limited(*B0, *D0, grid, r_lower*0.95, 1000.0);
+  initial_vacuum_wald_limited(*B0, *D0, grid, 0.0, 1000.0);
 
 //magnetic field loop
 // exec_policy_dynamic<Conf>::launch(
@@ -411,11 +412,15 @@ main(int argc, char  * argv[]) {
       [ppc,spin,Lz,E0,Emax,temp,set_max_density,max_density,r_lower] LAMBDA(auto &x_global, PtcType type) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t th = grid_ks_t<Conf>::theta(x_global[1]);
-        if (r < r_lower) {return 0.0;}
-        if( Emin(r,th, spin, Lz)  >=   Emax) {return 0.0;}
+        if (r < r_lower) { return value_t(0.0); }
+        if( Emin(r,th, spin, Lz)  >=   Emax) {return value_t(0.0);}
         value_t density= torus_Density(r, th, spin, E0, Emax, temp, Lz);
         value_t sqrt_gamma = Metric_KS::sqrt_gamma(spin, r, th);
-        return set_max_density/max_density * (density * r * sqrt_gamma) / ppc; 
+        value_t w = set_max_density/max_density * (density * r * sqrt_gamma) / ppc;
+        // if (density / max_density < 5e-3) {
+        //   w = 0.0;
+        // }
+        return w; 
       });
 
   env.run();

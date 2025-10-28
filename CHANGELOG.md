@@ -3,7 +3,77 @@
 This is the changelog for `cxxopts`, a C++11 library for parsing command line
 options. The project adheres to semantic versioning.
 
-## Next version
+## 3.3.1
+
+### Bug fixes
+
+* Added missing version bump
+
+## 3.3.0
+
+### Bug fixes
+
+* Added missing header for GCC 15
+* Fix some CMake packaging problems
+
+### Added
+
+* `as_optional`
+* `ParseResult::contains`
+* `std::filesystem` support
+* CMake 4 compatibility
+
+## 3.2.1
+
+### Bug fixes
+
+* Fix compilation with optional on C++20.
+
+## 3.2
+
+### Bug fixes
+
+* Fix unannotated fallthrough.
+* Fix sign conversion with Unicode output.
+* Don't initialize regex in static initialiser.
+* Fix incorrect integer overflow checks.
+
+### Added
+
+* Add fuzzing to CI
+
+### Changed
+
+* Change quote output to '' to match Windows.
+* Don't split positional arguments by the list delimiter.
+* Order help groups by the order they were added.
+
+## 3.1.1
+
+### Bug Fixes
+
+* Fixed version number in header.
+* Fixed cast warning in Unicode function.
+
+## 3.1
+
+### Added
+
+* Support for multiple long names for the same option (= multiple long aliases)
+* Add a `program()` function to retrieve the program name.
+* Added a .clang-format file.
+* Added iterator and printing for a ParseResult.
+
+### Changed
+
+* Cleanup exception code, add cxxopts::exceptions namespace.
+* Renamed several exceptions to be more descriptive, and added to a nested namespace.
+
+### Bug Fixes
+
+* Fix `arguments()` having no key for options that only have a short name.
+
+## 3.0
 
 ### Changed
 
@@ -12,6 +82,22 @@ options. The project adheres to semantic versioning.
 * Fix duplicate default options when there is a short and long option.
 * Add `CXXOPTS_NO_EXCEPTIONS` to disable exceptions.
 * Fix char parsing for space and check for length.
+* Change argument type in `Options::parse` from `char**` to `const char**`.
+* Refactor parser to not change its arguments.
+* `ParseResult` doesn't depend on a reference to the parser.
+* Fixed several warnings and code quality issues.
+* Improved formatting for help descriptions.
+* Improve integer parsing.
+
+### Added
+
+* A list of unmatched arguments is available in `ParseResult`.
+* Support single letter options with argument attached.
+* Use <optional> if it is present.
+
+### Bug Fixes
+
+* Fix missing option name in exception.
 
 ## 2.2
 

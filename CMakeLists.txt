@@ -230,7 +230,8 @@ if(use_hip)
     set(PE_MPICH_GTL_DIR_amd_gfx90a $ENV{PE_MPICH_GTL_DIR_amd_gfx90a})
     set(PE_MPICH_GTL_LIBS_amd_gfx90a $ENV{PE_MPICH_GTL_LIBS_amd_gfx90a})
     set(CMAKE_HIP_EXTRA_FLAGS "${CMAKE_HIP_EXTRA_FLAGS} -I${MPICH_DIR}/include -L${MPICH_DIR}/lib -lmpi ${CRAY_XPMEM_POST_LINK_OPTS} -lxpmem ${PE_MPICH_GTL_DIR_amd_gfx90a} ${PE_MPICH_GTL_LIBS_amd_gfx90a}")
-    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics -Wno-pass-failed ${CMAKE_HIP_EXTRA_FLAGS}")
+    # set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -munsafe-fp-atomics -Wno-pass-failed ${CMAKE_HIP_EXTRA_FLAGS}")
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -Wno-pass-failed ${CMAKE_HIP_EXTRA_FLAGS}")
     set(CMAKE_HIP_LINK_FLAGS "${CMAKE_HIP_LINK_FLAGS} --hip-link -fgpu-rdc -L${MPICH_DIR}/lib -lmpi ${CRAY_XPMEM_POST_LINK_OPTS} -lxpmem ${PE_MPICH_GTL_DIR_amd_gfx90a} ${PE_MPICH_GTL_LIBS_amd_gfx90a}")
     if(hip_target_gpu STREQUAL "GFX90A" OR on_frontier)
       set(CMAKE_HIP_ARCHITECTURES "gfx90a")
@@ -263,13 +264,15 @@ function(add_aperture_executable target_name)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
   elseif (use_hip AND CMAKE_HIP_COMPILER)
     set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
-    set_target_properties(${target_name} PROPERTIES
-      LINKER_LANGUAGE HIP)
   endif()
   add_executable(${target_name} ${ARGN})
   target_link_libraries(${target_name}
     Aperture
     $<TARGET_NAME_IF_EXISTS:Aperture_dev>)
+  if (use_hip AND CMAKE_HIP_COMPILER)
+    set_target_properties(${target_name} PROPERTIES
+      LINKER_LANGUAGE HIP)
+  endif()
 endfunction()
 
 function(add_aperture_library target_name)

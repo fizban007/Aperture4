@@ -17,10 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
-add_executable(example example.cpp)
-target_link_libraries(example cxxopts)
-
-target_compile_features(example PRIVATE cxx_std_17)
-target_compile_options(example PRIVATE
-    "$<$<CXX_COMPILER_ID:MSVC>:/utf-8;>")
+target_include_directories(cxxopts INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)

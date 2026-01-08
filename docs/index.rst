@@ -9,19 +9,18 @@ Welcome to Aperture's documentation!
 *Aperture* is a Particle-in-Cell (PIC) code framework that targets both traditional CPUs and modern GPUs. It is designed to be fast, flexible, and easy to extend.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Usage
    :glob:
 
-   docsrc/*
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
-
-   api/core/index
-   api/framework/index
-   api/data/index
+   docsrc/0-intro.rst
+   docsrc/1-architecture.rst
+   docsrc/2-setup.rst
+   docsrc/3-framework.rst
+   docsrc/7-systems-reference.rst
+   docsrc/4-config-file.rst
+   docsrc/5-units.rst
+   docsrc/6-two-stream.rst
 
 ..
    Indices and tables

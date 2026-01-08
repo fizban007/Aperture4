@@ -1,0 +1,749 @@
+===============================
+Dynamic Execution Policies
+===============================
+
+Aperture implements a sophisticated execution abstraction system that allows the same physics code to run efficiently on both CPUs and GPUs. This system uses policy-based templates to provide runtime selection between different execution backends while maintaining optimal performance.
+
+---------------------
+
+Architecture Overview
+---------------------
+
+The dynamic execution system is built around several key components:
+
+**Execution Tags**
+  Type-based execution context identifiers (host, device, dynamic)
+
+**Execution Policies**  
+  Template classes that implement backend-specific execution strategies
+
+**Data Adapters**
+  Context-aware data transformation system for optimal memory access
+
+**Kernel Launch Framework**
+  Unified API for launching computations across different backends
+
+**Memory Management**
+  Automatic memory allocation and synchronization based on execution context
+
+--------------
+
+Execution Tags
+--------------
+
+**Location:** ``src/core/exec_tags.h``
+
+Execution tags are lightweight type identifiers used to select execution contexts using the tag-dispatch metaprogramming technique:
+
+.. code-block:: cpp
+
+   namespace exec_tags {
+       struct host {};           // CPU execution
+       struct device {           // GPU execution  
+           int stream = 0;       // Optional CUDA/HIP stream
+       };
+   }
+
+The dynamic execution system maps these tags at compile time:
+
+.. code-block:: cpp
+
+   #ifdef GPU_ENABLED
+       namespace exec_tags {
+           using dynamic = device;  // Use GPU when available
+       }
+       #define exec_policy_dynamic exec_policy_gpu
+   #else
+       namespace exec_tags {
+           using dynamic = host;    // Fallback to CPU
+       }
+       #define exec_policy_dynamic exec_policy_host
+   #endif
+
+
+
+------------------------
+
+Dynamic Policy Selection
+------------------------
+
+**Location:** ``src/systems/policies/exec_policy_dynamic.hpp``
+
+The ``exec_policy_dynamic`` provides automatic backend selection based on compile-time configuration. Execution policies are larger classes (compared to dispatch tags) that contain some abstraction with respect to kernel calling and memory management. Many systems contain an ``ExecPolicy`` template parameter to customize their kernel execution strategy.
+
+**Compile-Time Selection:**
+- When ``GPU_ENABLED`` is defined: maps to ``exec_policy_gpu``
+- Otherwise: maps to ``exec_policy_host``
+
+**Usage in Systems:**
+Systems use the dynamic policy as a template parameter:
+
+.. code-block:: cpp
+
+   // Single template instantiation works for both CPU and GPU
+   template class field_solver<Config<2>, exec_policy_dynamic, 
+                              coord_policy_cartesian>;
+   
+   // Runtime instantiation automatically selects backend
+   auto solver = env.register_system<
+       field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid);
+
+-------------------------------
+
+Execution Policy Implementation
+-------------------------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Design Philosophy: Minimal Abstraction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Aperture's execution abstraction is built on a key insight: **only two operations need to be abstracted to enable universal CPU/GPU portability**:
+
+1. **Kernel Launch** - How to start parallel execution
+2. **Loop Iteration** - How to distribute work across parallel execution units
+
+This minimal approach has several advantages:
+
+**Simplicity**
+  Complex abstractions introduce bugs and maintenance overhead. By abstracting only the essential operations, the system remains understandable and debuggable.
+
+**Performance**
+  Minimal abstraction means minimal overhead. The core computation kernels remain nearly identical to hand-optimized code.
+
+**Flexibility**
+  Lambda functions provide the algorithmic content, allowing arbitrary complexity within the parallel execution framework.
+
+**Universality**
+  These two abstractions cover all parallel computation patterns used in PIC codes: field updates, particle pushes, current deposition, boundary conditions, and diagnostics.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Lambda-Centric Design
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The execution policies use lambdas as the primary abstraction for computational content:
+
+.. code-block:: cpp
+
+   // Physics algorithm expressed as a lambda
+   auto field_update = [=] LAMBDA (auto& E, auto& B, auto& J) {
+       auto ext = ExecPolicy::grid().extent();
+       
+       // The loop abstraction handles parallelization
+       ExecPolicy::loop(Conf::begin(ext), Conf::end(ext), 
+           [=] LAMBDA (auto idx) {
+               // Pure physics - same on CPU and GPU
+               E[0][idx] += dt * (curl_B_x(B, idx) - J[0][idx]);
+               E[1][idx] += dt * (curl_B_y(B, idx) - J[1][idx]);
+               E[2][idx] += dt * (curl_B_z(B, idx) - J[2][idx]);
+           });
+   };
+   
+   // The launch abstraction handles execution context
+   ExecPolicy::launch(field_update, E_field, B_field, current);
+
+This design separates three concerns:
+
+- **Algorithm** (lambda content): Pure physics, independent of execution context
+- **Parallelization** (loop abstraction): How work is distributed across cores/threads
+- **Execution** (launch abstraction): Where and how the computation runs
+
+~~~~~~~~~~~~~~~~~~~~
+
+GPU Execution Policy
+~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/systems/policies/exec_policy_gpu.hpp``
+
+The GPU policy implements the two core abstractions for CUDA/HIP execution:
+
+.. code-block:: cpp
+
+   template <typename Conf>
+   class exec_policy_gpu {
+   public:
+       using exec_tag = exec_tags::device;
+       
+       // ABSTRACTION 1: Kernel Launch
+       // Handles GPU kernel invocation, grid configuration, and error checking
+       template <typename Func, typename... Args>
+       static void launch(const Func& f, Args&&... args) {
+           kernel_launch(f, adapt(exec_tags::device{}, args)...);
+           GpuCheckError();
+       }
+       
+       // ABSTRACTION 2: Loop Iteration  
+       // Implements GPU-optimal grid-stride loops for memory coalescing
+       template <typename Func, typename Idx, typename... Args>
+       static __device__ void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
+           for (auto idx : grid_stride_range(begin, end)) {
+               f(idx, args...);
+           }
+       }
+       
+       // Memory type preferences for GPU execution
+       static MemType data_mem_type() { return MemType::host_device; }
+       static MemType tmp_mem_type() { return MemType::device_only; }
+   };
+
+**Why Grid-Stride Loops?**
+
+The GPU loop implementation uses grid-stride patterns rather than simple thread-to-element mapping:
+
+.. code-block:: cpp
+
+   // Grid-stride loop (Aperture's choice)
+   for (auto idx : grid_stride_range(begin, end)) {
+       f(idx);  // Each thread processes multiple elements
+   }
+   
+   // vs. Simple mapping (traditional approach)
+   auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+   if (idx < end) f(idx);  // Each thread processes one element
+
+Grid-stride loops provide several benefits:
+
+- **Scalability**: Code works efficiently across different GPU architectures
+- **Memory Coalescing**: Natural memory access patterns
+- **Load Balancing**: Automatic work distribution even for irregular workloads
+- **Future-Proofing**: Optimal for both current and future GPU designs
+
+
+~~~~~~~~~~~~~~~~~~~~~
+
+Host Execution Policy
+~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/systems/policies/exec_policy_host.hpp``
+
+The CPU policy implements the same two abstractions with CPU-optimal strategies:
+
+.. code-block:: cpp
+
+   template <typename Conf>
+   class exec_policy_host {
+   public:
+       using exec_tag = exec_tags::host;
+       
+       // ABSTRACTION 1: Kernel Launch
+       // For CPU: direct function call (no kernel launch overhead)
+       template <typename Func, typename... Args>
+       static void launch(const Func& f, Args&&... args) {
+           f(adapt(exec_tags::host{}, args)...);
+       }
+       
+       // ABSTRACTION 2: Loop Iteration
+       // For CPU: simple sequential loops (OpenMP can parallelize)
+       template <typename Func, typename Idx, typename... Args>
+       static void loop(Idx begin, Idx end, const Func& f, Args&&... args) {
+           for (auto idx : range(begin, end)) {
+               f(idx, args...);
+           }
+       }
+       
+       // Memory type preferences for CPU execution
+       static MemType data_mem_type() { return MemType::host_only; }
+   };
+
+**CPU vs GPU Implementation Contrast:**
+
+The beauty of this design is how the same abstractions map to completely different implementations:
+
+.. code-block:: cpp
+
+   // SAME PHYSICS ALGORITHM
+   auto update_field = [=] LAMBDA (auto& field) {
+       ExecPolicy::loop(0, field.size(), [=] LAMBDA (int i) {
+           field[i] = complex_physics_calculation(field[i]);
+       });
+   };
+   
+   // CPU Execution:
+   // - launch() → direct function call
+   // - loop() → for(int i = 0; i < size; ++i)
+   // - OpenMP can parallelize the loop automatically
+   
+   // GPU Execution:  
+   // - launch() → cudaLaunchKernel with grid configuration
+   // - loop() → grid-stride pattern across thousands of threads
+   // - Automatic memory coalescing and occupancy optimization
+
+This demonstrates why only two abstractions are needed: they capture the fundamental differences between CPU and GPU execution models while allowing identical algorithmic expressions.
+
+
+-----------------------
+
+Kernel Launch Framework
+-----------------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Power of Lambda-Based Kernels
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Traditional GPU programming requires writing separate kernel functions:
+
+.. code-block:: cpp
+
+   // Traditional approach: separate kernel functions
+   __global__ void update_E_field_kernel(float* E, float* B, float* J, int n) {
+       int i = blockIdx.x * blockDim.x + threadIdx.x;
+       if (i < n) {
+           E[i] += dt * (curl_B(B, i) - J[i]);
+       }
+   }
+   
+   __global__ void update_B_field_kernel(float* B, float* E, int n) {
+       int i = blockIdx.x * blockDim.x + threadIdx.x;
+       if (i < n) {
+           B[i] -= dt * curl_E(E, i);
+       }
+   }
+   
+   // Kernel launches scattered throughout code
+   update_E_field_kernel<<<grid, block>>>(E_ptr, B_ptr, J_ptr, size);
+   update_B_field_kernel<<<grid, block>>>(B_ptr, E_ptr, size);
+
+Aperture's lambda-based approach eliminates this separation:
+
+.. code-block:: cpp
+
+   // Aperture approach: lambdas keep algorithm and invocation together
+   void field_solver::update(double dt) {
+       ExecPolicy::launch([=] LAMBDA (auto& E, auto& B, auto& J) {
+           auto ext = ExecPolicy::grid().extent();
+           
+           // Update E field
+           ExecPolicy::loop(Conf::begin(ext), Conf::end(ext), 
+               [=] LAMBDA (auto idx) {
+                   E[0][idx] += dt * (curl_B_x(B, idx) - J[0][idx]);
+                   E[1][idx] += dt * (curl_B_y(B, idx) - J[1][idx]);
+                   E[2][idx] += dt * (curl_B_z(B, idx) - J[2][idx]);
+               });
+               
+           // Update B field  
+           ExecPolicy::loop(Conf::begin(ext), Conf::end(ext),
+               [=] LAMBDA (auto idx) {
+                   B[0][idx] -= dt * curl_E_x(E, idx);
+                   B[1][idx] -= dt * curl_E_y(E, idx);
+                   B[2][idx] -= dt * curl_E_z(E, idx);
+               });
+               
+       }, *m_E, *m_B, *m_J);
+   }
+
+**Benefits of Lambda-Based Design:**
+
+1. **Locality**: Algorithm and execution are co-located in the source code
+2. **Composability**: Complex algorithms can be built from simpler lambda components
+3. **Type Safety**: Template deduction eliminates manual type management
+4. **Capture Semantics**: Automatic variable capture eliminates parameter passing errors
+5. **Optimizability**: Compilers can inline and optimize the entire call chain
+
+~~~~~~~~~~~~~~~~~~~~~
+
+GPU Translation Layer
+~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/core/gpu_translation_layer.h``
+
+Provides unified GPU API abstraction for both CUDA and HIP:
+
+.. code-block:: cpp
+
+   // Unified GPU API macros
+   #ifdef __CUDACC__
+       #define gpuMalloc cudaMalloc
+       #define gpuMemcpy cudaMemcpy
+       #define gpuDeviceSynchronize cudaDeviceSynchronize
+   #elif defined(__HIPCC__)
+       #define gpuMalloc hipMalloc
+       #define gpuMemcpy hipMemcpy
+       #define gpuDeviceSynchronize hipDeviceSynchronize
+   #endif
+   
+   // Cross-platform function qualifiers
+   #define HOST_DEVICE __host__ __device__
+   #define HD_INLINE __host__ __device__ inline
+   #define LAMBDA [=] HOST_DEVICE  // Enables lambda capture on device
+
+The ``LAMBDA`` macro is crucial - it creates device-compatible lambdas that can be passed to GPU kernels.
+
+~~~~~~~~~~~~~~~~~~~~
+
+Kernel Helper System
+~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/utils/kernel_helper.hpp``
+
+The kernel launch system handles the complexity of GPU execution automatically:
+
+.. code-block:: cpp
+
+   class kernel_exec_policy {
+   public:
+       // Automatic occupancy optimization
+       template <typename Kernel>
+       void configure_grid(Kernel kernel, size_t dynamic_shared_mem = 0);
+       
+       // Multi-dimensional grid configuration
+       void set_grid_size(dim3 grid_size, dim3 block_size);
+       
+       // Stream and shared memory management
+       void set_stream(cudaStream_t stream);
+       void set_shared_mem(size_t shared_mem_bytes);
+   };
+   
+   // Unified kernel launch for functions and lambdas
+   template <typename Kernel, typename... Args>
+   void kernel_launch(Kernel&& kernel, Args&&... args);
+
+**Automatic Grid Configuration:**
+
+The system automatically determines optimal grid and block sizes:
+
+.. code-block:: cpp
+
+   // Behind the scenes of ExecPolicy::launch()
+   template <typename Lambda, typename... Args>
+   void kernel_launch(Lambda&& lambda, Args&&... adapted_args) {
+       // Automatic occupancy calculation
+       kernel_exec_policy policy;
+       policy.configure_grid(lambda);  // Finds optimal block size
+       
+       // Launch with optimal configuration
+       lambda<<<policy.grid_size(), policy.block_size()>>>(adapted_args...);
+   }
+
+This eliminates the need for manual grid tuning while ensuring optimal performance across different GPU architectures.
+
+----------------------
+
+Data Adaptation System
+----------------------
+
+**Location:** ``src/core/data_adapter.h``
+
+The data adapter system transforms data structures based on execution context:
+
+**Host Adaptation:**
+- Multi-arrays: provides host pointers and CPU-optimized access patterns
+- Particle data: uses host memory with cache-friendly layouts
+- Fields: direct host memory access
+
+**Device Adaptation:**  
+- Multi-arrays: provides device pointers and GPU-optimized access patterns
+- Particle data: uses device or managed memory with coalesced access
+- Fields: device memory with texture/constant memory caching when beneficial
+
+.. code-block:: cpp
+
+   // Automatic data transformation based on execution tag
+   template <typename ExecTag, typename T>
+   auto adapt(ExecTag tag, T&& data) {
+       if constexpr (std::is_same_v<ExecTag, exec_tags::host>) {
+           return host_adapter<T>(std::forward<T>(data));
+       } else {
+           return gpu_adapter<T>(std::forward<T>(data));
+       }
+   }
+
+-----------------
+
+Memory Management
+-----------------
+
+**Memory Types**
+
+The system supports multiple memory allocation strategies:
+
+.. code-block:: cpp
+
+   enum class MemType {
+       host_only,        // CPU memory only
+       device_only,      // GPU memory only  
+       host_device,      // Separate host and device copies
+       device_managed    // Unified memory (GPU-managed)
+   };
+
+**Automatic Memory Selection:**
+Each execution policy specifies preferred memory types:
+
+- **GPU Policy:** Prefers ``host_device`` for data arrays, ``device_only`` for temporaries
+- **Host Policy:** Uses ``host_only`` for all allocations
+- **Dynamic Policy:** Inherits preferences from active backend
+
+**Buffer Management**
+
+**Location:** ``src/core/buffer.hpp``
+
+Unified buffer system with automatic synchronization:
+
+.. code-block:: cpp
+
+   template <typename T, MemType mem_type>
+   class buffer {
+   public:
+       // Automatic allocation based on memory type
+       void resize(size_t size);
+       
+       // Context-aware data access
+       T* host_ptr();         // Host-side pointer
+       T* dev_ptr();          // Device-side pointer  
+       
+       // Automatic synchronization
+       void copy_to_host();
+       void copy_to_device();
+   };
+
+-----------------------------
+
+Range and Iteration Utilities
+-----------------------------
+
+**Host-Side Ranges**
+
+**Location:** ``src/utils/range.hpp``
+
+CPU-optimized iteration with OpenMP support:
+
+.. code-block:: cpp
+
+   // Range-based iteration for CPU loops
+   template <typename T>
+   auto range(T begin, T end) {
+       return range_proxy<T>{begin, end};
+   }
+   
+   // OpenMP parallel range iteration
+   template <typename T, typename Func>
+   void parallel_for(T begin, T end, Func&& f) {
+       #pragma omp parallel for
+       for (auto i = begin; i < end; ++i) {
+           f(i);
+       }
+   }
+
+**Device-Side Ranges**
+
+GPU-optimized iteration with grid-stride loops:
+
+.. code-block:: cpp
+
+   // Grid-stride range for optimal GPU memory coalescing
+   template <typename T>
+   __device__ auto grid_stride_range(T begin, T end) {
+       T tid = blockIdx.x * blockDim.x + threadIdx.x;
+       T stride = gridDim.x * blockDim.x;
+       return stride_iterator<T>{begin + tid, end, stride};
+   }
+
+------------------------------------
+
+Practical Benefits in PIC Simulations
+------------------------------------
+
+Why This Design Matters for Computational Physics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The minimal abstraction approach provides concrete benefits for scientific computing:
+
+**Single Source of Truth**
+  Physics algorithms exist in one place, reducing bugs from CPU/GPU code divergence
+
+**Performance Portability**
+  Same code achieves near-optimal performance on CPUs and GPUs without manual tuning
+
+**Maintainability**  
+  Algorithm improvements automatically benefit all execution backends
+
+**Development Velocity**
+  Scientists can focus on physics rather than parallel programming details
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Real-World Example: Complete Maxwell Solver
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This example shows how a complete electromagnetic field solver uses only the two core abstractions:
+
+.. code-block:: cpp
+
+   template <typename Conf, typename ExecPolicy, typename CoordPolicy>
+   class field_solver : public system_t {
+   public:
+       void update(double dt) override {
+           // SINGLE ALGORITHM - MULTIPLE EXECUTION TARGETS
+           ExecPolicy::launch([=] LAMBDA (auto& E, auto& B, auto& J) {
+               auto ext = ExecPolicy::grid().extent();
+               
+               // Update electric field using Ampere's law
+               ExecPolicy::loop(Conf::begin(ext), Conf::end(ext), 
+                   [=] LAMBDA (auto idx) {
+                       // Pure Maxwell physics - identical on CPU/GPU
+                       E[0][idx] += dt * (curl_B_x(B, idx) - J[0][idx]);
+                       E[1][idx] += dt * (curl_B_y(B, idx) - J[1][idx]);
+                       E[2][idx] += dt * (curl_B_z(B, idx) - J[2][idx]);
+                   });
+                   
+               // Update magnetic field using Faraday's law
+               ExecPolicy::loop(Conf::begin(ext), Conf::end(ext),
+                   [=] LAMBDA (auto idx) {
+                       B[0][idx] -= dt * curl_E_x(E, idx);
+                       B[1][idx] -= dt * curl_E_y(E, idx);
+                       B[2][idx] -= dt * curl_E_z(E, idx);
+                   });
+                   
+           }, *m_E, *m_B, *m_J);
+           
+           ExecPolicy::sync();  // Ensures completion before next system
+       }
+   };
+
+**What Happens Under the Hood:**
+
+.. code-block:: cpp
+
+   // On CPU (exec_policy_host):
+   // - launch() becomes direct function call
+   // - loop() becomes: for(auto idx : range(begin, end))
+   // - Can be parallelized with OpenMP automatically
+   
+   // On GPU (exec_policy_gpu):  
+   // - launch() becomes optimized CUDA kernel launch
+   // - loop() becomes grid-stride pattern across 1000s of threads
+   // - Automatic memory coalescing and occupancy optimization
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Complex Multi-System Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Real PIC simulations involve multiple interacting systems. The abstraction scales naturally:
+
+.. code-block:: cpp
+
+   // Particle pusher that works with any field solver
+   template <typename Conf, typename ExecPolicy, typename CoordPolicy>
+   class ptc_updater : public system_t {
+       void update(double dt) override {
+           // Complex particle physics with field interpolation
+           ExecPolicy::launch([=] LAMBDA (auto& ptc, auto& E, auto& B, auto& J) {
+               auto N = ptc.number();
+               
+               // Particle push loop
+               ExecPolicy::loop(0, N, [=] LAMBDA (auto n) {
+                   // Interpolate fields to particle position
+                   auto E_ptc = CoordPolicy::interpolate_E(E, ptc, n);
+                   auto B_ptc = CoordPolicy::interpolate_B(B, ptc, n);
+                   
+                   // Relativistic particle push (Boris/Vay algorithm)
+                   CoordPolicy::push_particle(ptc, n, E_ptc, B_ptc, dt);
+                   
+                   // Deposit current back to grid
+                   CoordPolicy::deposit_current(J, ptc, n, dt);
+               });
+               
+           }, *m_particles, *m_E, *m_B, *m_J);
+           
+           ExecPolicy::sync();
+       }
+   };
+
+**Key Insight**: Complex physics (interpolation, coordinate transformations, current deposition) are handled by coordinate policies, while the execution abstraction remains minimal and focused.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Debugging and Development Benefits
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The abstraction also simplifies development workflows:
+
+.. code-block:: cpp
+
+   // Development workflow:
+   // 1. Develop algorithm on CPU (easy debugging, fast compilation)
+   // 2. Switch to GPU execution (single line change)
+   // 3. Profile and optimize as needed
+   
+   #ifdef DEBUG_MODE
+       using ExecPolicy = exec_policy_host;    // Fast debugging
+   #else
+       using ExecPolicy = exec_policy_dynamic; // Production performance
+   #endif
+   
+   // Same algorithms work in both modes
+
+This allows scientists to rapidly prototype on CPUs and deploy on GPUs without algorithmic changes, significantly accelerating the research cycle.
+
+--------------------------
+
+Performance Considerations
+--------------------------
+
+**GPU Optimizations:**
+- Grid-stride loops for memory coalescing
+- Automatic occupancy optimization  
+- Shared memory utilization
+- Stream-based asynchronous execution
+
+**CPU Optimizations:**
+- Cache-friendly memory layouts
+- OpenMP parallelization
+- SIMD vectorization hints
+- Minimized memory allocations
+
+**Memory Transfer Optimization:**
+- Lazy synchronization between host and device
+- Overlapped computation and communication
+- Pinned memory for faster transfers
+- Unified memory where beneficial
+
+-----------------------
+
+Configuration and Usage
+-----------------------
+
+**Build Configuration:**
+
+.. code-block:: bash
+
+   # Enable GPU support with CUDA
+   cmake .. -Duse_cuda=ON -Dcuda_target_gpu=A100
+   
+   # Enable GPU support with HIP  
+   cmake .. -Duse_hip=ON
+   
+   # CPU-only build
+   cmake .. 
+
+**Runtime Selection:**
+
+The same executable automatically uses the appropriate backend:
+
+.. code-block:: cpp
+
+   int main() {
+       // Systems automatically use optimal execution policy
+       auto pusher = env.register_system<
+           ptc_updater<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid);
+       
+       auto solver = env.register_system<
+           field_solver<Conf, exec_policy_dynamic, coord_policy_cartesian>>(grid);
+       
+       env.run();  // Runs on GPU if available, CPU otherwise
+   }
+
+**Performance Monitoring:**
+
+.. code-block:: cpp
+
+   // Automatic performance profiling
+   #ifdef GPU_ENABLED
+       Logger::print_info("Using GPU execution with {} SMs", get_device_properties().multiProcessorCount);
+   #else
+       Logger::print_info("Using CPU execution with {} threads", omp_get_max_threads());
+   #endif
+
+This dynamic execution system enables Aperture to achieve optimal performance across different hardware configurations while maintaining a single, maintainable codebase for complex physics algorithms.

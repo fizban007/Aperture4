@@ -30,10 +30,10 @@
 #include <mpi-ext.h>  // Needed for CUDA-aware check
 #endif
 
-#define USE_CUDA_AWARE_MPI true
+#define USE_GPU_AWARE_MPI true
 
-#if CUDA_ENABLED && USE_CUDA_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
-    MPIX_CUDA_AWARE_SUPPORT
+#if (CUDA_ENABLED && USE_GPU_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
+    MPIX_CUDA_AWARE_SUPPORT) || (HIP_ENABLED && USE_GPU_AWARE_MPI)
 #pragma message "CUDA-aware MPI found!"
 constexpr bool use_cuda_mpi = true;
 #else
@@ -763,6 +763,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
       }
       buf_nums[buf_recv_idx[i]] += buf_nums[buf_send_idx[i]];
     } else {
+      // Logger::print_debug_all("Sending particle array from rank {} to rank {}", src, dst);
       MPI_Sendrecv(send_ptr, buf_nums[buf_send_idx[i]] * sizeof(send_buffer[0]),
                    MPI_BYTE, dst, i, recv_ptr,
                    recv_buffer.size() * sizeof(send_buffer[0]), MPI_BYTE, src,
@@ -813,8 +814,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
     send_buffer.copy_to_host();
   }
 
-  // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is
-  // {}", send_num,
+  // Logger::print_debug_all("Send count is {}, send size is {}, recv_size is {}", send_num,
   //                       send_num * sizeof(send_buffer[0]),
   //                       recv_buffer.size() * sizeof(recv_buffer[0]));
   MPI_Sendrecv(send_ptr, send_num * sizeof(send_buffer[0]), MPI_BYTE, dst, tag,

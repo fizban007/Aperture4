@@ -1,0 +1,26 @@
+#!/bin/bash
+
+module load DefApps/default
+#module load cuda/11.0.3
+#module load gcc/9.3.0
+module load PrgEnv-amd
+module load cpe/24.11
+module load craype-x86-trento
+module load rocm/6.2.4
+# module load boost/1.86.0
+module load cray-mpich/8.1.31
+# module load cce/18.0.1
+#module load amd/6.2.4
+module load cray-hdf5-parallel
+module load cmake/3.30.5
+module load craype-accel-amd-gfx90a
+#module load hdf5_perf/1.10.6.gcc
+
+#export PAMI_ENABLE_STRIPING=1
+#export PAMI_IBV_ADAPTER_AFFINITY=1
+#export PAMI_IBV_DEVICE_NAME="mlx5_0:1,mlx5_3:1"
+#export PAMI_IBV_DEVICE_NAME_1="mlx5_3:1,mlx5_0:1"
+
+export MPICH_GPU_SUPPORT_ENABLED=1
+# Fix for non-default modules
+export LD_LIBRARY_PATH=${CRAY_LD_LIBRARY_PATH}:${LD_LIBRARY_PATH}

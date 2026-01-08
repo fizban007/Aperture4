@@ -46,6 +46,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "core/cuda_control.h"
 #include "core/constant_mem.h"
 
+#ifdef __HIP_ROCclr__
+#undef __CUDA_ARCH__
+#endif
+
+// #ifdef __CUDA_ARCH__
+// #pragma message("CUDA_ARCH__ is defined")
+// #endif
+
 #if _MSC_VER
 #include <immintrin.h>
 #endif

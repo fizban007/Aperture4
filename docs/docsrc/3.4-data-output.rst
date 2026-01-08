@@ -1,0 +1,388 @@
+==================
+Data Output System
+==================
+
+Aperture's data output system provides comprehensive facilities for writing simulation data to disk, creating visualization files, and managing simulation checkpoints. The system is built around HDF5 for efficient parallel I/O and XDMF/XMF for visualization metadata.
+
+Overview
+========
+
+The data output system consists of:
+
+* **HDF5 Storage**: High-performance parallel I/O for all simulation data
+* **XDMF/XMF Metadata**: XML files for visualization tools (VisIt, ParaView)
+* **Snapshot System**: Complete simulation state checkpoints for restart capability
+* **Flexible Configuration**: Configurable output intervals, directories, and formats
+* **Data Processing**: Downsampling, filtering, and format conversion
+* **MPI Support**: Distributed parallel I/O across multiple ranks
+
+Architecture
+============
+
+The ``data_exporter`` system coordinates all output operations:
+
+.. code-block:: cpp
+
+    // Register data exporter
+    auto exporter = env.register_system<data_exporter<Conf, ExecPolicy>>(grid, &comm);
+    
+    // Automatic output based on configuration intervals
+    // Handles fields, particles, snapshots, and visualization files
+
+File Organization
+=================
+
+Aperture organizes output files in a structured hierarchy in the specified output directory:
+
+.. code-block:: text
+
+    Data/
+    ├── config.toml              # Copy of simulation configuration
+    ├── grid.h5                  # Coordinate arrays and grid metadata
+    ├── aperture.xmf             # Master XDMF visualization file
+    ├── fld.NNNNN.h5             # Field data files (numbered by timestep)
+    ├── ptc.NNNNN.h5             # Particle data files (numbered by timestep)
+    ├── snapshotN.h5             # Complete simulation state snapshots
+    └── snapshotN.xmf            # Snapshot visualization files
+
+The exact content and naming of data files depends on which systems are active in your simulation. Each system determines what data it outputs and under what names.
+
+HDF5 Data Format
+================
+
+Data Type Categories
+--------------------
+
+The data exporter can handle several categories of simulation data:
+
+**Field Data:**
+  Electromagnetic fields, charge densities, currents, and other grid-based quantities
+
+**Particle Data:**
+  Phase space coordinates, weights, IDs, and flags for tracked particles
+
+**Scalar Data:**
+  Global quantities like total energy, particle counts, diagnostic values
+
+**Custom Arrays:**
+  Multi-dimensional data arrays from specialized systems
+
+**State Data:**
+  Random number generator states and system-specific state information
+
+Field Data Structure
+--------------------
+
+Field data is typically stored with component separation. For example, electromagnetic fields might be organized as:
+
+.. code-block:: text
+
+    fld.00000.h5
+    ├── /B1, /B2, /B3            # Magnetic field components
+    ├── /E1, /E2, /E3            # Electric field components
+    ├── /J1, /J2, /J3            # Current density components (if computed)
+    ├── /Rho_e                   # Charge density (electrons)
+    ├── /Rho_p                   # Charge density (positrons)
+    ├── @time                    # HDF5 attribute: simulation time
+    └── ...                      # Additional entries
+
+**Note:** The exact field names and components depend on which physics systems are active in your simulation.
+
+**Supported Field Types:**
+
+* ``vector_field<Conf>`` - 3-component fields (E, B, J)
+* ``scalar_field<Conf>`` - Single-component fields (charge, current density)
+* ``field_t<N, Conf>`` - N-component tensor fields for specialized physics
+
+Particle Data Structure
+-----------------------
+
+Particle data contains phase space and auxiliary information. All particle data entries are prepended by ``tracked_ptc_`` since only the tracked particle information is written.
+
+.. code-block:: text
+
+    ptc.00000.h5
+    ├── /x1, /x2, /x3            # Position coordinates
+    ├── /p1, /p2, /p3            # Momentum components
+    ├── /E                       # Particle energy
+    ├── /weight                  # Statistical weight
+    ├── /id                      # Particle identifier
+    ├── /flag                    # Status flags
+    ├── @number                  # Total particle count
+    └── ...                      # Additional entries
+
+Grid Coordinate Data
+--------------------
+
+The grid file contains coordinate arrays for visualization. ``x1``, ``x2``, and ``x3`` are the x, y, and z coordinates of the output data points, even if the simulation grid is not Cartesian.
+
+.. code-block:: text
+
+    grid.h5
+    ├── /x1, /x2, /x3            # Coordinate arrays
+
+XDMF Visualization Files
+========================
+
+XMF files provide metadata for visualization tools using the XDMF standard. These XML files link HDF5 datasets to visualization attributes and enable time series analysis in tools like VisIt and ParaView.
+
+**Key XMF Features:**
+
+* **Temporal Collections**: Time series data for animation
+* **Multi-component Fields**: Vector and tensor field visualization
+* **Grid Topology**: Support for structured, unstructured, and curvilinear grids
+* **Data Linking**: Direct references to HDF5 datasets
+
+Configuration Parameters
+========================
+
+Output behavior is controlled through TOML configuration files:
+
+Basic Output Settings
+---------------------
+
+.. code-block:: toml
+
+    # Output frequency control
+    fld_output_interval = 100     # Field data every 100 steps
+    ptc_output_interval = 500     # Particle data every 500 steps
+    snapshot_interval = 10000     # Snapshots every 10000 steps
+    
+    # Output directory and processing
+    output_dir = "Data/"          # Output directory path
+    downsample = 2                # Reduce output resolution by factor of 2
+    fld_output_resample = true    # Enable field resampling
+
+Advanced Configuration
+----------------------
+
+.. code-block:: toml
+
+    # Memory and buffer management
+    max_ptc_num = 1_000_000       # Maximum particles per rank
+    max_ph_num = 1_000_000        # Maximum photons per rank
+    num_snapshots = 3             # Number of rotating snapshots
+    
+    # Data processing options
+    output_stagger = [0, 0, 0]    # Output staggering configuration
+
+Data Processing Features
+========================
+
+Downsampling and Filtering
+---------------------------
+
+The output system provides flexible data processing:
+
+**Grid Downsampling:**
+  Reduces output file sizes by averaging data over multiple cells
+
+**Stagger Conversion:**
+  Automatically adjusts field positioning (cell-centered vs edge-centered)
+
+**Memory Management:**
+  Temporary buffers for processing without affecting simulation data
+
+**Parallel Processing:**
+  Distributed data processing across MPI ranks
+
+Parallel I/O
+------------
+
+MPI parallel I/O enables efficient data writing across multiple ranks:
+
+**Parallel Features:**
+
+* **Domain Decomposition**: Each rank writes its local domain
+* **Collective I/O**: MPI-coordinated writing for optimal performance
+* **Global Assembly**: Automatic reconstruction of global arrays
+* **Metadata Coordination**: Root rank manages XMF file generation
+
+Snapshot and Restart System
+============================
+
+Complete State Preservation
+----------------------------
+
+Snapshots capture the entire simulation state for exact restart. The contents depend on which systems are active in your simulation, but typically include:
+
+* Field data (E, B, and derived quantities)
+* Complete particle data for all species
+* Random number generator states
+* System-specific state information
+* Simulation metadata (time, step number, counters)
+
+Restart Process
+---------------
+
+Restarting from snapshots preserves simulation continuity:
+
+.. code-block:: bash
+
+    # Restart from specific snapshot
+    ./simulation --restart snapshot1.h5
+
+.. code-block:: cpp
+
+    // Automatic restart detection and loading
+    if (sim_env().is_restart()) {
+        load_snapshot(sim_env().restart_file(), step, time);
+        sim_env().set_step(step);
+        sim_env().set_time(time);
+        sim_env().finish_restart();
+    }
+
+**Restart Features:**
+
+* **Exact Continuation**: Bit-for-bit identical results after restart
+* **XMF Reconstruction**: Automatic restoration of visualization timeline
+* **State Validation**: Verification of snapshot integrity
+* **Rolling Snapshots**: Automatic management of multiple checkpoint files
+
+Snapshot Management
+-------------------
+
+The system automatically manages multiple rotating snapshots:
+
+.. code-block:: toml
+
+    num_snapshots = 3             # Keep 3 most recent snapshots
+    # Creates: snapshot0.h5, snapshot1.h5, snapshot2.h5
+    # Overwrites oldest when creating new snapshots
+
+Data Export API
+===============
+
+The data exporter provides a flexible API for custom output. Systems can use the following methods to write their data:
+
+Field Output
+------------
+
+.. code-block:: cpp
+
+    template <int N>
+    void write(field_t<N, Conf>& data, const std::string& name, 
+               H5File& datafile, bool snapshot = false);
+
+    // Usage examples
+    auto& E_field = *env.get_data<vector_field<Conf>>("E");
+    auto& rho = *env.get_data<scalar_field<Conf>>("Rho");
+    
+    exporter.write(E_field, "E", file, false);
+    exporter.write(rho, "charge_density", file, false);
+
+Particle Output
+---------------
+
+.. code-block:: cpp
+
+    void write(particle_data_t& data, const std::string& name,
+               H5File& datafile, bool snapshot = false);
+
+    // Write tracked particles
+    auto& particles = *env.get_data<particle_data_t>("particles");
+    exporter.write(particles, "electrons", file, false);
+
+Custom Data Output
+------------------
+
+.. code-block:: cpp
+
+    template <typename T>
+    void write(scalar_data<T>& data, const std::string& name,
+               H5File& datafile, bool snapshot = false);
+
+    // Custom scalar quantities
+    auto& energy = *env.get_data<scalar_data<double>>("total_energy");
+    exporter.write(energy, "energy_conservation", file, false);
+
+Visualization Workflow
+======================
+
+The complete workflow from simulation to visualization:
+
+1. **Data Generation**: Simulation systems produce data
+2. **Export Triggers**: Configured intervals trigger output
+3. **Processing**: Downsampling, filtering, format conversion  
+4. **HDF5 Writing**: Parallel I/O writes processed data
+5. **XMF Generation**: Metadata files created for visualization
+6. **Visualization**: VisIt/ParaView reads XMF+HDF5 files
+
+VisIt/ParaView Integration
+--------------------------
+
+.. code-block:: bash
+
+    # Load in VisIt
+    visit -o aperture.xmf
+    
+    # Load in ParaView  
+    paraview aperture.xmf
+
+**Visualization Features:**
+
+* **Time Series Animation**: Automatic temporal data handling
+* **Multi-component Fields**: Vector field visualization and analysis
+* **Custom Operators**: Field-derived quantities (magnitude, divergence)
+* **Parallel Rendering**: Large-scale visualization on HPC systems
+
+Best Practices
+==============
+
+Performance Optimization
+-------------------------
+
+**Output Frequency:**
+  Balance between data preservation and I/O overhead. Consider the analysis requirements and available storage.
+
+**Downsampling:**
+  Use appropriate reduction factors for analysis requirements. Full resolution may not be needed for all fields.
+
+**Parallel I/O:**
+  Configure MPI I/O for optimal filesystem performance. Consider the characteristics of your storage system.
+
+**Buffer Management:**
+  Size temporary buffers based on available memory. Large buffers improve I/O performance but consume memory.
+
+Data Management
+---------------
+
+**File Organization:**
+  Use descriptive directory structures for multiple simulation runs. Include run parameters in directory names.
+
+**Snapshot Strategy:**
+  Balance checkpoint frequency with storage requirements. More frequent snapshots provide better recovery but use more space.
+
+**Metadata Preservation:**
+  Include comprehensive parameter information in outputs. The config file copy helps reproduce results.
+
+**Version Control:**
+  Track configuration files alongside simulation data for reproducibility.
+
+Example Configuration
+=====================
+
+Complete example of data output configuration for a typical PIC simulation:
+
+.. code-block:: toml
+
+    # Basic simulation parameters
+    max_steps = 100000
+    dt = 0.01
+    
+    # Output configuration
+    output_dir = "Results/run_001/"
+    fld_output_interval = 200     # Every 200 timesteps
+    ptc_output_interval = 1000    # Every 1000 timesteps  
+    snapshot_interval = 10000     # Every 10000 timesteps
+    
+    # Data processing
+    downsample = 2                # 2x downsampling
+    fld_output_resample = true    # Intelligent resampling
+    num_snapshots = 3             # Keep 3 rotating snapshots
+    
+    # Performance tuning
+    max_ptc_num = 10_000_000      # Particle buffer size
+    max_ph_num = 1_000_000        # Photon buffer size
+
+This configuration creates an efficient data output pipeline suitable for large-scale plasma simulations with comprehensive visualization support.

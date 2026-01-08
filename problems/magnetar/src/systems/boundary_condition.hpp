@@ -172,6 +172,9 @@ class boundary_condition : public system_t {
             auto idx = idx_t(index_t<2>(n0, n1), ext);
             value_t E_surface = e[0][idx];
 
+            // TODO: Limit the injection range to the same region that we are
+            // twisting (applying field boundary conditions)
+
             if (math::abs(E_surface) > min_E) {
               value_t w = math::abs(E_surface) / qe * 0.1;
               size_t ptc_offset = atomic_add(&ptc_pos[0], 2);

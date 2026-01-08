@@ -182,6 +182,18 @@ sqrt_gamma(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return rho2(a, r, sth, cth) * sth * math::sqrt(1.0f + Z(a, r, sth, cth));
 }
 
+// sqrt_gamma_tild = sqrt_gamma / sin(theta)
+HD_INLINE Scalar
+sqrt_gamma_tild(Scalar a, Scalar r, Scalar th) {
+  return rho2(a, r, th) * math::sqrt(1.0f + Z(a, r, th));
+}
+
+// sqrt_gamma_tild = sqrt_gamma / sin(theta)
+HD_INLINE Scalar
+sqrt_gamma_tild(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return rho2(a, r, sth, cth) * math::sqrt(1.0f + Z(a, r, sth, cth));
+}
+
 // This returns the composite value of sqrt(gamma) * beta1
 HD_INLINE Scalar
 sq_gamma_beta(Scalar a, Scalar r, Scalar th) {

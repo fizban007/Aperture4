@@ -1,0 +1,330 @@
+==============
+Field Solvers
+==============
+
+Field solvers are responsible for evolving electromagnetic fields according to Maxwell's equations. *Aperture* implements multiple field solvers optimized for different coordinate systems, each using finite-difference time-domain (FDTD) methods with specialized boundary conditions.
+
+========
+
+Overview
+========
+
+All field solvers inherit from ``field_solver_base<Conf>`` and implement a common interface while providing coordinate-system-specific optimizations. The solvers support both explicit and semi-implicit time stepping schemes.
+
+====================
+
+Base Class Interface
+====================
+
+The ``field_solver_base<Conf>`` class provides the common interface::
+
+    template <class Conf>
+    class field_solver_base : public system_t {
+    public:
+        // Main update method (dispatcher)
+        virtual void update(double dt, uint32_t step) override;
+        
+        // Time stepping methods (pure virtual)
+        virtual void update_explicit(double dt, double time);
+        virtual void update_semi_implicit(double dt, double alpha, double beta, double time);
+        
+        // Diagnostic computations
+        virtual void compute_divs_e_b();
+        virtual void compute_flux();
+        virtual void compute_EB_sqr();
+    };
+
+**Key Design Feature - Split Field Approach:**
+
+Aperture uses a split-field approach where electromagnetic fields are decomposed as:
+
+- ``E``, ``B`` - Dynamic field components (evolved by the solver)
+- ``E0``, ``B0`` - Background/initial field components  
+- ``Etotal``, ``Btotal`` - Total fields (``E0 + E``, ``B0 + B``) used for output
+
+**Key Methods:**
+
+- ``update()`` - Main dispatcher that chooses explicit or semi-implicit update
+- ``update_explicit()`` - Explicit leap-frog time integration  
+- ``update_semi_implicit()`` - Mixed explicit-implicit scheme with α and β parameters
+- ``compute_divs_e_b()`` - Compute divergence of E and B fields for monitoring
+- ``compute_flux()`` - Compute magnetic flux through boundaries
+- ``compute_EB_sqr()`` - Compute electromagnetic field energy densities
+
+=======================
+
+Available Field Solvers
+=======================
+
+----------------------
+
+Cartesian Field Solver
+----------------------
+
+**Class**: ``field_solver<Conf, ExecPolicy, coord_policy_cartesian>``
+
+**Files**: ``field_solver_cartesian.{h,cpp,hip.cpp}``
+
+The Cartesian field solver implements explicit finite-difference methods for uniform Cartesian coordinates.
+
+**Key Features**:
+
+- **Explicit time integration**: Leap-frog scheme with standard curl operations
+- **PML absorbing boundaries**: Full Perfectly Matched Layer implementation
+- **Per-boundary control**: Individual PML activation via ``damping_boundary`` array
+- **Split-field approach**: Evolves delta fields ``E``, ``B`` on top of background ``E0``, ``B0``
+
+**PML Implementation**:
+
+Aperture's PML uses a dual-damping approach:
+
+- **Conductivity damping** (``pml_sigma``): Cubic profile for field absorption
+- **Current damping** (``pml_alpha``): Exponential profile for current suppression
+
+The PML regions are configurable with:
+
+- ``pml_length``: Number of damping cells (default: 16)
+- ``damping_boundary``: Boolean array for each boundary [x_min, x_max, y_min, y_max, z_min, z_max]
+
+**Boundary Conditions**:
+
+- **PML boundaries**: Full absorbing boundary implementation
+- **Domain boundaries**: MPI communication for multi-domain simulations
+
+**Limitations**:
+
+- Semi-implicit update is not implemented (noted as incompatible with PML)
+- Only explicit time stepping available
+
+-----------------------
+
+Spherical Field Solver
+-----------------------
+
+**Class**: ``field_solver<Conf, ExecPolicy, coord_policy_spherical>``
+
+**Files**: ``field_solver_sph.{h,cpp,hip.cpp}``
+
+The spherical field solver implements Maxwell's equations in logarithmic spherical coordinates, optimized for astrophysical simulations spanning large radial ranges.
+
+**Key Features**:
+
+- **Logarithmic radial grid**: Uses :math:`r = e^{x_1}` for efficient large-scale simulations
+- **Both explicit and semi-implicit** time stepping schemes  
+- **Exponential damping boundaries**: Multiplicative damping at outer boundaries
+- **Axis boundary conditions**: Special treatment at polar axis (θ=0)
+- **2D implementation**: Currently supports 2D (r,θ) simulations
+
+**Coordinate System**:
+
+Uses logarithmic spherical coordinates where:
+
+- Grid coordinate :math:`x_1` maps to physical radius: :math:`r = e^{x_1}`
+- Angular coordinate :math:`x_2` maps directly: :math:`\theta = x_2`
+- This allows efficient coverage of radius ranges spanning many orders of magnitude
+
+**Time Stepping Schemes**:
+
+**Explicit Update**: Standard curl-based field updates with metric factors
+
+**Semi-Implicit Update**: Uses iterative approach with:
+
+- Mixed time stepping: :math:`\alpha E^n + \beta E^{n+1}` (typically α=0.45, β=0.55)
+- Iterative solver for stability in curved coordinates
+- Temporary fields ``m_tmp_b1``, ``m_tmp_b2``, ``m_bnew`` for intermediate steps
+
+**Boundary Conditions**:
+
+- **Exponential damping**: :math:`\lambda = 1 - \text{coef} \times (i/\text{length})^3` at outer boundary
+- **Axis boundaries**: Special finite-difference stencils at θ=0 axis
+- **Domain boundaries**: MPI communication for parallel simulations
+
+**Configuration Parameters**:
+
+- ``damping_length``: Number of cells in damping region (default: 64)
+- ``damping_coef``: Damping strength coefficient (default: 0.003)
+
+----------------------------------
+
+General Relativistic Field Solver
+----------------------------------
+
+**Class**: ``field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>``
+
+**Files**: ``field_solver_gr_ks.{h,cpp,hip.cpp}``
+
+The general relativistic field solver implements curved spacetime Maxwell equations in Kerr-Schild coordinates for black hole magnetosphere simulations.
+
+**Key Features**:
+
+- **D and B field formulation**: Evolves displacement field D and magnetic field B
+- **Auxiliary E and H fields**: Computes auxiliary electromagnetic fields
+- **Semi-implicit time stepping**: Uses predictor-corrector scheme with auxiliary fields
+- **Kerr-Schild coordinates**: 2D (r,θ) simulations around rotating black holes
+- **Horizon-penetrating**: Stable evolution through black hole event horizon
+
+**Field Variables**:
+
+Unlike flat-space solvers, the GR solver uses:
+
+- **Primary evolved fields**: ``D`` (displacement field), ``B`` (magnetic field)
+- **Auxiliary fields**: ``auxE``, ``auxH`` computed from D and B
+- **Background splitting**: Evolves perturbations on background spacetime
+
+**Time Integration**:
+
+Uses sophisticated semi-implicit scheme:
+
+- **Predictor step**: ``iterate_predictor()`` advances fields
+- **Auxiliary field updates**: ``compute_aux_E()``, ``compute_aux_H()``
+- **Time derivative computation**: ``compute_dD_dt()``, ``compute_dB_dt()``
+- **Predictor-corrector**: Multiple temporary field arrays for stability
+
+**Boundary Conditions**:
+
+- **Horizon boundary**: Special treatment at black hole event horizon
+- **Exponential damping**: Controlled by ``damping_coef`` and ``damping_length``
+- **Background damping**: Option to damp to background fields (``damp_to_background``)
+
+**Black Hole Parameters**:
+
+- **Spin parameter**: ``m_a`` (default: 0.99 for near-maximal rotation)
+- **Mass**: Set via grid_ks_t configuration
+- **Kerr-Schild metric**: Full general relativistic spacetime geometry
+
+**Applications**:
+
+- Black hole magnetosphere dynamics
+- Force-free electrodynamics in curved spacetime
+- Relativistic plasma simulations near event horizons
+
+------------------
+
+Polar Field Solver
+------------------
+
+**Class**: ``field_solver<Conf, ExecPolicy, coord_policy_polar>``
+
+**Files**: ``field_solver_polar.h``, ``field_solver_polar_impl.hpp``
+
+A 2D field solver for polar coordinates with linear radial spacing.
+
+**Key Features**:
+
+- **2D polar coordinates**: (r, θ) with linear radial grid
+- **Both explicit and semi-implicit** time stepping schemes
+- **Exponential damping**: Similar to spherical solver
+- **Linear radial spacing**: Unlike spherical solver, uses ``r = x₁`` directly
+
+**Coordinate System**:
+
+- Grid coordinate ``x₁`` maps directly to radius: ``r = x₁``
+- Grid coordinate ``x₂`` maps directly to angle: ``θ = x₂``
+- Cartesian conversion: ``x = r cos(θ)``, ``y = r sin(θ)``
+
+**Configuration Parameters**:
+
+- ``damping_length``: Number of cells in damping region (default: 64)
+- ``damping_coef``: Damping strength coefficient (default: 0.003)
+
+**Note**: This is specifically a 2D implementation only, as noted in the source comments.
+
+================================
+
+Template Specialization Approach
+================================
+
+Field solvers in Aperture use template specialization rather than runtime selection. The field solver type is determined by the coordinate policy template parameter.
+
+**Template Structure**::
+
+    template <typename Conf, template <class> class ExecPolicy, template <class> class CoordPolicy>
+    class field_solver : public field_solver_base<Conf> {};
+
+**Specializations Available**:
+
+- ``field_solver<Conf, ExecPolicy, coord_policy_cartesian>``
+- ``field_solver<Conf, ExecPolicy, coord_policy_spherical>``  
+- ``field_solver<Conf, ExecPolicy, coord_policy_polar>``
+- ``field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>``
+
+========================
+
+Configuration Parameters
+========================
+
+Based on the actual Aperture implementation:
+
+**Cartesian Field Solver**:
+
+.. code-block:: toml
+
+   [field_solver]
+   # Semi-implicit parameters
+   use_implicit = false
+   implicit_alpha = 0.45
+   implicit_beta = 0.55
+   
+   # PML configuration  
+   use_pml = true
+   pml_length = 16
+   damping_boundary = [true, true, true, true, false, false]  # [x_min, x_max, y_min, y_max, z_min, z_max]
+
+**Spherical Field Solver**:
+
+.. code-block:: toml
+
+   [field_solver]
+   use_implicit = true
+   implicit_alpha = 0.45
+   implicit_beta = 0.55
+   
+   # Damping at outer boundary
+   damping_length = 64
+   damping_coef = 0.003
+
+**General Relativistic Field Solver**:
+
+.. code-block:: toml
+
+   [field_solver]
+   # Black hole parameters
+   a = 0.99                    # Spin parameter
+   
+   # Damping parameters
+   damping_length = 20
+   damping_coef = 0.001
+   damp_to_background = true
+
+==========================
+
+Key Implementation Details
+==========================
+
+**Split-Field Architecture**:
+
+All field solvers implement the split-field approach where total fields are decomposed as:
+``Etotal = E0 + E`` and ``Btotal = B0 + B``, allowing simulations with strong background fields.
+
+**Coordinate System Support**:
+
+- **Cartesian**: 1D, 2D, 3D with uniform spacing and PML boundaries
+- **Spherical**: 2D (r,θ) with logarithmic radial grid for astrophysical simulations  
+- **Polar**: 2D (r,θ) with linear radial grid
+- **Kerr-Schild**: 2D (r,θ) general relativistic coordinates for black hole simulations
+
+**Time Stepping Schemes**:
+
+- **Explicit**: Available for all coordinate systems, CFL-limited
+- **Semi-implicit**: Available for spherical, polar, and GR solvers for improved stability
+
+**Boundary Treatments**:
+
+- **PML**: Full implementation for Cartesian coordinates only
+- **Exponential damping**: Used by spherical, polar, and GR solvers
+- **MPI boundaries**: All solvers support parallel domain decomposition
+
+**Memory and Performance**:
+
+Field solvers are implemented with both CPU (``.cpp``) and GPU (``.hip.cpp``) versions,
+using execution policies to abstract the computational backend.

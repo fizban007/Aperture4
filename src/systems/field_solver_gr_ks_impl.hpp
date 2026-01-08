@@ -548,7 +548,7 @@ field_solver<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   boundary_conditions(*m_tmpD, *m_tmpB);
 
   // Iterate EC several times
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < 4; i++) {
     // Compute the RHS using new values at n+1
     compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
     compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));

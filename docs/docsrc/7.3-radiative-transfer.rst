@@ -1,0 +1,259 @@
+Radiative Transfer Systems
+===============================
+
+The radiative transfer system implements photon emission and pair creation processes in Aperture4. This system uses a policy-based template architecture to support different radiation schemes and coordinate systems.
+
+-------------------
+
+System Architecture
+-------------------
+
+The radiative transfer system is implemented as a template class:
+
+.. code-block:: cpp
+
+   template <typename Conf, typename ExecPolicy, typename CoordPolicy, 
+             typename RadiationScheme>
+   class radiative_transfer : public system_t
+
+**Template Parameters:**
+
+- ``Conf``: Configuration type (e.g., ``Config<2>``, ``Config<3>``)
+- ``ExecPolicy``: Execution policy (CPU/GPU execution strategy)
+- ``CoordPolicy``: Coordinate system policy (Cartesian, spherical, etc.)
+- ``RadiationScheme``: Radiation physics policy defining emission/pair creation
+
+The system maintains separate particle arrays for electrons, positrons, and photons, enabling efficient tracking of radiative processes.
+
+-----------------
+
+Radiation Schemes
+-----------------
+
+Aperture4 implements several radiation schemes as policy classes:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fixed Photon Path Scheme
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/systems/radiation/fixed_photon_path.hpp``
+
+Simple radiation scheme with fixed photon mean free path:
+
+- **Photon Emission:** Generates photons with energies between 2.5 and configurable ``E_secondary``
+- **Energy Conservation:** Reduces parent particle energy by photon energy
+- **Path Length:** Uses fixed ``photon_path`` parameter with 20% random variation
+- **Pair Creation:** Triggers when ``path_left < 0``
+
+**Configuration Parameters:**
+- ``photon_path``: Mean free path for photon conversion
+- ``E_secondary``: Maximum photon energy scale
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Curvature Emission Scheme
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/systems/radiation/curvature_emission_scheme_polar_cap.hpp``
+
+Advanced synchro-curvature radiation for magnetosphere simulations:
+
+**Physics Implementation:**
+- **Curvature Radius:** Computed using dipole field geometry above polar cap
+- **Energy Threshold:** Only particles with ``γ > γ_thr`` emit photons
+- **Emission Rate:** Probabilistic based on ``dn = n_c * γ / R_c``
+- **Spectrum:** Generated using ``sync_emission_helper`` module
+
+**Coordinate Transformations:**
+- Global coordinates normalized to stellar radius units: ``x_global * (r_pc / R_star)``
+- Curvature radius calculated in ``R_star`` units, converted to ``r_pc`` units
+
+**Pair Creation Process:**
+- **Quantum Parameter:** ``χ = 0.5 * ζ * E_ph * B_mag / B_Q * sin(θ)``
+- **Threshold Conditions:** ``χ_max > 0.05`` and ``E_ph > 2.01``
+- **Geometric Constraints:** Altitude-dependent pair creation suppression
+
+**Configuration Parameters:**
+- ``B_Q``: Quantum magnetic field strength
+- ``e0``, ``nc``: Normalization parameters
+- ``zeta``: Rescaling parameter for quantum effects
+- ``gamma_thr``: Minimum Lorentz factor for emission
+- ``Rpc``, ``R_star``: Polar cap and stellar radii
+
+~~~~~~~~~~~~~~~~~~~~~~
+
+Inverse Compton Scheme
+~~~~~~~~~~~~~~~~~~~~~~
+
+**Location:** ``src/systems/radiation/IC_radiation_scheme.hpp``
+
+Handles inverse Compton scattering in relativistic plasmas:
+
+- **Cross Section:** Klein-Nishina formula implementation
+- **Energy Transfer:** Relativistic energy-momentum conservation
+- **Photon Fields:** Can include background radiation fields
+- **Pair Creation:** Through photon-photon interactions
+
+-----------------
+
+System Operations
+-----------------
+
+~~~~~~~~~~~~
+
+Update Cycle
+~~~~~~~~~~~~
+
+The radiative transfer system operates in the main simulation loop:
+
+1. **Photon Emission Phase:**
+   - Iterate through electron/positron arrays
+   - Apply radiation scheme emission criteria  
+   - Generate new photons with appropriate energies and momenta
+   - Update parent particle energies
+
+2. **Photon Propagation:**
+   - Move photons according to coordinate policy
+   - Update photon ``path_left`` for conversion tracking
+   - Handle boundary conditions
+
+3. **Pair Creation Phase:**
+   - Check photons for pair creation conditions
+   - Generate electron-positron pairs
+   - Remove converted photons from tracking
+
+~~~~~~~~~~~~~~~~~
+
+Memory Management
+~~~~~~~~~~~~~~~~~
+
+**Structure-of-Arrays Layout:**
+All particle data uses SoA memory layout for vectorization:
+
+.. code-block:: cpp
+
+   ptc_ptrs ptc;  // Electron/positron data
+   ph_ptrs ph;    // Photon data
+   
+   // Particle arrays
+   ptc.x1, ptc.x2, ptc.x3;  // Positions
+   ptc.p1, ptc.p2, ptc.p3;  // Momenta  
+   ptc.E;                   // Energies
+   ptc.weight;              // Statistical weights
+
+**Buffer Management:**
+- Pre-allocated particle buffers with configurable sizes
+- Atomic counters for thread-safe particle creation
+- Automatic buffer resizing when capacity exceeded
+
+-----------------------------
+
+Coordinate System Integration
+-----------------------------
+
+The system works seamlessly with different coordinate policies:
+
+**Cartesian Coordinates:**
+- Direct momentum and position updates
+- Uniform grid cell weighting
+
+**Spherical Coordinates:**
+- Momentum vector transformations between spherical and Cartesian
+- Proper geometric weighting factors (``sin(θ)`` for volume elements)
+- Coordinate-aware field interpolation
+
+**Kerr-Schild Coordinates:**
+- General relativistic transformations
+- Proper time integration
+- Curved spacetime geometry effects
+
+--------------------------
+
+Performance Considerations
+--------------------------
+
+**GPU Optimization:**
+- CUDA/HIP kernel implementations for all radiation schemes
+- Coalesced memory access patterns
+- Shared memory utilization for field interpolation
+
+**Load Balancing:**
+- Dynamic load balancing for varying particle densities
+- Efficient handling of particle creation/destruction
+- Minimized thread divergence in conditional operations
+
+**Memory Efficiency:**
+- Compact particle data structures
+- Efficient random number generation
+- Optimized field interpolation routines
+
+----------------------
+
+Configuration Examples
+----------------------
+
+**Fixed Path Radiation:**
+
+.. code-block:: toml
+
+   [radiation]
+   photon_path = 10.0
+   E_secondary = 100.0
+
+**Curvature Emission:**
+
+.. code-block:: toml
+
+   [radiation]
+   B_Q = 4.414e13        # Quantum magnetic field
+   e0 = 1.0e-6           # Energy normalization
+   nc = 1.0              # Rate normalization  
+   zeta = 7.0            # Quantum parameter scaling
+   gamma_thr = 10.0      # Emission threshold
+   Rpc = 1.0             # Polar cap radius
+   R_star = 10.0         # Stellar radius
+
+-----------------
+
+Diagnostic Output
+-----------------
+
+The radiative transfer system provides comprehensive diagnostics:
+
+**Particle Statistics:**
+- Number densities of electrons, positrons, photons
+- Energy distributions and spectra
+- Spatial distributions of radiative processes
+
+**Physics Diagnostics:**
+- Emission rates and cooling timescales
+- Pair creation rates and optical depths
+- Energy conservation tracking
+
+**Performance Metrics:**
+- Computational load per radiation scheme
+- Memory usage and buffer utilization
+- Load balancing efficiency across MPI ranks
+
+------------------------------
+
+Integration with Other Systems
+------------------------------
+
+**Field Solver Integration:**
+- Electromagnetic field interpolation at particle locations
+- Current deposition from created particles
+- Charge conservation in pair creation
+
+**Particle Updater Coupling:**
+- Synchronized particle array management
+- Consistent boundary condition handling
+- Proper MPI communication of particles
+
+**Data Export:**
+- HDF5 output of particle distributions
+- Spectral data export
+- Phase space diagnostics
+
+This radiative transfer system provides a flexible, high-performance framework for modeling complex radiative processes in plasma simulations, from simple cooling models to detailed quantum electrodynamics in strong magnetic fields.

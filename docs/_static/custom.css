@@ -1,0 +1,18 @@
+/* Custom CSS for Aperture documentation */
+
+/* Invert logo colors in dark mode for better visibility */
+body[data-theme="dark"] .sidebar-logo {
+    filter: invert(1);
+}
+
+/* Ensure logo looks good in light mode (no filter) */
+body[data-theme="light"] .sidebar-logo {
+    filter: none;
+}
+
+/* Auto theme support - invert logo when dark mode is preferred */
+@media (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) .sidebar-logo {
+        filter: invert(1);
+    }
+}

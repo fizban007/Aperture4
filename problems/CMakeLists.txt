@@ -27,4 +27,6 @@ add_subdirectory(fast_wave_2d_cartesian)
 add_subdirectory(fast_wave_3d_cartesian)
 add_subdirectory(kink)
 
+add_subdirectory(pressure_anisotropy)
+
 endif()

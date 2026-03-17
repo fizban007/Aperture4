@@ -227,6 +227,25 @@ rng_maxwell_juttner_3d(rand_state& local_state, Float theta) {
   return result;
 }
 
+
+template <typename Float>
+HD_INLINE vec_t<Float, 3>
+rng_anisotropic_maxwell_juttner_3d(rand_state& local_state,
+                   Float theta_perp,   // = T_perp/(mc^2) = 1/beta_perp
+                   Float A,            // = T_perp/T_par
+                   vec_t<Float,3> b_hat) { // unit vector for "parallel"
+  //Sample spherical distribution with T_perp, then stretch the parallel component to get the desired anisotropy
+  vec_t<Float,3> phat = rng_maxwell_juttner_3d(local_state, theta_perp);
+  Float scale = 1.0/math::sqrt(A) - (Float)1;
+  Float phat_par = phat[0]*b_hat[0] + phat[1]*b_hat[1] + phat[2]*b_hat[2];
+  return { phat[0] + scale*phat_par*b_hat[0],
+          phat[1] + scale*phat_par*b_hat[1],
+          phat[2] + scale*phat_par*b_hat[2] };
+}
+
+
+
+
 template <typename Float>
 HD_INLINE vec_t<Float, 3>
 rng_maxwell_juttner_drifting(rand_state& local_state, Float theta,

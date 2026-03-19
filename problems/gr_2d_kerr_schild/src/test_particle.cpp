@@ -25,7 +25,6 @@
 #include "systems/field_solver_gr_ks.h"
 #include "systems/gather_tracked_ptc.h"
 #include "systems/grid_ks.h"
-// #include "systems/legacy/ptc_updater_gr_ks.h"
 #include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_updater.h"

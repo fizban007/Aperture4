@@ -47,7 +47,7 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
   typedef typename Conf::value_t value_t;
   // kernel_launch(
   ExecPolicy<Conf>::launch(
-      [damping_length, damping_coef, damp_to_background] 
+      [damping_length, damping_coef, damp_to_background]
         LAMBDA(auto e, auto e0, auto b, auto b0) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
@@ -200,8 +200,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
             } else {
               w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
               w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
-              g13_minus = Metric_KS::g_13(a, r_minus, th); 
-              g13_plus  = Metric_KS::g_13(a, r_plus,  th); 
+              g13_minus = Metric_KS::g_13(a, r_minus, th);
+              g13_plus  = Metric_KS::g_13(a, r_plus,  th);
               auxE[0][idx] =
                   r * grid.delta[0] * Metric_KS::alpha(a, r, th) * (
                       Metric_KS::g_11(a, r, th) * (
@@ -247,7 +247,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                     (
                         (w_minus * gb1_minus * B[2][idx.dec_x()] + w_plus * gb1_plus * B[2][idx]) /
                         (w_minus + w_plus)
-                    )  
+                    )
                 );
             // auxE[1][idx] =
             //     // Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
@@ -270,8 +270,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
             w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
             gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
             gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
-            g13_minus = Metric_KS::g_13(a, r_minus, th); 
-            g13_plus  = Metric_KS::g_13(a, r_plus,  th); 
+            g13_minus = Metric_KS::g_13(a, r_minus, th);
+            g13_plus  = Metric_KS::g_13(a, r_plus,  th);
             // E_3 = alpha D_3                   + sqrt(gam) beta^1 B^2
             //     = alpha (g_33 D^3 + g_31 D^1) + sqrt(gam) beta^1 B^2
             // Handle coordinate axis
@@ -279,7 +279,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                 math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
               auxE[2][idx] =
                   Metric_KS::alpha(a, r, th) * (
-                      (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) / 
+                      (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) /
                       (w_minus + w_plus)
                   );
               // auxE[2][idx] =
@@ -294,12 +294,12 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                           D[2][idx]
                       ) +
                       (
-                          (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) / 
+                          (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) /
                           (w_minus + w_plus)
                       )
                   ) +
                   (
-                      (w_minus * gb1_minus * B[1][idx.dec_x()] + w_plus * gb1_plus * B[1][idx]) / 
+                      (w_minus * gb1_minus * B[1][idx.dec_x()] + w_plus * gb1_plus * B[1][idx]) /
                       (w_minus + w_plus)
                   );
               // auxE[2][idx] =
@@ -361,7 +361,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                         (
                             (w_minus * g13_minus * B[2][idx.dec_x()] + w_plus * g13_plus * B[2][idx]) /
                             (w_minus + w_plus)
-                        ) 
+                        )
                     );
                 // auxH[0][idx] =
                 //     grid_ptrs.ag11dr_h[idx] * B[0][idx] +
@@ -551,7 +551,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
                 value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
-                if (pos[1] == grid.guard[1] && 
+                if (pos[1] == grid.guard[1] &&
                     math::abs(th) < 0.1 * grid.delta[1]) {
                   dD_dt[0][idx] =
                       (auxH[2][idx]) / grid_ptrs.Ad[0][idx]
@@ -584,7 +584,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                                     grid_ptrs.Ad[1][idx] -
                                 J[1][idx];
                 // dD_dt[1][idx] = -J[1][idx];
-                // if (pos[1] == grid.guard[1] && 
+                // if (pos[1] == grid.guard[1] &&
                 //     math::abs(th) < 0.1 * grid.delta[1] &&
                 //     (pos[0] == 40 || pos[0] == 39)) {
                 //   printf("At %d, %d, D0 is %f, D1 is %f\n", pos[0], pos[1], dD_dt[0][idx], dD_dt[1][idx]);
@@ -673,7 +673,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   boundary_conditions(*m_tmpD, *m_tmpB);
 
   // Iterate EC several times
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 2; i++) {
     // Compute the RHS using new values at n+1
     compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
     compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));
@@ -717,7 +717,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
     typedef typename Conf::value_t value_t;
     // Inner boundary inside horizon
     ExecPolicy<Conf>::launch(
-        [damping_length, damping_coef, damp_to_background] 
+        [damping_length, damping_coef, damp_to_background]
         LAMBDA(auto D, auto B, auto D0, auto B0) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
@@ -740,7 +740,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
             // B[1][idx] = -B0[1][idx];
             // B[2][idx] = -B0[2][idx];
           });
-        
+
           // ExecPolicy<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
           //   for (int i = 0; i < damping_length; i++) {
           //     int n0 = grid.guard[0] + damping_length - 2 - i;

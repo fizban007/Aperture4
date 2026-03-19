@@ -25,7 +25,6 @@
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_tracked_ptc.h"
 // #include "systems/gather_momentum_space.h"
-// #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 // #include "systems/policies/coord_policy_cartesian_impl_cooling.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"

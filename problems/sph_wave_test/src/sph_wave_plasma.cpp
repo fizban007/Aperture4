@@ -18,7 +18,6 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "systems/field_solver_sph.h"
-// #include "systems/legacy/ptc_updater_sph.h"
 #include "systems/boundary_condition.h"
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"

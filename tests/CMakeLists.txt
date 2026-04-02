@@ -155,7 +155,7 @@ target_link_libraries(test_exporter_mpi
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
   )
 
-add_executable(test_mpi2d "test_mpi2d.cpp")
+add_executable(test_mpi2d "test_mpi2d_gpu.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
 target_link_libraries(test_mpi2d
   PUBLIC

@@ -86,6 +86,7 @@ beta1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return 2.0f * r / (r * (2.0f + r) + square(a * cth));
 }
 
+// The lower-index metric components.
 HD_INLINE Scalar
 g_11(Scalar a, Scalar r, Scalar th) {
   return 1.0f + Z(a, r, th);
@@ -126,6 +127,69 @@ g_13(Scalar a, Scalar r, Scalar th) {
 HD_INLINE Scalar
 g_13(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   return -a * sth * sth * (1.0f + Z(a, r, sth, cth));
+}
+
+// Lower-index beta components
+HD_INLINE Scalar
+beta_1(Scalar a, Scalar r, Scalar th) {
+  return g_11(a, r, th) * beta1(a, r, th);
+}
+
+HD_INLINE Scalar
+beta_1(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return g_11(a, r, sth, cth) * beta1(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
+beta_3(Scalar a, Scalar r, Scalar th) {
+  return g_13(a, r, th) * beta1(a, r, th);
+}
+
+HD_INLINE Scalar
+beta_3(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return g_13(a, r, sth, cth) * beta1(a, r, sth, cth);
+}
+
+// beta^2 = beta^i beta_i = beta^r beta_r
+HD_INLINE Scalar
+beta_sqr(Scalar a, Scalar r, Scalar th) {
+  return beta1(a, r, th) * beta_1(a, r, th);
+}
+
+HD_INLINE Scalar
+beta_sqr(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return beta1(a, r, sth, cth) * beta_1(a, r, sth, cth);
+}
+
+// Time- and time-space lower-index metric components
+HD_INLINE Scalar
+g_00(Scalar a, Scalar r, Scalar th) {
+  return beta_sqr(a, r, th) - square(alpha(a, r, th));
+}
+
+HD_INLINE Scalar
+g_00(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return beta_sqr(a, r, sth, cth) - square(alpha(a, r, sth, cth));
+}
+
+HD_INLINE Scalar
+g_01(Scalar a, Scalar r, Scalar th) {
+  return beta_1(a, r, th);
+}
+
+HD_INLINE Scalar
+g_01(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return beta_1(a, r, sth, cth);
+}
+
+HD_INLINE Scalar
+g_03(Scalar a, Scalar r, Scalar th) {
+  return beta_3(a, r, th);
+}
+
+HD_INLINE Scalar
+g_03(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return beta_3(a, r, sth, cth);
 }
 
 HD_INLINE Scalar
@@ -208,6 +272,26 @@ sq_gamma_beta(Scalar a, Scalar r, Scalar sth, Scalar cth) {
 }
 
 // These are the upper index gamma matrix elements
+HD_INLINE Scalar
+gu00(Scalar a, Scalar r, Scalar th) {
+  return -1.0 / square(alpha(a, r, th));
+}
+
+HD_INLINE Scalar
+gu00(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return -1.0 / square(alpha(a, r, sth, cth));
+}
+
+HD_INLINE Scalar
+gu01(Scalar a, Scalar r, Scalar th) {
+  return beta1(a, r, th) / square(alpha(a, r, th));
+}
+
+HD_INLINE Scalar
+gu01(Scalar a, Scalar r, Scalar sth, Scalar cth) {
+  return beta1(a, r, sth, cth) / square(alpha(a, r, sth, cth));
+}
+
 HD_INLINE Scalar
 gu11(Scalar a, Scalar r, Scalar sth, Scalar cth) {
   Scalar rho = rho2(a, r, sth, cth);
@@ -303,7 +387,8 @@ convert_to_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
   auto D = Delta(a, r);
   auto S = rho2(a, r, sth, cth);
 
-  result[0] = u[0] * math::sqrt(A / S / D) + u[3] * 2.0 * a * r / math::sqrt(A * D * S);
+  result[0] =
+      u[0] * math::sqrt(A / S / D) + u[3] * 2.0 * a * r / math::sqrt(A * D * S);
   result[1] = (2.0 * r * u[0] + D * u[1] + a * u[3]) / math::sqrt(D * S);
   result[2] = u[2] / math::sqrt(S);
   result[3] = math::sqrt(S / A) * u[3] / sth;
@@ -321,9 +406,11 @@ convert_from_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
   auto D = Delta(a, r);
   auto S = rho2(a, r, sth, cth);
 
-  result[0] = (u[0] * S * math::sqrt(D) - u[3] * 2.0 * a * r * sth) / math::sqrt(A * S);
-  result[1] = -2.0 * r * math::sqrt(S / D / A) * u[0] + math::sqrt(S / D) * u[1] +
-      (4.0 * r * r - A) * a * sth * u[3] / math::sqrt(A * S) / D;
+  result[0] =
+      (u[0] * S * math::sqrt(D) - u[3] * 2.0 * a * r * sth) / math::sqrt(A * S);
+  result[1] = -2.0 * r * math::sqrt(S / D / A) * u[0] +
+              math::sqrt(S / D) * u[1] +
+              (4.0 * r * r - A) * a * sth * u[3] / math::sqrt(A * S) / D;
   result[2] = u[2] * math::sqrt(S);
   result[3] = math::sqrt(A / S) * u[3] * sth;
   return result;
@@ -331,7 +418,8 @@ convert_from_ZAMO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
 
 template <typename Float>
 HOST_DEVICE vec_t<Float, 4>
-convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth, Float cth) {
+convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth,
+                      Float cth) {
   vec_t<Float, 4> result;
 
   auto sqrtS = math::sqrt(rho2(a, r, sth, cth));
@@ -354,7 +442,8 @@ convert_to_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float th) {
 
 template <typename Float>
 HOST_DEVICE vec_t<Float, 4>
-convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth, Float cth) {
+convert_from_FIDO_lower(const vec_t<Float, 4>& u, Float a, Float r, Float sth,
+                        Float cth) {
   vec_t<Float, 4> result;
 
   auto sqrtS = math::sqrt(rho2(a, r, sth, cth));

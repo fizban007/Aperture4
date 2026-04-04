@@ -525,33 +525,65 @@ topological operations involving only the incidence matrices $\dd_1$ and
 $\dd_1^T$. The \emph{only} approximation enters in the constitutive
 relations that convert between primal and dual quantities.
 
-\paragraph{Circumcentric (Voronoi) dual.}
-For each prism in the mesh, a dual vertex is placed at the \emph{circumcenter}:
-the circumcenter of the angular triangle (equidistant from all three vertices)
-at the radial midpoint of the layer. The dual face of a primal edge $e$ is
-the polygon formed by connecting the dual vertices (circumcenters) of all
-prisms sharing that edge. The dual edge of a primal face $f$ connects the
-dual vertices of the two prisms sharing $f$.
+\paragraph{The circumcenter of a triangle.}
+Every triangle has a unique \emph{circumcenter}: the point equidistant from all
+three vertices, or equivalently, the center of the circle passing through all
+three vertices (the \emph{circumscribed circle}). Geometrically, it lies at the
+intersection of the three perpendicular bisectors of the triangle's edges. For
+an equilateral triangle, the circumcenter coincides with the centroid (center of
+mass), but for a general triangle they differ.
 
-The diagonal Hodge star is then:
+Given triangle vertices $\bm{p}_0, \bm{p}_1, \bm{p}_2$ in $\mathbb{R}^3$, the
+circumcenter is $\bm{c} = \bm{p}_0 + s\,\bm{d}_{10} + t\,\bm{d}_{20}$ where
+$\bm{d}_{10} = \bm{p}_1 - \bm{p}_0$, $\bm{d}_{20} = \bm{p}_2 - \bm{p}_0$,
+and $(s, t)$ solve
+\begin{equation}
+  \begin{pmatrix}
+    2\,|\bm{d}_{10}|^2 & 2\,\bm{d}_{10}\cdot\bm{d}_{20} \\
+    2\,\bm{d}_{10}\cdot\bm{d}_{20} & 2\,|\bm{d}_{20}|^2
+  \end{pmatrix}
+  \begin{pmatrix} s \\ t \end{pmatrix}
+  =
+  \begin{pmatrix} |\bm{d}_{10}|^2 \\ |\bm{d}_{20}|^2 \end{pmatrix}.
+  \label{eq:circumcenter}
+\end{equation}
+This follows from requiring $|\bm{c} - \bm{p}_0|^2 = |\bm{c} - \bm{p}_1|^2 =
+|\bm{c} - \bm{p}_2|^2$. For our icosahedral triangles on the unit sphere, the
+circumcenter is computed from the flat triangle in $\mathbb{R}^3$ and then
+projected back onto the sphere by normalizing.
+
+\paragraph{Circumcentric (Voronoi) dual mesh.}
+For each prism in the mesh, a \emph{dual vertex} is placed at the circumcenter
+of its angular triangle, at the radial midpoint of the layer. The key property
+of the circumcenter is that it lies on the perpendicular bisector of every edge
+of the triangle. Therefore, the line connecting the circumcenters of two
+adjacent triangles (sharing an edge) is perpendicular to that shared edge. This
+perpendicularity is the defining property of the \emph{Voronoi dual} (also
+known as the circumcentric dual).
+
+The dual face of a primal edge $e$ is the polygon formed by connecting the dual
+vertices of all prisms sharing $e$. The dual edge of a primal face $f$ connects
+the dual vertices of the two prisms sharing $f$. The diagonal Hodge star is:
 \begin{equation}
   \hodge_1^{-1}[e] = \frac{|e|}{|e^*|}, \qquad
   \hodge_2[f] = \frac{|f^*|}{|f|},
   \label{eq:circumcentric_hodge}
 \end{equation}
 where $|e^*|$ is the area of the dual face and $|f^*|$ is the length of the
-dual edge. By construction, the circumcentric dual face of each edge is
-\emph{perpendicular} to the edge, which is the key property ensuring that
-the diagonal Hodge is consistent.
+dual edge.
 
-\paragraph{Why circumcenters, not centroids.}
-On a non-orthogonal mesh such as the icosahedral triangulation, the diagonal
-Hodge assumes that the field component along a primal edge equals the field
-component through the dual face. This is exact when the edge is perpendicular
-to the dual face, which holds for the circumcentric dual (Voronoi construction)
-but not for a centroid-based dual. Empirically, using centroids instead of
-circumcenters leads to $\sim 20$--$60\%$ energy drift in a static field test,
-while circumcenters reduce this to $\sim 2$--$3\%$.
+\paragraph{Why circumcenters matter.}
+The diagonal Hodge approximates the constitutive relation by assuming that the
+field component along a primal edge is proportional to the flux through the
+dual face. This is exact when the dual face is perpendicular to the edge,
+because then both measure the same component of the field. The circumcentric
+dual guarantees this perpendicularity by construction; using centroids (centers
+of mass) instead of circumcenters does not.
+
+Empirically, using centroids leads to $\sim 20$--$60\%$ energy drift in a
+static dipole field test over $\sim 10$ light-crossing times, while
+circumcenters reduce the drift to $\sim 2$--$3\%$. This dramatic improvement
+is entirely due to the edge--dual-face orthogonality.
 
 \paragraph{Computation of dual face areas.}
 The dual face of a \emph{horizontal edge} (on a radial shell) is a

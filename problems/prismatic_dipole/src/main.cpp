@@ -18,6 +18,9 @@ int main(int argc, char* argv[]) {
   // Build mesh
   prismatic_mesh mesh;
   mesh.build(L, N_r, r_min, r_max);
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  mesh.copy_to_device();
+#endif
 
   // Register systems
   auto solver = env.register_system<dec_field_solver_t>(mesh);

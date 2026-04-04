@@ -58,6 +58,6 @@ class dec_field_solver : public system_t {
 };
 
 // Convenience alias: uses host policy on CPU builds, GPU policy on GPU builds
-using dec_field_solver_t = dec_field_solver<prismatic_exec_policy_host>;
+using dec_field_solver_t = dec_field_solver<prismatic_exec_policy_dynamic>;
 
 }  // namespace Aperture

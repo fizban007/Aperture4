@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/buffer.hpp"
+#include "core/exec_tags.h"
 #include "core/typedefs_and_constants.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include <map>
@@ -122,13 +123,17 @@ class prismatic_mesh {
   // Get a prismatic_mesh_ptrs struct filled with host pointers.
   prismatic_mesh_ptrs host_ptrs() const;
 
+  // Tag-dispatched pointer access (for ExecPolicy::exec_tag)
+  prismatic_mesh_ptrs get_ptrs(exec_tags::host) const { return host_ptrs(); }
+
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   // Get a prismatic_mesh_ptrs struct filled with device pointers.
   // Requires copy_to_device() to have been called first.
   prismatic_mesh_ptrs dev_ptrs() const;
 
+  prismatic_mesh_ptrs get_ptrs(exec_tags::device) const { return dev_ptrs(); }
+
   // Copy all mesh data from host to device.
-  // Switches buffers to MemType::host_device if needed.
   void copy_to_device();
 #endif
 

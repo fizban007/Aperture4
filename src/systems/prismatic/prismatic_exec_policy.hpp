@@ -6,6 +6,11 @@
 #include "core/exec_tags.h"
 #include "utils/range.hpp"
 
+#ifdef GPU_ENABLED
+#include "core/cuda_control.h"
+#include "utils/kernel_helper.hpp"
+#endif
+
 // Lightweight execution policies for the prismatic mesh code.
 // These mirror exec_policy_host/gpu but without the Conf/Grid dependency.
 

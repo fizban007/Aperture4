@@ -64,6 +64,7 @@ if (use_cuda OR use_hip)
     "systems/ptc_updater.hip.cpp"
     "systems/radiative_transfer.hip.cpp"
     "systems/vlasov_solver.hip.cpp"
+    "systems/prismatic/dec_field_solver.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)
     set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)

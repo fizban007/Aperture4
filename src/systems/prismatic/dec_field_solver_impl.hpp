@@ -36,7 +36,8 @@ void dec_field_solver<ExecPolicy>::init() {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
-  auto mp = m_mesh.host_ptrs();
+  // Get mesh pointers matching the execution target (host or device)
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int N_edges = mp.N_edges;
   int N_faces = mp.N_faces;
 
@@ -69,15 +70,24 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
 
   ExecPolicy::sync();
 
-  // Clear J for next step
-  m_J_e.assign(0, N_edges, 0.0);
+  // Sync fields to host for damping/BC (no-op for host-only buffers)
+  m_E_e.copy_to_host();
+  m_B_f.copy_to_host();
 
-  // Step 3: Damping at outer boundary
+  // Clear J on host and sync to device
+  m_J_e.assign(0, N_edges, 0.0);
+  m_J_e.copy_to_device();
+
+  // Step 3: Damping at outer boundary (host-side)
   apply_damping(dt);
 
-  // Step 4: Inner boundary condition
+  // Step 4: Inner boundary condition (host-side)
   m_time += dt;
   apply_inner_bc(m_time);
+
+  // Sync modified fields back to device (no-op for host-only buffers)
+  m_E_e.copy_to_device();
+  m_B_f.copy_to_device();
 }
 
 template <typename ExecPolicy>

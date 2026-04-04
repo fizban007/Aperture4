@@ -94,7 +94,7 @@ struct prismatic_mesh_ptrs {
   // Barycentric coordinates of point (sx,sy,sz) in triangle tri_idx
   // on the unit sphere.
   // =======================================================================
-  HD_INLINE void compute_barycentric(int tri_idx, Scalar sx, Scalar sy,
+  HOST_DEVICE void compute_barycentric(int tri_idx, Scalar sx, Scalar sy,
                                      Scalar sz, Scalar& l1, Scalar& l2,
                                      Scalar& l3) const {
     int v0 = tri_verts[tri_idx * 3 + 0];
@@ -152,7 +152,7 @@ struct prismatic_mesh_ptrs {
   // Find which sphere triangle contains (sx, sy, sz) on the unit sphere.
   // Walk algorithm starting from tri_hint.
   // =======================================================================
-  HD_INLINE int find_triangle(Scalar sx, Scalar sy, Scalar sz,
+  HOST_DEVICE int find_triangle(Scalar sx, Scalar sy, Scalar sz,
                               int tri_hint = -1) const {
     int t = tri_hint;
     if (t < 0 || t >= N_tri) t = 0;

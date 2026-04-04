@@ -615,7 +615,7 @@ TEST_CASE("Current deposition: charge conservation", "[prismatic][deposit]") {
 
   // Allocate J buffer
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
-  deposit_current_single_prism(mesh, tri_idx, layer_idx,
+  deposit_current_single_prism(mesh.host_ptrs(), tri_idx, layer_idx,
                                l_old, zeta_old, l_new, zeta_new,
                                q_over_dt, J.data());
 
@@ -702,9 +702,9 @@ TEST_CASE("Current deposition: stationary particle deposits zero",
   Scalar zeta = 0.5;
 
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
-  deposit_current_single_prism(mesh, tri_idx, layer_idx,
+  deposit_current_single_prism(mesh.host_ptrs(), tri_idx, layer_idx,
                                l, zeta, l, zeta,
-                               1.0, J.data());
+                               Scalar(1.0), J.data());
 
   // All currents should be zero for a stationary particle
   for (int e = 0; e < mesh.m_N_edges; e++) {
@@ -731,7 +731,7 @@ TEST_CASE("Current deposition: per-vertex charge conservation",
   Scalar dt_val = 0.1;
 
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
-  deposit_current_single_prism(mesh, tri_idx, layer_idx,
+  deposit_current_single_prism(mesh.host_ptrs(), tri_idx, layer_idx,
                                l_old, zeta_old, l_new, zeta_new,
                                q / dt_val, J.data());
 
@@ -759,7 +759,7 @@ TEST_CASE("Crossing detection: no crossing", "[prismatic][deposit]") {
   Scalar l_new[3] = {0.35, 0.35, 0.3};
   Scalar s;
   int idx;
-  int type = detect_crossing(l_old, 0.3, l_new, 0.6, s, idx);
+  int type = detect_crossing(l_old, Scalar(0.3), l_new, Scalar(0.6), s, idx);
   REQUIRE(type == 0);
 }
 
@@ -770,13 +770,13 @@ TEST_CASE("Crossing detection: radial crossing", "[prismatic][deposit]") {
   int idx;
 
   // Cross top boundary (zeta > 1)
-  int type = detect_crossing(l_old, 0.8, l_new, 1.3, s, idx);
+  int type = detect_crossing(l_old, Scalar(0.8), l_new, Scalar(1.3), s, idx);
   REQUIRE(type == 1);
   REQUIRE(idx == 1);  // top
   REQUIRE(s == Catch::Approx(0.4).margin(1e-6));
 
   // Cross bottom boundary (zeta < 0)
-  type = detect_crossing(l_old, 0.2, l_new, -0.3, s, idx);
+  type = detect_crossing(l_old, Scalar(0.2), l_new, Scalar(-0.3), s, idx);
   REQUIRE(type == 1);
   REQUIRE(idx == -1);  // bottom
   REQUIRE(s == Catch::Approx(0.4).margin(1e-6));
@@ -787,7 +787,7 @@ TEST_CASE("Crossing detection: angular crossing", "[prismatic][deposit]") {
   Scalar l_new[3] = {-0.1, 0.6, 0.5};  // l0 goes negative
   Scalar s;
   int idx;
-  int type = detect_crossing(l_old, 0.5, l_new, 0.5, s, idx);
+  int type = detect_crossing(l_old, Scalar(0.5), l_new, Scalar(0.5), s, idx);
   REQUIRE(type == 2);
   REQUIRE(idx == 0);  // lambda_0 crossed zero
   REQUIRE(s == Catch::Approx(0.75).margin(1e-6));
@@ -817,9 +817,9 @@ TEST_CASE("Multi-cell crossing: radial traversal of 2 layers",
 
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
   int new_tri, new_layer;
-  deposit_current(mesh, tri_idx, start_layer,
+  deposit_current(mesh.host_ptrs(), tri_idx, start_layer,
                   l, zeta_old, l, zeta_new,
-                  10.0, J.data(), new_tri, new_layer);
+                  Scalar(10.0), J.data(), new_tri, new_layer);
 
   // Particle should end up in layer 3
   REQUIRE(new_layer == 3);
@@ -884,9 +884,9 @@ TEST_CASE("Multi-cell crossing: angular crossing into neighbor triangle",
 
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
   int new_tri, new_layer;
-  deposit_current(mesh, tri_idx, layer_idx,
+  deposit_current(mesh.host_ptrs(), tri_idx, layer_idx,
                   l_old, zeta_old, l_new, zeta_new,
-                  5.0, J.data(), new_tri, new_layer);
+                  Scalar(5.0), J.data(), new_tri, new_layer);
 
   // Should have crossed into a neighbor triangle
   int expected_neighbor = mesh.tri_neighbor[tri_idx * 3 + 0];  // edge 0 is opposite v2
@@ -933,9 +933,9 @@ TEST_CASE("Multi-cell crossing: combined radial + angular",
 
   std::vector<Scalar> J(mesh.m_N_edges, 0.0);
   int new_tri, new_layer;
-  deposit_current(mesh, tri_idx, start_layer,
+  deposit_current(mesh.host_ptrs(), tri_idx, start_layer,
                   l_old, zeta_old, l_new, zeta_new,
-                  3.0, J.data(), new_tri, new_layer);
+                  Scalar(3.0), J.data(), new_tri, new_layer);
 
   // Should have changed both triangle and layer
   REQUIRE(new_tri != tri_idx);

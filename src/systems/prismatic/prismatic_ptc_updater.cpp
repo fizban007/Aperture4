@@ -31,10 +31,11 @@ void prismatic_ptc_updater::update(double dt, uint32_t step) {
   size_t num = m_particles.number();
   int N_r = m_mesh.m_N_r;
 
-  // Get field data pointers
+  // Get field data pointers and mesh ptrs
   const Scalar* E_e = &m_solver.E_e()[0];
   const Scalar* B_f = &m_solver.B_f()[0];
   Scalar* J_e = &m_solver.J_e()[0];
+  auto mp = m_mesh.host_ptrs();
 
   for (size_t n = 0; n < num; n++) {
     if (ptrs.cell[n] == empty_cell) continue;
@@ -51,7 +52,7 @@ void prismatic_ptc_updater::update(double dt, uint32_t step) {
     // -----------------------------------------------------------
     Scalar l[3] = {l1, l2, l3};
     Scalar Ex, Ey, Ez, Bx, By, Bz;
-    interpolate_fields(m_mesh, tri_idx, layer_idx, l, zeta,
+    interpolate_fields(mp, tri_idx, layer_idx, l, zeta,
                        E_e, B_f, Ex, Ey, Ez, Bx, By, Bz);
 
     // -----------------------------------------------------------
@@ -149,13 +150,13 @@ void prismatic_ptc_updater::update(double dt, uint32_t step) {
         // Express new angular position in old triangle's barycentric coords
         Scalar r_inv = 1.0f / r_new;
         Scalar nsx = new_x * r_inv, nsy = new_y * r_inv, nsz = new_z * r_inv;
-        m_mesh.compute_barycentric(tri_idx, nsx, nsy, nsz,
-                                   l_new[0], l_new[1], l_new[2]);
+        mp.compute_barycentric(tri_idx, nsx, nsy, nsz,
+                               l_new[0], l_new[1], l_new[2]);
       }
 
       int dep_tri, dep_layer;
       Scalar q_over_dt = q * ptrs.weight[n] / dt;
-      deposit_current(m_mesh, tri_idx, layer_idx,
+      deposit_current(mp, tri_idx, layer_idx,
                       l_old, zeta, l_new, zeta_new_in_old,
                       q_over_dt, J_e, dep_tri, dep_layer);
     }

@@ -2,6 +2,7 @@
 
 #include "core/buffer.hpp"
 #include "core/typedefs_and_constants.h"
+#include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include <map>
 #include <vector>
 
@@ -117,6 +118,19 @@ class prismatic_mesh {
   // edges[3..5] = top horizontal (shell k+1)
   // edges[6..8] = vertical
   void prism_edge_indices(int tri_idx, int layer_idx, int edges[9]) const;
+
+  // Get a prismatic_mesh_ptrs struct filled with host pointers.
+  prismatic_mesh_ptrs host_ptrs() const;
+
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  // Get a prismatic_mesh_ptrs struct filled with device pointers.
+  // Requires copy_to_device() to have been called first.
+  prismatic_mesh_ptrs dev_ptrs() const;
+
+  // Copy all mesh data from host to device.
+  // Switches buffers to MemType::host_device if needed.
+  void copy_to_device();
+#endif
 
  private:
   struct sphere_mesh {

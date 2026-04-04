@@ -1199,3 +1199,71 @@ TEST_CASE("Particle: multiple particles are independent",
   REQUIRE(std::abs(x1 - r0) < 0.01);
   REQUIRE(y1 > 0);
 }
+
+// ============================================================================
+// Mesh ptrs tests
+// ============================================================================
+
+TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
+  auto mesh_ptr = make_test_mesh();
+  auto& mesh = *mesh_ptr;
+  auto mp = mesh.host_ptrs();
+
+  // Scalar parameters should match
+  REQUIRE(mp.N_r == mesh.m_N_r);
+  REQUIRE(mp.N_tri == mesh.m_N_tri);
+  REQUIRE(mp.N_vert_s == mesh.m_N_vert_s);
+  REQUIRE(mp.N_edge_s == mesh.m_N_edge_s);
+  REQUIRE(mp.N_edges == mesh.m_N_edges);
+  REQUIRE(mp.N_faces == mesh.m_N_faces);
+
+  // Indexing helpers should match
+  for (int k = 0; k <= mesh.m_N_r; k++) {
+    for (int e = 0; e < std::min(mesh.m_N_edge_s, 10); e++) {
+      REQUIRE(mp.h_edge_idx(k, e) == mesh.h_edge_idx(k, e));
+    }
+  }
+  for (int k = 0; k < mesh.m_N_r; k++) {
+    for (int s = 0; s < std::min(mesh.m_N_vert_s, 10); s++) {
+      REQUIRE(mp.v_edge_idx(k, s) == mesh.v_edge_idx(k, s));
+    }
+  }
+
+  // Barycentric coordinates should match
+  for (int t = 0; t < std::min(mesh.m_N_tri, 20); t++) {
+    int v = mesh.tri_verts[t * 3];
+    Scalar sx = mesh.sphere_vx[v], sy = mesh.sphere_vy[v], sz = mesh.sphere_vz[v];
+    Scalar ml1, ml2, ml3, pl1, pl2, pl3;
+    mesh.compute_barycentric(t, sx, sy, sz, ml1, ml2, ml3);
+    mp.compute_barycentric(t, sx, sy, sz, pl1, pl2, pl3);
+    REQUIRE(pl1 == Catch::Approx(ml1).margin(1e-6));
+    REQUIRE(pl2 == Catch::Approx(ml2).margin(1e-6));
+    REQUIRE(pl3 == Catch::Approx(ml3).margin(1e-6));
+  }
+
+  // find_radial_layer should match
+  for (int k = 0; k < mesh.m_N_r; k++) {
+    Scalar r = 0.5 * (mesh.radii[k] + mesh.radii[k + 1]);
+    REQUIRE(mp.find_radial_layer(r) == mesh.find_radial_layer(r));
+    REQUIRE(mp.compute_zeta(k, r) == Catch::Approx(mesh.compute_zeta(k, r)).margin(1e-10));
+  }
+
+  // prism_edge_indices should match
+  for (int t = 0; t < std::min(mesh.m_N_tri, 10); t++) {
+    int me[9], pe[9];
+    mesh.prism_edge_indices(t, 0, me);
+    mp.prism_edge_indices(t, 0, pe);
+    for (int j = 0; j < 9; j++) REQUIRE(pe[j] == me[j]);
+  }
+
+  // find_triangle should match
+  for (int t = 0; t < std::min(mesh.m_N_tri, 20); t++) {
+    int v0 = mesh.tri_verts[t*3], v1 = mesh.tri_verts[t*3+1], v2 = mesh.tri_verts[t*3+2];
+    Scalar cx = (mesh.sphere_vx[v0]+mesh.sphere_vx[v1]+mesh.sphere_vx[v2]) / 3;
+    Scalar cy = (mesh.sphere_vy[v0]+mesh.sphere_vy[v1]+mesh.sphere_vy[v2]) / 3;
+    Scalar cz = (mesh.sphere_vz[v0]+mesh.sphere_vz[v1]+mesh.sphere_vz[v2]) / 3;
+    Scalar r = std::sqrt(cx*cx+cy*cy+cz*cz);
+    cx /= r; cy /= r; cz /= r;
+    REQUIRE(mp.find_triangle(cx, cy, cz, t) == mesh.find_triangle(cx, cy, cz, t));
+  }
+}

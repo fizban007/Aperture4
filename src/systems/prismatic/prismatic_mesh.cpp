@@ -1018,4 +1018,96 @@ void prismatic_mesh::prism_edge_indices(int tri_idx, int layer_idx,
   edges[8] = v_edge_idx(layer_idx, tri_verts[tri_idx * 3 + 2]);
 }
 
+prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
+  prismatic_mesh_ptrs p{};
+  p.N_r = m_N_r;
+  p.N_tri = m_N_tri;
+  p.N_vert_s = m_N_vert_s;
+  p.N_edge_s = m_N_edge_s;
+  p.N_verts = m_N_verts;
+  p.N_edges = m_N_edges;
+  p.N_faces = m_N_faces;
+
+  p.radii = radii.host_ptr();
+
+  p.d1_row_ptr = d1_row_ptr.host_ptr();
+  p.d1_col_idx = d1_col_idx.host_ptr();
+  p.d1_val = d1_val.host_ptr();
+  p.d1t_row_ptr = d1t_row_ptr.host_ptr();
+  p.d1t_col_idx = d1t_col_idx.host_ptr();
+  p.d1t_val = d1t_val.host_ptr();
+
+  p.hodge1_inv = hodge1_inv.host_ptr();
+  p.hodge2 = hodge2.host_ptr();
+
+  p.edge_boundary = edge_boundary.host_ptr();
+  p.face_boundary = face_boundary.host_ptr();
+  p.edge_radial_layer = edge_radial_layer.host_ptr();
+  p.face_radial_layer = face_radial_layer.host_ptr();
+
+  p.sphere_vx = sphere_vx.host_ptr();
+  p.sphere_vy = sphere_vy.host_ptr();
+  p.sphere_vz = sphere_vz.host_ptr();
+  p.tri_verts = tri_verts.host_ptr();
+  p.tri_edges_s = tri_edges_s.host_ptr();
+  p.tri_edge_signs = tri_edge_signs.host_ptr();
+  p.tri_neighbor = tri_neighbor.host_ptr();
+
+  return p;
+}
+
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
+  prismatic_mesh_ptrs p{};
+  p.N_r = m_N_r;
+  p.N_tri = m_N_tri;
+  p.N_vert_s = m_N_vert_s;
+  p.N_edge_s = m_N_edge_s;
+  p.N_verts = m_N_verts;
+  p.N_edges = m_N_edges;
+  p.N_faces = m_N_faces;
+
+  p.radii = radii.dev_ptr();
+
+  p.d1_row_ptr = d1_row_ptr.dev_ptr();
+  p.d1_col_idx = d1_col_idx.dev_ptr();
+  p.d1_val = d1_val.dev_ptr();
+  p.d1t_row_ptr = d1t_row_ptr.dev_ptr();
+  p.d1t_col_idx = d1t_col_idx.dev_ptr();
+  p.d1t_val = d1t_val.dev_ptr();
+
+  p.hodge1_inv = hodge1_inv.dev_ptr();
+  p.hodge2 = hodge2.dev_ptr();
+
+  p.edge_boundary = edge_boundary.dev_ptr();
+  p.face_boundary = face_boundary.dev_ptr();
+  p.edge_radial_layer = edge_radial_layer.dev_ptr();
+  p.face_radial_layer = face_radial_layer.dev_ptr();
+
+  p.sphere_vx = sphere_vx.dev_ptr();
+  p.sphere_vy = sphere_vy.dev_ptr();
+  p.sphere_vz = sphere_vz.dev_ptr();
+  p.tri_verts = tri_verts.dev_ptr();
+  p.tri_edges_s = tri_edges_s.dev_ptr();
+  p.tri_edge_signs = tri_edge_signs.dev_ptr();
+  p.tri_neighbor = tri_neighbor.dev_ptr();
+
+  return p;
+}
+
+void prismatic_mesh::copy_to_device() {
+  auto copy = [](auto& buf) {
+    buf.copy_to_device();
+  };
+  copy(radii);
+  copy(d1_row_ptr); copy(d1_col_idx); copy(d1_val);
+  copy(d1t_row_ptr); copy(d1t_col_idx); copy(d1t_val);
+  copy(hodge1_inv); copy(hodge2);
+  copy(edge_boundary); copy(face_boundary);
+  copy(edge_radial_layer); copy(face_radial_layer);
+  copy(sphere_vx); copy(sphere_vy); copy(sphere_vz);
+  copy(tri_verts); copy(tri_edges_s); copy(tri_edge_signs); copy(tri_neighbor);
+}
+#endif
+
 }  // namespace Aperture

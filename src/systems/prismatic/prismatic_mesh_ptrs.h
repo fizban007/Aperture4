@@ -45,6 +45,24 @@ struct prismatic_mesh_ptrs {
   const int* edge_radial_layer; // [N_edges]
   const int* face_radial_layer; // [N_faces]
 
+  // --- Vertex positions ---
+  const Scalar* vert_x;          // [N_verts]
+  const Scalar* vert_y;
+  const Scalar* vert_z;
+
+  // --- Edge endpoints ---
+  const int* edge_v0;            // [N_edges]
+  const int* edge_v1;
+
+  // --- Face vertex indices ---
+  const int* tri_face_v0;        // [N_tri * (N_r + 1)]
+  const int* tri_face_v1;
+  const int* tri_face_v2;
+  const int* rect_face_v0;       // [N_edge_s * N_r]
+  const int* rect_face_v1;
+  const int* rect_face_v2;
+  const int* rect_face_v3;
+
   // --- Sphere mesh data (for particle operations) ---
   const Scalar* sphere_vx;      // [N_vert_s]
   const Scalar* sphere_vy;

@@ -1,5 +1,4 @@
 #include "systems/prismatic/prismatic_ptc_updater.h"
-#include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_deposit.h"
 #include "framework/environment.h"
 #include "utils/logger.h"
@@ -9,8 +8,10 @@
 namespace Aperture {
 
 prismatic_ptc_updater::prismatic_ptc_updater(prismatic_mesh& mesh,
-                                             dec_field_solver_t& solver)
-    : m_mesh(mesh), m_solver(solver) {}
+                                             buffer<Scalar>& E_e,
+                                             buffer<Scalar>& B_f,
+                                             buffer<Scalar>& J_e)
+    : m_mesh(mesh), m_E_e(E_e), m_B_f(B_f), m_J_e(J_e) {}
 
 void prismatic_ptc_updater::init() {
   int max_ptc = 100000;
@@ -32,9 +33,9 @@ void prismatic_ptc_updater::update(double dt, uint32_t step) {
   int N_r = m_mesh.m_N_r;
 
   // Get field data pointers and mesh ptrs
-  const Scalar* E_e = &m_solver.E_e()[0];
-  const Scalar* B_f = &m_solver.B_f()[0];
-  Scalar* J_e = &m_solver.J_e()[0];
+  const Scalar* E_e = m_E_e.host_ptr();
+  const Scalar* B_f = m_B_f.host_ptr();
+  Scalar* J_e = m_J_e.host_ptr();
   auto mp = m_mesh.host_ptrs();
 
   for (size_t n = 0; n < num; n++) {

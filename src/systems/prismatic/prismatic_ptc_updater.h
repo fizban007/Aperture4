@@ -1,8 +1,8 @@
 #pragma once
 
+#include "core/buffer.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
-#include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_particles.h"
 
@@ -12,7 +12,9 @@ class prismatic_ptc_updater : public system_t {
  public:
   static std::string name() { return "prismatic_ptc_updater"; }
 
-  prismatic_ptc_updater(prismatic_mesh& mesh, dec_field_solver_t& solver);
+  prismatic_ptc_updater(prismatic_mesh& mesh,
+                        buffer<Scalar>& E_e, buffer<Scalar>& B_f,
+                        buffer<Scalar>& J_e);
   ~prismatic_ptc_updater() = default;
 
   void init() override;
@@ -44,7 +46,9 @@ class prismatic_ptc_updater : public system_t {
   void remove_dead_particles();
 
   prismatic_mesh& m_mesh;
-  dec_field_solver_t& m_solver;
+  buffer<Scalar>& m_E_e;
+  buffer<Scalar>& m_B_f;
+  buffer<Scalar>& m_J_e;
   prismatic_particles_t m_particles;
 
   // Physics parameters

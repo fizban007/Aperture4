@@ -976,21 +976,25 @@ static void local_to_xyz(const prismatic_mesh& mesh, uint32_t cell,
   x = r * sx; y = r * sy; z = r * sz;
 }
 
-// Helper: create mesh + solver + updater without the framework
+// Helper: create mesh + solver + updater without the framework.
+// Uses host policy explicitly so tests don't require GPU setup.
+using dec_field_solver_host = dec_field_solver<prismatic_exec_policy_host>;
+
 struct PtcTestEnv {
   std::unique_ptr<prismatic_mesh> mesh;
-  std::unique_ptr<dec_field_solver_t> solver;
+  std::unique_ptr<dec_field_solver_host> solver;
   std::unique_ptr<prismatic_ptc_updater> updater;
 
   PtcTestEnv(int L = 2, int Nr = 5, double r_min = 1.0, double r_max = 5.0) {
     mesh = std::make_unique<prismatic_mesh>();
     mesh->build(L, Nr, r_min, r_max);
-    solver = std::make_unique<dec_field_solver_t>(*mesh);
+    solver = std::make_unique<dec_field_solver_host>(*mesh);
     // Zero all fields (constructor already allocates buffers)
     solver->E_e().assign(0, mesh->m_N_edges, 0.0);
     solver->B_f().assign(0, mesh->m_N_faces, 0.0);
     solver->J_e().assign(0, mesh->m_N_edges, 0.0);
-    updater = std::make_unique<prismatic_ptc_updater>(*mesh, *solver);
+    updater = std::make_unique<prismatic_ptc_updater>(
+        *mesh, solver->E_e(), solver->B_f(), solver->J_e());
     // Manually init particles (bypassing sim_env).
     // Must use the size+memtype constructor so host_ptrs are cached.
     updater->particles() = prismatic_particles_t(1000, MemType::host_only);

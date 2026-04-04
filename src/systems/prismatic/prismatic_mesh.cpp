@@ -1045,6 +1045,19 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.edge_radial_layer = edge_radial_layer.host_ptr();
   p.face_radial_layer = face_radial_layer.host_ptr();
 
+  p.vert_x = vert_x.host_ptr();
+  p.vert_y = vert_y.host_ptr();
+  p.vert_z = vert_z.host_ptr();
+  p.edge_v0 = edge_v0.host_ptr();
+  p.edge_v1 = edge_v1.host_ptr();
+  p.tri_face_v0 = tri_face_v0.host_ptr();
+  p.tri_face_v1 = tri_face_v1.host_ptr();
+  p.tri_face_v2 = tri_face_v2.host_ptr();
+  p.rect_face_v0 = rect_face_v0.host_ptr();
+  p.rect_face_v1 = rect_face_v1.host_ptr();
+  p.rect_face_v2 = rect_face_v2.host_ptr();
+  p.rect_face_v3 = rect_face_v3.host_ptr();
+
   p.sphere_vx = sphere_vx.host_ptr();
   p.sphere_vy = sphere_vy.host_ptr();
   p.sphere_vz = sphere_vz.host_ptr();
@@ -1084,6 +1097,19 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.edge_radial_layer = edge_radial_layer.dev_ptr();
   p.face_radial_layer = face_radial_layer.dev_ptr();
 
+  p.vert_x = vert_x.dev_ptr();
+  p.vert_y = vert_y.dev_ptr();
+  p.vert_z = vert_z.dev_ptr();
+  p.edge_v0 = edge_v0.dev_ptr();
+  p.edge_v1 = edge_v1.dev_ptr();
+  p.tri_face_v0 = tri_face_v0.dev_ptr();
+  p.tri_face_v1 = tri_face_v1.dev_ptr();
+  p.tri_face_v2 = tri_face_v2.dev_ptr();
+  p.rect_face_v0 = rect_face_v0.dev_ptr();
+  p.rect_face_v1 = rect_face_v1.dev_ptr();
+  p.rect_face_v2 = rect_face_v2.dev_ptr();
+  p.rect_face_v3 = rect_face_v3.dev_ptr();
+
   p.sphere_vx = sphere_vx.dev_ptr();
   p.sphere_vy = sphere_vy.dev_ptr();
   p.sphere_vz = sphere_vz.dev_ptr();
@@ -1105,6 +1131,10 @@ void prismatic_mesh::copy_to_device() {
   copy(hodge1_inv); copy(hodge2);
   copy(edge_boundary); copy(face_boundary);
   copy(edge_radial_layer); copy(face_radial_layer);
+  copy(vert_x); copy(vert_y); copy(vert_z);
+  copy(edge_v0); copy(edge_v1);
+  copy(tri_face_v0); copy(tri_face_v1); copy(tri_face_v2);
+  copy(rect_face_v0); copy(rect_face_v1); copy(rect_face_v2); copy(rect_face_v3);
   copy(sphere_vx); copy(sphere_vy); copy(sphere_vz);
   copy(tri_verts); copy(tri_edges_s); copy(tri_edge_signs); copy(tri_neighbor);
 }

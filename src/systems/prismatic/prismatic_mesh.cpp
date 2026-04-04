@@ -188,11 +188,11 @@ void prismatic_mesh::build(int L, int N_r, double r_min, double r_max) {
   // Step 4: Transpose d1 -> d1^T
   transpose_d1();
 
-  // Step 5: Assemble Galerkin mass matrices
-  assemble_mass_matrices(sm);
+  // Step 5: Assemble Galerkin mass matrices (optional, skip for diagonal Hodge)
+  // assemble_mass_matrices(sm);
 
-  // Step 6: Compute sparse approximate inverse of M1
-  compute_M1_inverse();
+  // Step 6: Compute sparse approximate inverse of M1 (optional, skip for speed)
+  // compute_M1_inverse();
 
   // Step 7: Compute geometric dual Hodge star
   compute_geometric_dual(sm);

@@ -32,6 +32,9 @@ set(Aperture_src
   "systems/radiative_transfer.cpp"
   "systems/sync_curv_emission.cpp"
   "systems/vlasov_solver.cpp"
+  "systems/prismatic/prismatic_mesh.cpp"
+  "systems/prismatic/dec_field_solver.cpp"
+  "systems/prismatic/prismatic_data_exporter.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 add_library(Aperture STATIC ${Aperture_src})

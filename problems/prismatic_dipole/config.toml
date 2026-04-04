@@ -1,0 +1,17 @@
+dt = 0.01
+max_steps = 5000
+
+subdivision_level = 3
+N_r = 50
+r_min = 1.0
+r_max = 20.0
+
+Bp = 1.0
+Omega = 1.0
+obliquity = 0.7854
+
+damping_length = 10
+damping_coef = 0.05
+
+fld_output_interval = 100
+output_dir = "Data"

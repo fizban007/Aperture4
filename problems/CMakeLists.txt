@@ -28,5 +28,6 @@ add_subdirectory(fast_wave_3d_cartesian)
 add_subdirectory(kink)
 
 add_subdirectory(pressure_anisotropy)
+add_subdirectory(prismatic_dipole)
 
 endif()

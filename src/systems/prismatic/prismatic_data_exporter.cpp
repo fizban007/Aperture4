@@ -96,10 +96,8 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   auto file = hdf_create(std::string(fname));
 
   // Write field data
-  file.write(m_solver.D_e().host_ptr(), m_mesh.m_N_edges, "D_e");
+  file.write(m_solver.E_e().host_ptr(), m_mesh.m_N_edges, "E_e");
   file.write(m_solver.B_f().host_ptr(), m_mesh.m_N_faces, "B_f");
-  file.write(m_solver.E_tilde().host_ptr(), m_mesh.m_N_edges, "E_tilde");
-  file.write(m_solver.H_tilde().host_ptr(), m_mesh.m_N_faces, "H_tilde");
 
   // Write metadata
   file.write(static_cast<int>(step), "step");

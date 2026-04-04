@@ -52,9 +52,35 @@ class prismatic_mesh {
   buffer<int> d1t_col_idx;
   buffer<Scalar> d1t_val;
 
-  // --- Lumped Hodge star (diagonal) ---
-  buffer<Scalar> hodge1_inv;  // size N_edges: ★₁⁻¹, used as E_tilde = hodge1_inv * D
-  buffer<Scalar> hodge2;      // size N_faces: ★₂, used as H_tilde = hodge2 * B
+  // --- Galerkin mass matrices in CSR ---
+  // M1: 1-form mass matrix (N_edges x N_edges), symmetric positive definite
+  buffer<int> M1_row_ptr;
+  buffer<int> M1_col_idx;
+  buffer<Scalar> M1_val;
+  buffer<Scalar> M1_diag;  // diagonal entries for preconditioner, size N_edges
+
+  // M2: 2-form mass matrix (N_faces x N_faces), symmetric positive definite
+  buffer<int> M2_row_ptr;
+  buffer<int> M2_col_idx;
+  buffer<Scalar> M2_val;
+
+  // M1_inv: precomputed sparse approximate inverse of M1 (block-Jacobi)
+  // Same sparsity pattern as M1. Applied as a single spmv.
+  buffer<int> M1inv_row_ptr;
+  buffer<int> M1inv_col_idx;
+  buffer<Scalar> M1inv_val;
+
+  // Sparse matvec helpers
+  void spmv_M1(const buffer<Scalar>& x, buffer<Scalar>& y) const;
+  void spmv_M1inv(const buffer<Scalar>& x, buffer<Scalar>& y) const;
+  void spmv_M2(const buffer<Scalar>& x, buffer<Scalar>& y) const;
+
+  // --- Geometric dual Hodge star (diagonal) ---
+  // Computed from actual dual mesh geometry (prism centroids).
+  // hodge1_inv[e] = |e| / |e*|  (edge length / dual face area)
+  // hodge2[f] = |f*| / |f|     (dual edge length / face area)
+  buffer<Scalar> hodge1_inv;  // size N_edges
+  buffer<Scalar> hodge2;      // size N_faces
 
   // --- Boundary tags ---
   // 0 = interior, 1 = inner boundary, 2 = outer boundary
@@ -111,7 +137,9 @@ class prismatic_mesh {
   void extrude_to_3d(const sphere_mesh& sm);
   void build_incidence(const sphere_mesh& sm);
   void transpose_d1();
-  void compute_hodge(const sphere_mesh& sm);
+  void assemble_mass_matrices(const sphere_mesh& sm);
+  void compute_M1_inverse();
+  void compute_geometric_dual(const sphere_mesh& sm);
   void tag_boundaries();
 };
 

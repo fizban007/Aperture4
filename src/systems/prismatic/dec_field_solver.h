@@ -28,11 +28,6 @@ class dec_field_solver : public system_t {
   void apply_inner_bc(double time);
   void set_initial_dipole();
 
-  // CG solver: solves M₁ × x = rhs, returns iteration count
-  int cg_solve(const buffer<Scalar>& rhs, buffer<Scalar>& x,
-               int max_iter, Scalar tol);
-
-  // Project analytic fields onto mesh elements
   Scalar project_B_on_face(int face_idx, Scalar Bx, Scalar By, Scalar Bz) const;
   Scalar project_E_on_edge(int edge_idx, Scalar Ex, Scalar Ey, Scalar Ez) const;
 
@@ -45,15 +40,6 @@ class dec_field_solver : public system_t {
   buffer<Scalar> m_E_e;   // electric field line integrals on edges
   buffer<Scalar> m_B_f;   // magnetic flux on faces
 
-  // Scratch buffers for CG and update
-  buffer<Scalar> m_rhs;       // RHS of Ampere: d₁ᵀ M₂ B
-  buffer<Scalar> m_M2B;       // M₂ × B (scratch)
-  buffer<Scalar> m_dE_prev;   // Previous CG solution for warm-start
-  buffer<Scalar> m_cg_r;      // CG residual
-  buffer<Scalar> m_cg_z;      // CG preconditioned residual
-  buffer<Scalar> m_cg_p;      // CG search direction
-  buffer<Scalar> m_cg_Ap;     // CG matrix-vector product
-
   // Physics parameters
   Scalar m_Bp = 1.0;
   Scalar m_Omega = 1.0;
@@ -62,10 +48,6 @@ class dec_field_solver : public system_t {
   // Damping layer
   int m_damping_length = 10;
   Scalar m_damping_coef = 0.05;
-
-  // CG parameters
-  int m_cg_max_iter = 10;
-  Scalar m_cg_tol = 1e-5;
 
   double m_time = 0.0;
 };

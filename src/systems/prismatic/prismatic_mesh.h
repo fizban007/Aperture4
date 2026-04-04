@@ -52,31 +52,8 @@ class prismatic_mesh {
   buffer<int> d1t_col_idx;
   buffer<Scalar> d1t_val;
 
-  // --- Galerkin mass matrices in CSR ---
-  // M1: 1-form mass matrix (N_edges x N_edges), symmetric positive definite
-  buffer<int> M1_row_ptr;
-  buffer<int> M1_col_idx;
-  buffer<Scalar> M1_val;
-  buffer<Scalar> M1_diag;  // diagonal entries for preconditioner, size N_edges
-
-  // M2: 2-form mass matrix (N_faces x N_faces), symmetric positive definite
-  buffer<int> M2_row_ptr;
-  buffer<int> M2_col_idx;
-  buffer<Scalar> M2_val;
-
-  // M1_inv: precomputed sparse approximate inverse of M1 (block-Jacobi)
-  // Same sparsity pattern as M1. Applied as a single spmv.
-  buffer<int> M1inv_row_ptr;
-  buffer<int> M1inv_col_idx;
-  buffer<Scalar> M1inv_val;
-
-  // Sparse matvec helpers
-  void spmv_M1(const buffer<Scalar>& x, buffer<Scalar>& y) const;
-  void spmv_M1inv(const buffer<Scalar>& x, buffer<Scalar>& y) const;
-  void spmv_M2(const buffer<Scalar>& x, buffer<Scalar>& y) const;
-
-  // --- Geometric dual Hodge star (diagonal) ---
-  // Computed from actual dual mesh geometry (prism centroids).
+  // --- Circumcentric dual Hodge star (diagonal) ---
+  // Computed from Voronoi dual using prism circumcenters.
   // hodge1_inv[e] = |e| / |e*|  (edge length / dual face area)
   // hodge2[f] = |f*| / |f|     (dual edge length / face area)
   buffer<Scalar> hodge1_inv;  // size N_edges
@@ -88,43 +65,31 @@ class prismatic_mesh {
   buffer<int> face_boundary;  // size N_faces
 
   // --- Radial layer index for each edge/face ---
-  // For damping: which radial layer does this element belong to?
-  buffer<int> edge_radial_layer;  // size N_edges, layer index (0..N_r-1 or shell 0..N_r)
+  buffer<int> edge_radial_layer;  // size N_edges
   buffer<int> face_radial_layer;  // size N_faces
 
   // --- Helper: face vertex indices for output ---
-  // Triangular faces: 3 vertices. Rectangular faces: 4 vertices.
-  // Store separately for simplicity.
   buffer<int> tri_face_v0, tri_face_v1, tri_face_v2;   // size N_tri*(N_r+1)
   buffer<int> rect_face_v0, rect_face_v1, rect_face_v2, rect_face_v3;  // size N_edge_s*N_r
 
   // --- Indexing helpers ---
-  // Horizontal edge global index: shell k, sphere edge e
   int h_edge_idx(int k, int e) const { return k * m_N_edge_s + e; }
-  // Vertical edge global index: layer k, sphere vertex s
   int v_edge_idx(int k, int s) const {
     return (m_N_r + 1) * m_N_edge_s + k * m_N_vert_s + s;
   }
-  // Triangular face global index: shell k, sphere triangle t
   int tri_face_idx(int k, int t) const { return k * m_N_tri + t; }
-  // Rectangular face global index: layer k, sphere edge e
   int rect_face_idx(int k, int e) const {
     return (m_N_r + 1) * m_N_tri + k * m_N_edge_s + e;
   }
-  // Vertex global index: shell k, sphere vertex s
   int vert_idx(int k, int s) const { return k * m_N_vert_s + s; }
 
  private:
-  // --- Sphere mesh generation helpers ---
   struct sphere_mesh {
-    std::vector<double> vx, vy, vz;           // unit sphere vertex positions
-    std::vector<std::array<int, 3>> triangles; // triangle vertex indices
-    std::vector<std::array<int, 2>> edges;     // edge vertex indices (a < b)
-    // For each triangle, which 3 edges (indices into edges[])
+    std::vector<double> vx, vy, vz;
+    std::vector<std::array<int, 3>> triangles;
+    std::vector<std::array<int, 2>> edges;
     std::vector<std::array<int, 3>> tri_edges;
-    // For each triangle, orientation of each edge (+1 or -1)
     std::vector<std::array<int, 3>> tri_edge_orient;
-    // Map from vertex pair to edge index
     std::map<std::pair<int, int>, int> edge_map;
 
     int add_vertex(double x, double y, double z);
@@ -137,8 +102,6 @@ class prismatic_mesh {
   void extrude_to_3d(const sphere_mesh& sm);
   void build_incidence(const sphere_mesh& sm);
   void transpose_d1();
-  void assemble_mass_matrices(const sphere_mesh& sm);
-  void compute_M1_inverse();
   void compute_geometric_dual(const sphere_mesh& sm);
   void tag_boundaries();
 };

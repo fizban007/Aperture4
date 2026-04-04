@@ -17,6 +17,7 @@
 
 #include "framework/config.h"
 #include "particles.h"
+#include "systems/prismatic/prismatic_particles.h"
 #include "utils/for_each_dual.hpp"
 #include "visit_struct/visit_struct.hpp"
 #include <algorithm>
@@ -155,5 +156,6 @@ particles_base<BufferType>::copy_to_device(gpuStream_t stream, bool all) {
 // Explicit instantiation
 template class particles_base<ptc_buffer>;
 template class particles_base<ph_buffer>;
+template class particles_base<prism_ptc_buffer>;
 
 }  // namespace Aperture

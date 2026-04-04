@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Icosahedral Prismatic Mesh Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; }
+
+  #panel {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(10, 10, 30, 0.88); padding: 20px 24px;
+    border-radius: 10px; width: 280px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  #panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #8ecae6; }
+  .ctrl { margin-bottom: 10px; }
+  .ctrl label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; color: #aab; }
+  .ctrl label span { color: #8ecae6; font-weight: 600; min-width: 28px; text-align: right; }
+  .ctrl input[type=range] { width: 100%; accent-color: #219ebc; }
+  .chk { margin: 6px 0; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .chk input { accent-color: #219ebc; }
+  hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
+  #stats { font-size: 11px; color: #889; line-height: 1.6; }
+  #stats b { color: #aab; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h2>Icosahedral Prismatic Mesh</h2>
+
+  <div class="ctrl">
+    <label>Subdivision level L <span id="v_L">2</span></label>
+    <input type="range" id="s_L" min="0" max="5" value="2">
+  </div>
+  <div class="ctrl">
+    <label>Radial layers N<sub>r</sub> <span id="v_Nr">4</span></label>
+    <input type="range" id="s_Nr" min="1" max="15" value="4">
+  </div>
+  <div class="ctrl">
+    <label>r<sub>min</sub> <span id="v_rmin">1.0</span></label>
+    <input type="range" id="s_rmin" min="0.3" max="2.0" step="0.1" value="1.0">
+  </div>
+  <div class="ctrl">
+    <label>r<sub>max</sub> <span id="v_rmax">4.0</span></label>
+    <input type="range" id="s_rmax" min="2.0" max="12.0" step="0.5" value="4.0">
+  </div>
+
+  <hr>
+  <div class="chk"><input type="checkbox" id="c_cut" checked><label for="c_cut">Cutaway view</label></div>
+  <div class="chk"><input type="checkbox" id="c_edges" checked><label for="c_edges">Cell edges</label></div>
+
+  <hr>
+  <div id="stats"></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// =========================================================================
+// Mesh generation
+// =========================================================================
+
+function buildSphereMesh(L) {
+  const verts = [];
+  let tris = [];
+
+  function addVert(x, y, z) {
+    const r = Math.sqrt(x*x + y*y + z*z);
+    verts.push([x/r, y/r, z/r]);
+    return verts.length - 1;
+  }
+
+  const p = (1 + Math.sqrt(5)) / 2;
+  addVert(-1, p, 0); addVert( 1, p, 0); addVert(-1,-p, 0); addVert( 1,-p, 0);
+  addVert( 0,-1, p); addVert( 0, 1, p); addVert( 0,-1,-p); addVert( 0, 1,-p);
+  addVert( p, 0,-1); addVert( p, 0, 1); addVert(-p, 0,-1); addVert(-p, 0, 1);
+
+  tris = [
+    [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+    [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+    [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+    [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+  ];
+
+  for (let l = 0; l < L; l++) {
+    const midCache = new Map();
+    const newTris = [];
+    function mid(a, b) {
+      const key = Math.min(a,b) * 100000 + Math.max(a,b);
+      if (midCache.has(key)) return midCache.get(key);
+      const m = addVert(verts[a][0]+verts[b][0], verts[a][1]+verts[b][1], verts[a][2]+verts[b][2]);
+      midCache.set(key, m);
+      return m;
+    }
+    for (const [a, b, c] of tris) {
+      const ab = mid(a,b), bc = mid(b,c), ac = mid(a,c);
+      newTris.push([a,ab,ac], [ab,b,bc], [ac,bc,c], [ab,bc,ac]);
+    }
+    tris = newTris;
+  }
+
+  // Collect unique edges
+  const edgeSet = new Set();
+  const edges = [];
+  for (const [a, b, c] of tris) {
+    for (const [u, v] of [[a,b],[b,c],[a,c]]) {
+      const key = Math.min(u,v) * 100000 + Math.max(u,v);
+      if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([Math.min(u,v), Math.max(u,v)]); }
+    }
+  }
+
+  // Edge-to-triangles adjacency: for each edge, which 2 triangles share it
+  const edgeToTris = new Map();
+  for (let t = 0; t < tris.length; t++) {
+    const [a, b, c] = tris[t];
+    for (const [u, v] of [[a,b],[b,c],[a,c]]) {
+      const key = Math.min(u,v) * 100000 + Math.max(u,v);
+      if (!edgeToTris.has(key)) edgeToTris.set(key, []);
+      edgeToTris.get(key).push(t);
+    }
+  }
+
+  // Triangle centroids on unit sphere
+  const triCentroids = tris.map(([a,b,c]) => [
+    (verts[a][0]+verts[b][0]+verts[c][0])/3,
+    (verts[a][1]+verts[b][1]+verts[c][1])/3,
+    (verts[a][2]+verts[b][2]+verts[c][2])/3,
+  ]);
+
+  return { verts, tris, edges, edgeToTris, triCentroids };
+}
+
+function buildPrismaticMesh(sphere, Nr, rMin, rMax) {
+  const { verts: sv, tris, edges: sEdges, edgeToTris, triCentroids } = sphere;
+  const Nv = sv.length;
+  const Nt = tris.length;
+  const Ne = sEdges.length;
+
+  const radii = [];
+  const logRatio = Math.log(rMax / rMin) / Nr;
+  for (let k = 0; k <= Nr; k++) radii.push(rMin * Math.exp(k * logRatio));
+
+  // 3D vertices
+  const V = [];
+  for (let k = 0; k <= Nr; k++) {
+    const r = radii[k];
+    for (let s = 0; s < Nv; s++) V.push([r*sv[s][0], r*sv[s][1], r*sv[s][2]]);
+  }
+
+  return { V, sv, tris, sEdges, edgeToTris, triCentroids, radii, Nv, Ne, Nt, Nr };
+}
+
+// =========================================================================
+// Three.js setup
+// =========================================================================
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.05, 200);
+camera.position.set(6, 5, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setClearColor(0x1a1a2e);
+document.body.appendChild(renderer.domElement);
+
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.08;
+
+// Axes
+const axLen = 1.2;
+scene.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(), axLen, 0x664444, 0.08, 0.04));
+scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(), axLen, 0x446644, 0.08, 0.04));
+scene.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), axLen, 0x444466, 0.08, 0.04));
+
+let meshGroup = new THREE.Group();
+scene.add(meshGroup);
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+const dl1 = new THREE.DirectionalLight(0xffffff, 0.85);
+dl1.position.set(5, 8, 6);
+scene.add(dl1);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.35);
+dl2.position.set(-4, -3, -5);
+scene.add(dl2);
+
+// =========================================================================
+// Colors
+// =========================================================================
+
+function shellHSL(k, Nr) {
+  const t = Nr > 0 ? k / Nr : 0;
+  return [0.6 - t * 0.6, 0.65, 0.50];
+}
+
+function makeColor(k, Nr, lShift) {
+  const [h, s, l] = shellHSL(k, Nr);
+  const c = new THREE.Color();
+  c.setHSL(h, s, l + (lShift || 0));
+  return c;
+}
+
+// =========================================================================
+// Scene rebuild
+// =========================================================================
+
+function rebuildScene() {
+  const L       = parseInt(el('s_L').value);
+  const Nr      = parseInt(el('s_Nr').value);
+  const rMin    = parseFloat(el('s_rmin').value);
+  const rMax    = parseFloat(el('s_rmax').value);
+  const cutaway = el('c_cut').checked;
+  const edges   = el('c_edges').checked;
+
+  el('v_L').textContent = L;
+  el('v_Nr').textContent = Nr;
+  el('v_rmin').textContent = rMin.toFixed(1);
+  el('v_rmax').textContent = rMax.toFixed(1);
+
+  const sphere = buildSphereMesh(L);
+  const mesh   = buildPrismaticMesh(sphere, Nr, rMin, rMax);
+  const { V, sv, tris, sEdges, edgeToTris, triCentroids, radii, Nv, Ne, Nt } = mesh;
+
+  meshGroup.clear();
+
+  // Octant test: centroid in +x, +y, +z
+  function inCutOctant(cx, cy, cz) { return cx > 0 && cy > 0 && cz > 0; }
+  function triInOctant(t) {
+    const c = triCentroids[t];
+    return inCutOctant(c[0], c[1], c[2]);
+  }
+
+  // ================================================================
+  // 1. Triangular shell faces — all shells
+  //    Outermost layer (shells Nr-1 and Nr) is semi-transparent so
+  //    you can see the prism cells beneath. Deeper layers are opaque.
+  // ================================================================
+  const triPosOpaque = [], triColOpaque = [];
+  const triPosTrans = [], triColTrans = [];
+  const triEdgePos = [], triEdgeCol = [];
+
+  for (let k = 0; k <= Nr; k++) {
+    for (let t = 0; t < Nt; t++) {
+      if (cutaway && triInOctant(t)) continue;
+      if (!cutaway && k !== Nr) continue;
+
+      const [a, b, c] = tris[t];
+      const i0 = k*Nv+a, i1 = k*Nv+b, i2 = k*Nv+c;
+      const p0 = V[i0], p1 = V[i1], p2 = V[i2];
+
+      const isOuterLayer = cutaway && (k >= Nr - 1);
+      const dst = isOuterLayer ? triPosTrans : triPosOpaque;
+      const dsc = isOuterLayer ? triColTrans : triColOpaque;
+
+      dst.push(...p0, ...p1, ...p2);
+      const col = makeColor(k, Nr, 0);
+      for (let i = 0; i < 3; i++) dsc.push(col.r, col.g, col.b);
+
+      if (edges) {
+        const ec = makeColor(k, Nr, -0.2);
+        triEdgePos.push(...p0,...p1, ...p1,...p2, ...p2,...p0);
+        for (let i = 0; i < 6; i++) triEdgeCol.push(ec.r, ec.g, ec.b);
+      }
+    }
+  }
+
+  // Opaque shell faces (rendered first)
+  if (triPosOpaque.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(triPosOpaque, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(triColOpaque, 3));
+    geo.computeVertexNormals();
+    meshGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+      vertexColors: true, side: THREE.DoubleSide,
+    })));
+  }
+
+  // Transparent outer-layer shell faces (rendered after opaque)
+  if (triPosTrans.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(triPosTrans, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(triColTrans, 3));
+    geo.computeVertexNormals();
+    meshGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+      vertexColors: true, side: THREE.DoubleSide,
+      transparent: true, opacity: 0.3, depthWrite: false,
+    })));
+  }
+
+  // ================================================================
+  // 2. Rectangular faces on the cut boundary
+  //    A rect face (sphere edge e, layer k) is on the boundary if
+  //    one of its two adjacent triangles is removed and the other kept.
+  // ================================================================
+  if (cutaway) {
+    const rectPosOpaque = [], rectColOpaque = [];
+    const rectPosTrans = [], rectColTrans = [];
+    const rectEdgePos = [], rectEdgeCol = [];
+
+    for (let ei = 0; ei < Ne; ei++) {
+      const [a, b] = sEdges[ei];
+      const key = Math.min(a,b) * 100000 + Math.max(a,b);
+      const adjTris = edgeToTris.get(key);
+      if (!adjTris || adjTris.length < 2) continue;
+
+      const t0in = triInOctant(adjTris[0]);
+      const t1in = triInOctant(adjTris[1]);
+      if (t0in === t1in) continue;
+
+      for (let k = 0; k < Nr; k++) {
+        const i0 = k*Nv+a, i1 = k*Nv+b, i2 = (k+1)*Nv+b, i3 = (k+1)*Nv+a;
+        const p0 = V[i0], p1 = V[i1], p2 = V[i2], p3 = V[i3];
+
+        const isOuterLayer = (k >= Nr - 1);
+        const dst = isOuterLayer ? rectPosTrans : rectPosOpaque;
+        const dsc = isOuterLayer ? rectColTrans : rectColOpaque;
+
+        dst.push(...p0,...p1,...p2, ...p0,...p2,...p3);
+        const col = makeColor(k, Nr, -0.06);
+        for (let i = 0; i < 6; i++) dsc.push(col.r, col.g, col.b);
+
+        if (edges) {
+          const ec = makeColor(k, Nr, -0.25);
+          rectEdgePos.push(...p0,...p1, ...p1,...p2, ...p2,...p3, ...p3,...p0);
+          for (let i = 0; i < 8; i++) rectEdgeCol.push(ec.r, ec.g, ec.b);
+        }
+      }
+    }
+
+    // Opaque rect faces
+    if (rectPosOpaque.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(rectPosOpaque, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(rectColOpaque, 3));
+      geo.computeVertexNormals();
+      meshGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+        vertexColors: true, side: THREE.DoubleSide,
+      })));
+    }
+
+    // Transparent outer-layer rect faces
+    if (rectPosTrans.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(rectPosTrans, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(rectColTrans, 3));
+      geo.computeVertexNormals();
+      meshGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+        vertexColors: true, side: THREE.DoubleSide,
+        transparent: true, opacity: 0.3, depthWrite: false,
+      })));
+    }
+
+    // Rect edge lines
+    if (edges && rectEdgePos.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(rectEdgePos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(rectEdgeCol, 3));
+      meshGroup.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+        vertexColors: true, depthTest: true,
+      })));
+    }
+  }
+
+  // ================================================================
+  // 3. Edge wireframe on shell faces
+  // ================================================================
+  if (edges && triEdgePos.length > 0) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(triEdgePos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(triEdgeCol, 3));
+    meshGroup.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+      vertexColors: true, depthTest: true,
+    })));
+  }
+
+  // ================================================================
+  // 4. Radial edges: cut boundary + outermost layer
+  // ================================================================
+  if (cutaway && edges) {
+    const radPos = [], radCol = [];
+
+    // Collect vertices that need radial edges drawn
+    const boundaryVerts = new Set();   // cut boundary — all layers
+    const outerLayerVerts = new Set(); // kept triangles — outer layer only
+
+    for (let t = 0; t < Nt; t++) {
+      if (triInOctant(t)) continue;
+      const [a, b, c] = tris[t];
+
+      // All vertices of kept triangles get radial edges in the outer layer
+      outerLayerVerts.add(a);
+      outerLayerVerts.add(b);
+      outerLayerVerts.add(c);
+
+      // Vertices on the cut boundary get radial edges in all layers
+      for (const [u, v] of [[a,b],[b,c],[a,c]]) {
+        const key = Math.min(u,v) * 100000 + Math.max(u,v);
+        const adj = edgeToTris.get(key);
+        if (adj && adj.length === 2) {
+          const other = adj[0] === t ? adj[1] : adj[0];
+          if (triInOctant(other)) {
+            boundaryVerts.add(u);
+            boundaryVerts.add(v);
+          }
+        }
+      }
+    }
+
+    // Boundary vertices: radial edges in all layers
+    for (const s of boundaryVerts) {
+      for (let k = 0; k < Nr; k++) {
+        const p0 = V[k*Nv+s], p1 = V[(k+1)*Nv+s];
+        radPos.push(...p0, ...p1);
+        const c0 = makeColor(k, Nr, -0.25);
+        const c1 = makeColor(k+1, Nr, -0.25);
+        radCol.push(c0.r,c0.g,c0.b, c1.r,c1.g,c1.b);
+      }
+    }
+
+    // Outer-layer vertices (not already covered): radial edge in last layer only
+    const k = Nr - 1;
+    for (const s of outerLayerVerts) {
+      if (boundaryVerts.has(s)) continue;
+      const p0 = V[k*Nv+s], p1 = V[(k+1)*Nv+s];
+      radPos.push(...p0, ...p1);
+      const c0 = makeColor(k, Nr, -0.25);
+      const c1 = makeColor(k+1, Nr, -0.25);
+      radCol.push(c0.r,c0.g,c0.b, c1.r,c1.g,c1.b);
+    }
+
+    if (radPos.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(radPos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(radCol, 3));
+      meshGroup.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+        vertexColors: true, depthTest: true,
+      })));
+    }
+  }
+
+  // ================================================================
+  // Stats
+  // ================================================================
+  const Nv3D = mesh.Nv * (Nr + 1);
+  const Ne3D = mesh.Ne * (Nr + 1) + mesh.Nv * Nr;
+  const Nf3D = mesh.Nt * (Nr + 1) + mesh.Ne * Nr;
+  const Ncells = mesh.Nt * Nr;
+  el('stats').innerHTML =
+    `<b>Sphere</b>: ${mesh.Nv} verts, ${mesh.Ne} edges, ${mesh.Nt} tris<br>` +
+    `<b>3D mesh</b>: ${Nv3D.toLocaleString()} verts, ${Ne3D.toLocaleString()} edges<br>` +
+    `<b>Faces</b>: ${Nf3D.toLocaleString()} &nbsp; <b>Prisms</b>: ${Ncells.toLocaleString()}<br>` +
+    `<b>Radii</b>: ${radii[0].toFixed(2)} ... ${radii[Nr].toFixed(2)}`;
+}
+
+// =========================================================================
+// UI
+// =========================================================================
+
+function el(id) { return document.getElementById(id); }
+
+let timer = null;
+function scheduleRebuild() { clearTimeout(timer); timer = setTimeout(rebuildScene, 80); }
+
+for (const id of ['s_L','s_Nr','s_rmin','s_rmax']) el(id).addEventListener('input', scheduleRebuild);
+for (const id of ['c_cut','c_edges']) el(id).addEventListener('change', scheduleRebuild);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  orbit.update();
+  renderer.render(scene, camera);
+}
+
+rebuildScene();
+animate();
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@ add_executable(tests
   "test_lorentz.cpp"
   "test_rng.cpp"
   "test_gr_ks_sph.cpp"
+  "test_prismatic_mesh.cpp"
   )
 # target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 target_link_libraries(tests PUBLIC
@@ -155,7 +156,7 @@ target_link_libraries(test_exporter_mpi
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
   )
 
-add_executable(test_mpi2d "test_mpi2d.cpp")
+add_executable(test_mpi2d "test_mpi2d_gpu.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
 target_link_libraries(test_mpi2d
   PUBLIC

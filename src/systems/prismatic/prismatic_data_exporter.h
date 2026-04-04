@@ -12,7 +12,7 @@ class prismatic_data_exporter : public system_t {
   static std::string name() { return "prismatic_data_exporter"; }
 
   prismatic_data_exporter(const prismatic_mesh& mesh,
-                          dec_field_solver& solver);
+                          dec_field_solver_t& solver);
   ~prismatic_data_exporter() = default;
 
   void init() override;
@@ -23,7 +23,7 @@ class prismatic_data_exporter : public system_t {
   void write_snapshot(uint32_t step, double time);
 
   const prismatic_mesh& m_mesh;
-  dec_field_solver& m_solver;
+  dec_field_solver_t& m_solver;
 
   int m_output_interval = 100;
   std::string m_output_dir = "Data";

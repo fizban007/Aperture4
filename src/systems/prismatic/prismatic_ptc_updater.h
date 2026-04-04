@@ -2,18 +2,17 @@
 
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
+#include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_particles.h"
 
 namespace Aperture {
 
-class dec_field_solver;
-
 class prismatic_ptc_updater : public system_t {
  public:
   static std::string name() { return "prismatic_ptc_updater"; }
 
-  prismatic_ptc_updater(prismatic_mesh& mesh, dec_field_solver& solver);
+  prismatic_ptc_updater(prismatic_mesh& mesh, dec_field_solver_t& solver);
   ~prismatic_ptc_updater() = default;
 
   void init() override;
@@ -45,7 +44,7 @@ class prismatic_ptc_updater : public system_t {
   void remove_dead_particles();
 
   prismatic_mesh& m_mesh;
-  dec_field_solver& m_solver;
+  dec_field_solver_t& m_solver;
   prismatic_particles_t m_particles;
 
   // Physics parameters

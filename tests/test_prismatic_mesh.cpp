@@ -979,13 +979,13 @@ static void local_to_xyz(const prismatic_mesh& mesh, uint32_t cell,
 // Helper: create mesh + solver + updater without the framework
 struct PtcTestEnv {
   std::unique_ptr<prismatic_mesh> mesh;
-  std::unique_ptr<dec_field_solver> solver;
+  std::unique_ptr<dec_field_solver_t> solver;
   std::unique_ptr<prismatic_ptc_updater> updater;
 
   PtcTestEnv(int L = 2, int Nr = 5, double r_min = 1.0, double r_max = 5.0) {
     mesh = std::make_unique<prismatic_mesh>();
     mesh->build(L, Nr, r_min, r_max);
-    solver = std::make_unique<dec_field_solver>(*mesh);
+    solver = std::make_unique<dec_field_solver_t>(*mesh);
     // Zero all fields (constructor already allocates buffers)
     solver->E_e().assign(0, mesh->m_N_edges, 0.0);
     solver->B_f().assign(0, mesh->m_N_faces, 0.0);

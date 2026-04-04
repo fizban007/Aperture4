@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   mesh.build(L, N_r, r_min, r_max);
 
   // Register systems
-  auto solver = env.register_system<dec_field_solver>(mesh);
+  auto solver = env.register_system<dec_field_solver_t>(mesh);
   auto exporter =
       env.register_system<prismatic_data_exporter>(mesh, *solver);
 

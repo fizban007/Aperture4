@@ -3,10 +3,12 @@
 #include "core/buffer.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
+#include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_mesh.h"
 
 namespace Aperture {
 
+template <typename ExecPolicy>
 class dec_field_solver : public system_t {
  public:
   static std::string name() { return "dec_field_solver"; }
@@ -54,5 +56,8 @@ class dec_field_solver : public system_t {
 
   double m_time = 0.0;
 };
+
+// Convenience alias: uses host policy on CPU builds, GPU policy on GPU builds
+using dec_field_solver_t = dec_field_solver<prismatic_exec_policy_host>;
 
 }  // namespace Aperture

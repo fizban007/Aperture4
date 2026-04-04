@@ -9,7 +9,7 @@
 namespace Aperture {
 
 prismatic_data_exporter::prismatic_data_exporter(const prismatic_mesh& mesh,
-                                                 dec_field_solver& solver)
+                                                 dec_field_solver_t& solver)
     : m_mesh(mesh), m_solver(solver) {}
 
 void prismatic_data_exporter::init() {

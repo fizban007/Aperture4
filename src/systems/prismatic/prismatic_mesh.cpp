@@ -194,6 +194,9 @@ void prismatic_mesh::build(int L, int N_r, double r_min, double r_max) {
   // Step 6: Tag boundaries
   tag_boundaries();
 
+  // Step 7: Persist sphere data for particle operations
+  persist_sphere_data(sm);
+
   Logger::print_info(
       "Prismatic mesh built: L={}, N_r={}, {} vertices, {} edges, {} faces",
       m_L, m_N_r, m_N_verts, m_N_edges, m_N_faces);
@@ -829,6 +832,190 @@ void prismatic_mesh::tag_boundaries() {
       if (k == m_N_r - 1) face_boundary[idx] = 2;
     }
   }
+}
+
+void prismatic_mesh::persist_sphere_data(const sphere_mesh& sm) {
+  // Store unit sphere vertex positions
+  sphere_vx.resize(m_N_vert_s);
+  sphere_vy.resize(m_N_vert_s);
+  sphere_vz.resize(m_N_vert_s);
+  for (int s = 0; s < m_N_vert_s; s++) {
+    sphere_vx[s] = sm.vx[s];
+    sphere_vy[s] = sm.vy[s];
+    sphere_vz[s] = sm.vz[s];
+  }
+
+  // Store triangle vertex/edge/orientation data
+  tri_verts.resize(m_N_tri * 3);
+  tri_edges_s.resize(m_N_tri * 3);
+  tri_edge_signs.resize(m_N_tri * 3);
+  for (int t = 0; t < m_N_tri; t++) {
+    for (int j = 0; j < 3; j++) {
+      tri_verts[t * 3 + j] = sm.triangles[t][j];
+      tri_edges_s[t * 3 + j] = sm.tri_edges[t][j];
+      tri_edge_signs[t * 3 + j] = sm.tri_edge_orient[t][j];
+    }
+  }
+
+  // Build triangle adjacency: for each triangle edge, find the neighboring
+  // triangle across that edge.
+  tri_neighbor.resize(m_N_tri * 3);
+  tri_neighbor.assign(0, m_N_tri * 3, -1);
+
+  // Map each sphere edge to its two incident triangles
+  std::vector<std::array<int, 2>> edge_tris(m_N_edge_s, {-1, -1});
+  for (int t = 0; t < m_N_tri; t++) {
+    for (int j = 0; j < 3; j++) {
+      int e = sm.tri_edges[t][j];
+      if (edge_tris[e][0] == -1) {
+        edge_tris[e][0] = t;
+      } else {
+        edge_tris[e][1] = t;
+      }
+    }
+  }
+
+  for (int t = 0; t < m_N_tri; t++) {
+    for (int j = 0; j < 3; j++) {
+      int e = sm.tri_edges[t][j];
+      tri_neighbor[t * 3 + j] =
+          (edge_tris[e][0] == t) ? edge_tris[e][1] : edge_tris[e][0];
+    }
+  }
+
+  Logger::print_info("Sphere data persisted: {} triangles, {} adjacency entries",
+                     m_N_tri, m_N_tri * 3);
+}
+
+// ============================================================================
+// Particle-related queries
+// ============================================================================
+
+void prismatic_mesh::compute_barycentric(int tri_idx, Scalar sx, Scalar sy,
+                                         Scalar sz, Scalar& l1, Scalar& l2,
+                                         Scalar& l3) const {
+  // Compute barycentric coordinates of point (sx,sy,sz) in triangle tri_idx
+  // on the unit sphere. Uses the cross-product formula:
+  //   n = (v1-v0) x (v2-v0)  [face normal]
+  //   l0 = [(v1-p) x (v2-p)] . n / (n . n)
+  //   l1 = [(v2-p) x (v0-p)] . n / (n . n)
+  //   l2 = 1 - l0 - l1
+  int v0 = tri_verts[tri_idx * 3 + 0];
+  int v1 = tri_verts[tri_idx * 3 + 1];
+  int v2 = tri_verts[tri_idx * 3 + 2];
+
+  Scalar p0x = sphere_vx[v0], p0y = sphere_vy[v0], p0z = sphere_vz[v0];
+  Scalar p1x = sphere_vx[v1], p1y = sphere_vy[v1], p1z = sphere_vz[v1];
+  Scalar p2x = sphere_vx[v2], p2y = sphere_vy[v2], p2z = sphere_vz[v2];
+
+  // Face normal n = (p1-p0) x (p2-p0)
+  Scalar e1x = p1x - p0x, e1y = p1y - p0y, e1z = p1z - p0z;
+  Scalar e2x = p2x - p0x, e2y = p2y - p0y, e2z = p2z - p0z;
+  Scalar nx = e1y * e2z - e1z * e2y;
+  Scalar ny = e1z * e2x - e1x * e2z;
+  Scalar nz = e1x * e2y - e1y * e2x;
+  Scalar n_dot_n = nx * nx + ny * ny + nz * nz;
+
+  // Sub-triangle (p, v1, v2): cross product (v1-p) x (v2-p)
+  Scalar d1x = p1x - sx, d1y = p1y - sy, d1z = p1z - sz;
+  Scalar d2x = p2x - sx, d2y = p2y - sy, d2z = p2z - sz;
+  Scalar cx0 = d1y * d2z - d1z * d2y;
+  Scalar cy0 = d1z * d2x - d1x * d2z;
+  Scalar cz0 = d1x * d2y - d1y * d2x;
+  l1 = (cx0 * nx + cy0 * ny + cz0 * nz) / n_dot_n;
+
+  // Sub-triangle (p, v2, v0): cross product (v2-p) x (v0-p)
+  Scalar d0x = p0x - sx, d0y = p0y - sy, d0z = p0z - sz;
+  Scalar cx1 = d2y * d0z - d2z * d0y;
+  Scalar cy1 = d2z * d0x - d2x * d0z;
+  Scalar cz1 = d2x * d0y - d2y * d0x;
+  l2 = (cx1 * nx + cy1 * ny + cz1 * nz) / n_dot_n;
+
+  l3 = 1.0 - l1 - l2;
+}
+
+int prismatic_mesh::find_radial_layer(Scalar r) const {
+  if (r < radii[0] || r > radii[m_N_r]) return -1;
+  // Binary search for k such that radii[k] <= r < radii[k+1]
+  int lo = 0, hi = m_N_r - 1;
+  while (lo < hi) {
+    int mid = (lo + hi) / 2;
+    if (r < radii[mid + 1]) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  return lo;
+}
+
+Scalar prismatic_mesh::compute_zeta(int k, Scalar r) const {
+  return (r - radii[k]) / (radii[k + 1] - radii[k]);
+}
+
+int prismatic_mesh::find_triangle(Scalar sx, Scalar sy, Scalar sz,
+                                  int tri_hint) const {
+  // Walk algorithm: start from tri_hint, compute barycentric coords,
+  // walk toward the most negative coordinate.
+  // Falls back to brute force if hint is invalid.
+  int t = tri_hint;
+  if (t < 0 || t >= m_N_tri) t = 0;
+
+  // Opposite edge for each local vertex index:
+  // l0 < 0 -> cross edge 1 (v1-v2), l1 < 0 -> cross edge 2 (v0-v2),
+  // l2 < 0 -> cross edge 0 (v0-v1)
+  static const int opposite_edge[3] = {1, 2, 0};
+
+  for (int iter = 0; iter < m_N_tri; iter++) {
+    Scalar l1, l2, l3;
+    compute_barycentric(t, sx, sy, sz, l1, l2, l3);
+
+    if (l1 >= -1e-10 && l2 >= -1e-10 && l3 >= -1e-10) {
+      return t;  // Found the containing triangle
+    }
+
+    // Walk toward the most negative coordinate
+    Scalar lam[3] = {l1, l2, l3};
+    int min_idx = 0;
+    if (lam[1] < lam[min_idx]) min_idx = 1;
+    if (lam[2] < lam[min_idx]) min_idx = 2;
+
+    int next = tri_neighbor[t * 3 + opposite_edge[min_idx]];
+    if (next < 0) return t;  // At mesh boundary, best we can do
+    t = next;
+  }
+
+  // Should not reach here, but brute-force fallback
+  Scalar best_min = -1e30;
+  int best_t = 0;
+  for (int ti = 0; ti < m_N_tri; ti++) {
+    Scalar l1, l2, l3;
+    compute_barycentric(ti, sx, sy, sz, l1, l2, l3);
+    Scalar min_l = std::min({l1, l2, l3});
+    if (min_l > best_min) {
+      best_min = min_l;
+      best_t = ti;
+    }
+  }
+  return best_t;
+}
+
+void prismatic_mesh::prism_edge_indices(int tri_idx, int layer_idx,
+                                        int edges[9]) const {
+  // Bottom horizontal edges (shell layer_idx)
+  edges[0] = h_edge_idx(layer_idx, tri_edges_s[tri_idx * 3 + 0]);
+  edges[1] = h_edge_idx(layer_idx, tri_edges_s[tri_idx * 3 + 1]);
+  edges[2] = h_edge_idx(layer_idx, tri_edges_s[tri_idx * 3 + 2]);
+
+  // Top horizontal edges (shell layer_idx + 1)
+  edges[3] = h_edge_idx(layer_idx + 1, tri_edges_s[tri_idx * 3 + 0]);
+  edges[4] = h_edge_idx(layer_idx + 1, tri_edges_s[tri_idx * 3 + 1]);
+  edges[5] = h_edge_idx(layer_idx + 1, tri_edges_s[tri_idx * 3 + 2]);
+
+  // Vertical edges
+  edges[6] = v_edge_idx(layer_idx, tri_verts[tri_idx * 3 + 0]);
+  edges[7] = v_edge_idx(layer_idx, tri_verts[tri_idx * 3 + 1]);
+  edges[8] = v_edge_idx(layer_idx, tri_verts[tri_idx * 3 + 2]);
 }
 
 }  // namespace Aperture

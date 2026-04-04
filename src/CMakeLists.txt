@@ -34,6 +34,7 @@ set(Aperture_src
   "systems/vlasov_solver.cpp"
   "systems/prismatic/prismatic_mesh.cpp"
   "systems/prismatic/dec_field_solver.cpp"
+  "systems/prismatic/prismatic_deposit.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)

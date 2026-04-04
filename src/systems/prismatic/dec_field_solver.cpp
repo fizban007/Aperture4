@@ -8,7 +8,8 @@ namespace Aperture {
 dec_field_solver::dec_field_solver(prismatic_mesh& mesh)
     : m_mesh(mesh),
       m_E_e(mesh.m_N_edges, MemType::host_only),
-      m_B_f(mesh.m_N_faces, MemType::host_only) {}
+      m_B_f(mesh.m_N_faces, MemType::host_only),
+      m_J_e(mesh.m_N_edges, MemType::host_only) {}
 
 void dec_field_solver::init() {
   sim_env().params().get_value("Bp", m_Bp);
@@ -19,6 +20,7 @@ void dec_field_solver::init() {
 
   m_E_e.assign(0, m_mesh.m_N_edges, 0.0);
   m_B_f.assign(0, m_mesh.m_N_faces, 0.0);
+  m_J_e.assign(0, m_mesh.m_N_edges, 0.0);
 
   set_initial_dipole();
 
@@ -33,7 +35,7 @@ void dec_field_solver::update(double dt, uint32_t step) {
 
   // Circumcentric dual Hodge formulation:
   //   Faraday: ∂B/∂t = -d₁ E              (exact, no Hodge)
-  //   Ampere:  ∂E/∂t = ★₁⁻¹ d₁ᵀ ★₂ B     (diagonal Hodge, fully explicit)
+  //   Ampere:  ∂E/∂t = ★₁⁻¹ (d₁ᵀ ★₂ B - J)
 
   // Step 1: Faraday — B -= dt * d₁ * E
   for (int f = 0; f < N_faces; f++) {
@@ -44,15 +46,18 @@ void dec_field_solver::update(double dt, uint32_t step) {
     m_B_f[f] -= dt * curl_E;
   }
 
-  // Step 2: Ampere — E += dt * ★₁⁻¹ * d₁ᵀ * (★₂ * B)
+  // Step 2: Ampere — E += dt * ★₁⁻¹ * (d₁ᵀ * ★₂ * B - J)
   for (int e = 0; e < N_edges; e++) {
     Scalar curl_H = 0.0;
     for (int j = m_mesh.d1t_row_ptr[e]; j < m_mesh.d1t_row_ptr[e + 1]; j++) {
       int f = m_mesh.d1t_col_idx[j];
       curl_H += m_mesh.d1t_val[j] * m_mesh.hodge2[f] * m_B_f[f];
     }
-    m_E_e[e] += dt * m_mesh.hodge1_inv[e] * curl_H;
+    m_E_e[e] += dt * m_mesh.hodge1_inv[e] * (curl_H - m_J_e[e]);
   }
+
+  // Clear J for next step (it will be accumulated by particle deposit)
+  m_J_e.assign(0, N_edges, 0.0);
 
   // Step 3: Damping at outer boundary
   apply_damping(dt);

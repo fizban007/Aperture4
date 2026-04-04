@@ -72,6 +72,16 @@ class prismatic_mesh {
   buffer<int> tri_face_v0, tri_face_v1, tri_face_v2;   // size N_tri*(N_r+1)
   buffer<int> rect_face_v0, rect_face_v1, rect_face_v2, rect_face_v3;  // size N_edge_s*N_r
 
+  // --- Persistent sphere mesh data (needed for particle operations) ---
+  buffer<Scalar> sphere_vx, sphere_vy, sphere_vz;  // unit sphere vertex positions [N_vert_s]
+  buffer<int> tri_verts;       // [N_tri * 3]: sphere vertex indices per triangle
+  buffer<int> tri_edges_s;     // [N_tri * 3]: sphere edge indices per triangle
+  buffer<int> tri_edge_signs;  // [N_tri * 3]: orientation signs (+1 or -1)
+
+  // --- Triangle adjacency ---
+  // tri_neighbor[t * 3 + j] = triangle across edge j of triangle t (-1 if none)
+  buffer<int> tri_neighbor;    // [N_tri * 3]
+
   // --- Indexing helpers ---
   int h_edge_idx(int k, int e) const { return k * m_N_edge_s + e; }
   int v_edge_idx(int k, int s) const {
@@ -82,6 +92,31 @@ class prismatic_mesh {
     return (m_N_r + 1) * m_N_tri + k * m_N_edge_s + e;
   }
   int vert_idx(int k, int s) const { return k * m_N_vert_s + s; }
+
+  // --- Particle-related queries ---
+
+  // Compute barycentric coordinates of a unit-sphere point in triangle t.
+  // Returns (l1, l2, l3) where l1 + l2 + l3 = 1.
+  void compute_barycentric(int tri_idx, Scalar sx, Scalar sy, Scalar sz,
+                           Scalar& l1, Scalar& l2, Scalar& l3) const;
+
+  // Find radial layer k such that radii[k] <= r < radii[k+1].
+  // Returns -1 if r is out of range.
+  int find_radial_layer(Scalar r) const;
+
+  // Compute normalized radial coordinate within layer k:
+  // zeta = (r - radii[k]) / (radii[k+1] - radii[k])
+  Scalar compute_zeta(int k, Scalar r) const;
+
+  // Find which sphere triangle contains the unit-sphere point (sx, sy, sz).
+  // Uses a walk algorithm starting from tri_hint (or brute force if hint < 0).
+  int find_triangle(Scalar sx, Scalar sy, Scalar sz, int tri_hint = -1) const;
+
+  // Get the 9 global edge indices for prism (tri_idx, layer_idx).
+  // edges[0..2] = bottom horizontal (shell k)
+  // edges[3..5] = top horizontal (shell k+1)
+  // edges[6..8] = vertical
+  void prism_edge_indices(int tri_idx, int layer_idx, int edges[9]) const;
 
  private:
   struct sphere_mesh {
@@ -104,6 +139,7 @@ class prismatic_mesh {
   void transpose_d1();
   void compute_geometric_dual(const sphere_mesh& sm);
   void tag_boundaries();
+  void persist_sphere_data(const sphere_mesh& sm);
 };
 
 }  // namespace Aperture

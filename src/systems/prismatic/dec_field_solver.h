@@ -20,8 +20,10 @@ class dec_field_solver : public system_t {
   // Access to field data
   buffer<Scalar>& E_e() { return m_E_e; }
   buffer<Scalar>& B_f() { return m_B_f; }
+  buffer<Scalar>& J_e() { return m_J_e; }
   const buffer<Scalar>& E_e() const { return m_E_e; }
   const buffer<Scalar>& B_f() const { return m_B_f; }
+  const buffer<Scalar>& J_e() const { return m_J_e; }
 
  private:
   void apply_damping(double dt);
@@ -39,6 +41,7 @@ class dec_field_solver : public system_t {
   // Primary field storage
   buffer<Scalar> m_E_e;   // electric field line integrals on edges
   buffer<Scalar> m_B_f;   // magnetic flux on faces
+  buffer<Scalar> m_J_e;   // current 1-cochain on edges (accumulated by deposit)
 
   // Physics parameters
   Scalar m_Bp = 1.0;

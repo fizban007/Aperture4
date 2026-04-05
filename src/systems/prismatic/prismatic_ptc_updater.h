@@ -1,10 +1,10 @@
 #pragma once
 
-#include "core/buffer.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
+#include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
-#include "systems/prismatic/prismatic_particles.h"
+#include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
@@ -12,18 +12,12 @@ class prismatic_ptc_updater : public system_t {
  public:
   static std::string name() { return "prismatic_ptc_updater"; }
 
-  prismatic_ptc_updater(prismatic_mesh& mesh,
-                        buffer<Scalar>& E_e, buffer<Scalar>& B_f,
-                        buffer<Scalar>& J_e);
+  prismatic_ptc_updater(prismatic_mesh& mesh);
   ~prismatic_ptc_updater() = default;
 
+  void register_data_components() override;
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  prismatic_particles_t& particles() { return m_particles; }
-  const prismatic_particles_t& particles() const { return m_particles; }
-  buffer<Scalar>& rho() { return m_rho; }
-  const buffer<Scalar>& rho() const { return m_rho; }
 
   int add_particle(Scalar x, Scalar y, Scalar z,
                    Scalar px, Scalar py, Scalar pz,
@@ -33,11 +27,13 @@ class prismatic_ptc_updater : public system_t {
   void remove_dead_particles();
 
   prismatic_mesh& m_mesh;
-  buffer<Scalar>& m_E_e;
-  buffer<Scalar>& m_B_f;
-  buffer<Scalar>& m_J_e;
-  buffer<Scalar> m_rho;   // charge density on vertices [N_verts]
-  prismatic_particles_t m_particles;
+
+  // Shared data (owned by env)
+  nonown_ptr<prismatic_edge_field> m_E;
+  nonown_ptr<prismatic_face_field> m_B;
+  nonown_ptr<prismatic_edge_field> m_J;
+  nonown_ptr<prismatic_vertex_field> m_rho;
+  nonown_ptr<prismatic_particle_data> m_ptc;
 
   Scalar m_charge_e = -1.0;
   Scalar m_mass_e = 1.0;

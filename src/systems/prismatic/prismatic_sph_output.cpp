@@ -9,12 +9,15 @@
 
 namespace Aperture {
 
-prismatic_sph_output::prismatic_sph_output(prismatic_mesh& mesh,
-                                           buffer<Scalar>& E_e,
-                                           buffer<Scalar>& B_f,
-                                           buffer<Scalar>* J_e,
-                                           buffer<Scalar>* rho)
-    : m_mesh(mesh), m_E_e(E_e), m_B_f(B_f), m_J_e(J_e), m_rho(rho) {}
+prismatic_sph_output::prismatic_sph_output(prismatic_mesh& mesh)
+    : m_mesh(mesh) {}
+
+void prismatic_sph_output::register_data_components() {
+  m_E = sim_env().register_data<prismatic_edge_field>("E", m_mesh);
+  m_B = sim_env().register_data<prismatic_face_field>("B", m_mesh);
+  sim_env().get_data_optional("J", m_J);
+  sim_env().get_data_optional("rho", m_rho);
+}
 
 void prismatic_sph_output::init() {
   sim_env().params().get_value("sph_N_theta", m_N_theta);
@@ -28,8 +31,8 @@ void prismatic_sph_output::init() {
   int N_total = N_ang * (m_mesh.m_N_r + 1);
   m_Br.resize(N_total); m_Bth.resize(N_total); m_Bph.resize(N_total);
   m_Er.resize(N_total); m_Eth.resize(N_total); m_Eph.resize(N_total);
-  if (m_J_e) { m_Jr.resize(N_total); m_Jth.resize(N_total); m_Jph.resize(N_total); }
-  if (m_rho) { m_rho_grid.resize(N_total); }
+  if (m_J != nullptr) { m_Jr.resize(N_total); m_Jth.resize(N_total); m_Jph.resize(N_total); }
+  if (m_rho != nullptr) { m_rho_grid.resize(N_total); }
 
   precompute_grid();
   write_grid_info();
@@ -101,16 +104,16 @@ void prismatic_sph_output::update(double dt, uint32_t step) {
   // Sync E and B from device to host (no-op for host-only buffers).
   // J and rho are deposited on the host by the particle updater,
   // so they must NOT be overwritten from device.
-  m_E_e.copy_to_host();
-  m_B_f.copy_to_host();
+  m_E->data().copy_to_host();
+  m_B->data().copy_to_host();
 
   write_snapshot(step, m_time);
 }
 
 void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
   auto mp = m_mesh.host_ptrs();
-  const Scalar* E_e = m_E_e.host_ptr();
-  const Scalar* B_f = m_B_f.host_ptr();
+  const Scalar* E_e = m_E->host_ptr();
+  const Scalar* B_f = m_B->host_ptr();
   int N_ang = m_N_theta * m_N_phi;
   int N_shells = m_mesh.m_N_r + 1;
 
@@ -155,10 +158,10 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
       m_Eph[idx] = -iEx * sin_phi + iEy * cos_phi;
 
       // J: same Whitney 1-form interpolation as E (both are edge 1-cochains)
-      if (m_J_e != nullptr) {
+      if (m_J != nullptr) {
         Scalar iJx, iJy, iJz, dummy1, dummy2, dummy3;
         interpolate_fields(mp, pt.tri_idx, layer, pt.l, zeta,
-                           m_J_e->host_ptr(), B_f, iJx, iJy, iJz,
+                           m_J->host_ptr(), B_f, iJx, iJy, iJz,
                            dummy1, dummy2, dummy3);
         m_Jr[idx]  = iJx * sx + iJy * sy + iJz * sz;
         m_Jth[idx] = iJx * cos_th * cos_phi + iJy * cos_th * sin_phi - iJz * sin_th;
@@ -197,7 +200,7 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
   file.write(m_Er.data(), N_total, "Er");
   file.write(m_Eth.data(), N_total, "Eth");
   file.write(m_Eph.data(), N_total, "Eph");
-  if (m_J_e != nullptr) {
+  if (m_J != nullptr) {
     file.write(m_Jr.data(), N_total, "Jr");
     file.write(m_Jth.data(), N_total, "Jth");
     file.write(m_Jph.data(), N_total, "Jph");

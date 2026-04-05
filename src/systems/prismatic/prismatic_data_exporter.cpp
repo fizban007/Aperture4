@@ -8,9 +8,13 @@
 
 namespace Aperture {
 
-prismatic_data_exporter::prismatic_data_exporter(const prismatic_mesh& mesh,
-                                                 dec_field_solver_t& solver)
-    : m_mesh(mesh), m_solver(solver) {}
+prismatic_data_exporter::prismatic_data_exporter(const prismatic_mesh& mesh)
+    : m_mesh(mesh) {}
+
+void prismatic_data_exporter::register_data_components() {
+  m_E = sim_env().register_data<prismatic_edge_field>("E", m_mesh);
+  m_B = sim_env().register_data<prismatic_face_field>("B", m_mesh);
+}
 
 void prismatic_data_exporter::init() {
   sim_env().params().get_value("fld_output_interval", m_output_interval);
@@ -105,12 +109,12 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   auto file = hdf_create(std::string(fname));
 
   // Sync fields to host (no-op for host-only buffers)
-  m_solver.E_e().copy_to_host();
-  m_solver.B_f().copy_to_host();
+  m_E->data().copy_to_host();
+  m_B->data().copy_to_host();
 
   // Write field data
-  file.write(m_solver.E_e().host_ptr(), m_mesh.m_N_edges, "E_e");
-  file.write(m_solver.B_f().host_ptr(), m_mesh.m_N_faces, "B_f");
+  file.write(m_E->host_ptr(), m_mesh.m_N_edges, "E_e");
+  file.write(m_B->host_ptr(), m_mesh.m_N_faces, "B_f");
 
   // Write metadata
   file.write(static_cast<int>(step), "step");

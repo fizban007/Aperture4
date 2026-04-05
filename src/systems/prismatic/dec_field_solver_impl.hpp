@@ -57,15 +57,23 @@ HD_INLINE Scalar project_E_on_edge_impl(const prismatic_mesh_ptrs& mp, int e,
 template <typename ExecPolicy>
 dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh)
     : m_mesh(mesh),
-      m_E_e(mesh.m_N_edges, ExecPolicy::data_mem_type()),
-      m_B_f(mesh.m_N_faces, ExecPolicy::data_mem_type()),
-      m_J_e(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_tmp_E(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_tmp_B(mesh.m_N_faces, ExecPolicy::data_mem_type()),
       m_dE_dt(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_dB_dt(mesh.m_N_faces, ExecPolicy::data_mem_type()),
       m_dE_dt_new(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_dB_dt_new(mesh.m_N_faces, ExecPolicy::data_mem_type()) {}
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::register_data_components() {
+  auto mem = ExecPolicy::data_mem_type();
+  m_E = sim_env().template register_data<prismatic_edge_field>(
+      "E", m_mesh, mem);
+  m_B = sim_env().template register_data<prismatic_face_field>(
+      "B", m_mesh, mem);
+  m_J = sim_env().template register_data<prismatic_edge_field>(
+      "J", m_mesh, mem);
+}
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::init() {
@@ -78,15 +86,10 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
 
-  m_E_e.assign(0, m_mesh.m_N_edges, 0.0);
-  m_B_f.assign(0, m_mesh.m_N_faces, 0.0);
-  m_J_e.assign(0, m_mesh.m_N_edges, 0.0);
-
   set_initial_dipole();
 
-  m_E_e.copy_to_device();
-  m_B_f.copy_to_device();
-  m_J_e.copy_to_device();
+  m_E->data().copy_to_device();
+  m_B->data().copy_to_device();
 
   m_time = 0.0;
   if (m_use_implicit) {
@@ -149,7 +152,7 @@ void dec_field_solver<ExecPolicy>::compute_rhs(
           dE[e] = mp.hodge1_inv[e] * (curl_H - J_e[e]);
         });
       },
-      B_in, m_J_e, dE_out);
+      B_in, m_J->data(), dE_out);
 }
 
 // =========================================================================
@@ -171,7 +174,7 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
           B_f[f] -= dt * curl_E;
         });
       },
-      m_E_e, m_B_f);
+      m_E->data(), m_B->data());
 
   // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
   ExecPolicy::launch(
@@ -185,10 +188,10 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
           E_e[e] += dt * mp.hodge1_inv[e] * (curl_H - J_e[e]);
         });
       },
-      m_E_e, m_B_f, m_J_e);
+      m_E->data(), m_B->data(), m_J->data());
 
-  apply_damping(m_E_e, m_B_f, dt);
-  apply_inner_bc(m_E_e, m_B_f, m_time + dt);
+  apply_damping(m_E->data(), m_B->data(), dt);
+  apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
   ExecPolicy::sync();
 }
 
@@ -213,7 +216,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
   Scalar beta = m_beta;
 
   // Step 1: Compute RHS at current state
-  compute_rhs(m_E_e, m_B_f, m_dE_dt, m_dB_dt);
+  compute_rhs(m_E->data(), m_B->data(), m_dE_dt, m_dB_dt);
 
   // Step 2: Euler predict — F* = F^n + dt * RHS^n
   ExecPolicy::launch(
@@ -226,7 +229,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
           tmpB[f] = B[f] + dt * dB[f];
         });
       },
-      m_E_e, m_tmp_E, m_dE_dt, m_B_f, m_tmp_B, m_dB_dt);
+      m_E->data(), m_tmp_E, m_dE_dt, m_B->data(), m_tmp_B, m_dB_dt);
 
   // Apply BC to the Euler predict so the first RHS evaluation is consistent
   apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
@@ -248,10 +251,10 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
             tmpB[f] = B[f] + dt * (alpha * dB_n[f] + beta * dB_new[f]);
           });
         },
-        m_E_e, m_tmp_E, m_dE_dt, m_dE_dt_new,
-        m_B_f, m_tmp_B, m_dB_dt, m_dB_dt_new);
+        m_E->data(), m_tmp_E, m_dE_dt, m_dE_dt_new,
+        m_B->data(), m_tmp_B, m_dB_dt, m_dB_dt_new);
 
-    apply_damping(m_E_e, m_B_f, dt);
+    apply_damping(m_E->data(), m_B->data(), dt);
     apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
     ExecPolicy::sync();
   }
@@ -263,11 +266,11 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
         ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { E[e] = tmpE[e]; });
         ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B[f] = tmpB[f]; });
       },
-      m_E_e, m_tmp_E, m_B_f, m_tmp_B);
+      m_E->data(), m_tmp_E, m_B->data(), m_tmp_B);
 
   // Step 5: Damping + BC + clear J
-  apply_damping(m_E_e, m_B_f, dt);
-  apply_inner_bc(m_E_e, m_B_f, m_time + dt);
+  apply_damping(m_E->data(), m_B->data(), dt);
+  apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
   ExecPolicy::sync();
 }
 
@@ -423,7 +426,7 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
       Scalar ny = 0.5*(az*bx - ax*bz);
       Scalar nz = 0.5*(ax*by - ay*bx);
       Scalar n_dot_rhat = (nx*cx + ny*cy + nz*cz) / r;
-      m_B_f[f] = (2.0 * phi_avg / r) * n_dot_rhat;
+      m_B->data()[f] = (2.0 * phi_avg / r) * n_dot_rhat;
     } else {
       int local = f - n_tri_faces;
       int v0 = m_mesh.rect_face_v0[local], v1 = m_mesh.rect_face_v1[local],
@@ -433,7 +436,7 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
       Scalar fz = (m_mesh.vert_z[v0]+m_mesh.vert_z[v1]+m_mesh.vert_z[v2]+m_mesh.vert_z[v3]) / 4.0;
       Scalar Bx, By, Bz;
       dipole_B_impl(fx, fy, fz, mx, my, mz, Bx, By, Bz);
-      m_B_f[f] = project_B_on_face_impl(mp, f, Bx, By, Bz);
+      m_B->data()[f] = project_B_on_face_impl(mp, f, Bx, By, Bz);
     }
   }
 }

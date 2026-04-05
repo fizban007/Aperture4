@@ -1,10 +1,11 @@
 #pragma once
 
-#include "core/buffer.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
+#include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
@@ -16,22 +17,14 @@ class dec_field_solver : public system_t {
   dec_field_solver(prismatic_mesh& mesh);
   ~dec_field_solver() = default;
 
+  void register_data_components() override;
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  // Access to field data
-  buffer<Scalar>& E_e() { return m_E_e; }
-  buffer<Scalar>& B_f() { return m_B_f; }
-  buffer<Scalar>& J_e() { return m_J_e; }
-  const buffer<Scalar>& E_e() const { return m_E_e; }
-  const buffer<Scalar>& B_f() const { return m_B_f; }
-  const buffer<Scalar>& J_e() const { return m_J_e; }
 
  private:
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
 
-  // Compute RHS: dB/dt = -d1*E, dE/dt = h1inv*(d1t*h2*B - J)
   void compute_rhs(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dE_dt, buffer<Scalar>& dB_dt);
 
@@ -47,12 +40,12 @@ class dec_field_solver : public system_t {
 
   prismatic_mesh& m_mesh;
 
-  // Primary field storage
-  buffer<Scalar> m_E_e;   // electric field line integrals on edges
-  buffer<Scalar> m_B_f;   // magnetic flux on faces
-  buffer<Scalar> m_J_e;   // current 1-cochain on edges (accumulated by deposit)
+  // Shared field data (owned by env, found in register_data_components)
+  nonown_ptr<prismatic_edge_field> m_E;
+  nonown_ptr<prismatic_face_field> m_B;
+  nonown_ptr<prismatic_edge_field> m_J;
 
-  // Temporary buffers for semi-implicit iteration
+  // Temporary buffers for semi-implicit iteration (owned by solver)
   buffer<Scalar> m_tmp_E, m_tmp_B;
   buffer<Scalar> m_dE_dt, m_dB_dt;
   buffer<Scalar> m_dE_dt_new, m_dB_dt_new;
@@ -68,13 +61,12 @@ class dec_field_solver : public system_t {
 
   // Semi-implicit parameters
   bool m_use_implicit = false;
-  Scalar m_beta = 0.55;       // implicitness (0.5 = trapezoidal, >0.5 = dissipative)
-  int m_implicit_iters = 4;   // number of predictor-corrector iterations
+  Scalar m_beta = 0.55;
+  int m_implicit_iters = 4;
 
   double m_time = 0.0;
 };
 
-// Convenience alias: uses host policy on CPU builds, GPU policy on GPU builds
 using dec_field_solver_t = dec_field_solver<prismatic_exec_policy_dynamic>;
 
 }  // namespace Aperture

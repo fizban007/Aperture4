@@ -3,6 +3,7 @@
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "framework/environment.h"
+#include "utils/gauss_quadrature.h"
 #include "utils/logger.h"
 #include <cmath>
 
@@ -398,52 +399,103 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_dipole() {
-  Scalar mx = m_Bp * std::sin(m_obliquity);
-  Scalar my = 0.0;
-  Scalar mz = m_Bp * std::cos(m_obliquity);
+  double mx = m_Bp * std::sin(m_obliquity);
+  double my = 0.0;
+  double mz = m_Bp * std::cos(m_obliquity);
 
-  int N_verts = m_mesh.m_N_verts;
-  std::vector<Scalar> phi(N_verts);
-  for (int v = 0; v < N_verts; v++) {
-    Scalar x = m_mesh.vert_x[v], y = m_mesh.vert_y[v], z = m_mesh.vert_z[v];
-    Scalar r2 = x*x + y*y + z*z;
-    Scalar r = std::sqrt(r2);
-    phi[v] = (mx*x + my*y + mz*z) / (r2*r);
+  // Helper: dipole B field at (x,y,z) in double precision
+  auto dip_B = [mx, my, mz](double x, double y, double z,
+                             double& Bx, double& By, double& Bz) {
+    double r2 = x*x + y*y + z*z;
+    double r = std::sqrt(r2);
+    double r5 = r2*r2*r;
+    double r3 = r2*r;
+    double mdotr = mx*x + my*y + mz*z;
+    double fac = 3.0*mdotr/r5;
+    Bx = fac*x - mx/r3;
+    By = fac*y - my/r3;
+    Bz = fac*z - mz/r3;
+  };
+
+  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
+
+  // Triangular faces: ∫_triangle B · dA via Gauss quadrature
+  // Parameterize: x(u,v) = p0 + u*(p1-p0) + v*(p2-p0), 0≤u, 0≤v, u+v≤1
+  // dA = (p1-p0) × (p2-p0) du dv (constant for flat triangle)
+  // ∫∫ B·dA = (∫₀¹ ∫₀^(1-u) B(x(u,v)) du dv) · n
+  // where n = (p1-p0) × (p2-p0)
+  for (int f = 0; f < n_tri_faces; f++) {
+    int vi0 = m_mesh.tri_face_v0[f];
+    int vi1 = m_mesh.tri_face_v1[f];
+    int vi2 = m_mesh.tri_face_v2[f];
+    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
+    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
+
+    // Face normal (unnormalized, includes area factor)
+    double e1x = p1x-p0x, e1y = p1y-p0y, e1z = p1z-p0z;
+    double e2x = p2x-p0x, e2y = p2y-p0y, e2z = p2z-p0z;
+    double nx = e1y*e2z - e1z*e2y;
+    double ny = e1z*e2x - e1x*e2z;
+    double nz = e1x*e2y - e1y*e2x;
+
+    // Integrate B·n̂ over the triangle using nested Gauss quadrature
+    // Map triangle to unit square: u ∈ [0,1], v ∈ [0, 1-u]
+    // ∫₀¹ du ∫₀^{1-u} dv f(u,v) = ∫₀¹ du (1-u) ∫₀¹ dt f(u, (1-u)t)
+    double flux = gauss_quad([&](double u) -> double {
+      return (1.0 - u) * gauss_quad([&](double t) -> double {
+        double v = (1.0 - u) * t;
+        double x = p0x + u*e1x + v*e2x;
+        double y = p0y + u*e1y + v*e2y;
+        double z = p0z + u*e1z + v*e2z;
+        double Bx, By, Bz;
+        dip_B(x, y, z, Bx, By, Bz);
+        return Bx*nx + By*ny + Bz*nz;
+      }, 0.0, 1.0);
+    }, 0.0, 1.0);
+
+    m_B->data()[f] = static_cast<Scalar>(flux);
   }
 
-  auto mp = m_mesh.host_ptrs();
-  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
-  for (int f = 0; f < m_mesh.m_N_faces; f++) {
-    if (f < n_tri_faces) {
-      int v0 = m_mesh.tri_face_v0[f], v1 = m_mesh.tri_face_v1[f],
-          v2 = m_mesh.tri_face_v2[f];
-      Scalar phi_avg = (phi[v0] + phi[v1] + phi[v2]) / 3.0;
-      Scalar cx = (m_mesh.vert_x[v0]+m_mesh.vert_x[v1]+m_mesh.vert_x[v2]) / 3.0;
-      Scalar cy = (m_mesh.vert_y[v0]+m_mesh.vert_y[v1]+m_mesh.vert_y[v2]) / 3.0;
-      Scalar cz = (m_mesh.vert_z[v0]+m_mesh.vert_z[v1]+m_mesh.vert_z[v2]) / 3.0;
-      Scalar r = std::sqrt(cx*cx + cy*cy + cz*cz);
-      Scalar ax = m_mesh.vert_x[v1]-m_mesh.vert_x[v0];
-      Scalar ay = m_mesh.vert_y[v1]-m_mesh.vert_y[v0];
-      Scalar az = m_mesh.vert_z[v1]-m_mesh.vert_z[v0];
-      Scalar bx = m_mesh.vert_x[v2]-m_mesh.vert_x[v0];
-      Scalar by = m_mesh.vert_y[v2]-m_mesh.vert_y[v0];
-      Scalar bz = m_mesh.vert_z[v2]-m_mesh.vert_z[v0];
-      Scalar nx = 0.5*(ay*bz - az*by);
-      Scalar ny = 0.5*(az*bx - ax*bz);
-      Scalar nz = 0.5*(ax*by - ay*bx);
-      Scalar n_dot_rhat = (nx*cx + ny*cy + nz*cz) / r;
-      m_B->data()[f] = (2.0 * phi_avg / r) * n_dot_rhat;
-    } else {
-      int local = f - n_tri_faces;
-      int v0 = m_mesh.rect_face_v0[local], v1 = m_mesh.rect_face_v1[local],
-          v2 = m_mesh.rect_face_v2[local], v3 = m_mesh.rect_face_v3[local];
-      Scalar fx = (m_mesh.vert_x[v0]+m_mesh.vert_x[v1]+m_mesh.vert_x[v2]+m_mesh.vert_x[v3]) / 4.0;
-      Scalar fy = (m_mesh.vert_y[v0]+m_mesh.vert_y[v1]+m_mesh.vert_y[v2]+m_mesh.vert_y[v3]) / 4.0;
-      Scalar fz = (m_mesh.vert_z[v0]+m_mesh.vert_z[v1]+m_mesh.vert_z[v2]+m_mesh.vert_z[v3]) / 4.0;
-      Scalar Bx, By, Bz;
-      dipole_B_impl(fx, fy, fz, mx, my, mz, Bx, By, Bz);
-      m_B->data()[f] = project_B_on_face_impl(mp, f, Bx, By, Bz);
-    }
+  // Rectangular faces: ∫_quad B · dA via tensor product Gauss quadrature
+  // Parameterize: x(u,v) = (1-u)(1-v)p0 + u(1-v)p1 + uv p2 + (1-u)v p3
+  // with u,v ∈ [0,1]. The Jacobian cross product gives the area element.
+  for (int fi = 0; fi < m_mesh.m_N_edge_s * m_mesh.m_N_r; fi++) {
+    int f = n_tri_faces + fi;
+    int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
+    int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
+    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
+    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
+    double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
+
+    double flux = gauss_quad([&](double u) -> double {
+      return gauss_quad([&](double v) -> double {
+        // Bilinear interpolation
+        double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+        double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+        double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+
+        // Tangent vectors dx/du and dx/dv
+        double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+        double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+        double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+        double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+        double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+        double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+
+        // Normal = du × dv
+        double nx = dydu*dzdv - dzdu*dydv;
+        double ny = dzdu*dxdv - dxdu*dzdv;
+        double nz = dxdu*dydv - dydu*dxdv;
+
+        double Bx, By, Bz;
+        dip_B(x, y, z, Bx, By, Bz);
+        return Bx*nx + By*ny + Bz*nz;
+      }, 0.0, 1.0);
+    }, 0.0, 1.0);
+
+    m_B->data()[f] = static_cast<Scalar>(flux);
   }
 }
 

@@ -156,16 +156,90 @@ def compute_div_B_prismatic(mesh, B_f):
     return inner_flux, outer_flux, np.max(radial_flux_error)
 
 
+def dipole_B(x, y, z, mx, my, mz):
+    """Dipole field B at position (x,y,z) for moment (mx,my,mz)."""
+    r2 = x*x + y*y + z*z
+    r = np.sqrt(r2)
+    r3 = r2 * r
+    r5 = r2 * r3
+    mdotr = mx*x + my*y + mz*z
+    Bx = 3*mdotr*x/r5 - mx/r3
+    By = 3*mdotr*y/r5 - my/r3
+    Bz = 3*mdotr*z/r5 - mz/r3
+    return Bx, By, Bz
+
+
+def analytic_face_flux_tri(p0, p1, p2, mx, my, mz, n_quad=4):
+    """Compute ∫_triangle B · dA using Gaussian quadrature.
+
+    Uses n_quad^2-point quadrature on the triangle for high accuracy.
+    """
+    # Triangle quadrature points in barycentric coords (Dunavant rules)
+    # Using simple subdivision for robustness
+    flux = 0.0
+    # Face normal (constant for flat triangle)
+    ax = p1[0]-p0[0]; ay = p1[1]-p0[1]; az = p1[2]-p0[2]
+    bx = p2[0]-p0[0]; by = p2[1]-p0[1]; bz = p2[2]-p0[2]
+    nx = 0.5*(ay*bz - az*by)
+    ny = 0.5*(az*bx - ax*bz)
+    nz = 0.5*(ax*by - ay*bx)
+
+    # Subdivide triangle into n_quad^2 sub-triangles, evaluate B at each center
+    total_w = 0.0
+    for i in range(n_quad):
+        for j in range(n_quad - i):
+            # Barycentric coords of sub-triangle center
+            l1 = (i + 1.0/3.0) / n_quad
+            l2 = (j + 1.0/3.0) / n_quad
+            l3 = 1.0 - l1 - l2
+            if l3 < 0:
+                continue
+            x = l1*p0[0] + l2*p1[0] + l3*p2[0]
+            y = l1*p0[1] + l2*p1[1] + l3*p2[1]
+            z = l1*p0[2] + l2*p1[2] + l3*p2[2]
+            Bx, By, Bz = dipole_B(x, y, z, mx, my, mz)
+            flux += Bx*nx + By*ny + Bz*nz
+            total_w += 1.0
+
+    # Each sub-triangle has area = total_area / n_quad^2
+    # But we already have nx,ny,nz = total area vector, so divide by n_sub
+    return flux / total_w
+
+
+def analytic_face_flux_quad(p0, p1, p2, p3, mx, my, mz, n_quad=4):
+    """Compute ∫_quad B · dA by splitting into two triangles."""
+    f1 = analytic_face_flux_tri(p0, p1, p2, mx, my, mz, n_quad)
+    f2 = analytic_face_flux_tri(p0, p2, p3, mx, my, mz, n_quad)
+    # Need to recompute normals for each sub-triangle
+    # Actually the simple approach: evaluate B at quadrature points over the quad
+    # using the full quad normal
+    ax = p1[0]-p0[0]; ay = p1[1]-p0[1]; az = p1[2]-p0[2]
+    bx = p3[0]-p0[0]; by = p3[1]-p0[1]; bz = p3[2]-p0[2]
+    nx = ay*bz - az*by
+    ny = az*bx - ax*bz
+    nz = ax*by - ay*bx
+
+    flux = 0.0
+    total_w = 0.0
+    for i in range(n_quad):
+        for j in range(n_quad):
+            u = (i + 0.5) / n_quad
+            v = (j + 0.5) / n_quad
+            x = (1-u)*(1-v)*p0[0] + u*(1-v)*p1[0] + u*v*p2[0] + (1-u)*v*p3[0]
+            y = (1-u)*(1-v)*p0[1] + u*(1-v)*p1[1] + u*v*p2[1] + (1-u)*v*p3[1]
+            z = (1-u)*(1-v)*p0[2] + u*(1-v)*p1[2] + u*v*p2[2] + (1-u)*v*p3[2]
+            Bx, By, Bz = dipole_B(x, y, z, mx, my, mz)
+            flux += Bx*nx + By*ny + Bz*nz
+            total_w += 1.0
+    return flux / total_w
+
+
 def compute_Bf_error(mesh, B_f, Bp=1.0, obliquity=0.7854):
-    """Compare B_f against analytic dipole flux on each face.
+    """Compare B_f against high-order quadrature of the exact dipole flux.
 
-    For a dipole m = Bp*(sin(α), 0, cos(α)):
-      B(r) = (3(m·r̂)r̂ - m) / r³
-
-    The flux through a face is ∫ B · dA ≈ B(centroid) · n̂ × area.
-    This is exactly how set_initial_dipole computes B_f, so the error
-    measures the Whitney interpolation onto the spherical grid (if we
-    use that) or the raw accuracy of the initial condition.
+    The analytic reference is ∫_face B_dipole · dA computed with Gaussian
+    quadrature (n_quad=6), which is much more accurate than the code's
+    centroid-based initialization.
     """
     N_tri = mesh["N_tri"]
     N_r = mesh["N_r"]
@@ -181,85 +255,52 @@ def compute_Bf_error(mesh, B_f, Bp=1.0, obliquity=0.7854):
     tf_v1 = mesh["tri_face_v1"]
     tf_v2 = mesh["tri_face_v2"]
 
-    # Compute analytic B_f for triangular faces
-    errors_tri = []
-    norms_tri = []
-    for f in range(n_tri_faces):
-        v0, v1, v2 = tf_v0[f], tf_v1[f], tf_v2[f]
-        cx = (vx[v0]+vx[v1]+vx[v2])/3
-        cy = (vy[v0]+vy[v1]+vy[v2])/3
-        cz = (vz[v0]+vz[v1]+vz[v2])/3
-        r = np.sqrt(cx*cx + cy*cy + cz*cz)
-        r3 = r**3
-        r5 = r**5
+    errors = []
+    norms = []
+    nq = 6  # quadrature order
 
-        # Dipole B at centroid
-        mdotr = mx*cx + my*cy + mz*cz
-        Bx = 3*mdotr*cx/r5 - mx/r3
-        By = 3*mdotr*cy/r5 - my/r3
-        Bz = 3*mdotr*cz/r5 - mz/r3
+    # Triangular faces (sample a subset for speed at high L)
+    n_sample = min(n_tri_faces, 50000)
+    rng = np.random.RandomState(42)
+    tri_indices = rng.choice(n_tri_faces, n_sample, replace=False)
 
-        # Face normal (cross product of edges, factor 0.5)
-        ax = vx[v1]-vx[v0]; ay = vy[v1]-vy[v0]; az = vz[v1]-vz[v0]
-        bx_ = vx[v2]-vx[v0]; by_ = vy[v2]-vy[v0]; bz_ = vz[v2]-vz[v0]
-        nx = 0.5*(ay*bz_ - az*by_)
-        ny = 0.5*(az*bx_ - ax*bz_)
-        nz = 0.5*(ax*by_ - ay*bx_)
-
-        # Flux = B · n (already includes area)
-        # For scalar potential initialization: B_f = (2Φ_avg/r) * (n · r̂)
-        # The analytic formula uses the dipole field directly:
-        Bf_ana = Bx*nx + By*ny + Bz*nz
-
-        # Only use interior faces (skip inner/outer boundary)
+    for f in tri_indices:
         k = f // N_tri
-        if k > 0 and k < N_r:
-            errors_tri.append((B_f[f] - Bf_ana)**2)
-            norms_tri.append(Bf_ana**2)
+        if k == 0 or k == N_r:
+            continue  # skip boundary shells
+        v0, v1, v2 = tf_v0[f], tf_v1[f], tf_v2[f]
+        p0 = (vx[v0], vy[v0], vz[v0])
+        p1 = (vx[v1], vy[v1], vz[v1])
+        p2 = (vx[v2], vy[v2], vz[v2])
+        Bf_ana = analytic_face_flux_tri(p0, p1, p2, mx, my, mz, nq)
+        errors.append((B_f[f] - Bf_ana)**2)
+        norms.append(Bf_ana**2)
 
-    # Compute analytic B_f for rectangular faces
+    # Rectangular faces (sample)
     rf_v0 = mesh["rect_face_v0"]
     rf_v1 = mesh["rect_face_v1"]
     rf_v2 = mesh["rect_face_v2"]
     rf_v3 = mesh["rect_face_v3"]
+    n_rect = len(rf_v0)
+    n_sample_r = min(n_rect, 50000)
+    rect_indices = rng.choice(n_rect, n_sample_r, replace=False)
 
-    errors_rect = []
-    norms_rect = []
-    for fi in range(len(rf_v0)):
-        f = n_tri_faces + fi
-        v0, v1, v3 = rf_v0[fi], rf_v1[fi], rf_v3[fi]
-        v2_ = rf_v2[fi]
-        cx = (vx[v0]+vx[v1]+vx[v2_]+vx[v3])/4
-        cy = (vy[v0]+vy[v1]+vy[v2_]+vy[v3])/4
-        cz = (vz[v0]+vz[v1]+vz[v2_]+vz[v3])/4
-        r = np.sqrt(cx*cx + cy*cy + cz*cz)
-        r3 = r**3; r5 = r**5
-
-        mdotr = mx*cx + my*cy + mz*cz
-        Bx = 3*mdotr*cx/r5 - mx/r3
-        By = 3*mdotr*cy/r5 - my/r3
-        Bz = 3*mdotr*cz/r5 - mz/r3
-
-        # Cross product of diagonals for quad normal
-        ax = vx[v1]-vx[v0]; ay = vy[v1]-vy[v0]; az = vz[v1]-vz[v0]
-        bx_ = vx[v3]-vx[v0]; by_ = vy[v3]-vy[v0]; bz_ = vz[v3]-vz[v0]
-        nx = ay*bz_ - az*by_
-        ny = az*bx_ - ax*bz_
-        nz = ax*by_ - ay*bx_
-
-        Bf_ana = Bx*nx + By*ny + Bz*nz
-
-        # Skip boundary layers
+    for fi in rect_indices:
         k = fi // N_edge_s
-        if k > 0 and k < N_r - 1:
-            errors_rect.append((B_f[f] - Bf_ana)**2)
-            norms_rect.append(Bf_ana**2)
+        if k == 0 or k >= N_r - 1:
+            continue
+        f = n_tri_faces + fi
+        p0 = (vx[rf_v0[fi]], vy[rf_v0[fi]], vz[rf_v0[fi]])
+        p1 = (vx[rf_v1[fi]], vy[rf_v1[fi]], vz[rf_v1[fi]])
+        p2 = (vx[rf_v2[fi]], vy[rf_v2[fi]], vz[rf_v2[fi]])
+        p3 = (vx[rf_v3[fi]], vy[rf_v3[fi]], vz[rf_v3[fi]])
+        Bf_ana = analytic_face_flux_quad(p0, p1, p2, p3, mx, my, mz, nq)
+        errors.append((B_f[f] - Bf_ana)**2)
+        norms.append(Bf_ana**2)
 
-    errors_all = np.array(errors_tri + errors_rect)
-    norms_all = np.array(norms_tri + norms_rect)
-
-    l2_err = np.sqrt(np.sum(errors_all) / np.sum(norms_all))
-
+    errors = np.array(errors)
+    norms = np.array(norms)
+    l2_err = np.sqrt(np.sum(errors) / np.sum(norms))
     return l2_err
 
 

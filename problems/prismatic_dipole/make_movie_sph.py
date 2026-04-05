@@ -22,7 +22,7 @@ with h5py.File(os.path.join(data_dir, "sph_grid.h5"), "r") as f:
     N_th, N_ph, N_r = len(theta), len(phi), len(radii)
 print(f"Grid: {N_th}x{N_ph}x{N_r}, radii [{radii[0]:.2f}, {radii[-1]:.2f}]")
 
-# Meridional slice at phi=0: build (x, z) coordinates
+# Meridional slice coordinates: right half (phi=0), left half (phi=pi)
 R, TH = np.meshgrid(radii, theta)
 X = R * np.sin(TH)
 Z = R * np.cos(TH)
@@ -35,36 +35,41 @@ print(f"Found {len(snap_files)} snapshots")
 # Determine color scale from mid-simulation
 with h5py.File(snap_files[len(snap_files)//2], "r") as f:
     Br = f["Br"][:].reshape(N_r, N_th, N_ph)
-Br_slice = Br[:, :, 0].T  # [N_th, N_r]
-scaled = Br_slice * R**2
-vmax = np.percentile(np.abs(scaled), 97)
+Br_slice = Br[:, :, 0].T * R**2
+vmax = np.percentile(np.abs(Br_slice), 97)
 print(f"Color scale: +/-{vmax:.4f}")
 
 # ---- Set up figure ----
-fig, axes = plt.subplots(1, 2, figsize=(16, 7.5), gridspec_kw={"width_ratios": [1, 1.3]})
+fig, axes = plt.subplots(1, 2, figsize=(16, 7.5),
+                         gridspec_kw={"width_ratios": [1, 1.3]})
 
-# Left: meridional slice
-im_merid = axes[0].pcolormesh(X, Z, np.zeros_like(X), cmap='RdBu_r',
-                               vmin=-vmax, vmax=vmax, shading='auto', rasterized=True)
+# Left: full meridional slice (phi=0 right, phi=pi left), gouraud shading
+im_right = axes[0].pcolormesh(X, Z, Br_slice, cmap='RdBu_r',
+                               vmin=-vmax, vmax=vmax, shading='gouraud',
+                               rasterized=True)
+im_left = axes[0].pcolormesh(-X, Z, Br_slice, cmap='RdBu_r',
+                              vmin=-vmax, vmax=vmax, shading='gouraud',
+                              rasterized=True)
 th_c = np.linspace(0, 2*np.pi, 200)
 axes[0].plot(np.cos(th_c), np.sin(th_c), 'k-', lw=1)
-axes[0].set_xlim(0, r_lim)
+axes[0].set_xlim(-r_lim, r_lim)
 axes[0].set_ylim(-r_lim, r_lim)
 axes[0].set_aspect('equal')
-axes[0].set_xlabel(r'$r\sin\theta$', fontsize=12)
-axes[0].set_ylabel(r'$r\cos\theta$', fontsize=12)
+axes[0].set_xlabel('x', fontsize=12)
+axes[0].set_ylabel('z', fontsize=12)
 
-# Right: shell map
-k_shell = np.searchsorted(radii, 3.0)  # shell near r=3
+# Right: shell map, gouraud shading
+k_shell = np.searchsorted(radii, 3.0)
 PHI_deg, TH_deg = np.meshgrid(np.degrees(phi), np.degrees(theta))
 im_shell = axes[1].pcolormesh(PHI_deg, TH_deg, np.zeros((N_th, N_ph)),
-                               cmap='RdBu_r', shading='auto', rasterized=True)
+                               cmap='RdBu_r', shading='gouraud',
+                               rasterized=True)
 axes[1].set_xlabel(r'$\phi$ (deg)', fontsize=12)
 axes[1].set_ylabel(r'$\theta$ (deg)', fontsize=12)
 axes[1].invert_yaxis()
 
 title = fig.suptitle('', fontsize=14, y=0.98)
-fig.colorbar(im_merid, ax=axes[0], shrink=0.8, label=r'$B_r \times r^2$')
+fig.colorbar(im_right, ax=axes[0], shrink=0.8, label=r'$B_r \times r^2$')
 fig.colorbar(im_shell, ax=axes[1], shrink=0.8, label=r'$B_r$')
 fig.tight_layout(rect=[0, 0, 1, 0.95])
 
@@ -74,19 +79,21 @@ def update(frame_idx):
         Br = f["Br"][:].reshape(N_r, N_th, N_ph)
         t_val = f["time"][()]
 
-    # Meridional slice at phi=0
-    Br_slice = Br[:, :, 0].T
-    im_merid.set_array((Br_slice * R**2).ravel())
+    # Meridional slice: phi=0 (right half) and phi=pi (left half)
+    Br_right = Br[:, :, 0].T * R**2
+    Br_left = Br[:, :, N_ph//2].T * R**2
+    im_right.set_array(Br_right.ravel())
+    im_left.set_array(Br_left.ravel())
 
     # Shell map
     Br_shell = Br[k_shell, :, :]
-    vmax_sh = np.percentile(np.abs(Br_shell), 97)
+    vmax_sh = max(np.percentile(np.abs(Br_shell), 97), 1e-10)
     im_shell.set_array(Br_shell.ravel())
     im_shell.set_clim(-vmax_sh, vmax_sh)
 
     title.set_text(f't = {t_val:.2f}   (r_shell = {radii[k_shell]:.1f})')
     print(f"  frame {frame_idx+1}/{len(snap_files)}", end='\r')
-    return [im_merid, im_shell, title]
+    return [im_right, im_left, im_shell, title]
 
 print("Rendering movie...")
 anim = animation.FuncAnimation(fig, update, frames=len(snap_files),

@@ -46,8 +46,8 @@ void prismatic_sph_output::precompute_grid() {
 
   int tri_hint = 0;
   for (int it = 0; it < m_N_theta; it++) {
-    // theta in (0, pi), avoid exact poles
-    Scalar theta = Scalar(M_PI) * (it + Scalar(0.5)) / m_N_theta;
+    // theta in [0, pi], including poles
+    Scalar theta = Scalar(M_PI) * it / (m_N_theta - 1);
     Scalar sin_th = std::sin(theta);
     Scalar cos_th = std::cos(theta);
 
@@ -83,7 +83,7 @@ void prismatic_sph_output::write_grid_info() {
   // Write theta and phi arrays
   std::vector<Scalar> theta(m_N_theta), phi(m_N_phi);
   for (int i = 0; i < m_N_theta; i++)
-    theta[i] = Scalar(M_PI) * (i + Scalar(0.5)) / m_N_theta;
+    theta[i] = Scalar(M_PI) * i / (m_N_theta - 1);
   for (int i = 0; i < m_N_phi; i++)
     phi[i] = Scalar(2.0 * M_PI) * i / m_N_phi;
   file.write(theta.data(), m_N_theta, "theta");

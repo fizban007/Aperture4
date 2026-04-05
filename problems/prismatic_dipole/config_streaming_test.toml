@@ -1,0 +1,36 @@
+# Particle streaming test: GCA particles in an oblique dipole field
+#
+# Fills the domain with particles moving radially outward.
+# The GCA pusher guides them along the tilted dipole field lines.
+# Field solver is disabled (static background B).
+#
+# Expected result: field-aligned density bands tilted at the obliquity
+# angle, with depletion near the magnetic equator.
+
+dt = 0.025
+max_steps = 200
+subdivision_level = 5
+N_r = 200
+r_min = 1.0
+r_max = 10.0
+Bp = 100.0
+Omega = 0.0
+obliquity = 0.5236
+damping_length = 0
+damping_coef = 0.0
+fld_output_interval = 5
+output_dir = "Data_streaming_test"
+sph_N_theta = 90
+sph_N_phi = 180
+update_e = false
+update_b = false
+max_ptc_num = 50000000
+use_gca = true
+
+n_inject = 0
+n_multi_inject = 0
+fill_volume = true
+ptc_per_cell = 5
+ptc_pr = 2.0
+q_e = -1.0
+m_e = 1.0

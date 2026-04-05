@@ -19,6 +19,8 @@ class prismatic_ptc_updater : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  nonown_ptr<prismatic_particle_data> particles() { return m_ptc; }
+
   int add_particle(Scalar x, Scalar y, Scalar z,
                    Scalar px, Scalar py, Scalar pz,
                    Scalar weight, uint32_t flag = 0);

@@ -2,6 +2,7 @@
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_ptc_update_kernel.hpp"
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -975,38 +976,34 @@ static void local_to_xyz(const prismatic_mesh& mesh, uint32_t cell,
   x = r * sx; y = r * sy; z = r * sz;
 }
 
-// Helper: standalone field data + particles for testing without framework.
+// Helper for particle tests: standalone fields + particles, no framework.
+// Tests call update_particles_loop directly.
 struct PtcTestEnv {
-  std::unique_ptr<prismatic_mesh> mesh;
-  std::unique_ptr<prismatic_edge_field> E, J;
-  std::unique_ptr<prismatic_face_field> B;
+  prismatic_mesh mesh;
+  prismatic_edge_field E, J;
+  prismatic_face_field B;
   prismatic_particles_t ptc;
 
   PtcTestEnv(int L = 2, int Nr = 5, double r_min = 1.0, double r_max = 5.0)
-      : ptc(1000, MemType::host_only) {
-    mesh = std::make_unique<prismatic_mesh>();
-    mesh->build(L, Nr, r_min, r_max);
-    E = std::make_unique<prismatic_edge_field>(*mesh, MemType::host_only);
-    B = std::make_unique<prismatic_face_field>(*mesh, MemType::host_only);
-    J = std::make_unique<prismatic_edge_field>(*mesh, MemType::host_only);
-    E->init(); B->init(); J->init();
+      : E(dummy_mesh(), MemType::host_only),
+        J(dummy_mesh(), MemType::host_only),
+        B(dummy_mesh(), MemType::host_only),
+        ptc(1000, MemType::host_only) {
+    mesh.build(L, Nr, r_min, r_max);
+    E = prismatic_edge_field(mesh, MemType::host_only);
+    B = prismatic_face_field(mesh, MemType::host_only);
+    J = prismatic_edge_field(mesh, MemType::host_only);
+    E.init(); B.init(); J.init();
     ptc.init();
   }
 
-  // Add a particle using mesh point location
   int add_particle(Scalar x, Scalar y, Scalar z,
                    Scalar px, Scalar py, Scalar pz,
                    Scalar weight, uint32_t flag = 0) {
-    auto mp = mesh->host_ptrs();
-    Scalar r = std::sqrt(x*x + y*y + z*z);
-    int layer = mp.find_radial_layer(r);
-    if (layer < 0) return -1;
-    Scalar ri = Scalar(1)/r;
-    int tri = mp.find_triangle(x*ri, y*ri, z*ri);
-    Scalar l1, l2, l3;
-    mp.compute_barycentric(tri, x*ri, y*ri, z*ri, l1, l2, l3);
-    Scalar zeta = mp.compute_zeta(layer, r);
-
+    auto mp = mesh.host_ptrs();
+    int tri, layer; Scalar l1, l2, zeta;
+    if (!cartesian_to_local_impl(mp, x, y, z, tri, layer, l1, l2, zeta))
+      return -1;
     size_t idx = ptc.number();
     if (idx >= ptc.size()) return -1;
     auto p = ptc.get_host_ptrs();
@@ -1014,75 +1011,75 @@ struct PtcTestEnv {
     p.p1[idx] = px; p.p2[idx] = py; p.p3[idx] = pz;
     p.E[idx] = std::sqrt(Scalar(1) + px*px + py*py + pz*pz);
     p.weight[idx] = weight;
-    p.cell[idx] = prism_cell_encode(tri, layer, mesh->m_N_r);
-    p.flag[idx] = flag;
-    p.id[idx] = idx;
+    p.cell[idx] = prism_cell_encode(tri, layer, mesh.m_N_r);
+    p.flag[idx] = flag; p.id[idx] = idx;
     ptc.set_num(idx + 1);
     return static_cast<int>(idx);
   }
+
+  void step(Scalar dt, int step_num = 0) {
+    auto ptrs = ptc.get_host_ptrs();
+    // Clear J (E and B stay zero for free-streaming tests)
+    J.data().assign(exec_tags::host{}, 0, mesh.m_N_edges, Scalar(0));
+    update_particles_loop(mesh.host_ptrs(), mesh.m_N_r, ptrs, ptc.number(),
+                          E.host_ptr(), B.host_ptr(),
+                          J.host_ptr(), nullptr,
+                          Scalar(-1), Scalar(1), dt);
+  }
+
+  auto ptrs() { return ptc.get_host_ptrs(); }
+
+ private:
+  // Dummy mesh for initializer list (fields get reassigned after mesh.build)
+  static prismatic_mesh& dummy_mesh() {
+    static prismatic_mesh m;
+    if (m.m_N_r == 0) m.build(1, 1, 1.0, 2.0);
+    return m;
+  }
 };
 
-// Particle updater tests are disabled — they require the framework
-// (sim_env) which isn't available in standalone Catch2 tests.
-// TODO: rewrite these tests to use PtcTestEnv directly.
-#if 0
 TEST_CASE("Particle: add_particle places particle correctly",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& mesh = *env.mesh;
-  auto& upd = *env.updater;
 
-  // Add a particle at a known position: midpoint of layer 2, on unit sphere
-  Scalar r_mid = 0.5 * (mesh.radii[2] + mesh.radii[3]);
-  // Pick a direction (unit vector)
+  Scalar r_mid = 0.5 * (env.mesh.radii[2] + env.mesh.radii[3]);
   Scalar dir_x = 0.5, dir_y = 0.6, dir_z = 0.7;
   Scalar dir_r = std::sqrt(dir_x*dir_x + dir_y*dir_y + dir_z*dir_z);
   dir_x /= dir_r; dir_y /= dir_r; dir_z /= dir_r;
 
   Scalar px0 = r_mid * dir_x, py0 = r_mid * dir_y, pz0 = r_mid * dir_z;
-  int idx = upd.add_particle(px0, py0, pz0, 0, 0, 0, 1.0);
+  int idx = env.add_particle(px0, py0, pz0, 0, 0, 0, 1.0);
   REQUIRE(idx >= 0);
-  REQUIRE(upd.particles().number() == 1);
 
-  auto ptrs = upd.particles().get_host_ptrs();
+  auto ptrs = env.ptrs();
   REQUIRE(ptrs.cell[0] != empty_cell);
 
-  // Reconstruct 3D position from stored local coords
   Scalar rx, ry, rz;
-  local_to_xyz(mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
+  local_to_xyz(env.mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
                rx, ry, rz);
-
-  // Should match the original position to within mesh resolution
   Scalar err = std::sqrt((rx-px0)*(rx-px0) + (ry-py0)*(ry-py0) + (rz-pz0)*(rz-pz0));
-  REQUIRE(err < 0.1 * r_mid);  // within 10% of radius
-  REQUIRE(err / r_mid < 0.02); // actually much tighter for L=2
+  REQUIRE(err / r_mid < 0.02);
 }
 
 TEST_CASE("Particle: stationary particle in zero field stays put",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& upd = *env.updater;
-  auto& mesh = *env.mesh;
 
-  // Add a particle at rest
-  Scalar r = 0.5 * (mesh.radii[2] + mesh.radii[3]);
-  int idx = upd.add_particle(r, 0, 0, 0, 0, 0, 1.0);
-  REQUIRE(idx >= 0);
+  Scalar r = 0.5 * (env.mesh.radii[2] + env.mesh.radii[3]);
+  env.add_particle(r, 0, 0, 0, 0, 0, 1.0);
 
-  auto ptrs = upd.particles().get_host_ptrs();
+  auto ptrs = env.ptrs();
   Scalar x1_before = ptrs.x1[0], x2_before = ptrs.x2[0], x3_before = ptrs.x3[0];
   uint32_t cell_before = ptrs.cell[0];
 
-  // Run one step with zero fields
-  upd.update(0.01, 0);
+  env.step(0.01);
 
-  ptrs = upd.particles().get_host_ptrs();
+  ptrs = env.ptrs();
   REQUIRE(ptrs.cell[0] != empty_cell);
   REQUIRE(ptrs.cell[0] == cell_before);
   REQUIRE(ptrs.x1[0] == Catch::Approx(x1_before).margin(1e-6));
   REQUIRE(ptrs.x2[0] == Catch::Approx(x2_before).margin(1e-6));
   REQUIRE(ptrs.x3[0] == Catch::Approx(x3_before).margin(1e-6));
-  // Momentum should remain zero
   REQUIRE(std::abs(ptrs.p1[0]) < 1e-10);
   REQUIRE(std::abs(ptrs.p2[0]) < 1e-10);
   REQUIRE(std::abs(ptrs.p3[0]) < 1e-10);
@@ -1091,139 +1088,81 @@ TEST_CASE("Particle: stationary particle in zero field stays put",
 TEST_CASE("Particle: free streaming in zero field",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& upd = *env.updater;
-  auto& mesh = *env.mesh;
 
-  // Add a particle in the middle of the domain with velocity in +x
-  Scalar r0 = 0.5 * (mesh.radii[2] + mesh.radii[3]);
-  Scalar vx = 0.1;  // non-relativistic
-  int idx = upd.add_particle(r0, 0, 0, vx, 0, 0, 1.0,
-                             gen_ptc_type_flag(PtcType::electron));
-  REQUIRE(idx >= 0);
+  Scalar r0 = 0.5 * (env.mesh.radii[2] + env.mesh.radii[3]);
+  Scalar vx = 0.1;
+  env.add_particle(r0, 0, 0, vx, 0, 0, 1.0,
+                   gen_ptc_type_flag(PtcType::electron));
 
-  // Record initial 3D position
-  auto ptrs = upd.particles().get_host_ptrs();
+  auto ptrs = env.ptrs();
   Scalar xi, yi, zi;
-  local_to_xyz(mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
+  local_to_xyz(env.mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
                xi, yi, zi);
 
-  // Take one step
   Scalar dt = 0.01;
-  upd.update(dt, 0);
+  env.step(dt);
 
-  ptrs = upd.particles().get_host_ptrs();
+  ptrs = env.ptrs();
   REQUIRE(ptrs.cell[0] != empty_cell);
 
   Scalar xf, yf, zf;
-  local_to_xyz(mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
+  local_to_xyz(env.mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
                xf, yf, zf);
 
-  // Displacement should be approximately (vx*dt, 0, 0)
   Scalar gamma = std::sqrt(1.0 + vx*vx);
-  Scalar expected_dx = (vx / gamma) * dt;
-  Scalar dx = xf - xi, dy = yf - yi, dz = zf - zi;
-
-  REQUIRE(dx == Catch::Approx(expected_dx).margin(1e-4));
-  REQUIRE(std::abs(dy) < 1e-4);
-  REQUIRE(std::abs(dz) < 1e-4);
-
-  // Momentum should be unchanged (no force)
+  REQUIRE((xf - xi) == Catch::Approx((vx/gamma)*dt).margin(1e-4));
+  REQUIRE(std::abs(yf - yi) < 1e-4);
+  REQUIRE(std::abs(zf - zi) < 1e-4);
   REQUIRE(ptrs.p1[0] == Catch::Approx(vx).margin(1e-6));
-  REQUIRE(std::abs(ptrs.p2[0]) < 1e-10);
-  REQUIRE(std::abs(ptrs.p3[0]) < 1e-10);
 }
 
 TEST_CASE("Particle: free streaming preserves energy",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& upd = *env.updater;
-  auto& mesh = *env.mesh;
 
-  // Mildly relativistic particle with diagonal momentum
-  Scalar r0 = 0.5 * (mesh.radii[2] + mesh.radii[3]);
+  Scalar r0 = 0.5 * (env.mesh.radii[2] + env.mesh.radii[3]);
   Scalar p0 = 0.5;
-  int idx = upd.add_particle(r0, 0, 0, p0, p0, p0, 1.0,
-                             gen_ptc_type_flag(PtcType::electron));
-  REQUIRE(idx >= 0);
-
+  env.add_particle(r0, 0, 0, p0, p0, p0, 1.0,
+                   gen_ptc_type_flag(PtcType::electron));
   Scalar gamma0 = std::sqrt(1.0 + 3.0 * p0 * p0);
 
-  // Run 100 steps
-  for (int step = 0; step < 100; step++) {
-    upd.update(0.005, step);
-  }
+  for (int s = 0; s < 100; s++) env.step(0.005, s);
 
-  auto ptrs = upd.particles().get_host_ptrs();
-  if (ptrs.cell[0] == empty_cell) {
-    // Particle left the domain, that's OK — skip energy check
-    WARN("Particle left domain during free-streaming test");
-    return;
-  }
-
-  // Energy should be conserved (no fields → no work)
+  auto ptrs = env.ptrs();
+  if (ptrs.cell[0] == empty_cell) { WARN("Particle left domain"); return; }
   Scalar p2 = ptrs.p1[0]*ptrs.p1[0] + ptrs.p2[0]*ptrs.p2[0] + ptrs.p3[0]*ptrs.p3[0];
-  Scalar gamma_f = std::sqrt(1.0 + p2);
-  REQUIRE(gamma_f == Catch::Approx(gamma0).margin(1e-5));
+  REQUIRE(std::sqrt(1.0 + p2) == Catch::Approx(gamma0).margin(1e-5));
 }
 
 TEST_CASE("Particle: removal at outer boundary",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& upd = *env.updater;
-  auto& mesh = *env.mesh;
 
-  // Place a particle near the outer boundary with strong outward velocity
-  Scalar r_outer = 0.5 * (mesh.radii[mesh.m_N_r - 1] + mesh.radii[mesh.m_N_r]);
-  Scalar vr = 0.9;  // fast outward
-  // Direction: radially outward at (1,0,0)
-  int idx = upd.add_particle(r_outer, 0, 0, vr, 0, 0, 1.0);
-  REQUIRE(idx >= 0);
-
-  auto ptrs = upd.particles().get_host_ptrs();
-  REQUIRE(ptrs.cell[0] != empty_cell);
-
-  // Large enough dt to push it well past the outer boundary
-  upd.update(5.0, 0);
-
-  ptrs = upd.particles().get_host_ptrs();
-  REQUIRE(ptrs.cell[0] == empty_cell);  // should be removed
+  Scalar r_outer = 0.5 * (env.mesh.radii[env.mesh.m_N_r-1] + env.mesh.radii[env.mesh.m_N_r]);
+  env.add_particle(r_outer, 0, 0, 0.9, 0, 0, 1.0);
+  env.step(5.0);
+  REQUIRE(env.ptrs().cell[0] == empty_cell);
 }
 
 TEST_CASE("Particle: multiple particles are independent",
           "[prismatic][particle]") {
   PtcTestEnv env;
-  auto& upd = *env.updater;
-  auto& mesh = *env.mesh;
 
-  Scalar r0 = 0.5 * (mesh.radii[2] + mesh.radii[3]);
+  Scalar r0 = 0.5 * (env.mesh.radii[2] + env.mesh.radii[3]);
+  env.add_particle(r0, 0, 0, 0.1, 0, 0, 1.0);
+  env.add_particle(r0, 0, 0, 0, 0.1, 0, 1.0);
+  env.step(0.01);
 
-  // Add two particles at the same position with different momenta
-  int i0 = upd.add_particle(r0, 0, 0, 0.1, 0, 0, 1.0);
-  int i1 = upd.add_particle(r0, 0, 0, 0, 0.1, 0, 1.0);
-  REQUIRE(i0 >= 0);
-  REQUIRE(i1 >= 0);
-  REQUIRE(upd.particles().number() == 2);
-
-  // Run one step
-  upd.update(0.01, 0);
-
-  auto ptrs = upd.particles().get_host_ptrs();
-  // Both should still be alive
+  auto ptrs = env.ptrs();
   REQUIRE(ptrs.cell[0] != empty_cell);
   REQUIRE(ptrs.cell[1] != empty_cell);
 
-  // First particle should have moved in x, second in y
   Scalar x0, y0, z0, x1, y1, z1;
-  local_to_xyz(mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0],
-               x0, y0, z0);
-  local_to_xyz(mesh, ptrs.cell[1], ptrs.x1[1], ptrs.x2[1], ptrs.x3[1],
-               x1, y1, z1);
+  local_to_xyz(env.mesh, ptrs.cell[0], ptrs.x1[0], ptrs.x2[0], ptrs.x3[0], x0, y0, z0);
+  local_to_xyz(env.mesh, ptrs.cell[1], ptrs.x1[1], ptrs.x2[1], ptrs.x3[1], x1, y1, z1);
 
-  // Particle 0 moved in +x: x0 > r0, y0 ≈ 0
   REQUIRE(x0 > r0);
   REQUIRE(std::abs(y0) < 0.01);
-
-  // Particle 1 moved in +y: x1 ≈ r0, y1 > 0
   REQUIRE(std::abs(x1 - r0) < 0.01);
   REQUIRE(y1 > 0);
 }
@@ -1237,7 +1176,6 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
   auto& mesh = *mesh_ptr;
   auto mp = mesh.host_ptrs();
 
-  // Scalar parameters should match
   REQUIRE(mp.N_r == mesh.m_N_r);
   REQUIRE(mp.N_tri == mesh.m_N_tri);
   REQUIRE(mp.N_vert_s == mesh.m_N_vert_s);
@@ -1245,7 +1183,6 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
   REQUIRE(mp.N_edges == mesh.m_N_edges);
   REQUIRE(mp.N_faces == mesh.m_N_faces);
 
-  // Indexing helpers should match
   for (int k = 0; k <= mesh.m_N_r; k++) {
     for (int e = 0; e < std::min(mesh.m_N_edge_s, 10); e++) {
       REQUIRE(mp.h_edge_idx(k, e) == mesh.h_edge_idx(k, e));
@@ -1257,7 +1194,6 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
     }
   }
 
-  // Barycentric coordinates should match
   for (int t = 0; t < std::min(mesh.m_N_tri, 20); t++) {
     int v = mesh.tri_verts[t * 3];
     Scalar sx = mesh.sphere_vx[v], sy = mesh.sphere_vy[v], sz = mesh.sphere_vz[v];
@@ -1269,14 +1205,12 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
     REQUIRE(pl3 == Catch::Approx(ml3).margin(1e-6));
   }
 
-  // find_radial_layer should match
   for (int k = 0; k < mesh.m_N_r; k++) {
     Scalar r = 0.5 * (mesh.radii[k] + mesh.radii[k + 1]);
     REQUIRE(mp.find_radial_layer(r) == mesh.find_radial_layer(r));
     REQUIRE(mp.compute_zeta(k, r) == Catch::Approx(mesh.compute_zeta(k, r)).margin(1e-10));
   }
 
-  // prism_edge_indices should match
   for (int t = 0; t < std::min(mesh.m_N_tri, 10); t++) {
     int me[9], pe[9];
     mesh.prism_edge_indices(t, 0, me);
@@ -1284,7 +1218,6 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
     for (int j = 0; j < 9; j++) REQUIRE(pe[j] == me[j]);
   }
 
-  // find_triangle should match
   for (int t = 0; t < std::min(mesh.m_N_tri, 20); t++) {
     int v0 = mesh.tri_verts[t*3], v1 = mesh.tri_verts[t*3+1], v2 = mesh.tri_verts[t*3+2];
     Scalar cx = (mesh.sphere_vx[v0]+mesh.sphere_vx[v1]+mesh.sphere_vx[v2]) / 3;
@@ -1295,4 +1228,3 @@ TEST_CASE("mesh_ptrs: matches mesh methods", "[prismatic][mesh_ptrs]") {
     REQUIRE(mp.find_triangle(cx, cy, cz, t) == mesh.find_triangle(cx, cy, cz, t));
   }
 }
-#endif

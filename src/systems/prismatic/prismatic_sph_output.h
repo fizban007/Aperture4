@@ -23,7 +23,9 @@ class prismatic_sph_output : public system_t {
   static std::string name() { return "prismatic_sph_output"; }
 
   prismatic_sph_output(prismatic_mesh& mesh,
-                       buffer<Scalar>& E_e, buffer<Scalar>& B_f);
+                       buffer<Scalar>& E_e, buffer<Scalar>& B_f,
+                       buffer<Scalar>* J_e = nullptr,
+                       buffer<Scalar>* rho = nullptr);
   ~prismatic_sph_output() = default;
 
   void init() override;
@@ -37,6 +39,8 @@ class prismatic_sph_output : public system_t {
   prismatic_mesh& m_mesh;
   buffer<Scalar>& m_E_e;
   buffer<Scalar>& m_B_f;
+  buffer<Scalar>* m_J_e = nullptr;
+  buffer<Scalar>* m_rho = nullptr;
 
   int m_N_theta = 180;
   int m_N_phi = 360;
@@ -56,6 +60,8 @@ class prismatic_sph_output : public system_t {
   // Output buffers
   std::vector<Scalar> m_Br, m_Bth, m_Bph;
   std::vector<Scalar> m_Er, m_Eth, m_Eph;
+  std::vector<Scalar> m_Jr, m_Jth, m_Jph;
+  std::vector<Scalar> m_rho_grid;
 };
 
 }  // namespace Aperture

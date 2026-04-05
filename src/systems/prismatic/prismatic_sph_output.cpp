@@ -11,8 +11,10 @@ namespace Aperture {
 
 prismatic_sph_output::prismatic_sph_output(prismatic_mesh& mesh,
                                            buffer<Scalar>& E_e,
-                                           buffer<Scalar>& B_f)
-    : m_mesh(mesh), m_E_e(E_e), m_B_f(B_f) {}
+                                           buffer<Scalar>& B_f,
+                                           buffer<Scalar>* J_e,
+                                           buffer<Scalar>* rho)
+    : m_mesh(mesh), m_E_e(E_e), m_B_f(B_f), m_J_e(J_e), m_rho(rho) {}
 
 void prismatic_sph_output::init() {
   sim_env().params().get_value("sph_N_theta", m_N_theta);
@@ -24,12 +26,10 @@ void prismatic_sph_output::init() {
 
   int N_ang = m_N_theta * m_N_phi;
   int N_total = N_ang * (m_mesh.m_N_r + 1);
-  m_Br.resize(N_total);
-  m_Bth.resize(N_total);
-  m_Bph.resize(N_total);
-  m_Er.resize(N_total);
-  m_Eth.resize(N_total);
-  m_Eph.resize(N_total);
+  m_Br.resize(N_total); m_Bth.resize(N_total); m_Bph.resize(N_total);
+  m_Er.resize(N_total); m_Eth.resize(N_total); m_Eph.resize(N_total);
+  if (m_J_e) { m_Jr.resize(N_total); m_Jth.resize(N_total); m_Jph.resize(N_total); }
+  if (m_rho) { m_rho_grid.resize(N_total); }
 
   precompute_grid();
   write_grid_info();
@@ -98,7 +98,9 @@ void prismatic_sph_output::update(double dt, uint32_t step) {
   m_time += dt;
   if (step % m_output_interval != 0) return;
 
-  // Sync fields to host (no-op for host-only buffers)
+  // Sync E and B from device to host (no-op for host-only buffers).
+  // J and rho are deposited on the host by the particle updater,
+  // so they must NOT be overwritten from device.
   m_E_e.copy_to_host();
   m_B_f.copy_to_host();
 
@@ -151,11 +153,38 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
       m_Er[idx]  = iEx * sx + iEy * sy + iEz * sz;
       m_Eth[idx] = iEx * cos_th * cos_phi + iEy * cos_th * sin_phi - iEz * sin_th;
       m_Eph[idx] = -iEx * sin_phi + iEy * cos_phi;
+
+      // J: same Whitney 1-form interpolation as E (both are edge 1-cochains)
+      if (m_J_e != nullptr) {
+        Scalar iJx, iJy, iJz, dummy1, dummy2, dummy3;
+        interpolate_fields(mp, pt.tri_idx, layer, pt.l, zeta,
+                           m_J_e->host_ptr(), B_f, iJx, iJy, iJz,
+                           dummy1, dummy2, dummy3);
+        m_Jr[idx]  = iJx * sx + iJy * sy + iJz * sz;
+        m_Jth[idx] = iJx * cos_th * cos_phi + iJy * cos_th * sin_phi - iJz * sin_th;
+        m_Jph[idx] = -iJx * sin_phi + iJy * cos_phi;
+      }
+
+      // rho: Whitney 0-form interpolation (barycentric on vertices)
+      if (m_rho != nullptr) {
+        const Scalar* rho_data = m_rho->host_ptr();
+        Scalar rho_val = Scalar(0);
+        Scalar phi_hat[2] = {Scalar(1) - zeta, zeta};
+        int shells[2] = {layer, layer + 1};
+        if (k == m_mesh.m_N_r) { shells[0] = m_mesh.m_N_r - 1; shells[1] = m_mesh.m_N_r; }
+        for (int lev = 0; lev < 2; lev++) {
+          for (int vi = 0; vi < 3; vi++) {
+            int sv = mp.tri_verts[pt.tri_idx * 3 + vi];
+            int v_idx = shells[lev] * mp.N_vert_s + sv;
+            rho_val += rho_data[v_idx] * pt.l[vi] * phi_hat[lev];
+          }
+        }
+        m_rho_grid[idx] = rho_val;
+      }
     }
   }
 
-  // Write to HDF5: arrays are [N_shells * N_theta * N_phi], C-order
-  // so index = k * N_theta * N_phi + i_theta * N_phi + i_phi
+  // Write to HDF5
   char fname[256];
   std::snprintf(fname, sizeof(fname), "%s/sph_%06u.h5",
                 m_output_dir.c_str(), step);
@@ -168,6 +197,14 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
   file.write(m_Er.data(), N_total, "Er");
   file.write(m_Eth.data(), N_total, "Eth");
   file.write(m_Eph.data(), N_total, "Eph");
+  if (m_J_e != nullptr) {
+    file.write(m_Jr.data(), N_total, "Jr");
+    file.write(m_Jth.data(), N_total, "Jth");
+    file.write(m_Jph.data(), N_total, "Jph");
+  }
+  if (m_rho != nullptr) {
+    file.write(m_rho_grid.data(), N_total, "rho");
+  }
   file.write(static_cast<int>(step), "step");
   file.write(time, "time");
   file.close();

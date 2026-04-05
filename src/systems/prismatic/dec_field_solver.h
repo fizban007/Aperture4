@@ -35,8 +35,7 @@ class dec_field_solver : public system_t {
   void compute_rhs(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dE_dt, buffer<Scalar>& dB_dt);
 
-  void apply_damping(buffer<Scalar>& E, buffer<Scalar>& B,
-                     buffer<Scalar>& J, double dt);
+  void apply_damping(buffer<Scalar>& E, buffer<Scalar>& B, double dt);
   void apply_inner_bc(buffer<Scalar>& E, buffer<Scalar>& B, double time);
   void set_initial_dipole();
 

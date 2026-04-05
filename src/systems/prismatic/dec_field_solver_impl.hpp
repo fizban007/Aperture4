@@ -187,7 +187,7 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
       },
       m_E_e, m_B_f, m_J_e);
 
-  apply_damping(m_E_e, m_B_f, m_J_e, dt);
+  apply_damping(m_E_e, m_B_f, dt);
   apply_inner_bc(m_E_e, m_B_f, m_time + dt);
   ExecPolicy::sync();
 }
@@ -251,6 +251,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
         m_E_e, m_tmp_E, m_dE_dt, m_dE_dt_new,
         m_B_f, m_tmp_B, m_dB_dt, m_dB_dt_new);
 
+    apply_damping(m_E_e, m_B_f, dt);
     apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
     ExecPolicy::sync();
   }
@@ -265,7 +266,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
       m_E_e, m_tmp_E, m_B_f, m_tmp_B);
 
   // Step 5: Damping + BC + clear J
-  apply_damping(m_E_e, m_B_f, m_J_e, dt);
+  apply_damping(m_E_e, m_B_f, dt);
   apply_inner_bc(m_E_e, m_B_f, m_time + dt);
   ExecPolicy::sync();
 }
@@ -276,18 +277,8 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_damping(
-    buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& J, double dt) {
-  if (m_damping_length <= 0) {
-    // Still need to clear J
-    ExecPolicy::launch(
-        [N_edges = m_mesh.m_N_edges] LAMBDA(auto J_e) {
-          ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-            J_e[e] = Scalar(0.0);
-          });
-        },
-        J);
-    return;
-  }
+    buffer<Scalar>& E, buffer<Scalar>& B, double dt) {
+  if (m_damping_length <= 0) return;
 
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int N_r = mp.N_r;
@@ -296,12 +287,11 @@ void dec_field_solver<ExecPolicy>::apply_damping(
   Scalar damp_coef = m_damping_coef;
   int damp_len = m_damping_length;
 
-  // Damp E on edges + clear J in the same kernel
+  // Damp E on edges
   ExecPolicy::launch(
       [N_edges = mp.N_edges, k_start, damp_coef, damp_len, dt, mp]
-      LAMBDA(auto E_e, auto J_e) {
+      LAMBDA(auto E_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          J_e[e] = Scalar(0.0);
           int k = mp.edge_radial_layer[e];
           if (k >= k_start) {
             Scalar sigma = damp_coef *
@@ -310,7 +300,7 @@ void dec_field_solver<ExecPolicy>::apply_damping(
           }
         });
       },
-      E, J);
+      E);
 
   // Damp B on faces
   ExecPolicy::launch(

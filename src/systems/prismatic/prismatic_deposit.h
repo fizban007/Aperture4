@@ -19,6 +19,33 @@ HD_INLINE void atomic_add_scalar(FloatT* addr, FloatT val) {
 }
 
 // =========================================================================
+// Charge density deposit (Whitney 0-form)
+//
+// rho_v = q * weight * W^0_v(x) = q * weight * lambda_i * phi_k(zeta)
+// Deposits to the 6 vertices of the containing prism.
+// =========================================================================
+template <typename FloatT>
+HD_INLINE void deposit_rho(
+    const prismatic_mesh_ptrs& mesh,
+    int tri_idx, int layer_idx,
+    const FloatT l[3], FloatT zeta,
+    FloatT q_weight,
+    FloatT* rho) {
+  FloatT phi_bot = FloatT(1) - zeta;  // bottom shell
+  FloatT phi_top = zeta;               // top shell
+
+  for (int i = 0; i < 3; i++) {
+    int sv = mesh.tri_verts[tri_idx * 3 + i];
+    // Bottom vertex (shell = layer_idx)
+    int v_bot = layer_idx * mesh.N_vert_s + sv;
+    atomic_add_scalar(&rho[v_bot], q_weight * l[i] * phi_bot);
+    // Top vertex (shell = layer_idx + 1)
+    int v_top = (layer_idx + 1) * mesh.N_vert_s + sv;
+    atomic_add_scalar(&rho[v_top], q_weight * l[i] * phi_top);
+  }
+}
+
+// =========================================================================
 // Single-prism current deposition (Whitney 1-form path integrals)
 // =========================================================================
 template <typename FloatT>

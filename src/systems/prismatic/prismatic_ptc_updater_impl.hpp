@@ -2,6 +2,7 @@
 
 #include "systems/prismatic/prismatic_ptc_updater.h"
 #include "systems/prismatic/prismatic_ptc_update_kernel.hpp"
+#include "core/particles_functions.h"
 #include "framework/environment.h"
 #include "utils/logger.h"
 #include <cmath>
@@ -30,6 +31,9 @@ template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("q_e", m_charge_e);
   sim_env().params().get_value("m_e", m_mass_e);
+  sim_env().params().get_value("sort_interval", m_sort_interval);
+  sim_env().params().get_value("use_gca", m_use_gca);
+  sim_env().params().get_value("include_curvature", m_include_curvature);
   Logger::print_info("Prismatic particle updater initialized: {} particles",
                      m_ptc->size());
 }
@@ -56,20 +60,29 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
       m_J->data(), m_rho->data());
 
   // Particle update loop
+  bool use_gca = m_use_gca;
+  bool include_curvature = m_include_curvature;
   ExecPolicy::launch(
-      [num, N_r, charge_e, mass_e, dt, mp]
+      [num, N_r, charge_e, mass_e, dt, mp, use_gca, include_curvature]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
           int sp = get_ptc_type(ptc.flag[n]);
           Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
           update_single_particle(mp, N_r, ptc, n, E_e, B_f, J_e, rho,
-                                 q, mass_e, Scalar(dt));
+                                 q, mass_e, Scalar(dt),
+                                 use_gca, include_curvature);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data());
 
   ExecPolicy::sync();
+
+  // Periodically sort particles by cell for GPU cache efficiency
+  if (m_sort_interval > 0 && step % m_sort_interval == 0) {
+    size_t max_cell = m_mesh.m_N_tri * m_mesh.m_N_r;
+    ptc_sort_by_cell(typename ExecPolicy::exec_tag{}, *m_ptc, max_cell);
+  }
 }
 
 template <typename ExecPolicy>

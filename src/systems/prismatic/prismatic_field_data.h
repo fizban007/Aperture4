@@ -23,9 +23,14 @@ class prismatic_field : public data_t {
  public:
   prismatic_field(const prismatic_mesh& mesh,
                   MemType mem = default_mem_type)
-      : m_data(field_size(mesh), mem) {}
+      : m_data(field_size(mesh), mem) {
+    // Zero on construction so fields start clean
+    m_data.assign(Scalar(0));
+  }
 
-  void init() override { m_data.assign(Scalar(0)); }
+  // No-op: systems write initial values (e.g. dipole B) in system init,
+  // which runs before data init. We must not overwrite those values.
+  void init() override {}
 
   buffer<Scalar>& data() { return m_data; }
   const buffer<Scalar>& data() const { return m_data; }

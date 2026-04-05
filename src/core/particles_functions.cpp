@@ -16,6 +16,7 @@
  */
 
 #include "particles_functions.h"
+#include "systems/prismatic/prismatic_particles.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/config.h"
@@ -248,6 +249,8 @@ ptc_sort_by_cell(exec_tags::host, particles_base<BufferType>& ptc,
 template void ptc_sort_by_cell(exec_tags::host, particles_base<ptc_buffer>& ptc,
                                size_t max_cell);
 template void ptc_sort_by_cell(exec_tags::host, particles_base<ph_buffer>& ptc,
+                               size_t max_cell);
+template void ptc_sort_by_cell(exec_tags::host, particles_base<prism_ptc_buffer>& ptc,
                                size_t max_cell);
 
 template <typename BufferType>

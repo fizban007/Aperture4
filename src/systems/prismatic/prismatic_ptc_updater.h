@@ -38,6 +38,9 @@ class prismatic_ptc_updater : public system_t {
 
   Scalar m_charge_e = -1.0;
   Scalar m_mass_e = 1.0;
+  int m_sort_interval = 100;
+  bool m_use_gca = false;
+  bool m_include_curvature = false;
 };
 
 using prismatic_ptc_updater_t = prismatic_ptc_updater<prismatic_exec_policy_dynamic>;

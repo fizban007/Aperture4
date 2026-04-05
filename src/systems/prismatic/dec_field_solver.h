@@ -59,6 +59,10 @@ class dec_field_solver : public system_t {
   int m_damping_length = 10;
   Scalar m_damping_coef = 0.05;
 
+  // Update toggles
+  bool m_update_e = true;
+  bool m_update_b = true;
+
   // Semi-implicit parameters
   bool m_use_implicit = false;
   Scalar m_beta = 0.55;

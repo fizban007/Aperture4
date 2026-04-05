@@ -101,11 +101,11 @@ void prismatic_sph_output::update(double dt, uint32_t step) {
   m_time += dt;
   if (step % m_output_interval != 0) return;
 
-  // Sync E and B from device to host (no-op for host-only buffers).
-  // J and rho are deposited on the host by the particle updater,
-  // so they must NOT be overwritten from device.
+  // Sync all fields from device to host (no-op for host-only buffers)
   m_E->data().copy_to_host();
   m_B->data().copy_to_host();
+  if (m_J != nullptr) m_J->data().copy_to_host();
+  if (m_rho != nullptr) m_rho->data().copy_to_host();
 
   write_snapshot(step, m_time);
 }

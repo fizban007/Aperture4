@@ -82,6 +82,8 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("obliquity", m_obliquity);
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("update_e", m_update_e);
+  sim_env().params().get_value("update_b", m_update_b);
   sim_env().params().get_value("use_implicit", m_use_implicit);
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
@@ -164,21 +166,24 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Faraday: B -= dt * d1 * E
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, dt, mp] LAMBDA(auto E_e, auto B_f) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          Scalar curl_E = Scalar(0);
-          for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
-            curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
-          }
-          B_f[f] -= dt * curl_E;
-        });
-      },
-      m_E->data(), m_B->data());
+  if (m_update_b) {
+    ExecPolicy::launch(
+        [N_faces = mp.N_faces, dt, mp] LAMBDA(auto E_e, auto B_f) {
+          ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+            Scalar curl_E = Scalar(0);
+            for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
+              curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
+            }
+            B_f[f] -= dt * curl_E;
+          });
+        },
+        m_E->data(), m_B->data());
+  }
 
   // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
-  ExecPolicy::launch(
-      [N_edges = mp.N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
+  if (m_update_e) {
+    ExecPolicy::launch(
+        [N_edges = mp.N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           Scalar curl_H = Scalar(0);
           for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
@@ -189,6 +194,7 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
         });
       },
       m_E->data(), m_B->data(), m_J->data());
+  }
 
   apply_damping(m_E->data(), m_B->data(), dt);
   apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);

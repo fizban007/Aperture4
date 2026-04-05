@@ -59,7 +59,13 @@ dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh)
     : m_mesh(mesh),
       m_E_e(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_B_f(mesh.m_N_faces, ExecPolicy::data_mem_type()),
-      m_J_e(mesh.m_N_edges, ExecPolicy::data_mem_type()) {}
+      m_J_e(mesh.m_N_edges, ExecPolicy::data_mem_type()),
+      m_tmp_E(mesh.m_N_edges, ExecPolicy::data_mem_type()),
+      m_tmp_B(mesh.m_N_faces, ExecPolicy::data_mem_type()),
+      m_dE_dt(mesh.m_N_edges, ExecPolicy::data_mem_type()),
+      m_dB_dt(mesh.m_N_faces, ExecPolicy::data_mem_type()),
+      m_dE_dt_new(mesh.m_N_edges, ExecPolicy::data_mem_type()),
+      m_dB_dt_new(mesh.m_N_faces, ExecPolicy::data_mem_type()) {}
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::init() {
@@ -68,6 +74,9 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("obliquity", m_obliquity);
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("use_implicit", m_use_implicit);
+  sim_env().params().get_value("implicit_beta", m_beta);
+  sim_env().params().get_value("implicit_iters", m_implicit_iters);
 
   m_E_e.assign(0, m_mesh.m_N_edges, 0.0);
   m_B_f.assign(0, m_mesh.m_N_faces, 0.0);
@@ -75,31 +84,87 @@ void dec_field_solver<ExecPolicy>::init() {
 
   set_initial_dipole();
 
-  // Sync initial data to device if needed
   m_E_e.copy_to_device();
   m_B_f.copy_to_device();
   m_J_e.copy_to_device();
 
   m_time = 0.0;
-  Logger::print_info("DEC field solver initialized: Bp={}, Omega={}, obliquity={}",
-                     m_Bp, m_Omega, m_obliquity);
+  if (m_use_implicit) {
+    Logger::print_info("DEC field solver initialized (semi-implicit, beta={}, "
+                       "iters={}): Bp={}, Omega={}, obliquity={}",
+                       m_beta, m_implicit_iters, m_Bp, m_Omega, m_obliquity);
+  } else {
+    Logger::print_info("DEC field solver initialized (explicit): Bp={}, "
+                       "Omega={}, obliquity={}",
+                       m_Bp, m_Omega, m_obliquity);
+  }
 }
 
 // =========================================================================
-// Main update loop — all steps on GPU
+// Main update dispatch
 // =========================================================================
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int N_edges = mp.N_edges;
-  int N_faces = mp.N_faces;
+  if (m_use_implicit) {
+    update_semi_implicit(dt);
+  } else {
+    update_explicit(dt);
+  }
+  m_time += dt;
+}
 
-  // Step 1: Faraday — B -= dt * d₁ * E
+// =========================================================================
+// Compute RHS: dB/dt = -d1*E, dE/dt = h1inv*(d1t*h2*B - J)
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::compute_rhs(
+    buffer<Scalar>& E_in, buffer<Scalar>& B_in,
+    buffer<Scalar>& dE_out, buffer<Scalar>& dB_out) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+
+  // dB/dt = -d1 * E
   ExecPolicy::launch(
-      [N_faces, dt, mp] LAMBDA(auto E_e, auto B_f) {
+      [N_faces = mp.N_faces, mp] LAMBDA(auto E_e, auto dB) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          Scalar curl_E = 0.0;
+          Scalar curl_E = Scalar(0);
+          for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
+            curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
+          }
+          dB[f] = -curl_E;
+        });
+      },
+      E_in, dB_out);
+
+  // dE/dt = h1inv * (d1t * h2 * B - J)
+  ExecPolicy::launch(
+      [N_edges = mp.N_edges, mp] LAMBDA(auto B_f, auto J_e, auto dE) {
+        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+          Scalar curl_H = Scalar(0);
+          for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
+            int f = mp.d1t_col_idx[j];
+            curl_H += mp.d1t_val[j] * mp.hodge2[f] * B_f[f];
+          }
+          dE[e] = mp.hodge1_inv[e] * (curl_H - J_e[e]);
+        });
+      },
+      B_in, m_J_e, dE_out);
+}
+
+// =========================================================================
+// Explicit update (original leapfrog)
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+
+  // Faraday: B -= dt * d1 * E
+  ExecPolicy::launch(
+      [N_faces = mp.N_faces, dt, mp] LAMBDA(auto E_e, auto B_f) {
+        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+          Scalar curl_E = Scalar(0);
           for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
             curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
           }
@@ -108,11 +173,11 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
       },
       m_E_e, m_B_f);
 
-  // Step 2: Ampere — E += dt * ★₁⁻¹ * (d₁ᵀ * ★₂ * B - J)
+  // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
   ExecPolicy::launch(
-      [N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
+      [N_edges = mp.N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          Scalar curl_H = 0.0;
+          Scalar curl_H = Scalar(0);
           for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
             int f = mp.d1t_col_idx[j];
             curl_H += mp.d1t_val[j] * mp.hodge2[f] * B_f[f];
@@ -122,13 +187,100 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
       },
       m_E_e, m_B_f, m_J_e);
 
-  // Step 3: Clear J + Damping
-  apply_damping(dt);
+  apply_damping(m_E_e, m_B_f, m_J_e, dt);
+  apply_inner_bc(m_E_e, m_B_f, m_time + dt);
+  ExecPolicy::sync();
+}
 
-  // Step 4: Inner boundary condition
-  m_time += dt;
-  apply_inner_bc(m_time);
+// =========================================================================
+// Semi-implicit predictor-corrector update
+//
+//   F^{n+1} = F^n + dt * [alpha * RHS(F^n) + beta * RHS(F^{n+1})]
+//
+// where alpha = 1 - beta.  Solved by fixed-point iteration:
+//   1. Compute RHS^n = RHS(F^n)
+//   2. Euler predict: F* = F^n + dt * RHS^n
+//   3. For i = 1..N_iter:
+//        RHS* = RHS(F*)
+//        F* = F^n + dt * (alpha * RHS^n + beta * RHS*)
+//        Apply BC to F*
+// =========================================================================
 
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  Scalar alpha = Scalar(1) - m_beta;
+  Scalar beta = m_beta;
+
+  // Step 1: Compute RHS at current state
+  compute_rhs(m_E_e, m_B_f, m_dE_dt, m_dB_dt);
+
+  // Step 2: Euler predict — F* = F^n + dt * RHS^n
+  ExecPolicy::launch(
+      [N = mp.N_edges, dt] LAMBDA(auto E, auto tmpE, auto dE) {
+        ExecPolicy::loop(0, N, [&] LAMBDA(int e) {
+          tmpE[e] = E[e] + dt * dE[e];
+        });
+      },
+      m_E_e, m_tmp_E, m_dE_dt);
+
+  ExecPolicy::launch(
+      [N = mp.N_faces, dt] LAMBDA(auto B, auto tmpB, auto dB) {
+        ExecPolicy::loop(0, N, [&] LAMBDA(int f) {
+          tmpB[f] = B[f] + dt * dB[f];
+        });
+      },
+      m_B_f, m_tmp_B, m_dB_dt);
+
+  // Apply BC to the Euler predict so the first RHS evaluation is consistent
+  apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+  ExecPolicy::sync();
+
+  // Step 3: Iterate corrector
+  for (int iter = 0; iter < m_implicit_iters; iter++) {
+    // Compute RHS at predicted state
+    compute_rhs(m_tmp_E, m_tmp_B, m_dE_dt_new, m_dB_dt_new);
+
+    // F* = F^n + dt * (alpha * RHS^n + beta * RHS*)
+    ExecPolicy::launch(
+        [N = mp.N_edges, dt, alpha, beta]
+        LAMBDA(auto E, auto tmpE, auto dE_n, auto dE_new) {
+          ExecPolicy::loop(0, N, [&] LAMBDA(int e) {
+            tmpE[e] = E[e] + dt * (alpha * dE_n[e] + beta * dE_new[e]);
+          });
+        },
+        m_E_e, m_tmp_E, m_dE_dt, m_dE_dt_new);
+
+    ExecPolicy::launch(
+        [N = mp.N_faces, dt, alpha, beta]
+        LAMBDA(auto B, auto tmpB, auto dB_n, auto dB_new) {
+          ExecPolicy::loop(0, N, [&] LAMBDA(int f) {
+            tmpB[f] = B[f] + dt * (alpha * dB_n[f] + beta * dB_new[f]);
+          });
+        },
+        m_B_f, m_tmp_B, m_dB_dt, m_dB_dt_new);
+
+    // Apply BC to the predicted fields (critical for convergence near boundaries)
+    apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+    ExecPolicy::sync();
+  }
+
+  // Step 4: Copy result back: F^{n+1} = F*
+  ExecPolicy::launch(
+      [N = mp.N_edges] LAMBDA(auto E, auto tmpE) {
+        ExecPolicy::loop(0, N, [&] LAMBDA(int e) { E[e] = tmpE[e]; });
+      },
+      m_E_e, m_tmp_E);
+
+  ExecPolicy::launch(
+      [N = mp.N_faces] LAMBDA(auto B, auto tmpB) {
+        ExecPolicy::loop(0, N, [&] LAMBDA(int f) { B[f] = tmpB[f]; });
+      },
+      m_B_f, m_tmp_B);
+
+  // Step 5: Damping + BC + clear J
+  apply_damping(m_E_e, m_B_f, m_J_e, dt);
+  apply_inner_bc(m_E_e, m_B_f, m_time + dt);
   ExecPolicy::sync();
 }
 
@@ -137,7 +289,8 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
 // =========================================================================
 
 template <typename ExecPolicy>
-void dec_field_solver<ExecPolicy>::apply_damping(double dt) {
+void dec_field_solver<ExecPolicy>::apply_damping(
+    buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& J, double dt) {
   if (m_damping_length <= 0) {
     // Still need to clear J
     ExecPolicy::launch(
@@ -146,7 +299,7 @@ void dec_field_solver<ExecPolicy>::apply_damping(double dt) {
             J_e[e] = Scalar(0.0);
           });
         },
-        m_J_e);
+        J);
     return;
   }
 
@@ -171,7 +324,7 @@ void dec_field_solver<ExecPolicy>::apply_damping(double dt) {
           }
         });
       },
-      m_E_e, m_J_e);
+      E, J);
 
   // Damp B on faces
   ExecPolicy::launch(
@@ -186,7 +339,7 @@ void dec_field_solver<ExecPolicy>::apply_damping(double dt) {
           }
         });
       },
-      m_B_f);
+      B);
 }
 
 // =========================================================================
@@ -194,7 +347,8 @@ void dec_field_solver<ExecPolicy>::apply_damping(double dt) {
 // =========================================================================
 
 template <typename ExecPolicy>
-void dec_field_solver<ExecPolicy>::apply_inner_bc(double time) {
+void dec_field_solver<ExecPolicy>::apply_inner_bc(
+    buffer<Scalar>& E, buffer<Scalar>& B, double time) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   Scalar mx = m_Bp * std::sin(m_obliquity) * std::cos(m_Omega * time);
   Scalar my = m_Bp * std::sin(m_obliquity) * std::sin(m_Omega * time);
@@ -228,7 +382,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(double time) {
           B_f[f] = project_B_on_face_impl(mp, f, Bx, By, Bz);
         });
       },
-      m_B_f);
+      B);
 
   // Overwrite E_e on inner boundary edges
   ExecPolicy::launch(
@@ -250,7 +404,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(double time) {
           E_e[e] = project_E_on_edge_impl(mp, e, Ex, Ey, Ez);
         });
       },
-      m_E_e);
+      E);
 }
 
 // =========================================================================

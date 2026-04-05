@@ -1,0 +1,25 @@
+# Vacuum rotating oblique dipole test
+#
+# Rotating magnetic dipole with obliquity 45 degrees radiating into
+# vacuum. No particles. Tests the DEC field solver: Faraday, Ampere,
+# inner boundary condition (rotating dipole), and outer damping layer.
+#
+# Binary: ./bin/prismatic_dipole
+# Expected result: outgoing electromagnetic spiral visible in Br*r^2
+# on the meridional plane.
+
+dt = 0.01
+max_steps = 2000
+subdivision_level = 5
+N_r = 80
+r_min = 1.0
+r_max = 20.0
+Bp = 1.0
+Omega = 1.0
+obliquity = 0.7854
+damping_length = 15
+damping_coef = 0.05
+fld_output_interval = 20
+output_dir = "Data_vacuum_dipole"
+sph_N_theta = 90
+sph_N_phi = 180

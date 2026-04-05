@@ -44,15 +44,15 @@ gauss_quad_dev(const Func& f, double a, double b) {
 #endif
 
 template <typename Func>
-double
+HD_INLINE double
 gauss_quad(const Func& f, double a, double b) {
-  static double gauss_xs[5] = {0.1488743389816312, 0.4333953941292472,
-                               0.6794095682990244, 0.8650633666889845,
-                               0.9739065285171717};
+  const double gauss_xs[5] = {0.1488743389816312, 0.4333953941292472,
+                              0.6794095682990244, 0.8650633666889845,
+                              0.9739065285171717};
 
-  static double gauss_ws[5] = {0.2955242247147529, 0.2692667193099963,
-                               0.2190863625159821, 0.1494513491505806,
-                               0.0666713443086881};
+  const double gauss_ws[5] = {0.2955242247147529, 0.2692667193099963,
+                              0.2190863625159821, 0.1494513491505806,
+                              0.0666713443086881};
   double xm = 0.5 * (b + a);
   double xr = 0.5 * (b - a);
   double result = 0.0;

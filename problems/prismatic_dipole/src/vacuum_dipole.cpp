@@ -16,6 +16,7 @@ int main(int argc, char* argv[]) {
   int N_r = env.params().get_as<int64_t>("N_r", 50);
   double r_min = env.params().get_as<double>("r_min", 1.0);
   double r_max = env.params().get_as<double>("r_max", 20.0);
+  bool use_deutsch_ic = env.params().get_as<bool>("use_deutsch_ic", false);
 
   prismatic_mesh mesh;
   mesh.build(L, N_r, r_min, r_max);
@@ -23,11 +24,18 @@ int main(int argc, char* argv[]) {
   mesh.copy_to_device();
 #endif
 
-  env.register_system<dec_field_solver_t>(mesh);
+  auto solver = env.register_system<dec_field_solver_t>(mesh);
   env.register_system<prismatic_data_exporter>(mesh);
   env.register_system<prismatic_sph_output>(mesh);
 
   env.init();
+
+  if (use_deutsch_ic) {
+    solver->set_initial_deutsch();
+  } else {
+    solver->set_initial_dipole();
+  }
+
   env.run();
   return 0;
 }

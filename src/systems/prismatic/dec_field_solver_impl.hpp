@@ -27,6 +27,98 @@ HD_INLINE void dipole_B_impl(Scalar x, Scalar y, Scalar z,
   Bz = factor*z - mz/r3;
 }
 
+// Full retarded Deutsch solution for a rotating magnetic dipole (c = 1).
+//
+//   B(r,t) = [3n(n·m_r) - m_r]/r³ + [3n(n·dm_r) - dm_r]/r² + [ddm_r - n(n·ddm_r)]/r
+//   E(r,t) = -(n × dm_r)/r² - (n × ddm_r)/r
+//
+// where n = r̂, m_r = m(t - r), dm_r = ṁ(t - r), ddm_r = m̈(t - r).
+HD_INLINE void deutsch_B_impl(Scalar x, Scalar y, Scalar z, Scalar time,
+                               Scalar Bp, Scalar Omega, Scalar obliquity,
+                               Scalar& Bx, Scalar& By, Scalar& Bz) {
+  Scalar r2 = x*x + y*y + z*z;
+  Scalar r = std::sqrt(r2);
+  Scalar r3 = r2*r;
+  Scalar t_ret = time - r;
+
+  Scalar m_perp = Bp * std::sin(obliquity);
+  Scalar m_par = Bp * std::cos(obliquity);
+
+  Scalar cos_phase = std::cos(Omega * t_ret);
+  Scalar sin_phase = std::sin(Omega * t_ret);
+
+  // Retarded dipole moment, its first and second time-derivatives
+  Scalar mx = m_perp * cos_phase;
+  Scalar my = m_perp * sin_phase;
+  Scalar mz = m_par;
+
+  Scalar dmx = -m_perp * Omega * sin_phase;
+  Scalar dmy =  m_perp * Omega * cos_phase;
+
+  Scalar ddmx = -m_perp * Omega * Omega * cos_phase;
+  Scalar ddmy = -m_perp * Omega * Omega * sin_phase;
+
+  Scalar nx = x / r, ny = y / r, nz = z / r;
+
+  // Near field: [3n(n·m) - m] / r³
+  Scalar ndotm = nx*mx + ny*my + nz*mz;
+  Scalar Bnx = (Scalar(3.0)*ndotm*nx - mx) / r3;
+  Scalar Bny = (Scalar(3.0)*ndotm*ny - my) / r3;
+  Scalar Bnz = (Scalar(3.0)*ndotm*nz - mz) / r3;
+
+  // Intermediate field: [3n(n·dm) - dm] / r²
+  Scalar ndotdm = nx*dmx + ny*dmy;
+  Scalar Bix = (Scalar(3.0)*ndotdm*nx - dmx) / r2;
+  Scalar Biy = (Scalar(3.0)*ndotdm*ny - dmy) / r2;
+  Scalar Biz = (Scalar(3.0)*ndotdm*nz) / r2;
+
+  // Radiation field: [ddm - n(n·ddm)] / r
+  Scalar ndotddm = nx*ddmx + ny*ddmy;
+  Scalar Brx = (ddmx - ndotddm*nx) / r;
+  Scalar Bry = (ddmy - ndotddm*ny) / r;
+  Scalar Brz = (-ndotddm*nz) / r;
+
+  Bx = Bnx + Bix + Brx;
+  By = Bny + Biy + Bry;
+  Bz = Bnz + Biz + Brz;
+}
+
+HD_INLINE void deutsch_E_impl(Scalar x, Scalar y, Scalar z, Scalar time,
+                               Scalar Bp, Scalar Omega, Scalar obliquity,
+                               Scalar& Ex, Scalar& Ey, Scalar& Ez) {
+  Scalar r2 = x*x + y*y + z*z;
+  Scalar r = std::sqrt(r2);
+  Scalar t_ret = time - r;
+
+  Scalar m_perp = Bp * std::sin(obliquity);
+
+  Scalar cos_phase = std::cos(Omega * t_ret);
+  Scalar sin_phase = std::sin(Omega * t_ret);
+
+  Scalar dmx = -m_perp * Omega * sin_phase;
+  Scalar dmy =  m_perp * Omega * cos_phase;
+
+  Scalar ddmx = -m_perp * Omega * Omega * cos_phase;
+  Scalar ddmy = -m_perp * Omega * Omega * sin_phase;
+
+  Scalar nx = x / r, ny = y / r, nz = z / r;
+
+  // E = -(n × dm)/r² - (n × ddm)/r
+  // n × dm = (ny*0 - nz*dmy, nz*dmx - nx*0, nx*dmy - ny*dmx)
+  Scalar cx1 = -nz * dmy;
+  Scalar cy1 =  nz * dmx;
+  Scalar cz1 =  nx * dmy - ny * dmx;
+
+  Scalar cx2 = -nz * ddmy;
+  Scalar cy2 =  nz * ddmx;
+  Scalar cz2 =  nx * ddmy - ny * ddmx;
+
+  Ex = -cx1 / r2 - cx2 / r;
+  Ey = -cy1 / r2 - cy2 / r;
+  Ez = -cz1 / r2 - cz2 / r;
+}
+
+
 HD_INLINE Scalar project_B_on_face_impl(const prismatic_mesh_ptrs& mp, int f,
                                          Scalar Bx, Scalar By, Scalar Bz) {
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
@@ -88,11 +180,7 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("use_implicit", m_use_implicit);
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
-
-  set_initial_dipole();
-
-  m_E->data().copy_to_device();
-  m_B->data().copy_to_device();
+  sim_env().params().get_value("use_deutsch_bc", m_use_deutsch_bc);
 
   m_time = 0.0;
   if (m_use_implicit) {
@@ -329,65 +417,139 @@ void dec_field_solver<ExecPolicy>::apply_damping(
 }
 
 // =========================================================================
-// Inner boundary condition — runs on GPU
+// Inner boundary condition
+//
+// Computes ∫_face B · dA and ∫_edge E · dl on inner boundary elements
+// using Gauss quadrature (gauss_quad on host, gauss_quad_dev on device).
+//
+// Two modes controlled by m_use_deutsch_bc:
+//   false — instantaneous rotating dipole + corotation E
+//   true  — full retarded Deutsch solution
 // =========================================================================
+
+// Portable gauss_quad dispatch: calls gauss_quad_dev on GPU, gauss_quad on CPU
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_inner_bc(
     buffer<Scalar>& E, buffer<Scalar>& B, double time) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  Scalar mx = m_Bp * std::sin(m_obliquity) * std::cos(m_Omega * time);
-  Scalar my = m_Bp * std::sin(m_obliquity) * std::sin(m_Omega * time);
-  Scalar mz = m_Bp * std::cos(m_obliquity);
+  Scalar Bp_val = m_Bp;
+  Scalar Omega_val = m_Omega;
+  Scalar obliq = m_obliquity;
+  bool deutsch = m_use_deutsch_bc;
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
-  Scalar Omega = m_Omega;
 
-  // Overwrite B_f on inner boundary faces
+  // Instantaneous dipole moment (for standard BC mode)
+  Scalar mx_i = Bp_val * std::sin(obliq) * std::cos(Omega_val * time);
+  Scalar my_i = Bp_val * std::sin(obliq) * std::sin(Omega_val * time);
+  Scalar mz_i = Bp_val * std::cos(obliq);
+  Scalar t_bc = static_cast<Scalar>(time);
+
+  // --- Overwrite B_f on inner boundary faces ---
   ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, mx, my, mz, mp]
+      [N_faces = mp.N_faces, n_tri_faces, mx_i, my_i, mz_i,
+       Bp_val, Omega_val, obliq, deutsch, t_bc, mp]
       LAMBDA(auto B_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           if (mp.face_boundary[f] != 1) return;
-          Scalar fx, fy, fz;
+
           if (f < n_tri_faces) {
-            int v0 = mp.tri_face_v0[f], v1 = mp.tri_face_v1[f],
-                v2 = mp.tri_face_v2[f];
-            fx = (mp.vert_x[v0]+mp.vert_x[v1]+mp.vert_x[v2]) / Scalar(3.0);
-            fy = (mp.vert_y[v0]+mp.vert_y[v1]+mp.vert_y[v2]) / Scalar(3.0);
-            fz = (mp.vert_z[v0]+mp.vert_z[v1]+mp.vert_z[v2]) / Scalar(3.0);
+            // --- Triangular face: nested Gauss quadrature ---
+            int vi0 = mp.tri_face_v0[f];
+            int vi1 = mp.tri_face_v1[f];
+            int vi2 = mp.tri_face_v2[f];
+            Scalar p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            Scalar e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
+            Scalar e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
+            Scalar nx = e1y*e2z - e1z*e2y;
+            Scalar ny = e1z*e2x - e1x*e2z;
+            Scalar nz = e1x*e2y - e1y*e2x;
+
+            Scalar flux = gauss_quad([&](double u) -> double {
+              return (1.0 - u) * gauss_quad([&](double t) -> double {
+                double v = (1.0 - u) * t;
+                double x = p0x + u*e1x + v*e2x;
+                double y = p0y + u*e1y + v*e2y;
+                double z = p0z + u*e1z + v*e2z;
+                Scalar bx, by, bz;
+                if (deutsch) {
+                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bx, by, bz);
+                } else {
+                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+                }
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
           } else {
-            int local = f - n_tri_faces;
-            int v0 = mp.rect_face_v0[local], v1 = mp.rect_face_v1[local],
-                v2 = mp.rect_face_v2[local], v3 = mp.rect_face_v3[local];
-            fx = (mp.vert_x[v0]+mp.vert_x[v1]+mp.vert_x[v2]+mp.vert_x[v3]) / Scalar(4.0);
-            fy = (mp.vert_y[v0]+mp.vert_y[v1]+mp.vert_y[v2]+mp.vert_y[v3]) / Scalar(4.0);
-            fz = (mp.vert_z[v0]+mp.vert_z[v1]+mp.vert_z[v2]+mp.vert_z[v3]) / Scalar(4.0);
+            // --- Rectangular face: tensor-product Gauss quadrature ---
+            int fi = f - n_tri_faces;
+            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
+            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
+            Scalar p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            Scalar p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
+            Scalar p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
+            Scalar p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
+
+            Scalar flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+                double nnx = dydu*dzdv - dzdu*dydv;
+                double nny = dzdu*dxdv - dxdu*dzdv;
+                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar bx, by, bz;
+                if (deutsch) {
+                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bx, by, bz);
+                } else {
+                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+                }
+                return bx*nnx + by*nny + bz*nnz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
           }
-          Scalar Bx, By, Bz;
-          dipole_B_impl(fx, fy, fz, mx, my, mz, Bx, By, Bz);
-          B_f[f] = project_B_on_face_impl(mp, f, Bx, By, Bz);
         });
       },
       B);
 
-  // Overwrite E_e on inner boundary edges
+  // --- Overwrite E_e on inner boundary edges ---
   ExecPolicy::launch(
-      [N_edges = mp.N_edges, mx, my, mz, Omega, mp]
+      [N_edges = mp.N_edges, mx_i, my_i, mz_i,
+       Bp_val, Omega_val, obliq, deutsch, t_bc, mp]
       LAMBDA(auto E_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           if (mp.edge_boundary[e] != 1) return;
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          Scalar ex = (mp.vert_x[v0]+mp.vert_x[v1]) / Scalar(2.0);
-          Scalar ey = (mp.vert_y[v0]+mp.vert_y[v1]) / Scalar(2.0);
-          Scalar ez = (mp.vert_z[v0]+mp.vert_z[v1]) / Scalar(2.0);
-          Scalar Bx, By, Bz;
-          dipole_B_impl(ex, ey, ez, mx, my, mz, Bx, By, Bz);
-          Scalar vx = -Omega * ey;
-          Scalar vy = Omega * ex;
-          Scalar Ex = -(vy * Bz);
-          Scalar Ey = -(- vx * Bz);
-          Scalar Ez = -(vx * By - vy * Bx);
-          E_e[e] = project_E_on_edge_impl(mp, e, Ex, Ey, Ez);
+          Scalar x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
+          Scalar dlx = mp.vert_x[v1]-x0;
+          Scalar dly = mp.vert_y[v1]-y0;
+          Scalar dlz = mp.vert_z[v1]-z0;
+
+          Scalar circ = gauss_quad([&](double t) -> double {
+            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            Scalar ex, ey, ez;
+            if (deutsch) {
+              deutsch_E_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, ex, ey, ez);
+            } else {
+              // E = -(v × B) where v = Ω × r
+              Scalar bx, by, bz;
+              dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+              Scalar vx = -Omega_val * y, vy = Omega_val * x;
+              ex = -(vy * bz);
+              ey = -(-vx * bz);
+              ez = -(vx * by - vy * bx);
+            }
+            return ex*dlx + ey*dly + ez*dlz;
+          }, 0.0, 1.0);
+          E_e[e] = static_cast<Scalar>(circ);
         });
       },
       E);
@@ -497,6 +659,168 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
 
     m_B->data()[f] = static_cast<Scalar>(flux);
   }
+
+  m_E->data().copy_to_device();
+  m_B->data().copy_to_device();
+}
+
+// =========================================================================
+// Full Deutsch retarded IC (host-only, called from main)
+//
+// Initializes both B_f and E_e from the exact retarded solution of a
+// rotating magnetic dipole that has been spinning since t = -∞.
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
+  double Bp = m_Bp;
+  double Omega = m_Omega;
+  double obliquity = m_obliquity;
+
+  // Deutsch B field at (x,y,z) for t = 0
+  auto deu_B = [Bp, Omega, obliquity](double x, double y, double z,
+                                       double& bx, double& by, double& bz) {
+    double r2 = x*x + y*y + z*z;
+    double r = std::sqrt(r2);
+    double r3 = r2 * r;
+    double t_ret = -r;  // time = 0
+
+    double m_perp = Bp * std::sin(obliquity);
+    double m_par = Bp * std::cos(obliquity);
+    double cp = std::cos(Omega * t_ret);
+    double sp = std::sin(Omega * t_ret);
+
+    double mx = m_perp * cp, my = m_perp * sp, mz = m_par;
+    double dmx = -m_perp * Omega * sp, dmy = m_perp * Omega * cp;
+    double ddmx = -m_perp * Omega * Omega * cp;
+    double ddmy = -m_perp * Omega * Omega * sp;
+
+    double nx = x / r, ny = y / r, nz = z / r;
+    double ndotm = nx*mx + ny*my + nz*mz;
+    double ndotdm = nx*dmx + ny*dmy;
+    double ndotddm = nx*ddmx + ny*ddmy;
+
+    bx = (3.0*ndotm*nx - mx) / r3
+       + (3.0*ndotdm*nx - dmx) / r2
+       + (ddmx - ndotddm*nx) / r;
+    by = (3.0*ndotm*ny - my) / r3
+       + (3.0*ndotdm*ny - dmy) / r2
+       + (ddmy - ndotddm*ny) / r;
+    bz = (3.0*ndotm*nz - mz) / r3
+       + 3.0*ndotdm*nz / r2
+       + (-ndotddm*nz) / r;
+  };
+
+  // Deutsch E field at (x,y,z) for t = 0
+  auto deu_E = [Bp, Omega, obliquity](double x, double y, double z,
+                                       double& ex, double& ey, double& ez) {
+    double r2 = x*x + y*y + z*z;
+    double r = std::sqrt(r2);
+    double t_ret = -r;
+
+    double m_perp = Bp * std::sin(obliquity);
+    double cp = std::cos(Omega * t_ret);
+    double sp = std::sin(Omega * t_ret);
+
+    double dmx = -m_perp * Omega * sp, dmy = m_perp * Omega * cp;
+    double ddmx = -m_perp * Omega * Omega * cp;
+    double ddmy = -m_perp * Omega * Omega * sp;
+
+    double nx = x / r, ny = y / r, nz = z / r;
+
+    // E = -(n × dm)/r² - (n × ddm)/r
+    double cx1 = -nz * dmy, cy1 = nz * dmx;
+    double cz1 = nx * dmy - ny * dmx;
+    double cx2 = -nz * ddmy, cy2 = nz * ddmx;
+    double cz2 = nx * ddmy - ny * ddmx;
+
+    ex = -cx1 / r2 - cx2 / r;
+    ey = -cy1 / r2 - cy2 / r;
+    ez = -cz1 / r2 - cz2 / r;
+  };
+
+  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
+
+  // --- B_f: face fluxes via Gauss quadrature ---
+  // Triangular faces
+  for (int f = 0; f < n_tri_faces; f++) {
+    int vi0 = m_mesh.tri_face_v0[f];
+    int vi1 = m_mesh.tri_face_v1[f];
+    int vi2 = m_mesh.tri_face_v2[f];
+    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+    double e1x = m_mesh.vert_x[vi1]-p0x, e1y = m_mesh.vert_y[vi1]-p0y, e1z = m_mesh.vert_z[vi1]-p0z;
+    double e2x = m_mesh.vert_x[vi2]-p0x, e2y = m_mesh.vert_y[vi2]-p0y, e2z = m_mesh.vert_z[vi2]-p0z;
+    double nx = e1y*e2z - e1z*e2y;
+    double ny = e1z*e2x - e1x*e2z;
+    double nz = e1x*e2y - e1y*e2x;
+
+    double flux = gauss_quad([&](double u) -> double {
+      return (1.0 - u) * gauss_quad([&](double t) -> double {
+        double v = (1.0 - u) * t;
+        double x = p0x + u*e1x + v*e2x;
+        double y = p0y + u*e1y + v*e2y;
+        double z = p0z + u*e1z + v*e2z;
+        double bx, by, bz;
+        deu_B(x, y, z, bx, by, bz);
+        return bx*nx + by*ny + bz*nz;
+      }, 0.0, 1.0);
+    }, 0.0, 1.0);
+    m_B->data()[f] = static_cast<Scalar>(flux);
+  }
+
+  // Rectangular faces
+  for (int fi = 0; fi < m_mesh.m_N_edge_s * m_mesh.m_N_r; fi++) {
+    int f = n_tri_faces + fi;
+    int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
+    int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
+    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
+    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
+    double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
+
+    double flux = gauss_quad([&](double u) -> double {
+      return gauss_quad([&](double v) -> double {
+        double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+        double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+        double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+        double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+        double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+        double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+        double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+        double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+        double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+        double nnx = dydu*dzdv - dzdu*dydv;
+        double nny = dzdu*dxdv - dxdu*dzdv;
+        double nnz = dxdu*dydv - dydu*dxdv;
+        double bx, by, bz;
+        deu_B(x, y, z, bx, by, bz);
+        return bx*nnx + by*nny + bz*nnz;
+      }, 0.0, 1.0);
+    }, 0.0, 1.0);
+    m_B->data()[f] = static_cast<Scalar>(flux);
+  }
+
+  // --- E_e: edge circulations via Gauss quadrature ---
+  for (int e = 0; e < m_mesh.m_N_edges; e++) {
+    int v0 = m_mesh.edge_v0[e], v1 = m_mesh.edge_v1[e];
+    double x0 = m_mesh.vert_x[v0], y0 = m_mesh.vert_y[v0], z0 = m_mesh.vert_z[v0];
+    double dlx = m_mesh.vert_x[v1]-x0;
+    double dly = m_mesh.vert_y[v1]-y0;
+    double dlz = m_mesh.vert_z[v1]-z0;
+
+    double circ = gauss_quad([&](double t) -> double {
+      double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+      double ex, ey, ez;
+      deu_E(x, y, z, ex, ey, ez);
+      return ex*dlx + ey*dly + ez*dlz;
+    }, 0.0, 1.0);
+    m_E->data()[e] = static_cast<Scalar>(circ);
+  }
+
+  m_E->data().copy_to_device();
+  m_B->data().copy_to_device();
+  Logger::print_info("Deutsch retarded IC set: Bp={}, Omega={}, obliquity={}",
+                     m_Bp, m_Omega, m_obliquity);
 }
 
 // =========================================================================

@@ -88,6 +88,18 @@ void prismatic_data_exporter::write_mesh() {
   file.write(m_mesh.tri_edge_signs.host_ptr(), m_mesh.m_N_tri * 3, "tri_edge_signs");
   file.write(m_mesh.tri_neighbor.host_ptr(), m_mesh.m_N_tri * 3, "tri_neighbor");
 
+  // Write incidence matrix d1 (face → edges) in CSR
+  int d1_nnz = m_mesh.d1_row_ptr[m_mesh.m_N_faces];
+  file.write(m_mesh.d1_row_ptr.host_ptr(), m_mesh.m_N_faces + 1, "d1_row_ptr");
+  file.write(m_mesh.d1_col_idx.host_ptr(), d1_nnz, "d1_col_idx");
+  file.write(m_mesh.d1_val.host_ptr(), d1_nnz, "d1_val");
+
+  // Write transpose d1^T (edge → faces) in CSR
+  int d1t_nnz = m_mesh.d1t_row_ptr[m_mesh.m_N_edges];
+  file.write(m_mesh.d1t_row_ptr.host_ptr(), m_mesh.m_N_edges + 1, "d1t_row_ptr");
+  file.write(m_mesh.d1t_col_idx.host_ptr(), d1t_nnz, "d1t_col_idx");
+  file.write(m_mesh.d1t_val.host_ptr(), d1t_nnz, "d1t_val");
+
   // Write mesh parameters
   file.write(m_mesh.m_L, "L");
   file.write(m_mesh.m_N_r, "N_r");

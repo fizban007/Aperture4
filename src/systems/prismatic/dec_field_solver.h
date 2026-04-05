@@ -21,6 +21,10 @@ class dec_field_solver : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  // Initial condition helpers — call from main after env.init().
+  void set_initial_dipole();
+  void set_initial_deutsch();
+
  private:
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
@@ -30,7 +34,6 @@ class dec_field_solver : public system_t {
 
   void apply_damping(buffer<Scalar>& E, buffer<Scalar>& B, double dt);
   void apply_inner_bc(buffer<Scalar>& E, buffer<Scalar>& B, double time);
-  void set_initial_dipole();
 
   Scalar project_B_on_face(int face_idx, Scalar Bx, Scalar By, Scalar Bz) const;
   Scalar project_E_on_edge(int edge_idx, Scalar Ex, Scalar Ey, Scalar Ez) const;
@@ -67,6 +70,9 @@ class dec_field_solver : public system_t {
   bool m_use_implicit = false;
   Scalar m_beta = 0.55;
   int m_implicit_iters = 4;
+
+  // Use full Deutsch retarded fields for inner BC (for convergence testing)
+  bool m_use_deutsch_bc = false;
 
   double m_time = 0.0;
 };

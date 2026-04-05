@@ -188,11 +188,14 @@ class buffer {
     assign_dev(start, end, value);
   }
 
-  /// Assign a single value to part of the buffer. Calls the host or device
-  /// version depending on the memory location
+  /// Assign a single value to part of the buffer. For host_device buffers,
+  /// fills both host and device sides.
   void assign(size_t start, size_t end, const T& value) {
     if (m_type == MemType::host_only) {
       assign_host(start, end, value);
+    } else if (m_type == MemType::host_device) {
+      assign_host(start, end, value);
+      assign_dev(start, end, value);
     } else {
       assign_dev(start, end, value);
     }

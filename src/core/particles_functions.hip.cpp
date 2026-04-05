@@ -23,6 +23,7 @@
 #include "framework/config.h"
 #include "framework/environment.h"
 #include "particles.h"
+#include "systems/prismatic/prismatic_particles.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"

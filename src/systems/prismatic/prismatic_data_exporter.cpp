@@ -75,6 +75,15 @@ void prismatic_data_exporter::write_mesh() {
   // Write radii
   file.write(m_mesh.radii.host_ptr(), m_mesh.m_N_r + 1, "radii");
 
+  // Write sphere mesh data (needed for Whitney interpolation)
+  file.write(m_mesh.sphere_vx.host_ptr(), m_mesh.m_N_vert_s, "sphere_vx");
+  file.write(m_mesh.sphere_vy.host_ptr(), m_mesh.m_N_vert_s, "sphere_vy");
+  file.write(m_mesh.sphere_vz.host_ptr(), m_mesh.m_N_vert_s, "sphere_vz");
+  file.write(m_mesh.tri_verts.host_ptr(), m_mesh.m_N_tri * 3, "tri_verts");
+  file.write(m_mesh.tri_edges_s.host_ptr(), m_mesh.m_N_tri * 3, "tri_edges_s");
+  file.write(m_mesh.tri_edge_signs.host_ptr(), m_mesh.m_N_tri * 3, "tri_edge_signs");
+  file.write(m_mesh.tri_neighbor.host_ptr(), m_mesh.m_N_tri * 3, "tri_neighbor");
+
   // Write mesh parameters
   file.write(m_mesh.m_L, "L");
   file.write(m_mesh.m_N_r, "N_r");
@@ -94,6 +103,10 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   std::snprintf(fname, sizeof(fname), "%s/step_%06u.h5",
                 m_output_dir.c_str(), step);
   auto file = hdf_create(std::string(fname));
+
+  // Sync fields to host (no-op for host-only buffers)
+  m_solver.E_e().copy_to_host();
+  m_solver.B_f().copy_to_host();
 
   // Write field data
   file.write(m_solver.E_e().host_ptr(), m_mesh.m_N_edges, "E_e");

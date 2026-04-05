@@ -298,6 +298,7 @@ endfunction()
 
 add_subdirectory(src)
 add_subdirectory(problems)
+add_subdirectory(python)
 
 if(build_tests)
   add_subdirectory(tests)

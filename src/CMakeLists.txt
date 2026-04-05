@@ -37,9 +37,12 @@ set(Aperture_src
   "systems/prismatic/prismatic_deposit.cpp"
   "systems/prismatic/prismatic_ptc_updater.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"
+  "systems/prismatic/prismatic_sph_output.cpp"
   )
 set_source_files_properties(${Aperture_src} PROPERTIES LANGUAGE CXX)
 add_library(Aperture STATIC ${Aperture_src})
+set_target_properties(Aperture PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(Aperture fmt::fmt ${MPI_LIBRARIES}
   ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 

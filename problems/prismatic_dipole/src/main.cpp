@@ -2,6 +2,7 @@
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_sph_output.h"
 #include "utils/logger.h"
 
 using namespace Aperture;
@@ -24,8 +25,8 @@ int main(int argc, char* argv[]) {
 
   // Register systems
   auto solver = env.register_system<dec_field_solver_t>(mesh);
-  auto exporter =
-      env.register_system<prismatic_data_exporter>(mesh, *solver);
+  env.register_system<prismatic_data_exporter>(mesh, *solver);
+  env.register_system<prismatic_sph_output>(mesh, solver->E_e(), solver->B_f());
 
   env.init();
   env.run();

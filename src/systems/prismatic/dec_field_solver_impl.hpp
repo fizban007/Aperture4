@@ -217,20 +217,16 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
 
   // Step 2: Euler predict — F* = F^n + dt * RHS^n
   ExecPolicy::launch(
-      [N = mp.N_edges, dt] LAMBDA(auto E, auto tmpE, auto dE) {
-        ExecPolicy::loop(0, N, [&] LAMBDA(int e) {
+      [Ne = mp.N_edges, Nf = mp.N_faces, dt]
+      LAMBDA(auto E, auto tmpE, auto dE, auto B, auto tmpB, auto dB) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
           tmpE[e] = E[e] + dt * dE[e];
         });
-      },
-      m_E_e, m_tmp_E, m_dE_dt);
-
-  ExecPolicy::launch(
-      [N = mp.N_faces, dt] LAMBDA(auto B, auto tmpB, auto dB) {
-        ExecPolicy::loop(0, N, [&] LAMBDA(int f) {
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
           tmpB[f] = B[f] + dt * dB[f];
         });
       },
-      m_B_f, m_tmp_B, m_dB_dt);
+      m_E_e, m_tmp_E, m_dE_dt, m_B_f, m_tmp_B, m_dB_dt);
 
   // Apply BC to the Euler predict so the first RHS evaluation is consistent
   apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
@@ -238,45 +234,35 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
 
   // Step 3: Iterate corrector
   for (int iter = 0; iter < m_implicit_iters; iter++) {
-    // Compute RHS at predicted state
     compute_rhs(m_tmp_E, m_tmp_B, m_dE_dt_new, m_dB_dt_new);
 
     // F* = F^n + dt * (alpha * RHS^n + beta * RHS*)
     ExecPolicy::launch(
-        [N = mp.N_edges, dt, alpha, beta]
-        LAMBDA(auto E, auto tmpE, auto dE_n, auto dE_new) {
-          ExecPolicy::loop(0, N, [&] LAMBDA(int e) {
+        [Ne = mp.N_edges, Nf = mp.N_faces, dt, alpha, beta]
+        LAMBDA(auto E, auto tmpE, auto dE_n, auto dE_new,
+               auto B, auto tmpB, auto dB_n, auto dB_new) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
             tmpE[e] = E[e] + dt * (alpha * dE_n[e] + beta * dE_new[e]);
           });
-        },
-        m_E_e, m_tmp_E, m_dE_dt, m_dE_dt_new);
-
-    ExecPolicy::launch(
-        [N = mp.N_faces, dt, alpha, beta]
-        LAMBDA(auto B, auto tmpB, auto dB_n, auto dB_new) {
-          ExecPolicy::loop(0, N, [&] LAMBDA(int f) {
+          ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
             tmpB[f] = B[f] + dt * (alpha * dB_n[f] + beta * dB_new[f]);
           });
         },
+        m_E_e, m_tmp_E, m_dE_dt, m_dE_dt_new,
         m_B_f, m_tmp_B, m_dB_dt, m_dB_dt_new);
 
-    // Apply BC to the predicted fields (critical for convergence near boundaries)
     apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
     ExecPolicy::sync();
   }
 
-  // Step 4: Copy result back: F^{n+1} = F*
+  // Step 4: Copy result back — F^{n+1} = F*
   ExecPolicy::launch(
-      [N = mp.N_edges] LAMBDA(auto E, auto tmpE) {
-        ExecPolicy::loop(0, N, [&] LAMBDA(int e) { E[e] = tmpE[e]; });
+      [Ne = mp.N_edges, Nf = mp.N_faces]
+      LAMBDA(auto E, auto tmpE, auto B, auto tmpB) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { E[e] = tmpE[e]; });
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B[f] = tmpB[f]; });
       },
-      m_E_e, m_tmp_E);
-
-  ExecPolicy::launch(
-      [N = mp.N_faces] LAMBDA(auto B, auto tmpB) {
-        ExecPolicy::loop(0, N, [&] LAMBDA(int f) { B[f] = tmpB[f]; });
-      },
-      m_B_f, m_tmp_B);
+      m_E_e, m_tmp_E, m_B_f, m_tmp_B);
 
   // Step 5: Damping + BC + clear J
   apply_damping(m_E_e, m_B_f, m_J_e, dt);

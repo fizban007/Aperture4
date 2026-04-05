@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   // Systems find shared data (E, B, J, rho, particles) from env
   env.register_system<dec_field_solver_t>(mesh);
   env.register_system<prismatic_data_exporter>(mesh);
-  auto updater = env.register_system<prismatic_ptc_updater>(mesh);
+  auto updater = env.register_system<prismatic_ptc_updater_t>(mesh);
   env.register_system<prismatic_sph_output>(mesh);
 
   env.init();

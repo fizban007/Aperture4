@@ -2,6 +2,6 @@
 
 namespace Aperture {
 
-template class prismatic_ptc_updater<prismatic_exec_policy_host>;
+template class prismatic_ptc_updater<prismatic_exec_policy_gpu>;
 
 }  // namespace Aperture

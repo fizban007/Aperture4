@@ -53,7 +53,7 @@ HD_INLINE bool cartesian_to_local_impl(
 // Can be called from tests or from the system_t::update().
 // =========================================================================
 
-inline void update_single_particle(
+HOST_DEVICE inline void update_single_particle(
     const prismatic_mesh_ptrs& mp, int N_r,
     prism_ptc_ptrs& ptrs, size_t n,
     const Scalar* E_e, const Scalar* B_f,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/detail/macro_trickery.h"
+#include "core/gpu_translation_layer.h"
 #include "core/particles.h"
 #include "core/typedefs_and_constants.h"
 
@@ -35,12 +36,12 @@ namespace Aperture {
 using prismatic_particles_t = particles_base<prism_ptc_buffer>;
 
 // Cell encoding helpers
-inline uint32_t prism_cell_encode(int tri_idx, int layer_idx, int N_r) {
+HD_INLINE uint32_t prism_cell_encode(int tri_idx, int layer_idx, int N_r) {
   return static_cast<uint32_t>(tri_idx * N_r + layer_idx);
 }
 
-inline void prism_cell_decode(uint32_t cell, int N_r,
-                              int& tri_idx, int& layer_idx) {
+HD_INLINE void prism_cell_decode(uint32_t cell, int N_r,
+                                 int& tri_idx, int& layer_idx) {
   tri_idx = cell / N_r;
   layer_idx = cell % N_r;
 }

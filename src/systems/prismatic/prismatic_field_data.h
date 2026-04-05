@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/buffer.hpp"
+#include "core/data_adapter.h"
 #include "core/typedefs_and_constants.h"
 #include "framework/data.h"
 #include "systems/prismatic/prismatic_mesh.h"
@@ -54,5 +55,27 @@ class prismatic_particle_data : public data_t, public prismatic_particles_t {
 
   void init() override { prismatic_particles_t::init(); }
 };
+
+// Adapter specializations so ExecPolicy::launch can adapt particle data
+// to the correct pointer struct for host/device execution.
+template <>
+struct host_adapter<prismatic_particle_data> {
+  typedef prism_ptc_ptrs type;
+  typedef prism_ptc_ptrs const_type;
+  static inline type apply(prismatic_particle_data& d) {
+    return d.get_host_ptrs();
+  }
+};
+
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+template <>
+struct gpu_adapter<prismatic_particle_data> {
+  typedef prism_ptc_ptrs type;
+  typedef prism_ptc_ptrs const_type;
+  static inline type apply(prismatic_particle_data& d) {
+    return d.get_dev_ptrs();
+  }
+};
+#endif
 
 }  // namespace Aperture

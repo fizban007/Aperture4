@@ -4,6 +4,7 @@
 # The GCA pusher guides them along the tilted dipole field lines.
 # Field solver is disabled (static background B).
 #
+# Binary: ./bin/streaming_test
 # Expected result: field-aligned density bands tilted at the obliquity
 # angle, with depletion near the magnetic equator.
 

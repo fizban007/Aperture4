@@ -28,11 +28,13 @@ HD_INLINE void dipole_B_impl(Scalar x, Scalar y, Scalar z,
 }
 
 // Full retarded Deutsch solution for a rotating magnetic dipole (c = 1).
+// Derived from the Hertz potential Π = m(t_r)/r, with A = ∇×Π:
 //
-//   B(r,t) = [3n(n·m_r) - m_r]/r³ + [3n(n·dm_r) - dm_r]/r² + [ddm_r - n(n·ddm_r)]/r
-//   E(r,t) = -(n × dm_r)/r² - (n × ddm_r)/r
+//   A = (m_r × n̂)/r² + (ṁ_r × n̂)/r
+//   B = ∇×A = [3n̂(n̂·m_r) - m_r]/r³ + [3n̂(n̂·ṁ_r) - ṁ_r]/r² + [n̂(n̂·m̈_r) - m̈_r]/r
+//   E = -∂A/∂t = (n̂ × ṁ_r)/r² + (n̂ × m̈_r)/r
 //
-// where n = r̂, m_r = m(t - r), dm_r = ṁ(t - r), ddm_r = m̈(t - r).
+// where n̂ = r̂, m_r = m(t - r), ṁ_r = ṁ(t - r), m̈_r = m̈(t - r).
 HD_INLINE void deutsch_B_impl(Scalar x, Scalar y, Scalar z, Scalar time,
                                Scalar Bp, Scalar Omega, Scalar obliquity,
                                Scalar& Bx, Scalar& By, Scalar& Bz) {
@@ -72,11 +74,11 @@ HD_INLINE void deutsch_B_impl(Scalar x, Scalar y, Scalar z, Scalar time,
   Scalar Biy = (Scalar(3.0)*ndotdm*ny - dmy) / r2;
   Scalar Biz = (Scalar(3.0)*ndotdm*nz) / r2;
 
-  // Radiation field: [ddm - n(n·ddm)] / r
+  // Radiation field: [n(n·ddm) - ddm] / r
   Scalar ndotddm = nx*ddmx + ny*ddmy;
-  Scalar Brx = (ddmx - ndotddm*nx) / r;
-  Scalar Bry = (ddmy - ndotddm*ny) / r;
-  Scalar Brz = (-ndotddm*nz) / r;
+  Scalar Brx = (ndotddm*nx - ddmx) / r;
+  Scalar Bry = (ndotddm*ny - ddmy) / r;
+  Scalar Brz = (ndotddm*nz) / r;
 
   Bx = Bnx + Bix + Brx;
   By = Bny + Biy + Bry;
@@ -103,8 +105,8 @@ HD_INLINE void deutsch_E_impl(Scalar x, Scalar y, Scalar z, Scalar time,
 
   Scalar nx = x / r, ny = y / r, nz = z / r;
 
-  // E = -(n × dm)/r² - (n × ddm)/r
-  // n × dm = (ny*0 - nz*dmy, nz*dmx - nx*0, nx*dmy - ny*dmx)
+  // E = +(n × dm)/r² + (n × ddm)/r
+  // n × dm = (-nz*dmy, nz*dmx, nx*dmy - ny*dmx)
   Scalar cx1 = -nz * dmy;
   Scalar cy1 =  nz * dmx;
   Scalar cz1 =  nx * dmy - ny * dmx;
@@ -113,9 +115,9 @@ HD_INLINE void deutsch_E_impl(Scalar x, Scalar y, Scalar z, Scalar time,
   Scalar cy2 =  nz * ddmx;
   Scalar cz2 =  nx * ddmy - ny * ddmx;
 
-  Ex = -cx1 / r2 - cx2 / r;
-  Ey = -cy1 / r2 - cy2 / r;
-  Ez = -cz1 / r2 - cz2 / r;
+  Ex = cx1 / r2 + cx2 / r;
+  Ey = cy1 / r2 + cy2 / r;
+  Ez = cz1 / r2 + cz2 / r;
 }
 
 
@@ -702,13 +704,13 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
 
     bx = (3.0*ndotm*nx - mx) / r3
        + (3.0*ndotdm*nx - dmx) / r2
-       + (ddmx - ndotddm*nx) / r;
+       + (ndotddm*nx - ddmx) / r;
     by = (3.0*ndotm*ny - my) / r3
        + (3.0*ndotdm*ny - dmy) / r2
-       + (ddmy - ndotddm*ny) / r;
+       + (ndotddm*ny - ddmy) / r;
     bz = (3.0*ndotm*nz - mz) / r3
        + 3.0*ndotdm*nz / r2
-       + (-ndotddm*nz) / r;
+       + ndotddm*nz / r;
   };
 
   // Deutsch E field at (x,y,z) for t = 0
@@ -728,15 +730,15 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
 
     double nx = x / r, ny = y / r, nz = z / r;
 
-    // E = -(n × dm)/r² - (n × ddm)/r
+    // E = +(n × dm)/r² + (n × ddm)/r
     double cx1 = -nz * dmy, cy1 = nz * dmx;
     double cz1 = nx * dmy - ny * dmx;
     double cx2 = -nz * ddmy, cy2 = nz * ddmx;
     double cz2 = nx * ddmy - ny * ddmx;
 
-    ex = -cx1 / r2 - cx2 / r;
-    ey = -cy1 / r2 - cy2 / r;
-    ez = -cz1 / r2 - cz2 / r;
+    ex = cx1 / r2 + cx2 / r;
+    ey = cy1 / r2 + cy2 / r;
+    ez = cz1 / r2 + cz2 / r;
   };
 
   int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);

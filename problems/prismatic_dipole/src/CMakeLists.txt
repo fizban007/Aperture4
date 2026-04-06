@@ -7,5 +7,5 @@ add_dependencies(problems vacuum_dipole)
 add_aperture_executable(streaming_test "streaming_test.cpp")
 add_dependencies(problems streaming_test)
 
-add_aperture_executable(slice_fields "slice_fields.cpp")
-add_dependencies(problems slice_fields)
+# add_aperture_executable(slice_fields "slice_fields.cpp")
+# add_dependencies(problems slice_fields)

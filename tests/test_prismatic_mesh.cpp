@@ -959,7 +959,7 @@ static void local_to_xyz(const prismatic_mesh& mesh, uint32_t cell,
                           Scalar x1, Scalar x2, Scalar x3,
                           Scalar& x, Scalar& y, Scalar& z) {
   int tri, layer;
-  prism_cell_decode(cell, mesh.m_N_r, tri, layer);
+  prism_cell_decode(cell, mesh.m_N_tri, tri, layer);
   Scalar l3 = 1.0f - x1 - x2;
   int v0 = mesh.tri_verts[tri * 3 + 0];
   int v1 = mesh.tri_verts[tri * 3 + 1];
@@ -1011,7 +1011,7 @@ struct PtcTestEnv {
     p.p1[idx] = px; p.p2[idx] = py; p.p3[idx] = pz;
     p.E[idx] = std::sqrt(Scalar(1) + px*px + py*py + pz*pz);
     p.weight[idx] = weight;
-    p.cell[idx] = prism_cell_encode(tri, layer, mesh.m_N_r);
+    p.cell[idx] = prism_cell_encode(tri, layer, mesh.m_N_tri);
     p.flag[idx] = flag; p.id[idx] = idx;
     ptc.set_num(idx + 1);
     return static_cast<int>(idx);
@@ -1021,7 +1021,7 @@ struct PtcTestEnv {
     auto ptrs = ptc.get_host_ptrs();
     // Clear J (E and B stay zero for free-streaming tests)
     J.data().assign(exec_tags::host{}, 0, mesh.m_N_edges, Scalar(0));
-    update_particles_loop(mesh.host_ptrs(), mesh.m_N_r, ptrs, ptc.number(),
+    update_particles_loop(mesh.host_ptrs(), mesh.m_N_tri, ptrs, ptc.number(),
                           E.host_ptr(), B.host_ptr(),
                           J.host_ptr(), nullptr,
                           Scalar(-1), Scalar(1), dt);

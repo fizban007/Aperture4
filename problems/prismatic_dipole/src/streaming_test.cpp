@@ -24,12 +24,13 @@ int main(int argc, char* argv[]) {
   mesh.copy_to_device();
 #endif
 
-  env.register_system<dec_field_solver_t>(mesh);
+  auto solver = env.register_system<dec_field_solver_t>(mesh);
   env.register_system<prismatic_data_exporter>(mesh);
   auto updater = env.register_system<prismatic_ptc_updater_t>(mesh);
   env.register_system<prismatic_sph_output>(mesh);
 
   env.init();
+  solver->set_initial_dipole();
 
   // ================================================================
   // Volume-fill injection: place particles in every prism
@@ -113,7 +114,7 @@ int main(int argc, char* argv[]) {
           }
 
           ptrs.weight[idx] = 1.0;
-          ptrs.cell[idx] = prism_cell_encode(t, k, N_r);
+          ptrs.cell[idx] = prism_cell_encode(t, k, mesh.m_N_tri);
           ptrs.flag[idx] = gen_ptc_type_flag(PtcType::electron);
           ptrs.id[idx] = idx;
           updater->particles()->set_num(idx + 1);

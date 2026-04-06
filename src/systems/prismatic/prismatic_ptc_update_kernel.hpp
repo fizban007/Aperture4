@@ -243,14 +243,14 @@ HD_INLINE GCAPushResult gca_push(
 // =========================================================================
 
 HOST_DEVICE inline void update_single_particle(
-    const prismatic_mesh_ptrs& mp, int N_r,
+    const prismatic_mesh_ptrs& mp, int N_tri,
     prism_ptc_ptrs& ptrs, size_t n,
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,
     Scalar q, Scalar m, Scalar dt,
     bool use_gca = false, bool include_curvature = false) {
   int tri_idx, layer_idx;
-  prism_cell_decode(ptrs.cell[n], N_r, tri_idx, layer_idx);
+  prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
   Scalar l3 = Scalar(1) - l1 - l2;
   Scalar zeta = ptrs.x3[n];
@@ -341,12 +341,12 @@ HOST_DEVICE inline void update_single_particle(
 
   // Store new position
   ptrs.x1[n] = new_l1; ptrs.x2[n] = new_l2; ptrs.x3[n] = new_zeta;
-  ptrs.cell[n] = prism_cell_encode(new_tri, new_layer, N_r);
+  ptrs.cell[n] = prism_cell_encode(new_tri, new_layer, N_tri);
 }
 
 // Update all particles in a loop (CPU version).
 inline void update_particles_loop(
-    const prismatic_mesh_ptrs& mp, int N_r,
+    const prismatic_mesh_ptrs& mp, int N_tri,
     prism_ptc_ptrs& ptrs, size_t num,
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,
@@ -356,7 +356,7 @@ inline void update_particles_loop(
     if (ptrs.cell[n] == empty_cell) continue;
     int sp = get_ptc_type(ptrs.flag[n]);
     Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
-    update_single_particle(mp, N_r, ptrs, n, E_e, B_f, J_e, rho,
+    update_single_particle(mp, N_tri, ptrs, n, E_e, B_f, J_e, rho,
                            q, mass_e, dt, use_gca, include_curvature);
   }
 }

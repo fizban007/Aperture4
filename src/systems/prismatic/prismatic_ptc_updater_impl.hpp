@@ -41,7 +41,7 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
 template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int N_r = mp.N_r;
+  int N_tri = mp.N_tri;
   size_t num = m_ptc->number();
   Scalar charge_e = m_charge_e;
   Scalar mass_e = m_mass_e;
@@ -63,13 +63,13 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   bool use_gca = m_use_gca;
   bool include_curvature = m_include_curvature;
   ExecPolicy::launch(
-      [num, N_r, charge_e, mass_e, dt, mp, use_gca, include_curvature]
+      [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
           int sp = get_ptc_type(ptc.flag[n]);
           Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
-          update_single_particle(mp, N_r, ptc, n, E_e, B_f, J_e, rho,
+          update_single_particle(mp, N_tri, ptc, n, E_e, B_f, J_e, rho,
                                  q, mass_e, Scalar(dt),
                                  use_gca, include_curvature);
         });
@@ -103,7 +103,7 @@ int prismatic_ptc_updater<ExecPolicy>::add_particle(
   ptrs.p1[idx] = px; ptrs.p2[idx] = py; ptrs.p3[idx] = pz;
   ptrs.E[idx] = std::sqrt(Scalar(1) + px*px + py*py + pz*pz);
   ptrs.weight[idx] = weight;
-  ptrs.cell[idx] = prism_cell_encode(tri_idx, layer_idx, m_mesh.m_N_r);
+  ptrs.cell[idx] = prism_cell_encode(tri_idx, layer_idx, m_mesh.m_N_tri);
   ptrs.flag[idx] = flag;
   ptrs.id[idx] = idx;
   m_ptc->set_num(idx + 1);

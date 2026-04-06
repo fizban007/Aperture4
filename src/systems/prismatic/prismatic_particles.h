@@ -14,9 +14,9 @@
 //
 // Momentum: Cartesian (p1, p2, p3)
 //
-// Cell encoding:
-//   cell = tri_idx * N_r + layer_idx
-//   Decode: tri_idx = cell / N_r,  layer_idx = cell % N_r
+// Cell encoding (shell-major, matches face/edge layout):
+//   cell = layer_idx * N_tri + tri_idx
+//   Decode: layer_idx = cell / N_tri,  tri_idx = cell % N_tri
 
 DEF_PARTICLE_STRUCT(prism_ptc,
                     (Aperture::Scalar, x1, 0.0)
@@ -36,14 +36,14 @@ namespace Aperture {
 using prismatic_particles_t = particles_base<prism_ptc_buffer>;
 
 // Cell encoding helpers
-HD_INLINE uint32_t prism_cell_encode(int tri_idx, int layer_idx, int N_r) {
-  return static_cast<uint32_t>(tri_idx * N_r + layer_idx);
+HD_INLINE uint32_t prism_cell_encode(int tri_idx, int layer_idx, int N_tri) {
+  return static_cast<uint32_t>(layer_idx * N_tri + tri_idx);
 }
 
-HD_INLINE void prism_cell_decode(uint32_t cell, int N_r,
+HD_INLINE void prism_cell_decode(uint32_t cell, int N_tri,
                                  int& tri_idx, int& layer_idx) {
-  tri_idx = cell / N_r;
-  layer_idx = cell % N_r;
+  layer_idx = cell / N_tri;
+  tri_idx = cell % N_tri;
 }
 
 }  // namespace Aperture

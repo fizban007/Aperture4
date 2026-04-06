@@ -78,14 +78,33 @@ main(int argc, char* argv[]) {
       std::cout << "GPU memory: free=" << free_mem/1.0e9 << "GiB, total=" << total_mem/1.0e9 << "GiB" << std::endl;
   }
 
+  // Verify ALL received values, not just the last one
   std::vector<double> host_recv_buffer(N);
   hipMemcpy(host_recv_buffer.data(), dev_recv_buffer, N * sizeof(double), hipMemcpyDeviceToHost);
-  std::cout << "value is " << host_recv_buffer[N - 1] << " on rank " << rank << std::endl;
-  
+
+  double expected = (double)src;
+  int num_errors = 0;
+  int first_error_idx = -1;
+  for (int i = 0; i < N; i++) {
+    if (host_recv_buffer[i] != expected) {
+      if (num_errors == 0) first_error_idx = i;
+      num_errors++;
+    }
+  }
+  if (num_errors > 0) {
+    std::cout << "FAIL: rank " << rank << " received " << num_errors
+              << " / " << N << " corrupted values. First error at index "
+              << first_error_idx << ": got " << host_recv_buffer[first_error_idx]
+              << ", expected " << expected << std::endl;
+  } else {
+    std::cout << "PASS: rank " << rank << " received all " << N
+              << " values correctly from rank " << src << std::endl;
+  }
+
   hipFree(dev_send_buffer);
   hipFree(dev_recv_buffer);
 
   MPI_Finalize();
-  
-  return 0;
+
+  return (num_errors > 0) ? 1 : 0;
 }

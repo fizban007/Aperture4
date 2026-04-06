@@ -51,122 +51,6 @@ template <typename Conf>
 void initial_vacuum_wald_limited(vector_field<Conf> &B0, vector_field<Conf> &D0,
                                  const grid_ks_t<Conf> &grid, Scalar r_in,
                                  Scalar r_out);
-
-// HOST_DEVICE Scalar Delta(Scalar r, Scalar a){
-//   return r * r - 2.0 * r + a * a;
-// }
-
-// HOST_DEVICE Scalar Sigma( Scalar r, Scalar th,Scalar a){
-//   return r * r + a * a * math::cos(th) * math::cos(th);
-// }
-
-// HOST_DEVICE Scalar A(Scalar r, Scalar th, Scalar a){
-//   return (a * a + r * r) * (a * a + r * r) - a * a * Delta(r,a) *
-//   math::sin(th) * math::sin(th);
-// }
-
-// HOST_DEVICE Scalar blbetaphi(Scalar r, Scalar th, Scalar a){
-//   return  - 2.0 * a * r/A(r, th, a);
-// }
-
-// HOST_DEVICE Scalar blalpha(Scalar r, Scalar th, Scalar a){
-//   return math::sqrt(Delta(r,a) * Sigma(r,th,a)/A(r, th, a));
-// }
-
-// HOST_DEVICE Scalar ksalpha(Scalar r, Scalar th, Scalar a){
-//   return math::sqrt(Delta(r,a) * Sigma(r,th,a)/(r * r + a * a * math::cos(th)
-//   * math::cos(th)));
-// }
-
-// HOST_DEVICE Scalar ksDetGamma(Scalar r, Scalar th, Scalar a) {
-//   Scalar costh = math::cos(th);
-//   Scalar sinth = math::sin(th);
-//   Scalar common = r * r + a * a * costh * costh;
-//   return common * (r * r + 2.0 * r + a * a * costh * costh) * sinth * sinth;
-// }
-
-// //Emin is in in the middle
-// HOST_DEVICE Scalar Emin(Scalar r, Scalar th, Scalar a, Scalar Lz){
-//   Scalar Av = A(r, th, a);
-//   Scalar C = math::sqrt(Lz * Lz * Sigma(r,th,a)/(Av * math::sin(th) *
-//   math::sin(th)) + 1.0);//unsure what to call this Scalar alpha = blalpha(r,
-//   th, a); Scalar beta3 = blbetaphi(r, th, a); return  - beta3 * Lz + alpha *
-//   C;
-// }
-
-// HOST_DEVICE Scalar globalEmin(Scalar a, Scalar r0){
-//   Scalar r03= r0 * r0 * r0;
-//   Scalar term= a*a*a + a * r0 * (r0 - 2.0);
-//   Scalar sqrtterm = r03 * term * term;
-//   Scalar num = a*a * r0*r0 * (5.0-3.0 * r0) + r03 * (r0-3.0) * (r0-2.0) *
-//   (r0-2.0) - 2.0 * math::sqrt(sqrtterm); Scalar denom = r03 * ( (r0-3.0) *
-//   (r0-3.0) * r0 - 4.0 * a*a ); return math::sqrt(num/denom);
-// }
-
-// HOST_DEVICE Scalar AngularMomentum(Scalar a,  Scalar r0, Scalar E0){
-//   Scalar a3= a * a * a;
-//   Scalar term= a3+ a * r0 * (r0 - 2.0);
-//   Scalar sqrtterm = r0*r0*r0 * term * term;
-//   Scalar num = a * a3 + a*a * r0 *(3.0* r0 - 4.0) - math::sqrt(sqrtterm);
-//   Scalar denom = a * (a*a - (r0 - 2.0)*(r0 - 2.0) * r0);
-//   return E0*num/denom;
-// }
-
-// HOST_DEVICE Scalar energyMax(Scalar a, Scalar rmin, Scalar Lz){
-//   return Emin(rmin,M_PI/2, a, Lz);
-// }
-
-// HOST_DEVICE vec_t<Scalar,3> torus_momentum(Scalar r, Scalar th, Scalar a,
-// Scalar Emax, Scalar Temp, Scalar Lz, rand_state& state) {
-//   // Minimum allowed energy at this position
-//   Scalar Sigmav = Sigma(r,th,a);
-//   Scalar Av = A(r, th, a);
-//   Scalar C = math::sqrt(Lz * Lz * Sigmav/(Av * math::sin(th) * math::sin(th))
-//   + 1);//unsure what to call this Scalar alpha = blalpha(r, th, a); Scalar
-//   beta3 = blbetaphi(r, th, a); Scalar Emin_val =  - beta3 * Lz + alpha * C;
-//   if ( Emin_val >=   Emax) {
-//     // printf("Emin >=  Emax: r - >%f, th - >%f, Emin - >%f, Emax - >%f\n",
-//     r, th, Emin_val,Emax); return vec_t<Scalar, 3>{0, 0, 0};
-//   }
-//   Scalar That = Temp/(alpha * C);
-//   Scalar Deltav = Delta(r,a);
-//   //if T<<1
-//   Scalar u1 =  rng_uniform<Scalar>(state);
-//   Scalar phatval = (Emax + beta3 * Lz)/(alpha * C);
-//   Scalar phatmax2 =  phatval * phatval - 1;
-//   Scalar Z = 1 - math::exp( - phatmax2/(2.0 * That));
-//   Scalar phat = math::sqrt( - 2.0 * That * math::log(1 - u1 * Z));
-//   Scalar energy =  - beta3 * Lz + alpha * C * math::sqrt(1 + phat * phat);
-//   Scalar u2 =  rng_uniform<Scalar>(state);
-//   Scalar blp_r = C * math::sqrt(Sigmav/Deltav) * phat * math::cos(2.0 * M_PI
-//   * u2); Scalar blp_th = C * math::sqrt(Sigmav) * phat * math::sin(2.0 * M_PI
-//   * u2); Scalar ksp_r = blp_r - (a * Lz - 2.0 * r * energy) / Deltav;
-//   // printf("r - >%f, th - >%f, Emin - >%f, Emax - >%f, pt - >%f, pr - >%f,
-//   pth - >%f,pphi - >%f,phat - >%f,phatmax - >%f\n", r, th, Emin_val,Emax, -
-//   energy,ksp_r,blp_th,Lz,phat,math::sqrt(phatmax2));
-//   // Scalar s = 0.01;
-//   // if(14 + s>r && r>14 - s && th>M_PI/2 - s && th<M_PI/2 + s){
-//   //   printf("%f,",phat);
-//   // }
-//   return vec_t<Scalar, 3>{ksp_r, blp_th, Lz};
-//   // printf("Failed: r = %f, th = %f, Emin = %f,Emax = %f, \n", r, th,
-//   Emin_val,Emax);
-// }
-
-// HOST_DEVICE Scalar torus_Density(Scalar r, Scalar th, Scalar a, Scalar E0,
-// Scalar Emax, Scalar Temp, Scalar Lz) {
-//   Scalar Deltav = Delta(r,a);
-//   Scalar Sigmav = Sigma(r, th, a);
-//   Scalar Av = A(r, th, a);
-//   Scalar sinth = math::sin(th);
-//   Scalar prefactor = 2.0 * M_PI * Temp/math::sqrt(Deltav* sinth * sinth);
-//   Scalar Eminv = Emin(r, th, a, Lz);
-//   Scalar blS_t = prefactor * ( (Temp-Emax) * math::exp( -(Emax-E0)/Temp) -
-//   (Temp-Eminv) * math::exp( -(Eminv-E0)/Temp) ); Scalar blS_phi = prefactor *
-//   (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) ); Scalar blSt=
-//   - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav); return
-//   Metric_KS::alpha(r, th, a) * blSt;
-// }
 }  // namespace Aperture
 
 using namespace Aperture;
@@ -190,6 +74,8 @@ main(int argc, char *argv[]) {
       env.register_system<compute_moments_gr_ks<Conf, exec_policy_dynamic>>(
           grid);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
+  auto floor_injector =
+      env.register_system<bh_density_floor_injector<Conf>>(grid);
   auto tracker =
       env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
   auto radiation = env.register_system<
@@ -238,6 +124,11 @@ main(int argc, char *argv[]) {
   double r_H = 1.0 + math::sqrt(1.0 - spin * spin);
   double init_num_dens = Bp * Bp / sigma;
 
+  // The temperature is technically constrained by the setup, but allow the user
+  // to specify it if they want to.
+  double kT = 2.0 / r_pml;
+  env.params().get_value("kT", kT);
+
   // Prepare initial field
   vector_field<Conf> *B, *D, *B0, *D0;
   env.get_data("B0", &B0);
@@ -265,13 +156,32 @@ main(int argc, char *argv[]) {
       // Third function is the momentum distribution of the injected particles.
       // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
       // particular particle
-      [spin] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+      [spin, kT] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t theta = grid_ks_t<Conf>::theta(x_global[1]);
-        value_t uu0 = math::sqrt(-1.0 / Metric_KS::g_00(r, theta, spin));
-        value_t u_1 = Metric_KS::g_01(r, theta, spin) * uu0;
-        value_t u_2 = 0.0;
-        value_t u_3 = Metric_KS::g_03(r, theta, spin) * uu0;
+
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT);
+        // Now transform this momentum from the local fluid frame to the global
+        // coordinate. Use the tetrads given in Benjamin Crinquand's PhD thesis:
+        // https://theses.hal.science/tel-03406333v1/file/Thesis_Benjamin_Crinquand_final.pdf
+        // The relevant expressions are given on pages 164-165
+        // Note also that in the locally flat fluid rest frame, u^i = u_i
+        value_t h_11 = Metric_KS::g_11(r, theta, spin);
+        value_t h_22 = Metric_KS::g_22(r, theta, spin);
+        value_t h_33 = Metric_KS::g_33(r, theta, spin);
+        value_t h_13 = Metric_KS::g_13(r, theta, spin);
+        value_t scriptA = math::sqrt(h_33 / (h_11 * h_33 - h_13 * h_13));
+
+        value_t u_3 = math::sqrt(h_33) * u_d[2];
+        value_t u_2 = math::sqrt(h_22) * u_d[1];
+        value_t u_1 = u_d[0] / scriptA + (h_13 / h_33) * u_3;
+
+        // The following are from an early implementation where the plasma was
+        // initialized cold. value_t uu0 = math::sqrt(-1.0 / Metric_KS::g_00(r,
+        // theta, spin)); value_t u_1 = Metric_KS::g_01(r, theta, spin) * uu0;
+        // value_t u_2 = 0.0;
+        // value_t u_3 = Metric_KS::g_03(r, theta, spin) * uu0;
+
         return vec_t<Scalar, 3>{u_1, u_2, u_3};
       },
       // Fourth function is the particle weight, which can depend on the global

@@ -31,6 +31,7 @@
 
 add_aperture_library(gr_2d_kerr_schild
   "injector.cpp"
+  "density_floor_injector.cpp"
   "initial_condition.cpp")
 
 add_aperture_executable(grpic "main.cpp")

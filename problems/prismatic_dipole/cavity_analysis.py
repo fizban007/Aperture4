@@ -25,13 +25,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.special import spherical_jn, spherical_yn
-try:
-    # scipy >= 1.15 renamed the function and reordered the arguments
-    from scipy.special import sph_harm_y as _sph_harm_y_new
-    def _sph_harm(m, l, phi, theta):
-        return _sph_harm_y_new(l, m, theta, phi)
-except ImportError:
-    from scipy.special import sph_harm as _sph_harm  # legacy (m, l, phi, theta)
 from scipy.optimize import brentq
 
 
@@ -134,6 +127,36 @@ def inner_bc_alpha(l, k, a, polarization):
 # Real spherical harmonics (matches the C++ convention)
 # =========================================================================
 
+def _assoc_legendre_pair(l, m, x):
+    """Return (P_l^m(x), P_{l-1}^m(x)) for arrays x. Same recursion and
+    Condon-Shortley convention as cavity_modes.hpp::assoc_legendre. m >= 0,
+    l >= m. Returns 0 for the second value when l == m.
+    """
+    # P_m^m
+    Pmm = np.ones_like(x)
+    if m > 0:
+        somx2 = np.sqrt((1.0 - x) * (1.0 + x))
+        fact = 1.0
+        for _ in range(m):
+            Pmm = Pmm * (-fact * somx2)
+            fact += 2.0
+    if l == m:
+        return Pmm, np.zeros_like(x)
+    # P_{m+1}^m
+    Pmmp1 = x * (2.0 * m + 1.0) * Pmm
+    if l == m + 1:
+        return Pmmp1, Pmm
+    # Upward recursion
+    P_lm2 = Pmm
+    P_lm1 = Pmmp1
+    P_l = None
+    for ll in range(m + 2, l + 1):
+        P_l = (x * (2.0 * ll - 1.0) * P_lm1 - (ll + m - 1.0) * P_lm2) / (ll - m)
+        P_lm2 = P_lm1
+        P_lm1 = P_l
+    return P_l, P_lm2  # (P_l^m, P_{l-1}^m)
+
+
 def real_sph_harm(l, m, theta, phi):
     """Return Y_lm, ∂Y/∂θ, ∂Y/∂φ in real form (vectorized in θ, φ).
 
@@ -141,40 +164,45 @@ def real_sph_harm(l, m, theta, phi):
         m > 0:  sqrt(2) * N_l|m| * P_l^|m|(cos θ) * cos(|m| φ)
         m = 0:  N_l0  * P_l(cos θ)
         m < 0:  sqrt(2) * N_l|m| * P_l^|m|(cos θ) * sin(|m| φ)
+
+    Uses analytical derivatives:
+        dP_l^m/dθ = (l cos θ P_l^m - (l+m) P_{l-1}^m) / sin θ
     """
     am = abs(m)
-    # Use scipy's complex sph_harm and convert to real form. scipy uses
-    # the same Condon-Shortley convention.
-    Y_complex = _sph_harm(am, l, phi, theta)  # note: scipy is sph_harm(m, l, phi, theta)
+    cos_t = np.cos(theta)
+    sin_t = np.sin(theta)
+
+    Plm, Plm_lo = _assoc_legendre_pair(l, am, cos_t)
+
+    # dP/dθ — handle the (rare) sin θ ≈ 0 case
+    safe_sin = np.where(np.abs(sin_t) > 1e-14, sin_t, 1.0)
+    dPlm_dt = (l * cos_t * Plm - (l + am) * Plm_lo) / safe_sin
+    dPlm_dt = np.where(np.abs(sin_t) > 1e-14, dPlm_dt, 0.0)
+
+    # Normalization N_lm  =  sqrt((2l+1)/(4π) * (l-|m|)!/(l+|m|)!)
+    norm = np.sqrt((2.0 * l + 1.0) / (4.0 * np.pi))
+    for k in range(l - am + 1, l + am + 1):
+        norm /= np.sqrt(k)
 
     if m == 0:
-        Y = Y_complex.real
-    elif m > 0:
-        Y = np.sqrt(2.0) * Y_complex.real
+        Y = norm * Plm
+        dY_dtheta = norm * dPlm_dt
+        dY_dphi = np.zeros_like(theta)
     else:
-        Y = -np.sqrt(2.0) * Y_complex.imag  # sin(|m|φ) component
-
-    # Numerical derivatives in θ and φ. Using finite differences keeps
-    # the script self-contained without re-deriving Legendre identities.
-    dt = 1e-6
-    dp = 1e-6
-    Y_tp = _real_sph_harm_value(l, m, theta + dt, phi)
-    Y_tm = _real_sph_harm_value(l, m, theta - dt, phi)
-    Y_pp = _real_sph_harm_value(l, m, theta, phi + dp)
-    Y_pm = _real_sph_harm_value(l, m, theta, phi - dp)
-    dY_dtheta = (Y_tp - Y_tm) / (2 * dt)
-    dY_dphi = (Y_pp - Y_pm) / (2 * dp)
+        sqrt2 = np.sqrt(2.0)
+        if m > 0:
+            cos_mp = np.cos(m * phi)
+            sin_mp = np.sin(m * phi)
+            Y = sqrt2 * norm * Plm * cos_mp
+            dY_dtheta = sqrt2 * norm * dPlm_dt * cos_mp
+            dY_dphi = -sqrt2 * norm * Plm * m * sin_mp
+        else:
+            cos_mp = np.cos(am * phi)
+            sin_mp = np.sin(am * phi)
+            Y = sqrt2 * norm * Plm * sin_mp
+            dY_dtheta = sqrt2 * norm * dPlm_dt * sin_mp
+            dY_dphi = sqrt2 * norm * Plm * am * cos_mp
     return Y, dY_dtheta, dY_dphi
-
-
-def _real_sph_harm_value(l, m, theta, phi):
-    am = abs(m)
-    Y_complex = _sph_harm(am, l, phi, theta)
-    if m == 0:
-        return Y_complex.real
-    if m > 0:
-        return np.sqrt(2.0) * Y_complex.real
-    return -np.sqrt(2.0) * Y_complex.imag
 
 
 # =========================================================================
@@ -218,15 +246,15 @@ def evaluate_mode(l, m, k, alpha, amp, polarization, x, y, z, t,
     Bp = np.zeros_like(r)
 
     if polarization == 'E':  # TE
-        Et = (f / r) * dY_dphi * safe_inv_sin
-        Ep = -(f / r) * dY_dtheta
-        Br = -(l_lp1 / (omega * r * r)) * f * Y
+        Et = f * dY_dphi * safe_inv_sin
+        Ep = -f * dY_dtheta
+        Br = -(l_lp1 / (omega * r)) * f * Y
         Bt = -(rf_prime / (omega * r)) * dY_dtheta
         Bp = -(rf_prime / (omega * r)) * dY_dphi * safe_inv_sin
     else:  # TM
-        Bt = (f / r) * dY_dphi * safe_inv_sin
-        Bp = -(f / r) * dY_dtheta
-        Er = -(l_lp1 / (omega * r * r)) * f * Y
+        Bt = f * dY_dphi * safe_inv_sin
+        Bp = -f * dY_dtheta
+        Er = -(l_lp1 / (omega * r)) * f * Y
         Et = -(rf_prime / (omega * r)) * dY_dtheta
         Ep = -(rf_prime / (omega * r)) * dY_dphi * safe_inv_sin
 
@@ -370,24 +398,26 @@ def analytic_cochains(mesh, mode_args, t):
 # =========================================================================
 
 def l2_norms(mesh, A_num, A_ana, mask=None):
-    """Volume-weighted L2 norms of (A_num - A_ana) and A_ana.
+    """Discrete L2 norms of (A_num - A_ana) and A_ana, induced by the
+    diagonal DEC Hodge star.
 
-    For face cochains, divide each cochain by face area to recover a surface
-    average; for edge cochains, divide by edge length. Then integrate the
-    squared residual against the same area/length weight.
+    For face cochains:
+        ||B||^2 = Σ_f hodge2[f] * B_f^2     ≈ ∫|B|^2 dV
+    For edge cochains:
+        ||E||^2 = Σ_e (1/hodge1_inv[e]) * E_e^2     ≈ ∫|E|^2 dV
+    (The 1/hodge1_inv form avoids needing to invert the diagonal.)
 
-    Returns (||diff||_w, ||A_ana||_w) — caller decides how to normalize.
+    Returns (||diff||, ||A_ana||) — caller decides how to normalize.
     """
     if A_num.shape == mesh["face_area"].shape:
-        weights = mesh["face_area"]
+        weights = mesh["hodge2"]
     else:
-        weights = mesh["edge_length"]
-    safe_w = np.where(weights > 0, weights, 1.0)
+        # hodge1 = 1 / hodge1_inv; protect zeros from boundary tagging
+        h1inv = mesh["hodge1_inv"]
+        weights = np.where(h1inv > 0, 1.0 / np.where(h1inv > 0, h1inv, 1.0), 0.0)
 
-    diff_avg = (A_num - A_ana) / safe_w
-    ana_avg = A_ana / safe_w
-    d2 = diff_avg**2 * weights
-    a2 = ana_avg**2 * weights
+    d2 = weights * (A_num - A_ana) ** 2
+    a2 = weights * A_ana ** 2
 
     if mask is not None:
         d2 = d2[mask]

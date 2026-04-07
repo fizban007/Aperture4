@@ -294,24 +294,24 @@ inline void real_sph_harm(int l, int m, double theta, double phi,
 // via a (cos_phase, sin_phase) pair so the same routine handles different
 // initial-phase choices and snapshots at arbitrary times.
 //
-// TE mode (transverse electric, E_r = 0) — pattern:
+// Both modes are derived from a Debye potential A = r·f(r)·Y_lm·r̂.
+// Computing ∇×A directly in spherical coordinates gives the formulas below.
+//
+// TE mode (transverse electric, E_r = 0):
 //   f(r)         = j_l(kr) + α y_l(kr)
-//   E_θ_pat      = (f(r)/(r sin θ)) * ∂Y/∂φ      (per unit cos_phase)
-//   E_φ_pat      = -(f(r)/r) * ∂Y/∂θ              (per unit cos_phase)
-//   B_r_pat      = -(l(l+1)/(ω r²)) f(r) Y         (per unit sin_phase)
-//   B_θ_pat      = -((rf)'/(ω r²)) ∂Y/∂θ            (per unit sin_phase)
-//   B_φ_pat      = -((rf)'/(ω r² sin θ)) ∂Y/∂φ      (per unit sin_phase)
+//   E_θ          = (f / sin θ) ∂Y/∂φ
+//   E_φ          = -f ∂Y/∂θ
+//   B_r          = -(l(l+1)/(ω r)) f Y
+//   B_θ          = -((rf)'/(ω r)) ∂Y/∂θ
+//   B_φ          = -((rf)'/(ω r sin θ)) ∂Y/∂φ
 //
-// TM mode (B_r = 0) — pattern (swap E ↔ B in the obvious sense):
+// TM mode (B_r = 0) — same shapes with E ↔ B and an overall sign swap:
 //   g(r)         = j_l(kr) + α y_l(kr)
-//   B_θ_pat      = (g(r)/(r sin θ)) * ∂Y/∂φ        (per unit sin_phase)
-//   B_φ_pat      = -(g(r)/r) * ∂Y/∂θ                (per unit sin_phase)
-//   E_r_pat      = -(l(l+1)/(ω r²)) g(r) Y          (per unit cos_phase)
-//   E_θ_pat      = -((rg)'/(ω r²)) ∂Y/∂θ             (per unit cos_phase)
-//   E_φ_pat      = -((rg)'/(ω r² sin θ)) ∂Y/∂φ       (per unit cos_phase)
-//
-// (The 1/r² factors come from converting the spherical-coord components into
-// the orthonormal basis on the way to Cartesian; see the implementation.)
+//   B_θ          = (g / sin θ) ∂Y/∂φ
+//   B_φ          = -g ∂Y/∂θ
+//   E_r          = -(l(l+1)/(ω r)) g Y
+//   E_θ          = -((rg)'/(ω r)) ∂Y/∂θ
+//   E_φ          = -((rg)'/(ω r sin θ)) ∂Y/∂φ
 
 struct mode_params {
   int l;
@@ -390,16 +390,16 @@ inline void evaluate_mode_patterns(const mode_params& mp, double x, double y, do
 
   if (mp.is_te) {
     // TE: E has no radial component
-    Et = (f / r) * dY_dphi * safe_inv_sin;
-    Ep = -(f / r) * dY_dtheta;
-    Br = -(l_lp1 / (omega * r * r)) * f * Y;
+    Et = f * dY_dphi * safe_inv_sin;
+    Ep = -f * dY_dtheta;
+    Br = -(l_lp1 / (omega * r)) * f * Y;
     Bt = -(rf_prime / (omega * r)) * dY_dtheta;
     Bp_ = -(rf_prime / (omega * r)) * dY_dphi * safe_inv_sin;
   } else {
     // TM: B has no radial component
-    Bt = (f / r) * dY_dphi * safe_inv_sin;
-    Bp_ = -(f / r) * dY_dtheta;
-    Er = -(l_lp1 / (omega * r * r)) * f * Y;
+    Bt = f * dY_dphi * safe_inv_sin;
+    Bp_ = -f * dY_dtheta;
+    Er = -(l_lp1 / (omega * r)) * f * Y;
     Et = -(rf_prime / (omega * r)) * dY_dtheta;
     Ep = -(rf_prime / (omega * r)) * dY_dphi * safe_inv_sin;
   }

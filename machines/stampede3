@@ -1,0 +1,9 @@
+#!/bin/bash
+
+module load cmake
+module load intel/24.0
+module load impi/21.11
+module load phdf5
+
+# For H100 GPU nodes (queue: h100), also load:
+# module load cuda/12.0

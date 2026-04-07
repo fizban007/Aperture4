@@ -295,14 +295,22 @@ def evaluate_mode(l, m, k, alpha, amp, polarization, x, y, z, t,
 # Gauss quadrature (10-point on [0,1], same as validate_vacuum_dipole.py)
 # =========================================================================
 
-_gauss_xs = np.array([0.1488743389816312, 0.4333953941292472,
-                      0.6794095682990244, 0.8650633666889845,
-                      0.9739065285171717])
-_gauss_ws = np.array([0.2955242247147529, 0.2692667193099963,
-                      0.2190863625159821, 0.1494513491505806,
-                      0.0666713443086881])
-_u01 = np.concatenate([0.5 + 0.5 * _gauss_xs, 0.5 - 0.5 * _gauss_xs])
-_w01 = np.concatenate([_gauss_ws, _gauss_ws]) * 0.5
+def _gauss_legendre_01(n):
+    """n-point Gauss-Legendre nodes and weights on [0, 1]."""
+    xs, ws = np.polynomial.legendre.leggauss(n)
+    return 0.5 * (xs + 1.0), 0.5 * ws
+
+
+# Default: 5-point Gauss is exact for degree-9 polynomials. Far more than
+# needed for the smooth analytic eigenmodes — but cheap enough that lowering
+# this further only saves a few seconds. Override via --quad_order.
+_u01, _w01 = _gauss_legendre_01(5)
+
+
+def set_quad_order(n):
+    """Reset the global Gauss quadrature order (n nodes per direction)."""
+    global _u01, _w01
+    _u01, _w01 = _gauss_legendre_01(n)
 
 
 def analytic_face_flux_tri(p0, p1, p2, field_fn):
@@ -352,9 +360,15 @@ def _get_verts(mesh, indices):
 # Cochain construction from analytic mode
 # =========================================================================
 
-def analytic_cochains(mesh, mode_args, t):
+def analytic_cochains(mesh, mode_args, t,
+                       face_idx=None, edge_idx=None):
     """Compute (E_e_analytic, B_f_analytic) by Gauss quadrature of the
-    analytic eigenmode at time t."""
+    analytic eigenmode at time t.
+
+    If face_idx / edge_idx are given, only those (global) face / edge
+    indices are evaluated; the returned arrays are indexed by the same
+    subset rather than by full mesh index. This is the subsample fast
+    path used by analyze_run when --subsample > 1."""
     l, m, k, alpha, amp, polarization, start_with_e = mode_args
 
     def E_field(x, y, z):
@@ -368,27 +382,52 @@ def analytic_cochains(mesh, mode_args, t):
         return Bx, By, Bz
 
     n_tri_faces = mesh["N_tri"] * (mesh["N_r"] + 1)
-    n_rect_faces = mesh["N_edge_s"] * mesh["N_r"]
 
-    # Triangular faces
-    p0 = _get_verts(mesh, mesh["tri_face_v0"])
-    p1 = _get_verts(mesh, mesh["tri_face_v1"])
-    p2 = _get_verts(mesh, mesh["tri_face_v2"])
-    flux_tri = analytic_face_flux_tri(p0, p1, p2, B_field)
+    if face_idx is None:
+        # Triangular faces
+        p0 = _get_verts(mesh, mesh["tri_face_v0"])
+        p1 = _get_verts(mesh, mesh["tri_face_v1"])
+        p2 = _get_verts(mesh, mesh["tri_face_v2"])
+        flux_tri = analytic_face_flux_tri(p0, p1, p2, B_field)
 
-    # Rectangular faces
-    p0 = _get_verts(mesh, mesh["rect_face_v0"])
-    p1 = _get_verts(mesh, mesh["rect_face_v1"])
-    p2 = _get_verts(mesh, mesh["rect_face_v2"])
-    p3 = _get_verts(mesh, mesh["rect_face_v3"])
-    flux_rect = analytic_face_flux_quad(p0, p1, p2, p3, B_field)
+        # Rectangular faces
+        p0 = _get_verts(mesh, mesh["rect_face_v0"])
+        p1 = _get_verts(mesh, mesh["rect_face_v1"])
+        p2 = _get_verts(mesh, mesh["rect_face_v2"])
+        p3 = _get_verts(mesh, mesh["rect_face_v3"])
+        flux_rect = analytic_face_flux_quad(p0, p1, p2, p3, B_field)
 
-    B_f = np.concatenate([flux_tri, flux_rect])
+        B_f = np.concatenate([flux_tri, flux_rect])
+    else:
+        # Subsample path: evaluate only the requested face indices.
+        face_idx = np.asarray(face_idx)
+        is_tri = face_idx < n_tri_faces
+        tri_local = face_idx[is_tri]
+        rect_local = face_idx[~is_tri] - n_tri_faces
 
-    # All edges
-    x0 = _get_verts(mesh, mesh["edge_v0"])
-    x1 = _get_verts(mesh, mesh["edge_v1"])
-    E_e = analytic_edge_circ(x0, x1, E_field)
+        flux = np.zeros(face_idx.shape, dtype=float)
+        if tri_local.size > 0:
+            p0 = _get_verts(mesh, mesh["tri_face_v0"][tri_local])
+            p1 = _get_verts(mesh, mesh["tri_face_v1"][tri_local])
+            p2 = _get_verts(mesh, mesh["tri_face_v2"][tri_local])
+            flux[is_tri] = analytic_face_flux_tri(p0, p1, p2, B_field)
+        if rect_local.size > 0:
+            p0 = _get_verts(mesh, mesh["rect_face_v0"][rect_local])
+            p1 = _get_verts(mesh, mesh["rect_face_v1"][rect_local])
+            p2 = _get_verts(mesh, mesh["rect_face_v2"][rect_local])
+            p3 = _get_verts(mesh, mesh["rect_face_v3"][rect_local])
+            flux[~is_tri] = analytic_face_flux_quad(p0, p1, p2, p3, B_field)
+        B_f = flux
+
+    if edge_idx is None:
+        x0 = _get_verts(mesh, mesh["edge_v0"])
+        x1 = _get_verts(mesh, mesh["edge_v1"])
+        E_e = analytic_edge_circ(x0, x1, E_field)
+    else:
+        edge_idx = np.asarray(edge_idx)
+        x0 = _get_verts(mesh, mesh["edge_v0"][edge_idx])
+        x1 = _get_verts(mesh, mesh["edge_v1"][edge_idx])
+        E_e = analytic_edge_circ(x0, x1, E_field)
 
     return E_e, B_f
 
@@ -396,6 +435,17 @@ def analytic_cochains(mesh, mode_args, t):
 # =========================================================================
 # Error metrics
 # =========================================================================
+
+def _hodge_face_weight(mesh, face_idx=None):
+    w = mesh["hodge2"]
+    return w if face_idx is None else w[face_idx]
+
+
+def _hodge_edge_weight(mesh, edge_idx=None):
+    h1inv = mesh["hodge1_inv"]
+    w = np.where(h1inv > 0, 1.0 / np.where(h1inv > 0, h1inv, 1.0), 0.0)
+    return w if edge_idx is None else w[edge_idx]
+
 
 def l2_norms(mesh, A_num, A_ana, mask=None):
     """Discrete L2 norms of (A_num - A_ana) and A_ana, induced by the
@@ -405,16 +455,13 @@ def l2_norms(mesh, A_num, A_ana, mask=None):
         ||B||^2 = Σ_f hodge2[f] * B_f^2     ≈ ∫|B|^2 dV
     For edge cochains:
         ||E||^2 = Σ_e (1/hodge1_inv[e]) * E_e^2     ≈ ∫|E|^2 dV
-    (The 1/hodge1_inv form avoids needing to invert the diagonal.)
 
     Returns (||diff||, ||A_ana||) — caller decides how to normalize.
     """
     if A_num.shape == mesh["face_area"].shape:
-        weights = mesh["hodge2"]
+        weights = _hodge_face_weight(mesh)
     else:
-        # hodge1 = 1 / hodge1_inv; protect zeros from boundary tagging
-        h1inv = mesh["hodge1_inv"]
-        weights = np.where(h1inv > 0, 1.0 / np.where(h1inv > 0, h1inv, 1.0), 0.0)
+        weights = _hodge_edge_weight(mesh)
 
     d2 = weights * (A_num - A_ana) ** 2
     a2 = weights * A_ana ** 2
@@ -425,14 +472,46 @@ def l2_norms(mesh, A_num, A_ana, mask=None):
     return float(np.sqrt(d2.sum())), float(np.sqrt(a2.sum()))
 
 
+def l2_norms_subset(weights_sub, A_num_sub, A_ana_sub):
+    """L2 norms on a pre-selected subset (weights and values aligned)."""
+    d2 = weights_sub * (A_num_sub - A_ana_sub) ** 2
+    a2 = weights_sub * A_ana_sub ** 2
+    return float(np.sqrt(d2.sum())), float(np.sqrt(a2.sum()))
+
+
 # =========================================================================
 # Main entry points
 # =========================================================================
 
+def _infer_dt(data_dir, steps):
+    """Infer the simulation dt from the first non-zero snapshot.
+    Returns dt or None if not deducible."""
+    for step in steps:
+        if step == 0:
+            continue
+        _, _, t = load_fields(data_dir, step)
+        if step > 0 and t > 0:
+            return float(t) / float(step)
+    return None
+
+
 def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
-                amp=1.0, verbose=True):
+                amp=1.0, verbose=True, b_half_shift=False, subsample=1):
     """Compare every snapshot in data_dir against the analytic mode.
-    Returns (times, E_errors, B_errors)."""
+
+    If b_half_shift is True, evaluates the analytic B at (t - dt/2) instead
+    of t. In the Yee/leapfrog interpretation E lives at integer times t^n
+    and B lives at half-integer times t^{n-1/2}, so the snapshot's B is
+    naturally half a step behind its timestamp. Shifting removes the
+    O(dt) bias from the comparison and exposes the underlying
+    spatial+leapfrog 2nd-order error.
+
+    If subsample > 1, the L2 norm is computed only on every-Nth interior
+    face / edge — by far the dominant cost. For smooth fields the relative
+    error is essentially unchanged because both numerator and denominator
+    use the same subset.
+
+    Returns (times, E_errors, B_errors, period)."""
     mesh = load_mesh(data_dir)
     a = float(mesh["radii"][0])
     b = float(mesh["radii"][-1])
@@ -440,34 +519,49 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
     alpha = inner_bc_alpha(l, k, a, polarization)
     omega = k
     period = 2 * np.pi / omega
-    if verbose:
-        print(f"Cavity: r_min={a}, r_max={b}")
-        print(f"Mode: {polarization} l={l} m={m} n_root={n_root}")
-        print(f"  k = {k:.8f}, omega = {omega:.8f}, period T = {period:.6f}")
-        print(f"  alpha = {alpha:.6e}")
-
-    mode_args = (l, m, k, alpha, amp, polarization, start_with_e)
 
     steps = list_steps(data_dir)
     if not steps:
         raise RuntimeError(f"No step files in {data_dir}")
 
-    # Reference amplitude: ||analytic|| at the phase where each field is at
-    # its temporal max (so we have a non-vanishing denominator regardless of
-    # which snapshot we score). For start_with_e=False this is t=0 for B and
-    # t=T/4 for E; flipped for start_with_e=True.
-    face_mask = mesh["face_boundary"] == 0
-    edge_mask = mesh["edge_boundary"] == 0
+    dt = _infer_dt(data_dir, steps) if b_half_shift else None
+    b_shift = -0.5 * dt if (b_half_shift and dt is not None) else 0.0
+
+    # Pre-compute the index subset (interior elements, every-N-th).
+    interior_face_idx = np.where(mesh["face_boundary"] == 0)[0]
+    interior_edge_idx = np.where(mesh["edge_boundary"] == 0)[0]
+    if subsample > 1:
+        face_idx = interior_face_idx[::subsample]
+        edge_idx = interior_edge_idx[::subsample]
+    else:
+        face_idx = interior_face_idx
+        edge_idx = interior_edge_idx
+
+    face_w = _hodge_face_weight(mesh, face_idx)
+    edge_w = _hodge_edge_weight(mesh, edge_idx)
+
+    if verbose:
+        print(f"Cavity: r_min={a}, r_max={b}")
+        print(f"Mode: {polarization} l={l} m={m} n_root={n_root}")
+        print(f"  k = {k:.8f}, omega = {omega:.8f}, period T = {period:.6f}")
+        print(f"  alpha = {alpha:.6e}")
+        if b_half_shift:
+            print(f"  inferred dt = {dt:.6e}, B compared at t {b_shift:+.4e}")
+        print(f"  scoring on {len(face_idx)}/{len(interior_face_idx)} interior "
+              f"faces, {len(edge_idx)}/{len(interior_edge_idx)} interior edges "
+              f"(subsample={subsample})")
+
+    mode_args = (l, m, k, alpha, amp, polarization, start_with_e)
+
+    # Reference amplitude (uses the same subset).
     t_Bmax = 0.0 if not start_with_e else period / 4.0
     t_Emax = period / 4.0 if not start_with_e else 0.0
-    _, B_amp_norm = l2_norms(mesh,
-                              np.zeros(mesh["N_faces"]),
-                              analytic_cochains(mesh, mode_args, t_Bmax)[1],
-                              mask=face_mask)
-    _, E_amp_norm = l2_norms(mesh,
-                              np.zeros(mesh["N_edges"]),
-                              analytic_cochains(mesh, mode_args, t_Emax)[0],
-                              mask=edge_mask)
+    _, B_ana_max = analytic_cochains(mesh, mode_args, t_Bmax,
+                                       face_idx=face_idx, edge_idx=edge_idx)
+    E_ana_max, _ = analytic_cochains(mesh, mode_args, t_Emax,
+                                       face_idx=face_idx, edge_idx=edge_idx)
+    _, B_amp_norm = l2_norms_subset(face_w, np.zeros_like(B_ana_max), B_ana_max)
+    _, E_amp_norm = l2_norms_subset(edge_w, np.zeros_like(E_ana_max), E_ana_max)
     if verbose:
         print(f"  reference ||B||@max = {B_amp_norm:.4e}, "
               f"||E||@max = {E_amp_norm:.4e}")
@@ -475,12 +569,15 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
     times, E_errs, B_errs = [], [], []
     for step in steps:
         B_f, E_e, t = load_fields(data_dir, step)
-        E_ana, B_ana = analytic_cochains(mesh, mode_args, t)
+        # Evaluate analytic E at t, analytic B at (t + b_shift)
+        E_ana, _ = analytic_cochains(mesh, mode_args, t,
+                                      face_idx=face_idx, edge_idx=edge_idx)
+        _, B_ana = analytic_cochains(mesh, mode_args, t + b_shift,
+                                      face_idx=face_idx, edge_idx=edge_idx)
 
-        E_diff_norm, _ = l2_norms(mesh, E_e, E_ana, mask=edge_mask)
-        B_diff_norm, _ = l2_norms(mesh, B_f, B_ana, mask=face_mask)
+        E_diff_norm, _ = l2_norms_subset(edge_w, E_e[edge_idx], E_ana)
+        B_diff_norm, _ = l2_norms_subset(face_w, B_f[face_idx], B_ana)
 
-        # Normalize by the temporal-max amplitude — meaningful for all phases
         E_err = E_diff_norm / E_amp_norm if E_amp_norm > 0 else E_diff_norm
         B_err = B_diff_norm / B_amp_norm if B_amp_norm > 0 else B_diff_norm
         times.append(t)
@@ -495,9 +592,21 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
 
 
 def convergence_study(data_dirs, l, m, n_root, polarization, start_with_e,
-                       amp=1.0, plot_path=None):
-    """Run analyze_run on each directory and plot error vs h."""
-    Ls, hs, E_finals, B_finals = [], [], [], []
+                       amp=1.0, plot_path=None, b_half_shift=False,
+                       subsample=1, metric='peak'):
+    """Run analyze_run on each directory and plot error vs h.
+
+    metric:
+      'peak'  - max error over the period (most robust)
+      'mean'  - time-averaged error over the period
+      'final' - error at the last snapshot (was the original; least robust
+                because the last snapshot may not land at the same t/T
+                across resolutions)
+    """
+    if metric not in ('peak', 'mean', 'final'):
+        raise ValueError(f"metric must be peak/mean/final, got {metric}")
+
+    Ls, hs, E_metrics, B_metrics = [], [], [], []
     for d in data_dirs:
         print(f"\n=== {d} ===")
         mesh = load_mesh(d)
@@ -507,40 +616,64 @@ def convergence_study(data_dirs, l, m, n_root, polarization, start_with_e,
         h = float(np.mean(mesh["edge_length"][:N_edge_s])
                   / mesh["radii"][0])  # angular size in radians
         times, Ee, Be, T = analyze_run(d, l, m, n_root, polarization,
-                                        start_with_e, amp=amp, verbose=True)
+                                        start_with_e, amp=amp, verbose=True,
+                                        b_half_shift=b_half_shift,
+                                        subsample=subsample)
+        # Drop step 0 (essentially-zero IC error) when computing peak/mean
+        # so a near-zero IC value doesn't dominate the average.
+        Ee_eval = Ee[1:] if len(Ee) > 1 else Ee
+        Be_eval = Be[1:] if len(Be) > 1 else Be
+        if metric == 'peak':
+            E_val = float(np.max(Ee_eval))
+            B_val = float(np.max(Be_eval))
+        elif metric == 'mean':
+            E_val = float(np.mean(Ee_eval))
+            B_val = float(np.mean(Be_eval))
+        else:  # final
+            E_val = float(Ee[-1])
+            B_val = float(Be[-1])
+
         Ls.append(L_val)
         hs.append(h)
-        E_finals.append(Ee[-1])
-        B_finals.append(Be[-1])
+        E_metrics.append(E_val)
+        B_metrics.append(B_val)
 
     Ls = np.array(Ls)
     hs = np.array(hs)
-    E_finals = np.array(E_finals)
-    B_finals = np.array(B_finals)
+    E_metrics = np.array(E_metrics)
+    B_metrics = np.array(B_metrics)
 
-    print("\n=== Convergence summary ===")
+    print(f"\n=== Convergence summary ({metric} over period) ===")
     print(f"{'L':>4} {'h(rad)':>10} {'L2(E)':>14} {'L2(B)':>14}")
-    for L, h, eE, eB in zip(Ls, hs, E_finals, B_finals):
+    for L, h, eE, eB in zip(Ls, hs, E_metrics, B_metrics):
         print(f"{L:>4} {h:>10.4f} {eE:>14.4e} {eB:>14.4e}")
 
     # Slopes (least squares fit log-log)
+    slope_E = slope_B = None
     if len(Ls) >= 2:
-        slope_E = np.polyfit(np.log(hs), np.log(E_finals), 1)[0]
-        slope_B = np.polyfit(np.log(hs), np.log(B_finals), 1)[0]
+        slope_E = np.polyfit(np.log(hs), np.log(E_metrics), 1)[0]
+        slope_B = np.polyfit(np.log(hs), np.log(B_metrics), 1)[0]
         print(f"\nConvergence rates: E -> {slope_E:.3f}, B -> {slope_B:.3f}")
+
+        # Pairwise rates
+        if len(Ls) >= 3:
+            print("Pairwise slopes:")
+            for i in range(len(Ls) - 1):
+                seg_E = np.log(E_metrics[i+1]/E_metrics[i]) / np.log(hs[i+1]/hs[i])
+                seg_B = np.log(B_metrics[i+1]/B_metrics[i]) / np.log(hs[i+1]/hs[i])
+                print(f"  L{Ls[i]}->L{Ls[i+1]}:  E={seg_E:.3f}  B={seg_B:.3f}")
 
     if plot_path:
         fig, ax = plt.subplots(figsize=(7, 5))
-        ax.loglog(hs, E_finals, 'o-', label=f'E (slope ~ {slope_E:.2f})')
-        ax.loglog(hs, B_finals, 's-', label=f'B (slope ~ {slope_B:.2f})')
-        # Reference O(h) and O(h^2)
+        ax.loglog(hs, E_metrics, 'o-', label=f'E (slope ~ {slope_E:.2f})')
+        ax.loglog(hs, B_metrics, 's-', label=f'B (slope ~ {slope_B:.2f})')
         ref_h = np.array([hs.min(), hs.max()])
-        ax.loglog(ref_h, B_finals[-1] * (ref_h / hs[-1])**1, 'k--',
+        ax.loglog(ref_h, B_metrics[-1] * (ref_h / hs[-1])**1, 'k--',
                    alpha=0.4, label='O(h)')
-        ax.loglog(ref_h, B_finals[-1] * (ref_h / hs[-1])**2, 'k:',
+        ax.loglog(ref_h, B_metrics[-1] * (ref_h / hs[-1])**2, 'k:',
                    alpha=0.4, label='O(h²)')
         ax.set_xlabel("h (angular edge length, rad)")
-        ax.set_ylabel("Relative L2 error")
+        ax.set_ylabel(f"Relative L2 error ({metric} over period)")
         ax.set_title(f"Cavity {polarization}_{l}_{m}_{n_root} convergence")
         ax.legend()
         ax.grid(True, which='both', alpha=0.3)
@@ -564,15 +697,35 @@ def main():
                     help="Treat all data_dirs as a convergence series")
     p.add_argument("--plot", default=None,
                     help="Save plot to this path (convergence mode)")
+    p.add_argument("--b_half_shift", action='store_true',
+                    help="Compare numerical B against analytic B at t-dt/2 "
+                         "(removes the leapfrog half-step bias)")
+    p.add_argument("--subsample", type=int, default=1,
+                    help="Score the L2 norm on every Nth interior face/edge "
+                         "(default 1 = all). The relative error is essentially "
+                         "unchanged for smooth fields.")
+    p.add_argument("--quad_order", type=int, default=5,
+                    help="Gauss quadrature nodes per direction (default 5).")
+    p.add_argument("--metric", choices=['peak', 'mean', 'final'],
+                    default='peak',
+                    help="Convergence metric: peak / mean / final-snapshot. "
+                         "'peak' (default) is most robust to phase mismatches.")
     args = p.parse_args()
+
+    set_quad_order(args.quad_order)
 
     if args.convergence or len(args.data_dirs) > 1:
         convergence_study(args.data_dirs, args.l, args.m, args.n_root,
                            args.pol, args.start_with_e, amp=args.amp,
-                           plot_path=args.plot)
+                           plot_path=args.plot,
+                           b_half_shift=args.b_half_shift,
+                           subsample=args.subsample,
+                           metric=args.metric)
     else:
         analyze_run(args.data_dirs[0], args.l, args.m, args.n_root,
-                     args.pol, args.start_with_e, amp=args.amp)
+                     args.pol, args.start_with_e, amp=args.amp,
+                     b_half_shift=args.b_half_shift,
+                     subsample=args.subsample)
 
 
 if __name__ == "__main__":

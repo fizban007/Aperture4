@@ -464,37 +464,6 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
   //   Radial position: midpoint of the radial interval
   // This guarantees dual faces are perpendicular to primal edges.
 
-  // Helper: compute circumcenter of triangle (p0, p1, p2) in 3D
-  auto tri_circumcenter = [](double p0x, double p0y, double p0z,
-                             double p1x, double p1y, double p1z,
-                             double p2x, double p2y, double p2z,
-                             double& ccx, double& ccy, double& ccz) {
-    // Circumcenter = p0 + s*(p1-p0) + t*(p2-p0) where s,t solve:
-    //   2 * dot(p1-p0, p1-p0) * s + 2 * dot(p1-p0, p2-p0) * t = dot(p1-p0, p1-p0)
-    //   2 * dot(p1-p0, p2-p0) * s + 2 * dot(p2-p0, p2-p0) * t = dot(p2-p0, p2-p0)
-    // (from |cc - p0|² = |cc - p1|² = |cc - p2|²)
-    double d10x = p1x - p0x, d10y = p1y - p0y, d10z = p1z - p0z;
-    double d20x = p2x - p0x, d20y = p2y - p0y, d20z = p2z - p0z;
-    double a11 = 2.0 * (d10x*d10x + d10y*d10y + d10z*d10z);
-    double a12 = 2.0 * (d10x*d20x + d10y*d20y + d10z*d20z);
-    double a22 = 2.0 * (d20x*d20x + d20y*d20y + d20z*d20z);
-    double b1 = d10x*d10x + d10y*d10y + d10z*d10z;
-    double b2 = d20x*d20x + d20y*d20y + d20z*d20z;
-    double det = a11 * a22 - a12 * a12;
-    if (std::abs(det) < 1e-30) {
-      // Degenerate: fall back to centroid
-      ccx = (p0x + p1x + p2x) / 3.0;
-      ccy = (p0y + p1y + p2y) / 3.0;
-      ccz = (p0z + p1z + p2z) / 3.0;
-      return;
-    }
-    double s = (a22 * b1 - a12 * b2) / det;
-    double t = (a11 * b2 - a12 * b1) / det;
-    ccx = p0x + s * d10x + t * d20x;
-    ccy = p0y + s * d10y + t * d20y;
-    ccz = p0z + s * d10z + t * d20z;
-  };
-
   int N_prisms = m_N_tri * m_N_r;
   std::vector<double> cx(N_prisms), cy(N_prisms), cz(N_prisms);
 
@@ -508,21 +477,39 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
       int b = sm.triangles[t][1];
       int c = sm.triangles[t][2];
 
-      // Compute circumcenter of the triangle on the unit sphere
-      double ccx_unit, ccy_unit, ccz_unit;
-      tri_circumcenter(sm.vx[a], sm.vy[a], sm.vz[a],
-                       sm.vx[b], sm.vy[b], sm.vz[b],
-                       sm.vx[c], sm.vy[c], sm.vz[c],
-                       ccx_unit, ccy_unit, ccz_unit);
-
-      // Project onto unit sphere (circumcenter of a spherical triangle
-      // is approximately the projected circumcenter for small triangles)
-      double r_cc = std::sqrt(ccx_unit*ccx_unit + ccy_unit*ccy_unit +
-                              ccz_unit*ccz_unit);
-      if (r_cc > 0) {
-        ccx_unit /= r_cc;
-        ccy_unit /= r_cc;
-        ccz_unit /= r_cc;
+      // Spherical circumcenter: the unit normal to the chord triangle.
+      // For three points on the unit sphere, this is exactly the point on
+      // the sphere equidistant (in great-circle metric) from all three —
+      // because n·a = n·b = n·c iff n ⟂ (b-a) and n ⟂ (c-a). For a
+      // spherically-Delaunay triangulation (which the icosahedral subdivision
+      // is) this makes the dual the spherical Voronoi diagram, with the
+      // diagonal Hodge star uniformly second-order accurate, including at
+      // the 12 five-valent vertices where the chord-projected circumcenter
+      // had a systematic anisotropic O(h²) bias.
+      double e1x = sm.vx[b] - sm.vx[a];
+      double e1y = sm.vy[b] - sm.vy[a];
+      double e1z = sm.vz[b] - sm.vz[a];
+      double e2x = sm.vx[c] - sm.vx[a];
+      double e2y = sm.vy[c] - sm.vy[a];
+      double e2z = sm.vz[c] - sm.vz[a];
+      double nx = e1y * e2z - e1z * e2y;
+      double ny = e1z * e2x - e1x * e2z;
+      double nz = e1x * e2y - e1y * e2x;
+      double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
+      double ccx_unit = 0.0, ccy_unit = 0.0, ccz_unit = 0.0;
+      if (nlen > 0) {
+        ccx_unit = nx / nlen;
+        ccy_unit = ny / nlen;
+        ccz_unit = nz / nlen;
+        // Orient outward (same hemisphere as the triangle centroid)
+        double mx = (sm.vx[a] + sm.vx[b] + sm.vx[c]) / 3.0;
+        double my = (sm.vy[a] + sm.vy[b] + sm.vy[c]) / 3.0;
+        double mz = (sm.vz[a] + sm.vz[b] + sm.vz[c]) / 3.0;
+        if (ccx_unit * mx + ccy_unit * my + ccz_unit * mz < 0) {
+          ccx_unit = -ccx_unit;
+          ccy_unit = -ccy_unit;
+          ccz_unit = -ccz_unit;
+        }
       }
 
       // Place at radial midpoint

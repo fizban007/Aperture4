@@ -37,7 +37,7 @@ class dec_field_solver : public system_t {
   void set_initial_resonator_mode(int l, int m, int n_root,
                                   char polarization, bool start_with_e);
 
- private:
+  // Public because HIP/CUDA compilers require __device__ lambdas in public methods
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
 
@@ -51,6 +51,8 @@ class dec_field_solver : public system_t {
   // zero tangential E (horizontal edges) and normal B (triangular faces)
   // on shells k = 0 and k = N_r.
   void apply_pec_bc(buffer<Scalar>& E, buffer<Scalar>& B);
+
+ private:
 
   Scalar project_B_on_face(int face_idx, Scalar Bx, Scalar By, Scalar Bz) const;
   Scalar project_E_on_edge(int edge_idx, Scalar Ex, Scalar Ey, Scalar Ez) const;

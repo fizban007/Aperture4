@@ -1,5 +1,6 @@
 #include "systems/prismatic/prismatic_mesh.h"
 #include "utils/logger.h"
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <numeric>

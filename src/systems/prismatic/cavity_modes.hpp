@@ -12,6 +12,7 @@
 // initial-condition setters and per-step boundary applicators where speed
 // is unimportant compared to accuracy.
 
+#include "core/gpu_translation_layer.h"
 #include <cmath>
 #include <stdexcept>
 
@@ -25,7 +26,7 @@ namespace cavity_modes {
 // j_l(x) and y_l(x) computed by upward recursion in l, starting from the
 // closed forms for l = 0, 1. Stable for the small l (<= ~6) we need.
 
-inline double sph_jl(int l, double x) {
+HD_INLINE double sph_jl(int l, double x) {
   if (l == 0) {
     if (std::abs(x) < 1e-12) return 1.0;
     return std::sin(x) / x;
@@ -45,7 +46,7 @@ inline double sph_jl(int l, double x) {
   return j_curr;
 }
 
-inline double sph_yl(int l, double x) {
+HD_INLINE double sph_yl(int l, double x) {
   if (l == 0) return -std::cos(x) / x;
   if (l == 1) return -std::cos(x) / (x * x) - std::sin(x) / x;
   double y_prev = -std::cos(x) / x;
@@ -61,12 +62,12 @@ inline double sph_yl(int l, double x) {
 // Derivative dj_l/dx using the identity
 //   f_l'(x) = f_{l-1}(x) - ((l+1)/x) f_l(x)
 // valid for both spherical Bessel functions.
-inline double sph_jl_prime(int l, double x) {
+HD_INLINE double sph_jl_prime(int l, double x) {
   if (l == 0) return -sph_jl(1, x);
   return sph_jl(l - 1, x) - (double(l + 1) / x) * sph_jl(l, x);
 }
 
-inline double sph_yl_prime(int l, double x) {
+HD_INLINE double sph_yl_prime(int l, double x) {
   if (l == 0) return -sph_yl(1, x);
   return sph_yl(l - 1, x) - (double(l + 1) / x) * sph_yl(l, x);
 }
@@ -87,23 +88,23 @@ inline double sph_yl_prime(int l, double x) {
 //   Eigenvalue equation:
 //     D_TM(k) ≡ u_l(ka) v_l(kb) - u_l(kb) v_l(ka) = 0
 
-inline double te_determinant(int l, double k, double a, double b) {
+HD_INLINE double te_determinant(int l, double k, double a, double b) {
   return sph_jl(l, k * a) * sph_yl(l, k * b)
        - sph_jl(l, k * b) * sph_yl(l, k * a);
 }
 
-inline double tm_radial_u(int l, double k, double r) {
+HD_INLINE double tm_radial_u(int l, double k, double r) {
   // u_l = j_l(kr) + kr j_l'(kr)
   double x = k * r;
   return sph_jl(l, x) + x * sph_jl_prime(l, x);
 }
 
-inline double tm_radial_v(int l, double k, double r) {
+HD_INLINE double tm_radial_v(int l, double k, double r) {
   double x = k * r;
   return sph_yl(l, x) + x * sph_yl_prime(l, x);
 }
 
-inline double tm_determinant(int l, double k, double a, double b) {
+HD_INLINE double tm_determinant(int l, double k, double a, double b) {
   return tm_radial_u(l, k, a) * tm_radial_v(l, k, b)
        - tm_radial_u(l, k, b) * tm_radial_v(l, k, a);
 }
@@ -187,7 +188,7 @@ inline double tm_eigenvalue(int l, double a, double b, int n_root) {
 
 // Computes P_l^m(x) and dP_l^m/dx for m ≥ 0, l ≥ m, using upward recursion
 // in l from the diagonal P_m^m. Also fills out P_{l-1}^m for the derivative.
-inline void assoc_legendre(int l, int m, double x, double& Plm, double& Plm_lo) {
+HD_INLINE void assoc_legendre(int l, int m, double x, double& Plm, double& Plm_lo) {
   // Returns Plm = P_l^m(x), and Plm_lo = P_{l-1}^m(x) (or 0 if l == m).
   // m must satisfy 0 <= m <= l.
   // Standard upward recursion (Numerical Recipes 6.7):
@@ -228,8 +229,8 @@ inline void assoc_legendre(int l, int m, double x, double& Plm, double& Plm_lo) 
 }
 
 // Evaluates real Y_lm and its θ, φ partial derivatives.
-inline void real_sph_harm(int l, int m, double theta, double phi,
-                          double& Y, double& dY_dtheta, double& dY_dphi) {
+HD_INLINE void real_sph_harm(int l, int m, double theta, double phi,
+                             double& Y, double& dY_dtheta, double& dY_dphi) {
   int am = (m >= 0) ? m : -m;
   double cos_t = std::cos(theta);
   double sin_t = std::sin(theta);
@@ -342,11 +343,11 @@ inline double inner_bc_alpha(int l, double k, double a, bool is_te) {
 }
 
 // Convert (Bx, By, Bz) Cartesian → (Br, Btheta, Bphi) orthonormal spherical
-inline void cartesian_to_spherical_basis(double x, double y, double z,
-                                          double& r, double& theta, double& phi,
-                                          double& er_x, double& er_y, double& er_z,
-                                          double& et_x, double& et_y, double& et_z,
-                                          double& ep_x, double& ep_y, double& ep_z) {
+HD_INLINE void cartesian_to_spherical_basis(double x, double y, double z,
+                                             double& r, double& theta, double& phi,
+                                             double& er_x, double& er_y, double& er_z,
+                                             double& et_x, double& et_y, double& et_z,
+                                             double& ep_x, double& ep_y, double& ep_z) {
   r = std::sqrt(x * x + y * y + z * z);
   theta = std::acos(z / r);
   phi = std::atan2(y, x);
@@ -359,9 +360,9 @@ inline void cartesian_to_spherical_basis(double x, double y, double z,
 
 // Evaluate the (E_pat, B_pat) spatial patterns at point (x, y, z) in Cartesian.
 // pattern is the spatial part; multiply by the chosen time function externally.
-inline void evaluate_mode_patterns(const mode_params& mp, double x, double y, double z,
-                                    double& Ex_pat, double& Ey_pat, double& Ez_pat,
-                                    double& Bx_pat, double& By_pat, double& Bz_pat) {
+HD_INLINE void evaluate_mode_patterns(const mode_params& mp, double x, double y, double z,
+                                       double& Ex_pat, double& Ey_pat, double& Ez_pat,
+                                       double& Bx_pat, double& By_pat, double& Bz_pat) {
   double r, theta, phi;
   double er_x, er_y, er_z, et_x, et_y, et_z, ep_x, ep_y, ep_z;
   cartesian_to_spherical_basis(x, y, z, r, theta, phi,

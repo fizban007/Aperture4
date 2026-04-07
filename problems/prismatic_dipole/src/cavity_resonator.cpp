@@ -13,6 +13,7 @@
 #include "framework/environment.h"
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
+#include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_sph_output.h"
 

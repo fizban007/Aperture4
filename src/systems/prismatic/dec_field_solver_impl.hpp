@@ -582,107 +582,87 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_dipole() {
-  double mx = m_Bp * std::sin(m_obliquity);
-  double my = 0.0;
-  double mz = m_Bp * std::cos(m_obliquity);
+  Scalar mx_v = m_Bp * std::sin(m_obliquity);
+  Scalar my_v = Scalar(0);
+  Scalar mz_v = m_Bp * std::cos(m_obliquity);
 
-  // Helper: dipole B field at (x,y,z) in double precision
-  auto dip_B = [mx, my, mz](double x, double y, double z,
-                             double& Bx, double& By, double& Bz) {
-    double r2 = x*x + y*y + z*z;
-    double r = std::sqrt(r2);
-    double r5 = r2*r2*r;
-    double r3 = r2*r;
-    double mdotr = mx*x + my*y + mz*z;
-    double fac = 3.0*mdotr/r5;
-    Bx = fac*x - mx/r3;
-    By = fac*y - my/r3;
-    Bz = fac*z - mz/r3;
-  };
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
-  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
+  // ---- B (face fluxes) via Gauss quadrature on device ----
+  ExecPolicy::launch(
+      [N_faces = mp.N_faces, n_tri_faces, mx_v, my_v, mz_v, mp]
+      LAMBDA(auto B_f) {
+        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+          if (f < n_tri_faces) {
+            // Triangular face
+            int vi0 = mp.tri_face_v0[f];
+            int vi1 = mp.tri_face_v1[f];
+            int vi2 = mp.tri_face_v2[f];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
+            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
+            double nx = e1y*e2z - e1z*e2y;
+            double ny = e1z*e2x - e1x*e2z;
+            double nz = e1x*e2y - e1y*e2x;
 
-  // Triangular faces: ∫_triangle B · dA via Gauss quadrature
-  // Parameterize: x(u,v) = p0 + u*(p1-p0) + v*(p2-p0), 0≤u, 0≤v, u+v≤1
-  // dA = (p1-p0) × (p2-p0) du dv (constant for flat triangle)
-  // ∫∫ B·dA = (∫₀¹ ∫₀^(1-u) B(x(u,v)) du dv) · n
-  // where n = (p1-p0) × (p2-p0)
-  for (int f = 0; f < n_tri_faces; f++) {
-    int vi0 = m_mesh.tri_face_v0[f];
-    int vi1 = m_mesh.tri_face_v1[f];
-    int vi2 = m_mesh.tri_face_v2[f];
-    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
-    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
+            double flux = gauss_quad([&](double u) -> double {
+              return (1.0 - u) * gauss_quad([&](double t) -> double {
+                double v = (1.0 - u) * t;
+                double x = p0x + u*e1x + v*e2x;
+                double y = p0y + u*e1y + v*e2y;
+                double z = p0z + u*e1z + v*e2z;
+                Scalar bx, by, bz;
+                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          } else {
+            // Rectangular face
+            int fi = f - n_tri_faces;
+            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
+            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
+            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
+            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
 
-    // Face normal (unnormalized, includes area factor)
-    double e1x = p1x-p0x, e1y = p1y-p0y, e1z = p1z-p0z;
-    double e2x = p2x-p0x, e2y = p2y-p0y, e2z = p2z-p0z;
-    double nx = e1y*e2z - e1z*e2y;
-    double ny = e1z*e2x - e1x*e2z;
-    double nz = e1x*e2y - e1y*e2x;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+                double nnx = dydu*dzdv - dzdu*dydv;
+                double nny = dzdu*dxdv - dxdu*dzdv;
+                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar bx, by, bz;
+                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                return bx*nnx + by*nny + bz*nnz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          }
+        });
+      },
+      m_B->data());
 
-    // Integrate B·n̂ over the triangle using nested Gauss quadrature
-    // Map triangle to unit square: u ∈ [0,1], v ∈ [0, 1-u]
-    // ∫₀¹ du ∫₀^{1-u} dv f(u,v) = ∫₀¹ du (1-u) ∫₀¹ dt f(u, (1-u)t)
-    double flux = gauss_quad([&](double u) -> double {
-      return (1.0 - u) * gauss_quad([&](double t) -> double {
-        double v = (1.0 - u) * t;
-        double x = p0x + u*e1x + v*e2x;
-        double y = p0y + u*e1y + v*e2y;
-        double z = p0z + u*e1z + v*e2z;
-        double Bx, By, Bz;
-        dip_B(x, y, z, Bx, By, Bz);
-        return Bx*nx + By*ny + Bz*nz;
-      }, 0.0, 1.0);
-    }, 0.0, 1.0);
+  // ---- E starts at zero ----
+  ExecPolicy::launch(
+      [N_edges = mp.N_edges] LAMBDA(auto E_e) {
+        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+          E_e[e] = Scalar(0);
+        });
+      },
+      m_E->data());
 
-    m_B->data()[f] = static_cast<Scalar>(flux);
-  }
-
-  // Rectangular faces: ∫_quad B · dA via tensor product Gauss quadrature
-  // Parameterize: x(u,v) = (1-u)(1-v)p0 + u(1-v)p1 + uv p2 + (1-u)v p3
-  // with u,v ∈ [0,1]. The Jacobian cross product gives the area element.
-  for (int fi = 0; fi < m_mesh.m_N_edge_s * m_mesh.m_N_r; fi++) {
-    int f = n_tri_faces + fi;
-    int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
-    int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
-    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
-    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
-    double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
-
-    double flux = gauss_quad([&](double u) -> double {
-      return gauss_quad([&](double v) -> double {
-        // Bilinear interpolation
-        double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-        double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-        double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-
-        // Tangent vectors dx/du and dx/dv
-        double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-        double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-        double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-        double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-        double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-        double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-
-        // Normal = du × dv
-        double nx = dydu*dzdv - dzdu*dydv;
-        double ny = dzdu*dxdv - dxdu*dzdv;
-        double nz = dxdu*dydv - dydu*dxdv;
-
-        double Bx, By, Bz;
-        dip_B(x, y, z, Bx, By, Bz);
-        return Bx*nx + By*ny + Bz*nz;
-      }, 0.0, 1.0);
-    }, 0.0, 1.0);
-
-    m_B->data()[f] = static_cast<Scalar>(flux);
-  }
-
-  m_E->data().copy_to_device();
-  m_B->data().copy_to_device();
+  ExecPolicy::sync();
 }
 
 // =========================================================================
@@ -694,152 +674,99 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
-  double Bp = m_Bp;
-  double Omega = m_Omega;
-  double obliquity = m_obliquity;
+  Scalar Bp_v = m_Bp;
+  Scalar Omega_v = m_Omega;
+  Scalar obl_v = m_obliquity;
+  Scalar t_init = Scalar(0);  // initial time = 0
 
-  // Deutsch B field at (x,y,z) for t = 0
-  auto deu_B = [Bp, Omega, obliquity](double x, double y, double z,
-                                       double& bx, double& by, double& bz) {
-    double r2 = x*x + y*y + z*z;
-    double r = std::sqrt(r2);
-    double r3 = r2 * r;
-    double t_ret = -r;  // time = 0
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
-    double m_perp = Bp * std::sin(obliquity);
-    double m_par = Bp * std::cos(obliquity);
-    double cp = std::cos(Omega * t_ret);
-    double sp = std::sin(Omega * t_ret);
+  // ---- B (face fluxes) on device ----
+  ExecPolicy::launch(
+      [N_faces = mp.N_faces, n_tri_faces, Bp_v, Omega_v, obl_v, t_init, mp]
+      LAMBDA(auto B_f) {
+        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+          if (f < n_tri_faces) {
+            int vi0 = mp.tri_face_v0[f];
+            int vi1 = mp.tri_face_v1[f];
+            int vi2 = mp.tri_face_v2[f];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
+            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
+            double nx = e1y*e2z - e1z*e2y;
+            double ny = e1z*e2x - e1x*e2z;
+            double nz = e1x*e2y - e1y*e2x;
 
-    double mx = m_perp * cp, my = m_perp * sp, mz = m_par;
-    double dmx = -m_perp * Omega * sp, dmy = m_perp * Omega * cp;
-    double ddmx = -m_perp * Omega * Omega * cp;
-    double ddmy = -m_perp * Omega * Omega * sp;
+            double flux = gauss_quad([&](double u) -> double {
+              return (1.0 - u) * gauss_quad([&](double t) -> double {
+                double v = (1.0 - u) * t;
+                double x = p0x + u*e1x + v*e2x;
+                double y = p0y + u*e1y + v*e2y;
+                double z = p0z + u*e1z + v*e2z;
+                Scalar bx, by, bz;
+                deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          } else {
+            int fi = f - n_tri_faces;
+            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
+            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
+            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
+            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
 
-    double nx = x / r, ny = y / r, nz = z / r;
-    double ndotm = nx*mx + ny*my + nz*mz;
-    double ndotdm = nx*dmx + ny*dmy;
-    double ndotddm = nx*ddmx + ny*ddmy;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+                double nnx = dydu*dzdv - dzdu*dydv;
+                double nny = dzdu*dxdv - dxdu*dzdv;
+                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar bx, by, bz;
+                deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
+                return bx*nnx + by*nny + bz*nnz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          }
+        });
+      },
+      m_B->data());
 
-    bx = (3.0*ndotm*nx - mx) / r3
-       + (3.0*ndotdm*nx - dmx) / r2
-       + (ndotddm*nx - ddmx) / r;
-    by = (3.0*ndotm*ny - my) / r3
-       + (3.0*ndotdm*ny - dmy) / r2
-       + (ndotddm*ny - ddmy) / r;
-    bz = (3.0*ndotm*nz - mz) / r3
-       + 3.0*ndotdm*nz / r2
-       + ndotddm*nz / r;
-  };
+  // ---- E (edge circulations) on device ----
+  ExecPolicy::launch(
+      [N_edges = mp.N_edges, Bp_v, Omega_v, obl_v, t_init, mp]
+      LAMBDA(auto E_e) {
+        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
+          double x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
+          double dlx = mp.vert_x[v1]-x0;
+          double dly = mp.vert_y[v1]-y0;
+          double dlz = mp.vert_z[v1]-z0;
 
-  // Deutsch E field at (x,y,z) for t = 0
-  auto deu_E = [Bp, Omega, obliquity](double x, double y, double z,
-                                       double& ex, double& ey, double& ez) {
-    double r2 = x*x + y*y + z*z;
-    double r = std::sqrt(r2);
-    double t_ret = -r;
+          double circ = gauss_quad([&](double t) -> double {
+            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            Scalar ex, ey, ez;
+            deutsch_E_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, ex, ey, ez);
+            return ex*dlx + ey*dly + ez*dlz;
+          }, 0.0, 1.0);
+          E_e[e] = static_cast<Scalar>(circ);
+        });
+      },
+      m_E->data());
 
-    double m_perp = Bp * std::sin(obliquity);
-    double cp = std::cos(Omega * t_ret);
-    double sp = std::sin(Omega * t_ret);
-
-    double dmx = -m_perp * Omega * sp, dmy = m_perp * Omega * cp;
-    double ddmx = -m_perp * Omega * Omega * cp;
-    double ddmy = -m_perp * Omega * Omega * sp;
-
-    double nx = x / r, ny = y / r, nz = z / r;
-
-    // E = +(n × dm)/r² + (n × ddm)/r
-    double cx1 = -nz * dmy, cy1 = nz * dmx;
-    double cz1 = nx * dmy - ny * dmx;
-    double cx2 = -nz * ddmy, cy2 = nz * ddmx;
-    double cz2 = nx * ddmy - ny * ddmx;
-
-    ex = cx1 / r2 + cx2 / r;
-    ey = cy1 / r2 + cy2 / r;
-    ez = cz1 / r2 + cz2 / r;
-  };
-
-  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
-
-  // --- B_f: face fluxes via Gauss quadrature ---
-  // Triangular faces
-  for (int f = 0; f < n_tri_faces; f++) {
-    int vi0 = m_mesh.tri_face_v0[f];
-    int vi1 = m_mesh.tri_face_v1[f];
-    int vi2 = m_mesh.tri_face_v2[f];
-    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-    double e1x = m_mesh.vert_x[vi1]-p0x, e1y = m_mesh.vert_y[vi1]-p0y, e1z = m_mesh.vert_z[vi1]-p0z;
-    double e2x = m_mesh.vert_x[vi2]-p0x, e2y = m_mesh.vert_y[vi2]-p0y, e2z = m_mesh.vert_z[vi2]-p0z;
-    double nx = e1y*e2z - e1z*e2y;
-    double ny = e1z*e2x - e1x*e2z;
-    double nz = e1x*e2y - e1y*e2x;
-
-    double flux = gauss_quad([&](double u) -> double {
-      return (1.0 - u) * gauss_quad([&](double t) -> double {
-        double v = (1.0 - u) * t;
-        double x = p0x + u*e1x + v*e2x;
-        double y = p0y + u*e1y + v*e2y;
-        double z = p0z + u*e1z + v*e2z;
-        double bx, by, bz;
-        deu_B(x, y, z, bx, by, bz);
-        return bx*nx + by*ny + bz*nz;
-      }, 0.0, 1.0);
-    }, 0.0, 1.0);
-    m_B->data()[f] = static_cast<Scalar>(flux);
-  }
-
-  // Rectangular faces
-  for (int fi = 0; fi < m_mesh.m_N_edge_s * m_mesh.m_N_r; fi++) {
-    int f = n_tri_faces + fi;
-    int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
-    int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
-    double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-    double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
-    double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
-    double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
-
-    double flux = gauss_quad([&](double u) -> double {
-      return gauss_quad([&](double v) -> double {
-        double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-        double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-        double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-        double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-        double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-        double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-        double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-        double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-        double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-        double nnx = dydu*dzdv - dzdu*dydv;
-        double nny = dzdu*dxdv - dxdu*dzdv;
-        double nnz = dxdu*dydv - dydu*dxdv;
-        double bx, by, bz;
-        deu_B(x, y, z, bx, by, bz);
-        return bx*nnx + by*nny + bz*nnz;
-      }, 0.0, 1.0);
-    }, 0.0, 1.0);
-    m_B->data()[f] = static_cast<Scalar>(flux);
-  }
-
-  // --- E_e: edge circulations via Gauss quadrature ---
-  for (int e = 0; e < m_mesh.m_N_edges; e++) {
-    int v0 = m_mesh.edge_v0[e], v1 = m_mesh.edge_v1[e];
-    double x0 = m_mesh.vert_x[v0], y0 = m_mesh.vert_y[v0], z0 = m_mesh.vert_z[v0];
-    double dlx = m_mesh.vert_x[v1]-x0;
-    double dly = m_mesh.vert_y[v1]-y0;
-    double dlz = m_mesh.vert_z[v1]-z0;
-
-    double circ = gauss_quad([&](double t) -> double {
-      double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
-      double ex, ey, ez;
-      deu_E(x, y, z, ex, ey, ez);
-      return ex*dlx + ey*dly + ez*dlz;
-    }, 0.0, 1.0);
-    m_E->data()[e] = static_cast<Scalar>(circ);
-  }
-
-  m_E->data().copy_to_device();
-  m_B->data().copy_to_device();
+  ExecPolicy::sync();
   Logger::print_info("Deutsch retarded IC set: Bp={}, Omega={}, obliquity={}",
                      m_Bp, m_Omega, m_obliquity);
 }
@@ -874,15 +801,15 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
   }
   bool is_te = (polarization == 'E');
 
+  // Eigenvalue and inner-BC coefficient: computed once on the host.
   double a = m_mesh.m_r_min;
   double b = m_mesh.m_r_max;
-
   double k = is_te ? cavity_modes::te_eigenvalue(l, a, b, n_root)
                    : cavity_modes::tm_eigenvalue(l, a, b, n_root);
   double alpha = cavity_modes::inner_bc_alpha(l, k, a, is_te);
 
-  cavity_modes::mode_params mp{l, m, k, alpha,
-                                static_cast<double>(m_resonator_amp), is_te};
+  cavity_modes::mode_params mp_params{l, m, k, alpha,
+                                       static_cast<double>(m_resonator_amp), is_te};
 
   Logger::print_info(
       "Resonator IC: {}_{}_{}_{} mode, k={:.6f} (omega={:.6f}), "
@@ -896,103 +823,109 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
   //   start_with_e = true:  E = E_pat,  B = 0
   //   start_with_e = false: E = 0,      B = B_pat
 
-  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
-  // ---- Initialize B (face fluxes) ----
-  for (int f = 0; f < m_mesh.m_N_faces; f++) {
-    if (start_with_e) {
-      m_B->data()[f] = Scalar(0);
-      continue;
-    }
+  // ---- Initialize B (face fluxes) on device ----
+  ExecPolicy::launch(
+      [N_faces = mp.N_faces, n_tri_faces, mp_params, mp, start_with_e]
+      LAMBDA(auto B_f) {
+        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+          if (start_with_e) {
+            B_f[f] = Scalar(0);
+            return;
+          }
+          if (f < n_tri_faces) {
+            // Triangular face: nested Gauss quadrature on the flat triangle
+            int vi0 = mp.tri_face_v0[f];
+            int vi1 = mp.tri_face_v1[f];
+            int vi2 = mp.tri_face_v2[f];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
+            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
+            double nx = e1y*e2z - e1z*e2y;
+            double ny = e1z*e2x - e1x*e2z;
+            double nz = e1x*e2y - e1y*e2x;
 
-    if (f < n_tri_faces) {
-      // Triangular face: nested Gauss quadrature
-      int vi0 = m_mesh.tri_face_v0[f];
-      int vi1 = m_mesh.tri_face_v1[f];
-      int vi2 = m_mesh.tri_face_v2[f];
-      double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-      double e1x = m_mesh.vert_x[vi1]-p0x, e1y = m_mesh.vert_y[vi1]-p0y, e1z = m_mesh.vert_z[vi1]-p0z;
-      double e2x = m_mesh.vert_x[vi2]-p0x, e2y = m_mesh.vert_y[vi2]-p0y, e2z = m_mesh.vert_z[vi2]-p0z;
-      double nx = e1y*e2z - e1z*e2y;
-      double ny = e1z*e2x - e1x*e2z;
-      double nz = e1x*e2y - e1y*e2x;
+            double flux = gauss_quad([&](double u) -> double {
+              return (1.0 - u) * gauss_quad([&](double t) -> double {
+                double v = (1.0 - u) * t;
+                double x = p0x + u*e1x + v*e2x;
+                double y = p0y + u*e1y + v*e2y;
+                double z = p0z + u*e1z + v*e2z;
+                double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+                cavity_modes::evaluate_mode_patterns(
+                    mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);
+                return Bx_p*nx + By_p*ny + Bz_p*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          } else {
+            // Rectangular face: tensor-product Gauss quadrature on bilinear quad
+            int fi = f - n_tri_faces;
+            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
+            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
+            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
+            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
+            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
+            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
 
-      double flux = gauss_quad([&](double u) -> double {
-        return (1.0 - u) * gauss_quad([&](double t) -> double {
-          double v = (1.0 - u) * t;
-          double x = p0x + u*e1x + v*e2x;
-          double y = p0y + u*e1y + v*e2y;
-          double z = p0z + u*e1z + v*e2z;
-          double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
-          cavity_modes::evaluate_mode_patterns(mp, x, y, z,
-                                                Ex_p, Ey_p, Ez_p,
-                                                Bx_p, By_p, Bz_p);
-          return Bx_p*nx + By_p*ny + Bz_p*nz;
-        }, 0.0, 1.0);
-      }, 0.0, 1.0);
-      m_B->data()[f] = static_cast<Scalar>(flux);
-    } else {
-      int fi = f - n_tri_faces;
-      int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
-      int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
-      double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
-      double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
-      double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
-      double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+                double nnx = dydu*dzdv - dzdu*dydv;
+                double nny = dzdu*dxdv - dxdu*dzdv;
+                double nnz = dxdu*dydv - dydu*dxdv;
+                double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+                cavity_modes::evaluate_mode_patterns(
+                    mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);
+                return Bx_p*nnx + By_p*nny + Bz_p*nnz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[f] = static_cast<Scalar>(flux);
+          }
+        });
+      },
+      m_B->data());
 
-      double flux = gauss_quad([&](double u) -> double {
-        return gauss_quad([&](double v) -> double {
-          double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-          double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-          double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-          double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-          double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-          double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-          double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-          double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-          double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-          double nnx = dydu*dzdv - dzdu*dydv;
-          double nny = dzdu*dxdv - dxdu*dzdv;
-          double nnz = dxdu*dydv - dydu*dxdv;
-          double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
-          cavity_modes::evaluate_mode_patterns(mp, x, y, z,
-                                                Ex_p, Ey_p, Ez_p,
-                                                Bx_p, By_p, Bz_p);
-          return Bx_p*nnx + By_p*nny + Bz_p*nnz;
-        }, 0.0, 1.0);
-      }, 0.0, 1.0);
-      m_B->data()[f] = static_cast<Scalar>(flux);
-    }
-  }
+  // ---- Initialize E (edge circulations) on device ----
+  ExecPolicy::launch(
+      [N_edges = mp.N_edges, mp_params, mp, start_with_e]
+      LAMBDA(auto E_e) {
+        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+          if (!start_with_e) {
+            E_e[e] = Scalar(0);
+            return;
+          }
+          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
+          double x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
+          double dlx = mp.vert_x[v1]-x0;
+          double dly = mp.vert_y[v1]-y0;
+          double dlz = mp.vert_z[v1]-z0;
 
-  // ---- Initialize E (edge circulations) ----
-  for (int e = 0; e < m_mesh.m_N_edges; e++) {
-    if (!start_with_e) {
-      m_E->data()[e] = Scalar(0);
-      continue;
-    }
-    int v0 = m_mesh.edge_v0[e], v1 = m_mesh.edge_v1[e];
-    double x0 = m_mesh.vert_x[v0], y0 = m_mesh.vert_y[v0], z0 = m_mesh.vert_z[v0];
-    double dlx = m_mesh.vert_x[v1]-x0;
-    double dly = m_mesh.vert_y[v1]-y0;
-    double dlz = m_mesh.vert_z[v1]-z0;
-
-    double circ = gauss_quad([&](double t) -> double {
-      double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
-      double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
-      cavity_modes::evaluate_mode_patterns(mp, x, y, z,
-                                            Ex_p, Ey_p, Ez_p,
-                                            Bx_p, By_p, Bz_p);
-      return Ex_p*dlx + Ey_p*dly + Ez_p*dlz;
-    }, 0.0, 1.0);
-    m_E->data()[e] = static_cast<Scalar>(circ);
-  }
+          double circ = gauss_quad([&](double t) -> double {
+            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+            cavity_modes::evaluate_mode_patterns(
+                mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);
+            return Ex_p*dlx + Ey_p*dly + Ez_p*dlz;
+          }, 0.0, 1.0);
+          E_e[e] = static_cast<Scalar>(circ);
+        });
+      },
+      m_E->data());
 
   // Enforce PEC on the boundary so the IC is exactly compatible.
   apply_pec_bc(m_E->data(), m_B->data());
-
-  m_E->data().copy_to_device();
-  m_B->data().copy_to_device();
+  ExecPolicy::sync();
 }
 
 // =========================================================================

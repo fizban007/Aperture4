@@ -25,6 +25,18 @@ class dec_field_solver : public system_t {
   void set_initial_dipole();
   void set_initial_deutsch();
 
+  // Spherical-cavity TE/TM eigenmode initial condition.
+  //   l, m         : angular quantum numbers (l >= 1, |m| <= l)
+  //   n_root       : radial root index (1 = lowest)
+  //   polarization : 'E' for TE (B_r = max angular structure),
+  //                  'M' for TM (E_r = max angular structure)
+  //   start_with_e : if true,  E(t=0) at maximum, B(t=0) = 0;
+  //                  if false, B(t=0) at maximum, E(t=0) = 0  (default)
+  // The eigenvalue ω = c k is computed from r_min and r_max at runtime.
+  // Reads m_resonator_amp as the overall amplitude (default 1.0).
+  void set_initial_resonator_mode(int l, int m, int n_root,
+                                  char polarization, bool start_with_e);
+
  private:
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
@@ -34,6 +46,11 @@ class dec_field_solver : public system_t {
 
   void apply_damping(buffer<Scalar>& E, buffer<Scalar>& B, double dt);
   void apply_inner_bc(buffer<Scalar>& E, buffer<Scalar>& B, double time);
+
+  // PEC (perfect conductor) boundary on inner and outer shells:
+  // zero tangential E (horizontal edges) and normal B (triangular faces)
+  // on shells k = 0 and k = N_r.
+  void apply_pec_bc(buffer<Scalar>& E, buffer<Scalar>& B);
 
   Scalar project_B_on_face(int face_idx, Scalar Bx, Scalar By, Scalar Bz) const;
   Scalar project_E_on_edge(int edge_idx, Scalar Ex, Scalar Ey, Scalar Ez) const;
@@ -73,6 +90,13 @@ class dec_field_solver : public system_t {
 
   // Use full Deutsch retarded fields for inner BC (for convergence testing)
   bool m_use_deutsch_bc = false;
+
+  // Use PEC (perfect conductor) boundary instead of dipole/Deutsch BC.
+  // When true, apply_pec_bc() is called each step instead of apply_inner_bc().
+  bool m_use_pec_bc = false;
+
+  // Resonator mode amplitude (used by set_initial_resonator_mode)
+  Scalar m_resonator_amp = 1.0;
 
   double m_time = 0.0;
 };

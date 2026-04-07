@@ -1,5 +1,6 @@
 #pragma once
 
+#include "systems/prismatic/cavity_modes.hpp"
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "framework/environment.h"
@@ -183,6 +184,8 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
   sim_env().params().get_value("use_deutsch_bc", m_use_deutsch_bc);
+  sim_env().params().get_value("use_pec_bc", m_use_pec_bc);
+  sim_env().params().get_value("resonator_amp", m_resonator_amp);
 
   m_time = 0.0;
   if (m_use_implicit) {
@@ -288,7 +291,11 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   }
 
   apply_damping(m_E->data(), m_B->data(), dt);
-  apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+  if (m_use_pec_bc) {
+    apply_pec_bc(m_E->data(), m_B->data());
+  } else {
+    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+  }
   ExecPolicy::sync();
 }
 
@@ -329,7 +336,11 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
       m_E->data(), m_tmp_E, m_dE_dt, m_B->data(), m_tmp_B, m_dB_dt);
 
   // Apply BC to the Euler predict so the first RHS evaluation is consistent
-  apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+  if (m_use_pec_bc) {
+    apply_pec_bc(m_tmp_E, m_tmp_B);
+  } else {
+    apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+  }
   ExecPolicy::sync();
 
   // Step 3: Iterate corrector
@@ -352,7 +363,11 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
         m_B->data(), m_tmp_B, m_dB_dt, m_dB_dt_new);
 
     apply_damping(m_E->data(), m_B->data(), dt);
-    apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+    if (m_use_pec_bc) {
+      apply_pec_bc(m_tmp_E, m_tmp_B);
+    } else {
+      apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+    }
     ExecPolicy::sync();
   }
 
@@ -367,7 +382,11 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
 
   // Step 5: Damping + BC + clear J
   apply_damping(m_E->data(), m_B->data(), dt);
-  apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+  if (m_use_pec_bc) {
+    apply_pec_bc(m_E->data(), m_B->data());
+  } else {
+    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+  }
   ExecPolicy::sync();
 }
 
@@ -823,6 +842,195 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
   m_B->data().copy_to_device();
   Logger::print_info("Deutsch retarded IC set: Bp={}, Omega={}, obliquity={}",
                      m_Bp, m_Omega, m_obliquity);
+}
+
+// =========================================================================
+// Spherical-cavity TE/TM eigenmode IC (host-only, called from main)
+//
+// Initializes E_e and B_f from the analytical fields of a single TE or TM
+// mode of a spherical resonator with PEC walls at r_min and r_max.
+//
+// The eigenvalue ω = c k is found at runtime by bisecting the appropriate
+// determinant equation between the spherical Bessel functions; α is then
+// fixed by f(r_min) = 0 (TE) or (r f)'(r_min) = 0 (TM). With c = 1, ω = k.
+//
+// Phase choice (start_with_e):
+//   true  → E(t=0) = E_pat,  B(t=0) = 0      (E max, B zero)
+//   false → E(t=0) = 0,      B(t=0) = B_pat  (B max, E zero) — default
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
+    int l, int m, int n_root, char polarization, bool start_with_e) {
+  if (l < 1 || std::abs(m) > l) {
+    Logger::print_err("set_initial_resonator_mode: invalid (l, m) = ({}, {})",
+                       l, m);
+    return;
+  }
+  if (polarization != 'E' && polarization != 'M') {
+    Logger::print_err("set_initial_resonator_mode: polarization must be 'E' "
+                      "(TE) or 'M' (TM), got '{}'", polarization);
+    return;
+  }
+  bool is_te = (polarization == 'E');
+
+  double a = m_mesh.m_r_min;
+  double b = m_mesh.m_r_max;
+
+  double k = is_te ? cavity_modes::te_eigenvalue(l, a, b, n_root)
+                   : cavity_modes::tm_eigenvalue(l, a, b, n_root);
+  double alpha = cavity_modes::inner_bc_alpha(l, k, a, is_te);
+
+  cavity_modes::mode_params mp{l, m, k, alpha,
+                                static_cast<double>(m_resonator_amp), is_te};
+
+  Logger::print_info(
+      "Resonator IC: {}_{}_{}_{} mode, k={:.6f} (omega={:.6f}), "
+      "alpha={:.6e}, start_with_e={}",
+      is_te ? "TE" : "TM", l, m, n_root, k, k, alpha, start_with_e);
+
+  // For analytic comparison later, the spatial patterns satisfy
+  //   start_with_e = true:  E(t) = +E_pat cos(ωt), B(t) = +B_pat sin(ωt)
+  //   start_with_e = false: E(t) = -E_pat sin(ωt), B(t) = +B_pat cos(ωt)
+  // So at t = 0:
+  //   start_with_e = true:  E = E_pat,  B = 0
+  //   start_with_e = false: E = 0,      B = B_pat
+
+  int n_tri_faces = m_mesh.m_N_tri * (m_mesh.m_N_r + 1);
+
+  // ---- Initialize B (face fluxes) ----
+  for (int f = 0; f < m_mesh.m_N_faces; f++) {
+    if (start_with_e) {
+      m_B->data()[f] = Scalar(0);
+      continue;
+    }
+
+    if (f < n_tri_faces) {
+      // Triangular face: nested Gauss quadrature
+      int vi0 = m_mesh.tri_face_v0[f];
+      int vi1 = m_mesh.tri_face_v1[f];
+      int vi2 = m_mesh.tri_face_v2[f];
+      double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+      double e1x = m_mesh.vert_x[vi1]-p0x, e1y = m_mesh.vert_y[vi1]-p0y, e1z = m_mesh.vert_z[vi1]-p0z;
+      double e2x = m_mesh.vert_x[vi2]-p0x, e2y = m_mesh.vert_y[vi2]-p0y, e2z = m_mesh.vert_z[vi2]-p0z;
+      double nx = e1y*e2z - e1z*e2y;
+      double ny = e1z*e2x - e1x*e2z;
+      double nz = e1x*e2y - e1y*e2x;
+
+      double flux = gauss_quad([&](double u) -> double {
+        return (1.0 - u) * gauss_quad([&](double t) -> double {
+          double v = (1.0 - u) * t;
+          double x = p0x + u*e1x + v*e2x;
+          double y = p0y + u*e1y + v*e2y;
+          double z = p0z + u*e1z + v*e2z;
+          double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+          cavity_modes::evaluate_mode_patterns(mp, x, y, z,
+                                                Ex_p, Ey_p, Ez_p,
+                                                Bx_p, By_p, Bz_p);
+          return Bx_p*nx + By_p*ny + Bz_p*nz;
+        }, 0.0, 1.0);
+      }, 0.0, 1.0);
+      m_B->data()[f] = static_cast<Scalar>(flux);
+    } else {
+      int fi = f - n_tri_faces;
+      int vi0 = m_mesh.rect_face_v0[fi], vi1 = m_mesh.rect_face_v1[fi];
+      int vi2 = m_mesh.rect_face_v2[fi], vi3 = m_mesh.rect_face_v3[fi];
+      double p0x = m_mesh.vert_x[vi0], p0y = m_mesh.vert_y[vi0], p0z = m_mesh.vert_z[vi0];
+      double p1x = m_mesh.vert_x[vi1], p1y = m_mesh.vert_y[vi1], p1z = m_mesh.vert_z[vi1];
+      double p2x = m_mesh.vert_x[vi2], p2y = m_mesh.vert_y[vi2], p2z = m_mesh.vert_z[vi2];
+      double p3x = m_mesh.vert_x[vi3], p3y = m_mesh.vert_y[vi3], p3z = m_mesh.vert_z[vi3];
+
+      double flux = gauss_quad([&](double u) -> double {
+        return gauss_quad([&](double v) -> double {
+          double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
+          double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
+          double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
+          double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
+          double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
+          double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
+          double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
+          double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
+          double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
+          double nnx = dydu*dzdv - dzdu*dydv;
+          double nny = dzdu*dxdv - dxdu*dzdv;
+          double nnz = dxdu*dydv - dydu*dxdv;
+          double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+          cavity_modes::evaluate_mode_patterns(mp, x, y, z,
+                                                Ex_p, Ey_p, Ez_p,
+                                                Bx_p, By_p, Bz_p);
+          return Bx_p*nnx + By_p*nny + Bz_p*nnz;
+        }, 0.0, 1.0);
+      }, 0.0, 1.0);
+      m_B->data()[f] = static_cast<Scalar>(flux);
+    }
+  }
+
+  // ---- Initialize E (edge circulations) ----
+  for (int e = 0; e < m_mesh.m_N_edges; e++) {
+    if (!start_with_e) {
+      m_E->data()[e] = Scalar(0);
+      continue;
+    }
+    int v0 = m_mesh.edge_v0[e], v1 = m_mesh.edge_v1[e];
+    double x0 = m_mesh.vert_x[v0], y0 = m_mesh.vert_y[v0], z0 = m_mesh.vert_z[v0];
+    double dlx = m_mesh.vert_x[v1]-x0;
+    double dly = m_mesh.vert_y[v1]-y0;
+    double dlz = m_mesh.vert_z[v1]-z0;
+
+    double circ = gauss_quad([&](double t) -> double {
+      double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+      double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
+      cavity_modes::evaluate_mode_patterns(mp, x, y, z,
+                                            Ex_p, Ey_p, Ez_p,
+                                            Bx_p, By_p, Bz_p);
+      return Ex_p*dlx + Ey_p*dly + Ez_p*dlz;
+    }, 0.0, 1.0);
+    m_E->data()[e] = static_cast<Scalar>(circ);
+  }
+
+  // Enforce PEC on the boundary so the IC is exactly compatible.
+  apply_pec_bc(m_E->data(), m_B->data());
+
+  m_E->data().copy_to_device();
+  m_B->data().copy_to_device();
+}
+
+// =========================================================================
+// PEC boundary condition: zero tangential E and normal B on r = r_min, r_max
+//
+// Tangential E lives on horizontal edges of shells k = 0 and k = N_r.
+// Normal B lives on triangular faces of shells k = 0 and k = N_r.
+// (Vertical edges and rectangular faces of the boundary layers are NOT
+//  on the conducting surface itself, only adjacent — leave them alone.)
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::apply_pec_bc(
+    buffer<Scalar>& E, buffer<Scalar>& B) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int N_edge_s = mp.N_edge_s;
+  int N_tri = mp.N_tri;
+  int N_r = mp.N_r;
+
+  // Zero tangential E on inner shell (k=0) and outer shell (k=N_r)
+  ExecPolicy::launch(
+      [N_edge_s, N_r] LAMBDA(auto E_e) {
+        ExecPolicy::loop(0, N_edge_s, [&] LAMBDA(int e) {
+          E_e[e] = Scalar(0);                          // shell k = 0
+          E_e[N_r * N_edge_s + e] = Scalar(0);          // shell k = N_r
+        });
+      },
+      E);
+
+  // Zero normal B on inner shell (k=0) and outer shell (k=N_r)
+  ExecPolicy::launch(
+      [N_tri, N_r] LAMBDA(auto B_f) {
+        ExecPolicy::loop(0, N_tri, [&] LAMBDA(int t) {
+          B_f[t] = Scalar(0);                          // shell k = 0
+          B_f[N_r * N_tri + t] = Scalar(0);            // shell k = N_r
+        });
+      },
+      B);
 }
 
 // =========================================================================

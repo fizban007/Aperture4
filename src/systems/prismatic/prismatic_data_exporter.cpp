@@ -18,37 +18,99 @@ void prismatic_data_exporter::register_data_components() {
 
 void prismatic_data_exporter::init() {
   sim_env().params().get_value("fld_output_interval", m_output_interval);
-  sim_env().params().get_value("fld_output_subsample", m_output_subsample);
+  sim_env().params().get_value("fld_output_radial_stride",
+                               m_output_radial_stride);
+  sim_env().params().get_value("fld_output_angular_stride",
+                               m_output_angular_stride);
   sim_env().params().get_value("output_dir", m_output_dir);
 
-  if (m_output_subsample < 1) m_output_subsample = 1;
+  if (m_output_radial_stride  < 1) m_output_radial_stride  = 1;
+  if (m_output_angular_stride < 1) m_output_angular_stride = 1;
 
   // Create output directory
   std::filesystem::create_directories(m_output_dir);
 
-  // Build kept-index arrays for downsampled output. Plain stride over
-  // the global index — simple, deterministic, and reproducible by the
-  // analysis script. The boundary elements are not filtered out;
-  // analysis code can mask them via face_boundary / edge_boundary as
-  // needed.
-  if (m_output_subsample > 1) {
-    int N_e = m_mesh.m_N_edges;
-    int N_f = m_mesh.m_N_faces;
-    m_out_edge_idx.reserve((N_e + m_output_subsample - 1) / m_output_subsample);
-    m_out_face_idx.reserve((N_f + m_output_subsample - 1) / m_output_subsample);
-    for (int i = 0; i < N_e; i += m_output_subsample) {
-      m_out_edge_idx.push_back(i);
+  // Build kept-index arrays for structured downsampling. We iterate
+  // over (radial layer, sphere sub-element) and apply each stride
+  // independently, so the result is a structured subset of the prism
+  // mesh — every R-th shell × every A-th sphere triangle / edge /
+  // vertex. This is geometrically meaningful: with (R=2, A=4) the
+  // result is exactly one refinement level coarser. The first
+  // sub-element (t=0, e=0, s=0) is always retained, so the output
+  // includes the inner shell.
+  const int R = m_output_radial_stride;
+  const int A = m_output_angular_stride;
+  const int N_r       = m_mesh.m_N_r;
+  const int N_tri     = m_mesh.m_N_tri;
+  const int N_edge_s  = m_mesh.m_N_edge_s;
+  const int N_vert_s  = m_mesh.m_N_vert_s;
+
+  if (R > 1 || A > 1) {
+    // ---- Faces: triangular shell faces, then rectangular faces ----
+    // Triangular shell faces: (k, t) → k*N_tri + t, k ∈ [0, N_r], t ∈ [0, N_tri)
+    for (int k = 0; k <= N_r; k += R) {
+      for (int t = 0; t < N_tri; t += A) {
+        m_out_face_idx.push_back(k * N_tri + t);
+      }
     }
-    for (int i = 0; i < N_f; i += m_output_subsample) {
-      m_out_face_idx.push_back(i);
+    // Rectangular faces: (k, e) → (N_r+1)*N_tri + k*N_edge_s + e,
+    // k ∈ [0, N_r), e ∈ [0, N_edge_s)
+    const int n_tri_total = (N_r + 1) * N_tri;
+    for (int k = 0; k < N_r; k += R) {
+      for (int e = 0; e < N_edge_s; e += A) {
+        m_out_face_idx.push_back(n_tri_total + k * N_edge_s + e);
+      }
     }
+
+    // ---- Edges: horizontal edges, then vertical edges ----
+    // Horizontal edges: k*N_edge_s + e
+    for (int k = 0; k <= N_r; k += R) {
+      for (int e = 0; e < N_edge_s; e += A) {
+        m_out_edge_idx.push_back(k * N_edge_s + e);
+      }
+    }
+    // Vertical edges: (N_r+1)*N_edge_s + k*N_vert_s + s
+    const int n_h_edges = (N_r + 1) * N_edge_s;
+    for (int k = 0; k < N_r; k += R) {
+      for (int s = 0; s < N_vert_s; s += A) {
+        m_out_edge_idx.push_back(n_h_edges + k * N_vert_s + s);
+      }
+    }
+
     m_out_E_buf.resize(m_out_edge_idx.size());
     m_out_B_buf.resize(m_out_face_idx.size());
+
+    // ---- Collect unique vertices used by the kept faces / edges ----
+    // Used for writing standalone vertex info to mesh.h5; downstream
+    // tools can render the downsampled mesh without loading the full
+    // vertex list.
+    std::set<int> vert_set;
+    for (int fi : m_out_face_idx) {
+      if (fi < n_tri_total) {
+        vert_set.insert(m_mesh.tri_face_v0[fi]);
+        vert_set.insert(m_mesh.tri_face_v1[fi]);
+        vert_set.insert(m_mesh.tri_face_v2[fi]);
+      } else {
+        int ri = fi - n_tri_total;
+        vert_set.insert(m_mesh.rect_face_v0[ri]);
+        vert_set.insert(m_mesh.rect_face_v1[ri]);
+        vert_set.insert(m_mesh.rect_face_v2[ri]);
+        vert_set.insert(m_mesh.rect_face_v3[ri]);
+      }
+    }
+    for (int ei : m_out_edge_idx) {
+      vert_set.insert(m_mesh.edge_v0[ei]);
+      vert_set.insert(m_mesh.edge_v1[ei]);
+    }
+    m_out_vert_idx.assign(vert_set.begin(), vert_set.end());
+
     Logger::print_info(
-        "Output subsample = {}: writing {}/{} edges, {}/{} faces per snapshot",
-        m_output_subsample,
-        static_cast<int>(m_out_edge_idx.size()), N_e,
-        static_cast<int>(m_out_face_idx.size()), N_f);
+        "Output downsample (radial={}, angular={}): writing "
+        "{}/{} edges, {}/{} faces, {}/{} vertices per snapshot",
+        R, A,
+        static_cast<int>(m_out_edge_idx.size()), m_mesh.m_N_edges,
+        static_cast<int>(m_out_face_idx.size()), m_mesh.m_N_faces,
+        static_cast<int>(m_out_vert_idx.size()), m_mesh.m_N_verts);
   }
 
   // Write mesh file once
@@ -138,15 +200,36 @@ void prismatic_data_exporter::write_mesh() {
   file.write(m_mesh.m_N_vert_s, "N_vert_s");
   file.write(m_mesh.m_N_edge_s, "N_edge_s");
 
-  // Output downsampling: stride and the kept-index arrays. Always
-  // written so the analysis script can detect downsampling
-  // unambiguously (subsample == 1 → indices are absent).
-  file.write(m_output_subsample, "output_subsample");
-  if (m_output_subsample > 1) {
+  // Output downsampling: strides, kept-index arrays, and a small
+  // standalone description of the downsampled mesh (the unique vertex
+  // indices it references plus their positions). All written
+  // unconditionally so the analysis / visualization scripts can detect
+  // downsampling unambiguously: when both strides == 1 the index
+  // arrays are absent.
+  file.write(m_output_radial_stride,  "output_radial_stride");
+  file.write(m_output_angular_stride, "output_angular_stride");
+  if (m_output_radial_stride > 1 || m_output_angular_stride > 1) {
     file.write(m_out_edge_idx.data(),
                static_cast<size_t>(m_out_edge_idx.size()), "output_edge_idx");
     file.write(m_out_face_idx.data(),
                static_cast<size_t>(m_out_face_idx.size()), "output_face_idx");
+    file.write(m_out_vert_idx.data(),
+               static_cast<size_t>(m_out_vert_idx.size()), "output_vert_idx");
+    // Dense vertex positions for the downsampled mesh — small (one
+    // float per vertex per axis) and lets external tools render the
+    // downsampled mesh without loading the full vert_x/y/z arrays.
+    std::vector<Scalar> vx(m_out_vert_idx.size());
+    std::vector<Scalar> vy(m_out_vert_idx.size());
+    std::vector<Scalar> vz(m_out_vert_idx.size());
+    for (size_t i = 0; i < m_out_vert_idx.size(); ++i) {
+      int vi = m_out_vert_idx[i];
+      vx[i] = m_mesh.vert_x[vi];
+      vy[i] = m_mesh.vert_y[vi];
+      vz[i] = m_mesh.vert_z[vi];
+    }
+    file.write(vx.data(), vx.size(), "output_vert_x");
+    file.write(vy.data(), vy.size(), "output_vert_y");
+    file.write(vz.data(), vz.size(), "output_vert_z");
   }
 
   file.close();
@@ -163,7 +246,7 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   m_E->data().copy_to_host();
   m_B->data().copy_to_host();
 
-  if (m_output_subsample > 1) {
+  if (m_output_radial_stride > 1 || m_output_angular_stride > 1) {
     // Gather subsampled values from the host buffers and write them.
     const Scalar* E_h = m_E->host_ptr();
     const Scalar* B_h = m_B->host_ptr();

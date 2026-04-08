@@ -30,19 +30,37 @@ class prismatic_data_exporter : public system_t {
   nonown_ptr<prismatic_face_field> m_B;
 
   int m_output_interval = 100;
-  // Stride for downsampling raw cochain output. 1 = no downsampling
-  // (writes every edge / face). N > 1 keeps every N-th element of the
-  // global edge / face index, with the kept indices written to mesh.h5
-  // as `output_edge_idx` and `output_face_idx` so the analysis script
-  // knows what was retained. The unsampled snapshots become smaller by
-  // a factor of N, which is the dominant cost at large L.
-  int m_output_subsample = 1;
+
+  // Structured downsampling of raw cochain output. The radial stride
+  // applies to the shell index k; the angular stride applies to the
+  // sphere-element index (sphere triangle for triangular faces, sphere
+  // edge for rectangular faces / horizontal edges, sphere vertex for
+  // vertical edges). Both default to 1 (full output, identical to
+  // pre-existing behavior).
+  //
+  // Setting (radial=2, angular=4) downsamples by a factor of 8 in a
+  // way that mirrors exactly one level of refinement coarsening: every
+  // other shell × the corner-child of every parent triangle (the
+  // subdivide() routine pushes the (a, m_ab, m_ac) corner child first
+  // for every parent, so stride 4 in t selects one specific child per
+  // parent — see prismatic_mesh.cpp:117).
+  //
+  // The kept indices for each element type are stored in mesh.h5 as
+  // output_face_idx / output_edge_idx, plus the strides themselves and
+  // the unique vertices referenced by the kept set so external tools
+  // can render the downsampled mesh standalone.
+  int m_output_radial_stride  = 1;
+  int m_output_angular_stride = 1;
   std::string m_output_dir = "Data";
   double m_time = 0.0;
 
-  // Built once in init(); empty when m_output_subsample == 1.
+  // Built once in init(); empty when both strides are 1.
   std::vector<int> m_out_edge_idx;
   std::vector<int> m_out_face_idx;
+  // Unique vertex indices referenced by the kept faces and edges,
+  // sorted ascending. Lets visualization tools build a self-contained
+  // vertex list for the downsampled mesh.
+  std::vector<int> m_out_vert_idx;
   // Per-snapshot scratch buffers (avoid reallocation each call).
   std::vector<Scalar> m_out_E_buf;
   std::vector<Scalar> m_out_B_buf;

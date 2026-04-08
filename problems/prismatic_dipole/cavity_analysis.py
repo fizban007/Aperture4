@@ -47,15 +47,25 @@ def load_mesh(data_dir):
                     "edge_radial_layer", "face_radial_layer",
                     "hodge1_inv", "hodge2"]:
             mesh[key] = f[key][:]
-        # Optional output-side downsampling (writer keeps every N-th
-        # global edge/face). When present, snapshots store sparse
-        # cochain arrays in 1-to-1 order with these indices.
-        mesh["output_subsample"] = (int(f["output_subsample"][()])
-                                    if "output_subsample" in f else 1)
+        # Optional structured output downsampling. The writer applies
+        # independent radial / angular strides over (k, sub-element);
+        # when either is > 1, snapshots store sparse cochain arrays in
+        # 1-to-1 order with output_edge_idx / output_face_idx, and the
+        # downsampled mesh's unique vertex set is also recorded.
+        mesh["output_radial_stride"]  = (int(f["output_radial_stride"][()])
+                                         if "output_radial_stride"  in f else 1)
+        mesh["output_angular_stride"] = (int(f["output_angular_stride"][()])
+                                         if "output_angular_stride" in f else 1)
+        # Combined factor used by analyze_run as a "downsampling is on"
+        # flag (1 ⇒ full output).
+        mesh["output_subsample"] = (mesh["output_radial_stride"] *
+                                    mesh["output_angular_stride"])
         if "output_edge_idx" in f:
             mesh["output_edge_idx"] = f["output_edge_idx"][:]
         if "output_face_idx" in f:
             mesh["output_face_idx"] = f["output_face_idx"][:]
+        if "output_vert_idx" in f:
+            mesh["output_vert_idx"] = f["output_vert_idx"][:]
     return mesh
 
 

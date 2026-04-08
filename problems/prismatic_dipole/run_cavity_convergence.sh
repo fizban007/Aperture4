@@ -19,12 +19,14 @@ set -e
 LEVELS="${LEVELS:-${@:-2 3 4 5 6}}"
 N_PERIODS="${N_PERIODS:-4}"
 
-# Output downsampling stride. Stride=1 keeps every cochain (full
-# output, current default); larger values keep every Nth global edge /
-# face. Cuts disk usage and write time by ~N×; the L2 error on smooth
-# fields is essentially unchanged. Default is 1 to preserve previous
-# behavior; for L=6 sweeps you'll want 100–1000.
-OUT_SUB="${OUT_SUB:-1}"
+# Structured output downsampling. The radial stride applies to the
+# shell index k; the angular stride applies to the sphere triangle /
+# edge / vertex index. Both default to 1 (full output, identical to
+# pre-existing behavior). Setting (radial=2, angular=4) downsamples by
+# a factor of 8 and corresponds to exactly one refinement level
+# coarser. The L2 error on smooth fields is essentially unchanged.
+OUT_RAD_STRIDE="${OUT_RAD_STRIDE:-1}"
+OUT_ANG_STRIDE="${OUT_ANG_STRIDE:-1}"
 
 # Mode parameters (override via env)
 MODE_L="${MODE_L:-1}"
@@ -79,7 +81,8 @@ damping_length = 0
 damping_coef = 0.0
 
 fld_output_interval = $OUT_INT
-fld_output_subsample = $OUT_SUB
+fld_output_radial_stride  = $OUT_RAD_STRIDE
+fld_output_angular_stride = $OUT_ANG_STRIDE
 output_dir = "$DIR"
 sph_N_theta = 90
 sph_N_phi = 180

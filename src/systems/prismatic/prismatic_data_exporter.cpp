@@ -18,10 +18,38 @@ void prismatic_data_exporter::register_data_components() {
 
 void prismatic_data_exporter::init() {
   sim_env().params().get_value("fld_output_interval", m_output_interval);
+  sim_env().params().get_value("fld_output_subsample", m_output_subsample);
   sim_env().params().get_value("output_dir", m_output_dir);
+
+  if (m_output_subsample < 1) m_output_subsample = 1;
 
   // Create output directory
   std::filesystem::create_directories(m_output_dir);
+
+  // Build kept-index arrays for downsampled output. Plain stride over
+  // the global index — simple, deterministic, and reproducible by the
+  // analysis script. The boundary elements are not filtered out;
+  // analysis code can mask them via face_boundary / edge_boundary as
+  // needed.
+  if (m_output_subsample > 1) {
+    int N_e = m_mesh.m_N_edges;
+    int N_f = m_mesh.m_N_faces;
+    m_out_edge_idx.reserve((N_e + m_output_subsample - 1) / m_output_subsample);
+    m_out_face_idx.reserve((N_f + m_output_subsample - 1) / m_output_subsample);
+    for (int i = 0; i < N_e; i += m_output_subsample) {
+      m_out_edge_idx.push_back(i);
+    }
+    for (int i = 0; i < N_f; i += m_output_subsample) {
+      m_out_face_idx.push_back(i);
+    }
+    m_out_E_buf.resize(m_out_edge_idx.size());
+    m_out_B_buf.resize(m_out_face_idx.size());
+    Logger::print_info(
+        "Output subsample = {}: writing {}/{} edges, {}/{} faces per snapshot",
+        m_output_subsample,
+        static_cast<int>(m_out_edge_idx.size()), N_e,
+        static_cast<int>(m_out_face_idx.size()), N_f);
+  }
 
   // Write mesh file once
   write_mesh();
@@ -110,6 +138,17 @@ void prismatic_data_exporter::write_mesh() {
   file.write(m_mesh.m_N_vert_s, "N_vert_s");
   file.write(m_mesh.m_N_edge_s, "N_edge_s");
 
+  // Output downsampling: stride and the kept-index arrays. Always
+  // written so the analysis script can detect downsampling
+  // unambiguously (subsample == 1 → indices are absent).
+  file.write(m_output_subsample, "output_subsample");
+  if (m_output_subsample > 1) {
+    file.write(m_out_edge_idx.data(),
+               static_cast<size_t>(m_out_edge_idx.size()), "output_edge_idx");
+    file.write(m_out_face_idx.data(),
+               static_cast<size_t>(m_out_face_idx.size()), "output_face_idx");
+  }
+
   file.close();
   Logger::print_info("Mesh written to {}", filename);
 }
@@ -124,9 +163,25 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   m_E->data().copy_to_host();
   m_B->data().copy_to_host();
 
-  // Write field data
-  file.write(m_E->host_ptr(), m_mesh.m_N_edges, "E_e");
-  file.write(m_B->host_ptr(), m_mesh.m_N_faces, "B_f");
+  if (m_output_subsample > 1) {
+    // Gather subsampled values from the host buffers and write them.
+    const Scalar* E_h = m_E->host_ptr();
+    const Scalar* B_h = m_B->host_ptr();
+    for (size_t i = 0; i < m_out_edge_idx.size(); ++i) {
+      m_out_E_buf[i] = E_h[m_out_edge_idx[i]];
+    }
+    for (size_t i = 0; i < m_out_face_idx.size(); ++i) {
+      m_out_B_buf[i] = B_h[m_out_face_idx[i]];
+    }
+    file.write(m_out_E_buf.data(),
+               static_cast<size_t>(m_out_E_buf.size()), "E_e");
+    file.write(m_out_B_buf.data(),
+               static_cast<size_t>(m_out_B_buf.size()), "B_f");
+  } else {
+    // Full output (default).
+    file.write(m_E->host_ptr(), m_mesh.m_N_edges, "E_e");
+    file.write(m_B->host_ptr(), m_mesh.m_N_faces, "B_f");
+  }
 
   // Write metadata
   file.write(static_cast<int>(step), "step");

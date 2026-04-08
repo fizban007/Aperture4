@@ -47,14 +47,38 @@ def load_mesh(data_dir):
                     "edge_radial_layer", "face_radial_layer",
                     "hodge1_inv", "hodge2"]:
             mesh[key] = f[key][:]
+        # Optional output-side downsampling (writer keeps every N-th
+        # global edge/face). When present, snapshots store sparse
+        # cochain arrays in 1-to-1 order with these indices.
+        mesh["output_subsample"] = (int(f["output_subsample"][()])
+                                    if "output_subsample" in f else 1)
+        if "output_edge_idx" in f:
+            mesh["output_edge_idx"] = f["output_edge_idx"][:]
+        if "output_face_idx" in f:
+            mesh["output_face_idx"] = f["output_face_idx"][:]
     return mesh
 
 
-def load_fields(data_dir, step):
+def load_fields(data_dir, step, mesh=None):
+    """Load (B_f, E_e, t) for a given step.
+
+    If `mesh` is provided AND `mesh['output_subsample'] > 1`, the snapshot
+    arrays on disk are sparse (1-to-1 with `output_face_idx` /
+    `output_edge_idx`) — they are scattered back into full-length arrays
+    so the rest of the analysis pipeline (which addresses by global index)
+    works unchanged. Positions not retained on disk remain zero, so any
+    analysis subset must be a subset of the saved indices.
+    """
     with h5py.File(os.path.join(data_dir, f"step_{step:06d}.h5")) as f:
         B_f = f["B_f"][:]
         E_e = f["E_e"][:]
         t = float(f["time"][()])
+    if mesh is not None and mesh.get("output_subsample", 1) > 1:
+        B_full = np.zeros(mesh["N_faces"], dtype=B_f.dtype)
+        E_full = np.zeros(mesh["N_edges"], dtype=E_e.dtype)
+        B_full[mesh["output_face_idx"]] = B_f
+        E_full[mesh["output_edge_idx"]] = E_e
+        return B_full, E_full, t
     return B_f, E_e, t
 
 
@@ -489,7 +513,9 @@ def _infer_dt(data_dir, steps):
     for step in steps:
         if step == 0:
             continue
-        _, _, t = load_fields(data_dir, step)
+        # Don't pass mesh — we only need the timestamp, not the cochains.
+        with h5py.File(os.path.join(data_dir, f"step_{step:06d}.h5")) as f:
+            t = float(f["time"][()])
         if step > 0 and t > 0:
             return float(t) / float(step)
     return None
@@ -528,8 +554,21 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
     b_shift = -0.5 * dt if (b_half_shift and dt is not None) else 0.0
 
     # Pre-compute the index subset (interior elements, every-N-th).
-    interior_face_idx = np.where(mesh["face_boundary"] == 0)[0]
-    interior_edge_idx = np.where(mesh["edge_boundary"] == 0)[0]
+    # If the writer subsampled the output (mesh["output_subsample"] > 1),
+    # the indices we score on must be a subset of what was actually saved
+    # to disk — anything outside `output_*_idx` is zero in the loaded
+    # snapshots and would silently bias the L2 error.
+    out_sub = mesh.get("output_subsample", 1)
+    if out_sub > 1:
+        saved_face_mask = np.zeros(mesh["N_faces"], dtype=bool)
+        saved_face_mask[mesh["output_face_idx"]] = True
+        saved_edge_mask = np.zeros(mesh["N_edges"], dtype=bool)
+        saved_edge_mask[mesh["output_edge_idx"]] = True
+        interior_face_idx = np.where((mesh["face_boundary"] == 0) & saved_face_mask)[0]
+        interior_edge_idx = np.where((mesh["edge_boundary"] == 0) & saved_edge_mask)[0]
+    else:
+        interior_face_idx = np.where(mesh["face_boundary"] == 0)[0]
+        interior_edge_idx = np.where(mesh["edge_boundary"] == 0)[0]
     if subsample > 1:
         face_idx = interior_face_idx[::subsample]
         edge_idx = interior_edge_idx[::subsample]
@@ -547,9 +586,13 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
         print(f"  alpha = {alpha:.6e}")
         if b_half_shift:
             print(f"  inferred dt = {dt:.6e}, B compared at t {b_shift:+.4e}")
+        if out_sub > 1:
+            print(f"  output downsample = {out_sub} (writer kept "
+                  f"{len(mesh['output_face_idx'])}/{mesh['N_faces']} faces, "
+                  f"{len(mesh['output_edge_idx'])}/{mesh['N_edges']} edges)")
         print(f"  scoring on {len(face_idx)}/{len(interior_face_idx)} interior "
               f"faces, {len(edge_idx)}/{len(interior_edge_idx)} interior edges "
-              f"(subsample={subsample})")
+              f"(analysis subsample={subsample})")
 
     mode_args = (l, m, k, alpha, amp, polarization, start_with_e)
 
@@ -568,7 +611,7 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
 
     times, E_errs, B_errs = [], [], []
     for step in steps:
-        B_f, E_e, t = load_fields(data_dir, step)
+        B_f, E_e, t = load_fields(data_dir, step, mesh=mesh)
         # Evaluate analytic E at t, analytic B at (t + b_shift)
         E_ana, _ = analytic_cochains(mesh, mode_args, t,
                                       face_idx=face_idx, edge_idx=edge_idx)
@@ -593,7 +636,7 @@ def analyze_run(data_dir, l, m, n_root, polarization, start_with_e,
 
 def convergence_study(data_dirs, l, m, n_root, polarization, start_with_e,
                        amp=1.0, plot_path=None, b_half_shift=False,
-                       subsample=1, metric='peak'):
+                       subsample=1, target_samples=None, metric='peak'):
     """Run analyze_run on each directory and plot error vs h.
 
     metric:
@@ -615,10 +658,17 @@ def convergence_study(data_dirs, l, m, n_root, polarization, start_with_e,
         N_edge_s = mesh["N_edge_s"]
         h = float(np.mean(mesh["edge_length"][:N_edge_s])
                   / mesh["radii"][0])  # angular size in radians
+        # Auto-pick subsample to keep ~target_samples interior faces in the
+        # L2 sum (analysis cost is then roughly L-independent).
+        if target_samples is not None and target_samples > 0:
+            n_interior = int(np.sum(mesh["face_boundary"] == 0))
+            sub = max(1, n_interior // int(target_samples))
+        else:
+            sub = subsample
         times, Ee, Be, T = analyze_run(d, l, m, n_root, polarization,
                                         start_with_e, amp=amp, verbose=True,
                                         b_half_shift=b_half_shift,
-                                        subsample=subsample)
+                                        subsample=sub)
         # Drop step 0 (essentially-zero IC error) when computing peak/mean
         # so a near-zero IC value doesn't dominate the average.
         Ee_eval = Ee[1:] if len(Ee) > 1 else Ee
@@ -665,8 +715,10 @@ def convergence_study(data_dirs, l, m, n_root, polarization, start_with_e,
 
     if plot_path:
         fig, ax = plt.subplots(figsize=(7, 5))
-        ax.loglog(hs, E_metrics, 'o-', label=f'E (slope ~ {slope_E:.2f})')
-        ax.loglog(hs, B_metrics, 's-', label=f'B (slope ~ {slope_B:.2f})')
+        e_lbl = f'E (slope ~ {slope_E:.2f})' if slope_E is not None else 'E'
+        b_lbl = f'B (slope ~ {slope_B:.2f})' if slope_B is not None else 'B'
+        ax.loglog(hs, E_metrics, 'o-', label=e_lbl)
+        ax.loglog(hs, B_metrics, 's-', label=b_lbl)
         ref_h = np.array([hs.min(), hs.max()])
         ax.loglog(ref_h, B_metrics[-1] * (ref_h / hs[-1])**1, 'k--',
                    alpha=0.4, label='O(h)')
@@ -704,6 +756,11 @@ def main():
                     help="Score the L2 norm on every Nth interior face/edge "
                          "(default 1 = all). The relative error is essentially "
                          "unchanged for smooth fields.")
+    p.add_argument("--target_samples", type=int, default=None,
+                    help="Convergence mode: auto-pick subsample per dir so "
+                         "that ~target_samples interior faces are scored "
+                         "(keeps analysis cost ~L-independent). Overrides "
+                         "--subsample for convergence runs.")
     p.add_argument("--quad_order", type=int, default=5,
                     help="Gauss quadrature nodes per direction (default 5).")
     p.add_argument("--metric", choices=['peak', 'mean', 'final'],
@@ -720,6 +777,7 @@ def main():
                            plot_path=args.plot,
                            b_half_shift=args.b_half_shift,
                            subsample=args.subsample,
+                           target_samples=args.target_samples,
                            metric=args.metric)
     else:
         analyze_run(args.data_dirs[0], args.l, args.m, args.n_root,

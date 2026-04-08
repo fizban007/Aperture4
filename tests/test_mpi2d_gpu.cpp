@@ -21,21 +21,30 @@
 #include "framework/environment.h"
 #include "systems/domain_comm.h"
 #include "systems/grid.h"
-#include "utils/logger.h"
 #include "systems/policies/exec_policy_gpu.hpp"
+#include "utils/logger.h"
+#include <cstdlib>
 
 using namespace Aperture;
 
 int
 main(int argc, char* argv[]) {
-  // sim_environment env(&argc, &argv);
+  // Parse rank dimensions before sim_environment consumes argc/argv.
+  // Usage: mpirun -np <N> ./test_mpi2d <ranks_x> <ranks_y>
+  int ranks_x = 2, ranks_y = 2;
+  if (argc >= 3) {
+    ranks_x = std::atoi(argv[1]);
+    ranks_y = std::atoi(argv[2]);
+  }
+  int N_x = 5 * ranks_x, N_y = 5 * ranks_y;
+
   auto& env = sim_environment::instance(&argc, &argv, true);
   typedef Config<2> Conf;
 
   env.params().add("log_level", int64_t(LogLevel::detail));
-  env.params().add("N", std::vector<int64_t>({10, 10}));
+  env.params().add("N", std::vector<int64_t>({N_x, N_y}));
   env.params().add("guard", std::vector<int64_t>({2, 2}));
-  env.params().add("ranks", std::vector<int64_t>({2, 2}));
+  env.params().add("ranks", std::vector<int64_t>({ranks_x, ranks_y}));
   env.params().add("lower", std::vector<double>({1.0, 2.0}));
   env.params().add("size", std::vector<double>({100.0, 10.0}));
   env.params().add("periodic_boundary", std::vector<bool>({true, true}));
@@ -53,14 +62,22 @@ main(int argc, char* argv[]) {
   int N1 = grid->dims[0];
   ptc.set_num(18);
   if (comm.rank() == 0) {
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, 1 + (N1 - 2) * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0}, (N1 - 1) + 3 * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {3.0, 1.0, 0.0}, 1 + (N1 - 1) * N1);
-    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0}, (N1 - 1) + 0 * N1);
-    ptc_append(exec_tags::device{}, ph, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0}, 2 + 8 * N1, 0.0);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0},
+               1 + (N1 - 2) * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {1.0, 0.0, 0.0},
+               (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0},
+               (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0},
+               (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {2.0, 0.0, 0.0},
+               (N1 - 1) + 3 * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {3.0, 1.0, 0.0},
+               1 + (N1 - 1) * N1);
+    ptc_append(exec_tags::device{}, ptc, {0.5, 0.5, 0.5}, {4.0, -1.0, 0.0},
+               (N1 - 1) + 0 * N1);
+    ptc_append(exec_tags::device{}, ph, {0.1, 0.2, 0.3}, {1.0, 1.0, 1.0},
+               2 + 8 * N1, 0.0);
   }
   Logger::print_debug_all("initially Rank {} has {} particles:", comm.rank(),
                           ptc.number());

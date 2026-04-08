@@ -69,7 +69,7 @@ if(use_libcpp)
 endif()
 message(${CMAKE_CXX_COMPILER})
 # Find required packages
-find_package(MPI REQUIRED)
+find_package(MPI REQUIRED COMPONENTS C)
 find_package(HDF5 REQUIRED)
 if(use_boost_filesystem)
   find_package(Boost COMPONENTS system filesystem REQUIRED)
@@ -157,10 +157,24 @@ if(use_cuda)
     endif()
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     # message(${CMAKE_CXX_COMPILER})
+    # Derive CUDA root and NVHPC root from compiler path
+    get_filename_component(_cuda_bin_dir ${CMAKE_CUDA_COMPILER} DIRECTORY)
+    get_filename_component(_cuda_root ${_cuda_bin_dir} DIRECTORY)
+    get_filename_component(_nvhpc_root "${_cuda_root}/../.." ABSOLUTE)
+    # Extract major.minor from e.g. "12.8.93"
+    string(REGEX MATCH "^([0-9]+)\\.([0-9]+)" _cuda_ver_match ${CMAKE_CUDA_COMPILER_VERSION})
+    set(_cuda_ver "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}")
     find_library(CUDART_LIBRARY cudart
-                 PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+                 PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+                       "${_cuda_root}/lib64"
+                       "${_cuda_root}/targets/x86_64-linux/lib")
+    # In NVHPC, cusparse lives under math_libs/<ver>/targets/x86_64-linux/lib
     find_library(CUSPARSE_LIBRARY cusparse
-                 PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+                 PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+                       "${_cuda_root}/lib64"
+                       "${_cuda_root}/targets/x86_64-linux/lib"
+                       "${_nvhpc_root}/math_libs/${_cuda_ver}/targets/x86_64-linux/lib"
+                       "${_nvhpc_root}/math_libs/targets/x86_64-linux/lib")
   endif()
 endif()
 

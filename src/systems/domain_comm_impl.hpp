@@ -127,8 +127,12 @@ domain_comm<Conf, ExecPolicy>::setup_domain() {
   MPI_Cart_create(m_world, Conf::dim, m_domain_info.mpi_dims,
                   m_domain_info.is_periodic, true, &m_cart);
 
+  // Get the rank in the cart communicator (may differ from world rank
+  // due to reorder=true)
+  MPI_Comm_rank(m_cart, &m_cart_rank);
+
   // Obtain the mpi coordinate of the current rank
-  MPI_Cart_coords(m_cart, m_rank, Conf::dim, m_domain_info.mpi_coord);
+  MPI_Cart_coords(m_cart, m_cart_rank, Conf::dim, m_domain_info.mpi_coord);
   // std::cout << "Rank " << m_rank << " has mpi coord " <<
   // m_domain_info.mpi_coord[0] << ", "
   //   << m_domain_info.mpi_coord[1] << ", " << m_domain_info.mpi_coord[2];
@@ -271,7 +275,7 @@ domain_comm<Conf, ExecPolicy>::send_array_guard_cells_single_dir(
   auto recv_idx = index_t<Conf::dim>{};
   recv_idx[dim] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
 
-  if (dest == m_rank && origin == m_rank) {
+  if (dest == m_cart_rank && origin == m_cart_rank) {
     // if (array.mem_type() == MemType::host_only) {
     //   copy(exec_tags::host{}, array, array, recv_idx, send_idx,
     //   m_send_buffers[dim].extent());
@@ -343,7 +347,7 @@ domain_comm<Conf, ExecPolicy>::send_add_array_guard_cells_single_dir(
   recv_idx[dim] =
       (dir == -1 ? grid.dims[dim] - 2 * grid.guard[dim] : grid.guard[dim]);
 
-  if (dest == m_rank && origin == m_rank) {
+  if (dest == m_cart_rank && origin == m_cart_rank) {
     // if (array.mem_type() == MemType::host_only) {
     //   add(exec_tags::host{}, array, array, recv_idx, send_idx,
     //   m_recv_buffers[dim].extent());
@@ -411,7 +415,7 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_single_dir(
   auto recv_idx = index_t<Conf::dim>{};
   recv_idx[dim] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
 
-  if (dest == m_rank && origin == m_rank) {
+  if (dest == m_cart_rank && origin == m_cart_rank) {
     for (int n = 0; n < 3; n++) {
       auto &array = field[n];
       // if (array.mem_type() == MemType::host_only) {
@@ -505,7 +509,7 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_single_dir(
   //                         recv_idx[0], recv_idx[1], recv_idx[2],
   //                         dim, dir);
 
-  if (dest == m_rank && origin == m_rank) {
+  if (dest == m_cart_rank && origin == m_cart_rank) {
     for (int n = 0; n < 3; n++) {
       auto &array = field[n];
       // if (array.mem_type() == MemType::host_only) {
@@ -617,7 +621,7 @@ domain_comm<Conf, ExecPolicy>::send_phase_space_single_direction(
   auto recv_idx = index_t<Conf::dim + dimP>{};
   recv_idx[dim + dimP] = (dir == -1 ? grid.dims[dim] - grid.guard[dim] : 0);
 
-  if (dest == m_rank && origin == m_rank) {
+  if (dest == m_cart_rank && origin == m_cart_rank) {
     auto &array = data.data;
     copy(typename ExecPolicy<Conf>::exec_tag{}, array, array, recv_idx,
          send_idx, send_buffers[dim].extent());
@@ -749,7 +753,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
       send_buffer.copy_to_host();
     }
 
-    if (src == dst && src == m_rank) {
+    if (src == dst && src == m_cart_rank) {
       if CONST_EXPR (m_is_device && use_cuda_mpi) {
 #ifdef GPU_ENABLED
         gpuMemcpy(recv_ptr, send_ptr,

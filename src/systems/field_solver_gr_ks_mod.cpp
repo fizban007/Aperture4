@@ -22,6 +22,10 @@
 namespace Aperture {
 
 // Currently we have only implemented 2D GR Kerr-Schild solver
-template class field_solver_mod<Config<2>, exec_policy_host, coord_policy_gr_ks_sph>;
+template class field_solver_mod<Config<2>, exec_policy_host,
+                                coord_policy_gr_ks_sph>;
 
-}
+template class field_solver_mod<Config<3>, exec_policy_host,
+                                coord_policy_gr_ks_sph>;
+
+}  // namespace Aperture

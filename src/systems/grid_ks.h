@@ -75,18 +75,31 @@ class grid_ks_t : public grid_t<Conf> {
   static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
   // static HD_INLINE value_t radius(value_t x1) { return x1; }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
+  static HD_INLINE value_t phi(value_t x3) { return x3; }
   static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
   // static HD_INLINE value_t from_radius(value_t r) { return r; }
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
+  static HD_INLINE value_t from_phi(value_t phi) { return phi; }
 
-  inline vec_t<float, Conf::dim> cart_coord(
-      const index_t<Conf::dim>& pos) const override {
-    vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++) result[i] = this->coord(i, pos[i], false);
+  inline vec_t<float, 2> cart_coord(const index_t<2>& pos) const {
+    vec_t<float, 2> result;
+    for (int i = 0; i < 2; i++) result[i] = this->coord(i, pos[i], false);
     float r = radius(result[0]);
     float th = theta(result[1]);
     result[0] = r * math::sin(th);
     result[1] = r * math::cos(th);
+    return result;
+  }
+
+  inline vec_t<float, 3> cart_coord(const index_t<3>& pos) const {
+    vec_t<float, 3> result;
+    for (int i = 0; i < 3; i++) result[i] = this->coord(i, pos[i], false);
+    float r = radius(result[0]);
+    float th = theta(result[1]);
+    float ph = phi(result[2]);
+    result[0] = r * math::cos(ph) * math::sin(th);
+    result[1] = r * math::sin(ph) * math::sin(th);
+    result[2] = r * math::cos(th);
     return result;
   }
 

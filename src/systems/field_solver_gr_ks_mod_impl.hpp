@@ -29,6 +29,7 @@
 #include "systems/physics/metric_kerr_schild.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/timer.h"
+#include <type_traits>
 
 namespace Aperture {
 
@@ -37,7 +38,8 @@ namespace {
 template <int Dim>
 using fd = finite_diff<Dim, 2>;
 
-template <typename Conf, template <class> class ExecPolicy>
+template <typename Conf, template <class> class ExecPolicy,
+          std::enable_if_t<Conf::dim == 2, int> = 0>
 void
 damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
                  vector_field<Conf>& e0, vector_field<Conf>& b0,
@@ -47,8 +49,8 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
   typedef typename Conf::value_t value_t;
   // kernel_launch(
   ExecPolicy<Conf>::launch(
-      [damping_length, damping_coef, damp_to_background]
-        LAMBDA(auto e, auto e0, auto b, auto b0) {
+      [damping_length, damping_coef, damp_to_background] LAMBDA(
+          auto e, auto e0, auto b, auto b0) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto n1 : grid_stride_range(0, grid.dims[1])) {
@@ -80,6 +82,52 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
   ExecPolicy<Conf>::sync();
 }
 
+template <typename Conf, template <class> class ExecPolicy,
+          std::enable_if_t<Conf::dim == 3, int> = 0>
+void
+damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
+                 vector_field<Conf>& e0, vector_field<Conf>& b0,
+                 int damping_length, typename Conf::value_t damping_coef,
+                 bool damp_to_background = true) {
+  typedef typename Conf::idx_t idx_t;
+  typedef typename Conf::value_t value_t;
+  // kernel_launch(
+  ExecPolicy<Conf>::launch(
+      [damping_length, damping_coef, damp_to_background] LAMBDA(
+          auto e, auto e0, auto b, auto b0) {
+        auto& grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        // for (auto n1 : grid_stride_range(0, grid.dims[1])) {
+        ExecPolicy<Conf>::loop(0, grid.dims[1], [&] LAMBDA(auto n1) {
+          for (int n2 = 0; n2 < grid.dims[2]; n2++) {
+            for (int i = 0; i < damping_length - 1; i++) {
+              int n0 = grid.dims[0] - damping_length + i;
+              auto idx = idx_t(index_t<3>(n0, n1, n2), ext);
+              value_t lambda =
+                  1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+              if (damp_to_background) {
+                e[0][idx] *= lambda;
+                e[1][idx] *= lambda;
+                e[2][idx] *= lambda;
+                b[0][idx] *= lambda;
+                b[1][idx] *= lambda;
+                b[2][idx] *= lambda;
+              } else {
+                e[0][idx] = lambda * (e[0][idx] + e0[0][idx]) - e0[0][idx];
+                e[1][idx] = lambda * (e[1][idx] + e0[1][idx]) - e0[1][idx];
+                e[2][idx] = lambda * (e[2][idx] + e0[2][idx]) - e0[2][idx];
+                b[0][idx] = lambda * (b[0][idx] + b0[0][idx]) - b0[0][idx];
+                b[1][idx] = lambda * (b[1][idx] + b0[1][idx]) - b0[1][idx];
+                b[2][idx] = lambda * (b[2][idx] + b0[2][idx]) - b0[2][idx];
+              }
+            }
+          }
+        });
+      },
+      e, e0, b, b0);
+  ExecPolicy<Conf>::sync();
+}
+
 }  // namespace
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -90,7 +138,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::field_solver_mod(
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::~field_solver_mod() {}
+field_solver_mod<Conf, ExecPolicy,
+                 coord_policy_gr_ks_sph>::~field_solver_mod() {}
 
 template <typename Conf, template <class> class ExecPolicy>
 void
@@ -101,7 +150,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
   Logger::print_info("bh_spin in field solver is {}", m_a);
   sim_env().params().get_value("implicit_beta", this->m_beta);
   sim_env().params().get_value("damping_length", m_damping_length);
-  sim_env().params().get_value("damping_length_horizon", m_damping_length_horizon);
+  sim_env().params().get_value("damping_length_horizon",
+                               m_damping_length_horizon);
   sim_env().params().get_value("damping_coef", m_damping_coef);
   sim_env().params().get_value("damping_coef_horizon", m_damping_coef_horizon);
   sim_env().params().get_value("damp_to_background", m_damp_to_background);
@@ -140,7 +190,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::init() {
 template <typename Conf, template <class> class ExecPolicy>
 void
 field_solver_mod<Conf, ExecPolicy,
-             coord_policy_gr_ks_sph>::register_data_components() {
+                 coord_policy_gr_ks_sph>::register_data_components() {
   auto type = ExecPolicy<Conf>::data_mem_type();
   field_solver_base<Conf>::register_data_components_impl(type);
 
@@ -167,154 +217,150 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
 
-        ExecPolicy<
-            Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-          auto pos = get_pos(idx, ext);
-          // if (grid.is_in_bound(pos)) {
-          if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
-            value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
-            value_t r_plus = grid_ks_t<Conf>::radius(
-                grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
-            value_t r_minus = grid_ks_t<Conf>::radius(
-                grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
-            value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
-            value_t w_minus;
-            value_t w_plus;
-            value_t g13_minus;
-            value_t g13_plus;
-            value_t gb1_minus;
-            value_t gb1_plus;
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              // if (grid.is_in_bound(pos)) {
+              if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+                value_t r =
+                    grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                value_t r_plus = grid_ks_t<Conf>::radius(
+                    grid.coord(0, pos[0], false) + 0.5f * grid.delta[0]);
+                value_t r_minus = grid_ks_t<Conf>::radius(
+                    grid.coord(0, pos[0], false) - 0.5f * grid.delta[0]);
+                value_t th =
+                    grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+                value_t w_minus;
+                value_t w_plus;
+                value_t g13_minus;
+                value_t g13_plus;
+                value_t gb1_minus;
+                value_t gb1_plus;
 
-            // E_1 = alpha D_1 = alpha (gamma_11 D^1 + gamma_13 D^3)
-            // Handle coordinate axis
-            if (math::abs(th) < 0.1f * grid.delta[1] ||
-                math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
-              auxE[0][idx] =
-                  r * grid.delta[0] * Metric_KS::ag_11(a, r, th) * D[0][idx];
-              // auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
-              // auxE[0][idx] =
+                // E_1 = alpha D_1 = alpha (gamma_11 D^1 + gamma_13 D^3)
+                // Handle coordinate axis
+                if (math::abs(th) < 0.1f * grid.delta[1] ||
+                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+                  auxE[0][idx] = r * grid.delta[0] *
+                                 Metric_KS::ag_11(a, r, th) * D[0][idx];
+                  // auxE[0][idx] = grid_ptrs.ag11dr_e[idx] * D[0][idx];
+                  // auxE[0][idx] =
                   // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0];
-              // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
-              //   printf("auxE0 is %f, D0 is %f\n", auxE[0][idx], D[0][idx]);
-              // }
-            } else {
-              w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-              w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
-              g13_minus = Metric_KS::g_13(a, r_minus, th);
-              g13_plus  = Metric_KS::g_13(a, r_plus,  th);
-              auxE[0][idx] =
-                  r * grid.delta[0] * Metric_KS::alpha(a, r, th) * (
-                      Metric_KS::g_11(a, r, th) * (
-                          D[0][idx]
-                      ) +
-                      (
-                          (w_minus * g13_minus * D[2][idx] + w_plus * g13_plus * D[2][idx.inc_x()]) /
-                          (w_minus + w_plus)
-                      )
-                  );
-              // auxE[0][idx] =
-              //     grid_ptrs.ag11dr_e[idx] * D[0][idx] +
-              //     0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
-              //            grid_ptrs.ag13dr_d[idx.inc_x()] * D[2][idx.inc_x()]);
-                  // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0] +
-                  // 0.5 *
-                  //     (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus +
+                  // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1]) {
+                  //   printf("auxE0 is %f, D0 is %f\n", auxE[0][idx],
+                  //   D[0][idx]);
+                  // }
+                } else {
+                  w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
+                  w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
+                  g13_minus = Metric_KS::g_13(a, r_minus, th);
+                  g13_plus = Metric_KS::g_13(a, r_plus, th);
+                  auxE[0][idx] = r * grid.delta[0] *
+                                 Metric_KS::alpha(a, r, th) *
+                                 (Metric_KS::g_11(a, r, th) * (D[0][idx]) +
+                                  ((w_minus * g13_minus * D[2][idx] +
+                                    w_plus * g13_plus * D[2][idx.inc_x()]) /
+                                   (w_minus + w_plus)));
+                  // auxE[0][idx] =
+                  //     grid_ptrs.ag11dr_e[idx] * D[0][idx] +
+                  //     0.5 * (grid_ptrs.ag13dr_d[idx] * D[2][idx] +
+                  //            grid_ptrs.ag13dr_d[idx.inc_x()] *
+                  //            D[2][idx.inc_x()]);
+                  // Metric_KS::ag_11(a, r, th) * D[0][idx] * r * grid.delta[0]
+                  // + 0.5 *
+                  //     (Metric_KS::ag_13(a, r_minus, th) * D[2][idx] * r_minus
+                  //     +
                   //      Metric_KS::ag_13(a, r_plus, th) * D[2][idx.inc_x()] *
                   //          r_plus) *
                   //     grid.delta[0];
-              // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] +
-              // D[2][idx.inc_x()]); 0.5 * Metric_KS::ag_13(a, r, th) *
-              // (D[2][idx] + D[2][idx.inc_x()]);
-            }
+                  // 0.5 * grid_ptrs.ag13dr_e[idx] * (D[2][idx] +
+                  // D[2][idx.inc_x()]); 0.5 * Metric_KS::ag_13(a, r, th) *
+                  // (D[2][idx] + D[2][idx.inc_x()]);
+                }
 
-            r_plus = r;
-            r = r_minus;
-            r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) -
-                                              0.5f * grid.delta[0]);
-            th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+                r_plus = r;
+                r = r_minus;
+                r_minus = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true) -
+                                                  0.5f * grid.delta[0]);
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
-            // E_2 = alpha D_2          - sqrt(gam) beta^1 B^3
-            //     = alpha gamma_22 D^2 - sqrt(gam) beta^1 B^3
-            w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-            w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
-            gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
-            gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
-            auxE[1][idx] =
-                grid.delta[1] * (
-                    Metric_KS::alpha(a, r, th) * Metric_KS::g_22(a, r, th) * (
-                        D[1][idx]
-                    ) -
-                    (
-                        (w_minus * gb1_minus * B[2][idx.dec_x()] + w_plus * gb1_plus * B[2][idx]) /
-                        (w_minus + w_plus)
-                    )
-                );
-            // auxE[1][idx] =
-            //     // Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1] -
-            //         grid_ptrs.ag22dth_e[idx] * D[1][idx] -
-            //     // 0.5 *
-            //     //     (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[2][idx] +
-            //     //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
-            //     //          B[2][idx.dec_x()]) *
-            //     //     grid.delta[1];
-            // 0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
-            //        grid_ptrs.gbetadth_b[idx.dec_x()] *
-            //        B[2][idx.dec_x()]);
-            // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] +
-            // B[2][idx.dec_x()]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
-            // * (B[2][idx] + B[2][idx.dec_x()]);
+                // E_2 = alpha D_2          - sqrt(gam) beta^1 B^3
+                //     = alpha gamma_22 D^2 - sqrt(gam) beta^1 B^3
+                w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
+                w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
+                gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
+                gb1_plus = Metric_KS::sq_gamma_beta(a, r_plus, th);
+                auxE[1][idx] = grid.delta[1] *
+                               (Metric_KS::alpha(a, r, th) *
+                                    Metric_KS::g_22(a, r, th) * (D[1][idx]) -
+                                ((w_minus * gb1_minus * B[2][idx.dec_x()] +
+                                  w_plus * gb1_plus * B[2][idx]) /
+                                 (w_minus + w_plus)));
+                // auxE[1][idx] =
+                //     // Metric_KS::ag_22(a, r, th) * D[1][idx] * grid.delta[1]
+                //     -
+                //         grid_ptrs.ag22dth_e[idx] * D[1][idx] -
+                //     // 0.5 *
+                //     //     (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                //     B[2][idx] +
+                //     //      Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                //     //          B[2][idx.dec_x()]) *
+                //     //     grid.delta[1];
+                // 0.5 * (grid_ptrs.gbetadth_b[idx] * B[2][idx] +
+                //        grid_ptrs.gbetadth_b[idx.dec_x()] *
+                //        B[2][idx.dec_x()]);
+                // 0.5 * grid_ptrs.gbetadth_e[idx] * (B[2][idx] +
+                // B[2][idx.dec_x()]); 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
+                // * (B[2][idx] + B[2][idx.dec_x()]);
 
-            th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+                th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
-            w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-            w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
-            gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
-            gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
-            g13_minus = Metric_KS::g_13(a, r_minus, th);
-            g13_plus  = Metric_KS::g_13(a, r_plus,  th);
-            // E_3 = alpha D_3                   + sqrt(gam) beta^1 B^2
-            //     = alpha (g_33 D^3 + g_31 D^1) + sqrt(gam) beta^1 B^2
-            // Handle coordinate axis
-            if (math::abs(th) < 0.1f * grid.delta[1] ||
-                math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
-              auxE[2][idx] =
-                  Metric_KS::alpha(a, r, th) * (
-                      (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) /
-                      (w_minus + w_plus)
-                  );
-              // auxE[2][idx] =
-              //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-              //            Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]);
-              // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
-              // D[0][idx.dec_x()]);
-            } else {
-              auxE[2][idx] =
-                  Metric_KS::alpha(a, r, th) * (
-                      Metric_KS::g_33(a, r, th) * (
-                          D[2][idx]
-                      ) +
-                      (
-                          (w_minus * g13_minus * D[0][idx.dec_x()] + w_plus * g13_plus * D[0][idx]) /
-                          (w_minus + w_plus)
-                      )
-                  ) +
-                  (
-                      (w_minus * gb1_minus * B[1][idx.dec_x()] + w_plus * gb1_plus * B[1][idx]) /
-                      (w_minus + w_plus)
-                  );
-              // auxE[2][idx] =
-              //     Metric_KS::ag_33(a, r, th) * D[2][idx] +
-              //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
-              //            Metric_KS::ag_13(a, r_minus, th) * D[0][idx.dec_x()]) +
-              //     0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) * B[1][idx] +
-              //            Metric_KS::sq_gamma_beta(a, r_minus, th) *
-              //                B[1][idx.dec_x()]);
-              // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
-              // D[0][idx.dec_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r,
-              // th) * (B[1][idx] + B[1][idx.dec_x()]);
-            }
-          }
-        });
+                w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
+                w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
+                gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
+                gb1_plus = Metric_KS::sq_gamma_beta(a, r_plus, th);
+                g13_minus = Metric_KS::g_13(a, r_minus, th);
+                g13_plus = Metric_KS::g_13(a, r_plus, th);
+                // E_3 = alpha D_3                   + sqrt(gam) beta^1 B^2
+                //     = alpha (g_33 D^3 + g_31 D^1) + sqrt(gam) beta^1 B^2
+                // Handle coordinate axis
+                if (math::abs(th) < 0.1f * grid.delta[1] ||
+                    math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
+                  auxE[2][idx] = Metric_KS::alpha(a, r, th) *
+                                 ((w_minus * g13_minus * D[0][idx.dec_x()] +
+                                   w_plus * g13_plus * D[0][idx]) /
+                                  (w_minus + w_plus));
+                  // auxE[2][idx] =
+                  //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                  //            Metric_KS::ag_13(a, r_minus, th) *
+                  //            D[0][idx.dec_x()]);
+                  // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
+                  // D[0][idx.dec_x()]);
+                } else {
+                  auxE[2][idx] =
+                      Metric_KS::alpha(a, r, th) *
+                          (Metric_KS::g_33(a, r, th) * (D[2][idx]) +
+                           ((w_minus * g13_minus * D[0][idx.dec_x()] +
+                             w_plus * g13_plus * D[0][idx]) /
+                            (w_minus + w_plus))) +
+                      ((w_minus * gb1_minus * B[1][idx.dec_x()] +
+                        w_plus * gb1_plus * B[1][idx]) /
+                       (w_minus + w_plus));
+                  // auxE[2][idx] =
+                  //     Metric_KS::ag_33(a, r, th) * D[2][idx] +
+                  //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * D[0][idx] +
+                  //            Metric_KS::ag_13(a, r_minus, th) *
+                  //            D[0][idx.dec_x()]) +
+                  //     0.5 * (Metric_KS::sq_gamma_beta(a, r_plus, th) *
+                  //     B[1][idx] +
+                  //            Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                  //                B[1][idx.dec_x()]);
+                  // 0.5 * Metric_KS::ag_13(a, r, th) * (D[0][idx] +
+                  // D[0][idx.dec_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r,
+                  // th) * (B[1][idx] + B[1][idx.dec_x()]);
+                }
+              }
+            });
       },
       B, D, *(m_auxE), m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
@@ -346,30 +392,28 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                 value_t th =
                     grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
                 value_t w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-                value_t w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
+                value_t w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
                 value_t g13_minus = Metric_KS::g_13(a, r_minus, th);
-                value_t g13_plus  = Metric_KS::g_13(a, r_plus,  th);
+                value_t g13_plus = Metric_KS::g_13(a, r_plus, th);
                 value_t gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
-                value_t gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
+                value_t gb1_plus = Metric_KS::sq_gamma_beta(a, r_plus, th);
 
                 // H_1 = alpha B_1 = alpha (gamma_11 B^1 + gamma_13 B^3)
-                auxH[0][idx] =
-                    r * grid.delta[0] * Metric_KS::alpha(a, r, th) * (
-                        Metric_KS::g_11(a, r, th) * (
-                            B[0][idx]
-                        ) +
-                        (
-                            (w_minus * g13_minus * B[2][idx.dec_x()] + w_plus * g13_plus * B[2][idx]) /
-                            (w_minus + w_plus)
-                        )
-                    );
+                auxH[0][idx] = r * grid.delta[0] * Metric_KS::alpha(a, r, th) *
+                               (Metric_KS::g_11(a, r, th) * (B[0][idx]) +
+                                ((w_minus * g13_minus * B[2][idx.dec_x()] +
+                                  w_plus * g13_plus * B[2][idx]) /
+                                 (w_minus + w_plus)));
                 // auxH[0][idx] =
                 //     grid_ptrs.ag11dr_h[idx] * B[0][idx] +
-                //     // Metric_KS::ag_11(a, r, th) * B[0][idx] * r * grid.delta[0] +
+                //     // Metric_KS::ag_11(a, r, th) * B[0][idx] * r *
+                //     grid.delta[0] +
                 //     // 0.5 *
-                //     //     (Metric_KS::ag_13(a, r_minus, th) * B[2][idx.dec_x()] *
+                //     //     (Metric_KS::ag_13(a, r_minus, th) *
+                //     B[2][idx.dec_x()] *
                 //     //          r_minus +
-                //     //      Metric_KS::ag_13(a, r_plus, th) * B[2][idx] * r_plus) *
+                //     //      Metric_KS::ag_13(a, r_plus, th) * B[2][idx] *
+                //     r_plus) *
                 //     //     grid.delta[0];
                 // 0.5 * (grid_ptrs.ag13dr_b[idx.dec_x()] * B[2][idx.dec_x()] +
                 //        grid_ptrs.ag13dr_b[idx] * B[2][idx]);
@@ -384,9 +428,9 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                 th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
                 w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-                w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
+                w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
                 gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
-                gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
+                gb1_plus = Metric_KS::sq_gamma_beta(a, r_plus, th);
 
                 // H_2 = alpha B_2          + sqrt(gam) beta^1 D^3
                 //     = alpha gamma_22 B^2 + sqrt(gam) beta^1 D^3
@@ -395,19 +439,16 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                     math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
                   auxH[1][idx] = 0.0f;
                 } else {
-                  auxH[1][idx] =
-                      grid.delta[1] * (
-                          Metric_KS::alpha(a, r, th) * Metric_KS::g_22(a, r, th) * (
-                              B[1][idx]
-                          ) +
-                          (
-                              (w_minus * gb1_minus * D[2][idx] + w_plus * gb1_plus * D[2][idx.inc_x()]) /
-                              (w_minus + w_plus)
-                          )
-                      );
+                  auxH[1][idx] = grid.delta[1] *
+                                 (Metric_KS::alpha(a, r, th) *
+                                      Metric_KS::g_22(a, r, th) * (B[1][idx]) +
+                                  ((w_minus * gb1_minus * D[2][idx] +
+                                    w_plus * gb1_plus * D[2][idx.inc_x()]) /
+                                   (w_minus + w_plus)));
                   // auxH[1][idx] =
                   //     grid_ptrs.ag22dth_h[idx] * B[1][idx] +
-                  //     // Metric_KS::ag_22(a, r, th) * B[1][idx] * grid.delta[1] +
+                  //     // Metric_KS::ag_22(a, r, th) * B[1][idx] *
+                  //     grid.delta[1] +
                   //     // 0.5 *
                   //     //     (Metric_KS::sq_gamma_beta(a, r_plus, th) *
                   //     //          D[2][idx.inc_x()] +
@@ -426,36 +467,34 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                 th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
 
                 w_minus = Metric_KS::sqrt_gamma_tild(a, r_minus, th);
-                w_plus  = Metric_KS::sqrt_gamma_tild(a, r_plus,  th);
+                w_plus = Metric_KS::sqrt_gamma_tild(a, r_plus, th);
                 g13_minus = Metric_KS::g_13(a, r_minus, th);
-                g13_plus  = Metric_KS::g_13(a, r_plus,  th);
+                g13_plus = Metric_KS::g_13(a, r_plus, th);
                 gb1_minus = Metric_KS::sq_gamma_beta(a, r_minus, th);
-                gb1_plus  = Metric_KS::sq_gamma_beta(a, r_plus,  th);
+                gb1_plus = Metric_KS::sq_gamma_beta(a, r_plus, th);
 
-                // H_3 = alpha B_3                           - sqrt(gam) beta^1 D^2
-                //     = alpha (gamma_31 B^1 + gamma_33 B^3) - sqrt(gam) beta^1 D^2
-                auxH[2][idx] =
-                    Metric_KS::alpha(a, r, th) * (
-                        Metric_KS::g_33(a, r, th) * (
-                            B[2][idx]
-                        ) +
-                        (
-                            (w_minus * g13_minus * B[0][idx] + w_plus * g13_plus * B[0][idx.inc_x()]) /
-                            (w_minus + w_plus)
-                        )
-                    ) -
-                    (
-                        (w_minus * gb1_minus * D[1][idx] + w_plus * gb1_plus * D[1][idx.inc_x()]) /
-                        (w_minus + w_plus)
-                    );
+                // H_3 = alpha B_3                           - sqrt(gam) beta^1
+                // D^2
+                //     = alpha (gamma_31 B^1 + gamma_33 B^3) - sqrt(gam) beta^1
+                //     D^2
+                auxH[2][idx] = Metric_KS::alpha(a, r, th) *
+                                   (Metric_KS::g_33(a, r, th) * (B[2][idx]) +
+                                    ((w_minus * g13_minus * B[0][idx] +
+                                      w_plus * g13_plus * B[0][idx.inc_x()]) /
+                                     (w_minus + w_plus))) -
+                               ((w_minus * gb1_minus * D[1][idx] +
+                                 w_plus * gb1_plus * D[1][idx.inc_x()]) /
+                                (w_minus + w_plus));
                 // auxH[2][idx] =
                 //     Metric_KS::ag_33(a, r, th) * B[2][idx] +
-                //     0.5 * (Metric_KS::ag_13(a, r_plus, th) * B[0][idx.inc_x()] +
+                //     0.5 * (Metric_KS::ag_13(a, r_plus, th) *
+                //     B[0][idx.inc_x()] +
                 //            Metric_KS::ag_13(a, r_minus, th) * B[0][idx]) -
                 //     0.5 *
                 //         (Metric_KS::sq_gamma_beta(a, r_plus, th) *
                 //              D[1][idx.inc_x()] +
-                //          Metric_KS::sq_gamma_beta(a, r_minus, th) * D[1][idx]);
+                //          Metric_KS::sq_gamma_beta(a, r_minus, th) *
+                //          D[1][idx]);
                 // 0.5 * Metric_KS::ag_13(a, r, th) * (B[0][idx] +
                 // B[0][idx.inc_x()]) + 0.5 * Metric_KS::sq_gamma_beta(a, r, th)
                 // * (D[1][idx] + D[1][idx.inc_x()]);
@@ -502,8 +541,10 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dB_dt(
                                   (auxE[0][idx] - auxE[0][idx.inc_y()])) /
                                 grid_ptrs.Ab[2][idx];
 
-                // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1] - 1) {
-                //   printf("dBphi/dt is %f, auxE0 are %f and %f\n", dB_dt[2][idx],
+                // if (pos[0] == 100 && pos[1] == grid.N[1] + grid.guard[1] - 1)
+                // {
+                //   printf("dBphi/dt is %f, auxE0 are %f and %f\n",
+                //   dB_dt[2][idx],
                 //          auxE[0][idx], auxE[0][idx.inc_y()]);
                 // }
 
@@ -530,7 +571,7 @@ void
 field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
     vector_field<Conf>& dD_dt, const vector_field<Conf>& B,
     const vector_field<Conf>& D, const vector_field<Conf>& J) {
-  vec_t<bool, Conf::dim* 2> is_boundary = true;
+  vec_t<bool, Conf::dim * 2> is_boundary = true;
   if (this->m_comm != nullptr) {
     is_boundary = this->m_comm->domain_info().is_boundary;
   }
@@ -550,12 +591,12 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
             Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
               if (grid.is_in_bound(pos)) {
-                value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+                value_t th =
+                    grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
                 if (pos[1] == grid.guard[1] &&
                     math::abs(th) < 0.1 * grid.delta[1]) {
                   dD_dt[0][idx] =
-                      (auxH[2][idx]) / grid_ptrs.Ad[0][idx]
-                      -J[0][idx];
+                      (auxH[2][idx]) / grid_ptrs.Ad[0][idx] - J[0][idx];
                 } else {
                   dD_dt[0][idx] = (auxH[2][idx] - auxH[2][idx.dec_y()]) /
                                       grid_ptrs.Ad[0][idx] -
@@ -564,10 +605,11 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                 }
                 // At theta = pi boundary, do an additional update
                 if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
-                    math::abs(th + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
+                    math::abs(th + grid.delta[1] - M_PI) <
+                        0.1 * grid.delta[1]) {
                   dD_dt[0][idx.inc_y()] =
-                      (-auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()]
-                      - J[0][idx.inc_y()];
+                      (-auxH[2][idx]) / grid_ptrs.Ad[0][idx.inc_y()] -
+                      J[0][idx.inc_y()];
                   // if (pos[0] == 100) {
                   //   printf("pi boundary for D0!\n");
                   // }
@@ -587,7 +629,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_dD_dt(
                 // if (pos[1] == grid.guard[1] &&
                 //     math::abs(th) < 0.1 * grid.delta[1] &&
                 //     (pos[0] == 40 || pos[0] == 39)) {
-                //   printf("At %d, %d, D0 is %f, D1 is %f\n", pos[0], pos[1], dD_dt[0][idx], dD_dt[1][idx]);
+                //   printf("At %d, %d, D0 is %f, D1 is %f\n", pos[0], pos[1],
+                //   dD_dt[0][idx], dD_dt[1][idx]);
                 // }
 
                 if (pos[1] == grid.guard[1] && is_boundary[2]) {
@@ -708,17 +751,17 @@ void
 field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
     vector_field<Conf>& D, vector_field<Conf>& B) {
   if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[0]) {
-  // if (false) {
+    // if (false) {
     int damping_length = m_damping_length_horizon;
     typename Conf::value_t damping_coef = m_damping_coef_horizon;
     // bool damp_to_background = m_damp_to_background;
-    bool damp_to_background = false; // always damp to zero inside the horizon
+    bool damp_to_background = false;  // always damp to zero inside the horizon
     typedef typename Conf::idx_t idx_t;
     typedef typename Conf::value_t value_t;
     // Inner boundary inside horizon
     ExecPolicy<Conf>::launch(
-        [damping_length, damping_coef, damp_to_background]
-        LAMBDA(auto D, auto B, auto D0, auto B0) {
+        [damping_length, damping_coef, damp_to_background] LAMBDA(
+            auto D, auto B, auto D0, auto B0) {
           auto& grid = ExecPolicy<Conf>::grid();
           auto ext = grid.extent();
 
@@ -746,7 +789,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
           //     int n0 = grid.guard[0] + damping_length - 2 - i;
           //     auto idx = idx_t(index_t<2>(n0, n1), ext);
           //     value_t lambda =
-          //         1.0f - damping_coef * cube((value_t)i / (damping_length - 1));
+          //         1.0f - damping_coef * cube((value_t)i / (damping_length -
+          //         1));
           //     if (damp_to_background) {
           //       D[0][idx] *= lambda;
           //       D[1][idx] *= lambda;
@@ -816,18 +860,19 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::update_semi_implicit(
-    double dt, double alpha, double beta, double time) {
+field_solver_mod<Conf, ExecPolicy,
+                 coord_policy_gr_ks_sph>::update_semi_implicit(double dt,
+                                                               double alpha,
+                                                               double beta,
+                                                               double time) {
   iterate_predictor(dt);
 
   // apply damping boundary condition at outer boundary
 
-  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1])
-  {
-    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B),
-                                       *(this->E0), *(this->B0),
-                                       m_damping_length, m_damping_coef,
-                                       m_damp_to_background);
+  if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[1]) {
+    damping_boundary<Conf, ExecPolicy>(*(this->E), *(this->B), *(this->E0),
+                                       *(this->B0), m_damping_length,
+                                       m_damping_coef, m_damp_to_background);
   }
   // this->Etotal->copy_from(*(this->E));
   // this->Btotal->copy_from(*(this->B));
@@ -857,41 +902,47 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-        ExecPolicy<Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-          auto pos = get_pos(idx, ext);
-          if (grid.is_in_bound(pos)) {
-            auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
-            auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
-            auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
-            auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              if (grid.is_in_bound(pos)) {
+                auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+                auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+                auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
-            divB[idx] = (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
-                         b[0][idx] * grid_ptrs.Ab[0][idx] +
-                         b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
-                         b[1][idx] * grid_ptrs.Ab[1][idx]) /
-                grid_ptrs.Ab[2][idx];
-            divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
-                         d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
-                         d[1][idx] * grid_ptrs.Ad[1][idx] -
-                         d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
-                grid_ptrs.Ad[2][idx];
-            if (pos[1] == grid.guard[1] &&
-                math::abs(th_s) < 0.1 * grid.delta[1]) {
-              divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
-                           d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
-                           d[1][idx] * grid_ptrs.Ad[1][idx]) /
-                  grid_ptrs.Ad[2][idx];
-            }
-            if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
-                math::abs(th_s + grid.delta[1] - M_PI) < 0.1 * grid.delta[1]) {
-              divD[idx.inc_y()] = (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
-                          d[0][idx.inc_y().dec_x()] * grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
-                          d[1][idx] * grid_ptrs.Ad[1][idx]) /
-                  grid_ptrs.Ad[2][idx.inc_y()];
-            }
-          }
-        });
-      }, this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
+                divB[idx] = (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
+                             b[0][idx] * grid_ptrs.Ab[0][idx] +
+                             b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
+                             b[1][idx] * grid_ptrs.Ab[1][idx]) /
+                            grid_ptrs.Ab[2][idx];
+                divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                             d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                             d[1][idx] * grid_ptrs.Ad[1][idx] -
+                             d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
+                            grid_ptrs.Ad[2][idx];
+                if (pos[1] == grid.guard[1] &&
+                    math::abs(th_s) < 0.1 * grid.delta[1]) {
+                  divD[idx] =
+                      (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                       d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                       d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                      grid_ptrs.Ad[2][idx];
+                }
+                if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
+                    math::abs(th_s + grid.delta[1] - M_PI) <
+                        0.1 * grid.delta[1]) {
+                  divD[idx.inc_y()] =
+                      (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
+                       d[0][idx.inc_y().dec_x()] *
+                           grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
+                       d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                      grid_ptrs.Ad[2][idx.inc_y()];
+                }
+              }
+            });
+      },
+      this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(*(this->divB));
@@ -930,7 +981,6 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
                         b[0][idx] * grid_ptrs.Ab[0][idx];
           }
         });
-
       },
       this->flux, this->Btotal, m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
@@ -942,36 +992,43 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_EB_sqr() {}
 
 template <typename Conf, template <class> class ExecPolicy>
 void
-field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_DdotB_J_B() {
+field_solver_mod<Conf, ExecPolicy,
+                 coord_policy_gr_ks_sph>::compute_DdotB_J_B() {
   DdotB->init();
   Bmag->init();
   Jmag->init();
   auto a = m_a;
   ExecPolicy<Conf>::launch(
-      [a] LAMBDA(auto DdotB, auto Bmag, auto Jmag, auto e, auto b, auto j, auto grid_ptrs) {
+      [a] LAMBDA(auto DdotB, auto Bmag, auto Jmag, auto e, auto b, auto j,
+                 auto grid_ptrs) {
         auto& grid = ExecPolicy<Conf>::grid();
         auto ext = grid.extent();
         // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-        ExecPolicy<Conf>::loop(Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-          auto pos = get_pos(idx, ext);
-          auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
-          auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
-          auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
-          auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+        ExecPolicy<Conf>::loop(
+            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+              auto pos = get_pos(idx, ext);
+              auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+              auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+              auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+              auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
-          auto sth = std::sin(th_s);
-          auto cth = std::cos(th_s);
+              auto sth = std::sin(th_s);
+              auto cth = std::cos(th_s);
 
-          vec_t<value_t, 3> e_vec{e[0][idx], e[1][idx], e[2][idx]};
-          vec_t<value_t, 3> b_vec{b[0][idx], b[1][idx], b[2][idx]};
-          vec_t<value_t, 3> j_vec{j[0][idx], j[1][idx], j[2][idx]};
+              vec_t<value_t, 3> e_vec{e[0][idx], e[1][idx], e[2][idx]};
+              vec_t<value_t, 3> b_vec{b[0][idx], b[1][idx], b[2][idx]};
+              vec_t<value_t, 3> j_vec{j[0][idx], j[1][idx], j[2][idx]};
 
-          DdotB[idx] = Metric_KS::dot_product_u(e_vec, b_vec, a, r, sth, cth);
-          Bmag[idx] = math::sqrt(Metric_KS::dot_product_u(b_vec, b_vec, a, r, sth, cth));
-          Jmag[idx] = math::sqrt(Metric_KS::dot_product_u(j_vec, j_vec, a, r, sth, cth));
-        });
+              DdotB[idx] =
+                  Metric_KS::dot_product_u(e_vec, b_vec, a, r, sth, cth);
+              Bmag[idx] = math::sqrt(
+                  Metric_KS::dot_product_u(b_vec, b_vec, a, r, sth, cth));
+              Jmag[idx] = math::sqrt(
+                  Metric_KS::dot_product_u(j_vec, j_vec, a, r, sth, cth));
+            });
       },
-      DdotB, Bmag, Jmag, this->Etotal, this->Btotal, this->J, m_ks_grid.get_grid_ptrs());
+      DdotB, Bmag, Jmag, this->Etotal, this->Btotal, this->J,
+      m_ks_grid.get_grid_ptrs());
   ExecPolicy<Conf>::sync();
 }
 

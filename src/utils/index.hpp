@@ -386,23 +386,23 @@ get_pos(const idx_row_major_t<1>& idx, const extent_t<1>& ext) {
 template <>
 HD_INLINE index_t<2>
 get_pos(const idx_row_major_t<2>& idx, const extent_t<2>& ext) {
-  return index_t<2>(idx.linear / ext[0], idx.linear % ext[0]);
+  return index_t<2>(idx.linear / ext[1], idx.linear % ext[1]);
 }
 
 template <>
 HD_INLINE index_t<3>
 get_pos(const idx_row_major_t<3>& idx, const extent_t<3>& ext) {
-  return index_t<3>(idx.linear / (ext[0] * ext[1]),
-                    (idx.linear / ext[0]) % ext[1], idx.linear % ext[0]);
+  return index_t<3>(idx.linear / (ext[1] * ext[2]),
+                    (idx.linear / ext[2]) % ext[1], idx.linear % ext[2]);
 }
 
 template <>
 HD_INLINE index_t<4>
 get_pos(const idx_row_major_t<4>& idx, const extent_t<4>& ext) {
-  return index_t<4>(idx.linear / (ext[0] * ext[1] * ext[2]),
-                    (idx.linear / (ext[0] * ext[1])) % ext[2],
-                    (idx.linear / ext[0]) % ext[1],
-                    idx.linear % ext[0]);
+  return index_t<4>(idx.linear / (ext[1] * ext[2] * ext[3]),
+                    (idx.linear / (ext[2] * ext[3])) % ext[1],
+                    (idx.linear / ext[3]) % ext[2],
+                    idx.linear % ext[3]);
 }
 
 template <int Rank>

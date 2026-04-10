@@ -108,7 +108,7 @@ TEST_CASE("idx_col_major_t inc/dec", "[index]") {
   REQUIRE(dy.linear == base - 2 * 10);
 }
 
-TEST_CASE("idx_row_major_t to_linear and member get_pos round-trip", "[index]") {
+TEST_CASE("idx_row_major_t to_linear/get_pos round-trip", "[index]") {
   extent_t<3> ext(10, 20, 30);
 
   // Row-major: linear = pos[0]*20*30 + pos[1]*30 + pos[2]
@@ -116,8 +116,7 @@ TEST_CASE("idx_row_major_t to_linear and member get_pos round-trip", "[index]") 
   idx_row_major_t<3> idx(pos, ext);
   REQUIRE(idx.linear == 3 * 20 * 30 + 7 * 30 + 15);
 
-  // Use member get_pos() which uses the generic (correct) pos() method
-  auto recovered = idx.get_pos();
+  auto recovered = get_pos(idx, ext);
   REQUIRE(recovered[0] == 3);
   REQUIRE(recovered[1] == 7);
   REQUIRE(recovered[2] == 15);
@@ -127,7 +126,7 @@ TEST_CASE("idx_row_major_t to_linear and member get_pos round-trip", "[index]") 
   index_t<2> pos2(5, 11);
   idx_row_major_t<2> idx2(pos2, ext2);
   REQUIRE(idx2.linear == 5 * 16 + 11);
-  auto rec2 = idx2.get_pos();
+  auto rec2 = get_pos(idx2, ext2);
   REQUIRE(rec2[0] == 5);
   REQUIRE(rec2[1] == 11);
 }
@@ -151,13 +150,22 @@ TEST_CASE("idx_row_major_t exhaustive 2D round-trip", "[index]") {
     for (int x = 0; x < 8; x++) {
       index_t<2> pos(x, y);
       idx_row_major_t<2> idx(pos, ext);
-      // Use member get_pos() -- the free function get_pos specialization
-      // for row-major 2D/3D has a known bug (uses wrong extent dimensions)
-      auto rec = idx.get_pos();
+      auto rec = get_pos(idx, ext);
       REQUIRE(rec[0] == x);
       REQUIRE(rec[1] == y);
     }
   }
+}
+
+TEST_CASE("4D row_major round-trip", "[index]") {
+  extent_t<4> ext(4, 5, 6, 7);
+  index_t<4> pos(2, 3, 4, 5);
+  idx_row_major_t<4> idx(pos, ext);
+  auto rec = get_pos(idx, ext);
+  REQUIRE(rec[0] == 2);
+  REQUIRE(rec[1] == 3);
+  REQUIRE(rec[2] == 4);
+  REQUIRE(rec[3] == 5);
 }
 
 TEST_CASE("4D col_major round-trip", "[index]") {

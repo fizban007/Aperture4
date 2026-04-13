@@ -139,8 +139,10 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
                 value_t th = grid_ks_t<Conf>::theta(
                     grid.template coord<1>(pos[1], true));
 
-                if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
-                    th < grid.delta[1] || th > M_PI - grid.delta[1])
+                if (r <= 1.02f * Metric_KS::rH(a) || th < grid.delta[1] ||
+                    th > M_PI - grid.delta[1])
+                  // if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
+                  // th < grid.delta[1] || th > M_PI - grid.delta[1])
                   // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
                   return;
 

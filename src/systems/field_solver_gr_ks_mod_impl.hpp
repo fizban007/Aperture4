@@ -1130,52 +1130,136 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
   //   this->m_comm->send_guard_cells(*(this->E));
   // }
 
-  ExecPolicy<Conf>::launch(
-      [a] LAMBDA(auto d, auto b, auto divD, auto divB, auto grid_ptrs) {
-        auto& grid = ExecPolicy<Conf>::grid();
-        auto ext = grid.extent();
-        // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-        ExecPolicy<Conf>::loop(
-            Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
-              auto pos = get_pos(idx, ext);
-              if (grid.is_in_bound(pos)) {
-                auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
-                auto r_s = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
-                auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
-                auto th_s = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+  if constexpr (Conf::dim == 2) {  // 2D implementation
+    ExecPolicy<Conf>::launch(
+        [a] LAMBDA(auto d, auto b, auto divD, auto divB, auto grid_ptrs) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          ExecPolicy<Conf>::loop(
+              Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+                auto pos = get_pos(idx, ext);
+                if (grid.is_in_bound(pos)) {
+                  auto r =
+                      grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                  auto r_s =
+                      grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+                  auto th =
+                      grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+                  auto th_s =
+                      grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
 
-                divB[idx] = (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
-                             b[0][idx] * grid_ptrs.Ab[0][idx] +
-                             b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
-                             b[1][idx] * grid_ptrs.Ab[1][idx]) /
-                            grid_ptrs.Ab[2][idx];
-                divD[idx] = (d[0][idx] * grid_ptrs.Ad[0][idx] -
-                             d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
-                             d[1][idx] * grid_ptrs.Ad[1][idx] -
-                             d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
-                            grid_ptrs.Ad[2][idx];
-                if (pos[1] == grid.guard[1] &&
-                    math::abs(th_s) < 0.1 * grid.delta[1]) {
+                  divB[idx] =
+                      (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
+                       b[0][idx] * grid_ptrs.Ab[0][idx] +
+                       b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
+                       b[1][idx] * grid_ptrs.Ab[1][idx]) /
+                      grid_ptrs.Ab[2][idx];
                   divD[idx] =
                       (d[0][idx] * grid_ptrs.Ad[0][idx] -
                        d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
-                       d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                       d[1][idx] * grid_ptrs.Ad[1][idx] -
+                       d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()]) /
                       grid_ptrs.Ad[2][idx];
+                  if (pos[1] == grid.guard[1] &&
+                      math::abs(th_s) < 0.1 * grid.delta[1]) {
+                    divD[idx] =
+                        (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                         d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                         d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                        grid_ptrs.Ad[2][idx];
+                  }
+                  if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
+                      math::abs(th_s + grid.delta[1] - M_PI) <
+                          0.1 * grid.delta[1]) {
+                    divD[idx.inc_y()] =
+                        (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
+                         d[0][idx.inc_y().dec_x()] *
+                             grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
+                         d[1][idx] * grid_ptrs.Ad[1][idx]) /
+                        grid_ptrs.Ad[2][idx.inc_y()];
+                  }
                 }
-                if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
-                    math::abs(th_s + grid.delta[1] - M_PI) <
-                        0.1 * grid.delta[1]) {
-                  divD[idx.inc_y()] =
-                      (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
-                       d[0][idx.inc_y().dec_x()] *
-                           grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
-                       d[1][idx] * grid_ptrs.Ad[1][idx]) /
-                      grid_ptrs.Ad[2][idx.inc_y()];
+              });
+        },
+        this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
+  } else if constexpr (Conf::dim == 3) {  // 3D implementation
+    ExecPolicy<Conf>::launch(
+        [a] LAMBDA(auto d, auto b, auto divD, auto divB, auto grid_ptrs) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          ExecPolicy<Conf>::loop(
+              Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
+                auto pos = get_pos(idx, ext);
+                if (grid.is_in_bound(pos)) {
+                  auto r =
+                      grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
+                  auto r_s =
+                      grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
+                  auto th =
+                      grid_ks_t<Conf>::theta(grid.coord(1, pos[1], false));
+                  auto th_s =
+                      grid_ks_t<Conf>::theta(grid.coord(1, pos[1], true));
+                  auto ph = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], false));
+                  auto ph_s = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], true));
+
+                  auto dph = grid_ks_t<Conf>::phi(grid.coord(2, pos[2] + 1, true)) - ph_s;
+
+                  // Volume element for divB: at center of cell (i+1/2, j+1/2,
+                  // k+1/2)
+                  auto dVB = grid_ptrs.Ab[2][idx] * dph;
+
+                  dph = ph - grid_ks_t<Conf>::phi(grid.coord(2, pos[2] - 1, false));
+                  // Volume element for divD: at node of cell (i, j, k)
+                  auto dVD = grid_ptrs.Ad[2][idx] * dph;
+
+                  divB[idx] =
+                      (b[0][idx.inc_x()] * grid_ptrs.Ab[0][idx.inc_x()] -
+                       b[0][idx] * grid_ptrs.Ab[0][idx] +
+                       b[1][idx.inc_y()] * grid_ptrs.Ab[1][idx.inc_y()] -
+                       b[1][idx] * grid_ptrs.Ab[1][idx] +
+                       b[2][idx.inc_z()] * grid_ptrs.Ab[2][idx.inc_z()] -
+                       b[2][idx] * grid_ptrs.Ab[2][idx]) /
+                      dVB;
+                  divD[idx] =
+                      (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                       d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                       d[1][idx] * grid_ptrs.Ad[1][idx] -
+                       d[1][idx.dec_y()] * grid_ptrs.Ad[1][idx.dec_y()] +
+                       d[2][idx] * grid_ptrs.Ad[2][idx] -
+                       d[2][idx.dec_z()] * grid_ptrs.Ad[2][idx.dec_z()]) /
+                      dVD;
+                  if (pos[1] == grid.guard[1] &&
+                      math::abs(th_s) < 0.1 * grid.delta[1]) {
+                    divD[idx] =
+                        (d[0][idx] * grid_ptrs.Ad[0][idx] -
+                         d[0][idx.dec_x()] * grid_ptrs.Ad[0][idx.dec_x()] +
+                         d[1][idx] * grid_ptrs.Ad[1][idx] +
+                         d[2][idx] * grid_ptrs.Ad[2][idx] -
+                         d[2][idx.dec_z()] * grid_ptrs.Ad[2][idx.dec_z()]) /
+                        dVD;
+                  }
+                  if (pos[1] == grid.N[1] + grid.guard[1] - 1 &&
+                      math::abs(th_s + grid.delta[1] - M_PI) <
+                          0.1 * grid.delta[1]) {
+                    dVD = grid_ptrs.Ad[2][idx.inc_y()] *
+                          dph;  // dph doesn't change in theta direction
+                    divD[idx.inc_y()] =
+                        (d[0][idx.inc_y()] * grid_ptrs.Ad[0][idx.inc_y()] -
+                         d[0][idx.inc_y().dec_x()] *
+                             grid_ptrs.Ad[0][idx.inc_y().dec_x()] -
+                         d[1][idx] * grid_ptrs.Ad[1][idx] +
+                         d[2][idx.inc_y()] * grid_ptrs.Ad[2][idx.inc_y()] -
+                         d[2][idx.inc_y().dec_z()] *
+                             grid_ptrs.Ad[2][idx.inc_y().dec_z()]) /
+                        dVD;
+                  }
                 }
-              }
-            });
-      },
-      this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
+              });
+        },
+        this->E, this->B, this->divE, this->divB, m_ks_grid.get_grid_ptrs());
+  }
   ExecPolicy<Conf>::sync();
   if (this->m_comm != nullptr) {
     this->m_comm->send_guard_cells(*(this->divB));

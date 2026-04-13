@@ -129,6 +129,9 @@ main(int argc, char *argv[]) {
   double kT = 2.0 / r_pml;
   env.params().get_value("kT", kT);
 
+  bool initial_cloud = true;
+  env.params().get_value("initial_cloud", initial_cloud);
+
   // Prepare initial field
   vector_field<Conf> *B, *D, *B0, *D0;
   env.get_data("B0", &B0);
@@ -144,11 +147,11 @@ main(int argc, char *argv[]) {
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
-      [r_H, r_pml] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      [r_H, r_pml, initial_cloud] LAMBDA(auto &pos, auto &grid, auto &ext) {
         auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
         // auto th = grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1],
         // false));
-        return (r > r_H && r < r_pml);
+        return (r > r_H && r < r_pml && initial_cloud);
       },
       // Second function returns the number of particles injected in each cell.
       // This includes all species

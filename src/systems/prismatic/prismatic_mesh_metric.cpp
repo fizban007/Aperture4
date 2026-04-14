@@ -1,4 +1,5 @@
 #include "systems/prismatic/prismatic_mesh_metric.h"
+#include "utils/gauss_quadrature.h"
 #include "utils/logger.h"
 #include <algorithm>
 #include <cmath>
@@ -18,168 +19,216 @@ void cart_to_sph(double x, double y, double z,
   phi = std::atan2(y, x);
 }
 
-// Metric distance between two Cartesian points (midpoint rule).
+// Metric inner product γ_{ij} V^i W^j at a Cartesian point P,
+// where V and W are Cartesian vectors.  Uses the Jacobian at P to
+// project Cartesian components onto the spherical coordinate basis,
+// then contracts with the spherical metric components.
 //
-// Uses the Jacobian at the midpoint to convert the Cartesian displacement
-// to spherical coordinate displacement, then contracts with γ_{ij}.
-// For flat space this gives EXACTLY the Euclidean distance because
-// (r̂, θ̂, φ̂) form an orthonormal basis:
-//   dr² + r²dθ² + r²sin²θ dφ² = dx² + dy² + dz²
-double metric_dist(const spherical_metric_t& met,
-                   double x0, double y0, double z0,
-                   double x1, double y1, double z1) {
-  // Cartesian displacement
-  double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
-
-  // Midpoint in spherical
-  double mx = 0.5 * (x0 + x1), my = 0.5 * (y0 + y1), mz = 0.5 * (z0 + z1);
+// For flat space (γ = diag(1, r², r²sin²θ)) this reduces exactly to
+// V · W because (r̂, θ̂, φ̂) form an orthonormal basis.
+double metric_inner_product(const spherical_metric_t& met,
+                            double x, double y, double z,
+                            double vx, double vy, double vz,
+                            double wx, double wy, double wz) {
   double r, sth, cth, phi;
-  cart_to_sph(mx, my, mz, r, sth, cth, phi);
-  if (r < 1e-30) return std::sqrt(dx*dx + dy*dy + dz*dz);
+  cart_to_sph(x, y, z, r, sth, cth, phi);
+  if (r < 1e-30) return vx * wx + vy * wy + vz * wz;
 
   double cph = std::cos(phi), sph = std::sin(phi);
 
-  // Jacobian: project Cartesian displacement onto spherical basis
-  //   dr   = ΔX · r̂   where r̂ = (sθcφ, sθsφ, cθ)
-  //   r dθ = ΔX · θ̂   where θ̂ = (cθcφ, cθsφ, -sθ)
-  //   r sθ dφ = ΔX · φ̂ where φ̂ = (-sφ, cφ, 0)
-  double dr  = sth * cph * dx + sth * sph * dy + cth * dz;
-  double dth = (cth * cph * dx + cth * sph * dy - sth * dz) / r;
-  double dph = (sth > 1e-12) ? (-sph * dx + cph * dy) / (r * sth) : 0.0;
+  // Project Cartesian vectors onto (r̂, θ̂, φ̂).
+  //   dr       = V · r̂,           with r̂  = (sθcφ, sθsφ, cθ)
+  //   r dθ     = V · θ̂,           with θ̂  = (cθcφ, cθsφ, -sθ)
+  //   r sθ dφ  = V · φ̂,           with φ̂  = (-sφ, cφ, 0)
+  double v_r = sth * cph * vx + sth * sph * vy + cth * vz;
+  double v_th = (cth * cph * vx + cth * sph * vy - sth * vz) / r;
+  double v_ph = (sth > 1e-12) ? (-sph * vx + cph * vy) / (r * sth) : 0.0;
+
+  double w_r = sth * cph * wx + sth * sph * wy + cth * wz;
+  double w_th = (cth * cph * wx + cth * sph * wy - sth * wz) / r;
+  double w_ph = (sth > 1e-12) ? (-sph * wx + cph * wy) / (r * sth) : 0.0;
 
   double g11 = met.g_rr(r, sth, cth);
   double g22 = met.g_thth(r, sth, cth);
   double g33 = met.g_phph(r, sth, cth);
   double g13 = met.g_rph(r, sth, cth);
 
-  double ds2 = g11 * dr * dr + g22 * dth * dth + g33 * dph * dph +
-               2.0 * g13 * dr * dph;
-  return std::sqrt(std::max(0.0, ds2));
+  return g11 * v_r * w_r + g22 * v_th * w_th + g33 * v_ph * w_ph +
+         g13 * (v_r * w_ph + v_ph * w_r);
 }
 
-// Metric area of a polygon given by ordered vertices in Cartesian 3D.
-// Uses fan triangulation from centroid, measuring each sub-triangle
-// area with the metric at the sub-triangle centroid.
-double metric_polygon_area(const spherical_metric_t& met,
-                           const std::vector<double>& px,
-                           const std::vector<double>& py,
-                           const std::vector<double>& pz) {
+// Metric length of a straight Cartesian line segment from P0 to P1.
+// Used for vertical edges, dual edges, and polygon sub-triangle edges.
+double segment_length(const spherical_metric_t& met,
+                      double x0, double y0, double z0,
+                      double x1, double y1, double z1) {
+  double vx = x1 - x0, vy = y1 - y0, vz = z1 - z0;
+  return gauss_quad([&](double t) {
+    double x = x0 + t * vx, y = y0 + t * vy, z = z0 + t * vz;
+    double ds2 = metric_inner_product(met, x, y, z, vx, vy, vz, vx, vy, vz);
+    return std::sqrt(std::max(0.0, ds2));
+  }, 0.0, 1.0);
+}
+
+// Metric length of a great-circle arc on a sphere of radius r between
+// Cartesian points P0 and P1 (which must have |P0| = |P1| = r).
+// Used for primal horizontal edges on shells.
+double arc_length(const spherical_metric_t& met,
+                  double x0, double y0, double z0,
+                  double x1, double y1, double z1) {
+  double r = std::sqrt(x0 * x0 + y0 * y0 + z0 * z0);
+  double dot = (x0 * x1 + y0 * y1 + z0 * z1) / (r * r);
+  dot = std::max(-1.0, std::min(1.0, dot));
+  double Omega = std::acos(dot);
+  if (Omega < 1e-12) return 0.0;
+
+  // Unit vectors along the arc
+  double sO = std::sin(Omega);
+  // Parameterize: x(t) = r * (cos(tΩ) ŝ_a + sin(tΩ) ê_t) for t ∈ [0, 1]
+  // where ê_t = (ŝ_b - cos(Ω) ŝ_a) / sin(Ω) is the unit tangent at P0.
+  double sax = x0 / r, say = y0 / r, saz = z0 / r;
+  double sbx = x1 / r, sby = y1 / r, sbz = z1 / r;
+  double etx = (sbx - dot * sax) / sO;
+  double ety = (sby - dot * say) / sO;
+  double etz = (sbz - dot * saz) / sO;
+
+  return gauss_quad([&](double t) {
+    double s = t * Omega;
+    double cs = std::cos(s), ss = std::sin(s);
+    double x = r * (cs * sax + ss * etx);
+    double y = r * (cs * say + ss * ety);
+    double z = r * (cs * saz + ss * etz);
+    // dx/dt = r Ω (-sin(s) ŝ_a + cos(s) ê_t)
+    double tx = r * Omega * (-ss * sax + cs * etx);
+    double ty = r * Omega * (-ss * say + cs * ety);
+    double tz = r * Omega * (-ss * saz + cs * etz);
+    double ds2 = metric_inner_product(met, x, y, z, tx, ty, tz, tx, ty, tz);
+    return std::sqrt(std::max(0.0, ds2));
+  }, 0.0, 1.0);
+}
+
+// Metric area of a flat Cartesian triangle with vertices V0, V1, V2.
+// Uses nested Gauss quadrature on the barycentric parameterization
+//   x(u, v) = V0 + u e1 + v e2,   u ∈ [0, 1], v ∈ [0, 1-u]
+// where e1 = V1 - V0, e2 = V2 - V0.
+double triangle_area(const spherical_metric_t& met,
+                     double x0, double y0, double z0,
+                     double x1, double y1, double z1,
+                     double x2, double y2, double z2) {
+  double e1x = x1 - x0, e1y = y1 - y0, e1z = z1 - z0;
+  double e2x = x2 - x0, e2y = y2 - y0, e2z = z2 - z0;
+
+  return gauss_quad([&](double u) {
+    return gauss_quad([&](double v) {
+      double x = x0 + u * e1x + v * e2x;
+      double y = y0 + u * e1y + v * e2y;
+      double z = z0 + u * e1z + v * e2z;
+      double h11 = metric_inner_product(met, x, y, z,
+                                        e1x, e1y, e1z, e1x, e1y, e1z);
+      double h12 = metric_inner_product(met, x, y, z,
+                                        e1x, e1y, e1z, e2x, e2y, e2z);
+      double h22 = metric_inner_product(met, x, y, z,
+                                        e2x, e2y, e2z, e2x, e2y, e2z);
+      double det = h11 * h22 - h12 * h12;
+      return std::sqrt(std::max(0.0, det));
+    }, 0.0, 1.0 - u);
+  }, 0.0, 1.0);
+}
+
+// Metric area of a rectangular face spanning (arc_angle u ∈ [0,Ω],
+// radial v ∈ [r0, r1]).  The face is on a constant-angle surface:
+//   x(u, v) = v · (cos u · ŝ_a + sin u · ê_t)
+// This exactly reproduces the base-class formula  dr · 0.5(r0+r1) · Ω
+// in the flat limit.
+double rect_face_area(const spherical_metric_t& met,
+                      double x0, double y0, double z0,  // (r0, a)
+                      double x1, double y1, double z1,  // (r0, b)
+                      double x2, double y2, double z2,  // (r1, b)
+                      double x3, double y3, double z3)  // (r1, a)
+{
+  (void)x2; (void)y2; (void)z2;  // v2 is implied by bilinear consistency
+  double r0 = std::sqrt(x0 * x0 + y0 * y0 + z0 * z0);
+  double r1 = std::sqrt(x3 * x3 + y3 * y3 + z3 * z3);
+
+  double sax = x0 / r0, say = y0 / r0, saz = z0 / r0;
+  double sbx = x1 / r0, sby = y1 / r0, sbz = z1 / r0;
+  double dot = sax * sbx + say * sby + saz * sbz;
+  dot = std::max(-1.0, std::min(1.0, dot));
+  double Omega = std::acos(dot);
+  if (Omega < 1e-12 || r1 - r0 < 1e-30) return 0.0;
+
+  double sO = std::sin(Omega);
+  double etx = (sbx - dot * sax) / sO;
+  double ety = (sby - dot * say) / sO;
+  double etz = (sbz - dot * saz) / sO;
+
+  return gauss_quad([&](double u) {  // u ∈ [0, Ω]
+    double cs = std::cos(u), ss = std::sin(u);
+    double ux = cs * sax + ss * etx;
+    double uy = cs * say + ss * ety;
+    double uz = cs * saz + ss * etz;
+    // Tangent along angle: ∂x/∂u = v · (-sin u · ŝ_a + cos u · ê_t)
+    double t_ang_x_norm = -ss * sax + cs * etx;
+    double t_ang_y_norm = -ss * say + cs * ety;
+    double t_ang_z_norm = -ss * saz + cs * etz;
+
+    return gauss_quad([&](double v) {  // v ∈ [r0, r1]
+      double x = v * ux, y = v * uy, z = v * uz;
+      // ∂x/∂u (with dimensions): v * tangent_direction
+      double du_x = v * t_ang_x_norm;
+      double du_y = v * t_ang_y_norm;
+      double du_z = v * t_ang_z_norm;
+      // ∂x/∂v: unit radial direction at angle u
+      double dv_x = ux, dv_y = uy, dv_z = uz;
+
+      double h11 = metric_inner_product(met, x, y, z,
+                                        du_x, du_y, du_z, du_x, du_y, du_z);
+      double h12 = metric_inner_product(met, x, y, z,
+                                        du_x, du_y, du_z, dv_x, dv_y, dv_z);
+      double h22 = metric_inner_product(met, x, y, z,
+                                        dv_x, dv_y, dv_z, dv_x, dv_y, dv_z);
+      double det = h11 * h22 - h12 * h12;
+      return std::sqrt(std::max(0.0, det));
+    }, r0, r1);
+  }, 0.0, Omega);
+}
+
+// Metric area of a polygon in Cartesian 3D, given ordered vertices and
+// an explicit fan center (typically the dual edge's representative point:
+// the polygon vertex average for horizontal edges, the primal edge midpoint
+// for vertical edges, matching the base class convention).  Each sub-
+// triangle is integrated with triangle_area.
+double polygon_area_about(const spherical_metric_t& met,
+                          double cx, double cy, double cz,
+                          const std::vector<double>& px,
+                          const std::vector<double>& py,
+                          const std::vector<double>& pz) {
   int np = px.size();
   if (np < 3) return 0.0;
-
-  // Polygon centroid
-  double mx = 0, my = 0, mz = 0;
-  for (int i = 0; i < np; i++) { mx += px[i]; my += py[i]; mz += pz[i]; }
-  mx /= np; my /= np; mz /= np;
 
   double area = 0.0;
   for (int i = 0; i < np; i++) {
     int j = (i + 1) % np;
-
-    // Sub-triangle centroid
-    double cx = (mx + px[i] + px[j]) / 3.0;
-    double cy = (my + py[i] + py[j]) / 3.0;
-    double cz = (mz + pz[i] + pz[j]) / 3.0;
-    double r, sth, cth, phi;
-    cart_to_sph(cx, cy, cz, r, sth, cth, phi);
-
-    // Flat area via cross product
-    double ax = px[i] - mx, ay = py[i] - my, az = pz[i] - mz;
-    double bx = px[j] - mx, by = py[j] - my, bz = pz[j] - mz;
-    double nx = ay * bz - az * by;
-    double ny = az * bx - ax * bz;
-    double nz = ax * by - ay * bx;
-    double flat_area = 0.5 * std::sqrt(nx * nx + ny * ny + nz * nz);
-
-    // Scale by metric/flat determinant ratio:
-    // √γ_metric / √γ_flat.  Both contain a factor of sinθ which
-    // cancels, so compute the ratio as
-    //   (√γ_metric / sinθ) / (√γ_flat / sinθ)  = √γ_tilde_metric / r²
-    // to avoid division by zero at the poles.
-    double sg_metric_tilde = (sth > 1e-15)
-        ? met.sqrt_gamma(r, sth, cth) / sth
-        : met.sqrt_gamma(r, 1e-15, cth) / 1e-15;
-    double sg_flat_tilde = r * r;  // r² sinθ / sinθ = r²
-    double scale = (sg_flat_tilde > 1e-30)
-        ? sg_metric_tilde / sg_flat_tilde : 1.0;
-
-    area += flat_area * scale;
+    area += triangle_area(met,
+                          cx, cy, cz,
+                          px[i], py[i], pz[i],
+                          px[j], py[j], pz[j]);
   }
   return area;
 }
 
-// Metric area of a triangular face on a shell at radius r.
-// Vertices given in Cartesian.
-double metric_tri_area(const spherical_metric_t& met,
-                       double x0, double y0, double z0,
-                       double x1, double y1, double z1,
-                       double x2, double y2, double z2) {
-  // Centroid
-  double cx = (x0 + x1 + x2) / 3.0;
-  double cy = (y0 + y1 + y2) / 3.0;
-  double cz = (z0 + z1 + z2) / 3.0;
-  double r, sth, cth, phi;
-  cart_to_sph(cx, cy, cz, r, sth, cth, phi);
+// Convenience: fan from the polygon vertex average.
+double polygon_area(const spherical_metric_t& met,
+                    const std::vector<double>& px,
+                    const std::vector<double>& py,
+                    const std::vector<double>& pz) {
+  int np = px.size();
+  if (np < 3) return 0.0;
 
-  // Flat area from cross product
-  double ax = x1 - x0, ay = y1 - y0, az = z1 - z0;
-  double bx = x2 - x0, by = y2 - y0, bz = z2 - z0;
-  double nx = ay * bz - az * by;
-  double ny = az * bx - ax * bz;
-  double nz = ax * by - ay * bx;
-  double flat_area = 0.5 * std::sqrt(nx * nx + ny * ny + nz * nz);
-
-  // Scale by √γ_metric / √γ_flat, canceling the common sinθ factor
-  // to stay well-defined at the poles.
-  double sg_met_tilde = (sth > 1e-15)
-      ? met.sqrt_gamma(r, sth, cth) / sth
-      : met.sqrt_gamma(r, 1e-15, cth) / 1e-15;
-  double sg_flat_tilde = r * r;
-  double scale = (sg_flat_tilde > 1e-30)
-      ? sg_met_tilde / sg_flat_tilde : 1.0;
-  return flat_area * scale;
-}
-
-// Metric area of a rectangular face spanning (r0→r1, angular edge a→b).
-// Vertices: v0 = (r0, angle_a), v1 = (r0, angle_b),
-//           v2 = (r1, angle_b), v3 = (r1, angle_a)
-// Uses 2-point Gauss quadrature in the radial direction to handle the
-// r-dependent area element accurately even for thick radial layers.
-double metric_rect_area(const spherical_metric_t& met,
-                        double x0, double y0, double z0,
-                        double x1, double y1, double z1,
-                        double x2, double y2, double z2,
-                        double x3, double y3, double z3) {
-  // Angular edge at the bottom shell: v0 → v1
-  // Radial edge at one side: v0 → v3
-  // We integrate over the face using 2 Gauss points in the radial direction.
-  // At each radial sample, the angular width is the metric distance along
-  // the interpolated edge.
-  static constexpr double gp = 0.2113248654;  // (1 - 1/sqrt(3))/2
-  double w[2] = {0.5, 0.5};
-  double t[2] = {gp, 1.0 - gp};
-
-  double area = 0.0;
-  for (int i = 0; i < 2; i++) {
-    // Interpolate bottom edge (v0→v1) and top edge (v3→v2) at t[i]
-    double ax = (1-t[i])*x0 + t[i]*x3;  // left side at height t
-    double ay = (1-t[i])*y0 + t[i]*y3;
-    double az = (1-t[i])*z0 + t[i]*z3;
-    double bx = (1-t[i])*x1 + t[i]*x2;  // right side at height t
-    double by = (1-t[i])*y1 + t[i]*y2;
-    double bz = (1-t[i])*z1 + t[i]*z2;
-
-    // Angular width at this radial position
-    double angular_len = metric_dist(met, ax, ay, az, bx, by, bz);
-
-    // Radial element: metric distance from bottom to top along this side
-    // Use the left side (v0→v3) as representative for the radial length.
-    // (Could average left and right, but they're very close for resolved meshes.)
-    double radial_len = metric_dist(met, x0, y0, z0, x3, y3, z3);
-
-    area += w[i] * angular_len * radial_len;
-  }
-  return area;
+  double mx = 0, my = 0, mz = 0;
+  for (int i = 0; i < np; i++) { mx += px[i]; my += py[i]; mz += pz[i]; }
+  mx /= np; my /= np; mz /= np;
+  return polygon_area_about(met, mx, my, mz, px, py, pz);
 }
 
 }  // anonymous namespace
@@ -279,7 +328,7 @@ void prismatic_mesh_metric::compute_hodge_metric(
       int c = tri_verts[t * 3 + 2];
       int va = vert_idx(k, a), vb = vert_idx(k, b), vc = vert_idx(k, c);
 
-      double m_area = metric_tri_area(met,
+      double m_area = triangle_area(met,
           vert_x[va], vert_y[va], vert_z[va],
           vert_x[vb], vert_y[vb], vert_z[vb],
           vert_x[vc], vert_y[vc], vert_z[vc]);
@@ -290,21 +339,21 @@ void prismatic_mesh_metric::compute_hodge_metric(
         double fx = (vert_x[va] + vert_x[vb] + vert_x[vc]) / 3.0;
         double fy = (vert_y[va] + vert_y[vb] + vert_y[vc]) / 3.0;
         double fz = (vert_z[va] + vert_z[vb] + vert_z[vc]) / 3.0;
-        dist = metric_dist(met, fx, fy, fz,
-                           cx[pid_above], cy[pid_above], cz[pid_above]) * 2.0;
+        dist = segment_length(met, fx, fy, fz,
+                              cx[pid_above], cy[pid_above], cz[pid_above]) * 2.0;
       } else if (k == m_N_r) {
         int pid_below = (m_N_r - 1) * m_N_tri + t;
         double fx = (vert_x[va] + vert_x[vb] + vert_x[vc]) / 3.0;
         double fy = (vert_y[va] + vert_y[vb] + vert_y[vc]) / 3.0;
         double fz = (vert_z[va] + vert_z[vb] + vert_z[vc]) / 3.0;
-        dist = metric_dist(met, fx, fy, fz,
-                           cx[pid_below], cy[pid_below], cz[pid_below]) * 2.0;
+        dist = segment_length(met, fx, fy, fz,
+                              cx[pid_below], cy[pid_below], cz[pid_below]) * 2.0;
       } else {
         int pid_below = (k - 1) * m_N_tri + t;
         int pid_above = k * m_N_tri + t;
-        dist = metric_dist(met,
-                           cx[pid_below], cy[pid_below], cz[pid_below],
-                           cx[pid_above], cy[pid_above], cz[pid_above]);
+        dist = segment_length(met,
+                              cx[pid_below], cy[pid_below], cz[pid_below],
+                              cx[pid_above], cy[pid_above], cz[pid_above]);
       }
       hodge2[fi] = (m_area > 0) ? dist / m_area : 0;
     }
@@ -319,16 +368,14 @@ void prismatic_mesh_metric::compute_hodge_metric(
 
       int pid0 = k * m_N_tri + t0;
       int pid1 = k * m_N_tri + t1;
-      double dist = metric_dist(met,
-                                cx[pid0], cy[pid0], cz[pid0],
-                                cx[pid1], cy[pid1], cz[pid1]);
+      double dist = segment_length(met,
+                                   cx[pid0], cy[pid0], cz[pid0],
+                                   cx[pid1], cy[pid1], cz[pid1]);
 
-      int a_s = tri_verts[t0 * 3 + 0];  // just need sphere edge endpoints
-      // Get rect face vertices for area
       int local = k * m_N_edge_s + e;
       int v0 = rect_face_v0[local], v1 = rect_face_v1[local];
       int v2 = rect_face_v2[local], v3 = rect_face_v3[local];
-      double m_area = metric_rect_area(met,
+      double m_area = rect_face_area(met,
           vert_x[v0], vert_y[v0], vert_z[v0],
           vert_x[v1], vert_y[v1], vert_z[v1],
           vert_x[v2], vert_y[v2], vert_z[v2],
@@ -347,7 +394,8 @@ void prismatic_mesh_metric::compute_hodge_metric(
       int ei = h_edge_idx(k, e);
       int v0 = edge_v0[ei], v1 = edge_v1[ei];
 
-      double m_len = metric_dist(met,
+      // Horizontal edges on a shell: integrate along the great-circle arc
+      double m_len = arc_length(met,
           vert_x[v0], vert_y[v0], vert_z[v0],
           vert_x[v1], vert_y[v1], vert_z[v1]);
 
@@ -372,10 +420,11 @@ void prismatic_mesh_metric::compute_hodge_metric(
         px.push_back(cx[pid]); py.push_back(cy[pid]); pz.push_back(cz[pid]);
       }
 
-      double m_area = metric_polygon_area(met, px, py, pz);
+      double m_area = polygon_area(met, px, py, pz);
 
       if (px.size() == 2 && m_area < 1e-30) {
-        double d = metric_dist(met, px[0], py[0], pz[0], px[1], py[1], pz[1]);
+        double d = segment_length(met, px[0], py[0], pz[0],
+                                  px[1], py[1], pz[1]);
         double half_dr = (k == 0) ? radii[1] - radii[0] : radii[k] - radii[k - 1];
         // Scale half_dr by sqrt(g_rr) at midpoint
         double mx = 0.5 * (px[0] + px[1]);
@@ -405,7 +454,8 @@ void prismatic_mesh_metric::compute_hodge_metric(
       int ei = v_edge_idx(k, s);
       int va = vert_idx(k, s), vb = vert_idx(k + 1, s);
 
-      double m_len = metric_dist(met,
+      // Vertical edges: integrate along the straight radial line
+      double m_len = segment_length(met,
           vert_x[va], vert_y[va], vert_z[va],
           vert_x[vb], vert_y[vb], vert_z[vb]);
 
@@ -448,7 +498,7 @@ void prismatic_mesh_metric::compute_hodge_metric(
       std::sort(order.begin(), order.end(),
                 [&](int a, int b) { return angles[a] < angles[b]; });
 
-      // Reorder for metric_polygon_area
+      // Reorder for polygon_area_about
       std::vector<double> spx(np), spy(np), spz(np);
       for (int i = 0; i < np; i++) {
         spx[i] = px[order[i]];
@@ -456,7 +506,9 @@ void prismatic_mesh_metric::compute_hodge_metric(
         spz[i] = pz[order[i]];
       }
 
-      double m_area = metric_polygon_area(met, spx, spy, spz);
+      // Use the edge midpoint as the fan center, matching the base class
+      // convention.  For vertical edges this is on the edge axis.
+      double m_area = polygon_area_about(met, emx, emy, emz, spx, spy, spz);
       hodge1_inv[ei] = (m_area > 0) ? m_len / m_area : 0;
     }
   }

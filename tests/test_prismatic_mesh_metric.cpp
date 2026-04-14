@@ -27,10 +27,12 @@ TEST_CASE("Metric mesh: flat Hodge stars match base class",
   REQUIRE(met_mesh.m_N_edges == base.m_N_edges);
   REQUIRE(met_mesh.m_N_faces == base.m_N_faces);
 
-  // With the Jacobian-based metric distance, flat-space metric distances
-  // are exactly Euclidean.  Face areas scale by sqrt(gamma)/sqrt(gamma_flat)
-  // which is exactly 1 for flat space.  So the metric Hodge stars should
-  // closely match the base class values.
+  // With proper Gauss quadrature, both Hodge stars match the base class
+  // to floating-point precision in flat space.  This requires (a) the
+  // Jacobian-based metric distance, (b) shell-arc / radial-shell-arc
+  // parameterizations that reproduce the exact spherical area formulas,
+  // and (c) using the primal edge midpoint as the fan center for
+  // vertical-edge dual face polygons (matching the base class convention).
   double max_h2_err = 0;
   for (int f = 0; f < base.m_N_faces; f++) {
     if (base.hodge2[f] > 1e-10) {
@@ -40,7 +42,7 @@ TEST_CASE("Metric mesh: flat Hodge stars match base class",
     }
   }
   INFO("Max hodge2 relative error: " << max_h2_err);
-  CHECK(max_h2_err < 0.05);
+  CHECK(max_h2_err < 1e-4);
 
   double max_h1_err = 0;
   for (int e = 0; e < base.m_N_edges; e++) {
@@ -51,7 +53,7 @@ TEST_CASE("Metric mesh: flat Hodge stars match base class",
     }
   }
   INFO("Max hodge1_inv relative error: " << max_h1_err);
-  CHECK(max_h1_err < 0.05);
+  CHECK(max_h1_err < 1e-4);
 }
 
 TEST_CASE("Metric mesh: per-element lapse is 1 for flat space",

@@ -20,6 +20,14 @@ namespace Aperture {
 // direction; they are computed only on horizontal edges and rectangular
 // faces via a scalar triple product that doesn't require reconstructing
 // the full magnetic or electric 3-vector.
+//
+// Inner boundary condition: for black hole spacetimes, place r_min
+// inside the outer horizon r_+.  The DEC stencil is self-closing at the
+// inner boundary (no explicit BC needed) and GR causality guarantees
+// that anything at r < r_+ cannot influence r > r_+.  An optional
+// in-horizon safety damping (apply_horizon_damping) is available for
+// suppressing numerical leakage from discretization-level superluminal
+// modes, but is disabled by default.
 template <typename ExecPolicy>
 class dec_field_solver_gr_ks : public system_t {
  public:
@@ -50,7 +58,15 @@ class dec_field_solver_gr_ks : public system_t {
                    buffer<Scalar>& dD_dt, buffer<Scalar>& dB_dt);
 
   void apply_damping(buffer<Scalar>& D, buffer<Scalar>& B, double dt);
-  void apply_horizon_bc(buffer<Scalar>& D, buffer<Scalar>& B);
+
+  // Optional safety damping inside the horizon.  The primary "inner BC"
+  // for this solver is causal disconnection: with r_min placed inside the
+  // outer horizon, the DEC stencil is self-closing (no explicit BC is
+  // needed) and anything unstable at r < r_+ cannot physically propagate
+  // outward to the domain of interest.  This method provides a light
+  // numerical insurance layer against any superluminal-mode leakage at
+  // the discretization level.  Disabled by default (r_horizon_damp = 0).
+  void apply_horizon_damping(buffer<Scalar>& D, buffer<Scalar>& B);
 
  private:
   prismatic_mesh_metric& m_mesh;
@@ -73,9 +89,17 @@ class dec_field_solver_gr_ks : public system_t {
   int m_damping_length = 10;
   Scalar m_damping_coef = 0.05;
 
-  // Horizon damping: smoothly ramp fields to zero between r_horizon_damp
-  // and r_horizon_inner (where the inner value is typically the outer
-  // horizon radius).  Set r_horizon_damp <= 0 to disable.
+  // Optional horizon safety damping (disabled by default).
+  //
+  // When r_horizon_damp > 0, fields are smoothly ramped to zero for
+  // elements with r_horizon_inner ≤ r < r_horizon_damp, using a quadratic
+  // profile that is 1 at the outer edge and 0 at r_horizon_inner.  This
+  // is *not* the physical inner boundary condition — causal disconnection
+  // handles that.  Its only purpose is to suppress numerical artifacts
+  // that might otherwise accumulate inside the horizon due to
+  // discretization-level superluminal modes.
+  //
+  // Leave at 0 to rely purely on causal protection (recommended default).
   Scalar m_r_horizon_damp = 0.0;
   Scalar m_r_horizon_inner = 0.0;
 

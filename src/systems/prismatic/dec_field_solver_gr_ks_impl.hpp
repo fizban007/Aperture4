@@ -135,16 +135,25 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
 
-  // Horizon damping: user specifies the outer ramp radius and inner cutoff.
-  // Default: disabled (r_horizon_damp = 0).
+  // Optional safety damping inside the horizon.  Default: disabled; the
+  // solver relies on causal disconnection for the inner BC (see
+  // apply_horizon_damping docstring).  Enable by setting r_horizon_damp
+  // > 0 in the config if long-time integration shows numerical leakage.
   sim_env().params().get_value("r_horizon_damp", m_r_horizon_damp);
   sim_env().params().get_value("r_horizon_inner", m_r_horizon_inner);
 
   m_time = 0.0;
-  Logger::print_info(
-      "DEC GR field solver initialized: r_horizon_damp={}, "
-      "r_horizon_inner={}, implicit={}",
-      m_r_horizon_damp, m_r_horizon_inner, m_use_implicit);
+  if (m_r_horizon_damp > Scalar(0)) {
+    Logger::print_info(
+        "DEC GR field solver initialized: horizon safety damping ON "
+        "[{:.3f}, {:.3f}], implicit={}",
+        m_r_horizon_inner, m_r_horizon_damp, m_use_implicit);
+  } else {
+    Logger::print_info(
+        "DEC GR field solver initialized: horizon safety damping OFF "
+        "(causal disconnection only), implicit={}",
+        m_use_implicit);
+  }
 }
 
 // =========================================================================
@@ -365,7 +374,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_explicit(double dt) {
   }
 
   apply_damping(m_D->data(), m_B->data(), dt);
-  apply_horizon_bc(m_D->data(), m_B->data());
+  apply_horizon_damping(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
 
@@ -392,7 +401,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
       },
       m_D->data(), m_tmp_D, m_dD_dt, m_B->data(), m_tmp_B, m_dB_dt);
 
-  apply_horizon_bc(m_tmp_D, m_tmp_B);
+  apply_horizon_damping(m_tmp_D, m_tmp_B);
   ExecPolicy::sync();
 
   for (int iter = 0; iter < m_implicit_iters; iter++) {
@@ -412,7 +421,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
         m_D->data(), m_tmp_D, m_dD_dt, m_dD_dt_new,
         m_B->data(), m_tmp_B, m_dB_dt, m_dB_dt_new);
 
-    apply_horizon_bc(m_tmp_D, m_tmp_B);
+    apply_horizon_damping(m_tmp_D, m_tmp_B);
     ExecPolicy::sync();
   }
 
@@ -425,7 +434,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
       m_D->data(), m_tmp_D, m_B->data(), m_tmp_B);
 
   apply_damping(m_D->data(), m_B->data(), dt);
-  apply_horizon_bc(m_D->data(), m_B->data());
+  apply_horizon_damping(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
 
@@ -474,12 +483,30 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_damping(
 }
 
 // =========================================================================
-// Horizon damping: smoothly ramp fields to zero between r_horizon_damp
-// (outer) and r_horizon_inner (the horizon or slightly below).
+// Optional safety damping inside the horizon.
+//
+// This is NOT the physical inner boundary condition.  The primary inner
+// BC for this solver is causal disconnection: with r_min placed inside
+// the outer horizon r_+, the DEC stencil is self-closing at the inner
+// boundary (every innermost element's Ampère/Faraday update finds all
+// its required neighbors within the mesh), and GR causality guarantees
+// that anything that happens at r < r_+ cannot propagate outward to the
+// physics domain of interest.
+//
+// The only reason to enable this damping (r_horizon_damp > 0) is as
+// numerical insurance: DEC discretization has O(h²) dispersion that can
+// slightly exceed c at high-k modes, so in principle some numerical
+// noise from inside r_+ could leak outward over long integration times.
+// If that becomes a problem in practice, a light quadratic ramp here
+// absorbs it before it can.
+//
+// Profile: for r_horizon_inner ≤ r < r_horizon_damp, fields are
+// multiplied by  t² = ((r - r_horizon_inner) / (r_horizon_damp - r_horizon_inner))²
+// which is 1 at the outer edge and 0 at r_horizon_inner.
 // Disabled when m_r_horizon_damp <= 0.
 // =========================================================================
 template <typename ExecPolicy>
-void dec_field_solver_gr_ks<ExecPolicy>::apply_horizon_bc(
+void dec_field_solver_gr_ks<ExecPolicy>::apply_horizon_damping(
     buffer<Scalar>& D, buffer<Scalar>& B) {
   if (m_r_horizon_damp <= Scalar(0)) return;
 

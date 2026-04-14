@@ -34,7 +34,9 @@ set(Aperture_src
   "systems/vlasov_solver.cpp"
   "systems/prismatic/prismatic_mesh.cpp"
   "systems/prismatic/prismatic_mesh_gr_ks.cpp"
+  "systems/prismatic/prismatic_mesh_metric.cpp"
   "systems/prismatic/dec_field_solver.cpp"
+  "systems/prismatic/dec_field_solver_gr_ks.cpp"
   "systems/prismatic/prismatic_deposit.cpp"
   "systems/prismatic/prismatic_ptc_updater.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"
@@ -69,6 +71,7 @@ if (use_cuda OR use_hip)
     "systems/radiative_transfer.hip.cpp"
     "systems/vlasov_solver.hip.cpp"
     "systems/prismatic/dec_field_solver.hip.cpp"
+    "systems/prismatic/dec_field_solver_gr_ks.hip.cpp"
     "systems/prismatic/prismatic_ptc_updater.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)

@@ -21,6 +21,7 @@ add_executable(tests
   "test_prismatic_mesh.cpp"
   "test_metric_ks_cartesian.cpp"
   "test_prismatic_mesh_gr_ks.cpp"
+  "test_prismatic_mesh_metric.cpp"
   )
 # target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 target_link_libraries(tests PUBLIC

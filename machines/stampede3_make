@@ -1,0 +1,21 @@
+#!/bin/bash
+
+source stampede3
+
+mkdir -p ../build
+cd ../build
+
+cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++ \
+  -DMPI_C_COMPILER=mpicc \
+  -DMPI_CXX_COMPILER=mpicxx \
+  -DMPI_CXX_SKIP_MPICXX=ON \
+  -Duse_cuda=1 \
+  -Dcuda_target_gpu=H100 \
+  -Duse_double=1 \
+  -Dbuild_tests=1 \
+  ../
+
+make -j8

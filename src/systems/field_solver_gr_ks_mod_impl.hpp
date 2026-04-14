@@ -319,7 +319,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
                 auto pos = get_pos(idx, ext);
                 // if (grid.is_in_bound(pos)) {
-                if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+                if (pos[0] > 0 && pos[0] < grid.dims[0] - 1 &&
+                    pos[2] > 0 && pos[2] < grid.dims[2] - 1) {
                   value_t r =
                       grid_ks_t<Conf>::radius(grid.coord(0, pos[0], false));
                   value_t r_plus = grid_ks_t<Conf>::radius(
@@ -519,7 +520,8 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
               Conf::begin(ext), Conf::end(ext), [&] LAMBDA(auto idx) {
                 auto pos = get_pos(idx, ext);
                 // if (grid.is_in_bound(pos)) {
-                if (pos[0] > 0 && pos[0] < grid.dims[0] - 1) {
+                if (pos[0] > 0 && pos[0] < grid.dims[0] - 1 &&
+                    pos[2] > 0 && pos[2] < grid.dims[2] - 1) {
                   value_t r =
                       grid_ks_t<Conf>::radius(grid.coord(0, pos[0], true));
                   value_t r_plus = grid_ks_t<Conf>::radius(

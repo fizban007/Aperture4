@@ -1204,13 +1204,16 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_divs_e_b() {
                   auto ph = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], false));
                   auto ph_s = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], true));
 
-                  auto dph = grid_ks_t<Conf>::phi(grid.coord(2, pos[2] + 1, true)) - ph_s;
+                  auto dph =
+                      grid_ks_t<Conf>::phi(grid.coord(2, pos[2] + 1, true)) -
+                      ph_s;
 
                   // Volume element for divB: at center of cell (i+1/2, j+1/2,
                   // k+1/2)
                   auto dVB = grid_ptrs.Ab[2][idx] * dph;
 
-                  dph = ph - grid_ks_t<Conf>::phi(grid.coord(2, pos[2] - 1, false));
+                  dph = ph -
+                        grid_ks_t<Conf>::phi(grid.coord(2, pos[2] - 1, false));
                   // Volume element for divD: at node of cell (i, j, k)
                   auto dVD = grid_ptrs.Ad[2][idx] * dph;
 
@@ -1272,34 +1275,69 @@ void
 field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_flux() {
   this->flux->init();
   auto a = m_a;
-  ExecPolicy<Conf>::launch(
-      [a] LAMBDA(auto flux, auto b, auto grid_ptrs) {
-        auto& grid = ExecPolicy<Conf>::grid();
-        auto ext = grid.extent();
-        // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
-        ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
-          auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
+  if constexpr (Conf::dim == 2) {
+    ExecPolicy<Conf>::launch(
+        [a] LAMBDA(auto flux, auto b, auto grid_ptrs) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+            auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
 
-          for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
-               n1++) {
-            Scalar th =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(n1, false));
-            Scalar th_p =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(n1 + 1, true));
-            Scalar th_m =
-                grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
-            // auto dth = th_p - th_m;
+            for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
+                 n1++) {
+              Scalar th =
+                  grid_ks_t<Conf>::theta(grid.template coord<1>(n1, false));
+              Scalar th_p =
+                  grid_ks_t<Conf>::theta(grid.template coord<1>(n1 + 1, true));
+              Scalar th_m =
+                  grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
+              // auto dth = th_p - th_m;
 
-            auto pos = index_t<Conf::dim>(n0, n1);
-            auto idx = typename Conf::idx_t(pos, ext);
+              auto pos = index_t<Conf::dim>(n0, n1);
+              auto idx = typename Conf::idx_t(pos, ext);
 
-            flux[idx] = flux[idx.dec_y()] +
-                        // b[0][idx] * Metric_KS::sqrt_gamma(a, r, th) * dth;
-                        b[0][idx] * grid_ptrs.Ab[0][idx];
-          }
-        });
-      },
-      this->flux, this->Btotal, m_ks_grid.get_grid_ptrs());
+              flux[idx] = flux[idx.dec_y()] +
+                          // b[0][idx] * Metric_KS::sqrt_gamma(a, r, th) * dth;
+                          b[0][idx] * grid_ptrs.Ab[0][idx];
+            }
+          });
+        },
+        this->flux, this->Btotal, m_ks_grid.get_grid_ptrs());
+  } else if constexpr (Conf::dim == 3) {
+    ExecPolicy<Conf>::launch(
+        [a] LAMBDA(auto flux, auto b, auto grid_ptrs) {
+          auto& grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          // for (auto n0 : grid_stride_range(0, grid.dims[0])) {
+          ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+            auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(n0, true));
+
+            for (int n1 = grid.guard[1]; n1 < grid.dims[1] - grid.guard[1];
+                 n1++) {
+              for (int n2 = grid.guard[2]; n2 < grid.dims[2] - grid.guard[2];
+                   n2++) {
+                Scalar th =
+                    grid_ks_t<Conf>::theta(grid.template coord<1>(n1, false));
+                Scalar th_p = grid_ks_t<Conf>::theta(
+                    grid.template coord<1>(n1 + 1, true));
+                Scalar th_m =
+                    grid_ks_t<Conf>::theta(grid.template coord<1>(n1, true));
+                // auto dth = th_p - th_m;
+
+                auto pos = index_t<Conf::dim>(n0, n1, n2);
+                auto idx = typename Conf::idx_t(pos, ext);
+
+                flux[idx] =
+                    flux[idx.dec_y()] +
+                    // b[0][idx] * Metric_KS::sqrt_gamma(a, r, th) * dth;
+                    b[0][idx] * grid_ptrs.Ab[0][idx];
+              }
+            }
+          });
+        },
+        this->flux, this->Btotal, m_ks_grid.get_grid_ptrs());
+  }
   ExecPolicy<Conf>::sync();
 }
 

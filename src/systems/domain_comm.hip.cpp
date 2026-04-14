@@ -34,10 +34,20 @@ domain_comm<Conf, ExecPolicy>::setup_devices() {
   } else {
     Logger::print_info("Found {} Cuda devices!", n_devices);
   }
-  // TODO: This way of finding device id may not be reliable
-  int dev_id = m_rank % n_devices;
-  // std::cout << "Rank " << m_rank << " is on device #" << dev_id <<
-  // std::endl;
+
+  // Use MPI_Comm_split_type to get a node-local communicator, then derive
+  // the local rank for NUMA-aware GPU binding. This is more robust than
+  // m_rank % n_devices, which assumes a particular rank ordering.
+  MPI_Comm local_comm;
+  MPI_Comm_split_type(m_world, MPI_COMM_TYPE_SHARED, m_rank,
+                      MPI_INFO_NULL, &local_comm);
+  int local_rank;
+  MPI_Comm_rank(local_comm, &local_rank);
+  MPI_Comm_free(&local_comm);
+
+  int dev_id = local_rank % n_devices;
+  Logger::print_info("Rank {} binding to GPU {} (local rank {})", m_rank,
+                     dev_id, local_rank);
   GpuSafeCall(gpuSetDevice(dev_id));
   init_dev_rank(m_rank);
 }

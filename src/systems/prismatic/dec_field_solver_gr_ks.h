@@ -24,10 +24,10 @@ namespace Aperture {
 // Inner boundary condition: for black hole spacetimes, place r_min
 // inside the outer horizon r_+.  The DEC stencil is self-closing at the
 // inner boundary (no explicit BC needed) and GR causality guarantees
-// that anything at r < r_+ cannot influence r > r_+.  An optional
-// in-horizon safety damping (apply_horizon_damping) is available for
-// suppressing numerical leakage from discretization-level superluminal
-// modes, but is disabled by default.
+// that anything at r < r_+ cannot influence r > r_+.  An exponential
+// inner damping layer (apply_inner_damping) over the innermost shells
+// absorbs any numerical leakage from discretization-level superluminal
+// modes inside the horizon.
 template <typename ExecPolicy>
 class dec_field_solver_gr_ks : public system_t {
  public:
@@ -39,9 +39,6 @@ class dec_field_solver_gr_ks : public system_t {
   void register_data_components() override;
   void init() override;
   void update(double dt, uint32_t step) override;
-
-  // Initial condition: uniform B_z (Wald background on a BH spacetime)
-  void set_initial_wald(Scalar B0 = 1.0);
 
   // Initial condition: proper rotating Kerr-Schild Wald vacuum solution
   // for a black hole of spin a immersed in an asymptotically uniform
@@ -83,15 +80,6 @@ class dec_field_solver_gr_ks : public system_t {
                      buffer<Scalar>& dD_out);
 
   void apply_damping(buffer<Scalar>& D, buffer<Scalar>& B, double dt);
-
-  // Optional safety damping inside the horizon.  The primary "inner BC"
-  // for this solver is causal disconnection: with r_min placed inside the
-  // outer horizon, the DEC stencil is self-closing (no explicit BC is
-  // needed) and anything unstable at r < r_+ cannot physically propagate
-  // outward to the domain of interest.  This method provides a light
-  // numerical insurance layer against any superluminal-mode leakage at
-  // the discretization level.  Disabled by default (r_horizon_damp = 0).
-  void apply_horizon_damping(buffer<Scalar>& D, buffer<Scalar>& B);
 
   // Inner damping layer — exponential absorption of the perturbation
   // δ = field − background over the innermost m_inner_damping_length
@@ -150,20 +138,6 @@ class dec_field_solver_gr_ks : public system_t {
   // Inner damping layer (inside-horizon absorption)
   int m_inner_damping_length = 0;
   Scalar m_inner_damping_coef = 0.5;
-
-  // Optional horizon safety damping (disabled by default).
-  //
-  // When r_horizon_damp > 0, fields are smoothly ramped to zero for
-  // elements with r_horizon_inner ≤ r < r_horizon_damp, using a quadratic
-  // profile that is 1 at the outer edge and 0 at r_horizon_inner.  This
-  // is *not* the physical inner boundary condition — causal disconnection
-  // handles that.  Its only purpose is to suppress numerical artifacts
-  // that might otherwise accumulate inside the horizon due to
-  // discretization-level superluminal modes.
-  //
-  // Leave at 0 to rely purely on causal protection (recommended default).
-  Scalar m_r_horizon_damp = 0.0;
-  Scalar m_r_horizon_inner = 0.0;
 
   // Update toggles
   bool m_update_d = true;

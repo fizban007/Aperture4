@@ -20,7 +20,6 @@ add_executable(tests
   "test_gr_ks_sph.cpp"
   "test_prismatic_mesh.cpp"
   "test_metric_ks_cartesian.cpp"
-  "test_prismatic_mesh_gr_ks.cpp"
   "test_prismatic_mesh_metric.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"

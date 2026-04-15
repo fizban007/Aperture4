@@ -146,13 +146,6 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
 
-  // Optional safety damping inside the horizon.  Default: disabled; the
-  // solver relies on causal disconnection for the inner BC (see
-  // apply_horizon_damping docstring).  Enable by setting r_horizon_damp
-  // > 0 in the config if long-time integration shows numerical leakage.
-  sim_env().params().get_value("r_horizon_damp", m_r_horizon_damp);
-  sim_env().params().get_value("r_horizon_inner", m_r_horizon_inner);
-
   // Inner damping layer: exponentially absorb the perturbation δ =
   // field − background over the innermost inner_damping_length radial
   // shells.  Intended to sit fully inside the horizon so it is
@@ -162,17 +155,8 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("inner_damping_coef", m_inner_damping_coef);
 
   m_time = 0.0;
-  if (m_r_horizon_damp > Scalar(0)) {
-    Logger::print_info(
-        "DEC GR field solver initialized: horizon safety damping ON "
-        "[{:.3f}, {:.3f}], implicit={}",
-        m_r_horizon_inner, m_r_horizon_damp, m_use_implicit);
-  } else {
-    Logger::print_info(
-        "DEC GR field solver initialized: horizon safety damping OFF "
-        "(causal disconnection only), implicit={}",
-        m_use_implicit);
-  }
+  Logger::print_info("DEC GR field solver initialized: implicit={}",
+                     m_use_implicit);
 }
 
 // =========================================================================
@@ -659,9 +643,9 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_damping(
 //   rect face in slab 0 (idx f ∈ [(N_r+1)N_tri, +N_edge_s))
 //     -> "interior" = rect face in slab 1 at idx f + N_edge_s
 //
-// Requires m_has_background (populated by set_initial_wald).  If no
-// background is set, damps δ to zero instead (i.e. extrapolates toward
-// the implicit background of 0).
+// Requires m_has_background (populated by set_initial_kerr_wald).  If
+// no background is set, damps δ to zero instead (i.e. extrapolates
+// toward the implicit background of 0).
 // =========================================================================
 template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
@@ -726,106 +710,6 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
         });
       },
       B, m_B_bg);
-}
-
-// =========================================================================
-// Optional safety damping inside the horizon.
-//
-// This is NOT the physical inner boundary condition.  The primary inner
-// BC for this solver is causal disconnection: with r_min placed inside
-// the outer horizon r_+, the DEC stencil is self-closing at the inner
-// boundary (every innermost element's Ampère/Faraday update finds all
-// its required neighbors within the mesh), and GR causality guarantees
-// that anything that happens at r < r_+ cannot propagate outward to the
-// physics domain of interest.
-//
-// The only reason to enable this damping (r_horizon_damp > 0) is as
-// numerical insurance: DEC discretization has O(h²) dispersion that can
-// slightly exceed c at high-k modes, so in principle some numerical
-// noise from inside r_+ could leak outward over long integration times.
-// If that becomes a problem in practice, a light quadratic ramp here
-// absorbs it before it can.
-//
-// Profile: for r_horizon_inner ≤ r < r_horizon_damp, fields are
-// multiplied by  t² = ((r - r_horizon_inner) / (r_horizon_damp - r_horizon_inner))²
-// which is 1 at the outer edge and 0 at r_horizon_inner.
-// Disabled when m_r_horizon_damp <= 0.
-// =========================================================================
-template <typename ExecPolicy>
-void dec_field_solver_gr_ks<ExecPolicy>::apply_horizon_damping(
-    buffer<Scalar>& D, buffer<Scalar>& B) {
-  if (m_r_horizon_damp <= Scalar(0)) return;
-
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  Scalar r_damp = m_r_horizon_damp;
-  Scalar r_h = m_r_horizon_inner;
-
-  ExecPolicy::launch(
-      [Ne = mp.N_edges, r_damp, r_h, mp] LAMBDA(auto D_e) {
-        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
-          Scalar r = mp.edge_r_coord[e];
-          if (r < r_damp) {
-            Scalar t = (r - r_h) / (r_damp - r_h);
-            if (t < Scalar(0)) t = Scalar(0);
-            D_e[e] *= t * t;
-          }
-        });
-      },
-      D);
-
-  ExecPolicy::launch(
-      [Nf = mp.N_faces, r_damp, r_h, mp] LAMBDA(auto B_f) {
-        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
-          Scalar r = mp.face_r_coord[f];
-          if (r < r_damp) {
-            Scalar t = (r - r_h) / (r_damp - r_h);
-            if (t < Scalar(0)) t = Scalar(0);
-            B_f[f] *= t * t;
-          }
-        });
-      },
-      B);
-}
-
-// =========================================================================
-// Wald initial condition: uniform B_z in Cartesian.
-// Sets B[f] = B0 * (ẑ · face_area_vector); D[e] = 0.
-// Also populates the background buffers (m_B_bg, m_D_bg) with the same
-// values so the outer damping layer relaxes toward the Wald background
-// rather than toward zero — essential for this test, since otherwise the
-// damping layer would eat the uniform B₀ at the outer boundary and
-// launch spurious gradient-driven waves inward.
-// Runs on the device via ExecPolicy::launch.
-// =========================================================================
-template <typename ExecPolicy>
-void dec_field_solver_gr_ks<ExecPolicy>::set_initial_wald(Scalar B0) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-
-  // B[f] = B0 * (ẑ · face_area_vector);  also copy into the background.
-  ExecPolicy::launch(
-      [Nf = mp.N_faces, B0, mp] LAMBDA(auto B_f, auto B_bg) {
-        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
-          Scalar fnx, fny, fnz;
-          face_normal_area(mp, f, fnx, fny, fnz);
-          Scalar v = B0 * fnz;
-          B_f[f]  = v;
-          B_bg[f] = v;
-        });
-      },
-      m_B->data(), m_B_bg);
-
-  // D[e] = 0;  D_bg = 0.
-  ExecPolicy::launch(
-      [Ne = mp.N_edges] LAMBDA(auto D_e, auto D_bg) {
-        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
-          D_e[e]  = Scalar(0);
-          D_bg[e] = Scalar(0);
-        });
-      },
-      m_D->data(), m_D_bg);
-
-  m_has_background = true;
-  ExecPolicy::sync();
 }
 
 // =========================================================================

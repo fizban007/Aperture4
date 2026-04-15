@@ -33,7 +33,6 @@ set(Aperture_src
   "systems/sync_curv_emission.cpp"
   "systems/vlasov_solver.cpp"
   "systems/prismatic/prismatic_mesh.cpp"
-  "systems/prismatic/prismatic_mesh_gr_ks.cpp"
   "systems/prismatic/prismatic_mesh_metric.cpp"
   "systems/prismatic/dec_field_solver.cpp"
   "systems/prismatic/dec_field_solver_gr_ks.cpp"

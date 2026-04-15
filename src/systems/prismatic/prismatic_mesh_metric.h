@@ -7,9 +7,9 @@
 namespace Aperture {
 
 // Prismatic mesh with metric-aware Hodge stars and precomputed 3+1
-// quantities.  Replaces both prismatic_mesh (flat) and
-// prismatic_mesh_gr_ks (Kerr-Schild) with a single class that takes
-// any user-supplied spherical metric struct (see spherical_metric.hpp).
+// quantities.  Extends the flat prismatic_mesh with any user-supplied
+// spherical metric struct (see spherical_metric.hpp): flat space,
+// Schwarzschild, Kerr-Schild, etc.
 //
 // Usage (GPU-aware; call copy_to_device() before compute_metric()):
 //   prismatic_mesh_metric mesh;

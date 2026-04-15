@@ -439,6 +439,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_explicit(double dt) {
   apply_damping(m_D->data(), m_B->data(), dt);
   apply_inner_damping(m_D->data(), m_B->data(), dt);
   apply_inner_boundary(m_D->data(), m_B->data());
+  apply_outer_boundary(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
 
@@ -466,6 +467,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
       m_D->data(), m_tmp_D, m_dD_dt, m_B->data(), m_tmp_B, m_dB_dt);
 
   apply_inner_boundary(m_tmp_D, m_tmp_B);
+  apply_outer_boundary(m_tmp_D, m_tmp_B);
   ExecPolicy::sync();
 
   for (int iter = 0; iter < m_implicit_iters; iter++) {
@@ -500,6 +502,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
   apply_damping(m_D->data(), m_B->data(), dt);
   apply_inner_damping(m_D->data(), m_B->data(), dt);
   apply_inner_boundary(m_D->data(), m_B->data());
+  apply_outer_boundary(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
 
@@ -707,6 +710,50 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
           Scalar bg0 = has_bg ? B_bg[f0] : Scalar(0);
           Scalar bg1 = has_bg ? B_bg[f1] : Scalar(0);
           B_f[f0] = B_f[f1] + bg1 - bg0;
+        });
+      },
+      B, m_B_bg);
+}
+
+// =========================================================================
+// Outer boundary: pin D on the outermost horizontal (triangular-ring)
+// edges and B on the outermost triangular faces to their stored
+// background values.  These outermost elements suffer from one-sided
+// shift-term averaging in compute_dB_dt / compute_dD_dt (no rect face
+// "above" the k=N_r shell exists), which biases their reconstruction
+// and seeds polar artifacts.  Pinning them to the analytic Wald
+// background sidesteps the biased reconstruction and acts as a hard
+// Dirichlet outer BC for the asymptotic field.
+//
+// Indexing:
+//   outermost horizontal edges: idx in [N_r * N_edge_s, (N_r+1) * N_edge_s)
+//   outermost tri faces:        idx in [N_r * N_tri,    (N_r+1) * N_tri)
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::apply_outer_boundary(
+    buffer<Scalar>& D, buffer<Scalar>& B) {
+  if (!m_has_background) return;
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int N_edge_s = mp.N_edge_s;
+  int N_tri    = mp.N_tri;
+  int N_r      = mp.N_r;
+  int e_off = N_r * N_edge_s;
+  int f_off = N_r * N_tri;
+
+  ExecPolicy::launch(
+      [N_edge_s, e_off] LAMBDA(auto D_e, auto D_bg) {
+        ExecPolicy::loop(0, N_edge_s, [&] LAMBDA(int i) {
+          int e = e_off + i;
+          D_e[e] = D_bg[e];
+        });
+      },
+      D, m_D_bg);
+
+  ExecPolicy::launch(
+      [N_tri, f_off] LAMBDA(auto B_f, auto B_bg) {
+        ExecPolicy::loop(0, N_tri, [&] LAMBDA(int i) {
+          int f = f_off + i;
+          B_f[f] = B_bg[f];
         });
       },
       B, m_B_bg);

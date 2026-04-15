@@ -101,6 +101,16 @@ class dec_field_solver_gr_ks : public system_t {
   // in-horizon instabilities.
   void apply_inner_boundary(buffer<Scalar>& D, buffer<Scalar>& B);
 
+  // Outer boundary condition: pins D on the outermost horizontal
+  // (triangular-ring) edges and B on the outermost triangular faces to
+  // their stored background values, freezing them at the IC.  These
+  // outermost elements have their shift-term reconstruction biased by
+  // one-sided averaging (no rect face above them), which seeds polar
+  // artifacts.  Pinning them sidesteps the biased reconstruction and
+  // serves as a hard Dirichlet BC for the asymptotic Wald background.
+  // Requires m_has_background = true; no-op otherwise.
+  void apply_outer_boundary(buffer<Scalar>& D, buffer<Scalar>& B);
+
   // Diagnostic: populate m_E_aux, m_H_aux from the current D, B state
   // (running one Faraday and one Ampère constitutive-relation build),
   // then write them along with D, B to an HDF5 file so the raw values

@@ -170,7 +170,17 @@ void prismatic_mesh::sphere_mesh::subdivide() {
 // Main build method
 // ============================================================================
 
-void prismatic_mesh::build(int L, int N_r, double r_min, double r_max) {
+void prismatic_mesh::build(int L, int N_r, double r_min, double r_max,
+                           int n_ghost_inner, int n_ghost_outer) {
+  // Prepend / append ghost radial layers below r_min / above r_max
+  // preserving the log-spacing.  The physical domain is shells
+  // [n_ghost_inner, n_ghost_inner + N_r].
+  if (n_ghost_inner > 0 || n_ghost_outer > 0) {
+    double log_ratio = std::log(r_max / r_min) / N_r;
+    r_min *= std::exp(-n_ghost_inner * log_ratio);
+    r_max *= std::exp(n_ghost_outer * log_ratio);
+    N_r += n_ghost_inner + n_ghost_outer;
+  }
   m_L = L;
   m_N_r = N_r;
   m_r_min = r_min;

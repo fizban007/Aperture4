@@ -40,7 +40,12 @@ int main(int argc, char* argv[]) {
 
   // --- Build the metric-aware mesh ---
   prismatic_mesh_metric mesh;
-  mesh.build(L, N_r, r_min, r_max);
+  // Ghost shells on both radial ends so the first and last physical
+  // shells have rect faces on both sides (symmetric averaging in the
+  // shift-term cross coupling).
+  int n_ghost_inner = env.params().get_as<int64_t>("n_ghost_inner", 1);
+  int n_ghost_outer = env.params().get_as<int64_t>("n_ghost_outer", 1);
+  mesh.build(L, N_r, r_min, r_max, n_ghost_inner, n_ghost_outer);
   // Copy mesh topology to device *before* compute_metric so the
   // metric evaluation and Hodge-quadrature kernels can read the
   // vertex / edge / face tables from GPU memory.
@@ -61,8 +66,12 @@ int main(int argc, char* argv[]) {
 
   env.init();
 
-  // --- Initial condition: uniform B₀·ẑ (Schwarzschild Wald solution) ---
-  solver->set_initial_wald(Scalar(B0));
+  // --- Initial condition: proper KS Wald vacuum (exact stationary solution
+  // for a=0.998 in KS coordinates, computed from Wald's A_μ potential).
+  solver->set_initial_kerr_wald(Scalar(a), Scalar(B0));
+  solver->dump_aux_fields(env.params().get_as<std::string>("output_dir",
+                                                           "Data") +
+                          "/ic_aux.h5");
 
   env.run();
   return 0;

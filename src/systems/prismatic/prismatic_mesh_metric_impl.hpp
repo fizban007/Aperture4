@@ -10,119 +10,117 @@ namespace Aperture {
 namespace prismatic_metric_helpers {
 
 // -------------------------------------------------------------------------
-// HD_INLINE device-callable helpers.  All use double precision
-// internally; only the final stored per-element buffers are Scalar.
+// Everything in (r, θ, φ) coordinate basis.
+//
+// Primal elements are parameterized coord-linearly:
+//
+//   horizontal edge (fixed r):
+//       (r, θ, φ)(s) = (r, θ_a + s·Δθ, φ_a + s·Δφ),   s ∈ [0, 1]
+//
+//   vertical edge   (fixed θ, φ):
+//       (r, θ, φ)(s) = (r_0 + s·Δr, θ, φ),            s ∈ [0, 1]
+//
+//   triangular face (fixed r, barycentric in (θ, φ)):
+//       x(u, v) = vertex_a + u·(vertex_b − a) + v·(vertex_c − a)
+//
+//   rectangular face (bilinear in r × arc-parameter):
+//       (r, θ, φ)(u, v) = ((1-v)·r_0 + v·r_1,
+//                          θ_a + u·Δθ,
+//                          φ_a + u·Δφ)
+//
+// All integrals use the spherical metric components γ_rr, γ_θθ, γ_φφ, γ_rφ
+// directly — no Cartesian inner products.
 // -------------------------------------------------------------------------
 
-HD_INLINE void cart_to_sph(double x, double y, double z, double& r,
-                           double& sth, double& cth, double& phi) {
-  r = math::sqrt(x * x + y * y + z * z);
-  cth = (r > 0) ? z / r : 1.0;
+// Angular difference with wrap handling: returns φ_b − φ_a in (−π, π].
+HD_INLINE double angular_diff(double phi_a, double phi_b) {
+  double d = phi_b - phi_a;
+  const double pi = 3.14159265358979323846;
+  if (d > pi) d -= 2.0 * pi;
+  if (d < -pi) d += 2.0 * pi;
+  return d;
+}
+
+// Spherical coordinates of a mesh vertex.  vidx = k · N_vert_s + s.
+template <typename Mesh>
+HD_INLINE void vertex_sph(const Mesh& mp, int vidx, double& r, double& sth,
+                          double& cth, double& phi) {
+  int k = vidx / mp.N_vert_s;
+  int sphv = vidx % mp.N_vert_s;
+  r = mp.radii[k];
+  cth = mp.sphere_vz[sphv];
   double s2 = 1.0 - cth * cth;
   sth = math::sqrt(s2 > 0 ? s2 : 0.0);
-  phi = math::atan2(y, x);
+  phi = math::atan2((double)mp.sphere_vy[sphv], (double)mp.sphere_vx[sphv]);
 }
 
-// Metric inner product γ_{ij} V^i W^j at Cartesian point P.
+// Horizontal edge length (on shell r, coord-linear in θ, φ).
 template <typename Metric>
 HD_INLINE double
-metric_inner_product(const Metric& met, double x, double y, double z,
-                     double vx, double vy, double vz, double wx, double wy,
-                     double wz) {
-  double r, sth, cth, phi;
-  cart_to_sph(x, y, z, r, sth, cth, phi);
-  if (r < 1e-30) return vx * wx + vy * wy + vz * wz;
-
-  double cph = math::cos(phi), sph = math::sin(phi);
-
-  double v_r = sth * cph * vx + sth * sph * vy + cth * vz;
-  double v_th = (cth * cph * vx + cth * sph * vy - sth * vz) / r;
-  double v_ph = (sth > 1e-12) ? (-sph * vx + cph * vy) / (r * sth) : 0.0;
-
-  double w_r = sth * cph * wx + sth * sph * wy + cth * wz;
-  double w_th = (cth * cph * wx + cth * sph * wy - sth * wz) / r;
-  double w_ph = (sth > 1e-12) ? (-sph * wx + cph * wy) / (r * sth) : 0.0;
-
-  double g11 = met.g_rr(r, sth, cth);
-  double g22 = met.g_thth(r, sth, cth);
-  double g33 = met.g_phph(r, sth, cth);
-  double g13 = met.g_rph(r, sth, cth);
-
-  return g11 * v_r * w_r + g22 * v_th * w_th + g33 * v_ph * w_ph +
-         g13 * (v_r * w_ph + v_ph * w_r);
-}
-
-template <typename Metric>
-HD_INLINE double
-segment_length(const Metric& met, double x0, double y0, double z0, double x1,
-               double y1, double z1) {
-  double vx = x1 - x0, vy = y1 - y0, vz = z1 - z0;
+horizontal_edge_length(const Metric& met, double r, double th_a, double ph_a,
+                       double th_b, double ph_b) {
+  double dth = th_b - th_a;
+  double dph = angular_diff(ph_a, ph_b);
   return gauss_quad(
-      [&](double t) {
-        double x = x0 + t * vx, y = y0 + t * vy, z = z0 + t * vz;
-        double ds2 =
-            metric_inner_product(met, x, y, z, vx, vy, vz, vx, vy, vz);
-        return math::sqrt(ds2 > 0 ? ds2 : 0.0);
+      [&](double s) {
+        double th = th_a + s * dth;
+        double sth = math::sin(th), cth = math::cos(th);
+        double g22 = met.g_thth(r, sth, cth);
+        double g33 = met.g_phph(r, sth, cth);
+        double g23 = met.g_thph(r, sth, cth);
+        double q = g22 * dth * dth + g33 * dph * dph + 2.0 * g23 * dth * dph;
+        return math::sqrt(q > 0 ? q : 0.0);
       },
       0.0, 1.0);
 }
 
+// Vertical (radial) edge length at fixed (θ, φ).
 template <typename Metric>
 HD_INLINE double
-arc_length(const Metric& met, double x0, double y0, double z0, double x1,
-           double y1, double z1) {
-  double r = math::sqrt(x0 * x0 + y0 * y0 + z0 * z0);
-  double dot = (x0 * x1 + y0 * y1 + z0 * z1) / (r * r);
-  if (dot > 1.0) dot = 1.0;
-  if (dot < -1.0) dot = -1.0;
-  double Omega = math::acos(dot);
-  if (Omega < 1e-12) return 0.0;
-
-  double sO = math::sin(Omega);
-  double sax = x0 / r, say = y0 / r, saz = z0 / r;
-  double sbx = x1 / r, sby = y1 / r, sbz = z1 / r;
-  double etx = (sbx - dot * sax) / sO;
-  double ety = (sby - dot * say) / sO;
-  double etz = (sbz - dot * saz) / sO;
-
+radial_edge_length(const Metric& met, double r_0, double r_1, double theta) {
+  double dr = r_1 - r_0;
+  double sth = math::sin(theta), cth = math::cos(theta);
   return gauss_quad(
-      [&](double t) {
-        double s = t * Omega;
-        double cs = math::cos(s), ss = math::sin(s);
-        double x = r * (cs * sax + ss * etx);
-        double y = r * (cs * say + ss * ety);
-        double z = r * (cs * saz + ss * etz);
-        double tx = r * Omega * (-ss * sax + cs * etx);
-        double ty = r * Omega * (-ss * say + cs * ety);
-        double tz = r * Omega * (-ss * saz + cs * etz);
-        double ds2 =
-            metric_inner_product(met, x, y, z, tx, ty, tz, tx, ty, tz);
-        return math::sqrt(ds2 > 0 ? ds2 : 0.0);
+      [&](double s) {
+        double r = r_0 + s * dr;
+        double g11 = met.g_rr(r, sth, cth);
+        return math::sqrt(g11) * math::abs(dr);
       },
       0.0, 1.0);
 }
 
+// Generic triangle area in (r, θ, φ) coord-linear parametrization.
+// Works for any three vertices (possibly at different r).
 template <typename Metric>
 HD_INLINE double
-triangle_area(const Metric& met, double x0, double y0, double z0, double x1,
-              double y1, double z1, double x2, double y2, double z2) {
-  double e1x = x1 - x0, e1y = y1 - y0, e1z = z1 - z0;
-  double e2x = x2 - x0, e2y = y2 - y0, e2z = z2 - z0;
-
+coord_triangle_area(const Metric& met, double r_a, double th_a, double ph_a,
+                    double r_b, double th_b, double ph_b, double r_c,
+                    double th_c, double ph_c) {
+  double drB = r_b - r_a, dthB = th_b - th_a, dphB = angular_diff(ph_a, ph_b);
+  double drC = r_c - r_a, dthC = th_c - th_a, dphC = angular_diff(ph_a, ph_c);
   return gauss_quad(
       [&](double u) {
         return gauss_quad(
             [&](double v) {
-              double x = x0 + u * e1x + v * e2x;
-              double y = y0 + u * e1y + v * e2y;
-              double z = z0 + u * e1z + v * e2z;
-              double h11 = metric_inner_product(met, x, y, z, e1x, e1y, e1z,
-                                                e1x, e1y, e1z);
-              double h12 = metric_inner_product(met, x, y, z, e1x, e1y, e1z,
-                                                e2x, e2y, e2z);
-              double h22 = metric_inner_product(met, x, y, z, e2x, e2y, e2z,
-                                                e2x, e2y, e2z);
-              double det = h11 * h22 - h12 * h12;
+              double r = r_a + u * drB + v * drC;
+              double th = th_a + u * dthB + v * dthC;
+              if (r < 1e-12) return 0.0;
+              double sth = math::sin(th), cth = math::cos(th);
+              double g11 = met.g_rr(r, sth, cth);
+              double g22 = met.g_thth(r, sth, cth);
+              double g33 = met.g_phph(r, sth, cth);
+              double g13 = met.g_rph(r, sth, cth);
+              double g23 = met.g_thph(r, sth, cth);
+              double huu = g11 * drB * drB + g22 * dthB * dthB +
+                           g33 * dphB * dphB + 2.0 * g13 * drB * dphB +
+                           2.0 * g23 * dthB * dphB;
+              double hvv = g11 * drC * drC + g22 * dthC * dthC +
+                           g33 * dphC * dphC + 2.0 * g13 * drC * dphC +
+                           2.0 * g23 * dthC * dphC;
+              double huv = g11 * drB * drC + g22 * dthB * dthC +
+                           g33 * dphB * dphC + g13 * (drB * dphC + drC * dphB) +
+                           g23 * (dthB * dphC + dthC * dphB);
+              double det = huu * hvv - huv * huv;
               return math::sqrt(det > 0 ? det : 0.0);
             },
             0.0, 1.0 - u);
@@ -130,100 +128,72 @@ triangle_area(const Metric& met, double x0, double y0, double z0, double x1,
       0.0, 1.0);
 }
 
+// Shell-restricted triangle area: all three vertices at the same r.
 template <typename Metric>
 HD_INLINE double
-rect_face_area(const Metric& met, double x0, double y0, double z0, double x1,
-               double y1, double z1, double /*x2*/, double /*y2*/,
-               double /*z2*/, double x3, double y3, double z3) {
-  double r0 = math::sqrt(x0 * x0 + y0 * y0 + z0 * z0);
-  double r1 = math::sqrt(x3 * x3 + y3 * y3 + z3 * z3);
-  double sax = x0 / r0, say = y0 / r0, saz = z0 / r0;
-  double sbx = x1 / r0, sby = y1 / r0, sbz = z1 / r0;
-  double dot = sax * sbx + say * sby + saz * sbz;
-  if (dot > 1.0) dot = 1.0;
-  if (dot < -1.0) dot = -1.0;
-  double Omega = math::acos(dot);
-  if (Omega < 1e-12 || r1 - r0 < 1e-30) return 0.0;
+shell_triangle_area(const Metric& met, double r, double th_a, double ph_a,
+                    double th_b, double ph_b, double th_c, double ph_c) {
+  return coord_triangle_area(met, r, th_a, ph_a, r, th_b, ph_b, r, th_c, ph_c);
+}
 
-  double sO = math::sin(Omega);
-  double etx = (sbx - dot * sax) / sO;
-  double ety = (sby - dot * say) / sO;
-  double etz = (sbz - dot * saz) / sO;
-
+// Rectangular face area bounded by arcs at r_0 and r_1 with the same angular
+// endpoints (θ_a, φ_a) and (θ_b, φ_b).
+template <typename Metric>
+HD_INLINE double
+rectangular_face_area(const Metric& met, double r_0, double r_1, double th_a,
+                      double ph_a, double th_b, double ph_b) {
+  double dr = r_1 - r_0;
+  double dth = th_b - th_a;
+  double dph = angular_diff(ph_a, ph_b);
   return gauss_quad(
       [&](double u) {
-        double cs = math::cos(u), ss = math::sin(u);
-        double ux = cs * sax + ss * etx;
-        double uy = cs * say + ss * ety;
-        double uz = cs * saz + ss * etz;
-        double tax = -ss * sax + cs * etx;
-        double tay = -ss * say + cs * ety;
-        double taz = -ss * saz + cs * etz;
-
+        double th = th_a + u * dth;
+        double sth = math::sin(th), cth = math::cos(th);
         return gauss_quad(
             [&](double v) {
-              double x = v * ux, y = v * uy, z = v * uz;
-              double du_x = v * tax, du_y = v * tay, du_z = v * taz;
-              double dv_x = ux, dv_y = uy, dv_z = uz;
-              double h11 = metric_inner_product(met, x, y, z, du_x, du_y,
-                                                du_z, du_x, du_y, du_z);
-              double h12 = metric_inner_product(met, x, y, z, du_x, du_y,
-                                                du_z, dv_x, dv_y, dv_z);
-              double h22 = metric_inner_product(met, x, y, z, dv_x, dv_y,
-                                                dv_z, dv_x, dv_y, dv_z);
-              double det = h11 * h22 - h12 * h12;
+              double r = r_0 + v * dr;
+              double g11 = met.g_rr(r, sth, cth);
+              double g22 = met.g_thth(r, sth, cth);
+              double g33 = met.g_phph(r, sth, cth);
+              double g13 = met.g_rph(r, sth, cth);
+              double g23 = met.g_thph(r, sth, cth);
+              // ∂/∂u = (0, dth, dph); ∂/∂v = (dr, 0, 0).
+              double huu = g22 * dth * dth + g33 * dph * dph +
+                           2.0 * g23 * dth * dph;
+              double hvv = g11 * dr * dr;
+              double huv = g13 * dr * dph;
+              double det = huu * hvv - huv * huv;
               return math::sqrt(det > 0 ? det : 0.0);
             },
-            r0, r1);
+            0.0, 1.0);
       },
-      0.0, Omega);
+      0.0, 1.0);
 }
 
-// Polygon area with explicit fan center, fixed-size array input.
+// Polygon area via fan from an explicit center point.  Uses
+// coord_triangle_area for each sub-triangle so works with arbitrary vertex
+// r-values (needed for horizontal-edge dual faces, which span two shells).
 template <typename Metric>
 HD_INLINE double
-polygon_area_about_fixed(const Metric& met, double cx, double cy, double cz,
-                         const double* px, const double* py, const double* pz,
-                         int np) {
-  if (np < 3) return 0.0;
+polygon_area_about(const Metric& met, double r_c, double th_c, double ph_c,
+                   const double* rr, const double* th, const double* ph,
+                   int n) {
+  if (n < 3) return 0.0;
   double area = 0.0;
-  for (int i = 0; i < np; i++) {
-    int j = (i + 1) % np;
-    area += triangle_area(met, cx, cy, cz, px[i], py[i], pz[i], px[j], py[j],
-                          pz[j]);
+  for (int i = 0; i < n; i++) {
+    int j = (i + 1) % n;
+    area += coord_triangle_area(met, r_c, th_c, ph_c, rr[i], th[i], ph[i],
+                                rr[j], th[j], ph[j]);
   }
   return area;
-}
-
-// Polygon area with fan from vertex average.
-template <typename Metric>
-HD_INLINE double
-polygon_area_fixed(const Metric& met, const double* px, const double* py,
-                   const double* pz, int np) {
-  if (np < 3) return 0.0;
-  double mx = 0, my = 0, mz = 0;
-  for (int i = 0; i < np; i++) {
-    mx += px[i];
-    my += py[i];
-    mz += pz[i];
-  }
-  mx /= np;
-  my /= np;
-  mz /= np;
-  return polygon_area_about_fixed(met, mx, my, mz, px, py, pz, np);
 }
 
 }  // namespace prismatic_metric_helpers
 
 // =========================================================================
-// Template compute_metric<Metric>
-//
-// Entry point.  Must be called after build() and, on GPU builds, after
-// copy_to_device().  Fills all per-element metric buffers + Hodge stars,
-// with kernels running on the execution policy dispatched at compile
-// time (prismatic_exec_policy_dynamic = GPU when available, otherwise
-// host).  On GPU builds the updated hodge1_inv / hodge2 buffers are
-// also copied back to host so the data exporter can write them.
+// Template compute_metric<Metric>.
+// All per-element metric buffers + Hodge stars computed in (r, θ, φ) coord
+// basis; no Cartesian chord lengths or flat triangle areas anywhere.
 // =========================================================================
 template <typename Metric>
 void prismatic_mesh_metric::compute_metric(const Metric& met) {
@@ -257,7 +227,6 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
   alloc(cc_z, N_prisms);
 
   // ----- Build edge-to-triangle and vertex-to-triangle adjacency on host -----
-  // (cheap topological scan, just indices)
   alloc(edge_tris, 2 * m_N_edge_s);
   for (int e = 0; e < m_N_edge_s; e++) {
     edge_tris[2 * e + 0] = -1;
@@ -301,46 +270,62 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
   }
 #endif
 
-  // ----- Launch per-edge metric eval -----
+  // ----- Per-edge metric eval at edge midpoints (spherical coords) -----
   ExecPolicy::launch(
-      [met, Ne = m_N_edges]
+      [met, Ne = m_N_edges, Nh = (m_N_r + 1) * m_N_edge_s]
       LAMBDA(auto mp, auto er, auto esth, auto ecth, auto ealpha, auto esgb,
              auto esg) {
         ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          double mx = 0.5 * (mp.vert_x[v0] + mp.vert_x[v1]);
-          double my = 0.5 * (mp.vert_y[v0] + mp.vert_y[v1]);
-          double mz = 0.5 * (mp.vert_z[v0] + mp.vert_z[v1]);
-          double r, sth, cth, phi;
-          cart_to_sph(mx, my, mz, r, sth, cth, phi);
-          er[e] = r;
-          esth[e] = sth;
-          ecth[e] = cth;
-          ealpha[e] = met.alpha(r, sth, cth);
-          esgb[e] = met.sq_gamma_beta_r(r, sth, cth);
-          esg[e] = met.sqrt_gamma(r, sth, cth);
+          double r0, sth0, cth0, ph0;
+          double r1, sth1, cth1, ph1;
+          vertex_sph(mp, v0, r0, sth0, cth0, ph0);
+          vertex_sph(mp, v1, r1, sth1, cth1, ph1);
+          double r_m = 0.5 * (r0 + r1);
+          double th0 = math::atan2(sth0, cth0);
+          double th1 = math::atan2(sth1, cth1);
+          double th_m = 0.5 * (th0 + th1);
+          double sth_m = math::sin(th_m);
+          double cth_m = math::cos(th_m);
+          er[e] = r_m;
+          esth[e] = sth_m;
+          ecth[e] = cth_m;
+          ealpha[e] = met.alpha(r_m, sth_m, cth_m);
+          esgb[e] = met.sq_gamma_beta_r(r_m, sth_m, cth_m);
+          esg[e] = met.sqrt_gamma(r_m, sth_m, cth_m);
+          (void)Nh;
         });
       },
       prismatic_mesh::get_ptrs(typename ExecPolicy::exec_tag{}), edge_r_coord,
       edge_sth, edge_cth, edge_alpha, edge_sq_gamma_beta_r, edge_sqrt_gamma);
 
-  // ----- Launch per-tri-face metric eval -----
+  // ----- Per-tri-face metric eval at spherical centroid -----
   int N_tri_all = (m_N_r + 1) * m_N_tri;
   ExecPolicy::launch(
       [met, N_tri_all]
       LAMBDA(auto mp, auto fr, auto fsth, auto fcth, auto falpha, auto fsgb,
              auto fsg) {
         ExecPolicy::loop(0, N_tri_all, [&] LAMBDA(int fi) {
-          int va = mp.tri_face_v0[fi], vb = mp.tri_face_v1[fi],
-              vc = mp.tri_face_v2[fi];
-          double cx_ =
-              (mp.vert_x[va] + mp.vert_x[vb] + mp.vert_x[vc]) / 3.0;
-          double cy_ =
-              (mp.vert_y[va] + mp.vert_y[vb] + mp.vert_y[vc]) / 3.0;
-          double cz_ =
-              (mp.vert_z[va] + mp.vert_z[vb] + mp.vert_z[vc]) / 3.0;
-          double r, sth, cth, phi;
-          cart_to_sph(cx_, cy_, cz_, r, sth, cth, phi);
+          int k = fi / mp.N_tri;
+          int t = fi % mp.N_tri;
+          int a = mp.tri_verts[t * 3 + 0];
+          int b = mp.tri_verts[t * 3 + 1];
+          int c = mp.tri_verts[t * 3 + 2];
+          double sx = (mp.sphere_vx[a] + mp.sphere_vx[b] + mp.sphere_vx[c]) /
+                      3.0;
+          double sy = (mp.sphere_vy[a] + mp.sphere_vy[b] + mp.sphere_vy[c]) /
+                      3.0;
+          double sz = (mp.sphere_vz[a] + mp.sphere_vz[b] + mp.sphere_vz[c]) /
+                      3.0;
+          double norm = math::sqrt(sx * sx + sy * sy + sz * sz);
+          if (norm > 0) {
+            sx /= norm;
+            sy /= norm;
+            sz /= norm;
+          }
+          double r = mp.radii[k];
+          double cth = sz;
+          double sth = math::sqrt(((0.0) > (1.0 - cth * cth) ? (0.0) : (1.0 - cth * cth)));
           fr[fi] = r;
           fsth[fi] = sth;
           fcth[fi] = cth;
@@ -352,7 +337,7 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
       prismatic_mesh::get_ptrs(typename ExecPolicy::exec_tag{}), face_r_coord,
       face_sth, face_cth, face_alpha, face_sq_gamma_beta_r, face_sqrt_gamma);
 
-  // ----- Launch per-rect-face metric eval -----
+  // ----- Per-rect-face metric eval at (r_mid, arc-mid) -----
   int N_rect = m_N_r * m_N_edge_s;
   ExecPolicy::launch(
       [met, N_rect, N_tri_all]
@@ -360,28 +345,34 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
              auto fsg) {
         ExecPolicy::loop(0, N_rect, [&] LAMBDA(int ri) {
           int fi = N_tri_all + ri;
+          int k = ri / mp.N_edge_s;
           int va = mp.rect_face_v0[ri], vb = mp.rect_face_v1[ri];
-          int vc = mp.rect_face_v2[ri], vd = mp.rect_face_v3[ri];
-          double cx_ = 0.25 * (mp.vert_x[va] + mp.vert_x[vb] +
-                               mp.vert_x[vc] + mp.vert_x[vd]);
-          double cy_ = 0.25 * (mp.vert_y[va] + mp.vert_y[vb] +
-                               mp.vert_y[vc] + mp.vert_y[vd]);
-          double cz_ = 0.25 * (mp.vert_z[va] + mp.vert_z[vb] +
-                               mp.vert_z[vc] + mp.vert_z[vd]);
-          double r, sth, cth, phi;
-          cart_to_sph(cx_, cy_, cz_, r, sth, cth, phi);
-          fr[fi] = r;
+          double r_m = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
+          int sa = va % mp.N_vert_s;
+          int sb = vb % mp.N_vert_s;
+          double sx = 0.5 * (mp.sphere_vx[sa] + mp.sphere_vx[sb]);
+          double sy = 0.5 * (mp.sphere_vy[sa] + mp.sphere_vy[sb]);
+          double sz = 0.5 * (mp.sphere_vz[sa] + mp.sphere_vz[sb]);
+          double norm = math::sqrt(sx * sx + sy * sy + sz * sz);
+          if (norm > 0) {
+            sx /= norm;
+            sy /= norm;
+            sz /= norm;
+          }
+          double cth = sz;
+          double sth = math::sqrt(((0.0) > (1.0 - cth * cth) ? (0.0) : (1.0 - cth * cth)));
+          fr[fi] = r_m;
           fsth[fi] = sth;
           fcth[fi] = cth;
-          falpha[fi] = met.alpha(r, sth, cth);
-          fsgb[fi] = met.sq_gamma_beta_r(r, sth, cth);
-          fsg[fi] = met.sqrt_gamma(r, sth, cth);
+          falpha[fi] = met.alpha(r_m, sth, cth);
+          fsgb[fi] = met.sq_gamma_beta_r(r_m, sth, cth);
+          fsg[fi] = met.sqrt_gamma(r_m, sth, cth);
         });
       },
       prismatic_mesh::get_ptrs(typename ExecPolicy::exec_tag{}), face_r_coord,
       face_sth, face_cth, face_alpha, face_sq_gamma_beta_r, face_sqrt_gamma);
 
-  // ----- Launch circumcenter kernel -----
+  // ----- Circumcenter kernel (angular barycenter on the sphere at r_mid) --
   int N_tri_local = m_N_tri, N_r_local = m_N_r;
   ExecPolicy::launch(
       [N_tri_local, N_r_local]
@@ -394,38 +385,18 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
           int a = mp.tri_verts[t * 3 + 0];
           int b = mp.tri_verts[t * 3 + 1];
           int c = mp.tri_verts[t * 3 + 2];
-
-          double e1x = mp.sphere_vx[b] - mp.sphere_vx[a];
-          double e1y = mp.sphere_vy[b] - mp.sphere_vy[a];
-          double e1z = mp.sphere_vz[b] - mp.sphere_vz[a];
-          double e2x = mp.sphere_vx[c] - mp.sphere_vx[a];
-          double e2y = mp.sphere_vy[c] - mp.sphere_vy[a];
-          double e2z = mp.sphere_vz[c] - mp.sphere_vz[a];
-          double nx = e1y * e2z - e1z * e2y;
-          double ny = e1z * e2x - e1x * e2z;
-          double nz = e1x * e2y - e1y * e2x;
-          double nlen = math::sqrt(nx * nx + ny * ny + nz * nz);
-
-          double ux = 0, uy = 0, uz = 0;
-          if (nlen > 0) {
-            ux = nx / nlen;
-            uy = ny / nlen;
-            uz = nz / nlen;
-            double mx_ =
-                (mp.sphere_vx[a] + mp.sphere_vx[b] + mp.sphere_vx[c]) / 3.0;
-            double my_ =
-                (mp.sphere_vy[a] + mp.sphere_vy[b] + mp.sphere_vy[c]) / 3.0;
-            double mz_ =
-                (mp.sphere_vz[a] + mp.sphere_vz[b] + mp.sphere_vz[c]) / 3.0;
-            if (ux * mx_ + uy * my_ + uz * mz_ < 0) {
-              ux = -ux;
-              uy = -uy;
-              uz = -uz;
-            }
+          double sx = mp.sphere_vx[a] + mp.sphere_vx[b] + mp.sphere_vx[c];
+          double sy = mp.sphere_vy[a] + mp.sphere_vy[b] + mp.sphere_vy[c];
+          double sz = mp.sphere_vz[a] + mp.sphere_vz[b] + mp.sphere_vz[c];
+          double norm = math::sqrt(sx * sx + sy * sy + sz * sz);
+          if (norm > 0) {
+            sx /= norm;
+            sy /= norm;
+            sz /= norm;
           }
-          ccx_out[pid] = r_mid * ux;
-          ccy_out[pid] = r_mid * uy;
-          ccz_out[pid] = r_mid * uz;
+          ccx_out[pid] = (Scalar)(r_mid * sx);
+          ccy_out[pid] = (Scalar)(r_mid * sy);
+          ccz_out[pid] = (Scalar)(r_mid * sz);
         });
       },
       prismatic_mesh::get_ptrs(typename ExecPolicy::exec_tag{}), cc_x, cc_y,
@@ -433,9 +404,7 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
 
   ExecPolicy::sync();
 
-  // ----- Hodge stars -----
-  // hodge2[tri f on shell k]: metric dual-edge length (radial through f)
-  //                            divided by metric face area.
+  // ----- Hodge2 on tri faces: |dual edge|_metric / |tri face|_metric -----
   ExecPolicy::launch(
       [met, N_tri_local, N_r_local]
       LAMBDA(auto mp, auto h2_out) {
@@ -443,54 +412,59 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
         ExecPolicy::loop(0, N_tri_all_, [&] LAMBDA(int fi) {
           int k = fi / N_tri_local;
           int t = fi % N_tri_local;
+
           int a = mp.tri_verts[t * 3 + 0];
           int b = mp.tri_verts[t * 3 + 1];
           int c = mp.tri_verts[t * 3 + 2];
-          int va = k * mp.N_vert_s + a;
-          int vb = k * mp.N_vert_s + b;
-          int vc = k * mp.N_vert_s + c;
 
-          double m_area = triangle_area(
-              met, mp.vert_x[va], mp.vert_y[va], mp.vert_z[va], mp.vert_x[vb],
-              mp.vert_y[vb], mp.vert_z[vb], mp.vert_x[vc], mp.vert_y[vc],
-              mp.vert_z[vc]);
+          double r = mp.radii[k];
+          double cth_a = mp.sphere_vz[a];
+          double th_a = math::acos(cth_a);
+          double ph_a = math::atan2((double)mp.sphere_vy[a],
+                                    (double)mp.sphere_vx[a]);
+          double th_b = math::acos((double)mp.sphere_vz[b]);
+          double ph_b = math::atan2((double)mp.sphere_vy[b],
+                                    (double)mp.sphere_vx[b]);
+          double th_c = math::acos((double)mp.sphere_vz[c]);
+          double ph_c = math::atan2((double)mp.sphere_vy[c],
+                                    (double)mp.sphere_vx[c]);
 
-          double dist = 0;
-          if (k == 0) {
-            int pid = 0 * N_tri_local + t;
-            double fx =
-                (mp.vert_x[va] + mp.vert_x[vb] + mp.vert_x[vc]) / 3.0;
-            double fy =
-                (mp.vert_y[va] + mp.vert_y[vb] + mp.vert_y[vc]) / 3.0;
-            double fz =
-                (mp.vert_z[va] + mp.vert_z[vb] + mp.vert_z[vc]) / 3.0;
-            dist = segment_length(met, fx, fy, fz, mp.cc_x[pid],
-                                  mp.cc_y[pid], mp.cc_z[pid]) *
-                   2.0;
-          } else if (k == N_r_local) {
-            int pid = (N_r_local - 1) * N_tri_local + t;
-            double fx =
-                (mp.vert_x[va] + mp.vert_x[vb] + mp.vert_x[vc]) / 3.0;
-            double fy =
-                (mp.vert_y[va] + mp.vert_y[vb] + mp.vert_y[vc]) / 3.0;
-            double fz =
-                (mp.vert_z[va] + mp.vert_z[vb] + mp.vert_z[vc]) / 3.0;
-            dist = segment_length(met, fx, fy, fz, mp.cc_x[pid],
-                                  mp.cc_y[pid], mp.cc_z[pid]) *
-                   2.0;
-          } else {
-            int pb = (k - 1) * N_tri_local + t;
-            int pa = k * N_tri_local + t;
-            dist = segment_length(met, mp.cc_x[pb], mp.cc_y[pb], mp.cc_z[pb],
-                                  mp.cc_x[pa], mp.cc_y[pa], mp.cc_z[pa]);
+          double face_area =
+              shell_triangle_area(met, r, th_a, ph_a, th_b, ph_b, th_c, ph_c);
+
+          // Dual edge (radial segment through the face centroid).  Use the
+          // sphere-centroid (angular average, renormalized) as the θ_center.
+          double sx = mp.sphere_vx[a] + mp.sphere_vx[b] + mp.sphere_vx[c];
+          double sy = mp.sphere_vy[a] + mp.sphere_vy[b] + mp.sphere_vy[c];
+          double sz = mp.sphere_vz[a] + mp.sphere_vz[b] + mp.sphere_vz[c];
+          double norm = math::sqrt(sx * sx + sy * sy + sz * sz);
+          if (norm > 0) {
+            sx /= norm;
+            sy /= norm;
+            sz /= norm;
           }
-          h2_out[fi] = (m_area > 0) ? dist / m_area : 0;
+          double cth_f = sz;
+          double theta_f = math::acos(cth_f);
+
+          double dual_len;
+          if (k == 0) {
+            double r_above = 0.5 * (mp.radii[0] + mp.radii[1]);
+            dual_len = 2.0 * radial_edge_length(met, r, r_above, theta_f);
+          } else if (k == N_r_local) {
+            double r_below =
+                0.5 * (mp.radii[N_r_local - 1] + mp.radii[N_r_local]);
+            dual_len = 2.0 * radial_edge_length(met, r_below, r, theta_f);
+          } else {
+            double r_below = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
+            double r_above = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
+            dual_len = radial_edge_length(met, r_below, r_above, theta_f);
+          }
+          h2_out[fi] = (Scalar)((face_area > 0) ? dual_len / face_area : 0.0);
         });
       },
       this->get_ptrs(typename ExecPolicy::exec_tag{}), hodge2);
 
-  // hodge2[rect f in slab k]: metric dual-edge (connects circumcenters
-  //                           of two adjacent prisms) / metric face area.
+  // ----- Hodge2 on rect faces -----
   int N_edge_s_local = m_N_edge_s;
   ExecPolicy::launch(
       [met, N_tri_local, N_r_local, N_edge_s_local]
@@ -499,114 +473,148 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
         int N_tri_all_ = (N_r_local + 1) * N_tri_local;
         ExecPolicy::loop(0, N_rect_, [&] LAMBDA(int ri) {
           int k = ri / N_edge_s_local;
-          int e = ri % N_edge_s_local;
-          int t0 = mp.edge_tris[2 * e + 0];
-          int t1 = mp.edge_tris[2 * e + 1];
+          int e_s = ri % N_edge_s_local;
+          int t0 = mp.edge_tris[2 * e_s + 0];
+          int t1 = mp.edge_tris[2 * e_s + 1];
           int fi = N_tri_all_ + ri;
           if (t0 < 0 || t1 < 0) {
             h2_out[fi] = 0;
             return;
           }
 
-          int pid0 = k * N_tri_local + t0;
-          int pid1 = k * N_tri_local + t1;
-          double dist = segment_length(met, mp.cc_x[pid0], mp.cc_y[pid0],
-                                       mp.cc_z[pid0], mp.cc_x[pid1],
-                                       mp.cc_y[pid1], mp.cc_z[pid1]);
-
+          // Face: between shells (k, k+1) along sphere edge (a, b).
           int va = mp.rect_face_v0[ri], vb = mp.rect_face_v1[ri];
-          int vc = mp.rect_face_v2[ri], vd = mp.rect_face_v3[ri];
-          double m_area = rect_face_area(
-              met, mp.vert_x[va], mp.vert_y[va], mp.vert_z[va],
-              mp.vert_x[vb], mp.vert_y[vb], mp.vert_z[vb], mp.vert_x[vc],
-              mp.vert_y[vc], mp.vert_z[vc], mp.vert_x[vd], mp.vert_y[vd],
-              mp.vert_z[vd]);
+          int sa = va % mp.N_vert_s;
+          int sb = vb % mp.N_vert_s;
+          double r0 = mp.radii[k], r1 = mp.radii[k + 1];
+          double th_a = math::acos((double)mp.sphere_vz[sa]);
+          double ph_a = math::atan2((double)mp.sphere_vy[sa],
+                                    (double)mp.sphere_vx[sa]);
+          double th_b = math::acos((double)mp.sphere_vz[sb]);
+          double ph_b = math::atan2((double)mp.sphere_vy[sb],
+                                    (double)mp.sphere_vx[sb]);
 
-          h2_out[fi] = (m_area > 0) ? dist / m_area : 0;
+          double face_area = rectangular_face_area(met, r0, r1, th_a, ph_a,
+                                                   th_b, ph_b);
+
+          // Dual edge: from circumcenter of t0 (on slab k) to t1 (on slab k).
+          double r_mid = 0.5 * (r0 + r1);
+          // Circumcenter t0 on slab k: same r_mid; angular = sphere
+          // barycenter of t0.
+          auto tri_center_theta_phi =
+              [&](int t, double& th, double& ph) {
+                int va_ = mp.tri_verts[t * 3 + 0];
+                int vb_ = mp.tri_verts[t * 3 + 1];
+                int vc_ = mp.tri_verts[t * 3 + 2];
+                double sx =
+                    mp.sphere_vx[va_] + mp.sphere_vx[vb_] + mp.sphere_vx[vc_];
+                double sy =
+                    mp.sphere_vy[va_] + mp.sphere_vy[vb_] + mp.sphere_vy[vc_];
+                double sz =
+                    mp.sphere_vz[va_] + mp.sphere_vz[vb_] + mp.sphere_vz[vc_];
+                double nrm = math::sqrt(sx * sx + sy * sy + sz * sz);
+                if (nrm > 0) {
+                  sx /= nrm;
+                  sy /= nrm;
+                  sz /= nrm;
+                }
+                th = math::acos(sz);
+                ph = math::atan2(sy, sx);
+              };
+          double th0, ph0, th1, ph1;
+          tri_center_theta_phi(t0, th0, ph0);
+          tri_center_theta_phi(t1, th1, ph1);
+          double dual_len =
+              horizontal_edge_length(met, r_mid, th0, ph0, th1, ph1);
+
+          h2_out[fi] = (Scalar)((face_area > 0) ? dual_len / face_area : 0.0);
         });
       },
       this->get_ptrs(typename ExecPolicy::exec_tag{}), hodge2);
 
-  // hodge1_inv[horizontal edge on shell k]: metric arc length / metric
-  //                                         dual face (polygon) area.
+  // ----- Hodge1_inv on horizontal edges: primal arc length / dual polygon area
   ExecPolicy::launch(
       [met, N_tri_local, N_r_local, N_edge_s_local]
       LAMBDA(auto mp, auto h1inv_out) {
         int N_h_ = (N_r_local + 1) * N_edge_s_local;
         ExecPolicy::loop(0, N_h_, [&] LAMBDA(int ei) {
           int k = ei / N_edge_s_local;
-          int e = ei % N_edge_s_local;
+          int e_s = ei % N_edge_s_local;
           int v0 = mp.edge_v0[ei], v1 = mp.edge_v1[ei];
-          double m_len = arc_length(met, mp.vert_x[v0], mp.vert_y[v0],
-                                    mp.vert_z[v0], mp.vert_x[v1],
-                                    mp.vert_y[v1], mp.vert_z[v1]);
 
-          int t0 = mp.edge_tris[2 * e + 0];
-          int t1 = mp.edge_tris[2 * e + 1];
+          double r = mp.radii[k];
+          int s0 = v0 % mp.N_vert_s, s1 = v1 % mp.N_vert_s;
+          double th0 = math::acos((double)mp.sphere_vz[s0]);
+          double ph0 = math::atan2((double)mp.sphere_vy[s0],
+                                   (double)mp.sphere_vx[s0]);
+          double th1 = math::acos((double)mp.sphere_vz[s1]);
+          double ph1 = math::atan2((double)mp.sphere_vy[s1],
+                                   (double)mp.sphere_vx[s1]);
 
-          // Collect up to 4 dual-polygon vertices (circumcenters).
-          double px[4], py[4], pz[4];
+          double m_len = horizontal_edge_length(met, r, th0, ph0, th1, ph1);
+
+          int t0 = mp.edge_tris[2 * e_s + 0];
+          int t1 = mp.edge_tris[2 * e_s + 1];
+
+          // Up to 4 dual polygon vertices (circumcenters), at r_{k±½}.
+          auto tri_center_th_ph =
+              [&](int t, double& th, double& ph) {
+                int va = mp.tri_verts[t * 3 + 0];
+                int vb = mp.tri_verts[t * 3 + 1];
+                int vc = mp.tri_verts[t * 3 + 2];
+                double sx =
+                    mp.sphere_vx[va] + mp.sphere_vx[vb] + mp.sphere_vx[vc];
+                double sy =
+                    mp.sphere_vy[va] + mp.sphere_vy[vb] + mp.sphere_vy[vc];
+                double sz =
+                    mp.sphere_vz[va] + mp.sphere_vz[vb] + mp.sphere_vz[vc];
+                double nrm = math::sqrt(sx * sx + sy * sy + sz * sz);
+                if (nrm > 0) {
+                  sx /= nrm;
+                  sy /= nrm;
+                  sz /= nrm;
+                }
+                th = math::acos(sz);
+                ph = math::atan2(sy, sx);
+              };
+
+          double rr[4], th[4], ph[4];
           int np = 0;
           if (k > 0 && t0 >= 0) {
-            int pid = (k - 1) * N_tri_local + t0;
-            px[np] = mp.cc_x[pid];
-            py[np] = mp.cc_y[pid];
-            pz[np] = mp.cc_z[pid];
+            rr[np] = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
+            tri_center_th_ph(t0, th[np], ph[np]);
             np++;
           }
           if (k > 0 && t1 >= 0) {
-            int pid = (k - 1) * N_tri_local + t1;
-            px[np] = mp.cc_x[pid];
-            py[np] = mp.cc_y[pid];
-            pz[np] = mp.cc_z[pid];
+            rr[np] = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
+            tri_center_th_ph(t1, th[np], ph[np]);
             np++;
           }
           if (k < N_r_local && t1 >= 0) {
-            int pid = k * N_tri_local + t1;
-            px[np] = mp.cc_x[pid];
-            py[np] = mp.cc_y[pid];
-            pz[np] = mp.cc_z[pid];
+            rr[np] = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
+            tri_center_th_ph(t1, th[np], ph[np]);
             np++;
           }
           if (k < N_r_local && t0 >= 0) {
-            int pid = k * N_tri_local + t0;
-            px[np] = mp.cc_x[pid];
-            py[np] = mp.cc_y[pid];
-            pz[np] = mp.cc_z[pid];
+            rr[np] = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
+            tri_center_th_ph(t0, th[np], ph[np]);
             np++;
           }
 
-          double m_area = polygon_area_fixed(met, px, py, pz, np);
+          // Fan center: primal edge midpoint (at r_k, angular average of
+          // edge endpoints).
+          double th_mid = 0.5 * (th0 + th1);
+          double ph_mid =
+              ph0 + 0.5 * angular_diff(ph0, ph1);
+          double m_area = polygon_area_about(met, r, th_mid, ph_mid, rr, th,
+                                             ph, np);
 
-          // At boundary shells with only 2 dual vertices, the polygon
-          // collapses.  Fall back to a triangular thin strip using
-          // half the slab height as the second dimension.
-          if (np == 2 && m_area < 1e-30) {
-            double d = segment_length(met, px[0], py[0], pz[0], px[1], py[1],
-                                      px[1]);
-            double half_dr = (k == 0) ? mp.radii[1] - mp.radii[0]
-                                      : mp.radii[k] - mp.radii[k - 1];
-            double mx_ = 0.5 * (px[0] + px[1]);
-            double my_ = 0.5 * (py[0] + py[1]);
-            double mz_ = 0.5 * (pz[0] + pz[1]);
-            double r_, sth_, cth_, phi_;
-            cart_to_sph(mx_, my_, mz_, r_, sth_, cth_, phi_);
-            half_dr *= math::sqrt(met.g_rr(r_, sth_, cth_));
-            m_area = d * half_dr * 0.5;
-          }
-
-          h1inv_out[ei] = (m_area > 0) ? m_len / m_area : 0;
+          h1inv_out[ei] = (Scalar)((m_area > 0) ? m_len / m_area : 0.0);
         });
       },
       this->get_ptrs(typename ExecPolicy::exec_tag{}), hodge1_inv);
 
-  // hodge1_inv[vertical edge in slab k, sphere vertex s]: metric
-  // radial length / metric dual polygon area.  The dual polygon has
-  // one vertex per triangle incident at sphere vertex s (up to
-  // max_vert_valence vertices); its vertices are the circumcenters of
-  // those triangles in the slab.  Vertices are sorted by angle around
-  // the edge midpoint, then the area is computed with the edge
-  // midpoint as the fan center.
+  // ----- Hodge1_inv on vertical edges: primal radial length / dual polygon area
   int N_vert_s_local = m_N_vert_s;
   int max_valence_local = max_vert_valence;
   ExecPolicy::launch(
@@ -619,62 +627,41 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
           int k = vi / N_vert_s_local;
           int s = vi % N_vert_s_local;
           int ei = v_edge_off + k * N_vert_s_local + s;
-          int va = k * N_vert_s_local + s;
-          int vb = (k + 1) * N_vert_s_local + s;
 
-          double m_len =
-              segment_length(met, mp.vert_x[va], mp.vert_y[va],
-                             mp.vert_z[va], mp.vert_x[vb], mp.vert_y[vb],
-                             mp.vert_z[vb]);
+          double r0 = mp.radii[k], r1 = mp.radii[k + 1];
+          double th_v = math::acos((double)mp.sphere_vz[s]);
+          double ph_v = math::atan2((double)mp.sphere_vy[s],
+                                    (double)mp.sphere_vx[s]);
+          double m_len = radial_edge_length(met, r0, r1, th_v);
 
           int np = mp.vert_tri_count[s];
-
-          // Gather circumcenter positions.
-          double px[6], py[6], pz[6];
+          double rr[6], th[6], ph[6], angles[6];
+          double r_mid = 0.5 * (r0 + r1);
           for (int i = 0; i < np; i++) {
             int t = mp.vert_tris[s * max_valence_local + i];
-            int pid = k * N_tri_local + t;
-            px[i] = mp.cc_x[pid];
-            py[i] = mp.cc_y[pid];
-            pz[i] = mp.cc_z[pid];
+            int va = mp.tri_verts[t * 3 + 0];
+            int vb = mp.tri_verts[t * 3 + 1];
+            int vc = mp.tri_verts[t * 3 + 2];
+            double sx =
+                mp.sphere_vx[va] + mp.sphere_vx[vb] + mp.sphere_vx[vc];
+            double sy =
+                mp.sphere_vy[va] + mp.sphere_vy[vb] + mp.sphere_vy[vc];
+            double sz =
+                mp.sphere_vz[va] + mp.sphere_vz[vb] + mp.sphere_vz[vc];
+            double nrm = math::sqrt(sx * sx + sy * sy + sz * sz);
+            if (nrm > 0) {
+              sx /= nrm;
+              sy /= nrm;
+              sz /= nrm;
+            }
+            rr[i] = r_mid;
+            th[i] = math::acos(sz);
+            ph[i] = math::atan2(sy, sx);
+            // Angle around the vertex for sort.
+            angles[i] =
+                math::atan2(th[i] - th_v, angular_diff(ph_v, ph[i]));
           }
-
-          // Edge midpoint (also the fan center for polygon_area_about).
-          double emx = 0.5 * (mp.vert_x[va] + mp.vert_x[vb]);
-          double emy = 0.5 * (mp.vert_y[va] + mp.vert_y[vb]);
-          double emz = 0.5 * (mp.vert_z[va] + mp.vert_z[vb]);
-
-          // Build an in-plane basis (u, v) perpendicular to the edge
-          // axis, so we can sort circumcenters by angle.
-          double nr = math::sqrt(emx * emx + emy * emy + emz * emz);
-          double nnx = emx / nr, nny = emy / nr, nnz = emz / nr;
-          double ux_, uy_, uz_;
-          if (math::abs(nnx) < 0.9) {
-            ux_ = 0;
-            uy_ = -nnz;
-            uz_ = nny;
-          } else {
-            ux_ = nnz;
-            uy_ = 0;
-            uz_ = -nnx;
-          }
-          double unorm =
-              math::sqrt(ux_ * ux_ + uy_ * uy_ + uz_ * uz_);
-          ux_ /= unorm;
-          uy_ /= unorm;
-          uz_ /= unorm;
-          double vvx = nny * uz_ - nnz * uy_;
-          double vvy = nnz * ux_ - nnx * uz_;
-          double vvz = nnx * uy_ - nny * ux_;
-
-          double angles[6];
-          for (int i = 0; i < np; i++) {
-            double dx = px[i] - emx, dy = py[i] - emy, dz = pz[i] - emz;
-            angles[i] = math::atan2(dx * vvx + dy * vvy + dz * vvz,
-                                    dx * ux_ + dy * uy_ + dz * uz_);
-          }
-
-          // Selection sort by angle (np ≤ 6).
+          // Selection sort by angle.
           int order[6];
           for (int i = 0; i < np; i++) order[i] = i;
           for (int i = 0; i < np - 1; i++) {
@@ -686,17 +673,15 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
             order[i] = order[mi];
             order[mi] = tmp;
           }
-
-          double spx[6], spy[6], spz[6];
+          double srr[6], sth[6], sph[6];
           for (int i = 0; i < np; i++) {
-            spx[i] = px[order[i]];
-            spy[i] = py[order[i]];
-            spz[i] = pz[order[i]];
+            srr[i] = rr[order[i]];
+            sth[i] = th[order[i]];
+            sph[i] = ph[order[i]];
           }
-
-          double m_area =
-              polygon_area_about_fixed(met, emx, emy, emz, spx, spy, spz, np);
-          h1inv_out[ei] = (m_area > 0) ? m_len / m_area : 0;
+          double m_area = polygon_area_about(met, r_mid, th_v, ph_v, srr, sth,
+                                             sph, np);
+          h1inv_out[ei] = (Scalar)((m_area > 0) ? m_len / m_area : 0.0);
         });
       },
       this->get_ptrs(typename ExecPolicy::exec_tag{}), hodge1_inv);
@@ -709,7 +694,7 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
   }
 #endif
 
-  Logger::print_info("prismatic_mesh_metric::compute_metric done");
+  Logger::print_info("prismatic_mesh_metric::compute_metric done (spherical)");
 }
 
 }  // namespace Aperture

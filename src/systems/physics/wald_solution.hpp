@@ -38,6 +38,19 @@ wald_ks_Aphi(value_t a, value_t r, value_t sth, value_t cth) {
           2.0f * a * a * r * (1.0f + cth * cth) / (r * r + a * a * cth * cth));
 }
 
+// A_r component of the Kerr-Schild Wald vector potential.
+// Derived from A_μ = ½ (g_μφ + 2a g_μt) in KS where
+//   g_rφ = -a sin²θ (1 + Z),  g_rt = Z,  Z = 2Mr/ρ² (M=1 convention)
+// giving A_r = ½ a [-sin²θ + Z(1 + cos²θ)]·Bp factor applied by caller.
+// Consistency check: d/dθ of this matches wald_ks_dArdth exactly.
+template <typename value_t = Scalar>
+HOST_DEVICE value_t
+wald_ks_Ar(value_t a, value_t r, value_t sth, value_t cth) {
+  value_t rho2 = r * r + a * a * cth * cth;
+  value_t Z = 2.0f * r / rho2;
+  return 0.5f * a * (-sth * sth + Z * (1.0f + cth * cth));
+}
+
 template <typename value_t = Scalar>
 HOST_DEVICE value_t
 wald_ks_dA0dr(value_t a, value_t r, value_t sth, value_t cth) {

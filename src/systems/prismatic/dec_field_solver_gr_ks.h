@@ -43,6 +43,21 @@ class dec_field_solver_gr_ks : public system_t {
   // Initial condition: uniform B_z (Wald background on a BH spacetime)
   void set_initial_wald(Scalar B0 = 1.0);
 
+  // Initial condition: proper rotating Kerr-Schild Wald vacuum solution
+  // for a black hole of spin a immersed in an asymptotically uniform
+  // magnetic field Bp·ẑ.  Sets B[f] via Stokes' theorem from the vector
+  // potential A_i (computed from Wald's A_μ = ½ Bp (η_μ + 2a ξ_μ)
+  // evaluated in KS coordinates), and D[e] from the metric-lowered
+  // Wald electric field D_i = γ_ij D^j.  Stored as the background for
+  // the inner/outer damping layers so they relax toward the exact
+  // stationary solution rather than toward a mismatched Schwarzschild
+  // Wald that isn't self-consistent on a rotating KS background.
+  //
+  // Both integrations use 10-point Gauss quadrature along the primal
+  // edge in Cartesian space, so curved-edge effects on the icosphere
+  // are handled consistently with the Hodge construction.
+  void set_initial_kerr_wald(Scalar a, Scalar Bp = 1.0);
+
   // Public for GPU lambda access
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
@@ -97,6 +112,12 @@ class dec_field_solver_gr_ks : public system_t {
   // innermost layer, preventing spurious gradients from driving
   // in-horizon instabilities.
   void apply_inner_boundary(buffer<Scalar>& D, buffer<Scalar>& B);
+
+  // Diagnostic: populate m_E_aux, m_H_aux from the current D, B state
+  // (running one Faraday and one Ampère constitutive-relation build),
+  // then write them along with D, B to an HDF5 file so the raw values
+  // can be compared against the analytic expectations off-line.
+  void dump_aux_fields(const std::string& path);
 
  private:
   prismatic_mesh_metric& m_mesh;

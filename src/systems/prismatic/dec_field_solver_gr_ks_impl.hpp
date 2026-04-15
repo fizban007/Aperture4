@@ -2,7 +2,11 @@
 
 #include "systems/prismatic/dec_field_solver_gr_ks.h"
 #include "systems/prismatic/prismatic_mesh_metric_ptrs.h"
+#include "systems/physics/metric_kerr_schild.hpp"
+#include "systems/physics/wald_solution.hpp"
 #include "framework/environment.h"
+#include "utils/gauss_quadrature.h"
+#include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include <cmath>
 
@@ -822,6 +826,234 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_wald(Scalar B0) {
 
   m_has_background = true;
   ExecPolicy::sync();
+}
+
+// =========================================================================
+// Proper rotating Kerr-Schild Wald IC.
+//
+// Computed from the vector potential A_μ = ½ Bp (η_μ + 2a ξ_μ) in KS
+// coordinates (see wald_solution.hpp for explicit A_r, A_φ formulas;
+// A_θ = 0 by KS axisymmetry).
+//
+//   A[e]   = ∫_e A_i dx^i              (primal 1-cochain)
+//   B[f]   = ∫_f dA = Σ_{e ∈ ∂f} d1[f,e] · A[e]   (Stokes)
+//   D̃[e]  = ∫_{e*} D^{2-form}         (dual 2-cochain in Option C)
+//
+// For D we work from the KS Wald D^i (contravariant) given by
+// gr_wald_solution_D.  The primal 1-cochain D_primal[e] = ∫_e D_i dx^i
+// is computed by metric-lowering D^i along the edge tangent:
+//   D_primal[e] = ∫_e (γ_rr D^r + γ_rφ D^φ) dr/ds ds
+//              + ∫_e γ_θθ D^θ          dθ/ds ds
+//              + ∫_e (γ_rφ D^r + γ_φφ D^φ) dφ/ds ds
+// Then D̃[e] = hodge1[e] · D_primal[e] = D_primal[e] / hodge1_inv[e].
+//
+// Both integrals use 10-point Gauss quadrature along the Cartesian
+// chord between the two edge vertices, matching the quadrature that
+// the metric/Hodge construction uses for consistency.
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
+                                                               Scalar Bp) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int Nh = (mp.N_r + 1) * mp.N_edge_s;
+
+  // --------- Step 1: A[e] on every primal edge (stored in m_D temporarily) ---
+  // Integrate ∫_e A_μ dx^μ in (r, θ, φ) coordinate-linear parametrization:
+  //   horizontal edge: (r, θ(s), φ(s)) = (r, θ_a+s·Δθ, φ_a+s·Δφ), dr/ds=0
+  //   vertical edge:   (r_0+s·Δr, θ, φ), dθ/ds=dφ/ds=0
+  // A_θ = 0 for KS Wald so horizontal contribution is just A_φ · Δφ.
+  ExecPolicy::launch(
+      [a_spin, Bp, mp, Nh] LAMBDA(auto A_out) {
+        ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
+          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
+          int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
+          int s0 = v0 % mp.N_vert_s, s1 = v1 % mp.N_vert_s;
+          double r0 = mp.radii[k0], r1 = mp.radii[k1];
+          double cth0 = mp.sphere_vz[s0];
+          double th0 =
+              math::atan2(math::sqrt(((0.0) > (1.0 - cth0 * cth0) ? (0.0) : (1.0 - cth0 * cth0))), cth0);
+          double ph0 =
+              math::atan2((double)mp.sphere_vy[s0], (double)mp.sphere_vx[s0]);
+          double cth1 = mp.sphere_vz[s1];
+          double th1 =
+              math::atan2(math::sqrt(((0.0) > (1.0 - cth1 * cth1) ? (0.0) : (1.0 - cth1 * cth1))), cth1);
+          double ph1 =
+              math::atan2((double)mp.sphere_vy[s1], (double)mp.sphere_vx[s1]);
+
+          const double pi = 3.14159265358979323846;
+          double dph = ph1 - ph0;
+          if (dph > pi) dph -= 2.0 * pi;
+          if (dph < -pi) dph += 2.0 * pi;
+
+          double integral;
+          if (e < Nh) {
+            // Horizontal edge on shell k0 = k1 at fixed r.
+            double r = r0;
+            double dth = th1 - th0;
+            integral = gauss_quad(
+                [&](double s) {
+                  double th = th0 + s * dth;
+                  double sth = math::sin(th), cth = math::cos(th);
+                  // A_r · dr/ds = 0, A_θ = 0, only A_φ · dφ/ds contributes.
+                  double Aph = (double)Bp * (double)wald_ks_Aphi(
+                                                (double)a_spin, r, sth, cth);
+                  return Aph * dph;
+                },
+                0.0, 1.0);
+          } else {
+            // Vertical edge at fixed (θ, φ); integrate A_r dr.
+            double dr = r1 - r0;
+            double sth = math::sqrt(((0.0) > (1.0 - cth0 * cth0) ? (0.0) : (1.0 - cth0 * cth0)));
+            double cth = cth0;
+            integral = gauss_quad(
+                [&](double s) {
+                  double r = r0 + s * dr;
+                  double Ar = (double)Bp * (double)wald_ks_Ar((double)a_spin,
+                                                              r, sth, cth);
+                  return Ar * dr;
+                },
+                0.0, 1.0);
+          }
+          A_out[e] = (Scalar)integral;
+        });
+      },
+      m_D->data());
+  ExecPolicy::sync();
+
+  // --------- Step 2: B[f] = d1 · A  (Stokes).  Writes m_B and m_B_bg. -------
+  ExecPolicy::launch(
+      [mp] LAMBDA(auto A_in, auto B_out, auto B_bg) {
+        ExecPolicy::loop(0, mp.N_faces, [&] LAMBDA(int f) {
+          Scalar b = Scalar(0);
+          for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
+            b += mp.d1_val[j] * A_in[mp.d1_col_idx[j]];
+          }
+          B_out[f] = b;
+          B_bg[f] = b;
+        });
+      },
+      m_D->data(), m_B->data(), m_B_bg);
+  ExecPolicy::sync();
+
+  // --------- Step 3: D̃[e] = D_primal[e] / hodge1_inv[e].  Overwrite m_D. ---
+  // Integrate ∫_e D_i dx^i in (r, θ, φ) coord basis.  For horizontal
+  // edges only (D_θ, D_φ) contribute; for vertical edges only D_r.
+  ExecPolicy::launch(
+      [a_spin, Bp, mp, Nh] LAMBDA(auto D_out, auto D_bg) {
+        ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
+          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
+          int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
+          int s0 = v0 % mp.N_vert_s, s1 = v1 % mp.N_vert_s;
+          double r0 = mp.radii[k0], r1 = mp.radii[k1];
+          double cth0 = mp.sphere_vz[s0];
+          double th0 =
+              math::atan2(math::sqrt(((0.0) > (1.0 - cth0 * cth0) ? (0.0) : (1.0 - cth0 * cth0))), cth0);
+          double ph0 =
+              math::atan2((double)mp.sphere_vy[s0], (double)mp.sphere_vx[s0]);
+          double cth1 = mp.sphere_vz[s1];
+          double th1 =
+              math::atan2(math::sqrt(((0.0) > (1.0 - cth1 * cth1) ? (0.0) : (1.0 - cth1 * cth1))), cth1);
+          double ph1 =
+              math::atan2((double)mp.sphere_vy[s1], (double)mp.sphere_vx[s1]);
+          const double pi = 3.14159265358979323846;
+          double dph = ph1 - ph0;
+          if (dph > pi) dph -= 2.0 * pi;
+          if (dph < -pi) dph += 2.0 * pi;
+
+          double integral;
+          if (e < Nh) {
+            double r = r0;
+            double dth = th1 - th0;
+            integral = gauss_quad(
+                [&](double s) {
+                  double th = th0 + s * dth;
+                  double sth = math::sin(th), cth = math::cos(th);
+                  double Dr = (double)gr_wald_solution_D((double)a_spin, r, th,
+                                                         (double)Bp, 0);
+                  double Dth = (double)gr_wald_solution_D(
+                      (double)a_spin, r, th, (double)Bp, 1);
+                  double Dph = (double)gr_wald_solution_D(
+                      (double)a_spin, r, th, (double)Bp, 2);
+                  double g_rr =
+                      (double)Metric_KS::g_11((double)a_spin, r, sth, cth);
+                  double g_thth =
+                      (double)Metric_KS::g_22((double)a_spin, r, sth, cth);
+                  double g_phph =
+                      (double)Metric_KS::g_33((double)a_spin, r, sth, cth);
+                  double g_rph =
+                      (double)Metric_KS::g_13((double)a_spin, r, sth, cth);
+                  double D_th_cov = g_thth * Dth;
+                  double D_ph_cov = g_rph * Dr + g_phph * Dph;
+                  // dr/ds = 0 on horizontal edge; only θ and φ components.
+                  return D_th_cov * dth + D_ph_cov * dph;
+                },
+                0.0, 1.0);
+          } else {
+            double dr = r1 - r0;
+            double sth = math::sqrt(((0.0) > (1.0 - cth0 * cth0) ? (0.0) : (1.0 - cth0 * cth0)));
+            double cth = cth0;
+            double th = th0;
+            integral = gauss_quad(
+                [&](double s) {
+                  double r = r0 + s * dr;
+                  double Dr = (double)gr_wald_solution_D((double)a_spin, r, th,
+                                                         (double)Bp, 0);
+                  double Dph = (double)gr_wald_solution_D(
+                      (double)a_spin, r, th, (double)Bp, 2);
+                  double g_rr =
+                      (double)Metric_KS::g_11((double)a_spin, r, sth, cth);
+                  double g_rph =
+                      (double)Metric_KS::g_13((double)a_spin, r, sth, cth);
+                  double D_r_cov = g_rr * Dr + g_rph * Dph;
+                  return D_r_cov * dr;
+                },
+                0.0, 1.0);
+          }
+          Scalar d_primal = (Scalar)integral;
+          Scalar h1inv = mp.hodge1_inv[e];
+          Scalar d_tilde = (h1inv > Scalar(0)) ? d_primal / h1inv : Scalar(0);
+          D_out[e] = d_tilde;
+          D_bg[e] = d_tilde;
+        });
+      },
+      m_D->data(), m_D_bg);
+  ExecPolicy::sync();
+
+  m_has_background = true;
+}
+
+// =========================================================================
+// Diagnostic: run the Faraday and Ampère half-steps once to populate
+// m_E_aux, m_H_aux from the current (D, B) state, then write those
+// raw 1-cochain values to HDF5 along with D and B.  We can then load
+// the file in Python and compare with the analytic Wald prediction
+// (e.g. ∫_e E_i dx^i = A_0(v0) − A_0(v1) for a stationary Wald state).
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
+    const std::string& path) {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int Ne = mp.N_edges;
+  int Nf = mp.N_faces;
+
+  compute_dB_dt(m_D->data(), m_B->data(), m_dB_dt);
+  compute_dD_dt(m_D->data(), m_B->data(), m_dD_dt);
+  ExecPolicy::sync();
+
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  m_E_aux.copy_to_host();
+  m_H_aux.copy_to_host();
+  m_D->data().copy_to_host();
+  m_B->data().copy_to_host();
+#endif
+
+  auto file = hdf_create(path);
+  file.write(m_E_aux.host_ptr(), Ne, "E_aux");
+  file.write(m_H_aux.host_ptr(), Nf, "H_aux");
+  file.write(m_D->data().host_ptr(), Ne, "D");
+  file.write(m_B->data().host_ptr(), Nf, "B");
+
+  Logger::print_info("dump_aux_fields: wrote aux state to {}", path);
 }
 
 }  // namespace Aperture

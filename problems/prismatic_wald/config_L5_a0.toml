@@ -1,0 +1,60 @@
+# Wald test on a near-extremal rotating BH at one refinement level higher (L=5).
+# Schwarzschild Wald IC on a Kerr (a=0.998) background; relaxes to rotating Wald
+# by radiating low-frequency EM waves.
+#
+# L=5 roughly doubles spatial resolution vs L=4 (mean angular edge ~0.035 rad).
+# N_r=88 keeps dr/r ~ ln(20/0.9)/88 ~ 0.035 matched to the angular edge.
+# dt=0.005 is halved from the L=4 CFL-stable dt=0.01 to preserve Courant number.
+
+# --- Mesh ---
+subdivision_level = 5
+N_r = 88
+# r_min placed deep inside the horizon (r_+ ≈ 1.063 for a=0.998) so
+# there is a thick causal-disconnection buffer of shells for the inner
+# damping layer to operate on.  With r_min=0.7 and N_r=88 the mesh has
+# ~11 shells inside the horizon; the first 10 are absorbed by the
+# inner damping layer below, leaving shell 10 (at r ≈ 1.055) as the
+# last in-horizon cell before the physics domain r > r_+.
+r_min = 0.7
+r_max = 20.0
+
+# --- Physics ---
+bh_spin = 0.0
+B0      = 1.0
+
+# --- Time stepping ---
+# dt = 0.005 (half of L=4 dt=0.01), 20000 steps -> t = 100 M.
+dt         = 0.005
+max_steps  = 20000
+use_implicit = false
+
+# --- Boundary conditions ---
+# Inner: apply_inner_boundary (Neumann-on-perturbation extrapolation from shell 1).
+# Horizon safety damping disabled — inner BC is handled by apply_inner_boundary.
+r_horizon_damp = 0.0
+r_horizon_inner = 0.0
+
+# Outer: exponential damping over the last 15 radial layers.
+damping_length = 15
+damping_coef   = 0.05
+
+# Inner: exponential damping over the first 10 radial layers (all
+# inside the horizon; causally disconnected from r > r_+).  Damps
+# δ = field − background.  Coefficient is chosen well above the
+# observed numerical growth rate (~3/M at L=5) so the damping layer
+# fully absorbs in-horizon modes before they can saturate.
+inner_damping_length = 10
+inner_damping_coef   = 10.0
+
+# --- Output ---
+# Dump every 1 M (200 steps) -> 100 frames for a movie.
+fld_output_interval = 200
+output_dir = "Data_L5_a0"
+
+# Spherical-harmonic projection for diagnostics.
+sph_N_theta = 90
+sph_N_phi   = 180
+
+# --- Update toggles ---
+update_d = true
+update_b = true

@@ -14,7 +14,17 @@ class prismatic_mesh {
   prismatic_mesh() = default;
   ~prismatic_mesh() = default;
 
-  void build(int L, int N_r, double r_min, double r_max);
+  // Build the prismatic mesh with a log-spaced radial grid.
+  //
+  // `n_ghost_inner` / `n_ghost_outer` prepend / append ghost radial
+  // layers below r_min / above r_max.  The physical domain is shells
+  // [n_ghost_inner, n_ghost_inner + N_r], and the ghosts give symmetric
+  // face-averaging in the shift cross-term at what would otherwise be
+  // the one-sided physical boundary.  r_min, r_max, N_r in the config
+  // refer to the physical domain; internally m_N_r = N_r + n_ghost_inner
+  // + n_ghost_outer.
+  void build(int L, int N_r, double r_min, double r_max,
+             int n_ghost_inner = 0, int n_ghost_outer = 0);
 
   // --- Mesh parameters ---
   int m_L = 0;       // subdivision level

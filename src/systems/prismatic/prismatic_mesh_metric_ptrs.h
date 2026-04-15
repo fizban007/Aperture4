@@ -23,6 +23,17 @@ struct prismatic_mesh_metric_ptrs : prismatic_mesh_ptrs {
   const Scalar* face_sq_gamma_beta_r;  // [N_faces]
   const Scalar* face_sqrt_gamma;       // [N_faces]
 
+  // --- Dual geometric data (populated by compute_metric) ---
+  const Scalar* cc_x;  // spherical circumcenter x [N_r * N_tri]
+  const Scalar* cc_y;
+  const Scalar* cc_z;
+
+  // --- Adjacency tables (populated by compute_metric) ---
+  const int* edge_tris;        // [2 * N_edge_s]
+  const int* vert_tri_count;   // [N_vert_s]
+  const int* vert_tris;        // [max_vert_valence * N_vert_s]
+  static constexpr int max_vert_valence = 6;
+
   // --- Element type boundaries (precomputed from mesh counts) ---
   int N_h_edges;     // horizontal edge count = (N_r + 1) * N_edge_s
   int N_tri_faces;   // triangular face count = (N_r + 1) * N_tri

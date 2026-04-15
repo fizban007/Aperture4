@@ -72,6 +72,7 @@ if (use_cuda OR use_hip)
     "systems/vlasov_solver.hip.cpp"
     "systems/prismatic/dec_field_solver.hip.cpp"
     "systems/prismatic/dec_field_solver_gr_ks.hip.cpp"
+    "systems/prismatic/prismatic_mesh_metric.hip.cpp"
     "systems/prismatic/prismatic_ptc_updater.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)

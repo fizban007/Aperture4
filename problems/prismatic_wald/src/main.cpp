@@ -41,15 +41,18 @@ int main(int argc, char* argv[]) {
   // --- Build the metric-aware mesh ---
   prismatic_mesh_metric mesh;
   mesh.build(L, N_r, r_min, r_max);
+  // Copy mesh topology to device *before* compute_metric so the
+  // metric evaluation and Hodge-quadrature kernels can read the
+  // vertex / edge / face tables from GPU memory.
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  mesh.copy_to_device();
+#endif
   bool use_flat = env.params().get_as<bool>("use_flat_metric", false);
   if (use_flat) {
     mesh.compute_metric(flat_spherical_metric{});
   } else {
     mesh.compute_metric(ks_spherical_metric{Scalar(a)});
   }
-#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
-  mesh.copy_to_device();
-#endif
 
   // --- Register systems ---
   auto solver = env.register_system<dec_field_solver_gr_ks_t>(mesh);

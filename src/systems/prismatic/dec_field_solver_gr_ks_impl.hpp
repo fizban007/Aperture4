@@ -149,6 +149,14 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("r_horizon_damp", m_r_horizon_damp);
   sim_env().params().get_value("r_horizon_inner", m_r_horizon_inner);
 
+  // Inner damping layer: exponentially absorb the perturbation δ =
+  // field − background over the innermost inner_damping_length radial
+  // shells.  Intended to sit fully inside the horizon so it is
+  // causally disconnected from the physics domain.  Default 0 (off).
+  sim_env().params().get_value("inner_damping_length",
+                               m_inner_damping_length);
+  sim_env().params().get_value("inner_damping_coef", m_inner_damping_coef);
+
   m_time = 0.0;
   if (m_r_horizon_damp > Scalar(0)) {
     Logger::print_info(
@@ -441,6 +449,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_explicit(double dt) {
   }
 
   apply_damping(m_D->data(), m_B->data(), dt);
+  apply_inner_damping(m_D->data(), m_B->data(), dt);
   apply_inner_boundary(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
@@ -501,6 +510,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_semi_implicit(double dt) {
       m_D->data(), m_tmp_D, m_B->data(), m_tmp_B);
 
   apply_damping(m_D->data(), m_B->data(), dt);
+  apply_inner_damping(m_D->data(), m_B->data(), dt);
   apply_inner_boundary(m_D->data(), m_B->data());
   ExecPolicy::sync();
 }
@@ -553,6 +563,62 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_damping(
           if (k >= k_start) {
             Scalar sigma = damp_coef *
                            Scalar(k - k_start + 1) / Scalar(damp_len);
+            Scalar factor = std::exp(-sigma * Scalar(dt));
+            Scalar bg = has_bg ? B_bg[f] : Scalar(0);
+            B_f[f] = bg + (B_f[f] - bg) * factor;
+          }
+        });
+      },
+      B, m_B_bg);
+}
+
+// =========================================================================
+// Inner damping layer — exponentially absorbs the perturbation
+// δ = field − background over the innermost m_inner_damping_length
+// radial shells.  Intended to sit fully inside the horizon so the
+// damping region is causally disconnected from the physics domain.
+// Damping strength ramps from m_inner_damping_coef at k=0 down to
+// (1/m_inner_damping_length)·m_inner_damping_coef at the outer edge
+// of the layer, so the transition to the undamped evolution region
+// is smooth.  If no background is stored (m_has_background = false),
+// δ is taken relative to zero.
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_damping(
+    buffer<Scalar>& D, buffer<Scalar>& B, double dt) {
+  if (m_inner_damping_length <= 0) return;
+
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  int k_end = m_inner_damping_length - 1;
+  Scalar damp_coef = m_inner_damping_coef;
+  int damp_len = m_inner_damping_length;
+  bool has_bg = m_has_background;
+
+  ExecPolicy::launch(
+      [Ne = mp.N_edges, k_end, damp_coef, damp_len, dt, has_bg, mp]
+      LAMBDA(auto D_e, auto D_bg) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
+          int k = mp.edge_radial_layer[e];
+          if (k <= k_end) {
+            // sigma is damp_coef at k=0, shrinks linearly outward.
+            Scalar sigma = damp_coef *
+                           Scalar(k_end - k + 1) / Scalar(damp_len);
+            Scalar factor = std::exp(-sigma * Scalar(dt));
+            Scalar bg = has_bg ? D_bg[e] : Scalar(0);
+            D_e[e] = bg + (D_e[e] - bg) * factor;
+          }
+        });
+      },
+      D, m_D_bg);
+
+  ExecPolicy::launch(
+      [Nf = mp.N_faces, k_end, damp_coef, damp_len, dt, has_bg, mp]
+      LAMBDA(auto B_f, auto B_bg) {
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
+          int k = mp.face_radial_layer[f];
+          if (k <= k_end) {
+            Scalar sigma = damp_coef *
+                           Scalar(k_end - k + 1) / Scalar(damp_len);
             Scalar factor = std::exp(-sigma * Scalar(dt));
             Scalar bg = has_bg ? B_bg[f] : Scalar(0);
             B_f[f] = bg + (B_f[f] - bg) * factor;

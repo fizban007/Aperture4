@@ -78,6 +78,16 @@ class dec_field_solver_gr_ks : public system_t {
   // the discretization level.  Disabled by default (r_horizon_damp = 0).
   void apply_horizon_damping(buffer<Scalar>& D, buffer<Scalar>& B);
 
+  // Inner damping layer — exponential absorption of the perturbation
+  // δ = field − background over the innermost m_inner_damping_length
+  // radial shells.  Mirrors the outer damping in structure but ramps
+  // from strongest at k=0 down to weakest at the outer edge of the
+  // layer.  Intended to sit fully inside the horizon: place enough
+  // mesh shells below r_+ (via a correspondingly low r_min) that the
+  // damping region is causally disconnected from the physics domain.
+  // Applied after each time step in addition to apply_inner_boundary.
+  void apply_inner_damping(buffer<Scalar>& D, buffer<Scalar>& B, double dt);
+
   // Inner boundary condition (mirrors the 2D GR-KS solver's treatment):
   // overwrites the innermost-shell field values (shell 0 for horizontal
   // edges/tri faces, slab 0 for vertical edges/rect faces) using a
@@ -115,6 +125,10 @@ class dec_field_solver_gr_ks : public system_t {
   // Damping layer (outer boundary absorption)
   int m_damping_length = 10;
   Scalar m_damping_coef = 0.05;
+
+  // Inner damping layer (inside-horizon absorption)
+  int m_inner_damping_length = 0;
+  Scalar m_inner_damping_coef = 0.5;
 
   // Optional horizon safety damping (disabled by default).
   //

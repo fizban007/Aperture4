@@ -9,7 +9,13 @@
 # --- Mesh ---
 subdivision_level = 5
 N_r = 88
-r_min = 0.9
+# r_min placed deep inside the horizon (r_+ ≈ 1.063 for a=0.998) so
+# there is a thick causal-disconnection buffer of shells for the inner
+# damping layer to operate on.  With r_min=0.7 and N_r=88 the mesh has
+# ~11 shells inside the horizon; the first 10 are absorbed by the
+# inner damping layer below, leaving shell 10 (at r ≈ 1.055) as the
+# last in-horizon cell before the physics domain r > r_+.
+r_min = 0.7
 r_max = 20.0
 
 # --- Physics ---
@@ -28,10 +34,17 @@ use_implicit = false
 r_horizon_damp = 0.0
 r_horizon_inner = 0.0
 
-# Outer: exponential damping over the last 15 radial layers (scaled with N_r
-# so the absolute damp thickness ≈ ln(20/0.9)·15/88 ≈ 0.53, similar to L=4).
+# Outer: exponential damping over the last 15 radial layers.
 damping_length = 15
 damping_coef   = 0.05
+
+# Inner: exponential damping over the first 10 radial layers (all
+# inside the horizon; causally disconnected from r > r_+).  Damps
+# δ = field − background.  Coefficient is chosen well above the
+# observed numerical growth rate (~3/M at L=5) so the damping layer
+# fully absorbs in-horizon modes before they can saturate.
+inner_damping_length = 10
+inner_damping_coef   = 10.0
 
 # --- Output ---
 # Dump every 1 M (200 steps) -> 100 frames for a movie.

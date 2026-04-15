@@ -625,36 +625,21 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
                 ph = math::atan2(sy, sx);
               };
 
-          double rr[4], th[4], ph[4];
-          int np = 0;
-          if (k > 0 && t0 >= 0) {
-            rr[np] = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
-            tri_center_th_ph(t0, th[np], ph[np]);
-            np++;
-          }
-          if (k > 0 && t1 >= 0) {
-            rr[np] = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
-            tri_center_th_ph(t1, th[np], ph[np]);
-            np++;
-          }
-          if (k < N_r_local && t1 >= 0) {
-            rr[np] = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
-            tri_center_th_ph(t1, th[np], ph[np]);
-            np++;
-          }
-          if (k < N_r_local && t0 >= 0) {
-            rr[np] = 0.5 * (mp.radii[k] + mp.radii[k + 1]);
-            tri_center_th_ph(t0, th[np], ph[np]);
-            np++;
-          }
-
-          // Fan center: primal edge midpoint (at r_k, angular average of
-          // edge endpoints).
-          double th_mid = 0.5 * (th0 + th1);
-          double ph_mid =
-              ph0 + 0.5 * angular_diff(ph0, ph1);
-          double m_area = polygon_area_about(met, r, th_mid, ph_mid, rr, th,
-                                             ph, np);
+          // Dual face is always a rectangular face in (r, θ, φ):
+          // spans [r_lo, r_hi] radially between the two adjacent triangle
+          // circumcenters, where the r-range is the interior dual-cell
+          // span r_{k-½}..r_{k+½} clipped to the domain walls at k=0 or
+          // k=N_r.  No fan, no polygon — one rectangular_face_area call.
+          double th_t0, ph_t0, th_t1, ph_t1;
+          tri_center_th_ph(t0, th_t0, ph_t0);
+          tri_center_th_ph(t1, th_t1, ph_t1);
+          double r_lo = (k > 0) ? 0.5 * (mp.radii[k - 1] + mp.radii[k])
+                                : mp.radii[k];
+          double r_hi = (k < N_r_local)
+                            ? 0.5 * (mp.radii[k] + mp.radii[k + 1])
+                            : mp.radii[k];
+          double m_area = rectangular_face_area(met, r_lo, r_hi, th_t0, ph_t0,
+                                                th_t1, ph_t1);
 
           h1inv_out[ei] = (Scalar)((m_area > 0) ? m_len / m_area : 0.0);
         });

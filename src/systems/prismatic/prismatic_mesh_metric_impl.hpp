@@ -129,11 +129,38 @@ coord_triangle_area(const Metric& met, double r_a, double th_a, double ph_a,
 }
 
 // Shell-restricted triangle area: all three vertices at the same r.
+// The patch stays on the sphere of radius r, so only the angular sub-block
+// of the metric (g_θθ, g_φφ, g_θφ) contributes.  Specialized to avoid the
+// wasted multiplies by zero that the generic coord_triangle_area incurs
+// when all Δr vanish, and to make the contract explicit (no dependence on
+// g_rr or g_rφ).
 template <typename Metric>
 HD_INLINE double
 shell_triangle_area(const Metric& met, double r, double th_a, double ph_a,
                     double th_b, double ph_b, double th_c, double ph_c) {
-  return coord_triangle_area(met, r, th_a, ph_a, r, th_b, ph_b, r, th_c, ph_c);
+  double dthB = th_b - th_a, dphB = angular_diff(ph_a, ph_b);
+  double dthC = th_c - th_a, dphC = angular_diff(ph_a, ph_c);
+  return gauss_quad(
+      [&](double u) {
+        return gauss_quad(
+            [&](double v) {
+              double th = th_a + u * dthB + v * dthC;
+              double sth = math::sin(th), cth = math::cos(th);
+              double g22 = met.g_thth(r, sth, cth);
+              double g33 = met.g_phph(r, sth, cth);
+              double g23 = met.g_thph(r, sth, cth);
+              double huu = g22 * dthB * dthB + g33 * dphB * dphB +
+                           2.0 * g23 * dthB * dphB;
+              double hvv = g22 * dthC * dthC + g33 * dphC * dphC +
+                           2.0 * g23 * dthC * dphC;
+              double huv = g22 * dthB * dthC + g33 * dphB * dphC +
+                           g23 * (dthB * dphC + dthC * dphB);
+              double det = huu * hvv - huv * huv;
+              return math::sqrt(det > 0 ? det : 0.0);
+            },
+            0.0, 1.0 - u);
+      },
+      0.0, 1.0);
 }
 
 // Rectangular face area bounded by arcs at r_0 and r_1 with the same angular
@@ -184,6 +211,26 @@ polygon_area_about(const Metric& met, double r_c, double th_c, double ph_c,
     int j = (i + 1) % n;
     area += coord_triangle_area(met, r_c, th_c, ph_c, rr[i], th[i], ph[i],
                                 rr[j], th[j], ph[j]);
+  }
+  return area;
+}
+
+// Polygon area via fan from an explicit center point, assuming the fan
+// center and every polygon vertex lie on the same shell at radius r.
+// Each sub-triangle is a shell triangle, so we only need the angular
+// metric sub-block.  Used by vertical-edge dual polygons (Hodge1_inv on
+// vertical edges), where the dual face is a tangential polygon at
+// r = ½(r_0 + r_1).
+template <typename Metric>
+HD_INLINE double
+shell_polygon_area_about(const Metric& met, double r, double th_c, double ph_c,
+                         const double* th, const double* ph, int n) {
+  if (n < 3) return 0.0;
+  double area = 0.0;
+  for (int i = 0; i < n; i++) {
+    int j = (i + 1) % n;
+    area += shell_triangle_area(met, r, th_c, ph_c, th[i], ph[i],
+                                th[j], ph[j]);
   }
   return area;
 }
@@ -679,8 +726,11 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
             sth[i] = th[order[i]];
             sph[i] = ph[order[i]];
           }
-          double m_area = polygon_area_about(met, r_mid, th_v, ph_v, srr, sth,
-                                             sph, np);
+          // All polygon vertices and the fan center lie at r_mid, so this
+          // is a pure shell polygon — use the angular-only helper.
+          (void)srr;  // radii are all r_mid; kept only for angle-sort input.
+          double m_area = shell_polygon_area_about(met, r_mid, th_v, ph_v, sth,
+                                                   sph, np);
           h1inv_out[ei] = (Scalar)((m_area > 0) ? m_len / m_area : 0.0);
         });
       },

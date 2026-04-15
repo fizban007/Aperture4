@@ -13,6 +13,7 @@ struct prismatic_mesh_metric_ptrs : prismatic_mesh_ptrs {
   const Scalar* edge_cth;              // [N_edges]
   const Scalar* edge_alpha;            // [N_edges]
   const Scalar* edge_sq_gamma_beta_r;  // [N_edges]
+  const Scalar* edge_sqrt_gamma;       // [N_edges]
 
   // --- Per-face 3+1 data (at face centroids) ---
   const Scalar* face_r_coord;          // [N_faces]
@@ -20,6 +21,7 @@ struct prismatic_mesh_metric_ptrs : prismatic_mesh_ptrs {
   const Scalar* face_cth;              // [N_faces]
   const Scalar* face_alpha;            // [N_faces]
   const Scalar* face_sq_gamma_beta_r;  // [N_faces]
+  const Scalar* face_sqrt_gamma;       // [N_faces]
 
   // --- Element type boundaries (precomputed from mesh counts) ---
   int N_h_edges;     // horizontal edge count = (N_r + 1) * N_edge_s

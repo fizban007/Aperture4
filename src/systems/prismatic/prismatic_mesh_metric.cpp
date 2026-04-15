@@ -532,12 +532,14 @@ void prismatic_mesh_metric::compute_metric(const spherical_metric_t& met) {
   edge_cth.resize(m_N_edges);
   edge_alpha.resize(m_N_edges);
   edge_sq_gamma_beta_r.resize(m_N_edges);
+  edge_sqrt_gamma.resize(m_N_edges);
 
   face_r_coord.resize(m_N_faces);
   face_sth.resize(m_N_faces);
   face_cth.resize(m_N_faces);
   face_alpha.resize(m_N_faces);
   face_sq_gamma_beta_r.resize(m_N_faces);
+  face_sqrt_gamma.resize(m_N_faces);
 
   // --- Per-edge: evaluate metric at edge midpoints ---
   for (int e = 0; e < m_N_edges; e++) {
@@ -553,6 +555,7 @@ void prismatic_mesh_metric::compute_metric(const spherical_metric_t& met) {
     edge_cth[e] = cth;
     edge_alpha[e] = met.alpha(r, sth, cth);
     edge_sq_gamma_beta_r[e] = met.sq_gamma_beta_r(r, sth, cth);
+    edge_sqrt_gamma[e] = met.sqrt_gamma(r, sth, cth);
   }
 
   // --- Per-face: evaluate metric at face centroids ---
@@ -570,6 +573,7 @@ void prismatic_mesh_metric::compute_metric(const spherical_metric_t& met) {
     face_cth[fi] = cth;
     face_alpha[fi] = met.alpha(r, sth, cth);
     face_sq_gamma_beta_r[fi] = met.sq_gamma_beta_r(r, sth, cth);
+    face_sqrt_gamma[fi] = met.sqrt_gamma(r, sth, cth);
   }
 
   int n_rect_faces = m_N_edge_s * m_N_r;
@@ -588,6 +592,7 @@ void prismatic_mesh_metric::compute_metric(const spherical_metric_t& met) {
     face_cth[fi] = cth;
     face_alpha[fi] = met.alpha(r, sth, cth);
     face_sq_gamma_beta_r[fi] = met.sq_gamma_beta_r(r, sth, cth);
+    face_sqrt_gamma[fi] = met.sqrt_gamma(r, sth, cth);
   }
 
   // --- Recompute Hodge stars with the metric ---
@@ -610,11 +615,13 @@ void fill_metric_ptrs(prismatic_mesh_metric_ptrs& p,
   p.edge_cth = acc(m.edge_cth);
   p.edge_alpha = acc(m.edge_alpha);
   p.edge_sq_gamma_beta_r = acc(m.edge_sq_gamma_beta_r);
+  p.edge_sqrt_gamma = acc(m.edge_sqrt_gamma);
   p.face_r_coord = acc(m.face_r_coord);
   p.face_sth = acc(m.face_sth);
   p.face_cth = acc(m.face_cth);
   p.face_alpha = acc(m.face_alpha);
   p.face_sq_gamma_beta_r = acc(m.face_sq_gamma_beta_r);
+  p.face_sqrt_gamma = acc(m.face_sqrt_gamma);
   p.N_h_edges = (m.m_N_r + 1) * m.m_N_edge_s;
   p.N_tri_faces = (m.m_N_r + 1) * m.m_N_tri;
 }
@@ -643,9 +650,9 @@ void prismatic_mesh_metric::copy_to_device() {
 
   auto copy = [](auto& buf) { buf.copy_to_device(); };
   copy(edge_r_coord); copy(edge_sth); copy(edge_cth);
-  copy(edge_alpha); copy(edge_sq_gamma_beta_r);
+  copy(edge_alpha); copy(edge_sq_gamma_beta_r); copy(edge_sqrt_gamma);
   copy(face_r_coord); copy(face_sth); copy(face_cth);
-  copy(face_alpha); copy(face_sq_gamma_beta_r);
+  copy(face_alpha); copy(face_sq_gamma_beta_r); copy(face_sqrt_gamma);
 }
 #endif
 

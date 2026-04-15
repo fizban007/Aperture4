@@ -29,5 +29,6 @@ add_subdirectory(kink)
 
 add_subdirectory(pressure_anisotropy)
 add_subdirectory(prismatic_dipole)
+add_subdirectory(prismatic_wald)
 
 endif()

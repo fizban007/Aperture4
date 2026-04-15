@@ -38,6 +38,7 @@ class prismatic_mesh_metric : public prismatic_mesh {
   buffer<Scalar> edge_cth;         // cos(theta)             [N_edges]
   buffer<Scalar> edge_alpha;       // lapse                  [N_edges]
   buffer<Scalar> edge_sq_gamma_beta_r;  // sqrt(gamma)*beta^r [N_edges]
+  buffer<Scalar> edge_sqrt_gamma;  // sqrt(det gamma)        [N_edges]
 
   // --- Per-face data (at face centroids) ---
   buffer<Scalar> face_r_coord;     // [N_faces]
@@ -45,6 +46,7 @@ class prismatic_mesh_metric : public prismatic_mesh {
   buffer<Scalar> face_cth;         // [N_faces]
   buffer<Scalar> face_alpha;       // [N_faces]
   buffer<Scalar> face_sq_gamma_beta_r;  // [N_faces]
+  buffer<Scalar> face_sqrt_gamma;  // [N_faces]
 
   // --- Pointer access ---
   prismatic_mesh_metric_ptrs host_ptrs_metric() const;

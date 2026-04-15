@@ -1,0 +1,54 @@
+# Wald test on a near-extremal rotating black hole.
+#
+# Starts with the Schwarzschild Wald solution (uniform B₀·ẑ) on a Kerr
+# background; expected to relax to the rotating Wald equilibrium by
+# radiating low-frequency EM waves.
+#
+# First-pass diagnostic: fields should stabilize and not blow up.
+
+# --- Mesh ---
+# L=4 icosahedron + extrusion.  N_r chosen so the vertical edge length
+# ratio dr/r ≈ ln(r_max/r_min)/N_r matches the mean angular edge length
+# ≈ 0.069 rad on the L=4 sphere.  r_min=0.9 places ~3 cells inside the
+# outer horizon r_+ = 1 + sqrt(1 - 0.998²) ≈ 1.063, giving a comfortable
+# causal-disconnection buffer.  N_r=45 keeps dr/r ≈ ln(20/0.9)/45 ≈ 0.069.
+subdivision_level = 4
+N_r = 45
+r_min = 0.9
+r_max = 20.0
+
+# --- Physics ---
+bh_spin = 0.998
+B0      = 1.0
+
+# --- Time stepping ---
+# Explicit leapfrog.  dt chosen to satisfy CFL at the inner boundary:
+# the smallest metric edge length is √γ_rr · dr ≈ √3 · 0.07 ≈ 0.12
+# at r_min=1, a=0.998.  Using dt = 0.02 gives Courant ≈ 1/6.
+# Run to t = 100 M ≈ 100 r_g/c → 5000 steps.
+dt         = 0.02
+max_steps  = 5000
+use_implicit = false
+
+# --- Boundary conditions ---
+# Inner: causal disconnection (no explicit BC needed — r_min inside r_+).
+# Horizon safety damping: disabled.
+r_horizon_damp = 0.0
+r_horizon_inner = 0.0
+
+# Outer: exponential damping over the last 10 radial layers.
+damping_length = 10
+damping_coef   = 0.05
+
+# --- Output ---
+# Dump every 10 r_g (500 steps).
+fld_output_interval = 500
+output_dir          = "Data"
+
+# Spherical-harmonic projection for diagnostics.
+sph_N_theta = 90
+sph_N_phi   = 180
+
+# --- Update toggles (both on for full Maxwell evolution) ---
+update_d = true
+update_b = true

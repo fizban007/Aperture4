@@ -57,6 +57,16 @@ class dec_field_solver_gr_ks : public system_t {
   void compute_rhs(buffer<Scalar>& D_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dD_dt, buffer<Scalar>& dB_dt);
 
+  // Faraday half-step: compute E_aux from (D, B), then dB = -d1·E_aux.
+  // Leaves the result in dB_out; does not modify B.
+  void compute_dB_dt(buffer<Scalar>& D_in, buffer<Scalar>& B_in,
+                     buffer<Scalar>& dB_out);
+
+  // Ampère half-step: compute H_aux from (D, B), then dD = h1inv·(d1t·h2·H_aux - J).
+  // Leaves the result in dD_out; does not modify D.
+  void compute_dD_dt(buffer<Scalar>& D_in, buffer<Scalar>& B_in,
+                     buffer<Scalar>& dD_out);
+
   void apply_damping(buffer<Scalar>& D, buffer<Scalar>& B, double dt);
 
   // Optional safety damping inside the horizon.  The primary "inner BC"
@@ -67,6 +77,16 @@ class dec_field_solver_gr_ks : public system_t {
   // numerical insurance layer against any superluminal-mode leakage at
   // the discretization level.  Disabled by default (r_horizon_damp = 0).
   void apply_horizon_damping(buffer<Scalar>& D, buffer<Scalar>& B);
+
+  // Inner boundary condition (mirrors the 2D GR-KS solver's treatment):
+  // overwrites the innermost-shell field values (shell 0 for horizontal
+  // edges/tri faces, slab 0 for vertical edges/rect faces) using a
+  // "ghost = interior + (D0_interior - D0_ghost)" extrapolation from
+  // shell 1.  This is a Neumann-like BC on the perturbation δ = field -
+  // background that preserves the background gradient across the
+  // innermost layer, preventing spurious gradients from driving
+  // in-horizon instabilities.
+  void apply_inner_boundary(buffer<Scalar>& D, buffer<Scalar>& B);
 
  private:
   prismatic_mesh_metric& m_mesh;
@@ -84,6 +104,13 @@ class dec_field_solver_gr_ks : public system_t {
   buffer<Scalar> m_tmp_D, m_tmp_B;
   buffer<Scalar> m_dD_dt, m_dB_dt;
   buffer<Scalar> m_dD_dt_new, m_dB_dt_new;
+
+  // Background fields: the outer damping layer relaxes (D, B) toward
+  // these target values instead of zero.  Populated by set_initial_wald
+  // (and any future setter).  If m_has_background = false, damping falls
+  // back to damping toward zero (flat-space convention).
+  buffer<Scalar> m_D_bg, m_B_bg;
+  bool m_has_background = false;
 
   // Damping layer (outer boundary absorption)
   int m_damping_length = 10;

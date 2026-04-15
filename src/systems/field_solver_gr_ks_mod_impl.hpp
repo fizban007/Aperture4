@@ -391,13 +391,13 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                   if (math::abs(th) < 0.1f * grid.delta[1] ||
                       math::abs(th - M_PI) < 0.1f * grid.delta[1]) {
                     auxE[2][idx] =
-                        Metric_KS::alpha(a, r, th) *
+                        grid.delta[2] * (Metric_KS::alpha(a, r, th) *
                         ((w_minus * g13_minus *
                               (D[0][idx.dec_x()] + D[0][idx.dec_x().inc_z()]) +
                           w_plus * g13_plus * (D[0][idx] + D[0][idx.inc_z()])) /
-                         (2.0f * (w_minus + w_plus)));
+                         (2.0f * (w_minus + w_plus))));
                   } else {
-                    auxE[2][idx] = Metric_KS::alpha(a, r, th) *
+                    auxE[2][idx] = grid.delta[2] * (Metric_KS::alpha(a, r, th) *
                                        (Metric_KS::g_33(a, r, th) * D[2][idx] +
                                         ((w_minus * g13_minus *
                                               (D[0][idx.dec_x()] +
@@ -407,7 +407,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
                                          (2.0f * (w_minus + w_plus)))) +
                                    ((w_minus * gb1_minus * B[1][idx.dec_x()] +
                                      w_plus * gb1_plus * B[1][idx]) /
-                                    (w_minus + w_plus));
+                                    (w_minus + w_plus)));
                   }
                 }
               });
@@ -586,7 +586,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                   // beta^1 D^2
                   //     = alpha (gamma_31 B^1 + gamma_33 B^3) - sqrt(gam)
                   //     beta^1 D^2
-                  auxH[2][idx] = Metric_KS::alpha(a, r, th) *
+                  auxH[2][idx] = grid.delta[2] * (Metric_KS::alpha(a, r, th) *
                                      (Metric_KS::g_33(a, r, th) * B[2][idx] +
                                       ((w_minus * g13_minus *
                                             (B[0][idx] + B[0][idx.dec_z()]) +
@@ -596,7 +596,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
                                        (2.0f * (w_minus + w_plus)))) -
                                  ((w_minus * gb1_minus * D[1][idx] +
                                    w_plus * gb1_plus * D[1][idx.inc_x()]) /
-                                  (w_minus + w_plus));
+                                  (w_minus + w_plus)));
                 }
               });
         },

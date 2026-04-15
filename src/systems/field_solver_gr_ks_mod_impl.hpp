@@ -1063,6 +1063,18 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
                 D[2][idx] = 0.0f;
                 B[2][idx.dec_y()] = -B[2][idx];
                 B[1][idx] = 0.0f;
+                // Added 4-15-26
+                // In 3D, the near-axis checks in compute_aux_H and compute_aux_E
+                // do not activate all the time; the theta boundaries are typically
+                // too far removed from the axis to trigger them.
+                // This means that the stencil for the Maxwell update can reach into
+                // the guard cells at the theta boundaries, ingesting stale values
+                // of auxiliary fields (which themselves stem from stale values of
+                // the FIDO fields, D and B). To fix this, make sure to set all 6
+                // components of D and B at the theta boundaries.
+                D[0][idx.dec_y()] = D[0][idx];
+                D[1][idx.dec_y()] = D[1][idx];
+                B[0][idx.dec_y()] = B[0][idx];
               }
             });
           },
@@ -1084,6 +1096,10 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
                 D[2][idx.inc_y()] = 0.0f;
                 B[2][idx.inc_y()] = -B[2][idx];
                 B[1][idx.inc_y()] = 0.0f;
+                // Added 4-15-26, see comment above on the same date.
+                D[0][idx.inc_y()] = D[0][idx];
+                D[1][idx.inc_y()] = D[1][idx];
+                B[0][idx.inc_y()] = B[0][idx];
               }
             });
           },

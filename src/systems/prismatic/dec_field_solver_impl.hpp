@@ -11,6 +11,154 @@
 namespace Aperture {
 
 // =========================================================================
+// Spherical-geometry helpers for face/edge quadratures.
+//
+// Mesh vertices are stored in (r, θ, φ) and faces live on the sphere
+// surface, not on chord triangles.  All position-evaluations in the
+// quadratures below go through these helpers so that the Gauss samples
+// actually fall on the curved primal element.
+// =========================================================================
+
+// Fetch (r, unit-direction) for global vertex index vi.  The angular part
+// is read from the Cartesian sphere_v{x,y,z} buffer (which we retain for
+// particle operations) to avoid recomputing cos/sin per Gauss point.
+HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, int vi,
+                           Scalar& r, Scalar& ux, Scalar& uy, Scalar& uz) {
+  int k = vi / mp.N_vert_s;
+  int s = vi % mp.N_vert_s;
+  r = mp.radii[k];
+  ux = mp.sphere_vx[s];
+  uy = mp.sphere_vy[s];
+  uz = mp.sphere_vz[s];
+}
+
+// Cartesian position (x, y, z) of global vertex vi.  Used only where a
+// single vertex position is needed (not per Gauss sample).
+HD_INLINE void vertex_cart(const prismatic_mesh_ptrs& mp, int vi,
+                           Scalar& x, Scalar& y, Scalar& z) {
+  Scalar r, ux, uy, uz;
+  vertex_unit(mp, vi, r, ux, uy, uz);
+  x = r * ux; y = r * uy; z = r * uz;
+}
+
+// Slerp two unit vectors, plus its u-derivative.  At u=0 returns û_a, at
+// u=1 returns û_b.  For very small α falls back to the linear tangent —
+// the quadrature inner integrand handles the α→0 limit gracefully.
+HD_INLINE void slerp_uv(Scalar ax, Scalar ay, Scalar az,
+                        Scalar bx, Scalar by, Scalar bz, Scalar u,
+                        Scalar& ux, Scalar& uy, Scalar& uz,
+                        Scalar& dux, Scalar& duy, Scalar& duz) {
+  Scalar dot = ax*bx + ay*by + az*bz;
+  if (dot >  Scalar(1)) dot =  Scalar(1);
+  if (dot < -Scalar(1)) dot = -Scalar(1);
+  Scalar alpha = std::acos(dot);
+  Scalar sa = std::sin(alpha);
+  if (sa < Scalar(1e-12)) {
+    ux = ax; uy = ay; uz = az;
+    dux = bx - ax; duy = by - ay; duz = bz - az;
+    return;
+  }
+  Scalar w0 = std::sin((Scalar(1) - u) * alpha) / sa;
+  Scalar w1 = std::sin(u * alpha) / sa;
+  ux = w0*ax + w1*bx;
+  uy = w0*ay + w1*by;
+  uz = w0*az + w1*bz;
+  Scalar dw0 = -alpha * std::cos((Scalar(1) - u) * alpha) / sa;
+  Scalar dw1 =  alpha * std::cos(u * alpha) / sa;
+  dux = dw0*ax + dw1*bx;
+  duy = dw0*ay + dw1*by;
+  duz = dw0*az + dw1*bz;
+}
+
+// Spherical-triangle parametrization using radially-projected barycentric
+// interpolation.  Domain: (u, t) ∈ [0, 1]²  with v = (1-u)·t  so that
+//     λ_a = (1-u)(1-t),  λ_b = u,  λ_c = (1-u)·t
+// Writes (x, y, z) on the sphere of radius r and (nx, ny, nz) = ∂P/∂u × ∂P/∂t,
+// i.e. the vector surface element per du·dt (so the integrand in this
+// parametrization is B · (nx,ny,nz) — the (1-u) Jacobian is already folded
+// in through ∂λ/∂t factors).
+HD_INLINE void tri_sphere_sample(Scalar r,
+                                 Scalar ax, Scalar ay, Scalar az,
+                                 Scalar bx, Scalar by, Scalar bz,
+                                 Scalar cx, Scalar cy, Scalar cz,
+                                 Scalar u, Scalar t,
+                                 Scalar& x, Scalar& y, Scalar& z,
+                                 Scalar& nx, Scalar& ny, Scalar& nz) {
+  Scalar la = (Scalar(1) - u) * (Scalar(1) - t);
+  Scalar lb = u;
+  Scalar lc = (Scalar(1) - u) * t;
+  Scalar qx = la*ax + lb*bx + lc*cx;
+  Scalar qy = la*ay + lb*by + lc*cy;
+  Scalar qz = la*az + lb*bz + lc*cz;
+  Scalar qn = std::sqrt(qx*qx + qy*qy + qz*qz);
+  Scalar ihx = qx / qn, ihy = qy / qn, ihz = qz / qn;
+  x = r * ihx;  y = r * ihy;  z = r * ihz;
+
+  // ∂λ/∂u = (-(1-t), 1, -t),  ∂λ/∂t = (-(1-u), 0, (1-u)).
+  Scalar dqdu_x = -(Scalar(1) - t) * ax + bx - t * cx;
+  Scalar dqdu_y = -(Scalar(1) - t) * ay + by - t * cy;
+  Scalar dqdu_z = -(Scalar(1) - t) * az + bz - t * cz;
+  Scalar dqdt_x = (Scalar(1) - u) * (cx - ax);
+  Scalar dqdt_y = (Scalar(1) - u) * (cy - ay);
+  Scalar dqdt_z = (Scalar(1) - u) * (cz - az);
+
+  // ∂û/∂ξ = (I − û⊗û) · ∂Q/∂ξ / |Q|
+  Scalar qinv = Scalar(1) / qn;
+  Scalar pdu = ihx*dqdu_x + ihy*dqdu_y + ihz*dqdu_z;  // û·∂Q/∂u
+  Scalar pdt = ihx*dqdt_x + ihy*dqdt_y + ihz*dqdt_z;
+  Scalar duhx = qinv * (dqdu_x - pdu*ihx);
+  Scalar duhy = qinv * (dqdu_y - pdu*ihy);
+  Scalar duhz = qinv * (dqdu_z - pdu*ihz);
+  Scalar dthx = qinv * (dqdt_x - pdt*ihx);
+  Scalar dthy = qinv * (dqdt_y - pdt*ihy);
+  Scalar dthz = qinv * (dqdt_z - pdt*ihz);
+
+  // n = r² · (∂û/∂u × ∂û/∂t)
+  Scalar r2 = r * r;
+  nx = r2 * (duhy*dthz - duhz*dthy);
+  ny = r2 * (duhz*dthx - duhx*dthz);
+  nz = r2 * (duhx*dthy - duhy*dthx);
+}
+
+// Rectangular face (ruled surface between shells r0 and r1 along the
+// great-circle arc û_a→û_b).  Parametrization:
+//     r(v) = (1-v)·r0 + v·r1,   û(u) = slerp(û_a, û_b, u),
+//     P    = r(v) · û(u).
+// Writes (x, y, z) and (nx, ny, nz) = ∂P/∂u × ∂P/∂v.
+HD_INLINE void rect_sphere_sample(Scalar r0, Scalar r1,
+                                  Scalar ax, Scalar ay, Scalar az,
+                                  Scalar bx, Scalar by, Scalar bz,
+                                  Scalar u, Scalar v,
+                                  Scalar& x, Scalar& y, Scalar& z,
+                                  Scalar& nx, Scalar& ny, Scalar& nz) {
+  Scalar ux, uy, uz, dux, duy, duz;
+  slerp_uv(ax, ay, az, bx, by, bz, u, ux, uy, uz, dux, duy, duz);
+  Scalar rv = (Scalar(1) - v) * r0 + v * r1;
+  Scalar drdv = r1 - r0;
+  x = rv * ux;  y = rv * uy;  z = rv * uz;
+  // ∂P/∂u = rv · dû/du,  ∂P/∂v = drdv · û
+  Scalar pux = rv * dux, puy = rv * duy, puz = rv * duz;
+  Scalar pvx = drdv * ux, pvy = drdv * uy, pvz = drdv * uz;
+  nx = puy*pvz - puz*pvy;
+  ny = puz*pvx - pux*pvz;
+  nz = pux*pvy - puy*pvx;
+}
+
+// Horizontal (arc) edge sample at parameter t ∈ [0,1] on the sphere of
+// radius r.  Writes position (x, y, z) and line element dl = ∂P/∂t.
+HD_INLINE void h_edge_sphere_sample(Scalar r,
+                                    Scalar ax, Scalar ay, Scalar az,
+                                    Scalar bx, Scalar by, Scalar bz,
+                                    Scalar t,
+                                    Scalar& x, Scalar& y, Scalar& z,
+                                    Scalar& dlx, Scalar& dly, Scalar& dlz) {
+  Scalar ux, uy, uz, dux, duy, duz;
+  slerp_uv(ax, ay, az, bx, by, bz, t, ux, uy, uz, dux, duy, duz);
+  x = r * ux;  y = r * uy;  z = r * uz;
+  dlx = r * dux;  dly = r * duy;  dlz = r * duz;
+}
+
+// =========================================================================
 // Device-callable helper functions
 // =========================================================================
 
@@ -122,28 +270,42 @@ HD_INLINE void deutsch_E_impl(Scalar x, Scalar y, Scalar z, Scalar time,
 }
 
 
+// Legacy helpers exposed via dec_field_solver::project_B_on_face /
+// project_E_on_edge.  Midpoint-style estimates using the chord vectors
+// between vertex Cartesian positions (computed on the fly from spherical
+// storage).  Not used on the hot path — the IC / BC integrals below use
+// full spherical Gauss quadrature.
 HD_INLINE Scalar project_B_on_face_impl(const prismatic_mesh_ptrs& mp, int f,
                                          Scalar Bx, Scalar By, Scalar Bz) {
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
   if (f < n_tri_faces) {
     int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    Scalar ax = mp.vert_x[vb]-mp.vert_x[va], ay = mp.vert_y[vb]-mp.vert_y[va], az = mp.vert_z[vb]-mp.vert_z[va];
-    Scalar bx = mp.vert_x[vc]-mp.vert_x[va], by = mp.vert_y[vc]-mp.vert_y[va], bz = mp.vert_z[vc]-mp.vert_z[va];
+    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
+    vertex_cart(mp, va, xa, ya, za);
+    vertex_cart(mp, vb, xb, yb, zb);
+    vertex_cart(mp, vc, xc, yc, zc);
+    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+    Scalar bx = xc - xa, by = yc - ya, bz = zc - za;
     return Scalar(0.5) * (Bx*(ay*bz-az*by) + By*(az*bx-ax*bz) + Bz*(ax*by-ay*bx));
   }
   int local = f - n_tri_faces;
   int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local], vd = mp.rect_face_v3[local];
-  Scalar ax = mp.vert_x[vb]-mp.vert_x[va], ay = mp.vert_y[vb]-mp.vert_y[va], az = mp.vert_z[vb]-mp.vert_z[va];
-  Scalar bx = mp.vert_x[vd]-mp.vert_x[va], by = mp.vert_y[vd]-mp.vert_y[va], bz = mp.vert_z[vd]-mp.vert_z[va];
+  Scalar xa, ya, za, xb, yb, zb, xd, yd, zd;
+  vertex_cart(mp, va, xa, ya, za);
+  vertex_cart(mp, vb, xb, yb, zb);
+  vertex_cart(mp, vd, xd, yd, zd);
+  Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+  Scalar bx = xd - xa, by = yd - ya, bz = zd - za;
   return Bx*(ay*bz-az*by) + By*(az*bx-ax*bz) + Bz*(ax*by-ay*bx);
 }
 
 HD_INLINE Scalar project_E_on_edge_impl(const prismatic_mesh_ptrs& mp, int e,
                                          Scalar Ex, Scalar Ey, Scalar Ez) {
   int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  return Ex*(mp.vert_x[v1]-mp.vert_x[v0]) +
-         Ey*(mp.vert_y[v1]-mp.vert_y[v0]) +
-         Ez*(mp.vert_z[v1]-mp.vert_z[v0]);
+  Scalar x0, y0, z0, x1, y1, z1;
+  vertex_cart(mp, v0, x0, y0, z0);
+  vertex_cart(mp, v1, x1, y1, z1);
+  return Ex*(x1 - x0) + Ey*(y1 - y0) + Ez*(z1 - z0);
 }
 
 // =========================================================================
@@ -475,23 +637,25 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
           if (mp.face_boundary[f] != 1) return;
 
           if (f < n_tri_faces) {
-            // --- Triangular face: nested Gauss quadrature ---
+            // --- Spherical triangular face: Gauss quadrature in (u, t) ∈ [0,1]².
+            // Barycentric λ_a = (1-u)(1-t), λ_b = u, λ_c = (1-u)t;
+            // Position on the sphere of radius r via radial projection of
+            // λ_a·û_a + λ_b·û_b + λ_c·û_c; area element ∂P/∂u × ∂P/∂t absorbs
+            // the (1-u) Jacobian.
             int vi0 = mp.tri_face_v0[f];
             int vi1 = mp.tri_face_v1[f];
             int vi2 = mp.tri_face_v2[f];
-            Scalar p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            Scalar e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
-            Scalar e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
-            Scalar nx = e1y*e2z - e1z*e2y;
-            Scalar ny = e1z*e2x - e1x*e2z;
-            Scalar nz = e1x*e2y - e1y*e2x;
+            Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z, r2, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r0, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2, a2x, a2y, a2z);
+            Scalar r_face = r0;  // all three vertices share the shell radius
 
             Scalar flux = gauss_quad([&](double u) -> double {
-              return (1.0 - u) * gauss_quad([&](double t) -> double {
-                double v = (1.0 - u) * t;
-                double x = p0x + u*e1x + v*e2x;
-                double y = p0y + u*e1y + v*e2y;
-                double z = p0z + u*e1z + v*e2z;
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z, u, t, x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
                 if (deutsch) {
                   deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bx, by, bz);
@@ -503,36 +667,32 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
           } else {
-            // --- Rectangular face: tensor-product Gauss quadrature ---
+            // --- Ruled rectangular face: P(u,v) = r(v) · slerp(û_a, û_b, u).
+            // Layout: v0=(r_lo,û_a), v1=(r_lo,û_b), v2=(r_hi,û_b), v3=(r_hi,û_a).
             int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
-            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
-            Scalar p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            Scalar p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
-            Scalar p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
-            Scalar p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
+            int vi0 = mp.rect_face_v0[fi];
+            int vi1 = mp.rect_face_v1[fi];
+            int vi3 = mp.rect_face_v3[fi];
+            Scalar r_lo, uax, uay, uaz;
+            Scalar r_tmp, ubx, uby, ubz;
+            Scalar r_hi, uax3, uay3, uaz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, uax3, uay3, uaz3);
+            (void)r_tmp; (void)uax3; (void)uay3; (void)uaz3;
 
             Scalar flux = gauss_quad([&](double u) -> double {
               return gauss_quad([&](double v) -> double {
-                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-                double nnx = dydu*dzdv - dzdu*dydv;
-                double nny = dzdu*dxdv - dxdu*dzdv;
-                double nnz = dxdu*dydv - dydu*dxdv;
-                Scalar bx, by, bz;
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   u, v, x, y, z, nx, ny, nz);
+                Scalar bbx, bby, bbz;
                 if (deutsch) {
-                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bx, by, bz);
+                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bbx, bby, bbz);
                 } else {
-                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bbx, bby, bbz);
                 }
-                return bx*nnx + by*nny + bz*nnz;
+                return bbx*nx + bby*ny + bbz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
@@ -549,18 +709,34 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           if (mp.edge_boundary[e] != 1) return;
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          Scalar x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
-          Scalar dlx = mp.vert_x[v1]-x0;
-          Scalar dly = mp.vert_y[v1]-y0;
-          Scalar dlz = mp.vert_z[v1]-z0;
+          Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+          vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+          vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+
+          // Horizontal (arc) edge: same angular endpoints at different r is
+          // not possible, so r0 == r1 and the edge is an arc on the sphere.
+          // Vertical (radial) edge: same sphere vertex at different r.
+          bool is_radial = (r0 != r1);
 
           Scalar circ = gauss_quad([&](double t) -> double {
-            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            Scalar x, y, z, dlx, dly, dlz;
+            if (is_radial) {
+              // P(t) = ((1-t) r0 + t r1) · û;  dl = (r1-r0) · û dt.
+              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
+                          static_cast<Scalar>(t) * r1;
+              Scalar dr = r1 - r0;
+              x = rt * a0x; y = rt * a0y; z = rt * a0z;
+              dlx = dr * a0x; dly = dr * a0y; dlz = dr * a0z;
+            } else {
+              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
+                                   static_cast<Scalar>(t),
+                                   x, y, z, dlx, dly, dlz);
+            }
             Scalar ex, ey, ez;
             if (deutsch) {
               deutsch_E_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, ex, ey, ez);
             } else {
-              // E = -(v × B) where v = Ω × r
+              // E = -(v × B) where v = Ω × r.
               Scalar bx, by, bz;
               dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
               Scalar vx = -Omega_val * y, vy = Omega_val * x;
@@ -595,23 +771,23 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
       LAMBDA(auto B_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           if (f < n_tri_faces) {
-            // Triangular face
+            // Spherical triangular face on shell radius r_face.
             int vi0 = mp.tri_face_v0[f];
             int vi1 = mp.tri_face_v1[f];
             int vi2 = mp.tri_face_v2[f];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
-            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
-            double nx = e1y*e2z - e1z*e2y;
-            double ny = e1z*e2x - e1x*e2z;
-            double nz = e1x*e2y - e1y*e2x;
+            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
+            (void)r1_; (void)r2_;
 
             double flux = gauss_quad([&](double u) -> double {
-              return (1.0 - u) * gauss_quad([&](double t) -> double {
-                double v = (1.0 - u) * t;
-                double x = p0x + u*e1x + v*e2x;
-                double y = p0y + u*e1y + v*e2y;
-                double z = p0z + u*e1z + v*e2z;
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z,
+                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
+                                  x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
                 dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
                 return bx*nx + by*ny + bz*nz;
@@ -619,32 +795,26 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
           } else {
-            // Rectangular face
+            // Ruled rectangular face P(u,v) = r(v) · slerp(û_a, û_b, u).
             int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
-            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
-            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
-            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
+            int vi0 = mp.rect_face_v0[fi];
+            int vi1 = mp.rect_face_v1[fi];
+            int vi3 = mp.rect_face_v3[fi];
+            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
+            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
 
             double flux = gauss_quad([&](double u) -> double {
               return gauss_quad([&](double v) -> double {
-                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-                double nnx = dydu*dzdv - dzdu*dydv;
-                double nny = dzdu*dxdv - dxdu*dzdv;
-                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
+                                   x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
                 dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
-                return bx*nnx + by*nny + bz*nnz;
+                return bx*nx + by*ny + bz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
@@ -691,19 +861,19 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
             int vi0 = mp.tri_face_v0[f];
             int vi1 = mp.tri_face_v1[f];
             int vi2 = mp.tri_face_v2[f];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
-            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
-            double nx = e1y*e2z - e1z*e2y;
-            double ny = e1z*e2x - e1x*e2z;
-            double nz = e1x*e2y - e1y*e2x;
+            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
+            (void)r1_; (void)r2_;
 
             double flux = gauss_quad([&](double u) -> double {
-              return (1.0 - u) * gauss_quad([&](double t) -> double {
-                double v = (1.0 - u) * t;
-                double x = p0x + u*e1x + v*e2x;
-                double y = p0y + u*e1y + v*e2y;
-                double z = p0z + u*e1z + v*e2z;
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z,
+                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
+                                  x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
                 deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
                 return bx*nx + by*ny + bz*nz;
@@ -712,30 +882,24 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
             B_f[f] = static_cast<Scalar>(flux);
           } else {
             int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
-            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
-            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
-            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
+            int vi0 = mp.rect_face_v0[fi];
+            int vi1 = mp.rect_face_v1[fi];
+            int vi3 = mp.rect_face_v3[fi];
+            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
+            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
 
             double flux = gauss_quad([&](double u) -> double {
               return gauss_quad([&](double v) -> double {
-                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-                double nnx = dydu*dzdv - dzdu*dydv;
-                double nny = dzdu*dxdv - dxdu*dzdv;
-                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
+                                   x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
                 deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
-                return bx*nnx + by*nny + bz*nnz;
+                return bx*nx + by*ny + bz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
@@ -750,13 +914,24 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
       LAMBDA(auto E_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          double x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
-          double dlx = mp.vert_x[v1]-x0;
-          double dly = mp.vert_y[v1]-y0;
-          double dlz = mp.vert_z[v1]-z0;
+          Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+          vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+          vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+          bool is_radial = (r0 != r1);
 
           double circ = gauss_quad([&](double t) -> double {
-            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            Scalar x, y, z, dlx, dly, dlz;
+            if (is_radial) {
+              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
+                          static_cast<Scalar>(t) * r1;
+              Scalar dr = r1 - r0;
+              x = rt * a0x; y = rt * a0y; z = rt * a0z;
+              dlx = dr * a0x; dly = dr * a0y; dlz = dr * a0z;
+            } else {
+              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
+                                   static_cast<Scalar>(t),
+                                   x, y, z, dlx, dly, dlz);
+            }
             Scalar ex, ey, ez;
             deutsch_E_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, ex, ey, ez);
             return ex*dlx + ey*dly + ez*dlz;
@@ -836,23 +1011,23 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
             return;
           }
           if (f < n_tri_faces) {
-            // Triangular face: nested Gauss quadrature on the flat triangle
+            // Spherical triangular face on shell radius r_face.
             int vi0 = mp.tri_face_v0[f];
             int vi1 = mp.tri_face_v1[f];
             int vi2 = mp.tri_face_v2[f];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double e1x = mp.vert_x[vi1]-p0x, e1y = mp.vert_y[vi1]-p0y, e1z = mp.vert_z[vi1]-p0z;
-            double e2x = mp.vert_x[vi2]-p0x, e2y = mp.vert_y[vi2]-p0y, e2z = mp.vert_z[vi2]-p0z;
-            double nx = e1y*e2z - e1z*e2y;
-            double ny = e1z*e2x - e1x*e2z;
-            double nz = e1x*e2y - e1y*e2x;
+            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
+            (void)r1_; (void)r2_;
 
             double flux = gauss_quad([&](double u) -> double {
-              return (1.0 - u) * gauss_quad([&](double t) -> double {
-                double v = (1.0 - u) * t;
-                double x = p0x + u*e1x + v*e2x;
-                double y = p0y + u*e1y + v*e2y;
-                double z = p0z + u*e1z + v*e2z;
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z,
+                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
+                                  x, y, z, nx, ny, nz);
                 double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
                 cavity_modes::evaluate_mode_patterns(
                     mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);
@@ -861,33 +1036,27 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
           } else {
-            // Rectangular face: tensor-product Gauss quadrature on bilinear quad
+            // Ruled rectangular face P(u,v) = r(v) · slerp(û_a, û_b, u).
             int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi], vi1 = mp.rect_face_v1[fi];
-            int vi2 = mp.rect_face_v2[fi], vi3 = mp.rect_face_v3[fi];
-            double p0x = mp.vert_x[vi0], p0y = mp.vert_y[vi0], p0z = mp.vert_z[vi0];
-            double p1x = mp.vert_x[vi1], p1y = mp.vert_y[vi1], p1z = mp.vert_z[vi1];
-            double p2x = mp.vert_x[vi2], p2y = mp.vert_y[vi2], p2z = mp.vert_z[vi2];
-            double p3x = mp.vert_x[vi3], p3y = mp.vert_y[vi3], p3z = mp.vert_z[vi3];
+            int vi0 = mp.rect_face_v0[fi];
+            int vi1 = mp.rect_face_v1[fi];
+            int vi3 = mp.rect_face_v3[fi];
+            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
+            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
 
             double flux = gauss_quad([&](double u) -> double {
               return gauss_quad([&](double v) -> double {
-                double x = (1-u)*(1-v)*p0x + u*(1-v)*p1x + u*v*p2x + (1-u)*v*p3x;
-                double y = (1-u)*(1-v)*p0y + u*(1-v)*p1y + u*v*p2y + (1-u)*v*p3y;
-                double z = (1-u)*(1-v)*p0z + u*(1-v)*p1z + u*v*p2z + (1-u)*v*p3z;
-                double dxdu = -(1-v)*p0x + (1-v)*p1x + v*p2x - v*p3x;
-                double dydu = -(1-v)*p0y + (1-v)*p1y + v*p2y - v*p3y;
-                double dzdu = -(1-v)*p0z + (1-v)*p1z + v*p2z - v*p3z;
-                double dxdv = -(1-u)*p0x - u*p1x + u*p2x + (1-u)*p3x;
-                double dydv = -(1-u)*p0y - u*p1y + u*p2y + (1-u)*p3y;
-                double dzdv = -(1-u)*p0z - u*p1z + u*p2z + (1-u)*p3z;
-                double nnx = dydu*dzdv - dzdu*dydv;
-                double nny = dzdu*dxdv - dxdu*dzdv;
-                double nnz = dxdu*dydv - dydu*dxdv;
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
+                                   x, y, z, nx, ny, nz);
                 double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
                 cavity_modes::evaluate_mode_patterns(
                     mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);
-                return Bx_p*nnx + By_p*nny + Bz_p*nnz;
+                return Bx_p*nx + By_p*ny + Bz_p*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
             B_f[f] = static_cast<Scalar>(flux);
@@ -906,13 +1075,24 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
             return;
           }
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          double x0 = mp.vert_x[v0], y0 = mp.vert_y[v0], z0 = mp.vert_z[v0];
-          double dlx = mp.vert_x[v1]-x0;
-          double dly = mp.vert_y[v1]-y0;
-          double dlz = mp.vert_z[v1]-z0;
+          Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+          vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+          vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+          bool is_radial = (r0 != r1);
 
           double circ = gauss_quad([&](double t) -> double {
-            double x = x0 + t*dlx, y = y0 + t*dly, z = z0 + t*dlz;
+            Scalar x, y, z, dlx, dly, dlz;
+            if (is_radial) {
+              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
+                          static_cast<Scalar>(t) * r1;
+              Scalar dr = r1 - r0;
+              x = rt * a0x; y = rt * a0y; z = rt * a0z;
+              dlx = dr * a0x; dly = dr * a0y; dlz = dr * a0z;
+            } else {
+              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
+                                   static_cast<Scalar>(t),
+                                   x, y, z, dlx, dly, dlz);
+            }
             double Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p;
             cavity_modes::evaluate_mode_patterns(
                 mp_params, x, y, z, Ex_p, Ey_p, Ez_p, Bx_p, By_p, Bz_p);

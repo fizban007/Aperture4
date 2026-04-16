@@ -24,14 +24,35 @@ HD_INLINE Scalar triple(Scalar ax, Scalar ay, Scalar az,
 }
 
 // =========================================================================
-// Helper: edge tangent vector (v1 - v0).
+// Helper: Cartesian position of a global vertex from (r, sphere direction).
+// Mesh stores (r, θ, φ); the unit sphere direction lives in sphere_v{x,y,z}
+// at the sphere-vertex index, and radius in radii[k].
+// =========================================================================
+HD_INLINE void gr_vertex_cart(const prismatic_mesh_metric_ptrs& mp, int vi,
+                              Scalar& x, Scalar& y, Scalar& z) {
+  int k = vi / mp.N_vert_s;
+  int s = vi % mp.N_vert_s;
+  Scalar r = mp.radii[k];
+  x = r * mp.sphere_vx[s];
+  y = r * mp.sphere_vy[s];
+  z = r * mp.sphere_vz[s];
+}
+
+// =========================================================================
+// Helper: edge tangent vector (v1 - v0), in Cartesian.  Still a chord —
+// this helper is used by the shift cross-term and face-normal estimates
+// where a straight-line tangent between vertex positions is the intended
+// quantity.
 // =========================================================================
 HD_INLINE void edge_tangent(const prismatic_mesh_metric_ptrs& mp, int e,
                             Scalar& tx, Scalar& ty, Scalar& tz) {
   int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  tx = mp.vert_x[v1] - mp.vert_x[v0];
-  ty = mp.vert_y[v1] - mp.vert_y[v0];
-  tz = mp.vert_z[v1] - mp.vert_z[v0];
+  Scalar x0, y0, z0, x1, y1, z1;
+  gr_vertex_cart(mp, v0, x0, y0, z0);
+  gr_vertex_cart(mp, v1, x1, y1, z1);
+  tx = x1 - x0;
+  ty = y1 - y0;
+  tz = z1 - z0;
 }
 
 // =========================================================================
@@ -40,9 +61,12 @@ HD_INLINE void edge_tangent(const prismatic_mesh_metric_ptrs& mp, int e,
 HD_INLINE void edge_midpoint(const prismatic_mesh_metric_ptrs& mp, int e,
                              Scalar& mx, Scalar& my, Scalar& mz) {
   int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  mx = Scalar(0.5) * (mp.vert_x[v0] + mp.vert_x[v1]);
-  my = Scalar(0.5) * (mp.vert_y[v0] + mp.vert_y[v1]);
-  mz = Scalar(0.5) * (mp.vert_z[v0] + mp.vert_z[v1]);
+  Scalar x0, y0, z0, x1, y1, z1;
+  gr_vertex_cart(mp, v0, x0, y0, z0);
+  gr_vertex_cart(mp, v1, x1, y1, z1);
+  mx = Scalar(0.5) * (x0 + x1);
+  my = Scalar(0.5) * (y0 + y1);
+  mz = Scalar(0.5) * (z0 + z1);
 }
 
 // =========================================================================
@@ -54,12 +78,12 @@ HD_INLINE void face_normal_area(const prismatic_mesh_metric_ptrs& mp, int f,
                                 Scalar& nx, Scalar& ny, Scalar& nz) {
   if (mp.is_tri_face(f)) {
     int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    Scalar ax = mp.vert_x[vb] - mp.vert_x[va];
-    Scalar ay = mp.vert_y[vb] - mp.vert_y[va];
-    Scalar az = mp.vert_z[vb] - mp.vert_z[va];
-    Scalar bx = mp.vert_x[vc] - mp.vert_x[va];
-    Scalar by = mp.vert_y[vc] - mp.vert_y[va];
-    Scalar bz = mp.vert_z[vc] - mp.vert_z[va];
+    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
+    gr_vertex_cart(mp, va, xa, ya, za);
+    gr_vertex_cart(mp, vb, xb, yb, zb);
+    gr_vertex_cart(mp, vc, xc, yc, zc);
+    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+    Scalar bx = xc - xa, by = yc - ya, bz = zc - za;
     nx = Scalar(0.5) * (ay*bz - az*by);
     ny = Scalar(0.5) * (az*bx - ax*bz);
     nz = Scalar(0.5) * (ax*by - ay*bx);
@@ -67,12 +91,12 @@ HD_INLINE void face_normal_area(const prismatic_mesh_metric_ptrs& mp, int f,
     int local = f - mp.N_tri_faces;
     int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local];
     int vd = mp.rect_face_v3[local];
-    Scalar ax = mp.vert_x[vb] - mp.vert_x[va];
-    Scalar ay = mp.vert_y[vb] - mp.vert_y[va];
-    Scalar az = mp.vert_z[vb] - mp.vert_z[va];
-    Scalar bx = mp.vert_x[vd] - mp.vert_x[va];
-    Scalar by = mp.vert_y[vd] - mp.vert_y[va];
-    Scalar bz = mp.vert_z[vd] - mp.vert_z[va];
+    Scalar xa, ya, za, xb, yb, zb, xd, yd, zd;
+    gr_vertex_cart(mp, va, xa, ya, za);
+    gr_vertex_cart(mp, vb, xb, yb, zb);
+    gr_vertex_cart(mp, vd, xd, yd, zd);
+    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+    Scalar bx = xd - xa, by = yd - ya, bz = zd - za;
     nx = ay*bz - az*by;
     ny = az*bx - ax*bz;
     nz = ax*by - ay*bx;
@@ -86,19 +110,25 @@ HD_INLINE void face_centroid(const prismatic_mesh_metric_ptrs& mp, int f,
                              Scalar& cx, Scalar& cy, Scalar& cz) {
   if (mp.is_tri_face(f)) {
     int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    cx = (mp.vert_x[va] + mp.vert_x[vb] + mp.vert_x[vc]) / Scalar(3);
-    cy = (mp.vert_y[va] + mp.vert_y[vb] + mp.vert_y[vc]) / Scalar(3);
-    cz = (mp.vert_z[va] + mp.vert_z[vb] + mp.vert_z[vc]) / Scalar(3);
+    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
+    gr_vertex_cart(mp, va, xa, ya, za);
+    gr_vertex_cart(mp, vb, xb, yb, zb);
+    gr_vertex_cart(mp, vc, xc, yc, zc);
+    cx = (xa + xb + xc) / Scalar(3);
+    cy = (ya + yb + yc) / Scalar(3);
+    cz = (za + zb + zc) / Scalar(3);
   } else {
     int local = f - mp.N_tri_faces;
     int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local];
     int vc = mp.rect_face_v2[local], vd = mp.rect_face_v3[local];
-    cx = Scalar(0.25) * (mp.vert_x[va] + mp.vert_x[vb] +
-                         mp.vert_x[vc] + mp.vert_x[vd]);
-    cy = Scalar(0.25) * (mp.vert_y[va] + mp.vert_y[vb] +
-                         mp.vert_y[vc] + mp.vert_y[vd]);
-    cz = Scalar(0.25) * (mp.vert_z[va] + mp.vert_z[vb] +
-                         mp.vert_z[vc] + mp.vert_z[vd]);
+    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc, xd, yd, zd;
+    gr_vertex_cart(mp, va, xa, ya, za);
+    gr_vertex_cart(mp, vb, xb, yb, zb);
+    gr_vertex_cart(mp, vc, xc, yc, zc);
+    gr_vertex_cart(mp, vd, xd, yd, zd);
+    cx = Scalar(0.25) * (xa + xb + xc + xd);
+    cy = Scalar(0.25) * (ya + yb + yc + yd);
+    cz = Scalar(0.25) * (za + zb + zc + zd);
   }
 }
 

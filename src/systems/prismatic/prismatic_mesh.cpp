@@ -10,6 +10,48 @@
 namespace Aperture {
 
 // ============================================================================
+// Spherical geometry helpers (used by extrude_to_3d and compute_geometric_dual)
+// ============================================================================
+
+// Convert (r, theta, phi) → (x, y, z).
+static inline void sph_to_cart(double r, double theta, double phi,
+                               double& x, double& y, double& z) {
+  double sth = std::sin(theta);
+  x = r * sth * std::cos(phi);
+  y = r * sth * std::sin(phi);
+  z = r * std::cos(theta);
+}
+
+// Arc angle between two unit vectors (clamped dot + acos).
+static inline double arc_angle(double ax, double ay, double az,
+                               double bx, double by, double bz) {
+  double dot = ax * bx + ay * by + az * bz;
+  if (dot > 1.0) dot = 1.0;
+  if (dot < -1.0) dot = -1.0;
+  return std::acos(dot);
+}
+
+// Spherical excess of the triangle with unit-vector vertices (a, b, c),
+// via the Van Oosterom–Strang formula.  Result is the solid angle Ω;
+// multiply by r² to get surface area on a sphere of radius r.
+static inline double sph_triangle_area(double ax, double ay, double az,
+                                       double bx, double by, double bz,
+                                       double cx, double cy, double cz) {
+  // Numerator: |a · (b × c)| (absolute value — area is unsigned)
+  double num = ax * (by * cz - bz * cy)
+             + ay * (bz * cx - bx * cz)
+             + az * (bx * cy - by * cx);
+  double denom = 1.0
+               + (ax * bx + ay * by + az * bz)
+               + (bx * cx + by * cy + bz * cz)
+               + (cx * ax + cy * ay + cz * az);
+  double omega = 2.0 * std::atan2(std::fabs(num), denom);
+  // atan2 returns in [0, π] here because denom can be negative for large
+  // triangles (solid angle > π); the formula is valid in that regime too.
+  return omega;
+}
+
+// ============================================================================
 // Sphere mesh helpers
 // ============================================================================
 
@@ -241,18 +283,24 @@ void prismatic_mesh::extrude_to_3d(const sphere_mesh& sm) {
   m_N_edges = m_N_edge_s * (m_N_r + 1) + m_N_vert_s * m_N_r;
   m_N_faces = m_N_tri * (m_N_r + 1) + m_N_edge_s * m_N_r;
 
-  // Allocate and fill vertex positions
-  vert_x.resize(m_N_verts);
-  vert_y.resize(m_N_verts);
-  vert_z.resize(m_N_verts);
+  // Allocate and fill vertex positions in spherical coordinates.
+  //   r     = radii[k]
+  //   theta = acos(sphere_vz[s])        (polar angle)
+  //   phi   = atan2(sphere_vy[s], sphere_vx[s])  (azimuth)
+  vert_r.resize(m_N_verts);
+  vert_theta.resize(m_N_verts);
+  vert_phi.resize(m_N_verts);
 
   for (int k = 0; k <= m_N_r; k++) {
     double r = radii[k];
     for (int s = 0; s < m_N_vert_s; s++) {
       int idx = vert_idx(k, s);
-      vert_x[idx] = r * sm.vx[s];
-      vert_y[idx] = r * sm.vy[s];
-      vert_z[idx] = r * sm.vz[s];
+      double cth = sm.vz[s];
+      if (cth > 1.0) cth = 1.0;
+      if (cth < -1.0) cth = -1.0;
+      vert_r[idx] = r;
+      vert_theta[idx] = std::acos(cth);
+      vert_phi[idx] = std::atan2(sm.vy[s], sm.vx[s]);
     }
   }
 
@@ -314,18 +362,15 @@ void prismatic_mesh::extrude_to_3d(const sphere_mesh& sm) {
       tri_face_v1[local] = vert_idx(k, b);
       tri_face_v2[local] = vert_idx(k, c);
 
-      // Area of spherical triangle: r^2 * excess angle
-      // For small triangles, approximate as flat triangle area scaled by r^2
-      // Cross product of two edge vectors on the unit sphere
-      double ax = sm.vx[b] - sm.vx[a], ay = sm.vy[b] - sm.vy[a],
-             az = sm.vz[b] - sm.vz[a];
-      double bx = sm.vx[c] - sm.vx[a], by = sm.vy[c] - sm.vy[a],
-             bz = sm.vz[c] - sm.vz[a];
-      double cx = ay * bz - az * by;
-      double cy = az * bx - ax * bz;
-      double cz = ax * by - ay * bx;
-      double flat_area = 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
-      face_area[fi] = r * r * flat_area;
+      // Exact spherical-triangle area on shell of radius r, via Van
+      // Oosterom–Strang (Girard's theorem in stable atan2 form).  No chord
+      // approximation: the face is the region of the sphere bounded by
+      // the three great-circle arcs.
+      double omega = sph_triangle_area(
+          sm.vx[a], sm.vy[a], sm.vz[a],
+          sm.vx[b], sm.vy[b], sm.vz[b],
+          sm.vx[c], sm.vy[c], sm.vz[c]);
+      face_area[fi] = r * r * omega;
     }
   }
 
@@ -460,84 +505,69 @@ void prismatic_mesh::transpose_d1() {
 
 
 void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
-  // Compute proper diagonal Hodge star from geometric dual mesh.
+  // Compute proper diagonal Hodge star from the (r, θ, φ) geometric dual.
   //
-  // For each prism, compute the centroid. Then:
-  //   hodge2[f] = |f*| / |f|  where |f*| = distance between centroids of
-  //     the two prisms sharing face f (= dual edge length)
-  //   hodge1_inv[e] = |e| / |e*| where |e*| = area of the polygon formed
-  //     by centroids of prisms sharing edge e (= dual face area)
+  // Each prism's dual vertex is at its spherical circumcenter:
+  //   angular direction û_circ = unit normal to the chord triangle
+  //                               (= spherical circumcenter of the triangle)
+  //   radial position r_mid    = midpoint of the radial interval
+  //
+  // All dual distances and polygon areas are computed directly in spherical
+  // terms — no Cartesian subtraction, no tangent-plane projection.
+  //
+  //   hodge2[f]    = |f*| / |f|
+  //   hodge1_inv[e] = |e| / |e*|
 
-  // --- Step 1: Compute prism circumcenters ---
-  // For the Voronoi dual, each prism's dual vertex is at the circumcenter:
-  //   Angular position: circumcenter of the triangle (equidistant from 3 vertices)
-  //   Radial position: midpoint of the radial interval
-  // This guarantees dual faces are perpendicular to primal edges.
-
-  int N_prisms = m_N_tri * m_N_r;
-  std::vector<double> cx(N_prisms), cy(N_prisms), cz(N_prisms);
-
+  // --- Step 1: circumcenter angular directions (unit vectors) per sphere
+  // triangle and radial midpoints per layer ---
+  std::vector<double> circ_ux(m_N_tri), circ_uy(m_N_tri), circ_uz(m_N_tri);
+  std::vector<double> r_mid_layer(m_N_r);
   for (int k = 0; k < m_N_r; k++) {
-    // Radial midpoint
-    double r_mid = 0.5 * (radii[k] + radii[k + 1]);
-
-    for (int t = 0; t < m_N_tri; t++) {
-      int pid = k * m_N_tri + t;
-      int a = sm.triangles[t][0];
-      int b = sm.triangles[t][1];
-      int c = sm.triangles[t][2];
-
-      // Spherical circumcenter: the unit normal to the chord triangle.
-      // For three points on the unit sphere, this is exactly the point on
-      // the sphere equidistant (in great-circle metric) from all three —
-      // because n·a = n·b = n·c iff n ⟂ (b-a) and n ⟂ (c-a). For a
-      // spherically-Delaunay triangulation (which the icosahedral subdivision
-      // is) this makes the dual the spherical Voronoi diagram, with the
-      // diagonal Hodge star uniformly second-order accurate, including at
-      // the 12 five-valent vertices where the chord-projected circumcenter
-      // had a systematic anisotropic O(h²) bias.
-      double e1x = sm.vx[b] - sm.vx[a];
-      double e1y = sm.vy[b] - sm.vy[a];
-      double e1z = sm.vz[b] - sm.vz[a];
-      double e2x = sm.vx[c] - sm.vx[a];
-      double e2y = sm.vy[c] - sm.vy[a];
-      double e2z = sm.vz[c] - sm.vz[a];
-      double nx = e1y * e2z - e1z * e2y;
-      double ny = e1z * e2x - e1x * e2z;
-      double nz = e1x * e2y - e1y * e2x;
-      double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
-      double ccx_unit = 0.0, ccy_unit = 0.0, ccz_unit = 0.0;
-      if (nlen > 0) {
-        ccx_unit = nx / nlen;
-        ccy_unit = ny / nlen;
-        ccz_unit = nz / nlen;
-        // Orient outward (same hemisphere as the triangle centroid)
-        double mx = (sm.vx[a] + sm.vx[b] + sm.vx[c]) / 3.0;
-        double my = (sm.vy[a] + sm.vy[b] + sm.vy[c]) / 3.0;
-        double mz = (sm.vz[a] + sm.vz[b] + sm.vz[c]) / 3.0;
-        if (ccx_unit * mx + ccy_unit * my + ccz_unit * mz < 0) {
-          ccx_unit = -ccx_unit;
-          ccy_unit = -ccy_unit;
-          ccz_unit = -ccz_unit;
-        }
-      }
-
-      // Place at radial midpoint
-      cx[pid] = r_mid * ccx_unit;
-      cy[pid] = r_mid * ccy_unit;
-      cz[pid] = r_mid * ccz_unit;
-    }
+    r_mid_layer[k] = 0.5 * (radii[k] + radii[k + 1]);
   }
 
-  // --- Step 2: Compute hodge2[f] = |f*| / |f| ---
-  // For each face, find the two prisms sharing it and compute centroid distance.
-  hodge2.resize(m_N_faces);
+  for (int t = 0; t < m_N_tri; t++) {
+    int a = sm.triangles[t][0];
+    int b = sm.triangles[t][1];
+    int c = sm.triangles[t][2];
 
-  // Build a map: for each sphere triangle, which sphere triangles are its
-  // neighbors (sharing an edge). Each triangle has 3 edges, each shared by
-  // exactly 2 triangles.
-  // neighbor_tri[t][j] = triangle index sharing edge j of triangle t
-  // For each sphere edge, find the 2 triangles sharing it
+    // Spherical circumcenter: unit normal to the chord plane of (a, b, c).
+    // For three points on the unit sphere, this is exactly the point equi-
+    // distant (in great-circle metric) from all three — n·a = n·b = n·c iff
+    // n ⟂ (b−a) and n ⟂ (c−a).  For the icosahedral subdivision (spherically
+    // Delaunay) this makes the dual the spherical Voronoi diagram, with the
+    // diagonal Hodge star uniformly second-order accurate at every vertex.
+    double e1x = sm.vx[b] - sm.vx[a];
+    double e1y = sm.vy[b] - sm.vy[a];
+    double e1z = sm.vz[b] - sm.vz[a];
+    double e2x = sm.vx[c] - sm.vx[a];
+    double e2y = sm.vy[c] - sm.vy[a];
+    double e2z = sm.vz[c] - sm.vz[a];
+    double nx = e1y * e2z - e1z * e2y;
+    double ny = e1z * e2x - e1x * e2z;
+    double nz = e1x * e2y - e1y * e2x;
+    double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
+    double ux = 0.0, uy = 0.0, uz = 0.0;
+    if (nlen > 0) {
+      ux = nx / nlen;
+      uy = ny / nlen;
+      uz = nz / nlen;
+      // Orient outward (same hemisphere as the triangle centroid).
+      double mx = (sm.vx[a] + sm.vx[b] + sm.vx[c]) / 3.0;
+      double my = (sm.vy[a] + sm.vy[b] + sm.vy[c]) / 3.0;
+      double mz = (sm.vz[a] + sm.vz[b] + sm.vz[c]) / 3.0;
+      if (ux * mx + uy * my + uz * mz < 0) {
+        ux = -ux;
+        uy = -uy;
+        uz = -uz;
+      }
+    }
+    circ_ux[t] = ux;
+    circ_uy[t] = uy;
+    circ_uz[t] = uz;
+  }
+
+  // Build sphere-edge -> (triangle_0, triangle_1) map.
   std::vector<std::array<int, 2>> edge_tris(m_N_edge_s, {-1, -1});
   for (int t = 0; t < m_N_tri; t++) {
     for (int j = 0; j < 3; j++) {
@@ -550,60 +580,35 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
     }
   }
 
-  // Triangular faces (on shells): shared by prisms in layers k-1 and k
+  // --- Step 2: hodge2[f] = |f*| / |f| ---
+  hodge2.resize(m_N_faces);
+
+  // Triangular faces on shell k: the two adjacent prisms (layers k-1, k) share
+  // the same circumcenter direction û_circ; their dual vertices differ only
+  // in radius.  The dual edge length is therefore the pure radial span.
   for (int k = 0; k <= m_N_r; k++) {
     for (int t = 0; t < m_N_tri; t++) {
       int fi = tri_face_idx(k, t);
+      double dist;
       if (k == 0) {
-        // Inner boundary: only one prism (layer 0, above)
-        // Use distance from face centroid to prism centroid, doubled
-        int pid_above = 0 * m_N_tri + t;
-        double fx = (vert_x[vert_idx(0, sm.triangles[t][0])] +
-                     vert_x[vert_idx(0, sm.triangles[t][1])] +
-                     vert_x[vert_idx(0, sm.triangles[t][2])]) / 3.0;
-        double fy = (vert_y[vert_idx(0, sm.triangles[t][0])] +
-                     vert_y[vert_idx(0, sm.triangles[t][1])] +
-                     vert_y[vert_idx(0, sm.triangles[t][2])]) / 3.0;
-        double fz = (vert_z[vert_idx(0, sm.triangles[t][0])] +
-                     vert_z[vert_idx(0, sm.triangles[t][1])] +
-                     vert_z[vert_idx(0, sm.triangles[t][2])]) / 3.0;
-        double dx = cx[pid_above] - fx;
-        double dy = cy[pid_above] - fy;
-        double dz = cz[pid_above] - fz;
-        double dist = std::sqrt(dx*dx + dy*dy + dz*dz) * 2.0;
-        hodge2[fi] = (face_area[fi] > 0) ? dist / face_area[fi] : 0;
+        // Inner boundary: only one prism above.  Dual edge = (r_mid - r_shell),
+        // doubled to estimate the missing ghost side.
+        dist = 2.0 * (r_mid_layer[0] - radii[0]);
       } else if (k == m_N_r) {
-        // Outer boundary: only one prism (layer N_r-1, below)
-        int pid_below = (m_N_r - 1) * m_N_tri + t;
-        double fx = (vert_x[vert_idx(m_N_r, sm.triangles[t][0])] +
-                     vert_x[vert_idx(m_N_r, sm.triangles[t][1])] +
-                     vert_x[vert_idx(m_N_r, sm.triangles[t][2])]) / 3.0;
-        double fy = (vert_y[vert_idx(m_N_r, sm.triangles[t][0])] +
-                     vert_y[vert_idx(m_N_r, sm.triangles[t][1])] +
-                     vert_y[vert_idx(m_N_r, sm.triangles[t][2])]) / 3.0;
-        double fz = (vert_z[vert_idx(m_N_r, sm.triangles[t][0])] +
-                     vert_z[vert_idx(m_N_r, sm.triangles[t][1])] +
-                     vert_z[vert_idx(m_N_r, sm.triangles[t][2])]) / 3.0;
-        double dx = cx[pid_below] - fx;
-        double dy = cy[pid_below] - fy;
-        double dz = cz[pid_below] - fz;
-        double dist = std::sqrt(dx*dx + dy*dy + dz*dz) * 2.0;
-        hodge2[fi] = (face_area[fi] > 0) ? dist / face_area[fi] : 0;
+        // Outer boundary: only one prism below.
+        dist = 2.0 * (radii[m_N_r] - r_mid_layer[m_N_r - 1]);
       } else {
-        // Interior: two prisms (layer k-1 below, layer k above)
-        int pid_below = (k - 1) * m_N_tri + t;
-        int pid_above = k * m_N_tri + t;
-        double dx = cx[pid_above] - cx[pid_below];
-        double dy = cy[pid_above] - cy[pid_below];
-        double dz = cz[pid_above] - cz[pid_below];
-        double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
-        hodge2[fi] = (face_area[fi] > 0) ? dist / face_area[fi] : 0;
+        dist = r_mid_layer[k] - r_mid_layer[k - 1];
       }
+      hodge2[fi] = (face_area[fi] > 0) ? dist / face_area[fi] : 0;
     }
   }
 
-  // Rectangular faces (between shells): shared by 2 angular neighbor prisms
+  // Rectangular faces between shells: the two adjacent prisms at the same
+  // layer k share r_mid but have different û_circ.  The dual edge is the
+  // great-circle arc on the sphere of radius r_mid between them.
   for (int k = 0; k < m_N_r; k++) {
+    double r_mid = r_mid_layer[k];
     for (int e = 0; e < m_N_edge_s; e++) {
       int fi = rect_face_idx(k, e);
       int t0 = edge_tris[e][0];
@@ -612,91 +617,66 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
         hodge2[fi] = 0;
         continue;
       }
-      int pid0 = k * m_N_tri + t0;
-      int pid1 = k * m_N_tri + t1;
-      double dx = cx[pid1] - cx[pid0];
-      double dy = cy[pid1] - cy[pid0];
-      double dz = cz[pid1] - cz[pid0];
-      double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+      double ang = arc_angle(circ_ux[t0], circ_uy[t0], circ_uz[t0],
+                             circ_ux[t1], circ_uy[t1], circ_uz[t1]);
+      double dist = r_mid * ang;
       hodge2[fi] = (face_area[fi] > 0) ? dist / face_area[fi] : 0;
     }
   }
 
-  // --- Step 3: Compute hodge1_inv[e] = |e| / |e*| ---
+  // --- Step 3: hodge1_inv[e] = |e| / |e*| ---
   hodge1_inv.resize(m_N_edges);
 
-  // Horizontal edges: dual face is a rectangle (approx) formed by
-  // 4 prism centroids (2 angular × 2 radial layers).
-  // More precisely: the 2 triangle neighbors at layers k-1 and k.
+  // Horizontal edges on shell k: the dual face is a ruled trapezoid with
+  // corners (r_mid_below, û_0), (r_mid_below, û_1), (r_mid_above, û_1),
+  // (r_mid_above, û_0) — same geometry as a primal rectangular face between
+  // the two arcs at r_mid_below and r_mid_above along the great-circle arc
+  // between û_0 and û_1 (the circumcenter directions of the two triangles
+  // sharing the sphere edge).  Its area is
+  //     Δr * 0.5 * (r_mid_below + r_mid_above) * arc_angle(û_0, û_1).
+  // On boundary shells (k = 0 or k = N_r) the primal edge is shared by only
+  // two prisms in one layer; the dual face degenerates to half of that
+  // trapezoid, with Δr = |r_shell − r_mid|.
   for (int k = 0; k <= m_N_r; k++) {
     for (int e = 0; e < m_N_edge_s; e++) {
       int ei = h_edge_idx(k, e);
-
       int t0 = edge_tris[e][0];
       int t1 = edge_tris[e][1];
-
-      // Collect centroids of all prisms containing this edge
-      // Layer k-1 (below shell k) and layer k (above shell k)
-      std::vector<double> px, py, pz;
-      if (k > 0 && t0 >= 0) {
-        int pid = (k-1) * m_N_tri + t0;
-        px.push_back(cx[pid]); py.push_back(cy[pid]); pz.push_back(cz[pid]);
-      }
-      if (k > 0 && t1 >= 0) {
-        int pid = (k-1) * m_N_tri + t1;
-        px.push_back(cx[pid]); py.push_back(cy[pid]); pz.push_back(cz[pid]);
-      }
-      if (k < m_N_r && t1 >= 0) {
-        int pid = k * m_N_tri + t1;
-        px.push_back(cx[pid]); py.push_back(cy[pid]); pz.push_back(cz[pid]);
-      }
-      if (k < m_N_r && t0 >= 0) {
-        int pid = k * m_N_tri + t0;
-        px.push_back(cx[pid]); py.push_back(cy[pid]); pz.push_back(cz[pid]);
-      }
-
-      // Compute polygon area by fan triangulation from centroid
-      int np = px.size();
       double area = 0.0;
-      if (np >= 3) {
-        double mx = 0, my = 0, mz = 0;
-        for (int i = 0; i < np; i++) { mx += px[i]; my += py[i]; mz += pz[i]; }
-        mx /= np; my /= np; mz /= np;
-        for (int i = 0; i < np; i++) {
-          int j = (i + 1) % np;
-          double ax = px[i] - mx, ay = py[i] - my, az = pz[i] - mz;
-          double bx = px[j] - mx, by = py[j] - my, bz = pz[j] - mz;
-          double cx_v = ay * bz - az * by;
-          double cy_v = az * bx - ax * bz;
-          double cz_v = ax * by - ay * bx;
-          area += 0.5 * std::sqrt(cx_v*cx_v + cy_v*cy_v + cz_v*cz_v);
+      if (t0 >= 0 && t1 >= 0) {
+        double ang = arc_angle(circ_ux[t0], circ_uy[t0], circ_uz[t0],
+                               circ_ux[t1], circ_uy[t1], circ_uz[t1]);
+        double r_below, r_above, r_avg, dr_span;
+        if (k == 0) {
+          // Only layer 0 above; dual is half trapezoid between r_min and r_mid[0]
+          r_below = radii[0];
+          r_above = r_mid_layer[0];
+          dr_span = r_above - r_below;
+          r_avg = 0.5 * (r_below + r_above);
+        } else if (k == m_N_r) {
+          r_below = r_mid_layer[m_N_r - 1];
+          r_above = radii[m_N_r];
+          dr_span = r_above - r_below;
+          r_avg = 0.5 * (r_below + r_above);
+        } else {
+          r_below = r_mid_layer[k - 1];
+          r_above = r_mid_layer[k];
+          dr_span = r_above - r_below;
+          r_avg = 0.5 * (r_below + r_above);
         }
+        area = dr_span * r_avg * ang;
       }
-
-      // For boundary edges with only 2 prisms, the fan triangulation gives
-      // zero area (degenerate polygon). Approximate the dual face as a
-      // rectangle: distance between the 2 centroids × half the radial span.
-      if (np == 2 && area < 1e-30) {
-        double dx = px[1] - px[0], dy = py[1] - py[0], dz = pz[1] - pz[0];
-        double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
-        // Half radial span: distance from shell to nearest prism centroid
-        double half_dr = 0;
-        if (k == 0) half_dr = radii[1] - radii[0];
-        else half_dr = radii[k] - radii[k-1];
-        area = dist * half_dr * 0.5;
-      } else if (np < 2) {
-        // Single prism: mirror to estimate area
-        // Use interior value from neighboring shell
-        area = 0;
-      }
-
       hodge1_inv[ei] = (area > 0) ? edge_length[ei] / area : 0;
     }
   }
 
-  // Vertical edges: dual face is a pentagon/hexagon formed by
-  // centroids of the 5-6 prisms sharing this vertex at this layer.
-  // Build vertex-to-triangle adjacency for the sphere mesh.
+  // Vertical edges at sphere vertex s, layer k: the dual face is the
+  // spherical polygon on the sphere of radius r_mid[k] whose corners are the
+  // circumcenter directions of the 5–6 triangles meeting at vertex s.
+  //     Area = r_mid² · Ω_polygon
+  //     Ω_polygon = Σ Ω(û_s, û_i, û_{i+1})  (fan triangulation from û_s,
+  //                                          which is inside every spherical
+  //                                          Voronoi cell around vertex s).
   std::vector<std::vector<int>> vert_tris(m_N_vert_s);
   for (int t = 0; t < m_N_tri; t++) {
     for (int j = 0; j < 3; j++) {
@@ -705,71 +685,55 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
   }
 
   for (int k = 0; k < m_N_r; k++) {
+    double r_mid = r_mid_layer[k];
     for (int s = 0; s < m_N_vert_s; s++) {
       int ei = v_edge_idx(k, s);
       auto& tris = vert_tris[s];
       int np = tris.size();  // 5 or 6
 
-      // Collect centroids of prisms around this vertex in layer k
-      std::vector<double> px(np), py(np), pz(np);
-      for (int i = 0; i < np; i++) {
-        int pid = k * m_N_tri + tris[i];
-        px[i] = cx[pid];
-        py[i] = cy[pid];
-        pz[i] = cz[pid];
-      }
-
-      // Sort centroids by angle around the vertical edge
-      // The edge midpoint is at the vertex position at mid-radius
-      double emx = 0.5 * (vert_x[vert_idx(k, s)] + vert_x[vert_idx(k+1, s)]);
-      double emy = 0.5 * (vert_y[vert_idx(k, s)] + vert_y[vert_idx(k+1, s)]);
-      double emz = 0.5 * (vert_z[vert_idx(k, s)] + vert_z[vert_idx(k+1, s)]);
-
-      // Use the radial direction as the normal for the polygon plane
-      double nr = std::sqrt(emx*emx + emy*emy + emz*emz);
-      double nx = emx / nr, ny = emy / nr, nz = emz / nr;
-
-      // Build a local 2D coordinate system tangent to the sphere
-      // u = arbitrary tangent, v = n × u
-      double ux, uy, uz;
-      if (std::abs(nx) < 0.9) {
-        ux = 0; uy = -nz; uz = ny;  // n × x_hat
+      // Sort the triangle circumcenters by azimuth around û_s in the local
+      // tangent plane of the unit sphere.  This guarantees a simple polygon.
+      double anchor_x = sm.vx[s], anchor_y = sm.vy[s], anchor_z = sm.vz[s];
+      // Tangent basis at û_s.
+      double tx, ty, tz;
+      if (std::fabs(anchor_x) < 0.9) {
+        tx = 0.0; ty = -anchor_z; tz = anchor_y;
       } else {
-        ux = nz; uy = 0; uz = -nx;  // n × y_hat
+        tx = anchor_z; ty = 0.0; tz = -anchor_x;
       }
-      double unorm = std::sqrt(ux*ux + uy*uy + uz*uz);
-      ux /= unorm; uy /= unorm; uz /= unorm;
-      double vx = ny*uz - nz*uy;
-      double vy = nz*ux - nx*uz;
-      double vz = nx*uy - ny*ux;
+      double tn = std::sqrt(tx * tx + ty * ty + tz * tz);
+      tx /= tn; ty /= tn; tz /= tn;
+      double bx = anchor_y * tz - anchor_z * ty;
+      double by = anchor_z * tx - anchor_x * tz;
+      double bz = anchor_x * ty - anchor_y * tx;
 
-      // Project centroids to 2D and sort by angle
       std::vector<double> angles(np);
       for (int i = 0; i < np; i++) {
-        double dx = px[i] - emx, dy = py[i] - emy, dz = pz[i] - emz;
-        double u_coord = dx*ux + dy*uy + dz*uz;
-        double v_coord = dx*vx + dy*vy + dz*vz;
+        int t = tris[i];
+        double dx = circ_ux[t] - anchor_x;
+        double dy = circ_uy[t] - anchor_y;
+        double dz = circ_uz[t] - anchor_z;
+        double u_coord = dx * tx + dy * ty + dz * tz;
+        double v_coord = dx * bx + dy * by + dz * bz;
         angles[i] = std::atan2(v_coord, u_coord);
       }
-      // Sort by angle
       std::vector<int> order(np);
       std::iota(order.begin(), order.end(), 0);
       std::sort(order.begin(), order.end(),
-                [&](int a, int b) { return angles[a] < angles[b]; });
+                [&](int ia, int ib) { return angles[ia] < angles[ib]; });
 
-      // Compute polygon area by fan triangulation
-      double area = 0.0;
+      // Spherical polygon area by fan triangulation from û_s.
+      double omega = 0.0;
       for (int i = 0; i < np; i++) {
         int j = (i + 1) % np;
-        int i0 = order[i], i1 = order[j];
-        double ax = px[i0] - emx, ay = py[i0] - emy, az = pz[i0] - emz;
-        double bx = px[i1] - emx, by = py[i1] - emy, bz = pz[i1] - emz;
-        double cx_v = ay * bz - az * by;
-        double cy_v = az * bx - ax * bz;
-        double cz_v = ax * by - ay * bx;
-        area += 0.5 * std::sqrt(cx_v*cx_v + cy_v*cy_v + cz_v*cz_v);
+        int t0 = tris[order[i]];
+        int t1 = tris[order[j]];
+        omega += sph_triangle_area(
+            anchor_x, anchor_y, anchor_z,
+            circ_ux[t0], circ_uy[t0], circ_uz[t0],
+            circ_ux[t1], circ_uy[t1], circ_uz[t1]);
       }
-
+      double area = r_mid * r_mid * omega;
       hodge1_inv[ei] = (area > 0) ? edge_length[ei] / area : 0;
     }
   }
@@ -833,14 +797,21 @@ void prismatic_mesh::tag_boundaries() {
 }
 
 void prismatic_mesh::persist_sphere_data(const sphere_mesh& sm) {
-  // Store unit sphere vertex positions
+  // Store unit sphere vertex positions (Cartesian + spherical-angular).
   sphere_vx.resize(m_N_vert_s);
   sphere_vy.resize(m_N_vert_s);
   sphere_vz.resize(m_N_vert_s);
+  sphere_theta.resize(m_N_vert_s);
+  sphere_phi.resize(m_N_vert_s);
   for (int s = 0; s < m_N_vert_s; s++) {
     sphere_vx[s] = sm.vx[s];
     sphere_vy[s] = sm.vy[s];
     sphere_vz[s] = sm.vz[s];
+    double cth = sm.vz[s];
+    if (cth > 1.0) cth = 1.0;
+    if (cth < -1.0) cth = -1.0;
+    sphere_theta[s] = std::acos(cth);
+    sphere_phi[s] = std::atan2(sm.vy[s], sm.vx[s]);
   }
 
   // Store triangle vertex/edge/orientation data
@@ -1043,9 +1014,9 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.edge_radial_layer = edge_radial_layer.host_ptr();
   p.face_radial_layer = face_radial_layer.host_ptr();
 
-  p.vert_x = vert_x.host_ptr();
-  p.vert_y = vert_y.host_ptr();
-  p.vert_z = vert_z.host_ptr();
+  p.vert_r = vert_r.host_ptr();
+  p.vert_theta = vert_theta.host_ptr();
+  p.vert_phi = vert_phi.host_ptr();
   p.edge_v0 = edge_v0.host_ptr();
   p.edge_v1 = edge_v1.host_ptr();
   p.tri_face_v0 = tri_face_v0.host_ptr();
@@ -1059,6 +1030,8 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.sphere_vx = sphere_vx.host_ptr();
   p.sphere_vy = sphere_vy.host_ptr();
   p.sphere_vz = sphere_vz.host_ptr();
+  p.sphere_theta = sphere_theta.host_ptr();
+  p.sphere_phi = sphere_phi.host_ptr();
   p.tri_verts = tri_verts.host_ptr();
   p.tri_edges_s = tri_edges_s.host_ptr();
   p.tri_edge_signs = tri_edge_signs.host_ptr();
@@ -1095,9 +1068,9 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.edge_radial_layer = edge_radial_layer.dev_ptr();
   p.face_radial_layer = face_radial_layer.dev_ptr();
 
-  p.vert_x = vert_x.dev_ptr();
-  p.vert_y = vert_y.dev_ptr();
-  p.vert_z = vert_z.dev_ptr();
+  p.vert_r = vert_r.dev_ptr();
+  p.vert_theta = vert_theta.dev_ptr();
+  p.vert_phi = vert_phi.dev_ptr();
   p.edge_v0 = edge_v0.dev_ptr();
   p.edge_v1 = edge_v1.dev_ptr();
   p.tri_face_v0 = tri_face_v0.dev_ptr();
@@ -1111,6 +1084,8 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.sphere_vx = sphere_vx.dev_ptr();
   p.sphere_vy = sphere_vy.dev_ptr();
   p.sphere_vz = sphere_vz.dev_ptr();
+  p.sphere_theta = sphere_theta.dev_ptr();
+  p.sphere_phi = sphere_phi.dev_ptr();
   p.tri_verts = tri_verts.dev_ptr();
   p.tri_edges_s = tri_edges_s.dev_ptr();
   p.tri_edge_signs = tri_edge_signs.dev_ptr();
@@ -1129,11 +1104,12 @@ void prismatic_mesh::copy_to_device() {
   copy(hodge1_inv); copy(hodge2);
   copy(edge_boundary); copy(face_boundary);
   copy(edge_radial_layer); copy(face_radial_layer);
-  copy(vert_x); copy(vert_y); copy(vert_z);
+  copy(vert_r); copy(vert_theta); copy(vert_phi);
   copy(edge_v0); copy(edge_v1);
   copy(tri_face_v0); copy(tri_face_v1); copy(tri_face_v2);
   copy(rect_face_v0); copy(rect_face_v1); copy(rect_face_v2); copy(rect_face_v3);
   copy(sphere_vx); copy(sphere_vy); copy(sphere_vz);
+  copy(sphere_theta); copy(sphere_phi);
   copy(tri_verts); copy(tri_edges_s); copy(tri_edge_signs); copy(tri_neighbor);
 }
 #endif

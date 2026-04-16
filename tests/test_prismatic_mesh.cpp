@@ -17,6 +17,18 @@ static std::unique_ptr<prismatic_mesh> make_test_mesh(
   return mesh;
 }
 
+// Helper: Cartesian (x, y, z) of a mesh vertex from the (r, θ, φ) storage.
+static inline void vert_xyz(const prismatic_mesh& mesh, int vi,
+                            Scalar& x, Scalar& y, Scalar& z) {
+  Scalar r = mesh.vert_r[vi];
+  Scalar th = mesh.vert_theta[vi];
+  Scalar ph = mesh.vert_phi[vi];
+  Scalar sth = std::sin(th);
+  x = r * sth * std::cos(ph);
+  y = r * sth * std::sin(ph);
+  z = r * std::cos(th);
+}
+
 TEST_CASE("Mesh topology: Euler formula", "[prismatic]") {
   auto mesh_ptr = make_test_mesh();
   auto& mesh = *mesh_ptr;
@@ -109,9 +121,7 @@ TEST_CASE("Mesh geometry: vertex radii", "[prismatic]") {
   auto& mesh = *mesh_ptr;
 
   for (int v = 0; v < mesh.m_N_verts; v++) {
-    Scalar r = std::sqrt(mesh.vert_x[v] * mesh.vert_x[v] +
-                         mesh.vert_y[v] * mesh.vert_y[v] +
-                         mesh.vert_z[v] * mesh.vert_z[v]);
+    Scalar r = mesh.vert_r[v];
     REQUIRE(r >= r_min - 1e-5);
     REQUIRE(r <= r_max + 1e-5);
   }
@@ -119,10 +129,7 @@ TEST_CASE("Mesh geometry: vertex radii", "[prismatic]") {
   // Inner shell vertices should be at r_min
   for (int s = 0; s < mesh.m_N_vert_s; s++) {
     int v = mesh.vert_idx(0, s);
-    Scalar r = std::sqrt(mesh.vert_x[v] * mesh.vert_x[v] +
-                         mesh.vert_y[v] * mesh.vert_y[v] +
-                         mesh.vert_z[v] * mesh.vert_z[v]);
-    REQUIRE(r == Catch::Approx(r_min).epsilon(1e-6));
+    REQUIRE(mesh.vert_r[v] == Catch::Approx(r_min).epsilon(1e-6));
   }
 }
 
@@ -176,19 +183,25 @@ TEST_CASE("Divergence-free B preserved by Faraday", "[prismatic]") {
     if (f < n_tri_faces) {
       int v0 = mesh.tri_face_v0[f], v1 = mesh.tri_face_v1[f],
           v2 = mesh.tri_face_v2[f];
-      fx = (mesh.vert_x[v0] + mesh.vert_x[v1] + mesh.vert_x[v2]) / 3.0;
-      fy = (mesh.vert_y[v0] + mesh.vert_y[v1] + mesh.vert_y[v2]) / 3.0;
-      fz = (mesh.vert_z[v0] + mesh.vert_z[v1] + mesh.vert_z[v2]) / 3.0;
+      Scalar x0, y0, z0, x1, y1, z1, x2, y2, z2;
+      vert_xyz(mesh, v0, x0, y0, z0);
+      vert_xyz(mesh, v1, x1, y1, z1);
+      vert_xyz(mesh, v2, x2, y2, z2);
+      fx = (x0 + x1 + x2) / 3.0;
+      fy = (y0 + y1 + y2) / 3.0;
+      fz = (z0 + z1 + z2) / 3.0;
     } else {
       int local = f - n_tri_faces;
       int v0 = mesh.rect_face_v0[local], v1 = mesh.rect_face_v1[local],
           v2 = mesh.rect_face_v2[local], v3 = mesh.rect_face_v3[local];
-      fx = (mesh.vert_x[v0] + mesh.vert_x[v1] + mesh.vert_x[v2] +
-            mesh.vert_x[v3]) / 4.0;
-      fy = (mesh.vert_y[v0] + mesh.vert_y[v1] + mesh.vert_y[v2] +
-            mesh.vert_y[v3]) / 4.0;
-      fz = (mesh.vert_z[v0] + mesh.vert_z[v1] + mesh.vert_z[v2] +
-            mesh.vert_z[v3]) / 4.0;
+      Scalar x0, y0, z0, x1, y1, z1, x2, y2, z2, x3, y3, z3;
+      vert_xyz(mesh, v0, x0, y0, z0);
+      vert_xyz(mesh, v1, x1, y1, z1);
+      vert_xyz(mesh, v2, x2, y2, z2);
+      vert_xyz(mesh, v3, x3, y3, z3);
+      fx = (x0 + x1 + x2 + x3) / 4.0;
+      fy = (y0 + y1 + y2 + y3) / 4.0;
+      fz = (z0 + z1 + z2 + z3) / 4.0;
     }
 
     Scalar r2 = fx * fx + fy * fy + fz * fz;
@@ -204,12 +217,12 @@ TEST_CASE("Divergence-free B preserved by Faraday", "[prismatic]") {
     if (f < n_tri_faces) {
       int va = mesh.tri_face_v0[f], vb = mesh.tri_face_v1[f],
           vc = mesh.tri_face_v2[f];
-      Scalar ax = mesh.vert_x[vb] - mesh.vert_x[va];
-      Scalar ay = mesh.vert_y[vb] - mesh.vert_y[va];
-      Scalar az = mesh.vert_z[vb] - mesh.vert_z[va];
-      Scalar bx = mesh.vert_x[vc] - mesh.vert_x[va];
-      Scalar by = mesh.vert_y[vc] - mesh.vert_y[va];
-      Scalar bz = mesh.vert_z[vc] - mesh.vert_z[va];
+      Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
+      vert_xyz(mesh, va, xa, ya, za);
+      vert_xyz(mesh, vb, xb, yb, zb);
+      vert_xyz(mesh, vc, xc, yc, zc);
+      Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+      Scalar bx = xc - xa, by = yc - ya, bz = zc - za;
       Scalar nx = ay * bz - az * by;
       Scalar ny = az * bx - ax * bz;
       Scalar nz = ax * by - ay * bx;
@@ -218,12 +231,12 @@ TEST_CASE("Divergence-free B preserved by Faraday", "[prismatic]") {
       int local = f - n_tri_faces;
       int va = mesh.rect_face_v0[local], vb = mesh.rect_face_v1[local],
           vd = mesh.rect_face_v3[local];
-      Scalar ax = mesh.vert_x[vb] - mesh.vert_x[va];
-      Scalar ay = mesh.vert_y[vb] - mesh.vert_y[va];
-      Scalar az = mesh.vert_z[vb] - mesh.vert_z[va];
-      Scalar bx = mesh.vert_x[vd] - mesh.vert_x[va];
-      Scalar by = mesh.vert_y[vd] - mesh.vert_y[va];
-      Scalar bz = mesh.vert_z[vd] - mesh.vert_z[va];
+      Scalar xa, ya, za, xb, yb, zb, xd, yd, zd;
+      vert_xyz(mesh, va, xa, ya, za);
+      vert_xyz(mesh, vb, xb, yb, zb);
+      vert_xyz(mesh, vd, xd, yd, zd);
+      Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
+      Scalar bx = xd - xa, by = yd - ya, bz = zd - za;
       Scalar nx = ay * bz - az * by;
       Scalar ny = az * bx - ax * bz;
       Scalar nz = ax * by - ay * bx;
@@ -304,22 +317,24 @@ TEST_CASE("Leapfrog energy conservation", "[prismatic]") {
   for (int f = 0; f < n_tri_faces; f++) {
     int v0 = mesh.tri_face_v0[f], v1 = mesh.tri_face_v1[f],
         v2 = mesh.tri_face_v2[f];
-    Scalar phi_avg = (mesh.vert_z[v0] / std::pow(mesh.vert_x[v0]*mesh.vert_x[v0] +
-        mesh.vert_y[v0]*mesh.vert_y[v0] + mesh.vert_z[v0]*mesh.vert_z[v0], 1.5) +
-        mesh.vert_z[v1] / std::pow(mesh.vert_x[v1]*mesh.vert_x[v1] +
-        mesh.vert_y[v1]*mesh.vert_y[v1] + mesh.vert_z[v1]*mesh.vert_z[v1], 1.5) +
-        mesh.vert_z[v2] / std::pow(mesh.vert_x[v2]*mesh.vert_x[v2] +
-        mesh.vert_y[v2]*mesh.vert_y[v2] + mesh.vert_z[v2]*mesh.vert_z[v2], 1.5)) / 3.0;
-    Scalar cx = (mesh.vert_x[v0] + mesh.vert_x[v1] + mesh.vert_x[v2]) / 3.0;
-    Scalar cy = (mesh.vert_y[v0] + mesh.vert_y[v1] + mesh.vert_y[v2]) / 3.0;
-    Scalar cz = (mesh.vert_z[v0] + mesh.vert_z[v1] + mesh.vert_z[v2]) / 3.0;
+    Scalar x0, y0, z0, x1, y1, z1, x2, y2, z2;
+    vert_xyz(mesh, v0, x0, y0, z0);
+    vert_xyz(mesh, v1, x1, y1, z1);
+    vert_xyz(mesh, v2, x2, y2, z2);
+    Scalar phi_avg =
+        (z0 / std::pow(x0*x0 + y0*y0 + z0*z0, 1.5) +
+         z1 / std::pow(x1*x1 + y1*y1 + z1*z1, 1.5) +
+         z2 / std::pow(x2*x2 + y2*y2 + z2*z2, 1.5)) / 3.0;
+    Scalar cx = (x0 + x1 + x2) / 3.0;
+    Scalar cy = (y0 + y1 + y2) / 3.0;
+    Scalar cz = (z0 + z1 + z2) / 3.0;
     Scalar r = std::sqrt(cx*cx + cy*cy + cz*cz);
-    Scalar ax = mesh.vert_x[v1] - mesh.vert_x[v0];
-    Scalar ay = mesh.vert_y[v1] - mesh.vert_y[v0];
-    Scalar az = mesh.vert_z[v1] - mesh.vert_z[v0];
-    Scalar bx = mesh.vert_x[v2] - mesh.vert_x[v0];
-    Scalar by = mesh.vert_y[v2] - mesh.vert_y[v0];
-    Scalar bz = mesh.vert_z[v2] - mesh.vert_z[v0];
+    Scalar ax = x1 - x0;
+    Scalar ay = y1 - y0;
+    Scalar az = z1 - z0;
+    Scalar bx = x2 - x0;
+    Scalar by = y2 - y0;
+    Scalar bz = z2 - z0;
     Scalar nx = 0.5 * (ay*bz - az*by);
     Scalar ny = 0.5 * (az*bx - ax*bz);
     Scalar nz = 0.5 * (ax*by - ay*bx);

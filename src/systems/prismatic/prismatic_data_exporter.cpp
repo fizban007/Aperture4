@@ -130,10 +130,27 @@ void prismatic_data_exporter::write_mesh() {
   std::string filename = m_output_dir + "/mesh.h5";
   auto file = hdf_create(filename);
 
-  // Write vertex positions
-  file.write(m_mesh.vert_x.host_ptr(), m_mesh.m_N_verts, "vert_x");
-  file.write(m_mesh.vert_y.host_ptr(), m_mesh.m_N_verts, "vert_y");
-  file.write(m_mesh.vert_z.host_ptr(), m_mesh.m_N_verts, "vert_z");
+  // Write vertex positions.  Mesh stores (r, θ, φ); derive Cartesian
+  // arrays locally for backwards compat with analysis/viz scripts that
+  // read "vert_x/y/z", and also write the spherical coords directly.
+  std::vector<Scalar> vert_x_cart(m_mesh.m_N_verts);
+  std::vector<Scalar> vert_y_cart(m_mesh.m_N_verts);
+  std::vector<Scalar> vert_z_cart(m_mesh.m_N_verts);
+  for (int vi = 0; vi < m_mesh.m_N_verts; ++vi) {
+    Scalar r = m_mesh.vert_r[vi];
+    Scalar th = m_mesh.vert_theta[vi];
+    Scalar ph = m_mesh.vert_phi[vi];
+    Scalar sth = std::sin(th);
+    vert_x_cart[vi] = r * sth * std::cos(ph);
+    vert_y_cart[vi] = r * sth * std::sin(ph);
+    vert_z_cart[vi] = r * std::cos(th);
+  }
+  file.write(vert_x_cart.data(), m_mesh.m_N_verts, "vert_x");
+  file.write(vert_y_cart.data(), m_mesh.m_N_verts, "vert_y");
+  file.write(vert_z_cart.data(), m_mesh.m_N_verts, "vert_z");
+  file.write(m_mesh.vert_r.host_ptr(), m_mesh.m_N_verts, "vert_r");
+  file.write(m_mesh.vert_theta.host_ptr(), m_mesh.m_N_verts, "vert_theta");
+  file.write(m_mesh.vert_phi.host_ptr(), m_mesh.m_N_verts, "vert_phi");
 
   // Write edge endpoints
   file.write(m_mesh.edge_v0.host_ptr(), m_mesh.m_N_edges, "edge_v0");
@@ -223,9 +240,9 @@ void prismatic_data_exporter::write_mesh() {
     std::vector<Scalar> vz(m_out_vert_idx.size());
     for (size_t i = 0; i < m_out_vert_idx.size(); ++i) {
       int vi = m_out_vert_idx[i];
-      vx[i] = m_mesh.vert_x[vi];
-      vy[i] = m_mesh.vert_y[vi];
-      vz[i] = m_mesh.vert_z[vi];
+      vx[i] = vert_x_cart[vi];
+      vy[i] = vert_y_cart[vi];
+      vz[i] = vert_z_cart[vi];
     }
     file.write(vx.data(), vx.size(), "output_vert_x");
     file.write(vy.data(), vy.size(), "output_vert_y");

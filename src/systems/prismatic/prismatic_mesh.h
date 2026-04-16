@@ -43,9 +43,14 @@ class prismatic_mesh {
   int m_N_edges = 0;   // = m_N_edge_s * (N_r+1) + m_N_vert_s * N_r
   int m_N_faces = 0;   // = m_N_tri * (N_r+1) + m_N_edge_s * N_r
 
-  // --- Geometry ---
-  buffer<Scalar> vert_x, vert_y, vert_z;  // vertex positions, size N_verts
-  buffer<Scalar> radii;                     // shell radii, size N_r+1
+  // --- Geometry (spherical coordinates) ---
+  // Vertex positions in (r, θ, φ).  Cartesian (x, y, z) is derivable as
+  //   x = r sin(θ) cos(φ),  y = r sin(θ) sin(φ),  z = r cos(θ).
+  // All face areas / edge lengths are intrinsic spherical quantities
+  // (arc lengths on shells, spherical-triangle areas via Girard, ruled
+  //  trapezoid areas between shells).
+  buffer<Scalar> vert_r, vert_theta, vert_phi;  // vertex positions, size N_verts
+  buffer<Scalar> radii;                          // shell radii, size N_r+1
 
   // --- Edge data ---
   buffer<Scalar> edge_length;  // size N_edges
@@ -86,6 +91,7 @@ class prismatic_mesh {
 
   // --- Persistent sphere mesh data (needed for particle operations) ---
   buffer<Scalar> sphere_vx, sphere_vy, sphere_vz;  // unit sphere vertex positions [N_vert_s]
+  buffer<Scalar> sphere_theta, sphere_phi;         // unit sphere angular coords [N_vert_s]
   buffer<int> tri_verts;       // [N_tri * 3]: sphere vertex indices per triangle
   buffer<int> tri_edges_s;     // [N_tri * 3]: sphere edge indices per triangle
   buffer<int> tri_edge_signs;  // [N_tri * 3]: orientation signs (+1 or -1)

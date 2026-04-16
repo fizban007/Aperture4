@@ -43,9 +43,10 @@ struct mesh_data {
   const int* face_boundary;
   const int* edge_radial_layer;
   const int* face_radial_layer;
-  const Scalar* vert_x;
-  const Scalar* vert_y;
-  const Scalar* vert_z;
+  // Note: the full mesh stores (r, θ, φ) per vertex, but this Python module
+  // only needs the unit-sphere vertex directions (sphere_v{x,y,z}) and the
+  // radii[] array to reconstruct Cartesian positions.  No per-vertex
+  // Cartesian or spherical arrays are referenced here.
   const int* edge_v0;
   const int* edge_v1;
   const int* tri_face_v0;

@@ -45,10 +45,10 @@ struct prismatic_mesh_ptrs {
   const int* edge_radial_layer; // [N_edges]
   const int* face_radial_layer; // [N_faces]
 
-  // --- Vertex positions ---
-  const Scalar* vert_x;          // [N_verts]
-  const Scalar* vert_y;
-  const Scalar* vert_z;
+  // --- Vertex positions (spherical) ---
+  const Scalar* vert_r;          // [N_verts]
+  const Scalar* vert_theta;
+  const Scalar* vert_phi;
 
   // --- Edge endpoints ---
   const int* edge_v0;            // [N_edges]
@@ -67,6 +67,8 @@ struct prismatic_mesh_ptrs {
   const Scalar* sphere_vx;      // [N_vert_s]
   const Scalar* sphere_vy;
   const Scalar* sphere_vz;
+  const Scalar* sphere_theta;   // [N_vert_s]  polar angle of unit-sphere vertex
+  const Scalar* sphere_phi;     // [N_vert_s]  azimuth   of unit-sphere vertex
   const int* tri_verts;         // [N_tri * 3]
   const int* tri_edges_s;       // [N_tri * 3]
   const int* tri_edge_signs;    // [N_tri * 3]

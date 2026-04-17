@@ -1,0 +1,29 @@
+# IC-only diagnostic: set the stationary Kerr-Wald IC, dump aux + drift rates,
+# then take 1 step and exit.  Used for measuring the discrete-equilibrium
+# residual ‖dD/dt‖, ‖dB/dt‖ at the analytic IC.
+
+subdivision_level = 4
+N_r = 45
+r_min = 0.9
+r_max = 20.0
+n_ghost_inner = 1
+n_ghost_outer = 1
+
+bh_spin = 0.998
+B0      = 1.0
+
+dt        = 0.02
+max_steps = 1
+use_implicit = false
+
+damping_length = 10
+damping_coef   = 0.05
+
+fld_output_interval = 1
+output_dir          = "Data_L4_ic"
+
+sph_N_theta = 90
+sph_N_phi   = 180
+
+update_d = true
+update_b = true

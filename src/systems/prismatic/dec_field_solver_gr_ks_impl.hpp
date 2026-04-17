@@ -13,126 +13,6 @@
 namespace Aperture {
 
 // =========================================================================
-// Helper: scalar triple product  det(a, b, c) = a · (b × c)
-// =========================================================================
-HD_INLINE Scalar triple(Scalar ax, Scalar ay, Scalar az,
-                        Scalar bx, Scalar by, Scalar bz,
-                        Scalar cx, Scalar cy, Scalar cz) {
-  return ax * (by*cz - bz*cy) +
-         ay * (bz*cx - bx*cz) +
-         az * (bx*cy - by*cx);
-}
-
-// =========================================================================
-// Helper: Cartesian position of a global vertex from (r, sphere direction).
-// Mesh stores (r, θ, φ); the unit sphere direction lives in sphere_v{x,y,z}
-// at the sphere-vertex index, and radius in radii[k].
-// =========================================================================
-HD_INLINE void gr_vertex_cart(const prismatic_mesh_metric_ptrs& mp, int vi,
-                              Scalar& x, Scalar& y, Scalar& z) {
-  int k = vi / mp.N_vert_s;
-  int s = vi % mp.N_vert_s;
-  Scalar r = mp.radii[k];
-  x = r * mp.sphere_vx[s];
-  y = r * mp.sphere_vy[s];
-  z = r * mp.sphere_vz[s];
-}
-
-// =========================================================================
-// Helper: edge tangent vector (v1 - v0), in Cartesian.  Still a chord —
-// this helper is used by the shift cross-term and face-normal estimates
-// where a straight-line tangent between vertex positions is the intended
-// quantity.
-// =========================================================================
-HD_INLINE void edge_tangent(const prismatic_mesh_metric_ptrs& mp, int e,
-                            Scalar& tx, Scalar& ty, Scalar& tz) {
-  int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  Scalar x0, y0, z0, x1, y1, z1;
-  gr_vertex_cart(mp, v0, x0, y0, z0);
-  gr_vertex_cart(mp, v1, x1, y1, z1);
-  tx = x1 - x0;
-  ty = y1 - y0;
-  tz = z1 - z0;
-}
-
-// =========================================================================
-// Helper: edge midpoint (Cartesian).
-// =========================================================================
-HD_INLINE void edge_midpoint(const prismatic_mesh_metric_ptrs& mp, int e,
-                             Scalar& mx, Scalar& my, Scalar& mz) {
-  int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  Scalar x0, y0, z0, x1, y1, z1;
-  gr_vertex_cart(mp, v0, x0, y0, z0);
-  gr_vertex_cart(mp, v1, x1, y1, z1);
-  mx = Scalar(0.5) * (x0 + x1);
-  my = Scalar(0.5) * (y0 + y1);
-  mz = Scalar(0.5) * (z0 + z1);
-}
-
-// =========================================================================
-// Helper: face normal area vector (unnormalized).
-//   Triangles: 0.5 * (edge1 × edge2)
-//   Quads:     edge1 × edge2
-// =========================================================================
-HD_INLINE void face_normal_area(const prismatic_mesh_metric_ptrs& mp, int f,
-                                Scalar& nx, Scalar& ny, Scalar& nz) {
-  if (mp.is_tri_face(f)) {
-    int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
-    gr_vertex_cart(mp, va, xa, ya, za);
-    gr_vertex_cart(mp, vb, xb, yb, zb);
-    gr_vertex_cart(mp, vc, xc, yc, zc);
-    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
-    Scalar bx = xc - xa, by = yc - ya, bz = zc - za;
-    nx = Scalar(0.5) * (ay*bz - az*by);
-    ny = Scalar(0.5) * (az*bx - ax*bz);
-    nz = Scalar(0.5) * (ax*by - ay*bx);
-  } else {
-    int local = f - mp.N_tri_faces;
-    int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local];
-    int vd = mp.rect_face_v3[local];
-    Scalar xa, ya, za, xb, yb, zb, xd, yd, zd;
-    gr_vertex_cart(mp, va, xa, ya, za);
-    gr_vertex_cart(mp, vb, xb, yb, zb);
-    gr_vertex_cart(mp, vd, xd, yd, zd);
-    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
-    Scalar bx = xd - xa, by = yd - ya, bz = zd - za;
-    nx = ay*bz - az*by;
-    ny = az*bx - ax*bz;
-    nz = ax*by - ay*bx;
-  }
-}
-
-// =========================================================================
-// Helper: face centroid (Cartesian).
-// =========================================================================
-HD_INLINE void face_centroid(const prismatic_mesh_metric_ptrs& mp, int f,
-                             Scalar& cx, Scalar& cy, Scalar& cz) {
-  if (mp.is_tri_face(f)) {
-    int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
-    gr_vertex_cart(mp, va, xa, ya, za);
-    gr_vertex_cart(mp, vb, xb, yb, zb);
-    gr_vertex_cart(mp, vc, xc, yc, zc);
-    cx = (xa + xb + xc) / Scalar(3);
-    cy = (ya + yb + yc) / Scalar(3);
-    cz = (za + zb + zc) / Scalar(3);
-  } else {
-    int local = f - mp.N_tri_faces;
-    int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local];
-    int vc = mp.rect_face_v2[local], vd = mp.rect_face_v3[local];
-    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc, xd, yd, zd;
-    gr_vertex_cart(mp, va, xa, ya, za);
-    gr_vertex_cart(mp, vb, xb, yb, zb);
-    gr_vertex_cart(mp, vc, xc, yc, zc);
-    gr_vertex_cart(mp, vd, xd, yd, zd);
-    cx = Scalar(0.25) * (xa + xb + xc + xd);
-    cy = Scalar(0.25) * (ya + yb + yc + yd);
-    cz = Scalar(0.25) * (za + zb + zc + zd);
-  }
-}
-
-// =========================================================================
 // Constructor
 // =========================================================================
 template <typename ExecPolicy>
@@ -164,6 +44,11 @@ void dec_field_solver_gr_ks<ExecPolicy>::register_data_components() {
       "B", m_mesh, mem);
   m_J = sim_env().template register_data<prismatic_edge_field>(
       "J", m_mesh, mem);
+  // GR solver stores D̃[e] = dual 2-cochain of D.  Downstream Whitney
+  // interpolation (sph output, particle depositor) needs hodge1_inv to
+  // convert to the primal 1-cochain D_primal[e] = ∫_e D·dl.
+  m_D->set_edge_kind(EdgeCochainKind::dual_2);
+  m_J->set_edge_kind(EdgeCochainKind::dual_2);
 }
 
 template <typename ExecPolicy>
@@ -183,6 +68,11 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("inner_damping_length",
                                m_inner_damping_length);
   sim_env().params().get_value("inner_damping_coef", m_inner_damping_coef);
+
+  // Background-metric spin: must match the spin passed to
+  // compute_metric() on the mesh.  Used by set_initial_kerr_wald for
+  // consistent index lowering and KS normal-observer projection.
+  sim_env().params().get_value("bh_spin", m_spin);
 
   m_time = 0.0;
   Logger::print_info("DEC GR field solver initialized: implicit={}",
@@ -235,53 +125,44 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_dB_dt(
 
   // E_aux on horizontal edges — lapse · D[e] + shift cross term.
   //
-  // Flux-conservative construction (matches the 2D solver structure):
-  //   (β × B)·t̂_e at edge e = [Σ_{f' adj e, rect} √γ_{f'}·β^r_{f'}·
-  //                             (B^i_{f'} projected onto (r̂×t̂_e))] / √γ_e / N
-  // then multiplied by |t_e| for the line integral.  The flux quantity
-  // √γ·β^r·B^i is summed at the source (face) locations; division by
-  // √γ_e at the destination (edge) converts back to the field value.
-  // Using the same √γ-weighted sum / √γ-at-destination pattern as the
-  // 2D Yee code: (w_- gb1_- X_- + w_+ gb1_+ X_+)/(w_- + w_+) with
-  // w ≡ √γ/sinθ and gb1 ≡ √γ β^r.
+  // Circumcentric-dual identity: for every (horizontal edge, adjacent
+  // rect face) pair, (r̂, n̂_f, t̂_e) is an orthonormal triad with
+  // triple(r̂, n̂_f, t̂_e) = +1 by the mesh orientation convention.
+  //
+  // The shift term is a √γ-weighted average of √γ·β^r · B[f]/face_area
+  // over the adjacent rect faces (mirrors the 2D GR solver: the weights
+  // and the quantity being averaged are sampled at the SAME location —
+  // β^r multiplies B at each face BEFORE averaging — so that for a
+  // nonuniform-metric axisymmetric stationary state the discrete line
+  // integral reproduces the continuum one to leading order on the
+  // irregular icosphere stencil, where adjacent rect faces sit at
+  // different (θ, r) positions and have O(1)-different √γ.  Uniform
+  // 1/count averaging leaves an O(1) residual that masquerades as
+  // first-order drift.
   ExecPolicy::launch(
       [Nh = mp.N_h_edges, mp]
       LAMBDA(auto D_e, auto B_f, auto E_aux) {
         ExecPolicy::loop(0, Nh, [&] LAMBDA(int e) {
           Scalar e_aux = mp.edge_alpha[e] * mp.hodge1_inv[e] * D_e[e];
 
-          Scalar tx, ty, tz;
-          edge_tangent(mp, e, tx, ty, tz);
-          Scalar t_mag = math::sqrt(tx*tx + ty*ty + tz*tz);
-          Scalar tx_h = tx / t_mag, ty_h = ty / t_mag, tz_h = tz / t_mag;
-
-          Scalar mx, my, mz;
-          edge_midpoint(mp, e, mx, my, mz);
-          Scalar r = mp.edge_r_coord[e];
-          Scalar lx = mx / r, ly = my / r, lz = mz / r;
-
           Scalar inv_sgma_e = Scalar(1) / mp.edge_sqrt_gamma[e];
 
-          // Σ √γ_f β^r_f · (B^i_f projected onto r̂×t̂_e).
-          // Triangular faces contribute 0 (n̂_tri ∥ r̂ ⇒ triple = 0).
-          Scalar cross = Scalar(0);
-          int count = 0;
+          // Σ_f w_f · (√γ_f · β^r_f) · (B[f]/area_f)   /  Σ_f w_f.
+          // w_f = √γ at the face: the same weight used in the 2D solver.
+          // Tri faces contribute 0 (β ∥ r̂ and B_tri ∥ r̂ ⇒ β × B = 0).
+          Scalar num = Scalar(0);
+          Scalar den = Scalar(0);
           for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
             int f = mp.d1t_col_idx[j];
             if (mp.is_tri_face(f)) continue;
-            Scalar nx, ny, nz;
-            face_normal_area(mp, f, nx, ny, nz);
-            Scalar n_mag = math::sqrt(nx*nx + ny*ny + nz*nz);
-            Scalar nx_h = nx / n_mag, ny_h = ny / n_mag, nz_h = nz / n_mag;
-            Scalar tu = triple(lx, ly, lz, nx_h, ny_h, nz_h,
-                               tx_h, ty_h, tz_h);
-            // B^i normal-to-face reconstruction: B·n̂ = B[f]/|n_f|.
-            Scalar B_normal = B_f[f] / n_mag;
-            cross += mp.face_sq_gamma_beta_r[f] * B_normal * tu;
-            count += 1;
+            Scalar w = mp.face_sqrt_gamma[f];
+            Scalar B_normal = B_f[f] / mp.face_area[f];
+            num += w * mp.face_sq_gamma_beta_r[f] * B_normal;
+            den += w;
           }
-          if (count > 0) {
-            e_aux += t_mag * inv_sgma_e * cross / Scalar(count);
+          if (den > Scalar(0)) {
+            Scalar edge_len = mp.edge_length[e];
+            e_aux += edge_len * inv_sgma_e * (num / den);
           }
           E_aux[e] = e_aux;
         });
@@ -340,52 +221,39 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_dD_dt(
 
   // H_aux_line on rectangular faces — lapse · Hodge2 · B[f] + shift cross term.
   //
-  // Symmetric to the Faraday construction:
-  //   (β × D)·n̂_f at face f = [Σ_{e' adj f, horiz} √γ_{e'}·β^r_{e'}·
-  //                             (D^i_{e'} projected onto r̂×n̂_f)] / √γ_f / N
-  // multiplied by the dual-edge length |f*| ≈ hodge2[f]·|n_f| for the
-  // line integral along the dual edge through f.  Sign is -(β×D) in
-  // H = αB - β×D.
+  // Symmetric argument to compute_dB_dt: the triad (r̂, t̂_e, n̂_f) is
+  // orthonormal for every (rect face, adjacent horizontal edge) pair
+  // with triple(r̂, t̂, n̂) = -1; combined with the overall -= in
+  // H = αB − β×D this gives a net +=.
+  //
+  // Shift term is a √γ-weighted average of √γ·β^r · D_tangent over the
+  // adjacent horizontal edges, matching the 2D solver's averaging
+  // scheme.  Uniform 1/count averaging was observed to produce an O(1)
+  // residual at the analytic stationary Kerr-Wald state.
   ExecPolicy::launch(
       [Ntri = mp.N_tri_faces, Nf = mp.N_faces, mp]
       LAMBDA(auto D_e, auto B_f, auto H_aux) {
         ExecPolicy::loop(Ntri, Nf, [&] LAMBDA(int f) {
           Scalar h_aux = mp.face_alpha[f] * mp.hodge2[f] * B_f[f];
 
-          Scalar nx, ny, nz;
-          face_normal_area(mp, f, nx, ny, nz);
-          Scalar n_mag = math::sqrt(nx*nx + ny*ny + nz*nz);
-          Scalar nx_h = nx / n_mag, ny_h = ny / n_mag, nz_h = nz / n_mag;
-
-          Scalar cx, cy, cz;
-          face_centroid(mp, f, cx, cy, cz);
-          Scalar r = mp.face_r_coord[f];
-          Scalar lx = cx / r, ly = cy / r, lz = cz / r;
-
           Scalar inv_sgma_f = Scalar(1) / mp.face_sqrt_gamma[f];
-          Scalar dual_len = mp.hodge2[f] * n_mag;  // |f*| ≈ h2 · |f_area|
+          Scalar dual_len = mp.hodge2[f] * mp.face_area[f];
 
-          // Σ √γ_e β^r_e · (D^i_e projected onto r̂×n̂_f).
-          // Vertical edges contribute 0 (t̂_vert ∥ r̂ ⇒ triple = 0).
-          Scalar cross = Scalar(0);
-          int count = 0;
+          // Σ_e w_e · (√γ_e · β^r_e) · D_tangent(e)  /  Σ_e w_e.
+          // w_e = √γ at the horizontal edge.
+          // Vertical edges contribute 0 (β ∥ r̂ and D_vert ∥ r̂ ⇒ β × D = 0).
+          Scalar num = Scalar(0);
+          Scalar den = Scalar(0);
           for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
             int e = mp.d1_col_idx[j];
             if (mp.is_vertical_edge(e)) continue;
-            Scalar tx, ty, tz;
-            edge_tangent(mp, e, tx, ty, tz);
-            Scalar t_mag = math::sqrt(tx*tx + ty*ty + tz*tz);
-            Scalar tx_h = tx / t_mag, ty_h = ty / t_mag, tz_h = tz / t_mag;
-            Scalar tu = triple(lx, ly, lz, tx_h, ty_h, tz_h,
-                               nx_h, ny_h, nz_h);
-            // D^i tangent-to-edge reconstruction: D·t̂ = D_primal/|t_e|,
-            // with D_primal = hodge1_inv·D̃[e].
-            Scalar D_tangent = mp.hodge1_inv[e] * D_e[e] / t_mag;
-            cross += mp.edge_sq_gamma_beta_r[e] * D_tangent * tu;
-            count += 1;
+            Scalar w = mp.edge_sqrt_gamma[e];
+            Scalar D_tangent = mp.hodge1_inv[e] * D_e[e] / mp.edge_length[e];
+            num += w * mp.edge_sq_gamma_beta_r[e] * D_tangent;
+            den += w;
           }
-          if (count > 0) {
-            h_aux -= dual_len * inv_sgma_f * cross / Scalar(count);
+          if (den > Scalar(0)) {
+            h_aux += dual_len * inv_sgma_f * (num / den);
           }
           H_aux[f] = h_aux;
         });
@@ -467,7 +335,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::update_explicit(double dt) {
   }
 
   apply_damping(m_D->data(), m_B->data(), dt);
-  apply_inner_damping(m_D->data(), m_B->data(), dt);
+  // apply_inner_damping(m_D->data(), m_B->data(), dt);
   apply_inner_boundary(m_D->data(), m_B->data());
   apply_outer_boundary(m_D->data(), m_B->data());
   ExecPolicy::sync();
@@ -790,31 +658,33 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_outer_boundary(
 }
 
 // =========================================================================
-// Proper rotating Kerr-Schild Wald IC.
+// Kerr-Schild Wald IC.
 //
-// Computed from the vector potential A_μ = ½ Bp (η_μ + 2a ξ_μ) in KS
-// coordinates (see wald_solution.hpp for explicit A_r, A_φ formulas;
-// A_θ = 0 by KS axisymmetry).
+// The background-metric spin comes from m_spin (read from "bh_spin" in
+// init()).  Only the Wald field spin a_field is caller-controlled:
 //
-//   A[e]   = ∫_e A_i dx^i              (primal 1-cochain)
-//   B[f]   = ∫_f dA = Σ_{e ∈ ∂f} d1[f,e] · A[e]   (Stokes)
-//   D̃[e]  = ∫_{e*} D^{2-form}         (dual 2-cochain in Option C)
+//   a_field : spin of the analytic Wald A_μ and D^i formulas.  Used in
+//             index lowering as D_primal[e] = ∫ γ_{ij}(m_spin) D^j(a_field,
+//             m_spin) dx^i, and fed into the KS-slicing projection
+//             inside gr_wald_solution_D.
 //
-// For D we work from the KS Wald D^i (contravariant) given by
-// gr_wald_solution_D.  The primal 1-cochain D_primal[e] = ∫_e D_i dx^i
-// is computed by metric-lowering D^i along the edge tangent:
-//   D_primal[e] = ∫_e (γ_rr D^r + γ_rφ D^φ) dr/ds ds
-//              + ∫_e γ_θθ D^θ          dθ/ds ds
-//              + ∫_e (γ_rφ D^r + γ_φφ D^φ) dφ/ds ds
-// Then D̃[e] = hodge1[e] · D_primal[e] = D_primal[e] / hodge1_inv[e].
+// When a_field == m_spin this is the stationary Kerr Wald.  Otherwise
+// the IC is off-shell (typical: a_field = 0, m_spin = a_BH, for
+// Schwarzschild-Wald-on-Kerr relaxation tests).
 //
-// Both integrals use 10-point Gauss quadrature along the Cartesian
-// chord between the two edge vertices, matching the quadrature that
-// the metric/Hodge construction uses for consistency.
+//   A[e]   = ∫_e A_i(a_field) dx^i          (primal 1-cochain)
+//   B[f]   = Σ_{e ∈ ∂f} d1[f,e] · A[e]       (Stokes)
+//   D̃[e]  = D_primal[e] / hodge1_inv[e]     (dual 2-cochain)
+//
+// D_primal integrates γ_{ij}(m_spin) D^j(a_field, m_spin) along the
+// edge; hodge1_inv[e] was already computed in compute_metric() with the
+// metric at spin m_spin, so all metric quantities are consistent.
+// 10-point Gauss quadrature along the coord-linear edge path.
 // =========================================================================
 template <typename ExecPolicy>
-void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
-                                                               Scalar Bp) {
+void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
+    Scalar a_field, Scalar Bp) {
+  const Scalar a_metric = m_spin;
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int Nh = (mp.N_r + 1) * mp.N_edge_s;
 
@@ -823,8 +693,9 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
   //   horizontal edge: (r, θ(s), φ(s)) = (r, θ_a+s·Δθ, φ_a+s·Δφ), dr/ds=0
   //   vertical edge:   (r_0+s·Δr, θ, φ), dθ/ds=dφ/ds=0
   // A_θ = 0 for KS Wald so horizontal contribution is just A_φ · Δφ.
+  // Uses a_field for the Wald A_μ analytic formula.
   ExecPolicy::launch(
-      [a_spin, Bp, mp, Nh] LAMBDA(auto A_out) {
+      [a_field, Bp, mp, Nh] LAMBDA(auto A_out) {
         ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
           int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
@@ -857,7 +728,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
                   double sth = math::sin(th), cth = math::cos(th);
                   // A_r · dr/ds = 0, A_θ = 0, only A_φ · dφ/ds contributes.
                   double Aph = (double)Bp * (double)wald_ks_Aphi(
-                                                (double)a_spin, r, sth, cth);
+                                                (double)a_field, r, sth, cth);
                   return Aph * dph;
                 },
                 0.0, 1.0);
@@ -869,7 +740,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
             integral = gauss_quad(
                 [&](double s) {
                   double r = r0 + s * dr;
-                  double Ar = (double)Bp * (double)wald_ks_Ar((double)a_spin,
+                  double Ar = (double)Bp * (double)wald_ks_Ar((double)a_field,
                                                               r, sth, cth);
                   return Ar * dr;
                 },
@@ -899,8 +770,13 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
   // --------- Step 3: D̃[e] = D_primal[e] / hodge1_inv[e].  Overwrite m_D. ---
   // Integrate ∫_e D_i dx^i in (r, θ, φ) coord basis.  For horizontal
   // edges only (D_θ, D_φ) contribute; for vertical edges only D_r.
+  // D^i (contravariant) uses a_field for the A_μ derivatives and
+  // a_metric for the normal-observer projection (inside gr_wald_solution_D);
+  // the index lowering to D_i uses γ_{ij}(a_metric) for consistency
+  // with the hodge1_inv[e] factor that was computed in compute_metric()
+  // at spin a_metric.
   ExecPolicy::launch(
-      [a_spin, Bp, mp, Nh] LAMBDA(auto D_out, auto D_bg) {
+      [a_field, a_metric, Bp, mp, Nh] LAMBDA(auto D_out, auto D_bg) {
         ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
           int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
@@ -929,20 +805,18 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
                 [&](double s) {
                   double th = th0 + s * dth;
                   double sth = math::sin(th), cth = math::cos(th);
-                  double Dr = (double)gr_wald_solution_D((double)a_spin, r, th,
-                                                         (double)Bp, 0);
+                  double Dr = (double)gr_wald_solution_D(
+                      (double)a_field, r, th, (double)Bp, 0);
                   double Dth = (double)gr_wald_solution_D(
-                      (double)a_spin, r, th, (double)Bp, 1);
+                      (double)a_field, r, th, (double)Bp, 1);
                   double Dph = (double)gr_wald_solution_D(
-                      (double)a_spin, r, th, (double)Bp, 2);
-                  double g_rr =
-                      (double)Metric_KS::g_11((double)a_spin, r, sth, cth);
+                      (double)a_field, r, th, (double)Bp, 2);
                   double g_thth =
-                      (double)Metric_KS::g_22((double)a_spin, r, sth, cth);
+                      (double)Metric_KS::g_22((double)a_metric, r, sth, cth);
                   double g_phph =
-                      (double)Metric_KS::g_33((double)a_spin, r, sth, cth);
+                      (double)Metric_KS::g_33((double)a_metric, r, sth, cth);
                   double g_rph =
-                      (double)Metric_KS::g_13((double)a_spin, r, sth, cth);
+                      (double)Metric_KS::g_13((double)a_metric, r, sth, cth);
                   double D_th_cov = g_thth * Dth;
                   double D_ph_cov = g_rph * Dr + g_phph * Dph;
                   // dr/ds = 0 on horizontal edge; only θ and φ components.
@@ -957,14 +831,14 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
             integral = gauss_quad(
                 [&](double s) {
                   double r = r0 + s * dr;
-                  double Dr = (double)gr_wald_solution_D((double)a_spin, r, th,
-                                                         (double)Bp, 0);
+                  double Dr = (double)gr_wald_solution_D(
+                      (double)a_field, r, th, (double)Bp, 0);
                   double Dph = (double)gr_wald_solution_D(
-                      (double)a_spin, r, th, (double)Bp, 2);
+                      (double)a_field, r, th, (double)Bp, 2);
                   double g_rr =
-                      (double)Metric_KS::g_11((double)a_spin, r, sth, cth);
+                      (double)Metric_KS::g_11((double)a_metric, r, sth, cth);
                   double g_rph =
-                      (double)Metric_KS::g_13((double)a_spin, r, sth, cth);
+                      (double)Metric_KS::g_13((double)a_metric, r, sth, cth);
                   double D_r_cov = g_rr * Dr + g_rph * Dph;
                   return D_r_cov * dr;
                 },
@@ -985,10 +859,16 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(Scalar a_spin,
 
 // =========================================================================
 // Diagnostic: run the Faraday and Ampère half-steps once to populate
-// m_E_aux, m_H_aux from the current (D, B) state, then write those
-// raw 1-cochain values to HDF5 along with D and B.  We can then load
-// the file in Python and compare with the analytic Wald prediction
-// (e.g. ∫_e E_i dx^i = A_0(v0) − A_0(v1) for a stationary Wald state).
+// m_E_aux, m_H_aux from the current (D, B) state, then write those raw
+// 1-cochain / face-cochain values to HDF5 along with D, B, and the
+// instantaneous RHS rates dD/dt and dB/dt.
+//
+// Usage for stationary-state residual checks: load an analytic IC (e.g.
+// Kerr-Wald with a_field = a_metric), call dump_aux_fields(...), then in
+// Python compare ∫_e E_i dx^i against A_0(v0) − A_0(v1), and inspect
+// ‖dD_dt‖, ‖dB_dt‖ vs. the field magnitudes — the latter tells you how
+// strongly the discrete solver violates the continuum equilibrium, and
+// where (horizon vs. bulk) the violation localizes.
 // =========================================================================
 template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
@@ -1006,6 +886,8 @@ void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
   m_H_aux.copy_to_host();
   m_D->data().copy_to_host();
   m_B->data().copy_to_host();
+  m_dD_dt.copy_to_host();
+  m_dB_dt.copy_to_host();
 #endif
 
   auto file = hdf_create(path);
@@ -1013,8 +895,11 @@ void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
   file.write(m_H_aux.host_ptr(), Nf, "H_aux");
   file.write(m_D->data().host_ptr(), Ne, "D");
   file.write(m_B->data().host_ptr(), Nf, "B");
+  file.write(m_dD_dt.host_ptr(), Ne, "dD_dt");
+  file.write(m_dB_dt.host_ptr(), Nf, "dB_dt");
 
-  Logger::print_info("dump_aux_fields: wrote aux state to {}", path);
+  Logger::print_info("dump_aux_fields: wrote aux state + drift rates to {}",
+                     path);
 }
 
 }  // namespace Aperture

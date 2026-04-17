@@ -55,11 +55,6 @@ class prismatic_mesh_metric : public prismatic_mesh {
   buffer<Scalar> face_sq_gamma_beta_r;  // [N_faces]
   buffer<Scalar> face_sqrt_gamma;       // [N_faces]
 
-  // --- Dual geometric data (filled by compute_metric) ---
-  // Spherical circumcenters of each (shell, triangle) prism, in
-  // Cartesian coords.  Used by compute_hodge_metric.
-  buffer<Scalar> cc_x, cc_y, cc_z;      // [N_r * N_tri]
-
   // Fixed-width adjacency tables, precomputed on host during
   // compute_metric() (cheap topological scan) and uploaded to the
   // device so the Hodge kernel can read them without dynamic vectors.

@@ -40,6 +40,14 @@ class prismatic_sph_output : public system_t {
   std::string m_output_dir = "Data";
   double m_time = 0.0;
 
+  // Background metric identity, used to convert the flat-mesh Whitney
+  // reconstruction to coordinate-basis KS (or flat-spherical) field
+  // components at output time.  Read from the same config keys as the
+  // GR solver / mesh-metric construction ("bh_spin", "use_flat_metric")
+  // so output and evolution see the identical √γ.
+  Scalar m_spin = 0;
+  bool m_use_flat_metric = false;
+
   struct angular_point {
     int tri_idx;
     Scalar l[3];

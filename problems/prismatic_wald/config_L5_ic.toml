@@ -1,0 +1,30 @@
+# IC-only diagnostic at L=5 (twice the angular resolution of L=4).
+# Used to measure discrete-equilibrium residual convergence order.
+
+subdivision_level = 5
+N_r = 88
+r_min = 0.7
+r_max = 20.0
+n_ghost_inner = 1
+n_ghost_outer = 1
+
+bh_spin = 0.998
+B0      = 1.0
+
+dt        = 0.005
+max_steps = 1
+use_implicit = false
+
+damping_length = 15
+damping_coef   = 0.05
+inner_damping_length = 10
+inner_damping_coef   = 10.0
+
+fld_output_interval = 1
+output_dir          = "Data_L5_ic"
+
+sph_N_theta = 90
+sph_N_phi   = 180
+
+update_d = true
+update_b = true

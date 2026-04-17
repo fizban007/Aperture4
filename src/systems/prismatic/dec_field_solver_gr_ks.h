@@ -40,20 +40,28 @@ class dec_field_solver_gr_ks : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
-  // Initial condition: proper rotating Kerr-Schild Wald vacuum solution
-  // for a black hole of spin a immersed in an asymptotically uniform
-  // magnetic field Bp·ẑ.  Sets B[f] via Stokes' theorem from the vector
-  // potential A_i (computed from Wald's A_μ = ½ Bp (η_μ + 2a ξ_μ)
-  // evaluated in KS coordinates), and D[e] from the metric-lowered
-  // Wald electric field D_i = γ_ij D^j.  Stored as the background for
-  // the inner/outer damping layers so they relax toward the exact
-  // stationary solution rather than toward a mismatched Schwarzschild
-  // Wald that isn't self-consistent on a rotating KS background.
+  // Analytic Kerr-Schild Wald IC.
+  //
+  //   a_field — spin parameter of the analytic Maxwell field (A_μ, D^i
+  //             formulas).  Sets the Wald field pattern: a_field = 0
+  //             gives Schwarzschild Wald (uniform B_z), a_field > 0
+  //             gives Kerr Wald with frame-dragging in A_t.
+  //
+  // The background-metric spin used for index lowering/raising and for
+  // the KS normal-observer projection into D^i is taken from m_spin
+  // (populated in init() from the "bh_spin" config key — must match the
+  // spin passed to compute_metric() on the underlying mesh).
+  //
+  // When a_field == m_spin this sets up the stationary Kerr-Wald
+  // equilibrium.  When a_field != m_spin the IC is off-shell (e.g.,
+  // Schwarzschild Wald Maxwell field on a rotating Kerr background),
+  // useful for relaxation tests.  Stored as the background for the
+  // inner/outer damping layers.
   //
   // Both integrations use 10-point Gauss quadrature along the primal
   // edge in Cartesian space, so curved-edge effects on the icosphere
   // are handled consistently with the Hodge construction.
-  void set_initial_kerr_wald(Scalar a, Scalar Bp = 1.0);
+  void set_initial_kerr_wald(Scalar a_field, Scalar Bp = 1.0);
 
   // Public for GPU lambda access
   void update_explicit(double dt);
@@ -140,6 +148,13 @@ class dec_field_solver_gr_ks : public system_t {
   // back to damping toward zero (flat-space convention).
   buffer<Scalar> m_D_bg, m_B_bg;
   bool m_has_background = false;
+
+  // Background-metric spin (Kerr-Schild).  Read from the "bh_spin" config
+  // key in init(); must match the spin passed to compute_metric() on the
+  // underlying mesh.  Used by set_initial_kerr_wald for consistent index
+  // lowering and KS normal-observer projection.  Defaults to 0
+  // (Schwarzschild / flat) if the key is absent.
+  Scalar m_spin = 0;
 
   // Damping layer (outer boundary absorption)
   int m_damping_length = 10;

@@ -19,9 +19,6 @@ void fill_metric_ptrs(prismatic_mesh_metric_ptrs& p,
   p.face_alpha = acc(m.face_alpha);
   p.face_sq_gamma_beta_r = acc(m.face_sq_gamma_beta_r);
   p.face_sqrt_gamma = acc(m.face_sqrt_gamma);
-  p.cc_x = acc(m.cc_x);
-  p.cc_y = acc(m.cc_y);
-  p.cc_z = acc(m.cc_z);
   p.edge_tris = acc(m.edge_tris);
   p.vert_tri_count = acc(m.vert_tri_count);
   p.vert_tris = acc(m.vert_tris);
@@ -58,7 +55,6 @@ void prismatic_mesh_metric::copy_to_device() {
   copy(edge_alpha); copy(edge_sq_gamma_beta_r); copy(edge_sqrt_gamma);
   copy(face_r_coord); copy(face_sth); copy(face_cth);
   copy(face_alpha); copy(face_sq_gamma_beta_r); copy(face_sqrt_gamma);
-  copy(cc_x); copy(cc_y); copy(cc_z);
   copy(edge_tris); copy(vert_tri_count); copy(vert_tris);
 }
 
@@ -67,11 +63,11 @@ void prismatic_mesh_metric::copy_metric_to_host() {
     if (buf.mem_type() == MemType::host_device) buf.copy_to_host();
   };
   copy(hodge1_inv); copy(hodge2);
+  copy(face_area);
   copy(edge_r_coord); copy(edge_sth); copy(edge_cth);
   copy(edge_alpha); copy(edge_sq_gamma_beta_r); copy(edge_sqrt_gamma);
   copy(face_r_coord); copy(face_sth); copy(face_cth);
   copy(face_alpha); copy(face_sq_gamma_beta_r); copy(face_sqrt_gamma);
-  copy(cc_x); copy(cc_y); copy(cc_z);
 }
 #endif
 

@@ -66,9 +66,15 @@ int main(int argc, char* argv[]) {
 
   env.init();
 
-  // --- Initial condition: proper KS Wald vacuum (exact stationary solution
-  // for a=0.998 in KS coordinates, computed from Wald's A_μ potential).
-  solver->set_initial_kerr_wald(Scalar(a), Scalar(B0));
+  // --- Initial condition: Schwarzschild (non-rotating) Wald Maxwell field
+  // (a_field = 0 — A_φ = ½ B₀ sin²θ, A_r = 0) on the spinning Kerr KS
+  // background.  The metric spin used for γ_ij lowering and the
+  // hodge1_inv factor is read internally from the "bh_spin" config key
+  // (same key consumed by compute_metric above), so the two stay in
+  // sync.  This IC is off-shell for a ≠ 0; the system should radiate
+  // the mismatch away and relax to the rotating Wald asymptote.  The
+  // outer-damping background is stored as this IC.
+  solver->set_initial_kerr_wald(Scalar(0), Scalar(B0));
   solver->dump_aux_fields(env.params().get_as<std::string>("output_dir",
                                                            "Data") +
                           "/ic_aux.h5");

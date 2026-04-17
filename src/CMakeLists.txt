@@ -35,6 +35,7 @@ set(Aperture_src
   "systems/prismatic/prismatic_mesh.cpp"
   "systems/prismatic/prismatic_mesh_metric.cpp"
   "systems/prismatic/prismatic_partition.cpp"
+  "systems/prismatic/prismatic_halo_plan.cpp"
   "systems/prismatic/icosphere_topology.cpp"
   "systems/prismatic/dec_field_solver.cpp"
   "systems/prismatic/dec_field_solver_gr_ks.cpp"

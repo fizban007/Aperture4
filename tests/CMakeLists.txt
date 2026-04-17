@@ -21,6 +21,8 @@ add_executable(tests
   "test_prismatic_mesh.cpp"
   "test_metric_ks_cartesian.cpp"
   "test_prismatic_mesh_metric.cpp"
+  "test_prismatic_partition.cpp"
+  "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"
   "test_index.cpp"

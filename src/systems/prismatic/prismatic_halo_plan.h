@@ -6,6 +6,8 @@
 
 namespace Aperture {
 
+class icosphere_topology;
+
 // =========================================================================
 // Halo exchange plan.
 //
@@ -91,6 +93,37 @@ int global_cochain_size(cochain_type t, const prismatic_partition& p);
 // =========================================================================
 halo_plan build_radial_halo_plan(cochain_type t,
                                   const prismatic_partition& self);
+
+// =========================================================================
+// Angular halo plan builder.
+//
+// Builds the angular axis halo plan for a single cochain type on a rank
+// owning exactly one ico-face (the `combined()` or `ico_face_angular()`
+// configuration).  A rank has up to 9 angular peers: 3 edge-neighbors
+// (shared ico-edge) + 6 vertex-diagonal-neighbors (shared valence-5
+// corner only).
+//
+// The send/recv index sets are derived from the topology and the
+// ownership rule "lowest-index incident ico-face owns":
+//
+//   tri_face cochain: for each ico-boundary sphere-edge e incident to
+//     F, the two adjacent tri faces straddle the boundary (one per
+//     incident ico-face).  If F owns e, F halos the peer's tri face
+//     (for computing H_aux on it).  If the peer owns e, F sends its
+//     own tri face (peer halos from F).
+//
+//   h_edge / rect_face cochains (data on sphere-edges): if F owns an
+//     ico-boundary edge, F sends to the non-F incident.  If F doesn't
+//     own it, F receives from the owner.
+//
+//   vertex / v_edge cochains (data on sphere-vertices): at ico-edge
+//     vertices (valence 2) and valence-5 corners (valence 5), F sends
+//     if owner or recvs from owner if non-owner.  Non-owners exchange
+//     only with the owner, not with each other.
+// =========================================================================
+halo_plan build_angular_halo_plan(cochain_type t,
+                                   const prismatic_partition& self,
+                                   const icosphere_topology& topo);
 
 // =========================================================================
 // In-process backend (Phase 2 test fixture).

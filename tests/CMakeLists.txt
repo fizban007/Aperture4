@@ -23,6 +23,7 @@ add_executable(tests
   "test_prismatic_mesh_metric.cpp"
   "test_prismatic_partition.cpp"
   "test_prismatic_halo_plan.cpp"
+  "test_prismatic_angular_halo.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"

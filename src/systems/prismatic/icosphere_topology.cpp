@@ -69,6 +69,38 @@ icosphere_topology icosphere_topology::build_from_tables(
     }
   }
 
+  // ---- Edge -> adjacent triangles (fixed 2 per edge) ----
+  out.m_edge_tris.assign(2 * N_edge_s, -1);
+  for (int t = 0; t < N_tri; ++t) {
+    for (int j = 0; j < 3; ++j) {
+      int e = tri_edges_s[t * 3 + j];
+      int slot = (out.m_edge_tris[2 * e + 0] == -1) ? 0 : 1;
+      out.m_edge_tris[2 * e + slot] = t;
+    }
+  }
+
+  // ---- Vertex -> adjacent triangles (valence 5 or 6) ----
+  std::vector<std::vector<int>> vert_tri_inc(N_vert_s);
+  for (int t = 0; t < N_tri; ++t) {
+    for (int j = 0; j < 3; ++j) {
+      int v = tri_verts[t * 3 + j];
+      vert_tri_inc[v].push_back(t);
+    }
+  }
+  out.m_vertex_tri_offset.resize(N_vert_s + 1);
+  int voff2 = 0;
+  for (int v = 0; v < N_vert_s; ++v) {
+    out.m_vertex_tri_offset[v] = voff2;
+    voff2 += int(vert_tri_inc[v].size());
+  }
+  out.m_vertex_tri_offset[N_vert_s] = voff2;
+  out.m_vertex_tris.reserve(voff2);
+  for (int v = 0; v < N_vert_s; ++v) {
+    for (int t : vert_tri_inc[v]) {
+      out.m_vertex_tris.push_back(t);
+    }
+  }
+
   return out;
 }
 

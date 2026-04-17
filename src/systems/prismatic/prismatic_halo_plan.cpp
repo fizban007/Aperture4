@@ -1,5 +1,10 @@
 #include "systems/prismatic/prismatic_halo_plan.h"
+#include "systems/prismatic/icosphere_topology.h"
+#include <algorithm>
 #include <cassert>
+#include <map>
+#include <set>
+#include <utility>
 
 namespace Aperture {
 
@@ -121,6 +126,168 @@ halo_plan build_radial_halo_plan(cochain_type t,
       // nothing from upper.
       contiguous_range(kh - 1, width, pe.send_global_idx);
     }
+    out.peers.push_back(std::move(pe));
+  }
+
+  return out;
+}
+
+// =========================================================================
+// Angular halo plan.
+// =========================================================================
+halo_plan build_angular_halo_plan(cochain_type t,
+                                   const prismatic_partition& self,
+                                   const icosphere_topology& topo) {
+  halo_plan out;
+
+  // One ico-face per rank is the target configuration for the 20-way
+  // angular decomposition.  If more ico-faces are owned (e.g. single-
+  // rank fallback), there are no angular halos to build.
+  if (self.ico_face_hi - self.ico_face_lo != 1) return out;
+  const int F = self.ico_face_lo;
+
+  const int pow4L = topo.N_tri() / 20;
+
+  // Per-cochain data: width per k-level, and whether the level index is
+  // a shell (valid 0..N_r) or a slab (valid 0..N_r-1).
+  int width = 0;
+  bool shell_cochain = true;
+  switch (t) {
+    case cochain_type::tri_face:
+      width = topo.N_tri();
+      shell_cochain = true;
+      break;
+    case cochain_type::h_edge:
+      width = topo.N_edge_s();
+      shell_cochain = true;
+      break;
+    case cochain_type::rect_face:
+      width = topo.N_edge_s();
+      shell_cochain = false;
+      break;
+    case cochain_type::v_edge:
+      width = topo.N_vert_s();
+      shell_cochain = false;
+      break;
+    case cochain_type::vertex:
+      width = topo.N_vert_s();
+      shell_cochain = true;
+      break;
+  }
+  const int k_lo = self.shell_k_lo;
+  const int k_hi = shell_cochain
+                       ? self.shell_k_hi
+                       : std::min(self.shell_k_hi, self.N_r_global);
+
+  std::map<int, std::vector<int>> recv_per_peer;
+  std::map<int, std::vector<int>> send_per_peer;
+
+  // --------------------------------------------------------------------
+  // tri_face: halo is the "other" adjacent tri face across a boundary
+  // sphere-edge incident to F.  Direction depends on who owns the edge.
+  // --------------------------------------------------------------------
+  if (t == cochain_type::tri_face) {
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      if (topo.edge_valence(e) < 2) continue;
+      const int* incs = topo.edge_ico_faces(e);
+      if (incs[0] != F && incs[1] != F) continue;
+      const int G = (incs[0] == F) ? incs[1] : incs[0];
+      const int owner = incs[0];  // incidents sorted ascending, so incs[0] is min
+
+      const int tri_a = topo.edge_tri_a(e);
+      const int tri_b = topo.edge_tri_b(e);
+      const int ico_a = tri_a / pow4L;
+      const int tri_in_F = (ico_a == F) ? tri_a : tri_b;
+      const int tri_in_G = (ico_a == F) ? tri_b : tri_a;
+
+      if (F == owner) {
+        // F owns e → halos the adjacent tri in G.
+        for (int k = k_lo; k < k_hi; ++k) {
+          recv_per_peer[G].push_back(k * width + tri_in_G);
+        }
+      } else {
+        // G owns e → sends our adjacent tri (in F) to G.
+        for (int k = k_lo; k < k_hi; ++k) {
+          send_per_peer[G].push_back(k * width + tri_in_F);
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // h_edge and rect_face: data lives on sphere-edges.  If F owns an
+  // ico-boundary edge, send to the non-F incident; otherwise recv.
+  // --------------------------------------------------------------------
+  else if (t == cochain_type::h_edge || t == cochain_type::rect_face) {
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      if (topo.edge_valence(e) < 2) continue;
+      const int* incs = topo.edge_ico_faces(e);
+      if (incs[0] != F && incs[1] != F) continue;
+      const int G = (incs[0] == F) ? incs[1] : incs[0];
+      const int owner = incs[0];
+
+      if (F == owner) {
+        for (int k = k_lo; k < k_hi; ++k) {
+          send_per_peer[G].push_back(k * width + e);
+        }
+      } else {
+        for (int k = k_lo; k < k_hi; ++k) {
+          recv_per_peer[G].push_back(k * width + e);
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // vertex and v_edge: data lives on sphere-vertices.  At a vertex F
+  // is incident to, F sends to every other incident if it owns, or
+  // receives from the single owner if it doesn't.  Non-owners do NOT
+  // exchange with each other.
+  // --------------------------------------------------------------------
+  else {  // cochain_type::vertex or cochain_type::v_edge
+    for (int v = 0; v < topo.N_vert_s(); ++v) {
+      const int val = topo.vertex_valence(v);
+      if (val < 2) continue;  // interior to one ico-face
+      const int* incs = topo.vertex_ico_faces(v);
+      bool F_incident = false;
+      for (int j = 0; j < val; ++j)
+        if (incs[j] == F) {
+          F_incident = true;
+          break;
+        }
+      if (!F_incident) continue;
+      const int owner = incs[0];
+
+      if (F == owner) {
+        // Send to each non-F incident.
+        for (int j = 0; j < val; ++j) {
+          if (incs[j] == F) continue;
+          const int G = incs[j];
+          for (int k = k_lo; k < k_hi; ++k) {
+            send_per_peer[G].push_back(k * width + v);
+          }
+        }
+      } else {
+        // Recv from the owner only.
+        for (int k = k_lo; k < k_hi; ++k) {
+          recv_per_peer[owner].push_back(k * width + v);
+        }
+      }
+    }
+  }
+
+  // Assemble peers in ascending rank order.
+  std::set<int> peer_set;
+  for (auto const& p : recv_per_peer) peer_set.insert(p.first);
+  for (auto const& p : send_per_peer) peer_set.insert(p.first);
+  out.peers.reserve(peer_set.size());
+  for (int g : peer_set) {
+    halo_plan::peer_entry pe;
+    pe.peer_rank = g;
+    auto itr = recv_per_peer.find(g);
+    if (itr != recv_per_peer.end()) pe.recv_global_idx = std::move(itr->second);
+    auto its = send_per_peer.find(g);
+    if (its != send_per_peer.end()) pe.send_global_idx = std::move(its->second);
     out.peers.push_back(std::move(pe));
   }
 

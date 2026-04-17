@@ -76,6 +76,22 @@ class icosphere_topology {
     return m_edge_ico_faces[m_edge_offset[e]];
   }
 
+  // ---- Adjacency: sphere-edge -> adjacent triangles ----
+  // Every sphere-edge on a closed icosphere has exactly 2 adjacent
+  // triangles.  Returned in arbitrary order (the topology struct does
+  // not carry an orientation).
+  int edge_tri_a(int e) const { return m_edge_tris[2 * e + 0]; }
+  int edge_tri_b(int e) const { return m_edge_tris[2 * e + 1]; }
+
+  // ---- Adjacency: sphere-vertex -> fan of adjacent triangles ----
+  // Valence is 5 at the 12 icosahedron corners, 6 everywhere else.
+  int vertex_tri_count(int v) const {
+    return m_vertex_tri_offset[v + 1] - m_vertex_tri_offset[v];
+  }
+  const int* vertex_tris(int v) const {
+    return m_vertex_tris.data() + m_vertex_tri_offset[v];
+  }
+
  private:
   int m_L = 0;
   int m_N_tri = 0;
@@ -89,6 +105,14 @@ class icosphere_topology {
 
   std::vector<int> m_edge_ico_faces;
   std::vector<int> m_edge_offset;    // size N_edge_s + 1
+
+  // Edge -> {tri_a, tri_b}, one entry per sphere-edge (always 2 on a
+  // closed icosphere).
+  std::vector<int> m_edge_tris;           // size 2 * N_edge_s
+
+  // Vertex -> list of adjacent triangles (valence 5 or 6).
+  std::vector<int> m_vertex_tris;
+  std::vector<int> m_vertex_tri_offset;   // size N_vert_s + 1
 };
 
 }  // namespace Aperture

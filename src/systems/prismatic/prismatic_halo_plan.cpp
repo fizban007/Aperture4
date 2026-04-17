@@ -236,6 +236,74 @@ halo_plan build_angular_halo_plan(cochain_type t,
         }
       }
     }
+
+    // --- Valence-5 corner fan halos (rect_face only) -------------------
+    //
+    // compute_dD_dt on a v_edge at a valence-5 icosahedron corner v uses
+    // H_aux at the fan of 5 rect faces radiating from v (one per sphere-
+    // edge incident to v).  F is incident to exactly 2 of those 5
+    // sphere-edges (its fan-neighbors' shared ico-edges); the other 3
+    // lie between ico-faces that are NOT F.  The normal rect_face halo
+    // (above) only covers F-incident sphere-edges, so F would lack
+    // H_aux values for 3 of the 5 rect faces in the fan.
+    //
+    // Fix: for every valence-5 corner v where F owns the v_edge (F is
+    // the lowest-index of the 5 incident ico-faces), recv the rect_face
+    // values at the 3 non-incident fan sphere-edges from their owners.
+    // Symmetric send entries on those owners keep the exchange
+    // consistent (F-owner of a fan sphere-edge needs to know to send
+    // it to the valence-5 corner's v_owner, even though the v_owner
+    // isn't incident to the edge).
+    //
+    // Applies only to rect_face (not h_edge) because the stencil gap
+    // is specific to the compute_dD_dt fan on v_edges.
+    if (t == cochain_type::rect_face) {
+      for (int v = 0; v < topo.N_vert_s(); ++v) {
+        if (topo.vertex_valence(v) != 5) continue;
+        const int* incs = topo.vertex_ico_faces(v);
+        const int v_owner = incs[0];
+
+        // Check if F is incident to v.
+        bool F_incident = false;
+        for (int j = 0; j < 5; ++j) if (incs[j] == F) { F_incident = true; break; }
+        if (!F_incident) continue;
+
+        // Enumerate the 5 sphere-edges at v.
+        const int ve_count = topo.vertex_edge_count(v);
+        const int* ve = topo.vertex_edges(v);
+
+        if (F == v_owner) {
+          // F owns the v_edge at v.  For each fan sphere-edge not
+          // incident to F, recv rect_face values from the owner.
+          for (int i = 0; i < ve_count; ++i) {
+            int e = ve[i];
+            const int* einc = topo.edge_ico_faces(e);
+            if (einc[0] == F || einc[1] == F) continue;  // F-incident: already handled
+            const int e_owner = einc[0];
+            for (int k = k_lo; k < k_hi; ++k) {
+              recv_per_peer[e_owner].push_back(k * width + e);
+            }
+          }
+        } else if (F == incs[0]) {
+          // Unreachable — incs[0] is v_owner by our convention.
+        } else {
+          // F is incident to v but doesn't own v_edge.  Symmetric send:
+          // if F owns a fan sphere-edge NOT incident to v_owner, F
+          // sends its rect_face values to v_owner.
+          for (int i = 0; i < ve_count; ++i) {
+            int e = ve[i];
+            const int* einc = topo.edge_ico_faces(e);
+            // Only F-owned edges produce sends from F.
+            if (einc[0] != F) continue;  // F is not the edge's owner
+            // Only edges not incident to v_owner produce extra sends.
+            if (einc[0] == v_owner || einc[1] == v_owner) continue;
+            for (int k = k_lo; k < k_hi; ++k) {
+              send_per_peer[v_owner].push_back(k * width + e);
+            }
+          }
+        }
+      }
+    }
   }
 
   // --------------------------------------------------------------------

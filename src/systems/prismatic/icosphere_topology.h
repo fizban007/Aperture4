@@ -92,6 +92,22 @@ class icosphere_topology {
     return m_vertex_tris.data() + m_vertex_tri_offset[v];
   }
 
+  // ---- Sphere-edge endpoints ----
+  // Each sphere-edge connects two sphere-vertices.  Endpoints are
+  // stored in sorted order (v0 < v1) for convenience.
+  int edge_v0(int e) const { return m_sphere_edge_v0[e]; }
+  int edge_v1(int e) const { return m_sphere_edge_v1[e]; }
+
+  // ---- Adjacency: sphere-vertex -> sphere-edges incident to it ----
+  // Matches vertex_tri_count in valence (same # of incident edges as
+  // triangles at a vertex on the sphere).
+  int vertex_edge_count(int v) const {
+    return m_vertex_edge_offset[v + 1] - m_vertex_edge_offset[v];
+  }
+  const int* vertex_edges(int v) const {
+    return m_vertex_edges.data() + m_vertex_edge_offset[v];
+  }
+
  private:
   int m_L = 0;
   int m_N_tri = 0;
@@ -113,6 +129,14 @@ class icosphere_topology {
   // Vertex -> list of adjacent triangles (valence 5 or 6).
   std::vector<int> m_vertex_tris;
   std::vector<int> m_vertex_tri_offset;   // size N_vert_s + 1
+
+  // Sphere-edge endpoints (sphere-vertex indices), sorted so v0 < v1.
+  std::vector<int> m_sphere_edge_v0;      // size N_edge_s
+  std::vector<int> m_sphere_edge_v1;      // size N_edge_s
+
+  // Vertex -> list of incident sphere-edges (same valence as vertex_tris).
+  std::vector<int> m_vertex_edges;
+  std::vector<int> m_vertex_edge_offset;  // size N_vert_s + 1
 };
 
 }  // namespace Aperture

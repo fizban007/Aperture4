@@ -101,6 +101,52 @@ icosphere_topology icosphere_topology::build_from_tables(
     }
   }
 
+  // ---- Sphere-edge endpoints (derived from triangles) ----
+  // In subdivide.cpp: edge 0 of a triangle is between verts (0,1),
+  // edge 1 between (1,2), edge 2 between (0,2).  First triangle to
+  // visit an edge fills its endpoints; later visits just verify
+  // consistency.
+  out.m_sphere_edge_v0.assign(N_edge_s, -1);
+  out.m_sphere_edge_v1.assign(N_edge_s, -1);
+  for (int t = 0; t < N_tri; ++t) {
+    int v0 = tri_verts[t * 3 + 0];
+    int v1 = tri_verts[t * 3 + 1];
+    int v2 = tri_verts[t * 3 + 2];
+    int e0 = tri_edges_s[t * 3 + 0];  // connects v0, v1
+    int e1 = tri_edges_s[t * 3 + 1];  // connects v1, v2
+    int e2 = tri_edges_s[t * 3 + 2];  // connects v0, v2
+    auto set_edge = [&](int e, int a, int b) {
+      if (out.m_sphere_edge_v0[e] != -1) return;
+      int lo = (a < b) ? a : b;
+      int hi = (a < b) ? b : a;
+      out.m_sphere_edge_v0[e] = lo;
+      out.m_sphere_edge_v1[e] = hi;
+    };
+    set_edge(e0, v0, v1);
+    set_edge(e1, v1, v2);
+    set_edge(e2, v0, v2);
+  }
+
+  // ---- Vertex -> incident sphere-edges ----
+  std::vector<std::vector<int>> vert_edge_inc(N_vert_s);
+  for (int e = 0; e < N_edge_s; ++e) {
+    vert_edge_inc[out.m_sphere_edge_v0[e]].push_back(e);
+    vert_edge_inc[out.m_sphere_edge_v1[e]].push_back(e);
+  }
+  out.m_vertex_edge_offset.resize(N_vert_s + 1);
+  int voff3 = 0;
+  for (int v = 0; v < N_vert_s; ++v) {
+    out.m_vertex_edge_offset[v] = voff3;
+    voff3 += int(vert_edge_inc[v].size());
+  }
+  out.m_vertex_edge_offset[N_vert_s] = voff3;
+  out.m_vertex_edges.reserve(voff3);
+  for (int v = 0; v < N_vert_s; ++v) {
+    for (int e : vert_edge_inc[v]) {
+      out.m_vertex_edges.push_back(e);
+    }
+  }
+
   return out;
 }
 

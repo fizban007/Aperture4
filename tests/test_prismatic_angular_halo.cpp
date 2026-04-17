@@ -224,6 +224,65 @@ TEST_CASE("angular halo exchange populates ghost slots with owner values",
 // the DEC stencil sense.  This is a weaker check than end-to-end
 // correctness but catches missing halo cases on valence-5 corners.
 // =========================================================================
+// =========================================================================
+// Phase 3.3 — valence-5 corner rect_face halo.
+//
+// The v_owner at a valence-5 corner computes dD/dt on its v_edge using
+// the fan of 5 rect faces radiating from the corner.  Only 2 of those
+// 5 are at sphere-edges the v_owner is topologically incident to; the
+// other 3 need extra halos from diagonal neighbors.  After exchange,
+// every fan rect face must have the stamped value on the v_owner's
+// buffer.
+// =========================================================================
+TEST_CASE("valence-5 corners: rect_face fan is fully halo'd at v_owner",
+          "[prismatic][angular_halo][valence5]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+  auto parts = make_20_angular(L, N_r, topo);
+
+  // Collect all valence-5 corners.
+  std::vector<int> corners;
+  for (int v = 0; v < topo.N_vert_s(); ++v) {
+    if (topo.vertex_valence(v) == 5) corners.push_back(v);
+  }
+  REQUIRE(corners.size() == 12);  // canonical icosahedron vertex count
+
+  // Stamp-filled buffers + exchange for rect_face.
+  std::vector<std::vector<Scalar>> bufs(20);
+  in_process_halo_backend backend;
+  for (int f = 0; f < 20; ++f) {
+    fill_owned(bufs[f], cochain_type::rect_face, parts[f]);
+    backend.register_rank(f, bufs[f].data());
+  }
+  std::vector<halo_plan> plans;
+  plans.reserve(20);
+  for (auto const& p : parts)
+    plans.push_back(build_angular_halo_plan(cochain_type::rect_face, p, topo));
+  backend.exchange_all(plans);
+
+  // For every valence-5 corner, the v_owner must have every fan
+  // sphere-edge's rect_face value filled at every slab.
+  for (int v : corners) {
+    const int* incs = topo.vertex_ico_faces(v);
+    const int v_owner = incs[0];
+    const int ve_count = topo.vertex_edge_count(v);
+    REQUIRE(ve_count == 5);
+    const int* ve = topo.vertex_edges(v);
+
+    for (int i = 0; i < ve_count; ++i) {
+      int e = ve[i];
+      for (int slab = 0; slab < N_r; ++slab) {
+        int idx = slab * topo.N_edge_s() + e;
+        // Either v_owner owns this rect_face (then stamped from the
+        // start) or the halo must have populated it.
+        REQUIRE(bufs[v_owner][idx] == Approx(stamp(idx)));
+      }
+    }
+  }
+}
+
 TEST_CASE("angular halo at valence-5 corners: non-owner recvs from owner",
           "[prismatic][angular_halo]") {
   const int L = 2;

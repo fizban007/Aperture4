@@ -24,6 +24,7 @@ add_executable(tests
   "test_prismatic_partition.cpp"
   "test_prismatic_halo_plan.cpp"
   "test_prismatic_angular_halo.cpp"
+  "test_prismatic_mpi_backend.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"
@@ -164,6 +165,18 @@ target_link_libraries(test_exporter_snapshot Catch2::Catch2)
 add_executable(test_exporter_mpi "test_exporter_mpi.cpp")
 # target_link_libraries(test_exporter_mpi Aperture Aperture_dev)
 target_link_libraries(test_exporter_mpi
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+
+# Multi-process test for the prismatic MPI halo backend.  Run with
+#   mpirun -n 20 ./test_prismatic_mpi_backend_multirank
+# to validate that the MPI backend matches the in-process backend for
+# every cochain type on the 20-way angular decomposition.
+add_executable(test_prismatic_mpi_backend_multirank
+  "test_prismatic_mpi_backend_multirank.cpp")
+target_link_libraries(test_prismatic_mpi_backend_multirank
   PUBLIC
   Aperture
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>

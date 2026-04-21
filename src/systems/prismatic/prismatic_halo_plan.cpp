@@ -55,12 +55,6 @@ bool lives_on_shell(cochain_type t) {
   return true;
 }
 
-// Fill idx[0..width) with [base * width, (base + 1) * width).
-void contiguous_range(int base, int width, std::vector<int>& out) {
-  out.resize(width);
-  for (int i = 0; i < width; ++i) out[i] = base * width + i;
-}
-
 }  // namespace
 
 // =========================================================================
@@ -89,6 +83,30 @@ void contiguous_range(int base, int width, std::vector<int>& out) {
 // for slab-living cochains but with one empty send or one empty recv in
 // each direction.  Boundary-rank plans drop the missing-neighbor entry.
 // =========================================================================
+// Returns true if the given global cochain index is in this rank's
+// angular ownership — independent of radial ownership.  Equivalent to
+// "would self.owns_*_cochain be true if the shell/slab were owned".
+static bool angular_owns(cochain_type t, const prismatic_partition& self,
+                          int global_idx) {
+  int width = 0;
+  switch (t) {
+    case cochain_type::tri_face:  width = self.N_tri_global;    break;
+    case cochain_type::rect_face: width = self.N_edge_s_global; break;
+    case cochain_type::h_edge:    width = self.N_edge_s_global; break;
+    case cochain_type::v_edge:    width = self.N_vert_s_global; break;
+    case cochain_type::vertex:    width = self.N_vert_s_global; break;
+  }
+  int sub = global_idx % width;
+  switch (t) {
+    case cochain_type::tri_face:  return self.owns_sub_tri(sub);
+    case cochain_type::h_edge:
+    case cochain_type::rect_face: return self.owns_sphere_edge(sub);
+    case cochain_type::v_edge:
+    case cochain_type::vertex:    return self.owns_sphere_vertex(sub);
+  }
+  return false;
+}
+
 halo_plan build_radial_halo_plan(cochain_type t,
                                   const prismatic_partition& self) {
   halo_plan out;
@@ -102,15 +120,25 @@ halo_plan build_radial_halo_plan(cochain_type t,
   const bool has_upper = r < self.n_radial_ranks - 1;
   const bool shell_cochain = lives_on_shell(t);
 
+  // Fill `out` with [k*width + i for i in 0..width) filtered to the
+  // indices whose angular side is owned by `self`.  Under the radial
+  // peer's convention the peer shares the same angular ownership, so
+  // this filter is symmetric between sender and receiver.
+  auto angular_filtered = [&](int k, std::vector<int>& out) {
+    for (int i = 0; i < width; ++i) {
+      int g = k * width + i;
+      if (angular_owns(t, self, g)) out.push_back(g);
+    }
+  };
+
   if (has_lower) {
     halo_plan::peer_entry pe;
     pe.peer_rank = r - 1;
     if (shell_cochain) {
-      contiguous_range(kl,     width, pe.send_global_idx);
-      contiguous_range(kl - 1, width, pe.recv_global_idx);
+      angular_filtered(kl,     pe.send_global_idx);
+      angular_filtered(kl - 1, pe.recv_global_idx);
     } else {
-      // Slab cochain: nothing to send to lower; recv slab k_lo - 1.
-      contiguous_range(kl - 1, width, pe.recv_global_idx);
+      angular_filtered(kl - 1, pe.recv_global_idx);
     }
     out.peers.push_back(std::move(pe));
   }
@@ -119,12 +147,10 @@ halo_plan build_radial_halo_plan(cochain_type t,
     halo_plan::peer_entry pe;
     pe.peer_rank = r + 1;
     if (shell_cochain) {
-      contiguous_range(kh - 1, width, pe.send_global_idx);
-      contiguous_range(kh,     width, pe.recv_global_idx);
+      angular_filtered(kh - 1, pe.send_global_idx);
+      angular_filtered(kh,     pe.recv_global_idx);
     } else {
-      // Slab cochain: send slab k_hi - 1 to upper's lower ghost; recv
-      // nothing from upper.
-      contiguous_range(kh - 1, width, pe.send_global_idx);
+      angular_filtered(kh - 1, pe.send_global_idx);
     }
     out.peers.push_back(std::move(pe));
   }
@@ -393,9 +419,37 @@ void in_process_halo_backend::exchange(int my_rank, Scalar* my_buffer,
 
 void in_process_halo_backend::exchange_all(const std::vector<halo_plan>& plans) {
   assert(int(plans.size()) == size());
-  for (int r = 0; r < size(); ++r) {
-    if (m_rank_buffers[r] != nullptr) {
-      exchange(r, m_rank_buffers[r], plans[r]);
+  // Collective emulation of MPI_Isend/MPI_Irecv pairs:
+  //   rank A recv from rank B at local index A.recv[i]
+  //   rank B send to rank A at local index B.send[i]  (paired by i)
+  // The copy is buf_a[A.recv[i]] = buf_b[B.send[i]].
+  //
+  // Under global indexing, A.recv[i] == B.send[i] so the copy is
+  // tautological when viewed on a single buffer.  Under local indexing
+  // the two sides differ and we must go through both.
+  for (int a = 0; a < size(); ++a) {
+    Scalar* buf_a = m_rank_buffers[a];
+    if (buf_a == nullptr) continue;
+    auto const& plan_a = plans[a];
+    for (auto const& pe_a : plan_a.peers) {
+      const int b = pe_a.peer_rank;
+      Scalar* buf_b = m_rank_buffers[b];
+      if (buf_b == nullptr) continue;
+
+      // Find the peer entry on b's plan that targets a.
+      const halo_plan::peer_entry* pe_b = nullptr;
+      for (auto const& ppe : plans[b].peers) {
+        if (ppe.peer_rank == a) { pe_b = &ppe; break; }
+      }
+      if (pe_b == nullptr) continue;
+
+      // Recv at a is paired with send at b: same i-th position.
+      assert(pe_a.recv_global_idx.size() == pe_b->send_global_idx.size());
+      for (size_t i = 0; i < pe_a.recv_global_idx.size(); ++i) {
+        const int a_idx = pe_a.recv_global_idx[i];
+        const int b_idx = pe_b->send_global_idx[i];
+        buf_a[a_idx] = buf_b[b_idx];
+      }
     }
   }
 }

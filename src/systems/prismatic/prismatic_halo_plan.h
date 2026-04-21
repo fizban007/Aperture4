@@ -126,39 +126,45 @@ halo_plan build_angular_halo_plan(cochain_type t,
                                    const icosphere_topology& topo);
 
 // =========================================================================
-// In-process backend (Phase 2 test fixture).
+// In-process backend (test fixture).
 //
-// Runs multiple "ranks" in a single process.  Each rank registers its
-// buffer with the registry, then exchange() copies from peer buffers
-// directly.  This is a stand-in for MPI_Neighbor_alltoallv until the
-// MPI backend lands in Phase 3.
+// Runs multiple "ranks" in a single process and emulates MPI point-to-
+// point halo exchange.  Each rank registers a buffer; exchange_all()
+// matches each rank's recv entry with the peer's corresponding send
+// entry (paired by position in the plan, which is the same semantics
+// MPI_Isend / MPI_Irecv use) and copies value-by-value.
 //
-// Not thread-safe, not meant for production — purely a test harness to
-// validate plan semantics before plumbing MPI.
+// Works with both global-indexed and local-indexed plans:
+//   - Global-indexed: sender's send_global_idx[i] == receiver's
+//     recv_global_idx[i] (same global index), so buf_b[send_idx] at B
+//     and buf_a[recv_idx] at A have matching interpretations.
+//   - Local-indexed: local indices differ across ranks; the copy uses
+//     the sender's own local index to READ and the receiver's own
+//     local index to WRITE, which is exactly what MPI_Isend/MPI_Irecv
+//     do implicitly through pack/unpack.
+//
+// Plan construction must emit send and recv entries in a MATCHING order
+// on the two sides (so the i-th sender entry matches the i-th receiver
+// entry).  build_angular_halo_plan and build_radial_halo_plan satisfy
+// this by construction (both sides iterate the same topology tables in
+// the same order).
 // =========================================================================
 class in_process_halo_backend {
  public:
-  // Register the buffer for a given rank.  Called once per rank at
-  // fixture setup.  The backend does NOT take ownership; the caller
-  // must keep the buffer alive for the lifetime of the backend.
+  // Register the buffer for a given rank.
   void register_rank(int rank, Scalar* buffer);
 
-  // Execute a halo exchange.  For each peer in the plan, the peer's
-  // registered buffer is read for the send data, and the local buffer
-  // receives into its recv indices.
-  //
-  // This is a two-way operation from the perspective of both sides, but
-  // since it's in-process, the single exchange() call for `my_rank`
-  // does only the "pull" side: it writes `my_buffer[recv_idx]` from
-  // `peer_buffer[send_idx]`.  To fully update all ranks, call exchange()
-  // once per rank.  (MPI will do both sides in one collective.)
+  // Legacy single-rank exchange: assumes global indexing so that reading
+  // peer_buf[recv_idx] gives the right value.  Kept for the existing
+  // Phase 2 tests; new code should prefer exchange_all() which handles
+  // both global and local indexing correctly.
   void exchange(int my_rank, Scalar* my_buffer, const halo_plan& plan);
 
-  // Convenience: run exchange() on every registered rank in round-robin
-  // using per-rank plans passed in as a parallel vector.
+  // Collective: matches each rank's recv entry with the corresponding
+  // peer's send entry by position, then copies.  Works with both
+  // global-indexed and local-indexed plans.
   void exchange_all(const std::vector<halo_plan>& plans);
 
-  // Number of registered ranks.
   int size() const { return int(m_rank_buffers.size()); }
 
  private:

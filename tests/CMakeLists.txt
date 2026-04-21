@@ -26,6 +26,7 @@ add_executable(tests
   "test_prismatic_angular_halo.cpp"
   "test_prismatic_mpi_backend.cpp"
   "test_prismatic_cochain_layout.cpp"
+  "test_prismatic_mesh_partition.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"

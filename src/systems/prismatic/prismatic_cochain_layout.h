@@ -97,4 +97,22 @@ class distributed_cochain_layout {
   std::vector<int> m_sorted_local;    // parallel local indices
 };
 
+// =========================================================================
+// Helper: copy a global-indexed buffer's local portion into a local-
+// sized buffer, using the layout's local→global mapping.
+//
+// `global_data` must have at least layout.global_size() valid entries.
+// `local_data` will be filled with layout.local_size() values, matching
+// the layout's order (owned slots, then ghost slots, each ascending).
+// =========================================================================
+template <typename T>
+inline void copy_global_to_local(const T* global_data,
+                                  const distributed_cochain_layout& layout,
+                                  T* local_data) {
+  const int n = layout.local_size();
+  for (int l = 0; l < n; ++l) {
+    local_data[l] = global_data[layout.to_global(l)];
+  }
+}
+
 }  // namespace Aperture

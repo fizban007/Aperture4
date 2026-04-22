@@ -63,8 +63,11 @@ main(int argc, char *argv[]) {
   //initial_nonrotating_vacuum_wald(*B, *D, grid);
 
   initial_vacuum_monopole(*B0, *D0, grid);
-  B->copy_from(*B0);
-  D->copy_from(*D0);
+  // B->copy_from(*B0);
+  // D->copy_from(*D0);
+  initial_vacuum_monopole(*B, *D, grid);
+  B->add_by(*B0, -1.0);
+  D->add_by(*D0, -1.0);
 
   env.run();
 

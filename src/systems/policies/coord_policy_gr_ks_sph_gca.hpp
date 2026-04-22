@@ -219,6 +219,11 @@ class coord_policy_gr_ks_sph {
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
       : m_grid(dynamic_cast<const grid_type &>(grid)) {
     m_a = m_grid.a;
+    vec_t<value_t, Conf::dim> sim_lower, sim_size;
+    sim_env().params().get_vec_t("lower", sim_lower);
+    sim_env().params().get_vec_t("size", sim_size);
+    m_theta_min = sim_lower[1];
+    m_theta_max = sim_lower[1] + sim_size[1];
   }
   ~coord_policy_gr_ks_sph() = default;
 
@@ -301,14 +306,27 @@ class coord_policy_gr_ks_sph {
     // Both new_x and u are updated
     gr_ks_geodesic_advance(m_a, dt, new_x, context.p, is_photon);
 
-    if (new_x[1] < 0.0) {
-      new_x[1] = -new_x[1];
-      new_x[2] += M_PI;
-      context.p[1] = -context.p[1];
-    } else if (new_x[1] >= M_PI) {
-      new_x[1] = 2.0 * M_PI - new_x[1];
-      new_x[2] -= M_PI;
-      context.p[1] = -context.p[1];
+    if constexpr (Conf::dim == 2) {
+      if (new_x[1] < 0.0) {
+        new_x[1] = -new_x[1];
+        new_x[2] += M_PI;
+        context.p[1] = -context.p[1];
+      } else if (new_x[1] >= M_PI) {
+        new_x[1] = 2.0 * M_PI - new_x[1];
+        new_x[2] -= M_PI;
+        context.p[1] = -context.p[1];
+      }
+    } else {
+      // 3D: reflect at the simulation theta_min/theta_max boundaries.
+      // Don't shift in phi -- true pole-crossing would need non-local
+      // MPI exchange between pole-touching ranks, which isn't implemented.
+      if (new_x[1] < m_theta_min) {
+        new_x[1] = 2.0 * m_theta_min - new_x[1];
+        context.p[1] = -context.p[1];
+      } else if (new_x[1] >= m_theta_max) {
+        new_x[1] = 2.0 * m_theta_max - new_x[1];
+        context.p[1] = -context.p[1];
+      }
     }
     auto r = new_x[0];
     auto th = new_x[1];
@@ -427,6 +445,8 @@ class coord_policy_gr_ks_sph {
  private:
   const grid_type &m_grid;
   value_t m_a;
+  value_t m_theta_min = 0.0;
+  value_t m_theta_max = M_PI;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;

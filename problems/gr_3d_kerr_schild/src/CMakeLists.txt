@@ -16,10 +16,6 @@
 #   target_link_libraries(gr_vacuum gr_2d_kerr_schild)
 #   add_dependencies(problems gr_vacuum)
 
-#   add_executable(gr_monopole "monopole_vacuum.cpp")
-#   target_link_libraries(gr_monopole gr_2d_kerr_schild)
-#   add_dependencies(problems gr_monopole)
-
 #   add_executable(gr_discharge "monopole_discharge.cpp")
 #   target_link_libraries(gr_discharge gr_2d_kerr_schild)
 #   add_dependencies(problems gr_discharge)
@@ -38,9 +34,13 @@ add_aperture_library(gr_3d_kerr_schild
 # target_link_libraries(grpic gr_2d_kerr_schild)
 # add_dependencies(problems grpic)
 # 
-# add_aperture_executable(monopole "main_monopole.cpp")
-# target_link_libraries(monopole gr_2d_kerr_schild)
-# add_dependencies(problems monopole)
+add_aperture_executable(vacuum_monopole_3d "monopole_vacuum.cpp")
+target_link_libraries(vacuum_monopole_3d gr_3d_kerr_schild)
+add_dependencies(problems vacuum_monopole_3d)
+
+add_aperture_executable(monopole_3d "main_monopole.cpp")
+target_link_libraries(monopole_3d gr_3d_kerr_schild)
+add_dependencies(problems monopole_3d)
 # 
 # add_aperture_executable(gap "main_gap.cpp")
 # target_link_libraries(gap gr_2d_kerr_schild)

@@ -73,6 +73,16 @@ bh_density_floor_injector<Conf>::init() {
   value_t d_log_r = size_log_r / nr;
   m_r_pml = math::exp(log_r_max - damping_length * d_log_r);
 
+  // Optional toml overrides for the injection region in (r, theta).
+  // Defaults inject in the shell
+  // r_pml - 1 <= r <= r_pml across all theta.
+  m_inj_r[0] = m_r_pml - 1.0;
+  m_inj_r[1] = m_r_pml;
+  m_inj_th[0] = 0.0;
+  m_inj_th[1] = M_PI;
+  sim_env().params().get_array("inj_r", m_inj_r);
+  sim_env().params().get_array("inj_th", m_inj_th);
+
   // Get the temperature with which particles are injected.
   m_kT = 2.0 / m_r_pml;
   sim_env().params().get_value("kT", m_kT);
@@ -102,9 +112,12 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
   // value_t sigma_thr = m_sigma_thr;
   value_t target_dens = m_target_dens;
   value_t kT = m_kT;
-  value_t r_pml = m_r_pml;
   value_t qe = m_qe;
   value_t ppc = m_ppc;
+  value_t inj_r_lo = m_inj_r[0];
+  value_t inj_r_hi = m_inj_r[1];
+  value_t inj_th_lo = m_inj_th[0];
+  value_t inj_th_hi = m_inj_th[1];
   int num_species = Rho.size();
 
   auto time = sim_env().get_time();
@@ -119,7 +132,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
 
   // Measure how many pairs to inject per cell
   exec_policy::launch(
-      [a, target_dens, r_pml, num_species] LAMBDA(
+      [a, target_dens, num_species, inj_r_lo, inj_r_hi, inj_th_lo, inj_th_hi] LAMBDA(
           auto rho, auto num_per_cell, auto states, auto pair_injected) {
         auto &grid = exec_policy::grid();
         auto ext = grid.extent();
@@ -139,10 +152,10 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
                 value_t th = grid_ks_t<Conf>::theta(
                     grid.template coord<1>(pos[1], true));
 
-                if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
-                    th < grid.delta[1] || th > M_PI - grid.delta[1])
-                  // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
-                  return;
+                // if (r <= 1.02f * Metric_KS::rH(a) || r > 3.5f ||
+                //     th < grid.delta[1] || th > M_PI - grid.delta[1])
+                //   // if (r <= 1.1f * Metric_KS::rH(a) || r > 3.5f)
+                //   return;
 
                 value_t n = 0.0f;
                 for (int sp = 0; sp < num_species; sp++) {
@@ -155,7 +168,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
                 // printf("sigma is %f, sigma_thr is %f, n is %f, B_sqr is
                 // %f\n", sigma, sigma_thr, n, B_sqr);
                 // }
-                if (n < target_dens && r < r_pml && r > r_pml - 1.0) {
+                if (n < target_dens && r <= inj_r_hi && r >= inj_r_lo && th <= inj_th_hi && th >= inj_th_lo) {
                   num_per_cell[idx] = 1;
                   pair_injected[idx] += 2.0;
                 } else {

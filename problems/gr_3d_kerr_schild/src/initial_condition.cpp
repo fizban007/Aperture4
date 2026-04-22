@@ -79,8 +79,8 @@ initial_nonrotating_vacuum_wald(vector_field<Conf> &B0, vector_field<Conf> &D0,
               r2 = r_s * r_s;
               D[2][idx] =  (Metric_KS::sq_gamma_beta(0.0f, r_s, sth, cth) /
                            Metric_KS::ag_33(0.0f, r_s, sth, cth)) *
-                           Bp * r_s * square(math::sin(th)) /
-                          Metric_KS::sqrt_gamma(a, r_s, th);
+                           Bp * r_s * square(math::sin(th_s)) /
+                          Metric_KS::sqrt_gamma(a, r_s, th_s);
             });
       },
       B0, D0, grid.a);

@@ -56,7 +56,26 @@ bh_density_floor_injector<Conf>::init() {
   m_bp = 1.0f;
   sim_env().params().get_value("bp", m_bp);
   sim_env().params().get_value("q_e", m_qe);
-  m_target_dens = m_bp * m_bp / m_sigma;
+
+  // Reference target density. Default preserves old behavior (bp^2/sigma
+  // everywhere under the "constant" profile).
+  m_target_dens_ref = m_bp * m_bp / m_sigma;
+  sim_env().params().get_value("target_density", m_target_dens_ref);
+  m_target_dens_r_ref = Metric_KS::rH(m_grid.a);
+  sim_env().params().get_value("target_density_r_ref", m_target_dens_r_ref);
+  sim_env().params().get_value("target_density_power", m_target_dens_power);
+
+  std::string profile_str = "constant";
+  sim_env().params().get_value("target_density_profile", profile_str);
+  if (profile_str == "constant") {
+    m_profile = density_profile_t::constant;
+  } else if (profile_str == "power_law_r") {
+    m_profile = density_profile_t::power_law_r;
+  } else {
+    Logger::print_err("Unknown target_density_profile '%s', using constant\n",
+                      profile_str.c_str());
+    m_profile = density_profile_t::constant;
+  }
 
   // This block calculates the pml/damping layer starting radius.
   // Eventually, we will inject pairs within a certain distaince interior of
@@ -110,7 +129,10 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
   value_t a = m_grid.a;
   // value_t inj_thr = m_inj_thr;
   // value_t sigma_thr = m_sigma_thr;
-  value_t target_dens = m_target_dens;
+  value_t target_dens_ref = m_target_dens_ref;
+  value_t target_dens_r_ref = m_target_dens_r_ref;
+  value_t target_dens_power = m_target_dens_power;
+  density_profile_t profile = m_profile;
   value_t kT = m_kT;
   value_t qe = m_qe;
   value_t ppc = m_ppc;
@@ -119,6 +141,21 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
   value_t inj_th_lo = m_inj_th[0];
   value_t inj_th_hi = m_inj_th[1];
   int num_species = Rho.size();
+
+  // Evaluate the target density profile at (r, th). Captured by value into
+  // device lambdas below.
+  auto target_dens_fn =
+      [target_dens_ref, target_dens_r_ref, target_dens_power, profile]
+      LAMBDA(value_t r, value_t th) -> value_t {
+        switch (profile) {
+          case density_profile_t::power_law_r:
+            return target_dens_ref
+                   * pow(r / target_dens_r_ref, target_dens_power);
+          case density_profile_t::constant:
+          default:
+            return target_dens_ref;
+        }
+      };
 
   auto time = sim_env().get_time();
   if (time < 10.0) {
@@ -132,7 +169,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
 
   // Measure how many pairs to inject per cell
   exec_policy::launch(
-      [a, target_dens, num_species, inj_r_lo, inj_r_hi, inj_th_lo, inj_th_hi] LAMBDA(
+      [a, target_dens_fn, num_species, inj_r_lo, inj_r_hi, inj_th_lo, inj_th_hi] LAMBDA(
           auto rho, auto num_per_cell, auto states, auto pair_injected) {
         auto &grid = exec_policy::grid();
         auto ext = grid.extent();
@@ -168,7 +205,8 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
                 // printf("sigma is %f, sigma_thr is %f, n is %f, B_sqr is
                 // %f\n", sigma, sigma_thr, n, B_sqr);
                 // }
-                if (n < target_dens && r <= inj_r_hi && r >= inj_r_lo && th <= inj_th_hi && th >= inj_th_lo) {
+                if (n < target_dens_fn(r, th) && r <= inj_r_hi && r >= inj_r_lo
+                    && th <= inj_th_hi && th >= inj_th_lo) {
                   num_per_cell[idx] = 1;
                   pair_injected[idx] += 2.0;
                 } else {
@@ -232,7 +270,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
         },
         // Fourth function is the particle weight, which can depend on the
         // global coordinate.
-        [a, target_dens, ppc] LAMBDA(auto &x_global, PtcType type) {
+        [a, target_dens_fn, ppc] LAMBDA(auto &x_global, PtcType type) {
           index_t<Conf::dim> pos;
           vec_t<value_t, 3> x;
           // auto &grid = exec_policy::grid();
@@ -241,7 +279,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
           value_t r = grid_ks_t<Conf>::radius(x_global[0]);
           value_t th = grid_ks_t<Conf>::theta(x_global[1]);
           value_t sqrt_gamma = Metric_KS::sqrt_gamma(a, r, th);
-          value_t w = (target_dens * r * sqrt_gamma) / ppc;
+          value_t w = (target_dens_fn(r, th) * r * sqrt_gamma) / ppc;
           return w;
         });
   }

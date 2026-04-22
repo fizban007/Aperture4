@@ -29,6 +29,11 @@
 
 namespace Aperture {
 
+enum class density_profile_t {
+  constant,
+  power_law_r,
+};
+
 template <typename Conf>
 class bh_injector : public system_t {
  public:
@@ -75,9 +80,12 @@ class bh_density_floor_injector : public system_t {
   void register_data_components() override;
 
  private:
-  value_t m_target_dens, m_qe, m_sigma, m_bp;
+  value_t m_target_dens_ref, m_qe, m_sigma, m_bp;
   value_t m_r_pml, m_kT, m_ppc;
   value_t m_inj_r[2], m_inj_th[2];
+  density_profile_t m_profile = density_profile_t::constant;
+  value_t m_target_dens_r_ref;
+  value_t m_target_dens_power = -2.0;
   const grid_ks_t<Conf>& m_grid;
   multi_array<int, Conf::dim> m_num_per_cell;
   // multi_array<int, Conf::dim> m_cum_num_per_cell;

@@ -1078,14 +1078,21 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
 
                 // View axis as a perfect conductor: zero all fields on its surface and inside it
                 // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain -- nevermind
                 // D^r, D^phi, and B^theta lie on the surface of the theta=theta_min boundary
                 D[0][idx] = 0.0f;
                 D[2][idx] = 0.0f;
                 B[1][idx] = 0.0f;
+                // D[0][idx.inc_y()] = 0.0f;
+                // D[2][idx.inc_y()] = 0.0f;
+                // B[1][idx.inc_y()] = 0.0f;
                 // D^theta, B^r, and B^phi lie inside the theta=theta_min boundary
                 D[1][idx.dec_y()] = 0.0f;
                 B[0][idx.dec_y()] = 0.0f;
                 B[2][idx.dec_y()] = 0.0f;
+                // D[1][idx] = 0.0f;
+                // B[0][idx] = 0.0f;
+                // B[2][idx] = 0.0f;
               }
             });
           },
@@ -1114,14 +1121,21 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
 
                 // View axis as a perfect conductor: zero all fields on its surface and inside it
                 // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain -- nevermind
                 // D^r, D^phi, and B^theta lie on the surface of the theta=theta_max boundary
                 D[0][idx.inc_y()] = 0.0f;
                 D[2][idx.inc_y()] = 0.0f;
                 B[1][idx.inc_y()] = 0.0f;
+                // D[0][idx] = 0.0f;
+                // D[2][idx] = 0.0f;
+                // B[1][idx] = 0.0f;
                 // D^theta, B^r, and B^phi lie inside the theta=theta_max boundary
                 D[1][idx.inc_y()] = 0.0f;
                 B[0][idx.inc_y()] = 0.0f;
                 B[2][idx.inc_y()] = 0.0f;
+                // D[1][idx] = 0.0f;
+                // B[0][idx] = 0.0f;
+                // B[2][idx] = 0.0f;
               }
             });
           },

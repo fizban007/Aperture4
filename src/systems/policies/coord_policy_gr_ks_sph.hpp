@@ -403,11 +403,16 @@ class coord_policy_gr_ks_sph {
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ad[1][idx];
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
-                rho_total[idx] *=
-                    w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                auto dV = grid_ptrs.Ad[2][idx];
+                if constexpr (Conf::dim == 3) {
+                  auto ph = grid_type::phi(grid.coord(2, pos[2], false));
+                  auto dph = ph - grid_type::phi(grid.coord(2, pos[2] - 1, false));
+                  dV *= dph;
+                }
+                // In 2D, A_phi is effectively dV; in 3D, dV = A_phi * dph
+                rho_total[idx] *= w / dV;
                 for (int n = 0; n < num_species; n++) {
-                  rho[n][idx] *=
-                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                  rho[n][idx] *= w / dV;
                 }
                 // }
                 if (th_s < 0.1 * grid.delta[1] ||

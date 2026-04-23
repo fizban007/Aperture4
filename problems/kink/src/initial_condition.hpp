@@ -17,7 +17,7 @@ namespace Aperture {
 template <typename Conf>
 void
 kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
-                        rng_states_t<exec_tags::device> &states) {
+                        rng_states_t<exec_tags::dynamic> &states) {
   using value_t = typename Conf::value_t;
   value_t B0 = sim_env().params().get_as<double>("B0", 100.0);
   value_t B_z = sim_env().params().get_as<double>("B_z_ratio", 0.0);
@@ -108,7 +108,7 @@ kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
 template <typename Conf>
 void
 kink_force_free(vector_field<Conf> &Bbg, vector_field<Conf> &Bdelta, particle_data_t &ptc,
-                rng_states_t<exec_tags::device> &states) {
+                rng_states_t<exec_tags::dynamic> &states) {
   using value_t = typename Conf::value_t;
   value_t B0 = sim_env().params().get_as<double>("B0", 100.0);
   value_t zeta = sim_env().params().get_as<double>("pitch_zeta", 1.44);
@@ -213,8 +213,8 @@ kink_force_free(vector_field<Conf> &Bbg, vector_field<Conf> &Bdelta, particle_da
         auto y = x_global[1];
         auto r = math::sqrt(x*x + y*y);
 
-        value_t beta_z = Jz_profile(r) / n_0 / 1.8;
-        value_t beta_phi = Jphi_profile(r) / n_0 / 1.8;
+        value_t beta_z = Jz_profile(r) / n_0 / 2.0;
+        value_t beta_phi = Jphi_profile(r) / n_0 / 2.0;
         value_t beta = math::sqrt(beta_z * beta_z + beta_phi * beta_phi);
         value_t gamma = 1.0 / math::sqrt(1.0 - beta*beta);
         // value_t gamma_z = 1.0 / math::sqrt(1.0 - beta_z*beta_z);
@@ -249,7 +249,7 @@ kink_force_free(vector_field<Conf> &Bbg, vector_field<Conf> &Bdelta, particle_da
 template <typename Conf>
 void
 kink_pressure_supported_moving(vector_field<Conf> &B, vector_field<Conf> &E, double beta_z,
-                               particle_data_t &ptc, rng_states_t<exec_tags::device> &states) {
+                               particle_data_t &ptc, rng_states_t<exec_tags::dynamic> &states) {
   using value_t = typename Conf::value_t;
 
   double gamma_z = 1.0 / std::sqrt(1.0 - beta_z * beta_z);
@@ -372,14 +372,14 @@ kink_pressure_supported_moving(vector_field<Conf> &B, vector_field<Conf> &E, dou
 
 template void kink_pressure_supported<Config<3>>(vector_field<Config<3>> &B,
                                                 particle_data_t &ptc,
-                                                rng_states_t<exec_tags::device> &states);
+                                                rng_states_t<exec_tags::dynamic> &states);
 
 template void kink_force_free<Config<3>>(vector_field<Config<3>> &Bbg, vector_field<Config<3>> &Bdelta, particle_data_t &ptc,
-                              rng_states_t<exec_tags::device> &states);
+                              rng_states_t<exec_tags::dynamic> &states);
 
 template void kink_pressure_supported_moving(vector_field<Config<3>> &B, vector_field<Config<3>> &E,
                                              double beta_z, particle_data_t &ptc,
-                                             rng_states_t<exec_tags::device> &states);
+                                             rng_states_t<exec_tags::dynamic> &states);
 
 
 }  // namespace Aperture

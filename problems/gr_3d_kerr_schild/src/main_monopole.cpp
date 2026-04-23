@@ -101,42 +101,38 @@ main(int argc, char *argv[]) {
   // env.get_data("particles", &ptc);
 
   initial_vacuum_monopole(*B0, *D0, grid);
-  // initial_nonrotating_vacuum_wald(*B, *D, grid);
-  // B->copy_from(*B0);
-  // D->copy_from(*D0);
-  // initial_vacuum_wald(*B0, *D0, grid);
-  // initial_nonrotating_vacuum_wald(*B, *D, grid);
-  // B->add_by(*B0, -1.0);
-  // D->add_by(*D0, -1.0);
+  initial_vacuum_monopole(*B, *D, grid);
+  B->add_by(*B0, -1.0);
+  D->add_by(*D0, -1.0);
 
-  //   pusher->fill_multiplicity(5, 5.0);
-  ptc_injector_dynamic<Conf> ptc_inj(grid);
-  ptc_inj.inject_pairs(
-      // First function is the injection criterion for each cell. pos is an
-      // index_t<Dim> object marking the cell in the grid. Returns true for
-      // cells that inject and false for cells that do nothing.
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) {
-        // if (pos[0] == 80 && pos[1] == 120)
-        //   return true;
-        // else
-        //   return false;
-        return true;
-      },
-      // Second function returns the number of particles injected in each cell.
-      // This includes all species
-      [] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2; },
-      // Third function is the momentum distribution of the injected particles.
-      // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
-      // particular particle
-      [] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
-        return vec_t<value_t, 3>(0.0, 0.0, 0.0);
-      },
-      // Fourth function is the particle weight, which can depend on the global
-      // coordinate.
-      [] LAMBDA(auto &x_global, PtcType type) {
-        value_t r = grid_ks_t<Conf>::radius(x_global[0]);
-        return math::sin(x_global[1]);
-      });
+  // //   pusher->fill_multiplicity(5, 5.0);
+  // ptc_injector_dynamic<Conf> ptc_inj(grid);
+  // ptc_inj.inject_pairs(
+  //     // First function is the injection criterion for each cell. pos is an
+  //     // index_t<Dim> object marking the cell in the grid. Returns true for
+  //     // cells that inject and false for cells that do nothing.
+  //     [] LAMBDA(auto &pos, auto &grid, auto &ext) {
+  //       // if (pos[0] == 80 && pos[1] == 120)
+  //       //   return true;
+  //       // else
+  //       //   return false;
+  //       return true;
+  //     },
+  //     // Second function returns the number of particles injected in each cell.
+  //     // This includes all species
+  //     [] LAMBDA(auto &pos, auto &grid, auto &ext) { return 2; },
+  //     // Third function is the momentum distribution of the injected particles.
+  //     // Returns a vec_t<value_t, 3> object encoding the 3D momentum of this
+  //     // particular particle
+  //     [] LAMBDA(auto &x_global, rand_state &state, PtcType type) {
+  //       return vec_t<value_t, 3>(0.0, 0.0, 0.0);
+  //     },
+  //     // Fourth function is the particle weight, which can depend on the global
+  //     // coordinate.
+  //     [] LAMBDA(auto &x_global, PtcType type) {
+  //       value_t r = grid_ks_t<Conf>::radius(x_global[0]);
+  //       return math::sin(x_global[1]);
+  //     });
 
   env.run();
 

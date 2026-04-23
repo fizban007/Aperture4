@@ -54,7 +54,8 @@ bh_density_floor_injector<Conf>::init() {
   m_sigma = 1e-1;
   sim_env().params().get_value("sigma", m_sigma);
   m_bp = 1.0f;
-  sim_env().params().get_value("bp", m_bp);
+  sim_env().params().get_value("Bp", m_bp);
+  m_qe = 1.0f;
   sim_env().params().get_value("q_e", m_qe);
 
   // Reference target density. Default preserves old behavior (bp^2/sigma
@@ -80,13 +81,19 @@ bh_density_floor_injector<Conf>::init() {
   // This block calculates the pml/damping layer starting radius.
   // Eventually, we will inject pairs within a certain distaince interior of
   // this radius.
-  value_t nr = 1024;
-  sim_env().params().get_value("Nr", nr);
-  value_t size_log_r = 3.00;
-  sim_env().params().get_value("size", size_log_r);
-  value_t log_r_min = 0.588;
-  sim_env().params().get_value("lower", log_r_min);
-  value_t damping_length = 64;
+  int ncells[Conf::dim];
+  // sim_env().params().get_value("Nr", nr);
+  sim_env().params().get_array("N", ncells);
+  value_t nr = ncells[0];
+  value_t size[Conf::dim];
+  value_t size_log_r;
+  sim_env().params().get_array("size", size);
+  size_log_r = size[0];
+  value_t log_r_min;
+  value_t lower[Conf::dim];
+  sim_env().params().get_array("lower", lower);
+  log_r_min = lower[0];
+  int damping_length = 64;
   sim_env().params().get_value("damping_length", damping_length);
   value_t log_r_max = log_r_min + size_log_r;
   value_t d_log_r = size_log_r / nr;
@@ -101,6 +108,9 @@ bh_density_floor_injector<Conf>::init() {
   m_inj_th[1] = M_PI;
   sim_env().params().get_array("inj_r", m_inj_r);
   sim_env().params().get_array("inj_th", m_inj_th);
+
+  // Time at which injection becomes active (default: 0 -> active from t=0).
+  sim_env().params().get_value("t_inj_start", m_t_inj_start);
 
   // Get the temperature with which particles are injected.
   m_kT = 2.0 / m_r_pml;
@@ -158,7 +168,7 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
       };
 
   auto time = sim_env().get_time();
-  if (time < 10.0) {
+  if (time < m_t_inj_start) {
     return;
   }
 

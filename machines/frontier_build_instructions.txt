@@ -1,0 +1,6 @@
+# In main Aperture directory:
+mkdir build
+cd build
+source ../machines/frontier.20260408
+CXX=CC CC=cc HIPCC=hipcc cmake .. -DCMAKE_BUILD_TYPE=Release -Duse_double=1 -Duse_hip=1 -Don_frontier=1 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+make -j 8

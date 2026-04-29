@@ -41,6 +41,10 @@ add_dependencies(problems vacuum_monopole_3d)
 add_aperture_executable(monopole_3d "main_monopole.cpp")
 target_link_libraries(monopole_3d gr_3d_kerr_schild)
 add_dependencies(problems monopole_3d)
+
+add_aperture_executable(wald_3d "main_wald.cpp")
+target_link_libraries(wald_3d gr_3d_kerr_schild)
+add_dependencies(problems wald_3d)
 # 
 # add_aperture_executable(gap "main_gap.cpp")
 # target_link_libraries(gap gr_2d_kerr_schild)

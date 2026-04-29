@@ -268,8 +268,7 @@ class coord_policy_gr_ks_sph {
     x_global[1] = x2(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
-                       // context.E, dt, context.q / context.m);
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
                          context.E, 0.5f * dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
@@ -290,7 +289,7 @@ class coord_policy_gr_ks_sph {
 
       // Note: context.p stores the lower components u_i, while gamma is upper
       // u^0.
-      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
                          context.E, 0.5f * dt, context.q / context.m);
     }
   }
@@ -316,6 +315,8 @@ class coord_policy_gr_ks_sph {
         context.p[1] = -context.p[1];
       }
     } else {
+      // // JM: Comment out this block to delete particles crossing theta_min/max boundaries.
+      // // Without reflection, particles will be deleted if they cross the theta_min or theta_max boundary
       // 3D: reflect at the simulation theta_min/theta_max boundaries.
       // Don't shift in phi -- true pole-crossing would need non-local
       // MPI exchange between pole-touching ranks, which isn't implemented.

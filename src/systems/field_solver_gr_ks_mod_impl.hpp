@@ -415,6 +415,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_E(
         B, D, *(m_auxE), m_ks_grid.get_grid_ptrs());
   }
   ExecPolicy<Conf>::sync();
+  aux_boundary_condition_E(*m_auxE);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -603,6 +604,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::compute_aux_H(
         B, D, *(m_auxH), m_ks_grid.get_grid_ptrs());
   }
   ExecPolicy<Conf>::sync();
+  aux_boundary_condition_H(*m_auxH);
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -1052,7 +1054,7 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
     if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[2]) {
       // Axis at theta = 0
       ExecPolicy<Conf>::launch(
-          [] LAMBDA(auto D, auto B) {
+          [] LAMBDA(auto D, auto B, auto D0, auto B0, auto grid_ptrs) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto ext = grid.extent();
 
@@ -1076,33 +1078,51 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
                 // D[1][idx.dec_y()] = 0.0f;        // 0.0f;      D[1][idx];
                 // B[0][idx.dec_y()] = 0.0f;  // -B[0][idx]; B[0][idx]; B[0][idx];
 
-                // View axis as a perfect conductor: zero all fields on its surface and inside it
-                // Paranoia: touch all the field components
-                // //   ...both at the boundary and one cell into the domain -- nevermind
+                // // Trying a zero-derivative boundary condition on the total field
+                // D[0][idx] = grid_ptrs.Ad[0][idx.inc_y()] * (D[0][idx.inc_y()] + D0[0][idx.inc_y()]) / grid_ptrs.Ad[0][idx] - D0[0][idx];
+                // D[2][idx] = grid_ptrs.Ad[2][idx.inc_y()] * (D[2][idx.inc_y()] + D0[2][idx.inc_y()]) / grid_ptrs.Ad[2][idx] - D0[2][idx];
+                // B[1][idx] = grid_ptrs.Ab[1][idx.inc_y()] * (B[1][idx.inc_y()] + B0[1][idx.inc_y()]) / grid_ptrs.Ab[1][idx] - B0[1][idx];
+
+                // D[1][idx.dec_y()] = grid_ptrs.Ad[1][idx] * (D[1][idx] + D0[1][idx]) / grid_ptrs.Ad[1][idx.dec_y()] - D0[1][idx.dec_y()];
+                // B[0][idx.dec_y()] = grid_ptrs.Ab[0][idx] * (B[0][idx] + B0[0][idx]) / grid_ptrs.Ab[0][idx.dec_y()] - B0[0][idx.dec_y()];
+                // B[2][idx.dec_y()] = grid_ptrs.Ab[2][idx] * (B[2][idx] + B0[2][idx]) / grid_ptrs.Ab[2][idx.dec_y()] - B0[2][idx.dec_y()];                
+
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // D^r, D^phi, and B^theta lie on the surface of the theta=theta_min boundary
+                // D[0][idx] = 0.0f;
+                // D[2][idx] = 0.0f;
+                // B[1][idx] = 0.0f;
+                // D[0][idx.inc_y()] = 0.0f;
+                // D[2][idx.inc_y()] = 0.0f;
+                // B[1][idx.inc_y()] = 0.0f;
+                // // D^theta, B^r, and B^phi lie inside the theta=theta_min boundary
+                // D[1][idx.dec_y()] = 0.0f;
+                // B[0][idx.dec_y()] = 0.0f;
+                // B[2][idx.dec_y()] = 0.0f;
+                // D[1][idx] = 0.0f;
+                // B[0][idx] = 0.0f;
+                // B[2][idx] = 0.0f;
+
                 // D^r, D^phi, and B^theta lie on the surface of the theta=theta_min boundary
                 D[0][idx] = 0.0f;
                 D[2][idx] = 0.0f;
                 B[1][idx] = 0.0f;
-                // D[0][idx.inc_y()] = 0.0f;
-                // D[2][idx.inc_y()] = 0.0f;
-                // B[1][idx.inc_y()] = 0.0f;
-                // D^theta, B^r, and B^phi lie inside the theta=theta_min boundary
-                D[1][idx.dec_y()] = 0.0f;
-                B[0][idx.dec_y()] = 0.0f;
-                B[2][idx.dec_y()] = 0.0f;
-                // D[1][idx] = 0.0f;
-                // B[0][idx] = 0.0f;
-                // B[2][idx] = 0.0f;
+                // D^theta, B^r, and B^phi lie on the simulation side of the theta=theta_min boundary
+                D[1][idx] = 0.0f;
+                B[0][idx] = 0.0f;
+                B[2][idx] = 0.0f;
               }
             });
           },
-          D, B);
+          D, B, this->E0, this->B0, m_ks_grid.get_grid_ptrs());
       ExecPolicy<Conf>::sync();
     }
     if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[3]) {
       // Axis at theta = pi
       ExecPolicy<Conf>::launch(
-          [] LAMBDA(auto D, auto B) {
+          [] LAMBDA(auto D, auto B, auto D0, auto B0, auto grid_ptrs) {
             auto& grid = ExecPolicy<Conf>::grid();
             auto ext = grid.extent();
 
@@ -1119,27 +1139,201 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::boundary_conditions(
                 // D[1][idx.inc_y()] = 0.0f;  // 0.0f;       0.0f;      D[1][idx];
                 // B[0][idx.inc_y()] = 0.0f;  // -B[0][idx]; B[0][idx]; B[0][idx];
 
-                // View axis as a perfect conductor: zero all fields on its surface and inside it
-                // Paranoia: touch all the field components
-                // //   ...both at the boundary and one cell into the domain -- nevermind
+                // // Trying a zero-derivative boundary condition on the total field
+                // D[0][idx.inc_y()] = grid_ptrs.Ad[0][idx] * (D[0][idx] + D0[0][idx]) / grid_ptrs.Ad[0][idx.inc_y()] - D0[0][idx.inc_y()];
+                // D[2][idx.inc_y()] = grid_ptrs.Ad[2][idx] * (D[2][idx] + D0[2][idx]) / grid_ptrs.Ad[2][idx.inc_y()] - D0[2][idx.inc_y()];
+                // B[1][idx.inc_y()] = grid_ptrs.Ab[1][idx] * (B[1][idx] + B0[1][idx]) / grid_ptrs.Ab[1][idx.inc_y()] - B0[1][idx.inc_y()];
+
+                // D[1][idx.inc_y()] = grid_ptrs.Ad[1][idx] * (D[1][idx] + D0[1][idx]) / grid_ptrs.Ad[1][idx.inc_y()] - D0[1][idx.inc_y()];
+                // B[0][idx.inc_y()] = grid_ptrs.Ab[0][idx] * (B[0][idx] + B0[0][idx]) / grid_ptrs.Ab[0][idx.inc_y()] - B0[0][idx.inc_y()];
+                // B[2][idx.inc_y()] = grid_ptrs.Ab[2][idx] * (B[2][idx] + B0[2][idx]) / grid_ptrs.Ab[2][idx.inc_y()] - B0[2][idx.inc_y()];
+
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // D^r, D^phi, and B^theta lie on the surface of the theta=theta_max boundary
+                // D[0][idx.inc_y()] = 0.0f;
+                // D[2][idx.inc_y()] = 0.0f;
+                // B[1][idx.inc_y()] = 0.0f;
+                // D[0][idx] = 0.0f;
+                // D[2][idx] = 0.0f;
+                // B[1][idx] = 0.0f;
+                // // D^theta, B^r, and B^phi lie inside the theta=theta_max boundary
+                // D[1][idx.inc_y()] = 0.0f;
+                // B[0][idx.inc_y()] = 0.0f;
+                // B[2][idx.inc_y()] = 0.0f;
+                // D[1][idx] = 0.0f;
+                // B[0][idx] = 0.0f;
+                // B[2][idx] = 0.0f;
+
                 // D^r, D^phi, and B^theta lie on the surface of the theta=theta_max boundary
                 D[0][idx.inc_y()] = 0.0f;
                 D[2][idx.inc_y()] = 0.0f;
                 B[1][idx.inc_y()] = 0.0f;
-                // D[0][idx] = 0.0f;
-                // D[2][idx] = 0.0f;
-                // B[1][idx] = 0.0f;
-                // D^theta, B^r, and B^phi lie inside the theta=theta_max boundary
-                D[1][idx.inc_y()] = 0.0f;
-                B[0][idx.inc_y()] = 0.0f;
-                B[2][idx.inc_y()] = 0.0f;
-                // D[1][idx] = 0.0f;
-                // B[0][idx] = 0.0f;
-                // B[2][idx] = 0.0f;
+                // D^theta, B^r, and B^phi lie on the simulation side of the theta=theta_max boundary
+                D[1][idx] = 0.0f;
+                B[0][idx] = 0.0f;
+                B[2][idx] = 0.0f;
               }
             });
           },
-          D, B);
+          D, B, this->E0, this->B0, m_ks_grid.get_grid_ptrs());
+      ExecPolicy<Conf>::sync();
+    }
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+field_solver_mod<Conf, ExecPolicy,
+                 coord_policy_gr_ks_sph>::aux_boundary_condition_E(
+    vector_field<Conf>& auxE) {
+  if constexpr (Conf::dim == 3) {
+    if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[2]) {
+      // Axis at theta = theta_min
+      ExecPolicy<Conf>::launch(
+          [] LAMBDA(auto auxE, auto grid_ptrs) {
+            auto& grid = ExecPolicy<Conf>::grid();
+            auto ext = grid.extent();
+
+            ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+              for (int n2 = 0; n2 < grid.dims[2]; n2++) {
+                auto pos = index_t<Conf::dim>(n0, grid.guard[1], n2);
+                auto idx = typename Conf::idx_t(pos, ext);
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // E_r and E_phi lie on the surface of the theta=theta_min boundary
+                // auxE[0][idx] = 0.0f;
+                // auxE[2][idx] = 0.0f;
+                // auxE[0][idx.inc_y()] = 0.0f;
+                // auxE[2][idx.inc_y()] = 0.0f;
+                // // E_theta lies inside the theta=theta_min boundary
+                // auxE[1][idx.dec_y()] = 0.0f;
+                // auxE[1][idx] = 0.0f;
+
+                // E_r and E_phi lie on the surface of the theta=theta_min boundary
+                auxE[0][idx] = 0.0f;
+                auxE[2][idx] = 0.0f;
+                // E_theta lies on the simulation side of the theta=theta_min boundary
+                auxE[1][idx] = 0.0f;
+              }
+            });
+          },
+          auxE, m_ks_grid.get_grid_ptrs());
+      ExecPolicy<Conf>::sync();
+    }
+    if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[3]) {
+      // Axis at theta = theta_max
+      ExecPolicy<Conf>::launch(
+          [] LAMBDA(auto auxE, auto grid_ptrs) {
+            auto& grid = ExecPolicy<Conf>::grid();
+            auto ext = grid.extent();
+
+            ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+              for (int n2 = 0; n2 < grid.dims[2]; n2++) {
+                auto pos = index_t<Conf::dim>(
+                    n0, grid.dims[1] - grid.guard[1] - 1, n2);
+                auto idx = typename Conf::idx_t(pos, ext);
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // E_r and E_phi lie on the surface of the theta=theta_max boundary
+                // auxE[0][idx.inc_y()] = 0.0f;
+                // auxE[2][idx.inc_y()] = 0.0f;
+                // auxE[0][idx] = 0.0f;
+                // auxE[2][idx] = 0.0f;
+                // // E_theta lies inside the theta=theta_max boundary
+                // auxE[1][idx.inc_y()] = 0.0f;
+                // auxE[1][idx] = 0.0f;
+
+                // E_r and E_phi lie on the surface of the theta=theta_min boundary
+                auxE[0][idx.inc_y()] = 0.0f;
+                auxE[2][idx.inc_y()] = 0.0f;
+                // E_theta lies on the simulation side of the theta=theta_max boundary
+                auxE[1][idx] = 0.0f;
+              }
+            });
+          },
+          auxE, m_ks_grid.get_grid_ptrs());
+      ExecPolicy<Conf>::sync();
+    }
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+field_solver_mod<Conf, ExecPolicy,
+                 coord_policy_gr_ks_sph>::aux_boundary_condition_H(
+    vector_field<Conf>& auxH) {
+  if constexpr (Conf::dim == 3) {
+    if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[2]) {
+      // Axis at theta = theta_min
+      ExecPolicy<Conf>::launch(
+          [] LAMBDA(auto auxH, auto grid_ptrs) {
+            auto& grid = ExecPolicy<Conf>::grid();
+            auto ext = grid.extent();
+
+            ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+              for (int n2 = 0; n2 < grid.dims[2]; n2++) {
+                auto pos = index_t<Conf::dim>(n0, grid.guard[1], n2);
+                auto idx = typename Conf::idx_t(pos, ext);
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // H_theta lies on the surface of the theta=theta_min boundary
+                // auxH[1][idx] = 0.0f;
+                // auxH[1][idx.inc_y()] = 0.0f;
+                // // H_r and H_phi lie inside the theta=theta_min boundary
+                // auxH[0][idx.dec_y()] = 0.0f;
+                // auxH[2][idx.dec_y()] = 0.0f;
+                // auxH[0][idx] = 0.0f;
+                // auxH[2][idx] = 0.0f;
+
+                // H_theta lies on the surface of the theta=theta_min boundary
+                auxH[1][idx] = 0.0f;
+                // H_r and H_phi lie on the simulation side of the theta=theta_min boundary
+                auxH[0][idx] = 0.0f;
+                auxH[2][idx] = 0.0f;
+              }
+            });
+          },
+          auxH, m_ks_grid.get_grid_ptrs());
+      ExecPolicy<Conf>::sync();
+    }
+    if (this->m_comm == nullptr || this->m_comm->domain_info().is_boundary[3]) {
+      // Axis at theta = theta_max
+      ExecPolicy<Conf>::launch(
+          [] LAMBDA(auto auxH, auto grid_ptrs) {
+            auto& grid = ExecPolicy<Conf>::grid();
+            auto ext = grid.extent();
+
+            ExecPolicy<Conf>::loop(0, grid.dims[0], [&] LAMBDA(auto n0) {
+              for (int n2 = 0; n2 < grid.dims[2]; n2++) {
+                auto pos = index_t<Conf::dim>(
+                    n0, grid.dims[1] - grid.guard[1] - 1, n2);
+                auto idx = typename Conf::idx_t(pos, ext);
+                // // View axis as a perfect conductor: zero all fields on its surface and inside it
+                // // Paranoia: touch all the field components
+                // //   ...both at the boundary and one cell into the domain
+                // // H_theta lies on the surface of the theta=theta_max boundary
+                // auxH[1][idx.inc_y()] = 0.0f;
+                // auxH[1][idx] = 0.0f;
+                // // H_r and H_phi lie inside the theta=theta_max boundary
+                // auxH[0][idx.inc_y()] = 0.0f;
+                // auxH[2][idx.inc_y()] = 0.0f;
+                // auxH[0][idx] = 0.0f;
+                // auxH[2][idx] = 0.0f;
+
+                // H_theta lies on the surface of the theta=theta_max boundary
+                auxH[1][idx.inc_y()] = 0.0f;
+                // H_r and H_phi lie on the simulation side of the theta=theta_max boundary
+                auxH[0][idx] = 0.0f;
+                auxH[2][idx] = 0.0f;
+              }
+            });
+          },
+          auxH, m_ks_grid.get_grid_ptrs());
       ExecPolicy<Conf>::sync();
     }
   }

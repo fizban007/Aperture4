@@ -263,35 +263,40 @@ halo_plan build_angular_halo_plan(cochain_type t,
       }
     }
 
-    // --- Valence-5 corner fan halos (rect_face only) -------------------
+    // --- Multi-incidence vertex fan halos (rect_face only) ------------
     //
-    // compute_dD_dt on a v_edge at a valence-5 icosahedron corner v uses
-    // H_aux at the fan of 5 rect faces radiating from v (one per sphere-
-    // edge incident to v).  F is incident to exactly 2 of those 5
-    // sphere-edges (its fan-neighbors' shared ico-edges); the other 3
-    // lie between ico-faces that are NOT F.  The normal rect_face halo
-    // (above) only covers F-incident sphere-edges, so F would lack
-    // H_aux values for 3 of the 5 rect faces in the fan.
+    // compute_dD_dt on a v_edge at sphere vertex v uses H_aux at the
+    // fan of rect faces radiating from v (one per sphere-edge incident
+    // to v).  When v sits on an ico-edge boundary (vertex_valence ≥ 2)
+    // some of those fan rect faces are at sphere-edges that F is NOT
+    // topologically incident to; the normal rect_face halo (above)
+    // only covers F-incident sphere-edges, leaving a gap.
     //
-    // Fix: for every valence-5 corner v where F owns the v_edge (F is
-    // the lowest-index of the 5 incident ico-faces), recv the rect_face
-    // values at the 3 non-incident fan sphere-edges from their owners.
-    // Symmetric send entries on those owners keep the exchange
-    // consistent (F-owner of a fan sphere-edge needs to know to send
-    // it to the valence-5 corner's v_owner, even though the v_owner
-    // isn't incident to the edge).
+    //   valence 1 (interior to F):  no gap — F is incident to all
+    //                               sphere-edges in the fan.
+    //   valence 2 (on an ico-edge): F-incident to ~4 of 6 fan edges;
+    //                               2 are gaps.
+    //   valence 5 (icosahedron corner): F-incident to 2 of 5 fan edges;
+    //                                   3 are gaps.
+    //
+    // Fix: for every multi-incidence vertex where F owns the v_edge,
+    // recv rect_face values at every fan sphere-edge F is NOT incident
+    // to from that edge's owner.  Symmetric send entries on those
+    // owners keep the exchange consistent.
     //
     // Applies only to rect_face (not h_edge) because the stencil gap
     // is specific to the compute_dD_dt fan on v_edges.
     if (t == cochain_type::rect_face) {
       for (int v = 0; v < topo.N_vert_s(); ++v) {
-        if (topo.vertex_valence(v) != 5) continue;
+        const int v_val = topo.vertex_valence(v);
+        if (v_val < 2) continue;  // interior to one ico-face — no gap
         const int* incs = topo.vertex_ico_faces(v);
         const int v_owner = incs[0];
 
         // Check if F is incident to v.
         bool F_incident = false;
-        for (int j = 0; j < 5; ++j) if (incs[j] == F) { F_incident = true; break; }
+        for (int j = 0; j < v_val; ++j)
+          if (incs[j] == F) { F_incident = true; break; }
         if (!F_incident) continue;
 
         // Enumerate the 5 sphere-edges at v.

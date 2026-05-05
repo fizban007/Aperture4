@@ -110,6 +110,10 @@ data_exporter<Conf, ExecPolicy>::init() {
 
   // Write the grid in the simulation to the output directory
   write_grid();
+
+  // Register the graceful-stop checkpoint callback with the environment.
+  sim_env().register_force_snapshot(
+      [this](uint32_t step, double time) { this->force_snapshot(step, time); });
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -313,9 +317,11 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     snapshot_name += std::to_string(m_current_snapshot) + ".h5";
     write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
                    time);
+    update_latest_symlink(snapshot_name);
     if (m_special_snapshot_interval > 0 && step % m_special_snapshot_interval == 0 && step > 0) {
-      snapshot_name = std::string("snapshot") + std::to_string(step) + ".h5";
-      write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
+      // Permanent named snapshot -- do NOT update the rotating "latest" symlink.
+      std::string special_name = std::string("snapshot") + std::to_string(step) + ".h5";
+      write_snapshot((fs::path(m_output_dir) / special_name).string(), step,
                      time);
     }
     m_current_snapshot += 1;
@@ -405,6 +411,39 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
 
   Logger::print_info("Finished writing snapshot at time {}, step {}",
                      time, step);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+data_exporter<Conf, ExecPolicy>::force_snapshot(uint32_t step, double time) {
+  std::string snapshot_name("snapshot");
+  snapshot_name += std::to_string(m_current_snapshot) + ".h5";
+  write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step, time);
+  update_latest_symlink(snapshot_name);
+  m_current_snapshot = (m_current_snapshot + 1) % m_num_snapshots;
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+data_exporter<Conf, ExecPolicy>::update_latest_symlink(
+    const std::string& target_basename) {
+  if (!is_root()) return;
+  fs::path latest = fs::path(m_output_dir) / "snapshot_latest.h5";
+  fs::path latest_tmp = fs::path(m_output_dir) / "snapshot_latest.h5.tmp";
+  std::error_code ec;
+  fs::remove(latest_tmp, ec);
+  // Use a relative target so the symlink survives directory moves.
+  fs::create_symlink(target_basename, latest_tmp, ec);
+  if (ec) {
+    Logger::print_err("Failed to create snapshot_latest symlink: {}",
+                      ec.message());
+    return;
+  }
+  fs::rename(latest_tmp, latest, ec);
+  if (ec) {
+    Logger::print_err("Failed to rename snapshot_latest symlink: {}",
+                      ec.message());
+  }
 }
 
 template <typename Conf, template <class> class ExecPolicy>

@@ -25,6 +25,15 @@
 
 namespace Aperture {
 
+volatile std::sig_atomic_t sim_environment_impl::s_stop_requested = 0;
+
+extern "C" {
+static void aperture_sigusr1_handler(int) {
+  // Async-signal-safe: only set the flag.
+  sim_environment_impl::s_stop_requested = 1;
+}
+}
+
 sim_environment_impl::sim_environment_impl(bool use_mpi)
     : sim_environment_impl(nullptr, nullptr, use_mpi) {}
 
@@ -123,7 +132,16 @@ sim_environment_impl::parse_options(int argc, char** argv) {
 }
 
 void
+sim_environment_impl::install_signal_handlers() {
+  std::signal(SIGUSR1, aperture_sigusr1_handler);
+  Logger::print_info(
+      "Installed SIGUSR1 handler for graceful checkpoint-and-exit");
+}
+
+void
 sim_environment_impl::init() {
+  install_signal_handlers();
+
   // Set log level independent of domain comm
   int log_level = (int)LogLevel::info;
   m_params.get_value("log_level", log_level);
@@ -201,9 +219,32 @@ sim_environment_impl::run() {
   }
 
   Logger::print_debug("Max steps is: {}", max_steps);
-  // for (int n = step; n <= max_steps; n++) {
   while (step <= max_steps) {
     update();
+
+    // Cheap consensus on whether any rank received SIGUSR1. Logical-OR
+    // reduction so all ranks stop on the same step. Safe alongside any cart
+    // communicator: the operation lives on MPI_COMM_WORLD's context, and the
+    // result is rank-order-independent.
+    int local_stop = (s_stop_requested != 0) ? 1 : 0;
+    int global_stop = local_stop;
+    if (m_use_mpi) {
+      MPI_Allreduce(&local_stop, &global_stop, 1, MPI_INT, MPI_LOR,
+                    MPI_COMM_WORLD);
+    }
+    if (global_stop) {
+      Logger::print_info(
+          "Graceful stop requested at step {}, time {} -- writing checkpoint.",
+          step, time);
+      if (m_force_snapshot) {
+        m_force_snapshot(step, time);
+      } else {
+        Logger::print_err(
+            "No force_snapshot callback registered -- exiting without "
+            "checkpoint!");
+      }
+      break;
+    }
   }
 }
 

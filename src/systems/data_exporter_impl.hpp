@@ -451,7 +451,17 @@ void
 data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
                                                uint32_t& step, double& time) {
   H5File snapfile(filename, H5OpenMode::read_parallel);
-  std::string xmf_stem = fs::path(filename).stem().string();
+  // If `filename` is a symlink (e.g. snapshot_latest.h5 -> snapshot0.h5),
+  // resolve it so the derived xmf basename matches the actual on-disk file.
+  fs::path snap_path(filename);
+  std::error_code symlink_ec;
+  if (fs::is_symlink(snap_path, symlink_ec)) {
+    fs::path tgt = fs::read_symlink(snap_path, symlink_ec);
+    if (!symlink_ec) {
+      snap_path = tgt.is_absolute() ? tgt : (snap_path.parent_path() / tgt);
+    }
+  }
+  std::string xmf_stem = snap_path.stem().string();
   std::string xmf_filename = xmf_stem + ".xmf";
 
   // Read simulation stats

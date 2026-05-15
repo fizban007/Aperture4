@@ -18,6 +18,7 @@
 #pragma once
 
 #include <type_traits>
+#include <utility>
 
 namespace Aperture {
 
@@ -95,19 +96,19 @@ using all_convertible_to = typename std::enable_if<
   };                                                                          \
   }
 
-#define CREATE_MEMBER_FUNC_CALL(func_name)                         \
-  CREATE_MEMBER_FUNC_CHECK(func_name);                             \
-                                                                   \
-  namespace traits {                                               \
-  template <typename T, typename... Args>                          \
-  auto call_##func_name##_if_exists(T& t, Args... args)            \
-      -> std::enable_if_t<has_update<T, void(Args...)>::value> {   \
-    t.func_name(args...);                                          \
-  }                                                                \
-                                                                   \
-  template <typename T, typename... Args>                          \
-  auto call_##func_name##_if_exists(T& t, Args... args)            \
-      -> std::enable_if_t<!has_update<T, void(Args...)>::value> {} \
+#define CREATE_MEMBER_FUNC_CALL(func_name)                                 \
+  CREATE_MEMBER_FUNC_CHECK(func_name);                                     \
+                                                                           \
+  namespace traits {                                                       \
+  template <typename T, typename... Args>                                  \
+  auto call_##func_name##_if_exists(T& t, Args&&... args)                  \
+      -> std::enable_if_t<has_##func_name<T, void(Args...)>::value> {      \
+    t.func_name(std::forward<Args>(args)...);                              \
+  }                                                                        \
+                                                                           \
+  template <typename T, typename... Args>                                  \
+  auto call_##func_name##_if_exists(T& t, Args&&... args)                  \
+      -> std::enable_if_t<!has_##func_name<T, void(Args...)>::value> {}    \
   }
 
 }  // namespace Aperture

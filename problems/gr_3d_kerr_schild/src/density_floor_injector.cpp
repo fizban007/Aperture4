@@ -20,6 +20,7 @@
 #include "framework/environment.h"
 #include "injector.h"
 #include "systems/physics/metric_kerr_schild.hpp"
+#include "systems/policies/coord_policy_gr_ks_sph.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
 #include "systems/ptc_injector_new.h"
 #include "utils/interpolation.hpp"
@@ -291,7 +292,12 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
           value_t sqrt_gamma = Metric_KS::sqrt_gamma(a, r, th);
           value_t w = (target_dens_fn(r, th) * r * sqrt_gamma) / ppc;
           return w;
-        });
+        },
+        // PtcFlag bitfield stamped on every injected particle (0 = no flags).
+        0,
+        // Reject placements inside the half-cell-wide buffer at the theta
+        // axes (where field BCs / particle reflection are enforced).
+        coord_policy_gr_ks_sph<Conf>::make_inj_pos_validator());
   }
 }
 

@@ -317,19 +317,19 @@ class coord_policy_gr_ks_sph {
     } else {
       // // JM: Comment out this block to delete particles crossing theta_min/max boundaries.
       // // Without reflection, particles will be deleted if they cross the theta_min or theta_max boundary
-      // 3D: reflect at theta_min + 0.5*dtheta and theta_max - 0.5*dtheta to match
-      // the field BC enforced at the half-cell-inward Yee-midpoint row.
-      // Don't shift in phi -- true pole-crossing would need non-local
-      // MPI exchange between pole-touching ranks, which isn't implemented.
-      value_t th_lo = m_theta_min + 0.5f * grid.delta[1];
-      value_t th_hi = m_theta_max - 0.5f * grid.delta[1];
-      if (new_x[1] < th_lo) {
-        new_x[1] = 2.0 * th_lo - new_x[1];
-        context.p[1] = -context.p[1];
-      } else if (new_x[1] >= th_hi) {
-        new_x[1] = 2.0 * th_hi - new_x[1];
-        context.p[1] = -context.p[1];
-      }
+      // // 3D: reflect at theta_min + 0.5*dtheta and theta_max - 0.5*dtheta to match
+      // // the field BC enforced at the half-cell-inward Yee-midpoint row.
+      // // Don't shift in phi -- true pole-crossing would need non-local
+      // // MPI exchange between pole-touching ranks, which isn't implemented.
+      // value_t th_lo = m_theta_min + 0.5f * grid.delta[1];
+      // value_t th_hi = m_theta_max - 0.5f * grid.delta[1];
+      // if (new_x[1] < th_lo) {
+      //   new_x[1] = 2.0 * th_lo - new_x[1];
+      //   context.p[1] = -context.p[1];
+      // } else if (new_x[1] >= th_hi) {
+      //   new_x[1] = 2.0 * th_hi - new_x[1];
+      //   context.p[1] = -context.p[1];
+      // }
     }
     auto r = new_x[0];
     auto th = new_x[1];

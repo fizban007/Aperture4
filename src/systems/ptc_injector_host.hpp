@@ -49,9 +49,11 @@ class ptc_injector<Conf, exec_policy_host> {
   ~ptc_injector() {}
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
-            typename FWeight>
+            typename FWeight, typename FValidate = always_valid_pos>
   void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
-                    const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
+                    const FDist& f_dist, const FWeight& f_weight,
+                    uint32_t flag = 0,
+                    const FValidate& f_validate = FValidate{}) {
     using policy = exec_policy_host<Conf>;
     auto& grid = m_grid;
     auto num = ptc->number();
@@ -85,11 +87,26 @@ class ptc_injector<Conf, exec_policy_host> {
                     break;
                   }
 
-                  ptc.cell[offset_e] = (uint32_t)idx.linear;
-                  ptc.cell[offset_p] = (uint32_t)idx.linear;
                   auto x = vec_t<value_t, 3>(rng.uniform<value_t>(),
                                              rng.uniform<value_t>(),
                                              rng.uniform<value_t>());
+                  auto x_global = grid.coord_global(pos, x);
+                  // Reject this placement if the coord-policy validator says
+                  // the position is invalid (e.g. inside an axis exclusion
+                  // wedge). The offsets are fixed by the running cum_num
+                  // counter so we can't skip the slot outright -- writing
+                  // empty_cell into ptc.cell marks it inert: every
+                  // per-particle loop in the updater (move, deposit, sweep)
+                  // short-circuits on cell == empty_cell, so no current is
+                  // deposited and the slot is reclaimed at the next sort.
+                  if (!f_validate(pos, x_global)) {
+                    ptc.cell[offset_e] = empty_cell;
+                    ptc.cell[offset_p] = empty_cell;
+                    continue;
+                  }
+
+                  ptc.cell[offset_e] = (uint32_t)idx.linear;
+                  ptc.cell[offset_p] = (uint32_t)idx.linear;
                   ptc.x1[offset_e] = x[0];
                   ptc.x1[offset_p] = x[0];
                   ptc.x2[offset_e] = x[1];
@@ -97,7 +114,6 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.x3[offset_e] = x[2];
                   ptc.x3[offset_p] = x[2];
 
-                  auto x_global = grid.coord_global(pos, x);
                   auto p = f_dist(x_global, rng.m_local_state,
                                   PtcType::electron);
                   ptc.p1[offset_e] = p[0];

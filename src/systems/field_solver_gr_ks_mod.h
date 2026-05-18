@@ -65,6 +65,8 @@ class field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>
   void compute_dB_dt(vector_field<Conf>& dB_dt, const vector_field<Conf>& B,
                      const vector_field<Conf>& D);
   void boundary_conditions(vector_field<Conf>& D, vector_field<Conf>& B);
+  void aux_boundary_condition_E(vector_field<Conf>& auxE);
+  void aux_boundary_condition_H(vector_field<Conf>& auxH);
 
   // void horizon_boundary(vector_field<Conf>& D, vector_field<Conf>& B);
  private:

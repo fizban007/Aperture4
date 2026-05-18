@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <csignal>
 #include <map>
 #include <memory>
 #include <set>
@@ -74,6 +75,7 @@ class sim_environment_impl {
   bool m_is_restart = false;
   std::string m_restart_file = "";
   std::function<void()> m_load_snapshot;
+  std::function<void(uint32_t, double)> m_force_snapshot;
 
  public:
   typedef std::unordered_map<std::string, std::unique_ptr<data_t>> data_map_t;
@@ -341,6 +343,14 @@ class sim_environment_impl {
   void set_step(uint32_t s) { step = s; }
   void set_time(double t) { time = t; }
   const data_map_t& data_map() { return m_data_map; }
+
+  // Set asynchronously by SIGUSR1 handler; checked in the run loop.
+  static volatile std::sig_atomic_t s_stop_requested;
+
+  void install_signal_handlers();
+  void register_force_snapshot(std::function<void(uint32_t, double)> f) {
+    m_force_snapshot = std::move(f);
+  }
 };
 
 using sim_environment = singleton_holder<sim_environment_impl>;

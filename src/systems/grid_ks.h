@@ -23,6 +23,7 @@
 #include "core/multi_array.hpp"
 #include "grid.h"
 #include <array>
+#include <variant>  // for std::monostate
 
 namespace Aperture {
 
@@ -39,18 +40,28 @@ class grid_ks_t : public grid_t<Conf> {
   typedef typename Conf::value_t value_t;
 
   struct grid_ptrs {
-    typename Conf::ndptr_const_t ag11dr_h;
-    typename Conf::ndptr_const_t ag11dr_e;
-    typename Conf::ndptr_const_t ag13dr_h;
-    typename Conf::ndptr_const_t ag13dr_e;
-    typename Conf::ndptr_const_t ag13dr_b;
-    typename Conf::ndptr_const_t ag13dr_d;
-    typename Conf::ndptr_const_t ag22dth_h;
-    typename Conf::ndptr_const_t ag22dth_e;
-    typename Conf::ndptr_const_t gbetadth_h;
-    typename Conf::ndptr_const_t gbetadth_e;
-    typename Conf::ndptr_const_t gbetadth_b;
-    typename Conf::ndptr_const_t gbetadth_d;
+    // Legacy pointers
+    // These are only used by the legacy field solver, field_solver_gr_ks
+    // They are not used by the new solver, field_solver_gr_ks_mod,
+    // which is stable at long timescales and is the only one implemented in 3D.
+    template <bool Cond, typename T>
+    using legacy_ptr_t = std::conditional_t<Cond, T, std::monostate>;
+    static constexpr bool is_2d_ = (Conf::dim == 2);
+
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag11dr_h;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag11dr_e;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag13dr_h;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag13dr_e;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag13dr_b;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag13dr_d;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag22dth_h;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> ag22dth_e;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> gbetadth_h;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> gbetadth_e;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> gbetadth_b;
+    legacy_ptr_t<is_2d_, typename Conf::ndptr_const_t> gbetadth_d;
+
+    // These are used by all field solvers.
     vec_t<typename Conf::ndptr_const_t, 3> Ad;
     vec_t<typename Conf::ndptr_const_t, 3> Ab;
   };
@@ -75,18 +86,31 @@ class grid_ks_t : public grid_t<Conf> {
   static HD_INLINE value_t radius(value_t x1) { return math::exp(x1); }
   // static HD_INLINE value_t radius(value_t x1) { return x1; }
   static HD_INLINE value_t theta(value_t x2) { return x2; }
+  static HD_INLINE value_t phi(value_t x3) { return x3; }
   static HD_INLINE value_t from_radius(value_t r) { return math::log(r); }
   // static HD_INLINE value_t from_radius(value_t r) { return r; }
   static HD_INLINE value_t from_theta(value_t theta) { return theta; }
+  static HD_INLINE value_t from_phi(value_t phi) { return phi; }
 
-  inline vec_t<float, Conf::dim> cart_coord(
-      const index_t<Conf::dim>& pos) const override {
-    vec_t<float, Conf::dim> result;
-    for (int i = 0; i < Conf::dim; i++) result[i] = this->coord(i, pos[i], false);
+  inline vec_t<float, 2> cart_coord(const index_t<2>& pos) const {
+    vec_t<float, 2> result;
+    for (int i = 0; i < 2; i++) result[i] = this->coord(i, pos[i], false);
     float r = radius(result[0]);
     float th = theta(result[1]);
     result[0] = r * math::sin(th);
     result[1] = r * math::cos(th);
+    return result;
+  }
+
+  inline vec_t<float, 3> cart_coord(const index_t<3>& pos) const {
+    vec_t<float, 3> result;
+    for (int i = 0; i < 3; i++) result[i] = this->coord(i, pos[i], false);
+    float r = radius(result[0]);
+    float th = theta(result[1]);
+    float ph = phi(result[2]);
+    result[0] = r * math::cos(ph) * math::sin(th);
+    result[1] = r * math::sin(ph) * math::sin(th);
+    result[2] = r * math::cos(th);
     return result;
   }
 
@@ -96,18 +120,24 @@ class grid_ks_t : public grid_t<Conf> {
 
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ad;
   std::array<multi_array<value_t, Conf::dim>, 3> m_Ab;
-  multi_array<value_t, Conf::dim> m_ag11dr_h;
-  multi_array<value_t, Conf::dim> m_ag11dr_e;
-  multi_array<value_t, Conf::dim> m_ag13dr_h;
-  multi_array<value_t, Conf::dim> m_ag13dr_e;
-  multi_array<value_t, Conf::dim> m_ag13dr_b;
-  multi_array<value_t, Conf::dim> m_ag13dr_d;
-  multi_array<value_t, Conf::dim> m_ag22dth_h;
-  multi_array<value_t, Conf::dim> m_ag22dth_e;
-  multi_array<value_t, Conf::dim> m_gbetadth_h;
-  multi_array<value_t, Conf::dim> m_gbetadth_e;
-  multi_array<value_t, Conf::dim> m_gbetadth_b;
-  multi_array<value_t, Conf::dim> m_gbetadth_d;
+
+  // Legacy members — only available for 2D (used by field_solver_gr_ks)
+  template <bool Cond, typename T>
+  using legacy_member_t = std::conditional_t<Cond, T, std::monostate>;
+  static constexpr bool is_2d_ = (Conf::dim == 2);
+
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag11dr_h;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag11dr_e;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag13dr_h;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag13dr_e;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag13dr_b;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag13dr_d;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag22dth_h;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_ag22dth_e;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_gbetadth_h;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_gbetadth_e;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_gbetadth_b;
+  legacy_member_t<is_2d_, multi_array<value_t, Conf::dim>> m_gbetadth_d;
 };
 
 }  // namespace Aperture

@@ -178,6 +178,7 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy,
 }
 
 CREATE_MEMBER_FUNC_CALL(update);
+CREATE_MEMBER_FUNC_CALL(clear_excluded_ptc);
 
 template <typename Conf, template <class> class ExecPolicy,
           template <class> class CoordPolicy,
@@ -544,6 +545,12 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::clear_guard_cells() {
       },
       *ptc);
 
+  // Coord-policy-specific exclusion sweep (no-op unless the policy defines
+  // clear_excluded_ptc). For GR KS this absorbs particles that drift into
+  // the half-cell buffer at the theta axes when reflection is off.
+  traits::call_clear_excluded_ptc_if_exists(*m_coord_policy, ExecPolicy<Conf>{},
+                                            *ptc);
+
   if (ph != nullptr) {
     auto ph_num = ph->number();
     ExecPolicy<Conf>::launch(
@@ -561,6 +568,8 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::clear_guard_cells() {
           // grid, ph);
         },
         *ph);
+    traits::call_clear_excluded_ptc_if_exists(*m_coord_policy,
+                                              ExecPolicy<Conf>{}, *ph);
   }
 }
 

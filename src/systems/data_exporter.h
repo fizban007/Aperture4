@@ -161,6 +161,7 @@ class data_exporter : public system_t {
   int m_ptc_num = 0;
   int m_ptc_output_interval = 1;
   int m_fld_output_interval = 1;
+  bool m_output_on_initial_step = true;
   int m_snapshot_interval = 0;
   int m_downsample = 1;
   int m_num_snapshots = 2;

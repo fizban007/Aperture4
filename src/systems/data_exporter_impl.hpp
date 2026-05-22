@@ -51,6 +51,7 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
     : m_grid(grid), m_comm(comm), m_output_grid(grid) {
   sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
   sim_env().params().get_value("fld_output_interval", m_fld_output_interval);
+  sim_env().params().get_value("output_on_initial_step", m_output_on_initial_step);
   sim_env().params().get_value("snapshot_interval", m_snapshot_interval);
   sim_env().params().get_value("output_dir", m_output_dir);
   sim_env().params().get_value("downsample", m_downsample);
@@ -201,7 +202,11 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (m_comm != nullptr) {
     m_comm->barrier();
   }
-  if (step % m_fld_output_interval == 0) {
+  // When output_on_initial_step=false, suppress the file output that would
+  // otherwise fire at step 0 (the initial dump). Snapshots already require
+  // step > 0, so they need no guard.
+  bool skip_initial = (step == 0 && !m_output_on_initial_step);
+  if (!skip_initial && step % m_fld_output_interval == 0) {
     // timer::stamp("write_field");
     // Output downsampled fields!
     std::string filename =
@@ -241,7 +246,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       write_xmf_step_close(m_xmf_buffer);
       write_xmf_tail(m_xmf_buffer);
 
-      if (step == 0) {
+      if (m_fld_num == 0) {
         write_xmf_head(m_xmf);
       } else {
         m_xmf.seekp(-26, std::ios_base::end);
@@ -256,7 +261,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     //                                  "write_field");
   }
 
-  if (m_ptc_output_interval > 0 && step % m_ptc_output_interval == 0) {
+  if (!skip_initial && m_ptc_output_interval > 0 && step % m_ptc_output_interval == 0) {
     // Output tracked particles!
     std::string filename =
         fmt::format("{}ptc.{:05d}.h5", m_output_dir, m_ptc_num);
@@ -287,7 +292,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     // interval rule
     if (it.second->m_special_output_interval == 0) continue;
 
-    if (step % it.second->m_special_output_interval == 0) {
+    if (!skip_initial && step % it.second->m_special_output_interval == 0) {
       // Specifically write output file for this data component
 
       auto data = it.second.get();

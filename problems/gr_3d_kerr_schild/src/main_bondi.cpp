@@ -96,14 +96,22 @@ main(int argc, char *argv[]) {
   int damping_length = 64;
   env.params().get_value("damping_length", damping_length);
 
-  int Nr = 1024;
-  env.params().get_value("Nr", Nr);
+  // N, size, lower are per-axis arrays in the config; read the radial
+  // (index 0) component. This matches density_floor_injector.cpp and
+  // grid_impl.hpp. Reading them as scalars (the old "Nr"/"size"/"lower"
+  // get_value calls) silently fell back to hardcoded defaults and
+  // corrupted the injector geometry.
+  int ncells[Conf::dim];
+  env.params().get_array("N", ncells);
+  int Nr = ncells[0];
 
-  double size_log_r = 3.00;
-  env.params().get_value("size", size_log_r);
+  double size_arr[Conf::dim];
+  env.params().get_array("size", size_arr);
+  double size_log_r = size_arr[0];
 
-  double log_r_min = 0.588;
-  env.params().get_value("lower", log_r_min);
+  double lower_arr[Conf::dim];
+  env.params().get_array("lower", lower_arr);
+  double log_r_min = lower_arr[0];
 
   double spin = 0.0000001;
   env.params().get_value("bh_spin", spin);

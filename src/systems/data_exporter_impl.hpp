@@ -99,15 +99,21 @@ data_exporter<Conf, ExecPolicy>::init() {
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
 
+  // Directory creation and config-file copy are filesystem metadata
+  // operations on the same path; at large rank counts having every rank
+  // do them hammers the Lustre MDS (metadata server), with observed
+  // startup ~O(N^2). Do them on rank 0 only, then barrier before
+  // write_grid() opens grid.h5 inside the directory.
+  if (is_root()) {
 #ifndef USE_BOOST_FILESYSTEM
-  std::error_code returnedError;
-  fs::create_directories(outPath, returnedError);
+    std::error_code returnedError;
+    fs::create_directories(outPath, returnedError);
 #else
-  fs::create_directories(outPath);
+    fs::create_directories(outPath);
 #endif
-
-  // Copy config file to the output directory
-  copy_config_file();
+    copy_config_file();
+  }
+  if (m_comm != nullptr) m_comm->barrier();
 
   // Write the grid in the simulation to the output directory
   write_grid();

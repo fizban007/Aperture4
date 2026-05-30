@@ -218,6 +218,11 @@ class coord_policy_gr_ks_sph {
   coord_policy_gr_ks_sph(const grid_t<Conf> &grid)
       : m_grid(dynamic_cast<const grid_type &>(grid)) {
     m_a = m_grid.a;
+    vec_t<value_t, Conf::dim> sim_lower, sim_size;
+    sim_env().params().get_vec_t("lower", sim_lower);
+    sim_env().params().get_vec_t("size", sim_size);
+    m_theta_min = sim_lower[1];
+    m_theta_max = sim_lower[1] + sim_size[1];
   }
   ~coord_policy_gr_ks_sph() = default;
 
@@ -263,8 +268,7 @@ class coord_policy_gr_ks_sph {
     x_global[1] = x2(x_global[1]);
 
     if (!check_flag(context.flag, PtcFlag::ignore_EM)) {
-      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
-                       // context.E, dt, context.q / context.m);
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
                          context.E, 0.5f * dt, context.q / context.m);
       // printf("%f, %f, %f\n", context.B[0], context.B[1], context.B[2]);
     }
@@ -285,7 +289,7 @@ class coord_policy_gr_ks_sph {
 
       // Note: context.p stores the lower components u_i, while gamma is upper
       // u^0.
-      gr_ks_vay_update(m_a, x_global, context.p, context.gamma, context.B,
+      gr_ks_boris_update(m_a, x_global, context.p, context.gamma, context.B,
                          context.E, 0.5f * dt, context.q / context.m);
     }
   }
@@ -300,14 +304,32 @@ class coord_policy_gr_ks_sph {
     // Both new_x and u are updated
     gr_ks_geodesic_advance(m_a, dt, new_x, context.p, is_photon);
 
-    if (new_x[1] < 0.0) {
-      new_x[1] = -new_x[1];
-      new_x[2] += M_PI;
-      context.p[1] = -context.p[1];
-    } else if (new_x[1] >= M_PI) {
-      new_x[1] = 2.0 * M_PI - new_x[1];
-      new_x[2] -= M_PI;
-      context.p[1] = -context.p[1];
+    if constexpr (Conf::dim == 2) {
+      if (new_x[1] < 0.0) {
+        new_x[1] = -new_x[1];
+        new_x[2] += M_PI;
+        context.p[1] = -context.p[1];
+      } else if (new_x[1] >= M_PI) {
+        new_x[1] = 2.0 * M_PI - new_x[1];
+        new_x[2] -= M_PI;
+        context.p[1] = -context.p[1];
+      }
+    } else {
+      // // JM: Comment out this block to delete particles crossing theta_min/max boundaries.
+      // // Without reflection, particles will be deleted if they cross the theta_min or theta_max boundary
+      // // 3D: reflect at theta_min + 0.5*dtheta and theta_max - 0.5*dtheta to match
+      // // the field BC enforced at the half-cell-inward Yee-midpoint row.
+      // // Don't shift in phi -- true pole-crossing would need non-local
+      // // MPI exchange between pole-touching ranks, which isn't implemented.
+      // value_t th_lo = m_theta_min + 0.5f * grid.delta[1];
+      // value_t th_hi = m_theta_max - 0.5f * grid.delta[1];
+      // if (new_x[1] < th_lo) {
+      //   new_x[1] = 2.0 * th_lo - new_x[1];
+      //   context.p[1] = -context.p[1];
+      // } else if (new_x[1] >= th_hi) {
+      //   new_x[1] = 2.0 * th_hi - new_x[1];
+      //   context.p[1] = -context.p[1];
+      // }
     }
     auto r = new_x[0];
     auto th = new_x[1];
@@ -385,11 +407,16 @@ class coord_policy_gr_ks_sph {
                 j[0][idx] *= w / grid_ptrs.Ad[0][idx];
                 j[1][idx] *= w / grid_ptrs.Ad[1][idx];
                 j[2][idx] *= w / grid_ptrs.Ad[2][idx];
-                rho_total[idx] *=
-                    w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                auto dV = grid_ptrs.Ad[2][idx];
+                if constexpr (Conf::dim == 3) {
+                  auto ph = grid_type::phi(grid.coord(2, pos[2], false));
+                  auto dph = ph - grid_type::phi(grid.coord(2, pos[2] - 1, false));
+                  dV *= dph;
+                }
+                // In 2D, A_phi is effectively dV; in 3D, dV = A_phi * dph
+                rho_total[idx] *= w / dV;
                 for (int n = 0; n < num_species; n++) {
-                  rho[n][idx] *=
-                      w / grid_ptrs.Ad[2][idx];  // A_phi is effectively dV
+                  rho[n][idx] *= w / dV;
                 }
                 // }
                 if (th_s < 0.1 * grid.delta[1] ||
@@ -423,9 +450,69 @@ class coord_policy_gr_ks_sph {
                                        is_boundary, field.stagger());
   }
 
+  // Delete particles (or photons) sitting inside the half-cell-wide buffer
+  // at the theta boundaries. The buffer is the region between the simulation
+  // theta_min/theta_max surfaces and the Yee-midpoint row one half-cell inward
+  // where field BCs and particle reflection are enforced. With reflection
+  // active this is effectively a no-op; with reflection commented out it
+  // absorbs particles that drift into / through the axis, restoring the same
+  // "particles past the boundary are deleted" behavior the old theta_min /
+  // theta_max boundary gave us.
+  //
+  // Coord-system assumption: new_x[1] is theta directly. See
+  // project_ptc_theta_reflection_assumption memory note.
+  template <typename ExecPolicy, typename PtcType>
+  void clear_excluded_ptc(ExecPolicy, PtcType &ptc) const {
+    value_t th_lo = m_theta_min + 0.5f * m_grid.delta[1];
+    value_t th_hi = m_theta_max - 0.5f * m_grid.delta[1];
+    auto num = ptc.number();
+    ExecPolicy::launch(
+        [num, th_lo, th_hi] LAMBDA(auto ptc) {
+          auto &grid = ExecPolicy::grid();
+          auto ext = grid.extent();
+          ExecPolicy::loop(0, num, [&] LAMBDA(auto n) {
+            auto cell = ptc.cell[n];
+            if (cell == empty_cell) return;
+            auto idx = Conf::idx(cell, ext);
+            auto pos = get_pos(idx, ext);
+            value_t th = grid_type::theta(
+                grid.template coord<1>(pos[1], ptc.x2[n]));
+            if (th < th_lo || th >= th_hi) {
+              ptc.cell[n] = empty_cell;
+            }
+          });
+        },
+        ptc);
+    ExecPolicy::sync();
+  }
+
+  // Static factory returning a position validator suitable for
+  // ptc_injector::inject_pairs. The returned lambda takes (pos, x_global) and
+  // returns true iff the position lies inside the live simulation domain in
+  // theta -- i.e. NOT inside the half-cell-wide buffer near theta_min /
+  // theta_max. Passing this validator to inject_pairs prevents particles
+  // from ever being placed in the buffer, regardless of which injector is
+  // used.
+  static auto make_inj_pos_validator() {
+    vec_t<value_t, Conf::dim> sim_lower, sim_size;
+    sim_env().params().get_vec_t("lower", sim_lower);
+    sim_env().params().get_vec_t("size", sim_size);
+    int ncells[Conf::dim];
+    sim_env().params().get_array("N", ncells);
+    value_t dtheta = sim_size[1] / static_cast<value_t>(ncells[1]);
+    value_t th_lo = sim_lower[1] + 0.5f * dtheta;
+    value_t th_hi = sim_lower[1] + sim_size[1] - 0.5f * dtheta;
+    return [th_lo, th_hi] LAMBDA(const auto &pos, const auto &x_global) {
+      value_t th = grid_type::theta(x_global[1]);
+      return th >= th_lo && th < th_hi;
+    };
+  }
+
  private:
   const grid_type &m_grid;
   value_t m_a;
+  value_t m_theta_min = 0.0;
+  value_t m_theta_max = M_PI;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_E;
   // vec_t<typename Conf::multi_array_t::cref_t, 3> m_B;
   vec_t<ndptr_const<value_t, Conf::dim>, 3> m_E;

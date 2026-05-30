@@ -25,7 +25,6 @@
 #include "systems/field_solver_cartesian.h"
 #include "systems/gather_tracked_ptc.h"
 // #include "systems/gather_momentum_space.h"
-// #include "systems/legacy/ptc_updater_old.h"
 #include "systems/policies/coord_policy_cartesian.hpp"
 #include "systems/policies/coord_policy_cartesian_sync_cooling.hpp"
 #include "systems/policies/exec_policy_dynamic.hpp"
@@ -45,11 +44,11 @@ namespace Aperture {
 
 template <typename Conf>
 void kink_pressure_supported(vector_field<Conf> &B, particle_data_t &ptc,
-                             rng_states_t<exec_tags::device> &states);
+                             rng_states_t<exec_tags::dynamic> &states);
 
 template <typename Conf>
 void kink_force_free(vector_field<Conf> &Bbg, vector_field<Conf> &B, particle_data_t &ptc,
-                              rng_states_t<exec_tags::device> &states);
+                              rng_states_t<exec_tags::dynamic> &states);
 
 template class ptc_updater<Config<3>, exec_policy_dynamic,
                            coord_policy_cartesian_sync_cooling>;
@@ -88,7 +87,7 @@ main(int argc, char *argv[]) {
 
   vector_field<Conf> *B0, *B;
   particle_data_t *ptc;
-  rng_states_t<exec_tags::device> *states;
+  rng_states_t<exec_tags::dynamic> *states;
   env.get_data("Bdelta", &B);
   env.get_data("B0", &B0);
   //env.get_data("Edelta", &Edelta);

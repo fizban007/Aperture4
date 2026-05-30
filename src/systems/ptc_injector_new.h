@@ -19,10 +19,24 @@
 // #define _PTC_INJECTOR_NEW_H_
 #pragma once
 
+#include "core/cuda_control.h"
+#include "core/gpu_translation_layer.h"
+
 namespace Aperture {
 
 template <typename Conf, template <class> class ExecPolicy>
 class ptc_injector;
+
+// Default position validator for ptc_injector::inject_pairs. Returns true
+// for every (pos, x_global), i.e. accept every candidate placement. Coord
+// policies that need to exclude regions (e.g. the GR KS half-cell wedge
+// at the theta boundaries) supply their own validator instead.
+struct always_valid_pos {
+  template <typename Pos, typename X>
+  HD_INLINE bool operator()(const Pos&, const X&) const {
+    return true;
+  }
+};
 
 }  // namespace Aperture
 

@@ -68,7 +68,13 @@ compute_moments_gr_ks<Conf, ExecPolicy>::update(double dt, uint32_t step) {
             value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[n]));
             value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ptc.x2[n]));
             value_t alpha = Metric_KS::alpha(a, r, th);
-            value_t inv_sqrt_g = grid.cell_size() / grid_ptrs.Ad[2][idx] / alpha;
+            auto dV = grid_ptrs.Ad[2][idx];
+            if constexpr (Conf::dim == 3) {
+              auto ph = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], false));
+              auto dph = ph - grid_ks_t<Conf>::phi(grid.coord(2, pos[2] - 1, false));
+              dV *= dph;
+            }
+            value_t inv_sqrt_g = grid.cell_size() / dV / alpha;
             value_t u_0 = Metric_KS::u_0(a, r, th, {ptc.p1[n], ptc.p2[n], ptc.p3[n]});
             if (first) {
               atomic_add(&ptc_num[sp][idx], qe * ptc.weight[n] * inv_sqrt_g * u_0 / ptc.E[n]);
@@ -127,8 +133,13 @@ compute_moments_gr_ks<Conf, ExecPolicy>::update(double dt, uint32_t step) {
                 value_t r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ph.x1[n]));
                 value_t th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ph.x2[n]));
                 value_t alpha = Metric_KS::alpha(a, r, th);
-                value_t inv_sqrt_g = grid.cell_size() / grid_ptrs.Ad[2][idx] / alpha;
-                // value_t inv_sqrt_g = grid.cell_size() / grid_ptrs.Ad[2][idx];
+                auto dV = grid_ptrs.Ad[2][idx];
+                if constexpr (Conf::dim == 3) {
+                  auto phi_c = grid_ks_t<Conf>::phi(grid.coord(2, pos[2], false));
+                  auto dph = phi_c - grid_ks_t<Conf>::phi(grid.coord(2, pos[2] - 1, false));
+                  dV *= dph;
+                }
+                value_t inv_sqrt_g = grid.cell_size() / dV / alpha;
                 value_t u_0 = Metric_KS::u_0(a, r, th, {ph.p1[n], ph.p2[n], ph.p3[n]}, true);
                 if (first) {
                   atomic_add(&ptc_num[idx], qe * ph.weight[n] * inv_sqrt_g * u_0 / ph.E[n]);

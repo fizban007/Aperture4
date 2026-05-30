@@ -78,7 +78,7 @@ class domain_comm : public system_t {
     buf.copy_to_host();
     auto result =
         MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
-                   MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, m_cart);
+                   MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, m_world);
     if (is_root()) {
       buf.host_copy_from(tmp_buf, buf.size());
     }
@@ -91,8 +91,9 @@ class domain_comm : public system_t {
   MPI_Comm m_cart;
   MPI_Datatype m_scalar_type;
 
-  int m_rank = 0;  ///< Rank of current process
-  int m_size = 1;  ///< Size of MPI_COMM_WORLD
+  int m_rank = 0;       ///< Rank of current process (in MPI_COMM_WORLD)
+  int m_cart_rank = 0;  ///< Rank of current process in the cart communicator
+  int m_size = 1;       ///< Size of MPI_COMM_WORLD
   domain_info_t<Conf::dim> m_domain_info;
   mutable bool m_buffers_ready = false;
   mutable bool m_phase_buffers_ready = false;

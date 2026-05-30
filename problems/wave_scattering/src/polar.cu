@@ -22,7 +22,6 @@
 #include "systems/compute_lorentz_factor.h"
 #include "systems/data_exporter.h"
 #include "systems/field_solver_polar.h"
-// #include "systems/legacy/ptc_updater_sph.h"
 #include "systems/gather_momentum_space.h"
 #include "systems/grid_polar.hpp"
 #include "systems/policies/coord_policy_polar.hpp"

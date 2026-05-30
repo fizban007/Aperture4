@@ -15,12 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "particles.h"
 #include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "framework/config.h"
 #include "framework/environment.h"
+#include "particles.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/kernel_helper.hpp"
 #include "utils/range.hpp"
@@ -277,7 +277,8 @@ ptc_append(exec_tags::device, particles_base<BufferType>& ptc,
   rank <<= 32;
   kernel_launch(
       {1, 1},
-      [x, p, cell, weight, flag, rank] __device__(auto ptrs, size_t pos, auto ptc_id) {
+      [x, p, cell, weight, flag, rank] __device__(auto ptrs, size_t pos,
+                                                  auto ptc_id) {
         ptrs.x1[pos] = x[0];
         ptrs.x2[pos] = x[1];
         ptrs.x3[pos] = x[2];
@@ -309,10 +310,10 @@ template void ptc_append<ph_buffer>(exec_tags::device,
                                     Scalar weight, uint32_t flag);
 
 template <typename BufferType, typename Conf>
-void ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
-                       const grid_t<Conf>& grid,
-                       const vec_t<Scalar, 3>& x_global, const vec_t<Scalar, 3>& p,
-                       Scalar weight, uint32_t flag) {
+void
+ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
+                  const grid_t<Conf>& grid, const vec_t<Scalar, 3>& x_global,
+                  const vec_t<Scalar, 3>& p, Scalar weight, uint32_t flag) {
   if (grid.is_in_bound(x_global)) {
     vec_t<Scalar, 3> x_rel;
     uint32_t cell;
@@ -322,22 +323,28 @@ void ptc_append_global(exec_tags::device, particles_base<BufferType>& ptc,
 }
 
 template void ptc_append_global(exec_tags::device, particles_base<ptc_buffer>&,
-                                const grid_t<Config<1>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<1>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 template void ptc_append_global(exec_tags::device, particles_base<ptc_buffer>&,
-                                const grid_t<Config<2>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<2>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 template void ptc_append_global(exec_tags::device, particles_base<ptc_buffer>&,
-                                const grid_t<Config<3>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<3>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 template void ptc_append_global(exec_tags::device, particles_base<ph_buffer>&,
-                                const grid_t<Config<1>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<1>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 template void ptc_append_global(exec_tags::device, particles_base<ph_buffer>&,
-                                const grid_t<Config<2>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<2>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 template void ptc_append_global(exec_tags::device, particles_base<ph_buffer>&,
-                                const grid_t<Config<3>>&, const vec_t<Scalar, 3>&,
+                                const grid_t<Config<3>>&,
+                                const vec_t<Scalar, 3>&,
                                 const vec_t<Scalar, 3>&, Scalar, uint32_t);
 
 template <typename BufferType>

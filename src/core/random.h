@@ -183,32 +183,132 @@ rng_poisson(rand_state& local_state, Float lambda) {
   return k - 1;
 }
 
+// template <typename Float>
+// HD_INLINE Float
+// rng_maxwell_juttner(rand_state& local_state, Float theta) {
+//   // This is the Sobol algorithm described in Zenitani 2015
+//   Float u = 0.0f;
+//   if (theta > 0.1) {
+//     while (true) {
+//       auto x1 = rng_uniform<Float>(local_state);
+//       auto x2 = rng_uniform<Float>(local_state);
+//       auto x3 = rng_uniform<Float>(local_state);
+//       auto x4 = rng_uniform<Float>(local_state);
+//       u = -theta * math::log(x1 * x2 * x3);
+//       auto eta = -theta * math::log(x1 * x2 * x3 * x4);
+//       if (eta * eta - u * u > 1.0) {
+//         break;
+//       }
+//     }
+//   } else {
+//     Float ux = rng_gaussian<Float>(local_state, math::sqrt(theta));
+//     Float uy = rng_gaussian<Float>(local_state, math::sqrt(theta));
+//     Float uz = rng_gaussian<Float>(local_state, math::sqrt(theta));
+//     u = math::sqrt(ux*ux + uy*uy + uz*uz);
+//     u *= 1.0 / math::sqrt(1.0 - u*u);
+//   }
+//   return u;
+// }
+
+
+template <typename Float>
+HD_INLINE Float
+mj_logf_over_fm(Float p, Float pm, Float gamma_m, Float theta) {
+  // Returns log[f(p)/f(pm)] for
+  // f(p) ∝ p^2 exp(-sqrt(1+p^2)/theta).
+  // Written relative to the mode to avoid huge exponentials at small theta.
+  const Float gamma_p = math::sqrt(1.0f + p * p);
+  const Float dgamma =
+      (p * p - pm * pm) / (gamma_p + gamma_m);  // gamma_p - gamma_m, stably
+  return 2.0f * math::log(p / pm) - dgamma / theta;
+}
+
 template <typename Float>
 HD_INLINE Float
 rng_maxwell_juttner(rand_state& local_state, Float theta) {
-  // This is the Sobol algorithm described in Zenitani 2015
-  Float u = 0.0f;
-  if (theta > 0.1) {
-    while (true) {
-      auto x1 = rng_uniform<Float>(local_state);
-      auto x2 = rng_uniform<Float>(local_state);
-      auto x3 = rng_uniform<Float>(local_state);
-      auto x4 = rng_uniform<Float>(local_state);
-      u = -theta * math::log(x1 * x2 * x3);
-      auto eta = -theta * math::log(x1 * x2 * x3 * x4);
-      if (eta * eta - u * u > 1.0) {
-        break;
-      }
+  // Based on Zenitani (2024)
+
+  if (theta <= 0.0f) return 0.0f;
+
+  // Mode:
+  // p_m^2 = 2 theta (theta + sqrt(1 + theta^2))
+  const Float s1 = math::sqrt(1.0f + theta * theta);
+  const Float gamma_m = theta + s1;  // = sqrt(1 + p_m^2)
+  const Float pm2 = 2.0f * theta * gamma_m;
+  const Float pm  = math::sqrt(pm2);
+
+  // Left tangency point for the linear envelope:
+  // (p_L^*)^2 = 1/2 (theta^2 + theta sqrt(4 + theta^2))
+  const Float pLstar2 =
+      0.5f * (theta * theta + theta * math::sqrt(4.0f + theta * theta));
+  const Float pLstar = math::sqrt(pLstar2);
+
+  // x_L^* = [f_m / f(p_L^*)] p_L^*
+  const Float log_fLstar_over_fm =
+      mj_logf_over_fm(pLstar, pm, gamma_m, theta);
+  const Float xLstar = pLstar * math::exp(-log_fLstar_over_fm);
+
+  // Approximate right e-folding point from the paper:
+  // p_R ≈ (2.358 - 1.168/(2 + 3 theta + 5 theta^2)) p_m
+  const Float pR =
+      (2.358f - 1.168f / (2.0f+ 3.0f * theta + 5.0f * theta * theta))* pm;
+
+  // lambda_R = -f(p_R)/f'(p_R) = -1 / d(log f)/dp at p_R
+  const Float gamma_R = math::sqrt(1.0f + pR * pR);
+  const Float dlogf_R = 2.0f / pR - pR / (theta * gamma_R);
+  const Float lambda_R = -1.0f / dlogf_R;
+
+  // x_R = p_R + lambda_R log[f(p_R)/f_m]
+  const Float log_fR_over_fm = mj_logf_over_fm(pR, pm, gamma_m, theta);
+  const Float xR = pR + lambda_R * log_fR_over_fm;
+
+  // Mixture weights
+  const Float S  = xR - 0.5f * xLstar + lambda_R;
+  const Float qL = xLstar / (2.0f * S);
+  const Float qR = lambda_R / S;
+  const Float qC = 1.0f - qL - qR;
+
+  while (true) {
+    const Float X1 = rng_uniform<Float>(local_state);
+    const Float X2 = rng_uniform<Float>(local_state);
+
+    Float p = 0.0f;
+    Float log_accept = 0.0f;
+
+    if (X1 < qL) {
+      // Left slope: triangle distribution
+      p = xLstar * math::sqrt(X1 / qL);
+      if (p <= 0.0f) continue;
+
+      // accept if X2 <= f(p) / [f_m (p/xLstar)]
+      log_accept =
+          mj_logf_over_fm(p, pm, gamma_m, theta) + math::log(xLstar / p);
+
+    } else if (X1 <= qL + qC) {
+      // Central box
+      p = xLstar + (xR - xLstar) * ((X1 - qL) / qC);
+
+      // accept if X2 <= f(p)/f_m
+      log_accept = mj_logf_over_fm(p, pm, gamma_m, theta);
+
+    } else {
+      // Right exponential tail
+      const Float U = (X1 - qL - qC) / qR;
+      if (U <= 0.0f) continue;
+
+      p = xR - lambda_R * math::log(U);
+
+      // accept if U * X2 <= f(p)/f_m
+      log_accept = mj_logf_over_fm(p, pm, gamma_m, theta) - math::log(U);
     }
-  } else {
-    Float ux = rng_gaussian<Float>(local_state, math::sqrt(theta));
-    Float uy = rng_gaussian<Float>(local_state, math::sqrt(theta));
-    Float uz = rng_gaussian<Float>(local_state, math::sqrt(theta));
-    u = math::sqrt(ux*ux + uy*uy + uz*uz);
-    u *= 1.0 / math::sqrt(1.0 - u*u);
+
+    // Protect against tiny positive roundoff in log_accept.
+    if (log_accept >= 0.0f || X2 <= math::exp(log_accept)) {
+      return p;
+    }
   }
-  return u;
 }
+
 
 template <typename Float>
 HD_INLINE vec_t<Float, 3>
@@ -234,9 +334,9 @@ rng_anisotropic_maxwell_juttner_3d(rand_state& local_state,
                    Float theta_perp,   // = T_perp/(mc^2) = 1/beta_perp
                    Float A,            // = T_perp/T_par
                    vec_t<Float,3> b_hat) { // unit vector for "parallel"
-  //Sample spherical distribution with T_perp, then stretch the parallel component to get the desired anisotropy
+  //Sample spherical distribution with T_perp, then stretch the parallel comp1.0fnt to get the desired anisotropy
   vec_t<Float,3> phat = rng_maxwell_juttner_3d(local_state, theta_perp);
-  Float scale = 1.0/math::sqrt(A) - (Float)1;
+  Float scale = 1.0/math::sqrt(A) - 1.0f;
   Float phat_par = phat[0]*b_hat[0] + phat[1]*b_hat[1] + phat[2]*b_hat[2];
   return { phat[0] + scale*phat_par*b_hat[0],
           phat[1] + scale*phat_par*b_hat[1],

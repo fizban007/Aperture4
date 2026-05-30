@@ -51,6 +51,7 @@ data_exporter<Conf, ExecPolicy>::data_exporter(
     : m_grid(grid), m_comm(comm), m_output_grid(grid) {
   sim_env().params().get_value("ptc_output_interval", m_ptc_output_interval);
   sim_env().params().get_value("fld_output_interval", m_fld_output_interval);
+  sim_env().params().get_value("output_on_initial_step", m_output_on_initial_step);
   sim_env().params().get_value("snapshot_interval", m_snapshot_interval);
   sim_env().params().get_value("output_dir", m_output_dir);
   sim_env().params().get_value("downsample", m_downsample);
@@ -98,18 +99,28 @@ data_exporter<Conf, ExecPolicy>::init() {
   if (m_output_dir.back() != '/') m_output_dir.push_back('/');
   fs::path outPath(m_output_dir);
 
+  // Directory creation and config-file copy are filesystem metadata
+  // operations on the same path; at large rank counts having every rank
+  // do them hammers the Lustre MDS (metadata server), with observed
+  // startup ~O(N^2). Do them on rank 0 only, then barrier before
+  // write_grid() opens grid.h5 inside the directory.
+  if (is_root()) {
 #ifndef USE_BOOST_FILESYSTEM
-  std::error_code returnedError;
-  fs::create_directories(outPath, returnedError);
+    std::error_code returnedError;
+    fs::create_directories(outPath, returnedError);
 #else
-  fs::create_directories(outPath);
+    fs::create_directories(outPath);
 #endif
-
-  // Copy config file to the output directory
-  copy_config_file();
+    copy_config_file();
+  }
+  if (m_comm != nullptr) m_comm->barrier();
 
   // Write the grid in the simulation to the output directory
   write_grid();
+
+  // Register the graceful-stop checkpoint callback with the environment.
+  sim_env().register_force_snapshot(
+      [this](uint32_t step, double time) { this->force_snapshot(step, time); });
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -197,7 +208,11 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (m_comm != nullptr) {
     m_comm->barrier();
   }
-  if (step % m_fld_output_interval == 0) {
+  // When output_on_initial_step=false, suppress the file output that would
+  // otherwise fire at step 0 (the initial dump). Snapshots already require
+  // step > 0, so they need no guard.
+  bool skip_initial = (step == 0 && !m_output_on_initial_step);
+  if (!skip_initial && step % m_fld_output_interval == 0) {
     // timer::stamp("write_field");
     // Output downsampled fields!
     std::string filename =
@@ -237,7 +252,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
       write_xmf_step_close(m_xmf_buffer);
       write_xmf_tail(m_xmf_buffer);
 
-      if (step == 0) {
+      if (m_fld_num == 0) {
         write_xmf_head(m_xmf);
       } else {
         m_xmf.seekp(-26, std::ios_base::end);
@@ -252,7 +267,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     //                                  "write_field");
   }
 
-  if (m_ptc_output_interval > 0 && step % m_ptc_output_interval == 0) {
+  if (!skip_initial && m_ptc_output_interval > 0 && step % m_ptc_output_interval == 0) {
     // Output tracked particles!
     std::string filename =
         fmt::format("{}ptc.{:05d}.h5", m_output_dir, m_ptc_num);
@@ -283,7 +298,7 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     // interval rule
     if (it.second->m_special_output_interval == 0) continue;
 
-    if (step % it.second->m_special_output_interval == 0) {
+    if (!skip_initial && step % it.second->m_special_output_interval == 0) {
       // Specifically write output file for this data component
 
       auto data = it.second.get();
@@ -313,9 +328,11 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
     snapshot_name += std::to_string(m_current_snapshot) + ".h5";
     write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
                    time);
+    update_latest_symlink(snapshot_name);
     if (m_special_snapshot_interval > 0 && step % m_special_snapshot_interval == 0 && step > 0) {
-      snapshot_name = std::string("snapshot") + std::to_string(step) + ".h5";
-      write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
+      // Permanent named snapshot -- do NOT update the rotating "latest" symlink.
+      std::string special_name = std::string("snapshot") + std::to_string(step) + ".h5";
+      write_snapshot((fs::path(m_output_dir) / special_name).string(), step,
                      time);
     }
     m_current_snapshot += 1;
@@ -409,10 +426,53 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
 
 template <typename Conf, template <class> class ExecPolicy>
 void
+data_exporter<Conf, ExecPolicy>::force_snapshot(uint32_t step, double time) {
+  std::string snapshot_name("snapshot");
+  snapshot_name += std::to_string(m_current_snapshot) + ".h5";
+  write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step, time);
+  update_latest_symlink(snapshot_name);
+  m_current_snapshot = (m_current_snapshot + 1) % m_num_snapshots;
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+data_exporter<Conf, ExecPolicy>::update_latest_symlink(
+    const std::string& target_basename) {
+  if (!is_root()) return;
+  fs::path latest = fs::path(m_output_dir) / "snapshot_latest.h5";
+  fs::path latest_tmp = fs::path(m_output_dir) / "snapshot_latest.h5.tmp";
+  std::error_code ec;
+  fs::remove(latest_tmp, ec);
+  // Use a relative target so the symlink survives directory moves.
+  fs::create_symlink(target_basename, latest_tmp, ec);
+  if (ec) {
+    Logger::print_err("Failed to create snapshot_latest symlink: {}",
+                      ec.message());
+    return;
+  }
+  fs::rename(latest_tmp, latest, ec);
+  if (ec) {
+    Logger::print_err("Failed to rename snapshot_latest symlink: {}",
+                      ec.message());
+  }
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
 data_exporter<Conf, ExecPolicy>::load_snapshot(const std::string& filename,
                                                uint32_t& step, double& time) {
   H5File snapfile(filename, H5OpenMode::read_parallel);
-  std::string xmf_stem = fs::path(filename).stem().string();
+  // If `filename` is a symlink (e.g. snapshot_latest.h5 -> snapshot0.h5),
+  // resolve it so the derived xmf basename matches the actual on-disk file.
+  fs::path snap_path(filename);
+  std::error_code symlink_ec;
+  if (fs::is_symlink(snap_path, symlink_ec)) {
+    fs::path tgt = fs::read_symlink(snap_path, symlink_ec);
+    if (!symlink_ec) {
+      snap_path = tgt.is_absolute() ? tgt : (snap_path.parent_path() / tgt);
+    }
+  }
+  std::string xmf_stem = snap_path.stem().string();
   std::string xmf_filename = xmf_stem + ".xmf";
 
   // Read simulation stats

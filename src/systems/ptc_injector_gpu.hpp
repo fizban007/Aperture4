@@ -58,10 +58,11 @@ class ptc_injector<Conf, exec_policy_gpu> {
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
             typename FWeight, typename FValidate = always_valid_pos>
-  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
-                    const FDist& f_dist, const FWeight& f_weight,
-                    uint32_t flag = 0,
-                    const FValidate& f_validate = FValidate{}) {
+  void inject_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                     const FDist& f_dist, const FWeight& f_weight,
+                     uint32_t flag = 0,
+                     const FValidate& f_validate = FValidate{},
+                     PtcType pos_type = PtcType::positron) {
     using policy = exec_policy_gpu<Conf>;
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
@@ -111,7 +112,7 @@ class ptc_injector<Conf, exec_policy_gpu> {
     policy::launch(
         // kernel_exec_policy(rng_states_t::block_num,
         // rng_states_t::thread_num),
-        [num, max_num, tracked_fraction, track_rank] __device__(
+        [num, max_num, tracked_fraction, track_rank, pos_type] __device__(
             ptc_ptrs ptc, auto states, auto num_per_cell, auto cum_num_per_cell,
             auto f_dist, auto f_weight, auto flag, auto f_validate, auto ptc_id) {
           auto& grid = policy::grid();
@@ -162,7 +163,7 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.p3[offset_e] = p[2];
                 ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                p = f_dist(x_global, rng.m_local_state, PtcType::positron);
+                p = f_dist(x_global, rng.m_local_state, pos_type);
                 ptc.p1[offset_p] = p[0];
                 ptc.p2[offset_p] = p[1];
                 ptc.p3[offset_p] = p[2];
@@ -175,14 +176,14 @@ class ptc_injector<Conf, exec_policy_gpu> {
 #endif
 
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
-                ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
+                ptc.weight[offset_p] = f_weight(x_global, pos_type);
                 uint32_t local_flag = flag;
                 if (!check_flag(local_flag, PtcFlag::ignore_tracking) &&
                     rng.uniform<value_t>() < tracked_fraction) {
                   set_flag(local_flag, PtcFlag::tracked);
                 }
                 ptc.flag[offset_e] = set_ptc_type_flag(local_flag, PtcType::electron);
-                ptc.flag[offset_p] = set_ptc_type_flag(local_flag, PtcType::positron);
+                ptc.flag[offset_p] = set_ptc_type_flag(local_flag, pos_type);
                 ptc.id[offset_e] = track_rank + atomic_add(ptc_id, 1);
                 ptc.id[offset_p] = track_rank + atomic_add(ptc_id, 1);
               }
@@ -195,6 +196,25 @@ class ptc_injector<Conf, exec_policy_gpu> {
     Logger::print_detail_all("Finished injecting particles");
     ptc->add_num(new_particles);
   }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                    const FDist& f_dist, const FWeight& f_weight,
+                    uint32_t flag = 0,
+                    const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::positron);
+  }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_e_i_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                         const FDist& f_dist, const FWeight& f_weight,
+                         uint32_t flag = 0,
+                         const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::ion);
+  }
+
 
  private:
   const Grid<Conf::dim, value_t>& m_grid;

@@ -39,9 +39,15 @@ namespace {
 template <int Dim>
 using fd = finite_diff<Dim, 2>;
 
-template <typename Conf, template <class> class ExecPolicy,
-          std::enable_if_t<Conf::dim == 2, int> = 0>
-void
+// SFINAE on the return type (rather than a defaulted non-type template
+// parameter) so the enclosing function template carries only <Conf,
+// ExecPolicy>. CUDA nvcc 12.x cannot resolve the auto-typed parameter
+// placeholders of an extended __device__ lambda when its enclosing function
+// has an additional anonymous SFINAE template argument -- it emits errors of
+// the form "'__T0' was not declared in this scope". Pushing the dim
+// discriminator into the return type avoids that case.
+template <typename Conf, template <class> class ExecPolicy>
+std::enable_if_t<Conf::dim == 2>
 damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
                  vector_field<Conf>& e0, vector_field<Conf>& b0,
                  int damping_length, typename Conf::value_t damping_coef,
@@ -83,9 +89,8 @@ damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
   ExecPolicy<Conf>::sync();
 }
 
-template <typename Conf, template <class> class ExecPolicy,
-          std::enable_if_t<Conf::dim == 3, int> = 0>
-void
+template <typename Conf, template <class> class ExecPolicy>
+std::enable_if_t<Conf::dim == 3>
 damping_boundary(vector_field<Conf>& e, vector_field<Conf>& b,
                  vector_field<Conf>& e0, vector_field<Conf>& b0,
                  int damping_length, typename Conf::value_t damping_coef,

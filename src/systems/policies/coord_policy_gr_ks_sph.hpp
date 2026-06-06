@@ -486,14 +486,28 @@ class coord_policy_gr_ks_sph {
     ExecPolicy::sync();
   }
 
-  // Static factory returning a position validator suitable for
-  // ptc_injector::inject_pairs. The returned lambda takes (pos, x_global) and
+  // Position validator suitable for ptc_injector::inject_pairs. operator()
   // returns true iff the position lies inside the live simulation domain in
   // theta -- i.e. NOT inside the half-cell-wide buffer near theta_min /
-  // theta_max. Passing this validator to inject_pairs prevents particles
-  // from ever being placed in the buffer, regardless of which injector is
-  // used.
-  static auto make_inj_pos_validator() {
+  // theta_max. Passing this validator to inject_pairs prevents particles from
+  // ever being placed in the buffer, regardless of which injector is used.
+  //
+  // Implemented as a named functor (rather than a captured lambda inside an
+  // auto-returning factory) because CUDA nvcc rejects an extended __device__
+  // lambda whose enclosing function has a deduced return type. The functor
+  // pattern mirrors always_valid_pos in ptc_injector_new.h and is drop-in
+  // compatible at every f_validate call site.
+  struct inj_pos_validator_t {
+    value_t th_lo;
+    value_t th_hi;
+    template <typename Pos, typename X>
+    HD_INLINE bool operator()(const Pos&, const X& x_global) const {
+      value_t th = grid_type::theta(x_global[1]);
+      return th >= th_lo && th < th_hi;
+    }
+  };
+
+  static inj_pos_validator_t make_inj_pos_validator() {
     vec_t<value_t, Conf::dim> sim_lower, sim_size;
     sim_env().params().get_vec_t("lower", sim_lower);
     sim_env().params().get_vec_t("size", sim_size);
@@ -502,10 +516,7 @@ class coord_policy_gr_ks_sph {
     value_t dtheta = sim_size[1] / static_cast<value_t>(ncells[1]);
     value_t th_lo = sim_lower[1] + 0.5f * dtheta;
     value_t th_hi = sim_lower[1] + sim_size[1] - 0.5f * dtheta;
-    return [th_lo, th_hi] LAMBDA(const auto &pos, const auto &x_global) {
-      value_t th = grid_type::theta(x_global[1]);
-      return th >= th_lo && th < th_hi;
-    };
+    return inj_pos_validator_t{th_lo, th_hi};
   }
 
  private:

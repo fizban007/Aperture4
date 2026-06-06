@@ -173,9 +173,9 @@ main(int argc, char  * argv[]) {
   auto moments = env.register_system<compute_moments_gr_ks<Conf, exec_policy_dynamic>>(grid);
   // auto injector = env.register_system<bh_injector<Conf>>(grid);
   auto tracker  =  env.register_system<gather_tracked_ptc<Conf, exec_policy_dynamic>>(grid);
-  auto radiation = env.register_system<
-    radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
-                       default_radiation_scheme_gr>>(grid, &comm);
+  // auto radiation = env.register_system<
+  //   radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
+  //                      default_radiation_scheme_gr>>(grid, &comm);
   // auto radiation = env.register_system<
   //   radiative_transfer<Conf, exec_policy_dynamic, coord_policy_gr_ks_sph,
   //                     //  default_radiation_scheme_gr>>(grid, &comm);

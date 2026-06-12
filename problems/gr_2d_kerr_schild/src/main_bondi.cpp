@@ -171,7 +171,7 @@ main(int argc, char *argv[]) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t theta = grid_ks_t<Conf>::theta(x_global[1]);
 
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT);
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d<value_t>(state, kT);
         // Now transform this momentum from the local fluid frame to the global
         // coordinate. Use the tetrads given in Benjamin Crinquand's PhD thesis:
         // https://theses.hal.science/tel-03406333v1/file/Thesis_Benjamin_Crinquand_final.pdf

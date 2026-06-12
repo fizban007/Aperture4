@@ -1,7 +1,7 @@
 add_custom_target(check)
 
 # add_executable(tests "test.cpp")
-add_executable(tests
+set(test_src
   "test_util_functions.cpp"
   "test_buffer.cpp"
   "test_particles.cpp"
@@ -19,6 +19,7 @@ add_executable(tests
   "test_rng.cpp"
   "test_gr_ks_sph.cpp"
   )
+add_executable(tests ${test_src})
 # target_link_libraries(tests Aperture Aperture_dev Catch2::Catch2WithMain)
 target_link_libraries(tests PUBLIC
   Aperture

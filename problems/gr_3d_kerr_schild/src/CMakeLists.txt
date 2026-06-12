@@ -74,3 +74,7 @@ add_dependencies(problems vacuum_wald_3d)
 add_aperture_executable(bondi_3d "main_bondi.cpp")
 target_link_libraries(bondi_3d gr_3d_kerr_schild)
 add_dependencies(problems bondi_3d)
+
+add_aperture_executable(torus_3d "main_torus.cpp")
+target_link_libraries(torus_3d gr_3d_kerr_schild)
+add_dependencies(problems torus_3d)

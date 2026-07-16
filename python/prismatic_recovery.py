@@ -206,9 +206,13 @@ def barycentric(mesh, t, p_hat):
     return lam_raw / abs(s)
 
 
-def locate(mesh, pts):
+def locate(mesh, pts, hints=None):
     """Locate Cartesian points: returns (tri, layer, lam(3), zeta) arrays.
-    Points outside the radial range get layer = -1."""
+    Points outside the radial range get layer = -1.
+
+    hints: optional int array of per-point starting triangles; updated
+    in place with the found triangles (pass the previous step's array in
+    a particle loop to make walks O(1))."""
     pts = np.asarray(pts, dtype=np.float64)
     N = len(pts)
     tri = np.zeros(N, dtype=int)
@@ -218,6 +222,8 @@ def locate(mesh, pts):
     opp = (1, 2, 0)
     hint = 0
     for i in range(N):
+        if hints is not None:
+            hint = int(hints[i])
         r = np.linalg.norm(pts[i])
         if r < mesh.radii[0] or r > mesh.radii[-1]:
             layer[i] = -1
@@ -245,6 +251,8 @@ def locate(mesh, pts):
             t = int(np.argmax(lam_all.min(axis=1)))
         tri[i] = t
         hint = t
+        if hints is not None:
+            hints[i] = t
         lam[i] = np.clip(barycentric(mesh, t, p_hat), 0.0, None)
         lam[i] /= lam[i].sum()
     return tri, layer, lam, zeta
@@ -254,10 +262,10 @@ def locate(mesh, pts):
 # Primal Whitney gather (port of interp_fields in prismatic_interp.cpp)
 # =========================================================================
 
-def primal_gather(mesh, E_e, B_f, pts):
+def primal_gather(mesh, E_e, B_f, pts, hints=None):
     """Whitney-form E and B at Cartesian points from primal cochains.
     Returns (E, B) arrays of shape (N, 3)."""
-    tri, layer, lam, zeta = locate(mesh, pts)
+    tri, layer, lam, zeta = locate(mesh, pts, hints)
     N = len(pts)
     E = np.zeros((N, 3))
     B = np.zeros((N, 3))
@@ -485,10 +493,10 @@ def vertex_gradient(mesh, rec, B_f):
     return Gv
 
 
-def recovery_gather(mesh, Bv, pts):
+def recovery_gather(mesh, Bv, pts, hints=None):
     """Hat-function (Whitney 0-form × linear-in-zeta) interpolation of
     per-vertex B vectors at Cartesian points.  Fully C0."""
-    tri, layer, lam, zeta = locate(mesh, pts)
+    tri, layer, lam, zeta = locate(mesh, pts, hints)
     N = len(pts)
     B = np.zeros((N, 3))
     for i in range(N):

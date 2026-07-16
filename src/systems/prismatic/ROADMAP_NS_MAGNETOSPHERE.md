@@ -105,6 +105,25 @@ the primal gather available as the paper's baseline.
    abs guards against antipodal-triangle false positives), which tiles
    exactly.
 
+**Particle-level results (2026-07-16, `python/recovery_study.py`, L=3,
+Boris ensembles, gyro-radius ≈ 1/4 cell):**
+- Uniform B, 3000 gyro-steps: primal gather ejected **73%** of purely
+  gyrating particles from the shell (guiding centers random-walk ~0.45 r_*
+  off the jumps) with rms Δμ/μ 4.3e-2; recovery matched the exact-field
+  pusher to round-off (0% lost, Δμ/μ ~1e-11, wander identical to exact).
+- Dipole drift orbits, 6000 steps: primal lost **75%** of trapped
+  particles, survivors' phase-averaged Δμ/μ = 0.35; exact and recovery
+  both lost 0% with Δμ/μ = 2.3e-2 and 4.3e-2.
+- Conditioning table (div-free fit): median ~28, max ~38, statistically
+  identical for valence-5 vs valence-6 and interior vs boundary.
+- Caveat for the paper figure: L=3 is coarse; repeat at L=4-5 where the
+  O(h) primal jumps are smaller, and scan gyro-radius/cell-size ratio.
+
+Prototype verdict: recovery goes to production.  Remaining A1 work is the
+CUDA port (gnomonic locator + weight build at mesh init + per-step vertex
+kernel + hat gather in prismatic_deposit.h) and repo unit tests replicating
+V4-V7 and the loss-rate comparison.
+
 Validation battery as tests + small drivers (prototype all of it first in
 Python via the `prismatic_interp` pybind module before CUDA work):
 

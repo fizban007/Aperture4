@@ -119,10 +119,19 @@ Boris ensembles, gyro-radius ≈ 1/4 cell):**
 - Caveat for the paper figure: L=3 is coarse; repeat at L=4-5 where the
   O(h) primal jumps are smaller, and scan gyro-radius/cell-size ratio.
 
-Prototype verdict: recovery goes to production.  Remaining A1 work is the
-CUDA port (gnomonic locator + weight build at mesh init + per-step vertex
-kernel + hat gather in prismatic_deposit.h) and repo unit tests replicating
-V4-V7 and the loss-rate comparison.
+Prototype verdict: recovery goes to production.
+
+**CUDA port LANDED (2026-07-16, `prismatic_vertex_recovery.h/.cpp` +
+`test_prismatic_recovery.cpp`):** div-free per-sphere-vertex weights with
+(r_ref/r_k)² interior rescaling (O(N_vert_s) storage), per-step vertex
+kernel + C0 hat gather through the exec-policy lambdas (same code host
+and GPU), gnomonic compute_barycentric in production (fixes the sliver
+bug), config `use_recovery_gather` (default true).  Full suite + GPU
+smoke run pass.  Still open in A1:
+- GCA path: gca_push re-interpolates B internally with the primal
+  gather; thread Bv through when GCA becomes relevant (A3 uses Boris).
+- Paper figures: repeat the loss-rate/scattering comparison at L=4-5
+  with a gyro-radius/cell-size scan (drive via the C++ updater now).
 
 Validation battery as tests + small drivers (prototype all of it first in
 Python via the `prismatic_interp` pybind module before CUDA work):

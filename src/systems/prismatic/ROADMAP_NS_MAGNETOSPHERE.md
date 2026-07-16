@@ -151,6 +151,45 @@ Deutsch analytic IC in `dec_field_solver_impl.hpp`. Spin up, compare
 against the analytic Deutsch solution in the wave zone, convergence in L.
 Reuse the cavity analysis tooling for error maps.
 
+**A2.0 + A2.1 results (2026-07-16).** Benchmark configs
+`problems/prismatic_dipole/config_deutsch_L{4,5,6}.toml` (causally clean
+protocol: r_max=45 > 9 + P, no damping, one period, recurrence error
+||F(P)−F(0)|| in r<9 is pure solver error) + `config_deutsch_damped_L5`
+(6-period absorber variant); analysis `deutsch_stationarity.py`,
+`deutsch_luminosity.py`.  Note the code's "Deutsch" is the retarded
+rotating point dipole (exact vacuum solution; the finite-star E
+quadrupole is absent) — fine as a benchmark, worth a footnote in the
+paper.  L_analytic = (8π/3)Bp²Ω⁴sin²α in code (rationalized) units.
+
+Measured (Ω=0.2, α=60°): errB(r<9) = 4.17e-3 / 1.38e-3 / 6.85e-4 at
+L=4/5/6 (ratios 3.0, 2.0); errE = 2.25e-2 / 1.17e-2 / 6.52e-3 (~1.9×).
+The luminosity in the clean domain holds L/L_analytic = 0.85 steady
+through the period at L=5.
+
+**Open items found (do these next in A2):**
+1. **O(dt) staggering error in IC + inner BC** — dt-halving at fixed
+   mesh leaves errB unchanged but drops errE from 2.25e-2 to 1.39e-2
+   (an O(dt) part ≈1.7e-2 + spatial floor 5.3e-3 at L4): the analytic
+   IC and the per-step BC overwrite evaluate B at integer times while
+   leapfrog B lives at t+dt/2.  Fix: evaluate the B overwrite at
+   time+dt/2 (and stagger the B IC by dt/2); then rerun the ladder —
+   errE should become 2nd order and errB's L5→L6 ratio should recover
+   toward 4.  (The cavity analysis already applies this half-step shift
+   *in post-processing*; the BC needs it *in the solver*.)
+2. **Absorbing-layer artifact**: the damped steady state settles at
+   L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
+   vs 0.85 in the clean domain — absorber reflection/interference, not
+   solver decay.  It also floors the damped recurrence error at ~1.5e-3.
+   Needs an absorber study (taper profile, length, r_max) before A3,
+   which will run with damping.
+3. **Diagnostic accuracy**: L(IC, exact fields) measures 0.82/0.85 of
+   analytic at L=4/5 because prismatic_sph_output interpolates with
+   first-order primal Whitney forms.  Switching sph_output's B (and E?)
+   interpolation to the recovery gather would make all grid diagnostics
+   second order.  Cheap and high-value.
+4. Transient settling: with an absorber, the recurrence metric needs
+   ~4 periods of settling (measure the last period pair).
+
 ### A3 — Aligned rotator prototype (weeks 5–8)
 
 - Injection: start from the existing `fill_volume` machinery; add a simple

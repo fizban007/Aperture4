@@ -1,0 +1,26 @@
+# A2 damped steady-state variant: 6 periods with the absorbing layer.
+# Used for luminosity / absorber studies (deutsch_luminosity.py), NOT
+# for convergence: the recurrence error is floored ~1.5e-3 by
+# resolution-independent damping-layer reflection, and the settled
+# steady state carries L ~ 0.52 of the analytic (8pi/3) Bp^2 Omega^4
+# sin^2(alpha) at every L — an absorber artifact (the causally clean
+# domain holds L/L_analytic = 0.85 steady, limited only by the
+# first-order primal interpolation inside prismatic_sph_output).
+# The transient needs ~4 periods to settle; measure the last pair.
+dt = 0.009817477042468103
+max_steps = 19200
+subdivision_level = 5
+N_r = 80
+r_min = 1.0
+r_max = 20.0
+Bp = 1.0
+Omega = 0.2
+obliquity = 1.0471975511965976
+use_deutsch_ic = true
+use_deutsch_bc = true
+damping_length = 20
+damping_coef = 0.1
+fld_output_interval = 200
+output_dir = "Data_deutsch_damped_L5"
+sph_N_theta = 64
+sph_N_phi = 128

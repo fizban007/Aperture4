@@ -1,0 +1,169 @@
+# Roadmap: NS Magnetosphere Prototype + Methods Paper
+
+**Status as of 2026-07-16.** Supersedes the GR-oriented sequencing in
+`PHASE_4_1B_PLAN.md` (the phase content survives, retargeted — see Track B).
+
+## Strategic decisions
+
+1. **GR work is shelved.** The near-term paper is a numerical-methods paper
+   on the prismatic icosahedral mesh applied to NS (flat-space)
+   magnetospheres. The traditional-grid 3D GR effort on `develop` covers the
+   BH science. `dec_field_solver_gr_ks`, `prismatic_wald`, and the Wald/drift
+   diagnostics are frozen — not deleted, not maintained. Do not resume them
+   without revisiting this document.
+2. **MPI field work continues to completion.** Phases 1–4.1a are done and
+   tested; Phase 4.1b proceeds, but **retargeted at the flat
+   `dec_field_solver`** instead of the GR solver. The flat solver has no
+   shift cross-terms, so the halo-dependency structure is simpler than the
+   4.1b plan assumed: exchange E (h+v edges) before Faraday, exchange B
+   (tri+rect faces) before Ampère, refresh inside each semi-implicit Picard
+   iteration. Everything else in `PHASE_4_1B_PLAN.md` (buffer splits, commit
+   boundaries, layout/ptrs design, gotchas) carries over.
+3. **The prototype magnetosphere runs single-GPU** (L=5–6, N_r per
+   `python/prismatic_memory_budget.py`). Distributed PIC requires particle
+   migration + additive J-reduction (Phase 6) — the current halo backends
+   implement ghost-fill only. Phase 6 is post-prototype; a multi-GPU hero
+   run is a stretch goal, not a paper dependency.
+4. **Paper scorecard** (each item is also a bring-up milestone):
+   - Field convergence: cavity eigenmodes (done), vacuum dipole (done).
+     Report both L2 and pointwise norms; map error vs distance to the 12
+     valence-5 vertices.
+   - Particle-mesh: charge conservation (unit-tested), gyration / E×B drift
+     convergence, plasma oscillation, primal-vs-dual interpolation
+     scattering comparison.
+   - Rotator: vacuum rotating dipole vs analytic Deutsch fields.
+   - Flagship: aligned rotator with plasma — spin-down vs force-free
+     μ²Ω⁴/c³, Y-point + equatorial current sheet, interior corotation.
+   - Method selling point: quasi-uniform cells → no polar CFL penalty
+     (quantify dt advantage vs an equivalent-resolution (θ,φ) Yee grid)
+     and no polar filtering; multi-rank field-solver scaling from Track B.
+
+## Phase 0 — Housekeeping (week 0)
+
+- 0.1 Review + apply `stash@{0}` and commit. It contains definitions the
+  committed tree needs even with GR shelved (`EdgeCochainKind` is used by
+  `prismatic_sph_output`; `face_area`/`edge_length` in `prismatic_mesh_ptrs`).
+  Review the ~70-line deletion in `dec_field_solver_impl.hpp` and the
+  `wald_solution.hpp` changes separately; keep only what the flat path needs.
+- 0.2 Shelve GR in the build: keep `dec_field_solver_gr_ks*` compiling if
+  trivial after 0.1, otherwise gate it and `problems/prismatic_wald` behind
+  a CMake option (default OFF). Add a status header to both files' docs.
+- 0.3 Add a fast compile check (script or CI) covering the prismatic
+  targets + tests, so the tree never regresses to non-building again.
+
+## Track A — Physics (critical path for the paper)
+
+### A1 — Dual interpolation + PIC validation battery (weeks 1–3)
+
+The single highest-risk/highest-value item. Implement
+`docs/icosahedral_prismatic_pic/dual_interpolation_plan.md`:
+dual-mesh connectivity tables on `prismatic_mesh` (+ptrs), dual Whitney
+interpolation in `interpolate_fields` (`prismatic_deposit.h`), behind a
+runtime/compile switch so primal remains available for the comparison
+figure. Then the validation battery as tests + small drivers:
+
+- single-particle gyration: energy + gyroradius convergence vs dt and L;
+- E×B and grad-B drift against analytic rates;
+- plasma oscillation frequency (uses the deposit→J→Ampère loop end-to-end);
+- primal-vs-dual pitch-angle scattering / heating comparison (paper figure).
+
+Deposition stays primal (it is charge-conserving and unit-tested); only
+interpolation moves to the dual.
+
+### A2 — Vacuum rotating dipole vs Deutsch (weeks 3–4)
+
+Fields only, single rank. Use the existing rotating-dipole inner BC +
+Deutsch analytic IC in `dec_field_solver_impl.hpp`. Spin up, compare
+against the analytic Deutsch solution in the wave zone, convergence in L.
+Reuse the cavity analysis tooling for error maps.
+
+### A3 — Aligned rotator prototype (weeks 5–8)
+
+- Injection: start from the existing `fill_volume` machinery; add a simple
+  surface/ubiquitous injection scheme (small addition to
+  `prismatic_ptc_updater`). Scaled-down B (standard practice), plain Boris —
+  the GCA curvature no-op stays a no-op for now.
+- Deduplicate the injection code currently copy-pasted between
+  `problems/prismatic_dipole/src/main.cpp` and `streaming_test.cpp` into a
+  shared helper while touching it.
+- Runs at L=5 (bring-up) → L=6 (production single-GPU). Scorecard: spin-down
+  luminosity, current sheet / Y-point morphology, corotation.
+- Stretch: Michel split-monopole benchmark (cheap, analytic).
+
+## Track B — MPI (finish what's built; parallel to Track A)
+
+### B0 — De-risk before solver conversion (weeks 1–2)
+
+- Convert `prismatic_mesh_local` / `prismatic_mesh_metric_local` /
+  `prismatic_d1_local` storage from `std::vector` to `buffer<Scalar>`/
+  `buffer<int>` with `copy_to_device()`, and add the
+  `prismatic_mesh_local_ptrs` struct (4.1b.0) able to hand out host or
+  device pointers. Mechanical now, painful after kernels convert.
+- Add the missing operator-level test: local d1 blocks × haloed field ==
+  global d1 × field, on simulated 20-rank angular, K-slab radial, and
+  combined partitions (in-process backend). This catches the bug class
+  4.1b will produce.
+- Extend `test_prismatic_mpi_backend_multirank` to radial (K ranks) and
+  combined (20·K) configurations; exercise `comm_radial` over real MPI.
+
+### B1 — Phase 4.1b retargeted: convert `dec_field_solver` (weeks 2–5)
+
+Follow `PHASE_4_1B_PLAN.md`'s commit sequence, applied to the flat solver:
+
+1. scratch/field buffer split (h_edge/v_edge, tri/rect) sized to layouts;
+2. Faraday side (`B -= dt·d1·E`) on local buffers, E-halo before;
+3. Ampère side (`E += dt·h1inv·(d1t·h2·B − J)`), B-halo before;
+   semi-implicit: halo refresh inside every Picard iteration;
+4. ICs (dipole / Deutsch / cavity) iterate owned elements, one exchange
+   after; BC/damping routines act only on ranks owning the boundary shells;
+5. `prismatic_edge_field`/`prismatic_face_field` split (plan option (a):
+   two internal buffers, `.h()`/`.v()` accessors). **Coordinate with the
+   particle updater**, which registers the same E/B/J slots and indexes
+   them through global ptrs — for now the particle path is only supported
+   on a single-rank partition; assert that explicitly rather than breaking
+   silently.
+6. Per-rank `dump_aux_fields`; parallel HDF5 deferred (Phase 5).
+
+Note: `mpi_halo_backend` stays host-staged through B1 (correctness first).
+Host↔device copies at exchange points are acceptable at validation scale.
+
+### B2 — Multirank validation + scaling figure (weeks 5–6)
+
+- Cavity-resonator eigenmode on 1 vs 20 (and 20×K if feasible) ranks:
+  max relative difference < 1e-4 (float, per the plan's acceptance
+  criterion), and identical convergence slope. This doubles as the analytic
+  reference the GR plan lacked.
+- Weak/strong scaling numbers for the field solver → paper figure.
+- Device-direct (CUDA-aware) exchange in `mpi_halo_backend` if the
+  host-staging shows up in the scaling data; it is one contained class.
+
+### B3 — Deferred (post-paper unless the paper needs a hero run)
+
+- Partition-aware `prismatic_mesh::build()` + `release_global_buffers()`
+  (4.1a.4): only needed beyond L≈7 where the global-build footprint bites.
+- Phase 5 parallel HDF5.
+- Phase 6 distributed PIC: particle migration between ranks + additive
+  J/rho halo **reduction** (owner sums ghost contributions — the reverse
+  of the existing ghost-fill exchange; needs a new `reduce()` path in the
+  halo backends alongside `exchange()`).
+
+## Merge point (weeks 7–9)
+
+If Track B lands B2 early and Phase 6 looks tractable, attempt a
+multi-GPU rotator. Otherwise the paper ships with: single-GPU PIC
+magnetosphere (A3) + multi-rank field-solver validation/scaling (B2) +
+distributed PIC as future work. **Do not let the paper wait on Phase 6.**
+
+## Risk register
+
+- A1 dual interpolation is the only genuinely new numerics; if it slips,
+  everything in A2/A3 still proceeds with primal interpolation and the
+  paper's particle claims weaken. Start it first; timebox to 3 weeks
+  before deciding whether the paper leads with fields + charge conservation.
+- B1 field-container split (step 5) is the one place Tracks A and B touch
+  the same code (`prismatic_field_data.h`, updater registration). Land it
+  as a single coordinated commit; run the full prismatic test suite + one
+  A-track driver before and after.
+- Semi-implicit Picard halo refresh: silent multi-rank-only drift if
+  missed (plan gotcha). The B2 bit-close test is the guard — run it with
+  the semi-implicit path, not just explicit.

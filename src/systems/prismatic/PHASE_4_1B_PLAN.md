@@ -1,5 +1,15 @@
 # Phase 4.1b Plan — Solver Buffer Conversion
 
+> **STATUS (2026-07): RETARGETED.**  GR work is shelved
+> (`ROADMAP_NS_MAGNETOSPHERE.md`); this conversion now applies to the flat
+> `dec_field_solver`, not `dec_field_solver_gr_ks`.  The buffer splits,
+> commit boundaries, and gotchas below carry over, but the shift
+> cross-terms — and their halo dependencies (B before compute_dB_dt,
+> D̃-tangent before compute_dD_dt) — do not exist in the flat solver:
+> exchange E (h+v) before Faraday and B (tri+rect) before Ampère, plus a
+> refresh inside each semi-implicit Picard iteration.  Wald-IC and
+> horizon-damping sections apply only if the GR solver is ever revived.
+
 ## Context
 
 Phase 4.1a finished: every per-cochain mesh array (mesh + metric + d1/d1^T)

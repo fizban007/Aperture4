@@ -9,6 +9,12 @@
 
 namespace Aperture {
 
+// STATUS (2026-07): SHELVED.  The prismatic effort is focused on flat-space
+// NS magnetospheres (see ROADMAP_NS_MAGNETOSPHERE.md); 3D GR science is
+// covered by the traditional-grid solver on the develop branch.  This
+// solver is kept compiling but is not maintained or validated — do not
+// build new work on it without revisiting the roadmap.
+//
 // DEC field solver for any spherical-metric spacetime with a purely
 // radial shift (β^θ = β^φ = 0).  Examples: flat space (trivially),
 // Schwarzschild, Kerr-Schild.

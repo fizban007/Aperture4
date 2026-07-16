@@ -29,8 +29,8 @@
      Report both L2 and pointwise norms; map error vs distance to the 12
      valence-5 vertices.
    - Particle-mesh: charge conservation (unit-tested), gyration / E×B drift
-     convergence, plasma oscillation, primal-vs-dual interpolation
-     scattering comparison.
+     convergence, plasma oscillation, primal-Whitney vs vertex-recovery
+     interpolation scattering comparison.
    - Rotator: vacuum rotating dipole vs analytic Deutsch fields.
    - Flagship: aligned rotator with plasma — spin-down vs force-free
      μ²Ω⁴/c³, Y-point + equatorial current sheet, interior corotation.
@@ -53,22 +53,48 @@
 
 ## Track A — Physics (critical path for the paper)
 
-### A1 — Dual interpolation + PIC validation battery (weeks 1–3)
+### A1 — Second-order B-gather (vertex recovery) + PIC validation battery (weeks 1–3)
 
-The single highest-risk/highest-value item. Implement
-`docs/icosahedral_prismatic_pic/dual_interpolation_plan.md`:
-dual-mesh connectivity tables on `prismatic_mesh` (+ptrs), dual Whitney
-interpolation in `interpolate_fields` (`prismatic_deposit.h`), behind a
-runtime/compile switch so primal remains available for the comparison
-figure. Then the validation battery as tests + small drivers:
+The single highest-risk/highest-value item.
+
+**Decision (2026-07-16): implement vertex least-squares recovery for the
+B-gather instead of dual Whitney interpolation.** Rationale: the dual
+scheme has two unresolved design gaps (fan-decomposition spoke-edge
+circulations; radial boundary half-shells) and tops out at first order
+with partial continuity, while ZZ-style vertex recovery is fully C⁰,
+second-order, needs no dual mesh or dual point location, and its linear
+fit `B(x) = B₀ + G·x` yields the ∇B needed to later un-stub the GCA
+curvature terms. Dual interpolation
+(`docs/icosahedral_prismatic_pic/dual_interpolation_plan.md`) is kept as
+a documented alternative / future work, not implemented.
+
+Structure-preservation constraints (do not violate):
+- Deposition stays primal Whitney (charge-conserving, unit-tested).
+- E-gather stays primal Whitney 1-forms — it is the adjoint partner of
+  the J-deposit; changing it risks secular numerical heating. Only the
+  B-gather changes (the magnetic force is workless, so B-gather is
+  structurally unconstrained).
+
+Scheme: per-vertex linear-reproducing LSQ fit of B from the adjacent
+face fluxes (~18 fluxes interior, ~15 at valence-5 vertices, ~12 one-
+sided at radial boundary vertices — consider one extra layer of patch
+depth there). Weights precomputed at mesh build; with log-spaced shells
+the layers are self-similar, so store weights per sphere-vertex and
+rescale analytically (fluxes ∝ r², lengths ∝ r). Per step: one
+O(N_verts) kernel producing vertex B vectors; particles hat-interpolate
+the components (existing Whitney 0-form machinery). Runtime switch keeps
+the primal gather available as the paper's baseline.
+
+Validation battery as tests + small drivers (prototype all of it first in
+Python via the `prismatic_interp` pybind module before CUDA work):
 
 - single-particle gyration: energy + gyroradius convergence vs dt and L;
 - E×B and grad-B drift against analytic rates;
 - plasma oscillation frequency (uses the deposit→J→Ampère loop end-to-end);
-- primal-vs-dual pitch-angle scattering / heating comparison (paper figure).
-
-Deposition stays primal (it is charge-conserving and unit-tested); only
-interpolation moves to the dual.
+- primal-vs-recovery pitch-angle scattering / heating comparison (paper
+  figure);
+- recovery fit quality vs vertex valence and radius (valence-5 vertices
+  and boundary shells are where a referee will poke).
 
 ### A2 — Vacuum rotating dipole vs Deutsch (weeks 3–4)
 
@@ -156,10 +182,16 @@ distributed PIC as future work. **Do not let the paper wait on Phase 6.**
 
 ## Risk register
 
-- A1 dual interpolation is the only genuinely new numerics; if it slips,
-  everything in A2/A3 still proceeds with primal interpolation and the
-  paper's particle claims weaken. Start it first; timebox to 3 weeks
-  before deciding whether the paper leads with fields + charge conservation.
+- A1 vertex-recovery gather is the only genuinely new numerics; if it
+  slips, everything in A2/A3 still proceeds with primal interpolation and
+  the paper's particle claims weaken. Start it first (Python prototype via
+  `prismatic_interp` before CUDA); timebox to 3 weeks before deciding
+  whether the paper leads with fields + charge conservation.
+- Recovery-specific risks: patch conditioning at the 12 valence-5
+  vertices and one-sided boundary patches (~12 fluxes for 12 unknowns —
+  may need deeper patches), and weight storage at high L (mitigated by
+  per-sphere-vertex weights + analytic radial rescaling under log-spaced
+  shells; verify the shells are actually log-spaced in the configs used).
 - B1 field-container split (step 5) is the one place Tracks A and B touch
   the same code (`prismatic_field_data.h`, updater registration). Land it
   as a single coordinated commit; run the full prismatic test suite + one

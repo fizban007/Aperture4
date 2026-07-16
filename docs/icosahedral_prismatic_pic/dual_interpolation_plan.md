@@ -1,5 +1,16 @@
 # Dual-Grid B Interpolation for Continuous Fields at Particle Positions
 
+> **STATUS (2026-07-16): NOT PURSUED — superseded by vertex least-squares
+> recovery** (see `src/systems/prismatic/ROADMAP_NS_MAGNETOSPHERE.md`,
+> Track A1).  Two design gaps were never resolved here: (1) the fan
+> decomposition's spoke edges (primal-vertex→circumcenter) and the
+> vertical edge at the primal vertex carry no dual 1-cochain values, so
+> 5 of the 9 Whitney edges per fan prism are undefined; (2) the dual
+> radial grid does not cover the innermost/outermost half-shells.  The
+> scheme also tops out at first order with tangential-only continuity,
+> while ZZ-style vertex recovery is fully C⁰ and second-order.  Kept as
+> a documented alternative for the methods paper.
+
 ## Problem
 
 Whitney 2-forms on the primal prismatic mesh give discontinuous B when

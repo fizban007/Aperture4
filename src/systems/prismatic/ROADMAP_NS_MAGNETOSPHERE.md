@@ -85,6 +85,26 @@ O(N_verts) kernel producing vertex B vectors; particles hat-interpolate
 the components (existing Whitney 0-form machinery). Runtime switch keeps
 the primal gather available as the paper's baseline.
 
+**Prototype findings (2026-07-16, `python/prismatic_recovery.py`):**
+1. The fit is rank-deficient unless **div B = 0 (trace-free G) is imposed**:
+   the unconstrained trace mode is exactly null at the 12 valence-5
+   vertices (cond ~1e9) and weak (σ≈0.01) at valence-6.  With the
+   constraint, cond ≈ 16 everywhere including valence-5 and boundaries.
+2. Patches need tri-face fans at shells k-1,k,k+1 (a single shell never
+   samples dB_r/dr).
+3. Measured on the dipole at L=2→4: primal converges at ratio ~2.0
+   (1st order), recovery at ~4.7–6.3 (2nd order); at L=4 recovery is
+   ~28× more accurate (rms).  Face-crossing jumps: primal 10–26% of |B|
+   at L=3; recovery continuous to round-off.
+4. **Production bug found**: the perpendicular-projection barycentric in
+   `prismatic_mesh_ptrs.h compute_barycentric` does not tile the sphere —
+   ~0.3% of positions fall in O(1e-4)-λ slivers claimed by no triangle;
+   `find_triangle` then walks to its N_tri iteration cap and returns an
+   arbitrary hint-dependent cell.  Fix in the CUDA port: central
+   (gnomonic) barycentric (solve p̂ ∝ Σλᵢvᵢ, normalize by |Σλ_raw| — the
+   abs guards against antipodal-triangle false positives), which tiles
+   exactly.
+
 Validation battery as tests + small drivers (prototype all of it first in
 Python via the `prismatic_interp` pybind module before CUDA work):
 

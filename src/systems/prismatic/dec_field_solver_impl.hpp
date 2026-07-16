@@ -300,6 +300,7 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
   sim_env().params().get_value("use_deutsch_bc", m_use_deutsch_bc);
   sim_env().params().get_value("use_pec_bc", m_use_pec_bc);
+  sim_env().params().get_value("inner_bc_overwrite_b", m_inner_bc_overwrite_b);
   sim_env().params().get_value("resonator_amp", m_resonator_amp);
 
   m_time = 0.0;
@@ -589,6 +590,12 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
   Scalar t_bc_E = static_cast<Scalar>(time_E);
 
   // --- Overwrite B_f on inner boundary faces (at time_B) ---
+  // Optional (inner_bc_overwrite_b, default true for now): overwriting
+  // BOTH E and B over-determines the discrete characteristics at the
+  // ring and is the suspected source of the first-order boundary error
+  // seen in the Deutsch benchmark; driving tangential E only is the
+  // standard rotating-conductor BC.
+  if (m_inner_bc_overwrite_b) {
   ExecPolicy::launch(
       [N_faces = mp.N_faces, n_tri_faces, mx_i = mx_B, my_i = my_B, mz_i,
        Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_B, mp]
@@ -660,6 +667,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
         });
       },
       B);
+  }
 
   // --- Overwrite E_e on inner boundary edges (at time_E) ---
   ExecPolicy::launch(

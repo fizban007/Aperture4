@@ -185,6 +185,32 @@ through the period at L=5.
    transition region, or comparing against a discrete reference
    solution instead) is a paper-polish item, not a blocker: absolute
    errors at L=6 are 7e-4 (B) / 7e-3 (E) per period.
+
+   **Order-isolation study (2026-07-16, hdt_matrix.py + annulus test):**
+   - (h,dt) matrix at fixed mesh: errB is ~pure spatial (dt-refinement
+     changes it <5%); errE has a genuine ~O(dt^1) component that
+     SURVIVES the half-step fix, plus a weakly-converging spatial floor
+     (8.0e-3 / 6.7e-3 at L4/L5).
+   - Causally isolated annulus (33<r<40, r_max=75, one period — free
+     propagation, no boundary influence): L5→L6 ratios **5.0 (B) and
+     4.6 (E)** — the BULK scheme is cleanly 2nd order for traveling
+     waves, corroborating the cavity study.  (L4→L5 ratios 1.5/2.3 are
+     pre-asymptotic: ~13 cells/wavelength at L4.)
+   - Over-determination hypothesis REJECTED: driving tangential E only
+     (new config `inner_bc_overwrite_b = false`, rotating-conductor
+     style) reproduces the same errors and ratios.
+   - Remaining suspects for the boundary-layer first-order error, in
+     order: (a) the ad-hoc "×2 for the missing ghost side" one-sided
+     dual-cell Hodge estimate at the innermost/outermost shells
+     (prismatic_mesh.cpp compute_geometric_dual) — an O(1) local Hodge
+     error on ring-adjacent elements; fix = proper one-sided dual
+     areas, then rerun the ladder; (b) generic supraconvergence
+     breakdown of mimetic schemes in an O(h) layer at Dirichlet-driven
+     boundaries (interior 2nd order relies on error cancellation that a
+     hard data overwrite interrupts).  The E norm is concentrated near
+     the star (E ~ 1/r²), so it feels the layer at full O(h); B's norm
+     is interior-weighted, consistent with its 2.85→2.0 mixed ratios
+     (h^1.5-like dilution of an O(h) layer of width O(h)).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

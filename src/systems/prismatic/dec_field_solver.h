@@ -95,6 +95,10 @@ class dec_field_solver : public system_t {
   // Use full Deutsch retarded fields for inner BC (for convergence testing)
   bool m_use_deutsch_bc = false;
 
+  // When false, apply_inner_bc drives tangential E only (standard
+  // rotating-conductor BC) instead of also overwriting B on the ring.
+  bool m_inner_bc_overwrite_b = true;
+
   // Use PEC (perfect conductor) boundary instead of dipole/Deutsch BC.
   // When true, apply_pec_bc() is called each step instead of apply_inner_bc().
   bool m_use_pec_bc = false;

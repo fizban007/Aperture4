@@ -37,9 +37,22 @@ from them.
 
 ## Method-argument figures
 
+- [ ] **Two-tier convergence figure** (the paper's honest centerpiece):
+      2nd-order wave dynamics (cavity + causally-isolated-annulus
+      ratios 5.0/4.6) beside 1st-order quasi-statics (uniform
+      spurious-curl ratios 2.0) with the circumcenter/midpoint-offset
+      mechanism and the TRiSK/C-grid literature anchor (Peixoto 2016).
+      Include the noise-dominance argument: measured static truncation
+      ~4e-4 relative at L=7 vs percent-level PIC shot noise at
+      realistic ppc.
 - [ ] **Timestep advantage vs spherical Yee**: quantify polar-cell CFL
       penalty of an equivalent-resolution (θ,φ) grid vs the quasi-uniform
-      icosahedral cells (analytic + measured dt).
+      icosahedral cells (analytic + measured dt).  Frame honestly:
+      production Yee codes filter the poles instead of paying the dt —
+      but filtered caps are effectively low-order anisotropic special
+      regions; this mesh has uniform characterized error everywhere.
+- [ ] Resolution-economics table: cells x steps per effective
+      resolution at equal wall-clock, ico vs (theta,phi) grid.
 - [ ] Optional: near-pole pitch-angle diffusion comparison vs the
       traditional-grid code on `develop` (novel figure; needs the Yee
       PIC run on Frontier or local).

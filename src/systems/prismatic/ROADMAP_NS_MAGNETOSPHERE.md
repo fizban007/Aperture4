@@ -222,16 +222,26 @@ through the period at L=5.
      `mesh_optimize_iters`, default 0): improves the interior
      truncation constant ~1.5× but does NOT change the order —
      consistent with the dynamical-core literature.
-   - Routes to true 2nd order (decision pending): (A) Galerkin/Whitney
-     mass-matrix Hodge (FEEC) — rigorous 2nd order, non-diagonal,
-     ~10-20 CG iters per step (well-conditioned SPD mass), est. 5-15×
-     step cost; (B) reconstruction-based Hodge: use the validated
-     2nd-order vertex-recovery machinery to build a ~30-nnz-per-row
-     explicit "H from B" map (2nd-order consistent, no solves, ~3-5×
-     cost) — risk: breaks the SPD/energy structure that guarantees
-     leapfrog stability, needs stability testing; (C) accept mixed
-     order + static-background subtraction for production (aligned
-     rotator: background handled analytically, dynamics 2nd order).
+   - **DECISION (2026-07-16): accept the two-tier order structure.**
+     The scheme is a 2nd-order wave solver with 1st-order quasi-statics
+     (both halves proven by cheap diagnostics; mechanism identified;
+     TRiSK/C-grid literature anchor).  Galerkin and FV-reconstruction
+     Hodge routes were explored in earlier sessions and hit their own
+     first-order-limiting issues; not pursued.  Rationale: PIC shot
+     noise (percent-level at realistic ppc) exceeds the measured
+     quasi-static truncation (~4e-4 relative at L=7) by orders of
+     magnitude, and the mesh's win is resolution economics (uniform
+     CFL, no polar filtering).  Paper framing: report both tiers
+     honestly with the mechanism; note spherical Yee's filtered polar
+     caps are themselves effectively low-order special regions,
+     whereas this mesh has uniform, characterized error everywhere.
+     If the Hodge question is ever revisited, the spurious-curl probe
+     (seconds, mesh-only) tests 2nd-order consistency of any candidate
+     operator BEFORE solver integration.
+   - Follow-ups adopted instead: (i) static-background subtraction in
+     the flat solver (standard practice; removes the largest field
+     from the error budget; A3 wants it anyway); (ii) quantify the
+     resolution-economics argument for the paper (PAPER_TODO).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

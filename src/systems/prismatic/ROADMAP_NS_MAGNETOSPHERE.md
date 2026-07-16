@@ -242,6 +242,30 @@ through the period at L=5.
      the flat solver (standard practice; removes the largest field
      from the error budget; A3 wants it anyway); (ii) quantify the
      resolution-economics argument for the paper (PAPER_TODO).
+
+   **REOPENED (2026-07-16, user request) — Hodge lab results
+   (`python/hodge_lab.py`, offline probes, no solver changes):**
+   - Probe 1 (B→H map, spurious curl of exact static dipole): the
+     **reconstruction Hodge** — div-free linear LSQ fit from ~30
+     nearby fluxes (the validated vertex-recovery machinery) +
+     EXACT integration along the dual segment — is 2nd-order-plus
+     consistent: 2.9e-3→5.1e-4 (L4), 1.5e-3→6.8e-5 (L5), order ratio
+     **7.55** vs diagonal's 1.97.  Orientation fixed geometrically
+     from stored face-vertex order (never from field values).
+   - Probe 2 (isolated h1inv pairing, linear B with constant curl,
+     analytically exact dual circulations): pairing error 6.9e-4 →
+     2.4e-4, ratio **2.83** (~order 1.5) — after fix #1 this is the
+     DOMINANT residual.  Fix = same pattern: reconstruct the vector
+     field from dual-face fluxes (trapezoid/polygon dual geometry),
+     integrate exactly along the primal edge.  Keeping the d1t
+     loop-sum structure preserves boundary-of-boundary exactness, so
+     Gauss-law/charge-conservation with deposited J stays exact.
+   - Remaining to a full answer: pairing reconstruction (probe #3 =
+     full chain, expect ~4 ratios), then solver integration behind a
+     config flag (explicit sparse ops, ~30 nnz/row, no solves, est.
+     3-5× Ampère cost), then the STABILITY gauntlet (non-SPD Hodge:
+     cavity long-run + Deutsch ladder; this is the open risk with no
+     theorem).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

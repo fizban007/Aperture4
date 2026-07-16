@@ -409,7 +409,9 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   if (m_use_pec_bc) {
     apply_pec_bc(m_E->data(), m_B->data());
   } else {
-    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+    // Leapfrog staggering: after this step E sits at t+dt but B (updated
+    // by Faraday BEFORE Ampere from the same E) sits at t+dt/2.
+    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt, m_time + 0.5 * dt);
   }
   ExecPolicy::sync();
 }
@@ -454,7 +456,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
   if (m_use_pec_bc) {
     apply_pec_bc(m_tmp_E, m_tmp_B);
   } else {
-    apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+    apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt, m_time + dt);
   }
   ExecPolicy::sync();
 
@@ -481,7 +483,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
     if (m_use_pec_bc) {
       apply_pec_bc(m_tmp_E, m_tmp_B);
     } else {
-      apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt);
+      apply_inner_bc(m_tmp_E, m_tmp_B, m_time + dt, m_time + dt);
     }
     ExecPolicy::sync();
   }
@@ -500,7 +502,8 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
   if (m_use_pec_bc) {
     apply_pec_bc(m_E->data(), m_B->data());
   } else {
-    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt);
+    // Semi-implicit fields are co-located in time.
+    apply_inner_bc(m_E->data(), m_B->data(), m_time + dt, m_time + dt);
   }
   ExecPolicy::sync();
 }
@@ -567,7 +570,7 @@ void dec_field_solver<ExecPolicy>::apply_damping(
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_inner_bc(
-    buffer<Scalar>& E, buffer<Scalar>& B, double time) {
+    buffer<Scalar>& E, buffer<Scalar>& B, double time_E, double time_B) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   Scalar Bp_val = m_Bp;
   Scalar Omega_val = m_Omega;
@@ -575,16 +578,20 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
   bool deutsch = m_use_deutsch_bc;
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
-  // Instantaneous dipole moment (for standard BC mode)
-  Scalar mx_i = Bp_val * std::sin(obliq) * std::cos(Omega_val * time);
-  Scalar my_i = Bp_val * std::sin(obliq) * std::sin(Omega_val * time);
+  // Instantaneous dipole moment (for standard BC mode), at each field's
+  // own time level (B is half-step staggered under leapfrog).
+  Scalar mx_B = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_B);
+  Scalar my_B = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_B);
+  Scalar mx_E = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_E);
+  Scalar my_E = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_E);
   Scalar mz_i = Bp_val * std::cos(obliq);
-  Scalar t_bc = static_cast<Scalar>(time);
+  Scalar t_bc_B = static_cast<Scalar>(time_B);
+  Scalar t_bc_E = static_cast<Scalar>(time_E);
 
-  // --- Overwrite B_f on inner boundary faces ---
+  // --- Overwrite B_f on inner boundary faces (at time_B) ---
   ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, mx_i, my_i, mz_i,
-       Bp_val, Omega_val, obliq, deutsch, t_bc, mp]
+      [N_faces = mp.N_faces, n_tri_faces, mx_i = mx_B, my_i = my_B, mz_i,
+       Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_B, mp]
       LAMBDA(auto B_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           if (mp.face_boundary[f] != 1) return;
@@ -654,10 +661,10 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
       },
       B);
 
-  // --- Overwrite E_e on inner boundary edges ---
+  // --- Overwrite E_e on inner boundary edges (at time_E) ---
   ExecPolicy::launch(
-      [N_edges = mp.N_edges, mx_i, my_i, mz_i,
-       Bp_val, Omega_val, obliq, deutsch, t_bc, mp]
+      [N_edges = mp.N_edges, mx_i = mx_E, my_i = my_E, mz_i,
+       Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_E, mp]
       LAMBDA(auto E_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           if (mp.edge_boundary[e] != 1) return;
@@ -800,14 +807,24 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
   Scalar Bp_v = m_Bp;
   Scalar Omega_v = m_Omega;
   Scalar obl_v = m_obliquity;
-  Scalar t_init = Scalar(0);  // initial time = 0
+  Scalar t_init = Scalar(0);  // E initial time = 0
+
+  // Leapfrog staggering: the first Faraday half-step advances B from
+  // -dt/2 to +dt/2, so a consistent start evaluates the analytic B at
+  // t = -dt/2 (E stays at 0).  The co-located semi-implicit scheme
+  // initializes both at 0.
+  double dt_param = 0.0;
+  sim_env().params().get_value("dt", dt_param);
+  Scalar t_init_B =
+      m_use_implicit ? Scalar(0) : Scalar(-0.5 * dt_param);
 
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
   // ---- B (face fluxes) on device ----
   ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, Bp_v, Omega_v, obl_v, t_init, mp]
+      [N_faces = mp.N_faces, n_tri_faces, Bp_v, Omega_v, obl_v,
+       t_init = t_init_B, mp]
       LAMBDA(auto B_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           if (f < n_tri_faces) {

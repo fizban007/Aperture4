@@ -14,6 +14,13 @@ restricted to r < r_cut (inside the damping layer), for both B_f and E_e.
 
 Usage: deutsch_stationarity.py <run_dir> --steps-per-period N [--r-cut 9]
 Compare err across L=4/5/6 runs for the convergence figure.
+
+Time staggering: the solver initializes the leapfrog B at t = -dt/2 and
+the inner BC overwrites B at the half-step time, so every raw dump holds
+B(t_dump - dt/2) and E(t_dump) — recurrence pairs one period apart are
+staggering-consistent for both fields and the metric is free of O(dt)
+comparison artifacts.  (Before 2026-07 the IC and BC evaluated B at
+integer times, which floored errE at first order in dt.)
 """
 
 import argparse

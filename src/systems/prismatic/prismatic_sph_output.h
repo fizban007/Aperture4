@@ -4,6 +4,7 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_vertex_recovery.h"
 #include "utils/nonown_ptr.hpp"
 #include <string>
 #include <vector>
@@ -40,13 +41,28 @@ class prismatic_sph_output : public system_t {
   std::string m_output_dir = "Data";
   double m_time = 0.0;
 
+  // Second-order C0 vertex-recovery gather for B on the output grid
+  // (config "sph_use_recovery", default true).  The primal Whitney
+  // gather is first order and measurably biases quadratic diagnostics
+  // (e.g. Poynting luminosity reads 0.85 of analytic at L=5).  The
+  // recovery fit assumes the flat mesh geometry — disable for GR runs.
+  prismatic_vertex_recovery m_recovery;
+  bool m_use_recovery = true;
+
   // Background metric identity, used to convert the flat-mesh Whitney
   // reconstruction to coordinate-basis KS (or flat-spherical) field
   // components at output time.  Read from the same config keys as the
   // GR solver / mesh-metric construction ("bh_spin", "use_flat_metric")
   // so output and evolution see the identical √γ.
+  //
+  // DEFAULT IS FLAT.  GR runs must set use_flat_metric = false (plus
+  // bh_spin) explicitly.  The old default (false) silently applied the
+  // a=0 Kerr-Schild √γ = sinθ√(Σ(Σ+2r)) — i.e. Schwarzschild with
+  // M=1 — to flat-space problems whose configs never set the key,
+  // scaling B^i down by √(1+2/r) (a 12% Poynting-flux deficit at r=7,
+  // found by the A2.1 luminosity benchmark).
   Scalar m_spin = 0;
-  bool m_use_flat_metric = false;
+  bool m_use_flat_metric = true;
 
   struct angular_point {
     int tri_idx;

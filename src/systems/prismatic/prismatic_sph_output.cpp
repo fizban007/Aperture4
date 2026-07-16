@@ -30,6 +30,15 @@ void prismatic_sph_output::init() {
   // √γ = sinθ √(Σ(Σ+2r)).  Both are evaluated on the fly in write_snapshot.
   sim_env().params().get_value("bh_spin", m_spin);
   sim_env().params().get_value("use_flat_metric", m_use_flat_metric);
+  sim_env().params().get_value("sph_use_recovery", m_use_recovery);
+  if (m_spin != Scalar(0) && !m_use_flat_metric) {
+    // The recovery fit integrates flat-space face moments; fall back to
+    // the primal gather on a curved (Kerr-Schild) background.
+    m_use_recovery = false;
+  }
+  if (m_use_recovery) {
+    m_recovery.build(m_mesh);
+  }
 
   std::filesystem::create_directories(m_output_dir);
 
@@ -122,6 +131,17 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
   int N_ang = m_N_theta * m_N_phi;
   int N_shells = m_mesh.m_N_r + 1;
 
+  // Refresh the per-vertex recovery field for the C0 second-order B
+  // gather (host; the output cadence makes this cheap).
+  const Scalar* Bv_rec = nullptr;
+  if (m_use_recovery) {
+    auto rp = m_recovery.host_ptrs();
+    for (int vi = 0; vi < m_mesh.m_N_verts; vi++) {
+      rp.compute_vertex_B(mp, B_f, vi);
+    }
+    Bv_rec = rp.Bv;
+  }
+
   // Whitney interpolation expects primal 1-cochains (edge circulations).
   // The GR solver stores D̃[e] = dual 2-cochain; convert to the primal
   // 1-cochain D_primal[e] = hodge1_inv[e] · D̃[e] before interpolating.
@@ -189,6 +209,10 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
       Scalar iEx, iEy, iEz, iBx, iBy, iBz;
       interpolate_fields(mp, pt.tri_idx, layer, pt.l, zeta,
                          E_e, B_f, iEx, iEy, iEz, iBx, iBy, iBz);
+      if (Bv_rec != nullptr) {
+        interpolate_B_recovery(mp, Bv_rec, pt.tri_idx, layer, pt.l, zeta,
+                               iBx, iBy, iBz);
+      }
 
       // Cartesian unit-vector frame at the grid point.
       Scalar sx = pt.sx, sy = pt.sy, sz = pt.sz;

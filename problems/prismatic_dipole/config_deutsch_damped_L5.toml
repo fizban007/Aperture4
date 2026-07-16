@@ -16,6 +16,7 @@ r_max = 20.0
 Bp = 1.0
 Omega = 0.2
 obliquity = 1.0471975511965976
+use_flat_metric = true
 use_deutsch_ic = true
 use_deutsch_bc = true
 damping_length = 20

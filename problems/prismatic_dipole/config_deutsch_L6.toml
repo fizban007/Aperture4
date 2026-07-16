@@ -6,11 +6,11 @@
 # the recurrence error ||F(P) - F(0)|| (r < 9) is pure solver error.
 # dt = P/6400 so the step-6400 dump lands exactly at t = P.
 # Analysis: deutsch_stationarity.py --steps-per-period 6400.
-# Measured 2026-07-16 (commit-time): errB(r<9) L4/L5/L6 =
-#   4.17e-3 / 1.38e-3 / 6.85e-4;  errE = 2.25e-2 / 1.17e-2 / 6.52e-3.
-# errE (and the L5->L6 errB ratio) are floored by an O(dt) component:
-# the IC and inner BC evaluate B at integer times while the leapfrog B
-# is half-step staggered.  See roadmap A2 notes for the planned fix.
+# Measured 2026-07-16 (post half-step + flat-metric fixes): errB(r<9)
+# L4/L5/L6 = 4.10e-3 / 1.37e-3 / 6.94e-4; errE = 2.27e-2 / 1.17e-2 /
+# 6.61e-3.  The ~1.9x errE ratios reflect a first-order component from
+# driving the discrete interior with the analytic inner BC (mismatch
+# O(h^2) per step accumulated over 1/dt steps); see roadmap A2 notes.
 dt = 0.004908738521234052
 max_steps = 6400
 subdivision_level = 6
@@ -20,6 +20,7 @@ r_max = 45.0
 Bp = 1.0
 Omega = 0.2
 obliquity = 1.0471975511965976
+use_flat_metric = true
 use_deutsch_ic = true
 use_deutsch_bc = true
 damping_length = 0

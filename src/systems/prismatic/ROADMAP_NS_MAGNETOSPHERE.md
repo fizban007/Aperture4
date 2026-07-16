@@ -167,26 +167,43 @@ The luminosity in the clean domain holds L/L_analytic = 0.85 steady
 through the period at L=5.
 
 **Open items found (do these next in A2):**
-1. **O(dt) staggering error in IC + inner BC** — dt-halving at fixed
-   mesh leaves errB unchanged but drops errE from 2.25e-2 to 1.39e-2
-   (an O(dt) part ≈1.7e-2 + spatial floor 5.3e-3 at L4): the analytic
-   IC and the per-step BC overwrite evaluate B at integer times while
-   leapfrog B lives at t+dt/2.  Fix: evaluate the B overwrite at
-   time+dt/2 (and stagger the B IC by dt/2); then rerun the ladder —
-   errE should become 2nd order and errB's L5→L6 ratio should recover
-   toward 4.  (The cavity analysis already applies this half-step shift
-   *in post-processing*; the BC needs it *in the solver*.)
+1. **Half-step staggering of IC + inner BC — fixed, with a corrected
+   diagnosis.**  `apply_inner_bc(E, B, time_E, time_B)` now takes
+   per-field times (explicit passes time_B = time − dt/2; the
+   co-located semi-implicit passes equal times), and
+   `set_initial_deutsch` initializes B at −dt/2 for the leapfrog, so
+   every dump holds the stagger-consistent pair (B(t−dt/2), E(t)).
+   The ladder rerun shows the recurrence numbers are UNCHANGED — as
+   they must be in hindsight: a uniform dt/2 phase offset shifts the
+   whole periodic solution and cancels exactly in F(t+P)−F(t).  The
+   dt-halving signal originally read as O(dt) is equally consistent
+   with ordinary O(dt²) leapfrog dispersion.  The remaining ~1.9×
+   errE ratios are a genuine first-order SPATIAL component, most
+   plausibly from driving the discrete interior with the analytic
+   inner BC (O(h²) mismatch injected per step × O(1/h) steps per
+   crossing → O(h)).  Quantifying/improving that (e.g. one-cell
+   transition region, or comparing against a discrete reference
+   solution instead) is a paper-polish item, not a blocker: absolute
+   errors at L=6 are 7e-4 (B) / 7e-3 (E) per period.
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not
    solver decay.  It also floors the damped recurrence error at ~1.5e-3.
    Needs an absorber study (taper profile, length, r_max) before A3,
    which will run with damping.
-3. **Diagnostic accuracy**: L(IC, exact fields) measures 0.82/0.85 of
-   analytic at L=4/5 because prismatic_sph_output interpolates with
-   first-order primal Whitney forms.  Switching sph_output's B (and E?)
-   interpolation to the recovery gather would make all grid diagnostics
-   second order.  Cheap and high-value.
+3. **Diagnostic accuracy — RESOLVED (2026-07-16), two parts.**
+   (a) The dominant deficit was a bug: prismatic_sph_output defaulted
+   `use_flat_metric = false`, silently applying the a=0 Kerr-Schild
+   √γ = sinθ√(Σ(Σ+2r)) — Schwarzschild with M=1 — to flat-space runs,
+   scaling B^i by 1/√(1+2/r) (≈ 0.881 at the r=7 probe, matching the
+   measured continuum limit exactly).  Default is now FLAT; GR revival
+   must set use_flat_metric = false (noted in prismatic_wald/README).
+   (b) sph_output's B gather now uses the C0 second-order vertex
+   recovery (config `sph_use_recovery`, default true; auto-disabled on
+   KS backgrounds).  Post-fix: L/L_analytic at the IC = 0.962 / 0.981 /
+   0.990 at L=4/5/6, converging to 1 at first order (the E gather is
+   still primal Whitney — an E-circulation recovery is a possible
+   future upgrade but needs its own edge-moment fit).
 4. Transient settling: with an absorber, the recurrence metric needs
    ~4 periods of settling (measure the last period pair).
 

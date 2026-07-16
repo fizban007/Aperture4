@@ -7,5 +7,8 @@ NS magnetospheres (`src/systems/prismatic/ROADMAP_NS_MAGNETOSPHERE.md`);
 branch, well-tested on Frontier.
 
 This problem is kept compiling but is not maintained or validated.
+NOTE (2026-07): `prismatic_sph_output` now defaults to the FLAT metric
+for its coordinate-basis conversion; any revival of this problem must
+set `use_flat_metric = false` (with `bh_spin`) in the config.
 Configs, drift diagnostics (`analyze_drift.py`), and movies reflect the
 state of the GR investigation as of mid-2026.

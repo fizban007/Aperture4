@@ -45,7 +45,15 @@ class dec_field_solver : public system_t {
                    buffer<Scalar>& dE_dt, buffer<Scalar>& dB_dt);
 
   void apply_damping(buffer<Scalar>& E, buffer<Scalar>& B, double dt);
-  void apply_inner_bc(buffer<Scalar>& E, buffer<Scalar>& B, double time);
+  // Overwrites inner-boundary E and B with the analytic solution.  E and
+  // B take separate evaluation times because the leapfrog stores B at
+  // half-steps (t + dt/2 after the Faraday update, i.e. dt/2 BEHIND the
+  // end-of-step time): the explicit path passes time_B = time_E - dt/2,
+  // while the (co-located) semi-implicit path passes time_B = time_E.
+  // Evaluating both at the integer time injects an O(dt) boundary error
+  // (found by the A2.0 Deutsch dt-halving study).
+  void apply_inner_bc(buffer<Scalar>& E, buffer<Scalar>& B, double time_E,
+                      double time_B);
 
   // PEC (perfect conductor) boundary on inner and outer shells:
   // zero tangential E (horizontal edges) and normal B (triangular faces)

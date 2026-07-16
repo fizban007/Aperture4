@@ -260,12 +260,20 @@ through the period at L=5.
      integrate exactly along the primal edge.  Keeping the d1t
      loop-sum structure preserves boundary-of-boundary exactness, so
      Gauss-law/charge-conservation with deposited J stays exact.
-   - Remaining to a full answer: pairing reconstruction (probe #3 =
-     full chain, expect ~4 ratios), then solver integration behind a
-     config flag (explicit sparse ops, ~30 nnz/row, no solves, est.
-     3-5× Ampère cost), then the STABILITY gauntlet (non-SPD Hodge:
-     cavity long-run + Deutsch ladder; this is the open risk with no
-     theorem).
+   - **FULL-CHAIN CONSISTENCY ACHIEVED offline (2026-07-16,
+     `python/hodge_lab_chain.py`):** the complete corrected Ampère
+     operator W1·d1t·W2 on the exact static dipole:
+     (diag,diag) 3.0e-3/1.5e-3 ratio 1.98; (W2,W1) 4.2e-4/6.5e-5
+     ratio **6.51** — 2nd-order-plus, 23× more accurate at L5.  The
+     pairing W1 (per-vertex div-free LSQ on dual-face fluxes — h-edge
+     ruled patches, v-edge circumcenter polygons — + exact primal-edge
+     integration) is exact on linear fields to 1.8e-13.
+   - Remaining: C++ integration behind `use_reconstruction_hodge`
+     (per-sphere-element template rows with r⁻¹ layer scaling: ~25 MB
+     at L=7 vs ~160 GB explicit; boundary shells keep the diagonal;
+     keep the d1t loop-sum form so Gauss/charge exactness is
+     topological), then the STABILITY gauntlet (non-SPD Hodge: cavity
+     long-run + Deutsch ladder; open risk, no theorem).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

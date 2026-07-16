@@ -61,7 +61,7 @@ sph_N_phi = 16
     return d
 
 
-def probe(L, NR):
+def probe(L, NR, return_ops=False):
     d = ensure_mesh(L, NR)
     mesh = pr.Mesh(f"{d}/mesh.h5")
     with h5py.File(f"{d}/mesh.h5") as f:
@@ -187,6 +187,10 @@ def probe(L, NR):
         return (np.linalg.norm(curl[probe_edges]) /
                 np.linalg.norm(absref[probe_edges]))
 
+    if return_ops:
+        return dict(mesh=mesh, d1t=d1t, h2=h2, h1i=h1i, B=B,
+                    probe_edges=probe_edges, covered=covered, W2=W,
+                    circ_diag=circ_diag, circ_corr=circ_corr)
     return spurious(circ_diag), spurious(circ_corr)
 
 

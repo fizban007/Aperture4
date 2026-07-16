@@ -19,6 +19,8 @@ int main(int argc, char* argv[]) {
   bool use_deutsch_ic = env.params().get_as<bool>("use_deutsch_ic", false);
 
   prismatic_mesh mesh;
+  mesh.sphere_optimize_iters =
+      env.params().get_as<int64_t>("mesh_optimize_iters", 0);
   mesh.build(L, N_r, r_min, r_max);
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   mesh.copy_to_device();

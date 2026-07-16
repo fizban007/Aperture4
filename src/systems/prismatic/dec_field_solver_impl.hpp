@@ -815,7 +815,13 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
   Scalar Bp_v = m_Bp;
   Scalar Omega_v = m_Omega;
   Scalar obl_v = m_obliquity;
-  Scalar t_init = Scalar(0);  // E initial time = 0
+  // Base time of the analytic snapshot (config "deutsch_ic_time",
+  // default 0).  Nonzero values turn this IC into a GPU-fast generator
+  // of analytic reference cochains at arbitrary t for convergence
+  // analysis (run with max_steps = 0/1 and dump).
+  double t_base = 0.0;
+  sim_env().params().get_value("deutsch_ic_time", t_base);
+  Scalar t_init = Scalar(t_base);  // E initial time
 
   // Leapfrog staggering: the first Faraday half-step advances B from
   // -dt/2 to +dt/2, so a consistent start evaluates the analytic B at
@@ -823,8 +829,8 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
   // initializes both at 0.
   double dt_param = 0.0;
   sim_env().params().get_value("dt", dt_param);
-  Scalar t_init_B =
-      m_use_implicit ? Scalar(0) : Scalar(-0.5 * dt_param);
+  Scalar t_init_B = Scalar(
+      m_use_implicit ? t_base : t_base - 0.5 * dt_param);
 
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);

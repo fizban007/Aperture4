@@ -136,6 +136,17 @@ class prismatic_mesh {
   // edges[6..8] = vertical
   void prism_edge_indices(int tri_idx, int layer_idx, int edges[9]) const;
 
+  // Number of spherical Lloyd (SCVT) relaxation iterations applied to
+  // the subdivided icosahedron before extrusion (set BEFORE build()).
+  // The raw subdivided icosahedron's circumcentric duals are offset
+  // from primal-edge midpoints by O(h), which makes the diagonal Hodge
+  // first-order for quasi-static fields (measured: uniform 2x/level
+  // spurious-curl convergence on the exact static dipole).  SCVT
+  // relaxation — the standard cure in icosahedral C-grid dynamical
+  // cores (Heikes & Randall 1995; MPAS SCVT grids) — re-centers the
+  // duals.  0 (default) preserves the historical mesh exactly.
+  int sphere_optimize_iters = 0;
+
   // Get a prismatic_mesh_ptrs struct filled with host pointers.
   prismatic_mesh_ptrs host_ptrs() const;
 
@@ -169,6 +180,7 @@ class prismatic_mesh {
   };
 
   void build_sphere_mesh(int L, sphere_mesh& sm);
+  void optimize_sphere_mesh(sphere_mesh& sm, int iters);
   void extrude_to_3d(const sphere_mesh& sm);
   void build_incidence(const sphere_mesh& sm);
   void transpose_d1();

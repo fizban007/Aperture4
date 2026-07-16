@@ -199,18 +199,39 @@ through the period at L=5.
    - Over-determination hypothesis REJECTED: driving tangential E only
      (new config `inner_bc_overwrite_b = false`, rotating-conductor
      style) reproduces the same errors and ratios.
-   - Remaining suspects for the boundary-layer first-order error, in
-     order: (a) the ad-hoc "×2 for the missing ghost side" one-sided
-     dual-cell Hodge estimate at the innermost/outermost shells
-     (prismatic_mesh.cpp compute_geometric_dual) — an O(1) local Hodge
-     error on ring-adjacent elements; fix = proper one-sided dual
-     areas, then rerun the ladder; (b) generic supraconvergence
-     breakdown of mimetic schemes in an O(h) layer at Dirichlet-driven
-     boundaries (interior 2nd order relies on error cancellation that a
-     hard data overwrite interrupts).  The E norm is concentrated near
-     the star (E ~ 1/r²), so it feels the layer at full O(h); B's norm
-     is interior-weighted, consistent with its 2.85→2.0 mixed ratios
-     (h^1.5-like dilution of an O(h) layer of width O(h)).
+   - **Mechanism NAILED (2026-07-16, spurious-curl test).**  The
+     discrete curl h1inv·d1t·(h2·B) of the EXACT static dipole (a
+     curl-free field; GPU IC dump + scipy matvec, seconds per level) is
+     pure Hodge truncation.  Measured: relative spurious curl is
+     UNIFORM across annuli (scale-invariant, 2.9e-3 at L4) and
+     converges at exactly 2.0×/level — the diagonal circumcentric
+     Hodge is intrinsically FIRST order for quasi-static fields on
+     this mesh.  Wave dynamics enjoy supraconvergent cancellation
+     (hence the 2nd-order annulus/cavity results); the quasi-static
+     near-zone response inherits the full O(h).  Per-annulus SOLUTION
+     error vs analytic confirms: [1,5) ratios ≈ 2.0 for both E and B;
+     [5,9) (wave-dominated) ≈ 3-6.  This is the same phenomenon known
+     from icosahedral C-grid dynamical cores (TRiSK 1st-order
+     operators, Peixoto 2016).
+   - Boundary-shell Hodge: the "×2 ghost" was replaced by the
+     consistent truncated dual (hygiene); note the spurious-curl
+     identity legitimately fails on the half-open boundary dual loops,
+     and those rows are masked by BCs in every current use.
+   - **SCVT (spherical Lloyd) mesh relaxation implemented**
+     (`prismatic_mesh::sphere_optimize_iters`, config
+     `mesh_optimize_iters`, default 0): improves the interior
+     truncation constant ~1.5× but does NOT change the order —
+     consistent with the dynamical-core literature.
+   - Routes to true 2nd order (decision pending): (A) Galerkin/Whitney
+     mass-matrix Hodge (FEEC) — rigorous 2nd order, non-diagonal,
+     ~10-20 CG iters per step (well-conditioned SPD mass), est. 5-15×
+     step cost; (B) reconstruction-based Hodge: use the validated
+     2nd-order vertex-recovery machinery to build a ~30-nnz-per-row
+     explicit "H from B" map (2nd-order consistent, no solves, ~3-5×
+     cost) — risk: breaks the SPD/energy structure that guarantees
+     leapfrog stability, needs stability testing; (C) accept mixed
+     order + static-background subtraction for production (aligned
+     rotator: background handled analytically, dynamics 2nd order).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

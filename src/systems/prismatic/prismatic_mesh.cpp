@@ -261,6 +261,10 @@ void prismatic_mesh::build_sphere_mesh(int L, sphere_mesh& sm) {
     sm.subdivide();
   }
 
+  if (sphere_optimize_iters > 0) {
+    optimize_sphere_mesh(sm, sphere_optimize_iters);
+  }
+
   m_N_tri = sm.triangles.size();
   m_N_vert_s = sm.vx.size();
   m_N_edge_s = sm.edges.size();
@@ -268,6 +272,102 @@ void prismatic_mesh::build_sphere_mesh(int L, sphere_mesh& sm) {
   Logger::print_info(
       "Sphere mesh: {} vertices, {} edges, {} triangles",
       m_N_vert_s, m_N_edge_s, m_N_tri);
+}
+
+// Spherical Lloyd (SCVT) relaxation: iteratively move each vertex to the
+// (spherical) centroid of its Voronoi cell, whose corners are the
+// circumcenter directions of the incident triangles.  Connectivity is
+// untouched; the 12 original icosahedron vertices are held fixed (they
+// are stationary points of the flow by symmetry; pinning avoids drift).
+void prismatic_mesh::optimize_sphere_mesh(sphere_mesh& sm, int iters) {
+  const int n_v = static_cast<int>(sm.vx.size());
+  const int n_t = static_cast<int>(sm.triangles.size());
+
+  // vertex -> incident triangles (fixed connectivity)
+  std::vector<std::vector<int>> vtris(n_v);
+  for (int t = 0; t < n_t; t++) {
+    for (int j = 0; j < 3; j++) vtris[sm.triangles[t][j]].push_back(t);
+  }
+
+  auto normalize3 = [](double& x, double& y, double& z) {
+    double n = std::sqrt(x * x + y * y + z * z);
+    x /= n; y /= n; z /= n;
+  };
+
+  std::vector<double> cx(n_t), cy(n_t), cz(n_t);
+  double move_rms = 0.0;
+  for (int it = 0; it < iters; it++) {
+    // circumcenter directions of all triangles
+    for (int t = 0; t < n_t; t++) {
+      int a = sm.triangles[t][0], b = sm.triangles[t][1],
+          c = sm.triangles[t][2];
+      double e1x = sm.vx[b] - sm.vx[a], e1y = sm.vy[b] - sm.vy[a],
+             e1z = sm.vz[b] - sm.vz[a];
+      double e2x = sm.vx[c] - sm.vx[a], e2y = sm.vy[c] - sm.vy[a],
+             e2z = sm.vz[c] - sm.vz[a];
+      double ux = e1y * e2z - e1z * e2y;
+      double uy = e1z * e2x - e1x * e2z;
+      double uz = e1x * e2y - e1y * e2x;
+      normalize3(ux, uy, uz);
+      // orient outward
+      if (ux * sm.vx[a] + uy * sm.vy[a] + uz * sm.vz[a] < 0) {
+        ux = -ux; uy = -uy; uz = -uz;
+      }
+      cx[t] = ux; cy[t] = uy; cz[t] = uz;
+    }
+
+    move_rms = 0.0;
+    for (int s = 12; s < n_v; s++) {  // keep the 12 icosahedron corners
+      // Order the incident-triangle fan by azimuth in the tangent plane.
+      double vxs = sm.vx[s], vys = sm.vy[s], vzs = sm.vz[s];
+      // tangent basis
+      double ax = (std::abs(vzs) < 0.9) ? 0 : 1, ay = 0,
+             az = (std::abs(vzs) < 0.9) ? 1 : 0;
+      double t1x = ay * vzs - az * vys, t1y = az * vxs - ax * vzs,
+             t1z = ax * vys - ay * vxs;
+      normalize3(t1x, t1y, t1z);
+      double t2x = vys * t1z - vzs * t1y, t2y = vzs * t1x - vxs * t1z,
+             t2z = vxs * t1y - vys * t1x;
+
+      auto& fan = vtris[s];
+      std::vector<std::pair<double, int>> order;
+      order.reserve(fan.size());
+      for (int t : fan) {
+        double dx = cx[t] - vxs, dy = cy[t] - vys, dz = cz[t] - vzs;
+        order.push_back(
+            {std::atan2(dx * t2x + dy * t2y + dz * t2z,
+                        dx * t1x + dy * t1y + dz * t1z), t});
+      }
+      std::sort(order.begin(), order.end());
+
+      // Voronoi-cell spherical centroid: fan of wedges (v, c_i, c_{i+1}),
+      // weight = wedge solid angle, position = normalized wedge mean.
+      double gx = 0, gy = 0, gz = 0;
+      int m = static_cast<int>(order.size());
+      for (int i = 0; i < m; i++) {
+        int ta = order[i].second, tb = order[(i + 1) % m].second;
+        // wedge solid angle via the vector triple formula (Van Oosterom)
+        double d1 = vxs * cx[ta] + vys * cy[ta] + vzs * cz[ta];
+        double d2 = vxs * cx[tb] + vys * cy[tb] + vzs * cz[tb];
+        double d3 = cx[ta] * cx[tb] + cy[ta] * cy[tb] + cz[ta] * cz[tb];
+        double trip = vxs * (cy[ta] * cz[tb] - cz[ta] * cy[tb]) +
+                      vys * (cz[ta] * cx[tb] - cx[ta] * cz[tb]) +
+                      vzs * (cx[ta] * cy[tb] - cy[ta] * cx[tb]);
+        double omega = 2.0 * std::atan2(trip, 1.0 + d1 + d2 + d3);
+        double mx = vxs + cx[ta] + cx[tb], my = vys + cy[ta] + cy[tb],
+               mz = vzs + cz[ta] + cz[tb];
+        normalize3(mx, my, mz);
+        gx += omega * mx; gy += omega * my; gz += omega * mz;
+      }
+      normalize3(gx, gy, gz);
+      double dx = gx - vxs, dy = gy - vys, dz = gz - vzs;
+      move_rms += dx * dx + dy * dy + dz * dz;
+      sm.vx[s] = gx; sm.vy[s] = gy; sm.vz[s] = gz;
+    }
+  }
+  Logger::print_info(
+      "Sphere mesh SCVT relaxation: {} iterations, final rms move {:.3e}",
+      iters, std::sqrt(move_rms / std::max(1, n_v - 12)));
 }
 
 void prismatic_mesh::extrude_to_3d(const sphere_mesh& sm) {
@@ -591,12 +691,16 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
       int fi = tri_face_idx(k, t);
       double dist;
       if (k == 0) {
-        // Inner boundary: only one prism above.  Dual edge = (r_mid - r_shell),
-        // doubled to estimate the missing ghost side.
-        dist = 2.0 * (r_mid_layer[0] - radii[0]);
+        // Inner boundary: only one prism above.  Use the TRUNCATED dual
+        // edge (r_mid - r_shell), consistent with the half-trapezoid
+        // convention for boundary h-edges below.  (The previous "x2 to
+        // estimate the missing ghost side" made the boundary-shell
+        // Hodge O(1)-inconsistent — measured as a 30x spurious-curl
+        // excess on the exact static dipole, see roadmap A2 notes.)
+        dist = r_mid_layer[0] - radii[0];
       } else if (k == m_N_r) {
         // Outer boundary: only one prism below.
-        dist = 2.0 * (radii[m_N_r] - r_mid_layer[m_N_r - 1]);
+        dist = radii[m_N_r] - r_mid_layer[m_N_r - 1];
       } else {
         dist = r_mid_layer[k] - r_mid_layer[k - 1];
       }

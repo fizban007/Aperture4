@@ -1017,6 +1017,8 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.vert_r = vert_r.host_ptr();
   p.vert_theta = vert_theta.host_ptr();
   p.vert_phi = vert_phi.host_ptr();
+  p.face_area = face_area.host_ptr();
+  p.edge_length = edge_length.host_ptr();
   p.edge_v0 = edge_v0.host_ptr();
   p.edge_v1 = edge_v1.host_ptr();
   p.tri_face_v0 = tri_face_v0.host_ptr();
@@ -1071,6 +1073,8 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.vert_r = vert_r.dev_ptr();
   p.vert_theta = vert_theta.dev_ptr();
   p.vert_phi = vert_phi.dev_ptr();
+  p.face_area = face_area.dev_ptr();
+  p.edge_length = edge_length.dev_ptr();
   p.edge_v0 = edge_v0.dev_ptr();
   p.edge_v1 = edge_v1.dev_ptr();
   p.tri_face_v0 = tri_face_v0.dev_ptr();
@@ -1105,6 +1109,7 @@ void prismatic_mesh::copy_to_device() {
   copy(edge_boundary); copy(face_boundary);
   copy(edge_radial_layer); copy(face_radial_layer);
   copy(vert_r); copy(vert_theta); copy(vert_phi);
+  copy(face_area); copy(edge_length);
   copy(edge_v0); copy(edge_v1);
   copy(tri_face_v0); copy(tri_face_v1); copy(tri_face_v2);
   copy(rect_face_v0); copy(rect_face_v1); copy(rect_face_v2); copy(rect_face_v3);

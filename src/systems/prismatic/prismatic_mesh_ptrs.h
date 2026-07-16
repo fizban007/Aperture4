@@ -50,7 +50,9 @@ struct prismatic_mesh_ptrs {
   const Scalar* vert_theta;
   const Scalar* vert_phi;
 
-  // --- Edge endpoints ---
+  // --- Primal geometry ---
+  const Scalar* face_area;       // [N_faces]
+  const Scalar* edge_length;     // [N_edges]
   const int* edge_v0;            // [N_edges]
   const int* edge_v1;
 

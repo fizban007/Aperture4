@@ -121,39 +121,57 @@ gr_wald_solution_B(value_t a, value_t r, value_t th, value_t Bp,
   return 0.0;
 }
 
+// D^i (contravariant, coord basis) for the Wald Maxwell field of spin
+// `a_field` as seen by the Kerr-Schild normal observer of the evolution
+// metric at spin `a_metric`.  When a_field == a_metric this reduces to
+// the stationary Kerr-Wald D.  When a_field != a_metric the result is
+// off-shell — useful for tests that start with, e.g., the Schwarzschild
+// Wald Maxwell field (a_field = 0) on a rotating Kerr background
+// (a_metric > 0) and watch it relax to the rotating equilibrium.
 template <typename value_t = Scalar>
 HOST_DEVICE value_t
-gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
-                   int component) {
+gr_wald_solution_D(value_t a_field, value_t a_metric, value_t r, value_t th,
+                   value_t Bp, int component) {
   value_t sth = math::sin(th);
   value_t cth = math::cos(th);
-  value_t rho2 = Metric_KS::rho2(a, r, sth, cth);
 
   if (component == 2) {
-    // Avoid axis singularity
     if (math::abs(th) < TINY || math::abs(th - M_PI) < TINY) {
       return 0.0;
     } else {
       return Bp *
-             (Metric_KS::gu33(a, r, sth, cth) *
-                  Metric_KS::beta1(a, r, sth, cth) *
-                  wald_ks_dAphdr(a, r, sth, cth) +
-              Metric_KS::gu13(a, r, sth, cth) * wald_ks_dA0dr(a, r, sth, cth)) /
-             Metric_KS::alpha(a, r, sth, cth);
+             (Metric_KS::gu33(a_metric, r, sth, cth) *
+                  Metric_KS::beta1(a_metric, r, sth, cth) *
+                  wald_ks_dAphdr(a_field, r, sth, cth) +
+              Metric_KS::gu13(a_metric, r, sth, cth) *
+                  wald_ks_dA0dr(a_field, r, sth, cth)) /
+             Metric_KS::alpha(a_metric, r, sth, cth);
     }
   } else if (component == 1) {
-    return Bp * Metric_KS::gu22(a, r, sth, cth) *
-           (wald_ks_dA0dth(a, r, sth, cth) -
-            Metric_KS::beta1(a, r, sth, cth) * wald_ks_dArdth(a, r, sth, cth)) /
-           Metric_KS::alpha(a, r, sth, cth);
+    return Bp * Metric_KS::gu22(a_metric, r, sth, cth) *
+           (wald_ks_dA0dth(a_field, r, sth, cth) -
+            Metric_KS::beta1(a_metric, r, sth, cth) *
+                wald_ks_dArdth(a_field, r, sth, cth)) /
+           Metric_KS::alpha(a_metric, r, sth, cth);
   } else if (component == 0) {
     return Bp *
-           (Metric_KS::gu11(a, r, sth, cth) * wald_ks_dA0dr(a, r, sth, cth) +
-            Metric_KS::gu13(a, r, sth, cth) * Metric_KS::beta1(a, r, sth, cth) *
-                wald_ks_dAphdr(a, r, sth, cth)) /
-           Metric_KS::alpha(a, r, sth, cth);
+           (Metric_KS::gu11(a_metric, r, sth, cth) *
+                wald_ks_dA0dr(a_field, r, sth, cth) +
+            Metric_KS::gu13(a_metric, r, sth, cth) *
+                Metric_KS::beta1(a_metric, r, sth, cth) *
+                wald_ks_dAphdr(a_field, r, sth, cth)) /
+           Metric_KS::alpha(a_metric, r, sth, cth);
   }
   return 0.0;
+}
+
+// Single-spin convenience wrapper: field spin = metric spin (consistent
+// stationary Wald).
+template <typename value_t = Scalar>
+HOST_DEVICE value_t
+gr_wald_solution_D(value_t a, value_t r, value_t th, value_t Bp,
+                   int component) {
+  return gr_wald_solution_D(a, a, r, th, Bp, component);
 }
 
 }  // namespace Aperture

@@ -32,15 +32,6 @@ HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, int vi,
   uz = mp.sphere_vz[s];
 }
 
-// Cartesian position (x, y, z) of global vertex vi.  Used only where a
-// single vertex position is needed (not per Gauss sample).
-HD_INLINE void vertex_cart(const prismatic_mesh_ptrs& mp, int vi,
-                           Scalar& x, Scalar& y, Scalar& z) {
-  Scalar r, ux, uy, uz;
-  vertex_unit(mp, vi, r, ux, uy, uz);
-  x = r * ux; y = r * uy; z = r * uz;
-}
-
 // Slerp two unit vectors, plus its u-derivative.  At u=0 returns û_a, at
 // u=1 returns û_b.  For very small α falls back to the linear tangent —
 // the quadrature inner integrand handles the α→0 limit gracefully.
@@ -269,44 +260,6 @@ HD_INLINE void deutsch_E_impl(Scalar x, Scalar y, Scalar z, Scalar time,
   Ez = cz1 / r2 + cz2 / r;
 }
 
-
-// Legacy helpers exposed via dec_field_solver::project_B_on_face /
-// project_E_on_edge.  Midpoint-style estimates using the chord vectors
-// between vertex Cartesian positions (computed on the fly from spherical
-// storage).  Not used on the hot path — the IC / BC integrals below use
-// full spherical Gauss quadrature.
-HD_INLINE Scalar project_B_on_face_impl(const prismatic_mesh_ptrs& mp, int f,
-                                         Scalar Bx, Scalar By, Scalar Bz) {
-  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
-  if (f < n_tri_faces) {
-    int va = mp.tri_face_v0[f], vb = mp.tri_face_v1[f], vc = mp.tri_face_v2[f];
-    Scalar xa, ya, za, xb, yb, zb, xc, yc, zc;
-    vertex_cart(mp, va, xa, ya, za);
-    vertex_cart(mp, vb, xb, yb, zb);
-    vertex_cart(mp, vc, xc, yc, zc);
-    Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
-    Scalar bx = xc - xa, by = yc - ya, bz = zc - za;
-    return Scalar(0.5) * (Bx*(ay*bz-az*by) + By*(az*bx-ax*bz) + Bz*(ax*by-ay*bx));
-  }
-  int local = f - n_tri_faces;
-  int va = mp.rect_face_v0[local], vb = mp.rect_face_v1[local], vd = mp.rect_face_v3[local];
-  Scalar xa, ya, za, xb, yb, zb, xd, yd, zd;
-  vertex_cart(mp, va, xa, ya, za);
-  vertex_cart(mp, vb, xb, yb, zb);
-  vertex_cart(mp, vd, xd, yd, zd);
-  Scalar ax = xb - xa, ay = yb - ya, az = zb - za;
-  Scalar bx = xd - xa, by = yd - ya, bz = zd - za;
-  return Bx*(ay*bz-az*by) + By*(az*bx-ax*bz) + Bz*(ax*by-ay*bx);
-}
-
-HD_INLINE Scalar project_E_on_edge_impl(const prismatic_mesh_ptrs& mp, int e,
-                                         Scalar Ex, Scalar Ey, Scalar Ez) {
-  int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-  Scalar x0, y0, z0, x1, y1, z1;
-  vertex_cart(mp, v0, x0, y0, z0);
-  vertex_cart(mp, v1, x1, y1, z1);
-  return Ex*(x1 - x0) + Ey*(y1 - y0) + Ez*(z1 - z0);
-}
 
 // =========================================================================
 // Constructor and init
@@ -1144,29 +1097,6 @@ void dec_field_solver<ExecPolicy>::apply_pec_bc(
         });
       },
       B);
-}
-
-// =========================================================================
-// Legacy wrappers (for compatibility — delegate to _impl functions)
-// =========================================================================
-
-template <typename ExecPolicy>
-Scalar dec_field_solver<ExecPolicy>::project_B_on_face(
-    int f, Scalar Bx, Scalar By, Scalar Bz) const {
-  return project_B_on_face_impl(m_mesh.host_ptrs(), f, Bx, By, Bz);
-}
-
-template <typename ExecPolicy>
-Scalar dec_field_solver<ExecPolicy>::project_E_on_edge(
-    int e, Scalar Ex, Scalar Ey, Scalar Ez) const {
-  return project_E_on_edge_impl(m_mesh.host_ptrs(), e, Ex, Ey, Ez);
-}
-
-template <typename ExecPolicy>
-void dec_field_solver<ExecPolicy>::dipole_B(
-    Scalar x, Scalar y, Scalar z, Scalar mx, Scalar my, Scalar mz,
-    Scalar& Bx, Scalar& By, Scalar& Bz) {
-  dipole_B_impl(x, y, z, mx, my, mz, Bx, By, Bz);
 }
 
 }  // namespace Aperture

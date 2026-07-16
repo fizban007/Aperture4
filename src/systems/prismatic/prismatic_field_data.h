@@ -18,6 +18,15 @@ namespace Aperture {
 
 enum class PrismaticFieldType { vertex, edge, face };
 
+// Describes how an edge 1-cochain buffer should be interpreted.  The flat
+// solver stores edge values as the primal 1-cochain ∫_e E·dl; the GR
+// Kerr-Schild solver stores D̃[e], the dual 2-cochain, which must be
+// multiplied by hodge1_inv[e] to recover the primal 1-cochain ∫_e D·dl.
+// Downstream consumers (Whitney interpolation in the sph output,
+// particle depositor, ...) query this tag to know whether to apply the
+// Hodge conversion.
+enum class EdgeCochainKind { primal_1, dual_2 };
+
 template <PrismaticFieldType Type>
 class prismatic_field : public data_t {
  public:
@@ -38,6 +47,10 @@ class prismatic_field : public data_t {
   Scalar* host_ptr() { return m_data.host_ptr(); }
   const Scalar* host_ptr() const { return m_data.host_ptr(); }
 
+  // For edge fields only: owning system declares the cochain convention.
+  EdgeCochainKind edge_kind() const { return m_edge_kind; }
+  void set_edge_kind(EdgeCochainKind k) { m_edge_kind = k; }
+
  private:
   static int field_size(const prismatic_mesh& mesh) {
     if constexpr (Type == PrismaticFieldType::vertex) return mesh.m_N_verts;
@@ -46,6 +59,7 @@ class prismatic_field : public data_t {
   }
 
   buffer<Scalar> m_data;
+  EdgeCochainKind m_edge_kind = EdgeCochainKind::primal_1;
 };
 
 using prismatic_vertex_field = prismatic_field<PrismaticFieldType::vertex>;

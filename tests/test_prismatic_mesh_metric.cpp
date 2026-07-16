@@ -27,12 +27,10 @@ TEST_CASE("Metric mesh: flat Hodge stars match base class",
   REQUIRE(met_mesh.m_N_edges == base.m_N_edges);
   REQUIRE(met_mesh.m_N_faces == base.m_N_faces);
 
-  // With proper Gauss quadrature, both Hodge stars match the base class
-  // to floating-point precision in flat space.  This requires (a) the
-  // Jacobian-based metric distance, (b) shell-arc / radial-shell-arc
-  // parameterizations that reproduce the exact spherical area formulas,
-  // and (c) using the primal edge midpoint as the fan center for
-  // vertical-edge dual face polygons (matching the base class convention).
+  // Both Hodge stars should match the base class to high precision in flat
+  // space, now that the metric pipeline uses great-circle-bounded (slerp /
+  // normalized-barycentric) parametrizations that match the base class's
+  // exact Girard face areas and spherical-arc dual distances.
   double max_h2_err = 0;
   for (int f = 0; f < base.m_N_faces; f++) {
     if (base.hodge2[f] > 1e-10) {

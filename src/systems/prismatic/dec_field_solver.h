@@ -54,12 +54,6 @@ class dec_field_solver : public system_t {
 
  private:
 
-  Scalar project_B_on_face(int face_idx, Scalar Bx, Scalar By, Scalar Bz) const;
-  Scalar project_E_on_edge(int edge_idx, Scalar Ex, Scalar Ey, Scalar Ez) const;
-
-  static void dipole_B(Scalar x, Scalar y, Scalar z, Scalar mx, Scalar my,
-                       Scalar mz, Scalar& Bx, Scalar& By, Scalar& Bz);
-
   prismatic_mesh& m_mesh;
 
   // Shared field data (owned by env, found in register_data_components)

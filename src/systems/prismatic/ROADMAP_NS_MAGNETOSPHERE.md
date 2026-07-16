@@ -130,8 +130,8 @@ bug), config `use_recovery_gather` (default true).  Full suite + GPU
 smoke run pass.  Still open in A1:
 - GCA path: gca_push re-interpolates B internally with the primal
   gather; thread Bv through when GCA becomes relevant (A3 uses Boris).
-- Paper figures: repeat the loss-rate/scattering comparison at L=4-5
-  with a gyro-radius/cell-size scan (drive via the C++ updater now).
+- Paper figures (loss-rate scan at L=4-5 etc.): deferred to drafting
+  time — collected in PAPER_TODO.md.
 
 Validation battery as tests + small drivers (prototype all of it first in
 Python via the `prismatic_interp` pybind module before CUDA work):

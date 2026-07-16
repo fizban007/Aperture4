@@ -5,6 +5,7 @@
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include "systems/prismatic/prismatic_particles.h"
+#include "systems/prismatic/prismatic_vertex_recovery.h"
 #include "utils/util_functions.h"
 #include <cmath>
 
@@ -248,18 +249,29 @@ HOST_DEVICE inline void update_single_particle(
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,
     Scalar q, Scalar m, Scalar dt,
-    bool use_gca = false, bool include_curvature = false) {
+    bool use_gca = false, bool include_curvature = false,
+    const Scalar* Bv_rec = nullptr) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
   Scalar l3 = Scalar(1) - l1 - l2;
   Scalar zeta = ptrs.x3[n];
 
-  // Interpolate E, B at particle position
+  // Interpolate E, B at particle position.  E always uses the primal
+  // Whitney 1-forms (the adjoint partner of the charge-conserving
+  // deposit); B optionally uses the C0 second-order vertex recovery
+  // (prismatic_vertex_recovery.h) when Bv_rec is provided.
   Scalar l[3] = {l1, l2, l3};
   Scalar Ex, Ey, Ez, Bx, By, Bz;
   interpolate_fields(mp, tri_idx, layer_idx, l, zeta,
                      E_e, B_f, Ex, Ey, Ez, Bx, By, Bz);
+  if (Bv_rec != nullptr) {
+    // NOTE: the GCA path below re-interpolates B internally at predicted
+    // positions and still uses the primal gather there; recovery
+    // currently upgrades the Boris path only.
+    interpolate_B_recovery(mp, Bv_rec, tri_idx, layer_idx, l, zeta,
+                           Bx, By, Bz);
+  }
 
   Scalar old_x, old_y, old_z;
   local_to_cartesian_impl(mp, tri_idx, layer_idx, l1, l2, zeta,

@@ -34,6 +34,13 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("sort_interval", m_sort_interval);
   sim_env().params().get_value("use_gca", m_use_gca);
   sim_env().params().get_value("include_curvature", m_include_curvature);
+  sim_env().params().get_value("use_recovery_gather", m_use_recovery_gather);
+  if (m_use_recovery_gather) {
+    m_recovery.build(m_mesh);
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+    m_recovery.copy_to_device();
+#endif
+  }
   Logger::print_info("Prismatic particle updater initialized: {} particles",
                      m_ptc->size());
 }
@@ -59,11 +66,28 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
       },
       m_J->data(), m_rho->data());
 
+  // Refresh the recovery vertex field from the current B cochain (one
+  // fitted B vector per mesh vertex; see prismatic_vertex_recovery.h).
+  const Scalar* Bv_rec = nullptr;
+  if (m_use_recovery_gather) {
+    auto rp = m_recovery.get_ptrs(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [mp, rp] LAMBDA(auto B_f) {
+          ExecPolicy::loop(0, rp.N_verts, [&] LAMBDA(int vi) {
+            rp.compute_vertex_B(mp, B_f, vi);
+          });
+        },
+        m_B->data());
+    ExecPolicy::sync();
+    Bv_rec = rp.Bv;
+  }
+
   // Particle update loop
   bool use_gca = m_use_gca;
   bool include_curvature = m_include_curvature;
   ExecPolicy::launch(
-      [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature]
+      [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature,
+       Bv_rec]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
@@ -71,7 +95,7 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
           Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
           update_single_particle(mp, N_tri, ptc, n, E_e, B_f, J_e, rho,
                                  q, mass_e, Scalar(dt),
-                                 use_gca, include_curvature);
+                                 use_gca, include_curvature, Bv_rec);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data());

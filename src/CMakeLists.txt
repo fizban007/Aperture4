@@ -47,6 +47,7 @@ set(Aperture_src
   "systems/prismatic/dec_field_solver.cpp"
   "systems/prismatic/dec_field_solver_gr_ks.cpp"
   "systems/prismatic/prismatic_deposit.cpp"
+  "systems/prismatic/prismatic_vertex_recovery.cpp"
   "systems/prismatic/prismatic_ptc_updater.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"
   "systems/prismatic/prismatic_sph_output.cpp"

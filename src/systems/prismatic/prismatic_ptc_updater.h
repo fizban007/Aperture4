@@ -5,6 +5,7 @@
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_vertex_recovery.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
@@ -35,6 +36,13 @@ class prismatic_ptc_updater : public system_t {
   nonown_ptr<prismatic_edge_field> m_J;
   nonown_ptr<prismatic_vertex_field> m_rho;
   nonown_ptr<prismatic_particle_data> m_ptc;
+
+  // C0 second-order B-gather (see prismatic_vertex_recovery.h); the
+  // primal Whitney gather pitch-angle-scatters particles off face jumps.
+  // Config "use_recovery_gather" (default true) selects it; E-gather and
+  // deposition always stay primal Whitney.
+  prismatic_vertex_recovery m_recovery;
+  bool m_use_recovery_gather = true;
 
   Scalar m_charge_e = -1.0;
   Scalar m_mass_e = 1.0;

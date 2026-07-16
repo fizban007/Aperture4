@@ -114,7 +114,15 @@ struct prismatic_mesh_ptrs {
 
   // =======================================================================
   // Barycentric coordinates of point (sx,sy,sz) in triangle tri_idx
-  // on the unit sphere.
+  // on the unit sphere, by central (gnomonic) projection: solve
+  // p ∝ l1·v0 + l2·v1 + l3·v2 with l1+l2+l3 = ±1.
+  //
+  // Unlike the previous perpendicular-projection formula, this predicate
+  // tiles the sphere EXACTLY (radial rays partition the convex icosphere
+  // surface), so point location has no orphan slivers and find_triangle
+  // always terminates on the containing triangle.  Normalizing by
+  // |sum| keeps antipodal triangles all-negative (l1+l2+l3 = -1 there)
+  // instead of letting the sign flip fool the containment test.
   // =======================================================================
   HOST_DEVICE void compute_barycentric(int tri_idx, Scalar sx, Scalar sy,
                                      Scalar sz, Scalar& l1, Scalar& l2,
@@ -127,25 +135,31 @@ struct prismatic_mesh_ptrs {
     Scalar p1x = sphere_vx[v1], p1y = sphere_vy[v1], p1z = sphere_vz[v1];
     Scalar p2x = sphere_vx[v2], p2y = sphere_vy[v2], p2z = sphere_vz[v2];
 
-    Scalar e1x = p1x - p0x, e1y = p1y - p0y, e1z = p1z - p0z;
-    Scalar e2x = p2x - p0x, e2y = p2y - p0y, e2z = p2z - p0z;
-    Scalar nx = e1y * e2z - e1z * e2y;
-    Scalar ny = e1z * e2x - e1x * e2z;
-    Scalar nz = e1x * e2y - e1y * e2x;
-    Scalar n_dot_n = nx * nx + ny * ny + nz * nz;
+    // c_i = (v_{i+1} × v_{i+2}) · p  — cofactor expansion of the solve
+    Scalar c12x = p1y * p2z - p1z * p2y;
+    Scalar c12y = p1z * p2x - p1x * p2z;
+    Scalar c12z = p1x * p2y - p1y * p2x;
+    Scalar c20x = p2y * p0z - p2z * p0y;
+    Scalar c20y = p2z * p0x - p2x * p0z;
+    Scalar c20z = p2x * p0y - p2y * p0x;
+    Scalar c01x = p0y * p1z - p0z * p1y;
+    Scalar c01y = p0z * p1x - p0x * p1z;
+    Scalar c01z = p0x * p1y - p0y * p1x;
 
-    Scalar d1x = p1x - sx, d1y = p1y - sy, d1z = p1z - sz;
-    Scalar d2x = p2x - sx, d2y = p2y - sy, d2z = p2z - sz;
-    l1 = (d1y*d2z - d1z*d2y) * nx + (d1z*d2x - d1x*d2z) * ny +
-         (d1x*d2y - d1y*d2x) * nz;
-    l1 /= n_dot_n;
+    Scalar c0 = c12x * sx + c12y * sy + c12z * sz;
+    Scalar c1 = c20x * sx + c20y * sy + c20z * sz;
+    Scalar c2 = c01x * sx + c01y * sy + c01z * sz;
 
-    Scalar d0x = p0x - sx, d0y = p0y - sy, d0z = p0z - sz;
-    l2 = (d2y*d0z - d2z*d0y) * nx + (d2z*d0x - d2x*d0z) * ny +
-         (d2x*d0y - d2y*d0x) * nz;
-    l2 /= n_dot_n;
+    // det = v0 · (v1 × v2); its sign accounts for either vertex winding
+    Scalar det = c12x * p0x + c12y * p0y + c12z * p0z;
+    Scalar sum = c0 + c1 + c2;
+    Scalar denom = std::abs(sum);
+    if (denom < Scalar(1e-30)) denom = Scalar(1e-30);
+    Scalar inv = (det >= Scalar(0.0) ? Scalar(1.0) : Scalar(-1.0)) / denom;
 
-    l3 = Scalar(1.0) - l1 - l2;
+    l1 = c0 * inv;
+    l2 = c1 * inv;
+    l3 = c2 * inv;
   }
 
   // =======================================================================

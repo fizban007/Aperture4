@@ -30,6 +30,7 @@ add_executable(tests
   "test_prismatic_mesh_local.cpp"
   "test_prismatic_d1_local.cpp"
   "test_prismatic_mesh_metric_local.cpp"
+  "test_prismatic_recovery.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"

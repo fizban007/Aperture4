@@ -301,6 +301,19 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("use_deutsch_bc", m_use_deutsch_bc);
   sim_env().params().get_value("use_pec_bc", m_use_pec_bc);
   sim_env().params().get_value("inner_bc_overwrite_b", m_inner_bc_overwrite_b);
+  sim_env().params().get_value("use_reconstruction_hodge", m_use_recon_hodge);
+  if (m_use_recon_hodge) {
+    if (m_use_implicit) {
+      Logger::print_err(
+          "use_reconstruction_hodge requires explicit stepping; disabling");
+      m_use_recon_hodge = false;
+    } else {
+      m_recon_hodge.build(m_mesh);
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      m_recon_hodge.copy_to_device();
+#endif
+    }
+  }
   sim_env().params().get_value("resonator_amp", m_resonator_amp);
 
   m_time = 0.0;
@@ -391,7 +404,7 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   }
 
   // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
-  if (m_update_e) {
+  if (m_update_e && !m_use_recon_hodge) {
     ExecPolicy::launch(
         [N_edges = mp.N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
@@ -404,6 +417,39 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
         });
       },
       m_E->data(), m_B->data(), m_J->data());
+  } else if (m_update_e) {
+    // Reconstruction-corrected Ampere (see prismatic_recon_hodge.h):
+    //   circ[f] = W2-row(f) . B          (dual-segment circulations)
+    //   S[e]    = sum_f d1t . circ - J   (exact dual loop sums)
+    //   dE[e]   = W1-row(e) . S          (corrected pairing)
+    // The d1t stage between the two reconstructions keeps Gauss-law /
+    // charge conservation with deposited J topologically exact.
+    auto rp = m_recon_hodge.get_ptrs(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [N_faces = mp.N_faces, mp, rp] LAMBDA(auto B_f, auto circ) {
+          ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
+            circ[f] = rp.circ_face(mp, f, B_f);
+          });
+        },
+        m_B->data(), m_tmp_B);
+    ExecPolicy::launch(
+        [N_edges = mp.N_edges, mp] LAMBDA(auto circ, auto J_e, auto S) {
+          ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+            Scalar phi = Scalar(0);
+            for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
+              phi += mp.d1t_val[j] * circ[mp.d1t_col_idx[j]];
+            }
+            S[e] = phi - J_e[e];
+          });
+        },
+        m_tmp_B, m_J->data(), m_tmp_E);
+    ExecPolicy::launch(
+        [N_edges = mp.N_edges, dt, mp, rp] LAMBDA(auto S, auto E_e) {
+          ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
+            E_e[e] += dt * rp.pair_edge(mp, e, S);
+          });
+        },
+        m_tmp_E, m_E->data());
   }
 
   apply_damping(m_E->data(), m_B->data(), dt);

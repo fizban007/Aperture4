@@ -5,6 +5,7 @@
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_recon_hodge.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
@@ -98,6 +99,13 @@ class dec_field_solver : public system_t {
   // When false, apply_inner_bc drives tangential E only (standard
   // rotating-conductor BC) instead of also overwriting B on the ring.
   bool m_inner_bc_overwrite_b = true;
+
+  // Reconstruction-corrected Hodge for the Ampere constitutive chain
+  // (config "use_reconstruction_hodge", default false): 2nd-order
+  // consistent (see prismatic_recon_hodge.h), explicit ~30-entry rows,
+  // boundary shells keep the diagonal.  Explicit stepping only.
+  bool m_use_recon_hodge = false;
+  prismatic_recon_hodge m_recon_hodge;
 
   // Use PEC (perfect conductor) boundary instead of dipole/Deutsch BC.
   // When true, apply_pec_bc() is called each step instead of apply_inner_bc().

@@ -295,6 +295,11 @@ void dec_field_solver<ExecPolicy>::register_data_components() {
       "B0", m_mesh, mem);
   m_J = sim_env().template register_data<prismatic_edge_field>(
       "J", m_mesh, mem);
+  // Ampere applies h1inv to (d1t h2 B - J): J[e] is the DUAL 2-cochain
+  // (current through the dual face of edge e).  Tag it so consumers
+  // (sph output, injector) apply the h1inv conversion before Whitney
+  // interpolation.  The GR solver does the same.
+  m_J->set_edge_kind(EdgeCochainKind::dual_2);
 }
 
 template <typename ExecPolicy>

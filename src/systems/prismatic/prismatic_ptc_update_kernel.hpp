@@ -250,7 +250,8 @@ HOST_DEVICE inline void update_single_particle(
     Scalar* J_e, Scalar* rho,
     Scalar q, Scalar m, Scalar dt,
     bool use_gca = false, bool include_curvature = false,
-    const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0)) {
+    const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0),
+    Scalar* rho_abs = nullptr, Scalar* gamma_wsum = nullptr) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
@@ -359,11 +360,22 @@ HOST_DEVICE inline void update_single_particle(
                     q * ptrs.weight[n] / dt, J_e, dep_tri, dep_layer);
   }
 
-  // Charge density
-  if (rho != nullptr) {
+  // Charge density; optionally |charge| density and gamma-weighted
+  // |charge| density (multiplicity + mean-Lorentz-factor diagnostics).
+  {
     Scalar l_new[3] = {new_l1, new_l2, Scalar(1) - new_l1 - new_l2};
-    deposit_rho(mp, new_tri, new_layer, l_new, new_zeta,
-                q * ptrs.weight[n], rho);
+    if (rho != nullptr) {
+      deposit_rho(mp, new_tri, new_layer, l_new, new_zeta,
+                  q * ptrs.weight[n], rho);
+    }
+    Scalar aqw = math::abs(q) * ptrs.weight[n];
+    if (rho_abs != nullptr) {
+      deposit_rho(mp, new_tri, new_layer, l_new, new_zeta, aqw, rho_abs);
+    }
+    if (gamma_wsum != nullptr) {
+      deposit_rho(mp, new_tri, new_layer, l_new, new_zeta, gamma * aqw,
+                  gamma_wsum);
+    }
   }
 
   // Store new position

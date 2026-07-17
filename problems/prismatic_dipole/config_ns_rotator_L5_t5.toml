@@ -1,0 +1,56 @@
+# A3 t4: user-prescribed normalization (2026-07-17).
+#   Bp = 1000 -> surface B = 2000 (pole): particles magnetized at
+#     mildly relativistic gamma everywhere inside the LC (r_g ~ gamma/B).
+#     B drops to ~15-30 at the light cylinder.
+#   R_LC = 4 (Omega = 0.25), P = 25.133; dt = P/2560 (same CFL dt).
+#   Volumetric injection weight from the NOMINAL GJ density
+#     rho_GJ,nom(r) = 2 Omega Bp / r^3 (radius-only — avoids the null-line
+#     zeros of the local GJ):  each macro carries 10% of the local
+#     nominal GJ charge:
+#       w q = 0.1 * rho_GJ,nom(r) * V_cell(r)
+#           = 0.1 * (2 Omega Bp) * A_tri * dln(r)      [V_cell ~ r^3
+#             on geometric shells, so w is exactly constant]
+#           = 0.1 * 500 * 2.29e-5 = 1.145e-3.
+#   E.B threshold 1e-2 (above the measured ~1e-2 fluctuation floor of
+#     the overloaded t3 run; supply now heavy enough to quench fast).
+dt = 0.009817477042468103
+max_steps = 7680
+subdivision_level = 5
+N_r = 102
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 0.0
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 22
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- particles ---
+max_ptc_num = 150000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 40.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection ---
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 10
+inj_weight = 1.145e-3
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-2
+inj_r_max = 10.0
+
+fld_output_interval = 320
+output_dir = "Data_ns_rotator_L5_t5"
+sph_N_theta = 64
+sph_N_phi = 128
+inj_max_multiplicity = 10.0

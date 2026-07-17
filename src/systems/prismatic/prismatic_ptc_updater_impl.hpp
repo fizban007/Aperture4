@@ -20,6 +20,10 @@ void prismatic_ptc_updater<ExecPolicy>::register_data_components() {
   m_B = sim_env().template register_data<prismatic_face_field>("B", m_mesh, mem);
   m_J = sim_env().template register_data<prismatic_edge_field>("J", m_mesh, mem);
   m_rho = sim_env().template register_data<prismatic_vertex_field>("rho", m_mesh, mem);
+  m_rho_abs = sim_env().template register_data<prismatic_vertex_field>(
+      "rho_abs", m_mesh, mem);
+  m_gamma_wsum = sim_env().template register_data<prismatic_vertex_field>(
+      "gamma_wsum", m_mesh, mem);
 
   int max_ptc = 100000;
   sim_env().params().get_value("max_ptc_num", max_ptc);
@@ -45,6 +49,7 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("include_curvature", m_include_curvature);
   sim_env().params().get_value("use_recovery_gather", m_use_recovery_gather);
   sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
+  sim_env().params().get_value("deposit_diagnostics", m_deposit_diagnostics);
   if (m_absorb_radius > Scalar(0)) {
     Logger::print_info("Particle absorption radius: {}", m_absorb_radius);
   }
@@ -66,18 +71,20 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   Scalar charge_e = m_charge_e;
   Scalar mass_e = m_mass_e;
 
-  // Clear rho and J before deposit
+  // Clear rho, J, and the diagnostic deposits before deposit
   ExecPolicy::launch(
       [N_edges = mp.N_edges, N_verts = mp.N_verts]
-      LAMBDA(auto J_e, auto rho) {
+      LAMBDA(auto J_e, auto rho, auto rho_abs, auto gamma_wsum) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           J_e[e] = Scalar(0);
         });
         ExecPolicy::loop(0, N_verts, [&] LAMBDA(int v) {
           rho[v] = Scalar(0);
+          rho_abs[v] = Scalar(0);
+          gamma_wsum[v] = Scalar(0);
         });
       },
-      m_J->data(), m_rho->data());
+      m_J->data(), m_rho->data(), m_rho_abs->data(), m_gamma_wsum->data());
 
   // Refresh the recovery vertex field from the current B cochain (one
   // fitted B vector per mesh vertex; see prismatic_vertex_recovery.h).
@@ -99,10 +106,12 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   bool use_gca = m_use_gca;
   bool include_curvature = m_include_curvature;
   Scalar absorb_r = m_absorb_radius;
+  bool dep_diag = m_deposit_diagnostics;
   ExecPolicy::launch(
       [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature,
-       Bv_rec, absorb_r]
-      LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho) {
+       Bv_rec, absorb_r, dep_diag]
+      LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho,
+             auto rho_abs, auto gamma_wsum) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
           int sp = get_ptc_type(ptc.flag[n]);
@@ -110,10 +119,13 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
           update_single_particle(mp, N_tri, ptc, n, E_e, B_f, J_e, rho,
                                  q, mass_e, Scalar(dt),
                                  use_gca, include_curvature, Bv_rec,
-                                 absorb_r);
+                                 absorb_r,
+                                 dep_diag ? (Scalar*)rho_abs : nullptr,
+                                 dep_diag ? (Scalar*)gamma_wsum : nullptr);
         });
       },
-      *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data());
+      *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data(),
+      m_rho_abs->data(), m_gamma_wsum->data());
 
   ExecPolicy::sync();
 

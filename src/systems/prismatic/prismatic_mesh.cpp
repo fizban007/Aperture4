@@ -495,6 +495,33 @@ void prismatic_mesh::extrude_to_3d(const sphere_mesh& sm) {
       face_area[fi] = dr * 0.5 * (r0 + r1) * angle;
     }
   }
+
+  // Lumped vertex dual volumes.  Prism (t, k) subtends the solid angle
+  // omega of triangle t; its cross-section at radius s is omega*s^2, so
+  //   V           = omega (b^3 - a^3)/3,
+  //   int zeta dV = (omega/dr) [ (b^4 - a^4)/4 - a (b^3 - a^3)/3 ],
+  // with a = r_k, b = r_k+1.  Each of the 3 bottom (top) vertices gets
+  // a third of the (1 - zeta) (zeta) share — the lumped counterpart of
+  // the deposit's hat weights.  Sum over vertices = total volume.
+  vert_dual_vol.resize(m_N_verts);
+  for (int i = 0; i < m_N_verts; i++) vert_dual_vol[i] = 0;
+  for (int k = 0; k < m_N_r; k++) {
+    double a = radii[k], b = radii[k + 1];
+    double dr = b - a;
+    for (int t = 0; t < m_N_tri; t++) {
+      double omega = face_area[tri_face_idx(k, t)] / (a * a);
+      double v_tot = omega * (b * b * b - a * a * a) / 3.0;
+      double v_top = (omega / dr) *
+          ((b * b * b * b - a * a * a * a) / 4.0 -
+           a * (b * b * b - a * a * a) / 3.0);
+      double v_bot = v_tot - v_top;
+      for (int vi = 0; vi < 3; vi++) {
+        int sv = sm.triangles[t][vi];
+        vert_dual_vol[vert_idx(k, sv)] += v_bot / 3.0;
+        vert_dual_vol[vert_idx(k + 1, sv)] += v_top / 3.0;
+      }
+    }
+  }
 }
 
 void prismatic_mesh::build_incidence(const sphere_mesh& sm) {
@@ -1122,6 +1149,7 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.vert_theta = vert_theta.host_ptr();
   p.vert_phi = vert_phi.host_ptr();
   p.face_area = face_area.host_ptr();
+  p.vert_dual_vol = vert_dual_vol.host_ptr();
   p.edge_length = edge_length.host_ptr();
   p.edge_v0 = edge_v0.host_ptr();
   p.edge_v1 = edge_v1.host_ptr();
@@ -1178,6 +1206,7 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.vert_theta = vert_theta.dev_ptr();
   p.vert_phi = vert_phi.dev_ptr();
   p.face_area = face_area.dev_ptr();
+  p.vert_dual_vol = vert_dual_vol.dev_ptr();
   p.edge_length = edge_length.dev_ptr();
   p.edge_v0 = edge_v0.dev_ptr();
   p.edge_v1 = edge_v1.dev_ptr();
@@ -1213,7 +1242,7 @@ void prismatic_mesh::copy_to_device() {
   copy(edge_boundary); copy(face_boundary);
   copy(edge_radial_layer); copy(face_radial_layer);
   copy(vert_r); copy(vert_theta); copy(vert_phi);
-  copy(face_area); copy(edge_length);
+  copy(face_area); copy(edge_length); copy(vert_dual_vol);
   copy(edge_v0); copy(edge_v1);
   copy(tri_face_v0); copy(tri_face_v1); copy(tri_face_v2);
   copy(rect_face_v0); copy(rect_face_v1); copy(rect_face_v2); copy(rect_face_v3);

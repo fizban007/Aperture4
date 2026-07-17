@@ -58,6 +58,11 @@ class prismatic_mesh {
 
   // --- Face data ---
   buffer<Scalar> face_area;  // size N_faces
+  // Lumped dual (co-volume) of each vertex: sum over adjacent prisms of
+  // the hat-function volume integral, computed exactly for the
+  // radially-projected prisms (cross-section = solid angle * s^2).
+  // Divides the deposited vertex charge cochain to give a density.
+  buffer<Scalar> vert_dual_vol;  // size N_verts
 
   // --- Incidence matrix d1 (face -> edges) in CSR ---
   buffer<int> d1_row_ptr;    // size N_faces + 1

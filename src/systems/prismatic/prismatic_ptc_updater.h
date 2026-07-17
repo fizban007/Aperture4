@@ -41,6 +41,13 @@ class prismatic_ptc_updater : public system_t {
   // base ptc_updater's registration of "rng_states").
   nonown_ptr<rng_states_t<typename ExecPolicy::exec_tag>> m_rng_states;
 
+  // Optional diagnostic deposits (config "deposit_diagnostics",
+  // default true): |q| w  ("rho_abs", the multiplicity numerator) and
+  // gamma |q| w ("gamma_wsum", for the mean Lorentz factor).
+  nonown_ptr<prismatic_vertex_field> m_rho_abs;
+  nonown_ptr<prismatic_vertex_field> m_gamma_wsum;
+  bool m_deposit_diagnostics = true;
+
   // C0 second-order B-gather (see prismatic_vertex_recovery.h); the
   // primal Whitney gather pitch-angle-scatters particles off face jumps.
   // Config "use_recovery_gather" (default true) selects it; E-gather and

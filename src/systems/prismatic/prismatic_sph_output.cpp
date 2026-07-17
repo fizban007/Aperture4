@@ -17,6 +17,8 @@ void prismatic_sph_output::register_data_components() {
   m_B = sim_env().register_data<prismatic_face_field>("B", m_mesh);
   sim_env().get_data_optional("J", m_J);
   sim_env().get_data_optional("rho", m_rho);
+  sim_env().get_data_optional("rho_abs", m_rho_abs);
+  sim_env().get_data_optional("gamma_wsum", m_gamma_wsum);
 }
 
 void prismatic_sph_output::init() {
@@ -48,6 +50,10 @@ void prismatic_sph_output::init() {
   m_Er.resize(N_total); m_Eth.resize(N_total); m_Eph.resize(N_total);
   if (m_J != nullptr) { m_Jr.resize(N_total); m_Jth.resize(N_total); m_Jph.resize(N_total); }
   if (m_rho != nullptr) { m_rho_grid.resize(N_total); }
+  if (m_rho_abs != nullptr) { m_rho_abs_grid.resize(N_total); }
+  if (m_gamma_wsum != nullptr && m_rho_abs != nullptr) {
+    m_gamma_grid.resize(N_total);
+  }
 
   precompute_grid();
   write_grid_info();
@@ -123,6 +129,8 @@ void prismatic_sph_output::update(double dt, uint32_t step) {
   m_B->data().copy_to_host();
   if (m_J != nullptr) m_J->data().copy_to_host();
   if (m_rho != nullptr) m_rho->data().copy_to_host();
+  if (m_rho_abs != nullptr) m_rho_abs->data().copy_to_host();
+  if (m_gamma_wsum != nullptr) m_gamma_wsum->data().copy_to_host();
 
   write_snapshot(step, m_time);
 }
@@ -294,10 +302,20 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
         m_Jph[idx] = J_op * r * sin_th;
       }
 
-      // rho: Whitney 0-form interpolation (barycentric on vertices)
-      if (m_rho != nullptr) {
-        const Scalar* rho_data = m_rho->host_ptr();
-        Scalar rho_val = Scalar(0);
+      // Vertex 0-cochains: hat interpolation.  The deposit stores RAW
+      // charge per vertex; dividing each vertex value by its lumped
+      // dual volume converts the cochain to a density before
+      // interpolating (rho, rho_abs).  gamma_wsum / rho_abs is the
+      // weight-averaged Lorentz factor (volumes cancel, so the ratio
+      // uses the raw cochains).
+      if (m_rho != nullptr || m_rho_abs != nullptr) {
+        const Scalar* rho_data =
+            (m_rho != nullptr) ? m_rho->host_ptr() : nullptr;
+        const Scalar* ra_data =
+            (m_rho_abs != nullptr) ? m_rho_abs->host_ptr() : nullptr;
+        const Scalar* gw_data =
+            (m_gamma_wsum != nullptr) ? m_gamma_wsum->host_ptr() : nullptr;
+        Scalar rho_val = 0, ra_val = 0, ra_raw = 0, gw_raw = 0;
         Scalar phi_hat[2] = {Scalar(1) - zeta, zeta};
         int shells[2] = {layer, layer + 1};
         if (k == m_mesh.m_N_r) { shells[0] = m_mesh.m_N_r - 1; shells[1] = m_mesh.m_N_r; }
@@ -305,10 +323,22 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
           for (int vi = 0; vi < 3; vi++) {
             int sv = mp.tri_verts[pt.tri_idx * 3 + vi];
             int v_idx = shells[lev] * mp.N_vert_s + sv;
-            rho_val += rho_data[v_idx] * pt.l[vi] * phi_hat[lev];
+            Scalar w = pt.l[vi] * phi_hat[lev];
+            Scalar inv_vol = Scalar(1) / mp.vert_dual_vol[v_idx];
+            if (rho_data) rho_val += rho_data[v_idx] * inv_vol * w;
+            if (ra_data) {
+              ra_val += ra_data[v_idx] * inv_vol * w;
+              ra_raw += ra_data[v_idx] * w;
+            }
+            if (gw_data) gw_raw += gw_data[v_idx] * w;
           }
         }
-        m_rho_grid[idx] = rho_val;
+        if (m_rho != nullptr) m_rho_grid[idx] = rho_val;
+        if (m_rho_abs != nullptr) m_rho_abs_grid[idx] = ra_val;
+        if (!m_gamma_grid.empty()) {
+          m_gamma_grid[idx] =
+              (ra_raw > Scalar(1e-30)) ? gw_raw / ra_raw : Scalar(0);
+        }
       }
     }
   }
@@ -333,6 +363,12 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
   }
   if (m_rho != nullptr) {
     file.write(m_rho_grid.data(), N_total, "rho");
+  }
+  if (m_rho_abs != nullptr) {
+    file.write(m_rho_abs_grid.data(), N_total, "rho_abs");
+  }
+  if (!m_gamma_grid.empty()) {
+    file.write(m_gamma_grid.data(), N_total, "gamma_mean");
   }
   file.write(static_cast<int>(step), "step");
   file.write(time, "time");

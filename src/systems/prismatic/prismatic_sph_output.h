@@ -34,6 +34,8 @@ class prismatic_sph_output : public system_t {
   nonown_ptr<prismatic_face_field> m_B;
   nonown_ptr<prismatic_edge_field> m_J;
   nonown_ptr<prismatic_vertex_field> m_rho;
+  nonown_ptr<prismatic_vertex_field> m_rho_abs;
+  nonown_ptr<prismatic_vertex_field> m_gamma_wsum;
 
   int m_N_theta = 180;
   int m_N_phi = 360;
@@ -79,7 +81,7 @@ class prismatic_sph_output : public system_t {
   std::vector<Scalar> m_Br, m_Bth, m_Bph;
   std::vector<Scalar> m_Er, m_Eth, m_Eph;
   std::vector<Scalar> m_Jr, m_Jth, m_Jph;
-  std::vector<Scalar> m_rho_grid;
+  std::vector<Scalar> m_rho_grid, m_rho_abs_grid, m_gamma_grid;
 };
 
 }  // namespace Aperture

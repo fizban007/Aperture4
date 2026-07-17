@@ -52,6 +52,7 @@ struct prismatic_mesh_ptrs {
 
   // --- Primal geometry ---
   const Scalar* face_area;       // [N_faces]
+  const Scalar* vert_dual_vol;   // [N_verts]
   const Scalar* edge_length;     // [N_edges]
   const int* edge_v0;            // [N_edges]
   const int* edge_v1;

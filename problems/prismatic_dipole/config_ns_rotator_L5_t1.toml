@@ -1,0 +1,43 @@
+# A3 bring-up smoke test: aligned rotator with surface pair injection,
+# L=5, 500 steps (~1.5% of a period).  Machinery validation only —
+# gentle q/m and weight so nothing is stiff; physics normalization is
+# tuned separately.  Absorber and domain match config_deutsch_damped_L5.
+dt = 0.009817477042468103
+max_steps = 1600
+subdivision_level = 5
+N_r = 102
+r_min = 1.0
+r_max = 45.0
+Bp = 1.0
+Omega = 0.2
+obliquity = 0.0
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 22
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- particles ---
+max_ptc_num = 60000000
+q_e = 100.0
+m_e = 1.0
+ptc_absorb_radius = 19.8
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- surface injection ---
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 5
+inj_weight = 2e-8
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+
+fld_output_interval = 100
+output_dir = "Data_ns_rotator_L5_t1"
+sph_N_theta = 64
+sph_N_phi = 128
+inj_eb_threshold = 2e-3

@@ -1,0 +1,28 @@
+# Movie run: vacuum Deutsch rotator, L=6, obliquity 0 deg.
+# Causally clean one-period protocol (exact Deutsch IC + analytic inner
+# BC, r_max = 45 > 9 + P, no absorber): the solution is exactly periodic
+# with P = 2pi/Omega = 31.415927, so a one-period movie loops seamlessly.
+# Outer-boundary contamination at t = P reaches inward to r ~ 45 - P =
+# 13.6; keep the displayed region r <= 12.
+# fld_output_interval = 64 -> 101 sph frames per period (incl. t=0 and
+# t=P).  Raw exporter dumps are strided way down (movie uses sph only).
+dt = 0.004908738521234052
+max_steps = 6400
+subdivision_level = 6
+N_r = 204
+r_min = 1.0
+r_max = 45.0
+Bp = 1.0
+Omega = 0.2
+obliquity = 0.0
+use_flat_metric = true
+use_deutsch_ic = true
+use_deutsch_bc = true
+damping_length = 0
+damping_coef = 0.0
+fld_output_interval = 64
+fld_output_radial_stride = 32
+fld_output_angular_stride = 256
+output_dir = "Data_deutsch_L6_movie_a00"
+sph_N_theta = 64
+sph_N_phi = 128

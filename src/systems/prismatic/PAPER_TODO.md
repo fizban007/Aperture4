@@ -34,6 +34,16 @@ from them.
       (`validate_vacuum_dipole.py`) — final version.
 - [ ] A2 Deutsch benchmark figures (see roadmap A2): stationarity drift
       convergence, spin-down luminosity vs sin²α, wave-zone error maps.
+- [ ] **Absorber characterization figure** (methods section): steady
+      L/L_analytic vs entrance phase 2k·d_in showing the cavity-resonance
+      curve (resonant at 2πn, zeroed at quarter-points), the measured
+      entrance-reflection scaling ρ ≈ 1.7/(k·r_in)², and the design rules
+      (cubic taper, coef ~1, entrance at (2n+1)λ/8 with k·r_in ≥ 4).
+      Data + configs: 2026-07-16 absorber study (roadmap A2 item 2);
+      standing-wave diagnostic fits ρ and the reflection phase from sph
+      dumps (r²⟨Var E⟩ vs r).  Punchline: crude sponge tamed from −40%
+      to −2% systematic by placement alone; sub-1% needs Silver-Müller
+      or PML (future work).
 
 ## Method-argument figures
 

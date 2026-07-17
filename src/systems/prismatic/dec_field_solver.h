@@ -80,9 +80,11 @@ class dec_field_solver : public system_t {
   Scalar m_Omega = 1.0;
   Scalar m_obliquity = 0.0;
 
-  // Damping layer
+  // Damping layer: sigma(k) = damping_coef * ramp^damping_exponent, with
+  // ramp rising linearly 0 -> 1 across the last damping_length shells.
   int m_damping_length = 10;
   Scalar m_damping_coef = 0.05;
+  Scalar m_damping_exponent = 1.0;
 
   // Update toggles
   bool m_update_e = true;

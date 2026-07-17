@@ -297,12 +297,38 @@ through the period at L=5.
      are 2nd-order consistent but unconditionally unstable (measured
      spectra, identified mechanism).  This negative result + the probe
      methodology is paper material (see PAPER_TODO).
-2. **Absorbing-layer artifact**: the damped steady state settles at
-   L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
-   vs 0.85 in the clean domain — absorber reflection/interference, not
-   solver decay.  It also floors the damped recurrence error at ~1.5e-3.
-   Needs an absorber study (taper profile, length, r_max) before A3,
-   which will run with damping.
+2. **Absorbing-layer artifact — RESOLVED (2026-07-16 absorber study).**
+   The old configuration (r_max=20, linear σ ramp, coef 0.1) settled at
+   L ≈ 0.59 L_analytic post-diagnostic-fix (the historical 0.52 included
+   the √γ bug).  Mechanism NAILED, three stacked effects, all measured
+   at L=4 (entrance-kr scan + standing-wave fits from sph dumps):
+   (a) coef 0.1 is under-damped — round-trip optical depth ~1, so the
+   outer wall reflects ~35% amplitude (coef scan: 0.60→0.88 recovering
+   monotonically to coef 3);
+   (b) the layer-entrance reflection interferes with the HARD analytic
+   inner BC at FIRST order in the reflected amplitude ρ:
+   δL ≈ 2ρ·cos(2k·d_in), resonantly pumped at 2k·d_in = 2πn (entrance
+   at 15.4 → +12%, at 30.7 → +8.6%; standing-wave ratio 4.5% on
+   resonance vs 1.0% off) and zeroed at quarter-points
+   d_in = (2n+1)λ/8;
+   (c) ρ itself is the near-field impedance mismatch, ρ ≈ 1.7/(k r_in)²
+   — resolution-INDEPENDENT (L4→L5 changes it ~20%), only weakly
+   affected by taper smoothing, so no sponge beats ~1-2% with a
+   reflective inner BC.  An entrance inside the induction zone
+   (k r_in ≲ 3) additionally corrupts the wave-zone L(r) flatness.
+   Production absorber (config_deutsch_damped_L5): r_max=45, entrance
+   19.8 = 5λ/8 (quarter-point, k r_in = 4), cubic taper
+   (damping_exponent = 3, new config knob), coef 1.0.  Measured at L=5:
+   L/L_analytic = 0.957 vs clean 0.981 (systematic −2.4%, was −40%),
+   settles by period 3, period-1 mean 0.982 reproduces the clean
+   benchmark, recurrence err(r<9) 1.15e-3 (B) — BELOW the old ~1.5e-3
+   floor and the clean-run 1.37e-3.  Premium option: entrance 51 =
+   13λ/8 (k r_in = 10, needs r_max ≈ 110, +10 shells under log
+   spacing) → −1.2%.  Sub-1% would need a genuinely reflectionless
+   outer treatment (Silver-Müller BC or PML) — future work, noted in
+   PAPER_TODO.  Bug fixed en route: update_semi_implicit damped the
+   base state once per Picard iteration (and double-damped the final
+   state) instead of damping the iterate.
 3. **Diagnostic accuracy — RESOLVED (2026-07-16), two parts.**
    (a) The dominant deficit was a bug: prismatic_sph_output defaulted
    `use_flat_metric = false`, silently applying the a=0 Kerr-Schild

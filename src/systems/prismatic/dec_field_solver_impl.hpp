@@ -293,6 +293,7 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("obliquity", m_obliquity);
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
+  sim_env().params().get_value("damping_exponent", m_damping_exponent);
   sim_env().params().get_value("update_e", m_update_e);
   sim_env().params().get_value("update_b", m_update_b);
   sim_env().params().get_value("use_implicit", m_use_implicit);
@@ -499,7 +500,10 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
       },
       m_E->data(), m_tmp_E, m_dE_dt, m_B->data(), m_tmp_B, m_dB_dt);
 
-  // Apply BC to the Euler predict so the first RHS evaluation is consistent
+  // Damp + apply BC to the Euler predict so the first RHS evaluation is
+  // consistent.  Every candidate state F* is damped exactly once (here and
+  // in each corrector iteration); the final copy-back is already damped.
+  apply_damping(m_tmp_E, m_tmp_B, dt);
   if (m_use_pec_bc) {
     apply_pec_bc(m_tmp_E, m_tmp_B);
   } else {
@@ -526,7 +530,7 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
         m_E->data(), m_tmp_E, m_dE_dt, m_dE_dt_new,
         m_B->data(), m_tmp_B, m_dB_dt, m_dB_dt_new);
 
-    apply_damping(m_E->data(), m_B->data(), dt);
+    apply_damping(m_tmp_E, m_tmp_B, dt);
     if (m_use_pec_bc) {
       apply_pec_bc(m_tmp_E, m_tmp_B);
     } else {
@@ -544,8 +548,8 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
       },
       m_E->data(), m_tmp_E, m_B->data(), m_tmp_B);
 
-  // Step 5: Damping + BC + clear J
-  apply_damping(m_E->data(), m_B->data(), dt);
+  // Step 5: BC (the copied-back state was already damped as the final
+  // iterate; damping it again here would double-apply exp(-sigma*dt))
   if (m_use_pec_bc) {
     apply_pec_bc(m_E->data(), m_B->data());
   } else {
@@ -570,16 +574,22 @@ void dec_field_solver<ExecPolicy>::apply_damping(
   if (k_start < 1) k_start = 1;
   Scalar damp_coef = m_damping_coef;
   int damp_len = m_damping_length;
+  Scalar damp_exp = m_damping_exponent;
+
+  // sigma(k) = coef * ramp^p with ramp in (0, 1].  p >= 3 keeps the layer
+  // entrance adiabatic: the entrance reflection interferes with the hard
+  // inner-BC driver at FIRST order in the reflected amplitude and shifts
+  // the steady-state luminosity (A2 absorber study).
 
   // Damp E on edges
   ExecPolicy::launch(
-      [N_edges = mp.N_edges, k_start, damp_coef, damp_len, dt, mp]
+      [N_edges = mp.N_edges, k_start, damp_coef, damp_len, damp_exp, dt, mp]
       LAMBDA(auto E_e) {
         ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
           int k = mp.edge_radial_layer[e];
           if (k >= k_start) {
-            Scalar sigma = damp_coef *
-                           Scalar(k - k_start + 1) / Scalar(damp_len);
+            Scalar ramp = Scalar(k - k_start + 1) / Scalar(damp_len);
+            Scalar sigma = damp_coef * std::pow(ramp, damp_exp);
             E_e[e] *= std::exp(-sigma * Scalar(dt));
           }
         });
@@ -588,13 +598,13 @@ void dec_field_solver<ExecPolicy>::apply_damping(
 
   // Damp B on faces
   ExecPolicy::launch(
-      [N_faces = mp.N_faces, k_start, damp_coef, damp_len, dt, mp]
+      [N_faces = mp.N_faces, k_start, damp_coef, damp_len, damp_exp, dt, mp]
       LAMBDA(auto B_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           int k = mp.face_radial_layer[f];
           if (k >= k_start) {
-            Scalar sigma = damp_coef *
-                           Scalar(k - k_start + 1) / Scalar(damp_len);
+            Scalar ramp = Scalar(k - k_start + 1) / Scalar(damp_len);
+            Scalar sigma = damp_coef * std::pow(ramp, damp_exp);
             B_f[f] *= std::exp(-sigma * Scalar(dt));
           }
         });

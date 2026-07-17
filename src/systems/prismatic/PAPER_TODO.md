@@ -59,6 +59,26 @@ from them.
 - [ ] Multi-rank field-solver validation + weak/strong scaling (gated on
       Track B2).
 
+## Discussion-section material: the reconstruction-Hodge investigation
+
+- [ ] Negative-result subsection: explicit local reconstruction
+      corrections to the diagonal Hodge (div-free linear LSQ + exact
+      dual-segment integration) are 2nd-order-PLUS consistent (probe
+      ratios 6.5-7.5 vs diagonal 2.0) but unconditionally unstable:
+      non-normal mid-band modes (0.14-0.28 omega_max) with growth
+      ~ c/h, robust against anchor-averaging, symmetrization,
+      high-order filtering, and beta-damped Picard stepping (all
+      measured, python/hodge_lab*.py).  The pairing correction
+      additionally breaks the Gauss-law telescoping.  Justifies the
+      diagonal-Hodge design rigorously and delimits what explicit
+      corrections can do; the SPD mass-matrix route remains the only
+      consistent+stable option, at solve cost.
+- [ ] Methodology sidebar: the offline probe suite (spurious-curl
+      consistency probe; linear-field exactness probe; step-operator
+      spectral lab via LinearOperator eigs) — lets any candidate Hodge
+      be evaluated for consistency AND stability in minutes without
+      solver integration.
+
 ## Prototype-scale results usable directly in the draft
 
 - Recovery scheme definition + degeneracy analysis (div-free constraint

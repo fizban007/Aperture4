@@ -268,12 +268,35 @@ through the period at L=5.
      pairing W1 (per-vertex div-free LSQ on dual-face fluxes — h-edge
      ruled patches, v-edge circumcenter polygons — + exact primal-edge
      integration) is exact on linear fields to 1.8e-13.
-   - Remaining: C++ integration behind `use_reconstruction_hodge`
-     (per-sphere-element template rows with r⁻¹ layer scaling: ~25 MB
-     at L=7 vs ~160 GB explicit; boundary shells keep the diagonal;
-     keep the d1t loop-sum form so Gauss/charge exactness is
-     topological), then the STABILITY gauntlet (non-SPD Hodge: cavity
-     long-run + Deutsch ladder; open risk, no theorem).
+   - C++ integration LANDED (`prismatic_recon_hodge.*`, flag
+     `use_reconstruction_hodge`, default OFF, kept as experimental
+     reference).  **STABILITY: CONCLUSIVELY NEGATIVE (2026-07-16,
+     `python/hodge_lab_spectral.py` + solver gauntlet).**  Complete
+     mitigation matrix, all measured:
+       * single-anchor: unstable, growth 15-20 c/r★ (solver, dt-indep)
+       * anchor-averaged (incl. radial anchor pairs): 1.0/time (L2) →
+         4.0/time (L3), growth ∝ 1/h
+       * mixed chains (W2,diag) and (diag,W1): both unstable
+       * D-weighted symmetrizations: worse (adjoint not consistent)
+       * (curl-curl)² filtered leapfrog: cannot reach the unstable
+         modes — they are MID-BAND (0.14-0.28 ω_max), and explicit
+         filters have their own CFL at ν₄ω⁴=2
+       * β-damped 4-iter Picard semi-implicit: monotonically WORSE in β
+         (truncated Picard amplifies non-normal transients)
+     Mechanism: the wide-stencil LSQ correction makes the operator
+     non-normal with mid-band eigenvalues off the imaginary axis; W1
+     additionally breaks the Gauss-law telescoping (D1⁻¹W1 ≠ I — my
+     earlier "topologically exact" claim was WRONG for the pairing;
+     it holds only for the diagonal E-update).  The only
+     theoretically-sound remaining route is the full SPD Galerkin mass
+     matrix with real solves (explored in earlier sessions, known
+     walls, 5-15× cost) — nothing new learned that changes its
+     assessment.
+   - **CONCLUSION: the accepted two-tier framing STANDS**, now with a
+     rigorous justification: explicit local reconstruction corrections
+     are 2nd-order consistent but unconditionally unstable (measured
+     spectra, identified mechanism).  This negative result + the probe
+     methodology is paper material (see PAPER_TODO).
 2. **Absorbing-layer artifact**: the damped steady state settles at
    L ≈ 0.52 L_analytic at BOTH L=4 and L=5 (resolution-independent),
    vs 0.85 in the clean domain — absorber reflection/interference, not

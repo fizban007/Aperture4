@@ -12,3 +12,6 @@ add_dependencies(problems streaming_test)
 
 # add_aperture_executable(slice_fields "slice_fields.cpp")
 # add_dependencies(problems slice_fields)
+
+add_aperture_executable(ns_rotator "ns_rotator.cpp")
+add_dependencies(problems ns_rotator)

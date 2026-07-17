@@ -48,6 +48,12 @@ class prismatic_ptc_updater : public system_t {
   prismatic_vertex_recovery m_recovery;
   bool m_use_recovery_gather = true;
 
+  // Absorb particles beyond this radius (config "ptc_absorb_radius").
+  // <= 0 (default) disables the check; particles are then only absorbed
+  // implicitly at the domain edges [r_min, r_max].  Magnetosphere runs
+  // should set this to the damping-layer entrance.
+  Scalar m_absorb_radius = Scalar(0);
+
   Scalar m_charge_e = -1.0;
   Scalar m_mass_e = 1.0;
   int m_sort_interval = 100;

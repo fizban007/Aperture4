@@ -250,7 +250,7 @@ HOST_DEVICE inline void update_single_particle(
     Scalar* J_e, Scalar* rho,
     Scalar q, Scalar m, Scalar dt,
     bool use_gca = false, bool include_curvature = false,
-    const Scalar* Bv_rec = nullptr) {
+    const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0)) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
@@ -313,6 +313,21 @@ HOST_DEVICE inline void update_single_particle(
     new_z = old_z + vz*dt;
   }
 
+  // Boundary absorption.  Particles leaving the radial domain are
+  // absorbed implicitly: find_radial_layer returns -1 outside
+  // [r_min, r_max] and the cartesian_to_local conversion below fails.
+  // absorb_r > 0 additionally absorbs at a configurable radius (the
+  // damping-layer entrance in magnetosphere runs — particles must not
+  // stream through the absorber where the fields are unphysical).
+  // Note the final partial-step current is NOT deposited for absorbed
+  // particles; the resulting Gauss-law residual sits on boundary cells
+  // that the inner BC / damping layer own anyway.
+  if (absorb_r > Scalar(0) &&
+      new_x*new_x + new_y*new_y + new_z*new_z > absorb_r*absorb_r) {
+    ptrs.cell[n] = empty_cell;
+    return;
+  }
+
   // Convert new position to local coordinates
   int new_tri, new_layer;
   Scalar new_l1, new_l2, new_zeta;
@@ -363,13 +378,15 @@ inline void update_particles_loop(
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,
     Scalar charge_e, Scalar mass_e, Scalar dt,
-    bool use_gca = false, bool include_curvature = false) {
+    bool use_gca = false, bool include_curvature = false,
+    Scalar absorb_r = Scalar(0)) {
   for (size_t n = 0; n < num; n++) {
     if (ptrs.cell[n] == empty_cell) continue;
     int sp = get_ptc_type(ptrs.flag[n]);
     Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
     update_single_particle(mp, N_tri, ptrs, n, E_e, B_f, J_e, rho,
-                           q, mass_e, dt, use_gca, include_curvature);
+                           q, mass_e, dt, use_gca, include_curvature,
+                           nullptr, absorb_r);
   }
 }
 

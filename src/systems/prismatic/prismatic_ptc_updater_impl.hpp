@@ -44,6 +44,10 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("use_gca", m_use_gca);
   sim_env().params().get_value("include_curvature", m_include_curvature);
   sim_env().params().get_value("use_recovery_gather", m_use_recovery_gather);
+  sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
+  if (m_absorb_radius > Scalar(0)) {
+    Logger::print_info("Particle absorption radius: {}", m_absorb_radius);
+  }
   if (m_use_recovery_gather) {
     m_recovery.build(m_mesh);
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
@@ -94,9 +98,10 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   // Particle update loop
   bool use_gca = m_use_gca;
   bool include_curvature = m_include_curvature;
+  Scalar absorb_r = m_absorb_radius;
   ExecPolicy::launch(
       [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature,
-       Bv_rec]
+       Bv_rec, absorb_r]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
@@ -104,7 +109,8 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
           Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
           update_single_particle(mp, N_tri, ptc, n, E_e, B_f, J_e, rho,
                                  q, mass_e, Scalar(dt),
-                                 use_gca, include_curvature, Bv_rec);
+                                 use_gca, include_curvature, Bv_rec,
+                                 absorb_r);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data());

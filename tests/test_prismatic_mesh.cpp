@@ -1159,6 +1159,43 @@ TEST_CASE("Particle: removal at outer boundary",
   REQUIRE(env.ptrs().cell[0] == empty_cell);
 }
 
+TEST_CASE("Particle: absorption at configurable radius",
+          "[prismatic][particle]") {
+  PtcTestEnv env;  // domain r in [1, 5]
+
+  // Outbound particle at r = 2, absorb radius 3: with absorb_r it must
+  // be emptied on the step that carries it past r = 3, well inside the
+  // domain; without absorb_r the same trajectory survives.
+  Scalar absorb_r = 3.0;
+  env.add_particle(2.0, 0, 0, 0.9, 0, 0, 1.0);
+  env.add_particle(2.0, 0, 0, 0.9, 0, 0, 1.0);
+
+  auto ptrs = env.ptrs();
+  // Step particle 0 with absorption, particle 1 without, via the loop's
+  // absorb_r parameter (one particle at a time).
+  auto mp = env.mesh.host_ptrs();
+  Scalar dt = 2.0;  // 0.9/gamma * 2 ~ 1.3 radial advance: crosses r=3
+  env.J.data().assign(exec_tags::host{}, 0, env.mesh.m_N_edges, Scalar(0));
+  update_particles_loop(mp, env.mesh.m_N_tri, ptrs, 1,
+                        env.E.host_ptr(), env.B.host_ptr(),
+                        env.J.host_ptr(), nullptr,
+                        Scalar(-1), Scalar(1), dt, false, false, absorb_r);
+  REQUIRE(ptrs.cell[0] == empty_cell);
+
+  // Particle 1 (same trajectory, no absorb radius) stays alive at r < 5.
+  prism_ptc_ptrs one = ptrs;
+  // shift view to particle 1 by stepping the full array without absorb:
+  update_particles_loop(mp, env.mesh.m_N_tri, one, 2,
+                        env.E.host_ptr(), env.B.host_ptr(),
+                        env.J.host_ptr(), nullptr,
+                        Scalar(-1), Scalar(1), dt);
+  REQUIRE(ptrs.cell[1] != empty_cell);
+  Scalar x, y, z;
+  local_to_xyz(env.mesh, ptrs.cell[1], ptrs.x1[1], ptrs.x2[1], ptrs.x3[1],
+               x, y, z);
+  REQUIRE(std::sqrt(x*x + y*y + z*z) > absorb_r);
+}
+
 TEST_CASE("Particle: multiple particles are independent",
           "[prismatic][particle]") {
   PtcTestEnv env;

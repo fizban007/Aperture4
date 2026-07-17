@@ -31,6 +31,7 @@ import numpy as np
 data_dir = sys.argv[1] if len(sys.argv) > 1 else "Data_ns_rotator_L5_t1"
 OMEGA = float(os.environ.get("OMEGA", 0.2))
 BP = float(os.environ.get("BP", 1.0))
+M_OVER_Q = float(os.environ.get("M_OVER_Q", 1.0))
 R_LC = 1.0 / OMEGA
 
 
@@ -101,9 +102,24 @@ def main():
     if "gamma_mean" in d:
         gam_map = d["gamma_mean"][:, 1:-1, :].mean(axis=2).T
 
-    fig, ax2 = plt.subplots(2, 4, figsize=(24, 11))
+    # Local magnetization: sigma_cold = B^2 / (rho_m c^2) with the rest
+    # mass density rho_m = rho_abs (m/q); sigma_hot additionally divides
+    # by the local weighted-mean Lorentz factor.  Median over phi (sigma
+    # spans decades).  Rationalized units: no 4 pi.
+    sig_cold_map = sig_hot_map = None
+    if "rho_abs" in d:
+        rho_m = d["rho_abs"][:, 1:-1, :] * M_OVER_Q
+        with np.errstate(divide="ignore", invalid="ignore"):
+            sc = B2 / (rho_m + 1e-30)
+            sig_cold_map = np.median(sc, axis=2).T
+            if "gamma_mean" in d:
+                sh = sc / np.maximum(d["gamma_mean"][:, 1:-1, :], 1.0)
+                sig_hot_map = np.median(sh, axis=2).T
+
+    fig, ax2 = plt.subplots(2, 5, figsize=(29, 11))
     axes = [ax2[0, 0], ax2[0, 1], ax2[0, 2], ax2[0, 3],
-            ax2[1, 3], ax2[1, 0], ax2[1, 1], ax2[1, 2]]
+            ax2[1, 4], ax2[1, 0], ax2[1, 1], ax2[1, 2],
+            ax2[0, 4], ax2[1, 3]]
     rl = 8.0
 
     def style(ax, title):
@@ -168,6 +184,17 @@ def main():
                                 shading='gouraud', rasterized=True)
         fig.colorbar(im, ax=axes[7], shrink=0.8)
         style(axes[7], r'multiplicity $M = \rho_{\rm abs} c / |J|$ (median)')
+
+    for smap, ax_i, ttl in [(sig_cold_map, 8, r'$\sigma_{\rm cold} = B^2/\rho_m c^2$ (median)'),
+                            (sig_hot_map, 9, r'$\sigma_{\rm hot} = B^2/\langle\gamma\rangle\rho_m c^2$ (median)')]:
+        if smap is None:
+            continue
+        im = axes[ax_i].pcolormesh(X, Z, np.maximum(smap, 1e-2),
+                                   cmap='plasma',
+                                   norm=matplotlib.colors.LogNorm(1e0, 1e6),
+                                   shading='gouraud', rasterized=True)
+        fig.colorbar(im, ax=axes[ax_i], shrink=0.8)
+        style(axes[ax_i], ttl)
 
     fig.suptitle(f'{data_dir}   step {d["step"]}   t = {d["time"]:.2f} '
                  f'(t/P = {d["time"] * OMEGA / (2*np.pi):.3f})', fontsize=13)

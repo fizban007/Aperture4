@@ -78,11 +78,24 @@ class prismatic_surface_injector : public system_t {
     sim_env().get_data("E", m_E);
     sim_env().get_data("B", m_B);
     sim_env().params().get_value("inj_max_multiplicity", m_max_multiplicity);
+    sim_env().params().get_value("inj_min_sigma", m_min_sigma);
+    Scalar q_e = 1, m_e = 1;
+    sim_env().params().get_value("q_e", q_e);
+    sim_env().params().get_value("m_e", m_e);
+    m_m_over_q = m_e / q_e;
+    if (m_min_sigma > Scalar(0)) {
+      Logger::print_info(
+          "Injector cold-sigma floor: no injection below sigma = {}",
+          m_min_sigma);
+    }
     sim_env().get_data_optional("rho_abs", m_rho_abs);
     sim_env().get_data("J", m_Jf);
-    if (m_max_multiplicity > Scalar(0) && m_rho_abs != nullptr) {
+    if ((m_max_multiplicity > Scalar(0) || m_min_sigma > Scalar(0)) &&
+        m_rho_abs != nullptr) {
       m_J_primal.set_memtype(ExecPolicy::data_mem_type());
       m_J_primal.resize(m_mesh.m_N_edges);
+    }
+    if (m_max_multiplicity > Scalar(0) && m_rho_abs != nullptr) {
       Logger::print_info(
           "Injector multiplicity cutoff: M = rho_abs c/|J| > {} stops "
           "injection", m_max_multiplicity);
@@ -140,9 +153,11 @@ class prismatic_surface_injector : public system_t {
     // even a modest density means a huge multiplicity -> plasma is
     // sufficient -> stop injecting there.  Uses last step's deposits.
     Scalar max_mult = (m_rho_abs != nullptr) ? m_max_multiplicity : Scalar(0);
+    Scalar min_sigma = (m_rho_abs != nullptr) ? m_min_sigma : Scalar(0);
+    Scalar m_over_q = m_m_over_q;
     const Scalar* J_p = nullptr;
     const Scalar* rho_abs = nullptr;
-    if (max_mult > Scalar(0)) {
+    if (max_mult > Scalar(0) || min_sigma > Scalar(0)) {
       auto mp_conv = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
       bool j_dual = (m_Jf->edge_kind() == EdgeCochainKind::dual_2);
       ExecPolicy::launch(
@@ -167,7 +182,8 @@ class prismatic_surface_injector : public system_t {
         // volumetric mode (cell center below inj_r_max); with a
         // positive inj_eb_threshold additionally require unscreened
         // E_par at the prism center, |E.B| > threshold * |B|^2.
-        [inj_shells, inj_r_max, eb_thr, max_mult, E_e, B_f, J_p, rho_abs]
+        [inj_shells, inj_r_max, eb_thr, max_mult, min_sigma, m_over_q,
+         E_e, B_f, J_p, rho_abs]
         LAMBDA(int tri, int k, const auto& mp) {
           if (inj_r_max > Scalar(0)) {
             Scalar r_c = Scalar(0.5) * (mp.radii[k] + mp.radii[k + 1]);
@@ -176,15 +192,19 @@ class prismatic_surface_injector : public system_t {
             if (k >= inj_shells) return false;
           }
           Scalar l[3] = {Scalar(1.0 / 3), Scalar(1.0 / 3), Scalar(1.0 / 3)};
-          if (eb_thr > Scalar(0)) {
-            Scalar Ex, Ey, Ez, Bx, By, Bz;
+          Scalar Ex, Ey, Ez, Bx, By, Bz, B2 = 0;
+          bool need_fields = eb_thr > Scalar(0) || max_mult > Scalar(0) ||
+                             min_sigma > Scalar(0);
+          if (need_fields) {
             interpolate_fields(mp, tri, k, l, Scalar(0.5), E_e, B_f,
                                Ex, Ey, Ez, Bx, By, Bz);
+            B2 = Bx * Bx + By * By + Bz * Bz;
+          }
+          if (eb_thr > Scalar(0)) {
             Scalar EdotB = Ex * Bx + Ey * By + Ez * Bz;
-            Scalar B2 = Bx * Bx + By * By + Bz * Bz;
             if (math::abs(EdotB) <= eb_thr * B2) return false;
           }
-          if (max_mult > Scalar(0)) {
+          if (max_mult > Scalar(0) || min_sigma > Scalar(0)) {
             // rho_abs density at the prism center: hat weights are all
             // 1/6 at (1/3, 1/3, 1/3; zeta = 1/2).
             Scalar ra = 0;
@@ -199,11 +219,19 @@ class prismatic_surface_injector : public system_t {
                     (mp.vert_dual_vol[vt] > 0
                          ? rho_abs[vt] / mp.vert_dual_vol[vt] : Scalar(0));
             }
-            Scalar Jx, Jy, Jz, bx, by, bz;
-            interpolate_fields(mp, tri, k, l, Scalar(0.5), J_p, B_f,
-                               Jx, Jy, Jz, bx, by, bz);
-            Scalar Jmag = math::sqrt(Jx * Jx + Jy * Jy + Jz * Jz);
-            if (ra > max_mult * Jmag) return false;
+            // Cold-magnetization floor: sigma = B^2 / (rho_abs m/q).
+            // No injection into plasma that is already inertially
+            // loaded — this is what the multiplicity criterion cannot
+            // see in low-J regions filled by transport.
+            if (min_sigma > Scalar(0) &&
+                B2 < min_sigma * ra * m_over_q) return false;
+            if (max_mult > Scalar(0)) {
+              Scalar Jx, Jy, Jz, bx, by, bz;
+              interpolate_fields(mp, tri, k, l, Scalar(0.5), J_p, B_f,
+                                 Jx, Jy, Jz, bx, by, bz);
+              Scalar Jmag = math::sqrt(Jx * Jx + Jy * Jy + Jz * Jz);
+              if (ra > max_mult * Jmag) return false;
+            }
           }
           return true;
         },
@@ -240,6 +268,10 @@ class prismatic_surface_injector : public system_t {
   Scalar m_inj_r_max = Scalar(0);
   // Stop injecting where rho_abs c / |J| exceeds this (0 disables).
   Scalar m_max_multiplicity = Scalar(0);
+  // Cold-magnetization floor: no injection where B^2/(rho_abs m/q)
+  // is already below this (0 disables).
+  Scalar m_min_sigma = Scalar(0);
+  Scalar m_m_over_q = Scalar(1);
   bool m_throttled = false;
 };
 

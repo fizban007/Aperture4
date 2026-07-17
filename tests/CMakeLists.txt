@@ -31,6 +31,7 @@ set(test_src
   "test_prismatic_d1_local.cpp"
   "test_prismatic_mesh_metric_local.cpp"
   "test_prismatic_recovery.cpp"
+  "test_prismatic_injector.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"
@@ -59,6 +60,7 @@ if (use_cuda AND CMAKE_CUDA_COMPILER)
     "test_math.cu"
     "test_cusparse.cu"
     "test_rng.cu"
+    "test_prismatic_injector.cu"
     # "compare_new_pusher_sph.cpp"
     )
   set_source_files_properties(${test_dev_src} PROPERTIES LANGUAGE CUDA)

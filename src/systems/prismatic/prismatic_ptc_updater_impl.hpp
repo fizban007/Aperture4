@@ -25,6 +25,15 @@ void prismatic_ptc_updater<ExecPolicy>::register_data_components() {
   sim_env().params().get_value("max_ptc_num", max_ptc);
   m_ptc = sim_env().template register_data<prismatic_particle_data>(
       "particles", max_ptc, mem);
+
+  size_t seed = default_random_seed;
+  sim_env().params().get_value("random_seed", seed);
+  m_rng_states =
+      sim_env()
+          .template register_data<rng_states_t<typename ExecPolicy::exec_tag>>(
+              "rng_states", seed);
+  m_rng_states->skip_output(true);
+  m_rng_states->include_in_snapshot(true);
 }
 
 template <typename ExecPolicy>

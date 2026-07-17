@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/typedefs_and_constants.h"
+#include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
@@ -36,6 +37,9 @@ class prismatic_ptc_updater : public system_t {
   nonown_ptr<prismatic_edge_field> m_J;
   nonown_ptr<prismatic_vertex_field> m_rho;
   nonown_ptr<prismatic_particle_data> m_ptc;
+  // Shared RNG pool (consumed by prismatic_ptc_injector, mirroring the
+  // base ptc_updater's registration of "rng_states").
+  nonown_ptr<rng_states_t<typename ExecPolicy::exec_tag>> m_rng_states;
 
   // C0 second-order B-gather (see prismatic_vertex_recovery.h); the
   // primal Whitney gather pitch-angle-scatters particles off face jumps.

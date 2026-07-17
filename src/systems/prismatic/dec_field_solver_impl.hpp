@@ -278,10 +278,21 @@ dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh)
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::register_data_components() {
   auto mem = ExecPolicy::data_mem_type();
-  m_E = sim_env().template register_data<prismatic_edge_field>(
+  // Totals (background + delta): what particles, sph output, and the
+  // exporter consume.
+  m_Etotal = sim_env().template register_data<prismatic_edge_field>(
       "E", m_mesh, mem);
-  m_B = sim_env().template register_data<prismatic_face_field>(
+  m_Btotal = sim_env().template register_data<prismatic_face_field>(
       "B", m_mesh, mem);
+  // Evolved delta fields and the static background.
+  m_E = sim_env().template register_data<prismatic_edge_field>(
+      "Edelta", m_mesh, mem);
+  m_B = sim_env().template register_data<prismatic_face_field>(
+      "Bdelta", m_mesh, mem);
+  m_E0 = sim_env().template register_data<prismatic_edge_field>(
+      "E0", m_mesh, mem);
+  m_B0 = sim_env().template register_data<prismatic_face_field>(
+      "B0", m_mesh, mem);
   m_J = sim_env().template register_data<prismatic_edge_field>(
       "J", m_mesh, mem);
 }
@@ -316,6 +327,23 @@ void dec_field_solver<ExecPolicy>::init() {
     }
   }
   sim_env().params().get_value("resonator_amp", m_resonator_amp);
+  sim_env().params().get_value("use_static_background", m_use_static_background);
+  if (m_use_static_background) {
+    if (m_use_pec_bc) {
+      Logger::print_err(
+          "use_static_background with use_pec_bc is unsupported (the PEC "
+          "boundary acts on the delta fields only); disabling background");
+      m_use_static_background = false;
+    } else {
+      // Aligned (static) dipole component only — see header note.
+      fill_dipole_B(m_B0->data(), Scalar(0), Scalar(0),
+                    m_Bp * std::cos(m_obliquity));
+      Logger::print_info(
+          "Static background enabled: aligned dipole mz = {}",
+          m_Bp * std::cos(m_obliquity));
+    }
+  }
+  refresh_total_fields();
 
   m_time = 0.0;
   if (m_use_implicit) {
@@ -340,7 +368,22 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
   } else {
     update_explicit(dt);
   }
+  refresh_total_fields();
   m_time += dt;
+}
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::refresh_total_fields() {
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [Ne = mp.N_edges, Nf = mp.N_faces]
+      LAMBDA(auto E, auto E0, auto Et, auto B, auto B0, auto Bt) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { Et[e] = E0[e] + E[e]; });
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { Bt[f] = B0[f] + B[f]; });
+      },
+      m_E->data(), m_E0->data(), m_Etotal->data(),
+      m_B->data(), m_B0->data(), m_Btotal->data());
+  ExecPolicy::sync();
 }
 
 // =========================================================================
@@ -651,11 +694,15 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
   // ring and is the suspected source of the first-order boundary error
   // seen in the Deutsch benchmark; driving tangential E only is the
   // standard rotating-conductor BC.
+  // The analytic BC prescribes TOTAL fields; in the delta formulation the
+  // stored background cochain is subtracted from the quadrature result
+  // (B0 is zero when use_static_background is off; E0 is identically
+  // zero, so the E side needs no subtraction).
   if (m_inner_bc_overwrite_b) {
   ExecPolicy::launch(
       [N_faces = mp.N_faces, n_tri_faces, mx_i = mx_B, my_i = my_B, mz_i,
        Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_B, mp]
-      LAMBDA(auto B_f) {
+      LAMBDA(auto B_f, auto B0_f) {
         ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
           if (mp.face_boundary[f] != 1) return;
 
@@ -688,7 +735,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
                 return bx*nx + by*ny + bz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
+            B_f[f] = static_cast<Scalar>(flux) - B0_f[f];
           } else {
             // --- Ruled rectangular face: P(u,v) = r(v) · slerp(û_a, û_b, u).
             // Layout: v0=(r_lo,û_a), v1=(r_lo,û_b), v2=(r_hi,û_b), v3=(r_hi,û_a).
@@ -718,11 +765,11 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
                 return bbx*nx + bby*ny + bbz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
+            B_f[f] = static_cast<Scalar>(flux) - B0_f[f];
           }
         });
       },
-      B);
+      B, m_B0->data());
   }
 
   // --- Overwrite E_e on inner boundary edges (at time_E) ---
@@ -781,11 +828,8 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
 // =========================================================================
 
 template <typename ExecPolicy>
-void dec_field_solver<ExecPolicy>::set_initial_dipole() {
-  Scalar mx_v = m_Bp * std::sin(m_obliquity);
-  Scalar my_v = Scalar(0);
-  Scalar mz_v = m_Bp * std::cos(m_obliquity);
-
+void dec_field_solver<ExecPolicy>::fill_dipole_B(
+    buffer<Scalar>& B, Scalar mx_v, Scalar my_v, Scalar mz_v) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int n_tri_faces = mp.N_tri * (mp.N_r + 1);
 
@@ -845,18 +889,28 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
           }
         });
       },
-      m_B->data());
+      B);
+  ExecPolicy::sync();
+}
 
-  // ---- E starts at zero ----
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::set_initial_dipole() {
+  fill_dipole_B(m_B->data(), m_Bp * std::sin(m_obliquity), Scalar(0),
+                m_Bp * std::cos(m_obliquity));
+
+  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+  // Delta formulation: subtract the static background cochains (zero when
+  // use_static_background is off).  E starts at zero.
   ExecPolicy::launch(
-      [N_edges = mp.N_edges] LAMBDA(auto E_e) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          E_e[e] = Scalar(0);
-        });
+      [Ne = mp.N_edges, Nf = mp.N_faces]
+      LAMBDA(auto E_e, auto B_f, auto B0_f) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { E_e[e] = Scalar(0); });
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B_f[f] -= B0_f[f]; });
       },
-      m_E->data());
+      m_E->data(), m_B->data(), m_B0->data());
 
   ExecPolicy::sync();
+  refresh_total_fields();
 }
 
 // =========================================================================
@@ -981,7 +1035,16 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
       },
       m_E->data());
 
+  // Delta formulation: subtract the static background B cochains (zero
+  // when use_static_background is off; E0 is identically zero).
+  ExecPolicy::launch(
+      [Nf = mp.N_faces] LAMBDA(auto B_f, auto B0_f) {
+        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B_f[f] -= B0_f[f]; });
+      },
+      m_B->data(), m_B0->data());
+
   ExecPolicy::sync();
+  refresh_total_fields();
   Logger::print_info("Deutsch retarded IC set: Bp={}, Omega={}, obliquity={}",
                      m_Bp, m_Omega, m_obliquity);
 }
@@ -1146,6 +1209,7 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
   // Enforce PEC on the boundary so the IC is exactly compatible.
   apply_pec_bc(m_E->data(), m_B->data());
   ExecPolicy::sync();
+  refresh_total_fields();
 }
 
 // =========================================================================

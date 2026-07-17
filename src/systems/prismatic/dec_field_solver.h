@@ -42,6 +42,15 @@ class dec_field_solver : public system_t {
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
 
+  // Fill a face-flux buffer with the exact cochains of a point dipole of
+  // moment (mx, my, mz) via Gauss quadrature (used for ICs and the static
+  // background).
+  void fill_dipole_B(buffer<Scalar>& B, Scalar mx, Scalar my, Scalar mz);
+
+  // Recompute the total fields "E"/"B" = background + delta.  Called after
+  // every update and IC; particles, sph output, and dumps consume totals.
+  void refresh_total_fields();
+
   void compute_rhs(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dE_dt, buffer<Scalar>& dB_dt);
 
@@ -65,9 +74,20 @@ class dec_field_solver : public system_t {
 
   prismatic_mesh& m_mesh;
 
-  // Shared field data (owned by env, found in register_data_components)
-  nonown_ptr<prismatic_edge_field> m_E;
-  nonown_ptr<prismatic_face_field> m_B;
+  // Shared field data (owned by env, found in register_data_components).
+  // Mirrors the main-code background split: the solver evolves the delta
+  // fields ("Edelta"/"Bdelta"); "E"/"B" hold background + delta and are
+  // what the particle updater, sph output, and exporter consume.  The
+  // static background ("E0"/"B0") is exempt from the discrete curl, so
+  // its quasi-static Hodge truncation (the O(h) tier) never enters the
+  // evolution.  E0 is registered for symmetry but stays zero: the only
+  // supported background is a static magnetic field.
+  nonown_ptr<prismatic_edge_field> m_E;   // Edelta (evolved)
+  nonown_ptr<prismatic_face_field> m_B;   // Bdelta (evolved)
+  nonown_ptr<prismatic_edge_field> m_Etotal;
+  nonown_ptr<prismatic_face_field> m_Btotal;
+  nonown_ptr<prismatic_edge_field> m_E0;
+  nonown_ptr<prismatic_face_field> m_B0;
   nonown_ptr<prismatic_edge_field> m_J;
 
   // Temporary buffers for semi-implicit iteration (owned by solver)
@@ -115,6 +135,15 @@ class dec_field_solver : public system_t {
 
   // Resonator mode amplitude (used by set_initial_resonator_mode)
   Scalar m_resonator_amp = 1.0;
+
+  // Static background subtraction (config "use_static_background",
+  // default false = legacy behavior with zero background).  When true,
+  // B0 is filled with the ALIGNED static dipole component
+  // (0, 0, Bp cos(obliquity)) — the only obliquity-safe static choice;
+  // time-dependent backgrounds are deliberately unsupported (a rigidly
+  // rotating dipole is not a Maxwell solution and would delete
+  // retardation physics from the delta equations).
+  bool m_use_static_background = false;
 
   double m_time = 0.0;
 };

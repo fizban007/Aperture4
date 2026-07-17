@@ -239,8 +239,20 @@ through the period at L=5.
      (seconds, mesh-only) tests 2nd-order consistency of any candidate
      operator BEFORE solver integration.
    - Follow-ups adopted instead: (i) static-background subtraction in
-     the flat solver (standard practice; removes the largest field
-     from the error budget; A3 wants it anyway); (ii) quantify the
+     the flat solver — **DONE (2026-07-17)**: main-code E0/B0+delta
+     pattern mirrored in dec_field_solver (config
+     `use_static_background`, default off; B0 = aligned static dipole
+     Bp·cos(obliquity), E0 ≡ 0; "E"/"B" are totals = background +
+     delta, consumed by particles/sph/dumps; solver evolves
+     "Edelta"/"Bdelta"; inner BC writes analytic−B0; damping acts on
+     delta only).  Aligned static test: B drift over 2 periods drops
+     4.6e-2 → 3.8e-8 (float round-off) — the quasi-static O(h) tier is
+     eliminated for the background field.  Oblique damped L5 benchmark
+     unchanged (L/L_dip 0.9567) with recurrence improved (errB
+     1.15e-3→1.02e-3).  Time-dependent backgrounds deliberately
+     unsupported (a rigidly rotating dipole is not a Maxwell solution;
+     subtracting it would delete retardation physics) — for oblique
+     runs only the aligned component is subtracted.  (ii) quantify the
      resolution-economics argument for the paper (PAPER_TODO).
 
    **REOPENED (2026-07-16, user request) — Hodge lab results

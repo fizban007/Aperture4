@@ -3,6 +3,7 @@
 #include "core/random.h"
 #include "framework/environment.h"
 #include "framework/system.h"
+#include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
 #include "utils/logger.h"
@@ -19,9 +20,14 @@ namespace Aperture {
 // This is the "star surface" scheme of aligned-rotator PIC studies: the
 // injected plasma is neutral; the corotation E field set by the inner
 // BC separates charge and fills the magnetosphere toward the GJ state.
-// Throttling is by total buffer occupancy only (injection stops above
-// inj_buffer_frac of max_ptc_num) — density- or sigma-based criteria
-// can replace the f_criteria functor later without touching the driver.
+//
+// Self-limiting criterion (inj_eb_threshold > 0): a cell injects only
+// while the unscreened parallel field at its center satisfies
+// |E.B|/|B|^2 > inj_eb_threshold.  Injection then starts on the vacuum
+// polar cap, tracks demand, and quenches itself as the injected plasma
+// shorts out E_par — fixed-rate overfilling never happens.  With the
+// threshold at 0 every surface cell injects unconditionally.
+// Additionally throttled by total buffer occupancy (inj_buffer_frac).
 //
 // Register AFTER the field solver and BEFORE prismatic_ptc_updater, so
 // freshly injected particles are pushed (and deposit current) in the
@@ -43,6 +49,7 @@ class prismatic_surface_injector : public system_t {
     sim_env().params().get_value("inj_weight", m_weight);
     sim_env().params().get_value("inj_kT", m_kT);
     sim_env().params().get_value("inj_buffer_frac", m_buffer_frac);
+    sim_env().params().get_value("inj_eb_threshold", m_eb_threshold);
 
     // The injector fetches "particles" and "rng_states", registered by
     // prismatic_ptc_updater — construct here, after all systems have
@@ -50,6 +57,8 @@ class prismatic_surface_injector : public system_t {
     m_injector =
         std::make_unique<prismatic_ptc_injector<ExecPolicy>>(m_mesh);
     sim_env().get_data("particles", m_ptc);
+    sim_env().get_data("E", m_E);
+    sim_env().get_data("B", m_B);
 
     Logger::print_info(
         "Surface injector: {} pairs/cell in {} shell(s) every {} step(s), "
@@ -80,11 +89,29 @@ class prismatic_surface_injector : public system_t {
     int pairs = m_pairs_per_cell;
     Scalar kT = m_kT;
     Scalar weight = m_weight;
+    Scalar eb_thr = m_eb_threshold;
+    const Scalar* E_e = m_E->data().dev_ptr() != nullptr
+                            ? m_E->data().dev_ptr()
+                            : m_E->host_ptr();
+    const Scalar* B_f = m_B->data().dev_ptr() != nullptr
+                            ? m_B->data().dev_ptr()
+                            : m_B->host_ptr();
 
     m_injector->inject_pairs(
-        // criteria: the first inj_shells radial layers
-        [inj_shells] LAMBDA(int tri, int k, const auto& mp) {
-          return k < inj_shells;
+        // criteria: first inj_shells radial layers; with a positive
+        // inj_eb_threshold additionally require unscreened E_par at the
+        // prism center, |E.B| > threshold * |B|^2.
+        [inj_shells, eb_thr, E_e, B_f] LAMBDA(int tri, int k,
+                                              const auto& mp) {
+          if (k >= inj_shells) return false;
+          if (eb_thr <= Scalar(0)) return true;
+          Scalar l[3] = {Scalar(1.0 / 3), Scalar(1.0 / 3), Scalar(1.0 / 3)};
+          Scalar Ex, Ey, Ez, Bx, By, Bz;
+          interpolate_fields(mp, tri, k, l, Scalar(0.5), E_e, B_f,
+                             Ex, Ey, Ez, Bx, By, Bz);
+          Scalar EdotB = Ex * Bx + Ey * By + Ez * Bz;
+          Scalar B2 = Bx * Bx + By * By + Bz * Bz;
+          return math::abs(EdotB) > eb_thr * B2;
         },
         // number per cell (particles, not pairs)
         [pairs] LAMBDA(int tri, int k, const auto& mp) {
@@ -102,6 +129,8 @@ class prismatic_surface_injector : public system_t {
   const prismatic_mesh& m_mesh;
   std::unique_ptr<prismatic_ptc_injector<ExecPolicy>> m_injector;
   nonown_ptr<prismatic_particle_data> m_ptc;
+  nonown_ptr<prismatic_edge_field> m_E;
+  nonown_ptr<prismatic_face_field> m_B;
 
   int m_inj_shells = 1;
   int m_pairs_per_cell = 1;
@@ -109,6 +138,7 @@ class prismatic_surface_injector : public system_t {
   Scalar m_weight = Scalar(1);
   Scalar m_kT = Scalar(0.1);
   Scalar m_buffer_frac = Scalar(0.9);
+  Scalar m_eb_threshold = Scalar(0);
   bool m_throttled = false;
 };
 

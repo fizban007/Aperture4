@@ -57,9 +57,12 @@ class ptc_injector<Conf, exec_policy_gpu> {
   ~ptc_injector() {}
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
-            typename FWeight>
-  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
-                    const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                     const FDist& f_dist, const FWeight& f_weight,
+                     uint32_t flag = 0,
+                     const FValidate& f_validate = FValidate{},
+                     PtcType pos_type = PtcType::positron) {
     using policy = exec_policy_gpu<Conf>;
     m_num_per_cell.assign_dev(0);
     m_cum_num_per_cell.assign_dev(0);
@@ -109,9 +112,9 @@ class ptc_injector<Conf, exec_policy_gpu> {
     policy::launch(
         // kernel_exec_policy(rng_states_t::block_num,
         // rng_states_t::thread_num),
-        [num, max_num, tracked_fraction, track_rank] __device__(
+        [num, max_num, tracked_fraction, track_rank, pos_type] __device__(
             ptc_ptrs ptc, auto states, auto num_per_cell, auto cum_num_per_cell,
-            auto f_dist, auto f_weight, auto flag, auto ptc_id) {
+            auto f_dist, auto f_weight, auto flag, auto f_validate, auto ptc_id) {
           auto& grid = policy::grid();
           auto ext = grid.extent();
           rng_t<exec_tags::device> rng(states);
@@ -127,11 +130,26 @@ class ptc_injector<Conf, exec_policy_gpu> {
                   break;
                 }
 
-                ptc.cell[offset_e] = (uint32_t)idx.linear;
-                ptc.cell[offset_p] = (uint32_t)idx.linear;
                 auto x = vec_t<value_t, 3>(rng.uniform<value_t>(),
                                            rng.uniform<value_t>(),
                                            rng.uniform<value_t>());
+                auto x_global = grid.coord_global(pos, x);
+                // Reject this placement if the coord-policy validator says
+                // the position is invalid (e.g. inside an axis exclusion
+                // wedge). The offsets are fixed by the prefix-sum so we
+                // can't skip the slot outright -- writing empty_cell into
+                // ptc.cell marks it inert: every per-particle loop in the
+                // updater (move, deposit, sweep) short-circuits on
+                // cell == empty_cell, so no current is deposited and the
+                // slot is reclaimed at the next sort.
+                if (!f_validate(pos, x_global)) {
+                  ptc.cell[offset_e] = empty_cell;
+                  ptc.cell[offset_p] = empty_cell;
+                  continue;
+                }
+
+                ptc.cell[offset_e] = (uint32_t)idx.linear;
+                ptc.cell[offset_p] = (uint32_t)idx.linear;
                 ptc.x1[offset_e] = x[0];
                 ptc.x1[offset_p] = x[0];
                 ptc.x2[offset_e] = x[1];
@@ -139,14 +157,13 @@ class ptc_injector<Conf, exec_policy_gpu> {
                 ptc.x3[offset_e] = x[2];
                 ptc.x3[offset_p] = x[2];
 
-                auto x_global = grid.coord_global(pos, x);
                 auto p = f_dist(x_global, rng.m_local_state, PtcType::electron);
                 ptc.p1[offset_e] = p[0];
                 ptc.p2[offset_e] = p[1];
                 ptc.p3[offset_e] = p[2];
                 ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
-                p = f_dist(x_global, rng.m_local_state, PtcType::positron);
+                p = f_dist(x_global, rng.m_local_state, pos_type);
                 ptc.p1[offset_p] = p[0];
                 ptc.p2[offset_p] = p[1];
                 ptc.p3[offset_p] = p[2];
@@ -159,14 +176,14 @@ class ptc_injector<Conf, exec_policy_gpu> {
 #endif
 
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
-                ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
+                ptc.weight[offset_p] = f_weight(x_global, pos_type);
                 uint32_t local_flag = flag;
                 if (!check_flag(local_flag, PtcFlag::ignore_tracking) &&
                     rng.uniform<value_t>() < tracked_fraction) {
                   set_flag(local_flag, PtcFlag::tracked);
                 }
                 ptc.flag[offset_e] = set_ptc_type_flag(local_flag, PtcType::electron);
-                ptc.flag[offset_p] = set_ptc_type_flag(local_flag, PtcType::positron);
+                ptc.flag[offset_p] = set_ptc_type_flag(local_flag, pos_type);
                 ptc.id[offset_e] = track_rank + atomic_add(ptc_id, 1);
                 ptc.id[offset_p] = track_rank + atomic_add(ptc_id, 1);
               }
@@ -174,11 +191,30 @@ class ptc_injector<Conf, exec_policy_gpu> {
           }
         },
         ptc, rng_states, m_num_per_cell, m_cum_num_per_cell, f_dist, f_weight,
-        flag, ptc_id.dev_ptr());
+        flag, f_validate, ptc_id.dev_ptr());
     policy::sync();
     Logger::print_detail_all("Finished injecting particles");
     ptc->add_num(new_particles);
   }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                    const FDist& f_dist, const FWeight& f_weight,
+                    uint32_t flag = 0,
+                    const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::positron);
+  }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_e_i_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                         const FDist& f_dist, const FWeight& f_weight,
+                         uint32_t flag = 0,
+                         const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::ion);
+  }
+
 
  private:
   const Grid<Conf::dim, value_t>& m_grid;

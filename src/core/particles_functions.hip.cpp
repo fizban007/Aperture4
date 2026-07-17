@@ -15,8 +15,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "particles.h"
-#include "systems/prismatic/prismatic_particles.h"
 #include "core/constant_mem.h"
 #include "core/math.hpp"
 #include "core/typedefs_and_constants.h"

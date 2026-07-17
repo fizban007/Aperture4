@@ -78,7 +78,7 @@ class domain_comm : public system_t {
     buf.copy_to_host();
     auto result =
         MPI_Reduce(buf.host_ptr(), tmp_buf.host_ptr(), buf.size(),
-                   MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, m_cart);
+                   MPI_Helper::get_mpi_datatype(T{}), MPI_SUM, 0, m_world);
     if (is_root()) {
       buf.host_copy_from(tmp_buf, buf.size());
     }

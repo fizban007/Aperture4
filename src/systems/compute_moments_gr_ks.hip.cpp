@@ -23,4 +23,6 @@ namespace Aperture {
 
 template class compute_moments_gr_ks<Config<2, Scalar>, exec_policy_gpu>;
 
+template class compute_moments_gr_ks<Config<3, Scalar>, exec_policy_gpu>;
+
 }

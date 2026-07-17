@@ -96,14 +96,22 @@ main(int argc, char *argv[]) {
   int damping_length = 64;
   env.params().get_value("damping_length", damping_length);
 
-  int Nr = 1024;
-  env.params().get_value("Nr", Nr);
+  // N, size, lower are per-axis arrays in the config; read the radial
+  // (index 0) component. This matches density_floor_injector.cpp and
+  // grid_impl.hpp. Reading them as scalars (the old "Nr"/"size"/"lower"
+  // get_value calls) silently fell back to hardcoded defaults and
+  // corrupted the injector geometry.
+  int ncells[Conf::dim];
+  env.params().get_array("N", ncells);
+  int Nr = ncells[0];
 
-  double size_log_r = 3.00;
-  env.params().get_value("size", size_log_r);
+  double size_arr[Conf::dim];
+  env.params().get_array("size", size_arr);
+  double size_log_r = size_arr[0];
 
-  double log_r_min = 0.588;
-  env.params().get_value("lower", log_r_min);
+  double lower_arr[Conf::dim];
+  env.params().get_array("lower", lower_arr);
+  double log_r_min = lower_arr[0];
 
   double spin = 0.0000001;
   env.params().get_value("bh_spin", spin);
@@ -129,6 +137,9 @@ main(int argc, char *argv[]) {
   double kT = 2.0 / r_pml;
   env.params().get_value("kT", kT);
 
+  bool initial_cloud = true;
+  env.params().get_value("initial_cloud", initial_cloud);
+
   // Prepare initial field
   vector_field<Conf> *B, *D, *B0, *D0;
   env.get_data("B0", &B0);
@@ -144,11 +155,11 @@ main(int argc, char *argv[]) {
       // First function is the injection criterion for each cell. pos is an
       // index_t<Dim> object marking the cell in the grid. Returns true for
       // cells that inject and false for cells that do nothing.
-      [r_H, r_pml] LAMBDA(auto &pos, auto &grid, auto &ext) {
+      [r_H, r_pml, initial_cloud] LAMBDA(auto &pos, auto &grid, auto &ext) {
         auto r = grid_ks_t<Conf>::radius(grid.template coord<0>(pos[0], false));
         // auto th = grid_ks_t<Conf>::theta(grid.template coord<1>(pos[1],
         // false));
-        return (r > r_H && r < r_pml);
+        return (r > r_H && r < r_pml && initial_cloud);
       },
       // Second function returns the number of particles injected in each cell.
       // This includes all species
@@ -160,7 +171,7 @@ main(int argc, char *argv[]) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t theta = grid_ks_t<Conf>::theta(x_global[1]);
 
-        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d(state, kT);
+        vec_t<value_t, 3> u_d = rng_maxwell_juttner_3d<value_t>(state, kT);
         // Now transform this momentum from the local fluid frame to the global
         // coordinate. Use the tetrads given in Benjamin Crinquand's PhD thesis:
         // https://theses.hal.science/tel-03406333v1/file/Thesis_Benjamin_Crinquand_final.pdf

@@ -239,6 +239,23 @@ if(use_hip)
     find_package(rocrand)
     find_package(rocsparse)
     find_package(hipcub)
+    # All Aperture device code is compiled as LANGUAGE HIP (via
+    # add_aperture_executable/add_aperture_library or explicit source
+    # properties), using ROCm's own clang. hip::device, however, injects
+    # "-x hip --offload-arch=..." into the plain CXX sources of every
+    # target that transitively links it (e.g. Aperture_dev ->
+    # roc::rocthrust -> roc::rocprim_hip -> hip::device), forcing the
+    # *host* compiler to run the HIP device pass. That breaks whenever the
+    # host clang is built from a different LLVM version than ROCm's, since
+    # it cannot read ROCm's device bitcode libraries ("cannot open file
+    # ocml.bc: Unknown attribute kind"). Strip the compile-options
+    # interface; the link interface ("--hip-link" etc.) is kept, so device
+    # code still links correctly. Plain add_executable targets with CXX
+    # sources thus compile as pure host code and are linked by the HIP
+    # toolchain through CMake's HIP linker-preference propagation.
+    if(TARGET hip::device)
+      set_property(TARGET hip::device PROPERTY INTERFACE_COMPILE_OPTIONS)
+    endif()
     set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fgpu-rdc -Wno-inconsistent-missing-override -Wno-deprecated-register -Wno-pass-failed ${HIP_EXTRA_FLAGS}")
     set(CMAKE_HIP_LINK_FLAGS "${CMAKE_HIP_LINK_FLAGS} --hip-link -fgpu-rdc")
     if (on_frontier)

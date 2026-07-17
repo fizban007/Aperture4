@@ -30,6 +30,7 @@
 #include <mpi-ext.h>  // Needed for CUDA-aware check
 #endif
 
+// JM: Set this to false to try host-to-host MPI
 #define USE_GPU_AWARE_MPI true
 
 #if (CUDA_ENABLED && USE_GPU_AWARE_MPI && defined(MPIX_CUDA_AWARE_SUPPORT) && \
@@ -823,7 +824,7 @@ domain_comm<Conf, ExecPolicy>::send_particle_array(
   //                       recv_buffer.size() * sizeof(recv_buffer[0]));
   MPI_Sendrecv(send_ptr, send_num * sizeof(send_buffer[0]), MPI_BYTE, dst, tag,
                recv_ptr, recv_buffer.size() * sizeof(recv_buffer[0]), MPI_BYTE,
-               src, tag, m_world, recv_stat);
+               src, tag, m_cart, recv_stat);
 
   int num_recved = 0;
   MPI_Get_count(recv_stat, MPI_BYTE, &num_recved);

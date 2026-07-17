@@ -49,9 +49,12 @@ class ptc_injector<Conf, exec_policy_host> {
   ~ptc_injector() {}
 
   template <typename FCriteria, typename FDist, typename FNumPerCell,
-            typename FWeight>
-  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
-                    const FDist& f_dist, const FWeight& f_weight, uint32_t flag = 0) {
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                     const FDist& f_dist, const FWeight& f_weight,
+                     uint32_t flag = 0,
+                     const FValidate& f_validate = FValidate{},
+                     PtcType pos_type = PtcType::positron) {
     using policy = exec_policy_host<Conf>;
     auto& grid = m_grid;
     auto num = ptc->number();
@@ -85,11 +88,26 @@ class ptc_injector<Conf, exec_policy_host> {
                     break;
                   }
 
-                  ptc.cell[offset_e] = (uint32_t)idx.linear;
-                  ptc.cell[offset_p] = (uint32_t)idx.linear;
                   auto x = vec_t<value_t, 3>(rng.uniform<value_t>(),
                                              rng.uniform<value_t>(),
                                              rng.uniform<value_t>());
+                  auto x_global = grid.coord_global(pos, x);
+                  // Reject this placement if the coord-policy validator says
+                  // the position is invalid (e.g. inside an axis exclusion
+                  // wedge). The offsets are fixed by the running cum_num
+                  // counter so we can't skip the slot outright -- writing
+                  // empty_cell into ptc.cell marks it inert: every
+                  // per-particle loop in the updater (move, deposit, sweep)
+                  // short-circuits on cell == empty_cell, so no current is
+                  // deposited and the slot is reclaimed at the next sort.
+                  if (!f_validate(pos, x_global)) {
+                    ptc.cell[offset_e] = empty_cell;
+                    ptc.cell[offset_p] = empty_cell;
+                    continue;
+                  }
+
+                  ptc.cell[offset_e] = (uint32_t)idx.linear;
+                  ptc.cell[offset_p] = (uint32_t)idx.linear;
                   ptc.x1[offset_e] = x[0];
                   ptc.x1[offset_p] = x[0];
                   ptc.x2[offset_e] = x[1];
@@ -97,7 +115,6 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.x3[offset_e] = x[2];
                   ptc.x3[offset_p] = x[2];
 
-                  auto x_global = grid.coord_global(pos, x);
                   auto p = f_dist(x_global, rng.m_local_state,
                                   PtcType::electron);
                   ptc.p1[offset_e] = p[0];
@@ -106,14 +123,14 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.E[offset_e] = math::sqrt(1.0f + p.dot(p));
 
                   p = f_dist(x_global, rng.m_local_state,
-                             PtcType::positron);
+                             pos_type);
                   ptc.p1[offset_p] = p[0];
                   ptc.p2[offset_p] = p[1];
                   ptc.p3[offset_p] = p[2];
                   ptc.E[offset_p] = math::sqrt(1.0f + p.dot(p));
 
                   ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
-                  ptc.weight[offset_p] = f_weight(x_global, PtcType::positron);
+                  ptc.weight[offset_p] = f_weight(x_global, pos_type);
                   auto u = rng.uniform<value_t>();
                   // printf("u is %f, tracked_fraction is %f\n", u, tracked_fraction);
                   uint32_t local_flag = flag;
@@ -124,7 +141,7 @@ class ptc_injector<Conf, exec_policy_host> {
                   ptc.flag[offset_e] =
                       set_ptc_type_flag(local_flag, PtcType::electron);
                   ptc.flag[offset_p] =
-                      set_ptc_type_flag(local_flag, PtcType::positron);
+                      set_ptc_type_flag(local_flag, pos_type);
                   ptc.id[offset_e] = track_rank + atomic_add(&ptc_id_base, 1);
                   ptc.id[offset_p] = track_rank + atomic_add(&ptc_id_base, 1);
                 }
@@ -139,6 +156,24 @@ class ptc_injector<Conf, exec_policy_host> {
     Logger::print_debug("Current num is {}, injecting {}, max_num is {}", num,
                         cum_num, max_num);
     ptc->add_num(cum_num);
+  }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_pairs(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                    const FDist& f_dist, const FWeight& f_weight,
+                    uint32_t flag = 0,
+                    const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::positron);
+  }
+
+  template <typename FCriteria, typename FDist, typename FNumPerCell,
+            typename FWeight, typename FValidate = always_valid_pos>
+  void inject_e_i_plasma(const FCriteria& f_criteria, const FNumPerCell& f_num,
+                         const FDist& f_dist, const FWeight& f_weight,
+                         uint32_t flag = 0,
+                         const FValidate& f_validate = FValidate{}) {
+    inject_plasma(f_criteria, f_num, f_dist, f_weight, flag, f_validate, PtcType::ion);
   }
 
  private:

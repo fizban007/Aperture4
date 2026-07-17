@@ -84,6 +84,8 @@ void prismatic_sph_output::precompute_grid() {
       pt.sx = sx;
       pt.sy = sy;
       pt.sz = sz;
+      pt.cos_phi = std::cos(phi);
+      pt.sin_phi = std::sin(phi);
     }
   }
 
@@ -214,18 +216,16 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
                                iBx, iBy, iBz);
       }
 
-      // Cartesian unit-vector frame at the grid point.
+      // Cartesian unit-vector frame at the grid point.  The meridian
+      // frame (cos φ, sin φ) comes from the precomputed grid column —
+      // NOT from sx/sy, which vanish at the poles — so the pole rows
+      // project onto each column's own θ̂/φ̂ and hold the correct
+      // directional limits along that meridian.
       Scalar sx = pt.sx, sy = pt.sy, sz = pt.sz;
       Scalar cos_th = sz;
       Scalar sin_th = std::sqrt(sx * sx + sy * sy);
-      Scalar cos_phi, sin_phi;
-      if (sin_th > Scalar(1e-10)) {
-        cos_phi = sx / sin_th;
-        sin_phi = sy / sin_th;
-      } else {
-        cos_phi = Scalar(1);
-        sin_phi = Scalar(0);
-      }
+      Scalar cos_phi = pt.cos_phi;
+      Scalar sin_phi = pt.sin_phi;
 
       // Cartesian r̂ / θ̂ / φ̂ projections (flat-orthonormal components).
       Scalar B_or = iBx * sx + iBy * sy + iBz * sz;
@@ -237,20 +237,26 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
                     iEz * sin_th;
       Scalar E_op = -iEx * sin_phi + iEy * cos_phi;
 
-      // √γ at (r_k, θ) for the background metric.
-      Scalar sqrt_gamma;
+      // √γ at (r_k, θ) carries an exact factor of sinθ in both
+      // supported metrics (flat: r² sinθ; KS: sinθ √(Σ(Σ+2r))), and
+      // the numerators of B^r and B^θ below carry the same factor.
+      // Cancel it ANALYTICALLY: dividing the numerical products
+      // instead writes 0·(1/clamp) = 0 into the B^r/B^θ pole rows and
+      // B_op·r·(1/clamp) ~ 1e17 garbage into B^φ (the θ = 0, π rows
+      // are on the grid: θ = π·it/(N_θ−1)).  sg_s = √γ/sinθ ≥ r_min²
+      // is strictly positive, so no clamp is needed.
+      Scalar sg_s;
       if (m_use_flat_metric) {
-        sqrt_gamma = r_sq * sin_th;
+        sg_s = r_sq;
       } else {
         Scalar Sigma = r_sq + m_spin * m_spin * cos_th * cos_th;
-        sqrt_gamma = sin_th * std::sqrt(Sigma * (Sigma + Scalar(2) * r));
+        sg_s = std::sqrt(Sigma * (Sigma + Scalar(2) * r));
       }
-      Scalar sg_safe = (sqrt_gamma > Scalar(1e-20)) ? sqrt_gamma
-                                                    : Scalar(1e-20);
-      Scalar inv_sg = Scalar(1) / sg_safe;
+      Scalar inv_sg_s = Scalar(1) / sg_s;
 
       // D_i (coord-basis covariant) — metric-independent:
       //   D_r = E_or,  D_θ = E_ot · r,  D_φ = E_op · r sinθ.
+      // E_φ = 0 at the poles is the correct limit (|∂_φ| → 0).
       m_Er[idx]  = E_or;
       m_Eth[idx] = E_ot * r;
       m_Eph[idx] = E_op * r * sin_th;
@@ -258,13 +264,20 @@ void prismatic_sph_output::write_snapshot(uint32_t step, double time) {
       // B^i (coord-basis contravariant):
       //   B^i = V^i_flat_sph · √γ_flat / √γ
       //       = (B_ortho_i / flat_scale_i) · (r² sinθ) / √γ
-      // which simplifies to:
-      //   B^r = B_or · r² sinθ / √γ
-      //   B^θ = B_ot · r  sinθ / √γ
-      //   B^φ = B_op · r       / √γ.
-      m_Br[idx]  = B_or * r_sq * sin_th * inv_sg;
-      m_Bth[idx] = B_ot * r    * sin_th * inv_sg;
-      m_Bph[idx] = B_op * r             * inv_sg;
+      // which simplifies (with sg_s = √γ/sinθ) to:
+      //   B^r = B_or · r² / sg_s        (flat: exactly B_or)
+      //   B^θ = B_ot · r  / sg_s        (flat: B_ot / r)
+      //   B^φ = B_op · r  / (sg_s sinθ).
+      // B^r and B^θ are finite at the poles; B^φ has a GENUINE
+      // coordinate singularity there (finite physical B_φ̂ forces
+      // B^φ = B_φ̂/(r sinθ) → ∞), so the exact pole nodes get 0 as a
+      // sentinel — consumers reconstructing orthonormal components
+      // multiply by r sinθ = 0 there regardless.
+      m_Br[idx]  = B_or * r_sq * inv_sg_s;
+      m_Bth[idx] = B_ot * r    * inv_sg_s;
+      m_Bph[idx] = (sin_th > Scalar(0))
+                       ? B_op * r * inv_sg_s / sin_th
+                       : Scalar(0);
 
       // J: same Whitney 1-form interpolation as E.
       if (m_J != nullptr) {

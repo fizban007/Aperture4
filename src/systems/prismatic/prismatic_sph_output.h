@@ -68,6 +68,11 @@ class prismatic_sph_output : public system_t {
     int tri_idx;
     Scalar l[3];
     Scalar sx, sy, sz;
+    // Meridian frame of this grid column, stored from the φ loop
+    // variable: at the poles sx = sy = 0 and the frame cannot be
+    // recovered from the Cartesian direction, but every column still
+    // has a well-defined θ̂/φ̂ along its own meridian.
+    Scalar cos_phi, sin_phi;
   };
   std::vector<angular_point> m_grid;
 

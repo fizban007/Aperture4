@@ -512,9 +512,89 @@ def recovery_gather(mesh, Bv, pts, hints=None):
     return B
 
 
+def circulation_cochain(mesh, E_func, n=8):
+    """Edge 1-cochain of an analytic field: E_e[e] = ∫_e E·dl.
+
+    Horizontal edges are great-circle arcs at shell radius (parametrized
+    by normalized linear interpolation, matching the mesh convention);
+    vertical edges are radial segments."""
+    E_e = np.zeros(mesh.N_edges)
+    x, w = _gauss_legendre_01(n)
+
+    # horizontal edges, all shells
+    s0 = mesh.sphere_edges[:, 0]
+    s1 = mesh.sphere_edges[:, 1]
+    u0 = mesh.sphere_v[s0]
+    u1 = mesh.sphere_v[s1]
+    P = u0[:, None, :] * (1 - x)[None, :, None] + u1[:, None, :] * x[None, :, None]
+    Pn = np.linalg.norm(P, axis=2, keepdims=True)
+    Nh = P / Pn
+    dPu = (u1 - u0)[:, None, :]
+    dNu = (dPu - Nh * np.sum(Nh * dPu, axis=2, keepdims=True)) / Pn
+    for k in range(mesh.N_r + 1):
+        r = mesh.radii[k]
+        X = r * Nh
+        dl = r * dNu
+        Eq = E_func(X.reshape(-1, 3)).reshape(X.shape)
+        E_e[k * mesh.N_edge_s : (k + 1) * mesh.N_edge_s] = np.einsum(
+            "eqx,eqx,q->e", Eq, dl, w)
+
+    # vertical edges
+    off = (mesh.N_r + 1) * mesh.N_edge_s
+    for k in range(mesh.N_r):
+        ra, rb = mesh.radii[k], mesh.radii[k + 1]
+        rq = ra + (rb - ra) * x                     # (nq,)
+        X = rq[None, :, None] * mesh.sphere_v[:, None, :]   # (N_vert_s, nq, 3)
+        Eq = E_func(X.reshape(-1, 3)).reshape(X.shape)
+        # dl = (rb-ra) * u_hat dt
+        circ = (rb - ra) * np.einsum("sqx,sx,q->s", Eq, mesh.sphere_v, w)
+        E_e[off + k * mesh.N_vert_s : off + (k + 1) * mesh.N_vert_s] = circ
+    return E_e
+
+
 # =========================================================================
 # Analytic fields for validation
 # =========================================================================
+
+
+def deutsch_fields(t, Bp=1.0, Omega=0.2, alpha=np.deg2rad(60.0)):
+    """Retarded rotating-point-dipole ("Deutsch") B and E at time t, in
+    the code's conventions (dec_field_solver_impl.hpp deutsch_*_impl).
+    Returns (B_func, E_func) taking (N,3) points."""
+    m_perp = Bp * np.sin(alpha)
+    m_par = Bp * np.cos(alpha)
+
+    def moments(tr):
+        c, s = np.cos(Omega * tr), np.sin(Omega * tr)
+        m = np.stack([m_perp * c, m_perp * s, np.full_like(c, m_par)], axis=-1)
+        dm = np.stack([-m_perp * Omega * s, m_perp * Omega * c,
+                       np.zeros_like(c)], axis=-1)
+        ddm = np.stack([-m_perp * Omega**2 * c, -m_perp * Omega**2 * s,
+                        np.zeros_like(c)], axis=-1)
+        return m, dm, ddm
+
+    def B_func(X):
+        X = np.asarray(X, dtype=np.float64)
+        r = np.linalg.norm(X, axis=1)
+        n = X / r[:, None]
+        m, dm, ddm = moments(t - r)
+        ndm = np.sum(n * m, axis=1, keepdims=True)
+        nddm = np.sum(n * dm, axis=1, keepdims=True)
+        nd2m = np.sum(n * ddm, axis=1, keepdims=True)
+        Bn = (3 * ndm * n - m) / r[:, None] ** 3
+        Bi = (3 * nddm * n - dm) / r[:, None] ** 2
+        Br = (nd2m * n - ddm) / r[:, None]
+        return Bn + Bi + Br
+
+    def E_func(X):
+        X = np.asarray(X, dtype=np.float64)
+        r = np.linalg.norm(X, axis=1)
+        n = X / r[:, None]
+        _, dm, ddm = moments(t - r)
+        return (np.cross(n, dm) / r[:, None] ** 2
+                + np.cross(n, ddm) / r[:, None])
+
+    return B_func, E_func
 
 def dipole_B(X, m=np.array([0.0, 0.0, 1.0])):
     """Point dipole: B = (3 (m·r̂) r̂ − m)/r³ (Bp=1 convention of the code)."""

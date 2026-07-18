@@ -1,5 +1,19 @@
 # Phase 4.1b Plan — Solver Buffer Conversion
 
+> **STATUS (2026-07-18): COMPLETE.**  Landed as commits `da7c6a97f` →
+> `f7249bb9e`.  The flat `dec_field_solver` runs entirely on per-rank
+> local buffers through `dec_solver_dist` (framework-free operator core)
+> with `prismatic_halo_exchanger` executing the sync points over the two
+> sub-communicators; fields register LOCAL-sized when a
+> `prismatic_mpi_comm` is passed to the solver's constructor.
+> Acceptance exceeded: mpirun -n 20/40 production Deutsch runs are
+> BIT-EXACT against single-process (plan asked < 1e-4).  Per-rank dumps
+> via `rank_dump_interval` + `stitch_rank_dumps.py`.  Deviations from
+> the plan text below: no 4-pass split / shift terms (flat solver),
+> E_aux/H_aux fold into the Faraday/Ampere kernels directly; the
+> resonator IC stays global-indexed (single-rank benchmark); parallel
+> HDF5 remains Phase 5; particles remain Phase 6 (guarded).
+
 > **STATUS (2026-07): RETARGETED.**  GR work is shelved
 > (`ROADMAP_NS_MAGNETOSPHERE.md`); this conversion now applies to the flat
 > `dec_field_solver`, not `dec_field_solver_gr_ks`.  The buffer splits,

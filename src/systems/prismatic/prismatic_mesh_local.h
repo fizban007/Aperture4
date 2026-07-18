@@ -83,6 +83,18 @@ class prismatic_mesh_local {
   buffer<Scalar> vert_theta;
   buffer<Scalar> vert_phi;
 
+  // ---- Local -> global index maps (4.1b) ----
+  // l2g[l] gives the GLOBAL index (within the cochain's own global
+  // range: tri faces / rect faces / h edges / v edges each start at 0)
+  // of local element l.  Rarely-executed kernels (ICs, inner-boundary
+  // quadratures) use these to reach the replicated global mesh
+  // geometry (face vertex tables, sphere coords) that the local ptrs
+  // bundle deliberately does not duplicate.
+  buffer<int> tri_face_l2g;
+  buffer<int> rect_face_l2g;
+  buffer<int> h_edge_l2g;
+  buffer<int> v_edge_l2g;
+
  private:
   const prismatic_mesh_partition* m_partition = nullptr;
 };

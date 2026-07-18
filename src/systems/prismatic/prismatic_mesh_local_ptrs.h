@@ -67,6 +67,16 @@ struct prismatic_mesh_local_ptrs {
   const Scalar* vert_theta = nullptr;
   const Scalar* vert_phi = nullptr;
 
+  // ---- Local -> global index maps ----
+  // Global index within the cochain's OWN global range (tri faces,
+  // rect faces, h edges, v edges each start at 0).  Used by the
+  // rarely-executed geometry kernels (ICs, inner-BC quadratures) to
+  // reach the replicated global mesh via prismatic_mesh_ptrs.
+  const int* tri_face_l2g = nullptr;
+  const int* rect_face_l2g = nullptr;
+  const int* h_edge_l2g = nullptr;
+  const int* v_edge_l2g = nullptr;
+
   // ---- d1 / d1^T sparse blocks ----
   const int* d1_tri_h_row = nullptr;
   const int* d1_tri_h_col = nullptr;

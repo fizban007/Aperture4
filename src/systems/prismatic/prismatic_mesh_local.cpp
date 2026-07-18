@@ -77,6 +77,19 @@ prismatic_mesh_local prismatic_mesh_local::build(
   copy_with_offset(mesh.vert_theta.host_ptr(), L_vert, out.vert_theta, mem_type);
   copy_with_offset(mesh.vert_phi.host_ptr(),   L_vert, out.vert_phi, mem_type);
 
+  // ---- Local -> global maps ----
+  auto fill_l2g = [mem_type](const distributed_cochain_layout& layout,
+                             buffer<int>& dst) {
+    const int n = layout.local_size();
+    dst.set_memtype(mem_type);
+    dst.resize(n);
+    for (int l = 0; l < n; ++l) dst[l] = layout.to_global(l);
+  };
+  fill_l2g(L_tri,  out.tri_face_l2g);
+  fill_l2g(L_rect, out.rect_face_l2g);
+  fill_l2g(L_he,   out.h_edge_l2g);
+  fill_l2g(L_ve,   out.v_edge_l2g);
+
   return out;
 }
 
@@ -96,6 +109,8 @@ void prismatic_mesh_local::copy_to_device() {
   copy(v_edge_v0); copy(v_edge_v1);
   copy(v_edge_boundary); copy(v_edge_radial_layer);
   copy(vert_r); copy(vert_theta); copy(vert_phi);
+  copy(tri_face_l2g); copy(rect_face_l2g);
+  copy(h_edge_l2g); copy(v_edge_l2g);
 #endif
 }
 

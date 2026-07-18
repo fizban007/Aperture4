@@ -54,6 +54,11 @@ prismatic_mesh_local_ptrs assemble(const prismatic_mesh_local& ml,
   p.vert_theta = s(ml.vert_theta);
   p.vert_phi = s(ml.vert_phi);
 
+  p.tri_face_l2g = i(ml.tri_face_l2g);
+  p.rect_face_l2g = i(ml.rect_face_l2g);
+  p.h_edge_l2g = i(ml.h_edge_l2g);
+  p.v_edge_l2g = i(ml.v_edge_l2g);
+
   p.d1_tri_h_row = i(d1.d1_tri_h.row_ptr);
   p.d1_tri_h_col = i(d1.d1_tri_h.col_idx);
   p.d1_tri_h_val = s(d1.d1_tri_h.val);

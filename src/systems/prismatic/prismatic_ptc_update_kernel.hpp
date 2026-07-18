@@ -197,12 +197,21 @@ HD_INLINE GCAPushResult gca_push(
 
   // v_E = w_E/(2w_E²) * (1 - sqrt(1 - 4w_E²))
   // For w_E² << 1 (usual case), v_E ≈ w_E
+  // Floors on the discriminant and on 1 - v_E²: 4w² -> 1 as E -> B and
+  // in float 1 - 4w² rounds NEGATIVE once E/B is within ~1e-4 of 1 —
+  // sqrt(NaN) here is exactly how t11 died when the current sheet
+  // formed.  The dispatch margin (E < 0.9 B) keeps particles out of
+  // this regime, but the fixed-point iteration below re-evaluates
+  // fields at PREDICTED positions which can still land in E ~ B
+  // territory, so both sites are floored.
   Scalar w2 = wEx*wEx + wEy*wEy + wEz*wEz;
   Scalar vE_factor;
   if (Scalar(4)*w2 < Scalar(0.01)) {
     vE_factor = Scalar(1) + w2;  // Taylor expansion
   } else {
-    vE_factor = (Scalar(1) - std::sqrt(Scalar(1) - Scalar(4)*w2)) / (Scalar(2)*w2);
+    Scalar disc = Scalar(1) - Scalar(4)*w2;
+    if (disc < Scalar(1e-6)) disc = Scalar(1e-6);
+    vE_factor = (Scalar(1) - std::sqrt(disc)) / (Scalar(2)*w2);
   }
   Scalar vEx = wEx * vE_factor;
   Scalar vEy = wEy * vE_factor;
@@ -210,6 +219,7 @@ HD_INLINE GCAPushResult gca_push(
 
   // Lorentz factor kappa for drift frame
   Scalar vE2 = vEx*vEx + vEy*vEy + vEz*vEz;
+  if (vE2 > Scalar(1) - Scalar(1e-6)) vE2 = Scalar(1) - Scalar(1e-6);
   Scalar kappa = Scalar(1) / std::sqrt(Scalar(1) - vE2);
 
   // Lorentz factor: Gamma = kappa * sqrt(1 + (u_par² + 2*mu*B*kappa)/m)
@@ -272,12 +282,16 @@ HD_INLINE GCAPushResult gca_push(
     Scalar nwEy = (nEz*nBx - nEx*nBz) / nd;
     Scalar nwEz = (nEx*nBy - nEy*nBx) / nd;
     Scalar nw2 = nwEx*nwEx + nwEy*nwEy + nwEz*nwEz;
+    Scalar ndisc = Scalar(1) - Scalar(4)*nw2;
+    if (ndisc < Scalar(1e-6)) ndisc = Scalar(1e-6);
     Scalar nfac = (Scalar(4)*nw2 < Scalar(0.01))
         ? Scalar(1) + nw2
-        : (Scalar(1) - std::sqrt(Scalar(1) - Scalar(4)*nw2)) / (Scalar(2)*nw2);
+        : (Scalar(1) - std::sqrt(ndisc)) / (Scalar(2)*nw2);
     Scalar nvEx = nwEx*nfac, nvEy = nwEy*nfac, nvEz = nwEz*nfac;
 
-    Scalar nkappa = Scalar(1) / std::sqrt(Scalar(1) - nvEx*nvEx - nvEy*nvEy - nvEz*nvEz);
+    Scalar nvE2 = nvEx*nvEx + nvEy*nvEy + nvEz*nvEz;
+    if (nvE2 > Scalar(1) - Scalar(1e-6)) nvE2 = Scalar(1) - Scalar(1e-6);
+    Scalar nkappa = Scalar(1) / std::sqrt(Scalar(1) - nvE2);
     Scalar nGamma = nkappa * std::sqrt(Scalar(1) + u_par_new*u_par_new +
                                        Scalar(2)*mu*nB*nkappa/m);
 
@@ -359,7 +373,12 @@ HOST_DEVICE inline void update_single_particle(
     Scalar Bmag = math::sqrt(B2l);
     Scalar gam_prev = ptrs.E[n] > Scalar(1) ? ptrs.E[n] : Scalar(1);
     Scalar wc = math::abs(q / m) * Bmag * dt / gam_prev;
-    do_gca = (wc > gca_switch_wc) && (B2l > E2l) &&
+    // Margin below E = B: the GCA drift frame degenerates (kappa ->
+    // inf; 1 - 4w² rounds float-negative -> NaN) as E -> B.  t11
+    // (threshold 0.05) crashed exactly this way when the current sheet
+    // formed.  Requiring E < 0.9 B hands near-degenerate particles to
+    // Boris, which is the physically correct pusher there anyway.
+    do_gca = (wc > gca_switch_wc) && (B2l * Scalar(0.81) > E2l) &&
              (Bmag > Scalar(1e-15));
     bool was_gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
     if (was_gca && !do_gca) {

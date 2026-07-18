@@ -27,12 +27,27 @@ enum class PrismaticFieldType { vertex, edge, face };
 // Hodge conversion.
 enum class EdgeCochainKind { primal_1, dual_2 };
 
+// Storage layout (4.1b): ONE contiguous buffer per field with the
+// primary sub-type first — h_edges then v_edges for edge fields,
+// tri_faces then rect_faces for face fields.  This is exactly the
+// global mesh ordering, so single-rank consumers that index the
+// combined range (particle kernels, sph output, exporter) are
+// untouched, while solver kernels can use the split views below.
+// Under a multirank partition (local-sized construction, 4.1b.6) the
+// same two-block layout holds with local sizes; the combined-range
+// consumers then MUST NOT be used (single-rank assert lives in the
+// particle updater).
 template <PrismaticFieldType Type>
 class prismatic_field : public data_t {
  public:
   prismatic_field(const prismatic_mesh& mesh,
                   MemType mem = default_mem_type)
       : m_data(field_size(mesh), mem) {
+    if constexpr (Type == PrismaticFieldType::edge) {
+      m_split = (mesh.m_N_r + 1) * mesh.m_N_edge_s;   // N_h_edges
+    } else if constexpr (Type == PrismaticFieldType::face) {
+      m_split = (mesh.m_N_r + 1) * mesh.m_N_tri;      // N_tri_faces
+    }
     // Zero on construction so fields start clean
     m_data.assign(Scalar(0));
   }
@@ -47,6 +62,17 @@ class prismatic_field : public data_t {
   Scalar* host_ptr() { return m_data.host_ptr(); }
   const Scalar* host_ptr() const { return m_data.host_ptr(); }
 
+  // Split views (4.1b): first block (h_edges / tri_faces) and second
+  // block (v_edges / rect_faces).  Offsets are in elements; valid on
+  // host and device pointers alike.
+  int split() const { return m_split; }
+  Scalar* host_ptr_a() { return m_data.host_ptr(); }
+  Scalar* host_ptr_b() { return m_data.host_ptr() + m_split; }
+  Scalar* dev_ptr_a() { return m_data.dev_ptr(); }
+  Scalar* dev_ptr_b() {
+    return m_data.dev_ptr() ? m_data.dev_ptr() + m_split : nullptr;
+  }
+
   // For edge fields only: owning system declares the cochain convention.
   EdgeCochainKind edge_kind() const { return m_edge_kind; }
   void set_edge_kind(EdgeCochainKind k) { m_edge_kind = k; }
@@ -59,6 +85,7 @@ class prismatic_field : public data_t {
   }
 
   buffer<Scalar> m_data;
+  int m_split = 0;   // element offset of the second block (v / rect)
   EdgeCochainKind m_edge_kind = EdgeCochainKind::primal_1;
 };
 

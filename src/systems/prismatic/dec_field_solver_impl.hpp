@@ -143,9 +143,8 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::refresh_total_fields() {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   ExecPolicy::launch(
-      [Ne = mp.N_edges, Nf = mp.N_faces]
+      [Ne = m_dist.n_edges_local(), Nf = m_dist.n_faces_local()]
       LAMBDA(auto E, auto E0, auto Et, auto B, auto B0, auto Bt) {
         ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { Et[e] = E0[e] + E[e]; });
         ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { Bt[f] = B0[f] + B[f]; });
@@ -248,7 +247,6 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   Scalar alpha = Scalar(1) - m_beta;
   Scalar beta = m_beta;
 
@@ -289,9 +287,10 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
     ExecPolicy::sync();
   }
 
-  // Step 4: Copy result back — F^{n+1} = F*
+  // Step 4: Copy result back — F^{n+1} = F* (all local slots; ghosts
+  // are refreshed at the next sync point before any read)
   ExecPolicy::launch(
-      [Ne = mp.N_edges, Nf = mp.N_faces]
+      [Ne = m_dist.n_edges_local(), Nf = m_dist.n_faces_local()]
       LAMBDA(auto E, auto tmpE, auto B, auto tmpB) {
         ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { E[e] = tmpE[e]; });
         ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B[f] = tmpB[f]; });
@@ -356,67 +355,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::fill_dipole_B(
     buffer<Scalar>& B, Scalar mx_v, Scalar my_v, Scalar mz_v) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
-
-  // ---- B (face fluxes) via Gauss quadrature on device ----
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, mx_v, my_v, mz_v, mp]
-      LAMBDA(auto B_f) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          if (f < n_tri_faces) {
-            // Spherical triangular face on shell radius r_face.
-            int vi0 = mp.tri_face_v0[f];
-            int vi1 = mp.tri_face_v1[f];
-            int vi2 = mp.tri_face_v2[f];
-            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
-            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
-            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
-            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
-            (void)r1_; (void)r2_;
-
-            double flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double t) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
-                                  a2x, a2y, a2z,
-                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
-                                  x, y, z, nx, ny, nz);
-                Scalar bx, by, bz;
-                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
-                return bx*nx + by*ny + bz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
-          } else {
-            // Ruled rectangular face P(u,v) = r(v) · slerp(û_a, û_b, u).
-            int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi];
-            int vi1 = mp.rect_face_v1[fi];
-            int vi3 = mp.rect_face_v3[fi];
-            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
-            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
-            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
-            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
-            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
-
-            double flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double v) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
-                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
-                                   x, y, z, nx, ny, nz);
-                Scalar bx, by, bz;
-                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
-                return bx*nx + by*ny + bz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
-          }
-        });
-      },
-      B);
-  ExecPolicy::sync();
+  m_dist.fill_dipole_B(B, mx_v, my_v, mz_v);
 }
 
 template <typename ExecPolicy>
@@ -424,16 +363,10 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
   fill_dipole_B(m_B->data(), m_Bp * std::sin(m_obliquity), Scalar(0),
                 m_Bp * std::cos(m_obliquity));
 
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   // Delta formulation: subtract the static background cochains (zero when
   // use_static_background is off).  E starts at zero.
-  ExecPolicy::launch(
-      [Ne = mp.N_edges, Nf = mp.N_faces]
-      LAMBDA(auto E_e, auto B_f, auto B0_f) {
-        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { E_e[e] = Scalar(0); });
-        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B_f[f] -= B0_f[f]; });
-      },
-      m_E->data(), m_B->data(), m_B0->data());
+  m_E->data().assign(Scalar(0));
+  m_dist.subtract_face(m_B->data(), m_B0->data());
 
   ExecPolicy::sync();
   refresh_total_fields();
@@ -468,106 +401,12 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
   Scalar t_init_B = Scalar(
       m_use_implicit ? t_base : t_base - 0.5 * dt_param);
 
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
-
-  // ---- B (face fluxes) on device ----
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, Bp_v, Omega_v, obl_v,
-       t_init = t_init_B, mp]
-      LAMBDA(auto B_f) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          if (f < n_tri_faces) {
-            int vi0 = mp.tri_face_v0[f];
-            int vi1 = mp.tri_face_v1[f];
-            int vi2 = mp.tri_face_v2[f];
-            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
-            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
-            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
-            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
-            (void)r1_; (void)r2_;
-
-            double flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double t) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
-                                  a2x, a2y, a2z,
-                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
-                                  x, y, z, nx, ny, nz);
-                Scalar bx, by, bz;
-                deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
-                return bx*nx + by*ny + bz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
-          } else {
-            int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi];
-            int vi1 = mp.rect_face_v1[fi];
-            int vi3 = mp.rect_face_v3[fi];
-            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
-            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
-            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
-            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
-            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
-
-            double flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double v) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
-                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
-                                   x, y, z, nx, ny, nz);
-                Scalar bx, by, bz;
-                deutsch_B_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, bx, by, bz);
-                return bx*nx + by*ny + bz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux);
-          }
-        });
-      },
-      m_B->data());
-
-  // ---- E (edge circulations) on device ----
-  ExecPolicy::launch(
-      [N_edges = mp.N_edges, Bp_v, Omega_v, obl_v, t_init, mp]
-      LAMBDA(auto E_e) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
-          vertex_unit(mp, v0, r0, a0x, a0y, a0z);
-          vertex_unit(mp, v1, r1, a1x, a1y, a1z);
-          bool is_radial = (r0 != r1);
-
-          double circ = gauss_quad([&](double t) -> double {
-            Scalar x, y, z, dlx, dly, dlz;
-            if (is_radial) {
-              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
-                          static_cast<Scalar>(t) * r1;
-              Scalar dr = r1 - r0;
-              x = rt * a0x; y = rt * a0y; z = rt * a0z;
-              dlx = dr * a0x; dly = dr * a0y; dlz = dr * a0z;
-            } else {
-              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
-                                   static_cast<Scalar>(t),
-                                   x, y, z, dlx, dly, dlz);
-            }
-            Scalar ex, ey, ez;
-            deutsch_E_impl(x, y, z, t_init, Bp_v, Omega_v, obl_v, ex, ey, ez);
-            return ex*dlx + ey*dly + ez*dlz;
-          }, 0.0, 1.0);
-          E_e[e] = static_cast<Scalar>(circ);
-        });
-      },
-      m_E->data());
+  m_dist.set_initial_deutsch(m_E->data(), m_B->data(), Bp_v, Omega_v, obl_v,
+                             t_init, t_init_B);
 
   // Delta formulation: subtract the static background B cochains (zero
   // when use_static_background is off; E0 is identically zero).
-  ExecPolicy::launch(
-      [Nf = mp.N_faces] LAMBDA(auto B_f, auto B0_f) {
-        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { B_f[f] -= B0_f[f]; });
-      },
-      m_B->data(), m_B0->data());
+  m_dist.subtract_face(m_B->data(), m_B0->data());
 
   ExecPolicy::sync();
   refresh_total_fields();
@@ -590,6 +429,9 @@ void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
 //   false → E(t=0) = 0,      B(t=0) = B_pat  (B max, E zero) — default
 // =========================================================================
 
+// NOTE: still GLOBAL-indexed (single-rank only) — a benchmark-mode IC.
+// Convert like set_initial_deutsch (owned-local loops via l2g) if PEC
+// cavity runs are ever needed under a real partition.
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
     int l, int m, int n_root, char polarization, bool start_with_e) {

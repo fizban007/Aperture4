@@ -97,6 +97,30 @@ void run_explicit(core_t& core, prismatic_halo_exchanger& ex, fields& f,
   }
 }
 
+// Scenario 3: full Deutsch retarded IC computed per-rank on owned cells
+// through the l2g quadrature path, then explicit evolution with the
+// Deutsch analytic inner BC (leapfrog staggering: B seeded at -dt/2).
+void run_deutsch(core_t& core, prismatic_halo_exchanger& ex, fields& f,
+                 int n_steps) {
+  dec_inner_bc_params par;
+  par.Bp = 1.0;
+  par.Omega = 0.2;
+  par.obliquity = 1.0471975511965976;
+  par.use_deutsch = true;
+  core.set_initial_deutsch(f.E, f.B, par.Bp, par.Omega, par.obliquity,
+                           Scalar(0), Scalar(-0.5 * TDT));
+  double time = 0.0;
+  for (int s = 0; s < n_steps; s++) {
+    ex.exchange_edge(f.E, core.e_split());
+    core.faraday(f.E, f.B, TDT);
+    ex.exchange_face(f.B, core.b_split());
+    core.ampere(f.E, f.B, f.J, TDT);
+    core.apply_damping(f.E, f.B, TDT, 3, Scalar(0.5), Scalar(3.0));
+    core.apply_inner_bc(f.E, f.B, f.B0, par, time + TDT, time + 0.5 * TDT);
+    time += TDT;
+  }
+}
+
 // Scenario 2: semi-implicit + damping + PEC, ghost refresh inside every
 // Picard iteration.
 void run_semi(core_t& core, prismatic_halo_exchanger& ex, fields& f,
@@ -208,7 +232,8 @@ int main(int argc, char** argv) {
     int n_steps;
   };
   for (auto sc : {scenario{"explicit + inner dipole BC", run_explicit, 10},
-                  scenario{"semi-implicit + PEC", run_semi, 6}}) {
+                  scenario{"semi-implicit + PEC", run_semi, 6},
+                  scenario{"Deutsch IC + Deutsch BC", run_deutsch, 8}}) {
     fields ref_f, dist_f;
     ref_f.alloc(ref_core);
     dist_f.alloc(core);

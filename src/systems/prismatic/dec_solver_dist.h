@@ -500,6 +500,186 @@ class dec_solver_dist {
   }
 
   // -----------------------------------------------------------------------
+  // Initial conditions (owned cells only; ghosts get their values from
+  // the first sync-point exchange, or are simply consistent because
+  // every rank evaluates the same analytic fields).
+  // -----------------------------------------------------------------------
+
+  // Exact point-dipole face fluxes of moment (mx, my, mz) via Gauss
+  // quadrature (ICs and the static background).
+  void fill_dipole_B(buffer<Scalar>& B, Scalar mx_v, Scalar my_v,
+                     Scalar mz_v) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    auto mp = m_mesh->get_ptrs(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, mp, mx_v, my_v, mz_v, bs = m_b_split] LAMBDA(auto B_f) {
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
+            int g = lp.tri_face_l2g[l];
+            int vi0 = mp.tri_face_v0[g];
+            int vi1 = mp.tri_face_v1[g];
+            int vi2 = mp.tri_face_v2[g];
+            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
+            (void)r1_; (void)r2_;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z,
+                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
+                                  x, y, z, nx, ny, nz);
+                Scalar bx, by, bz;
+                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[l] = static_cast<Scalar>(flux);
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int l) {
+            int g = lp.rect_face_l2g[l];
+            int vi0 = mp.rect_face_v0[g];
+            int vi1 = mp.rect_face_v1[g];
+            int vi3 = mp.rect_face_v3[g];
+            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
+            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
+                                   x, y, z, nx, ny, nz);
+                Scalar bx, by, bz;
+                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[bs + l] = static_cast<Scalar>(flux);
+          });
+        },
+        B);
+    ExecPolicy::sync();
+  }
+
+  // Full Deutsch retarded IC: B face fluxes at time t_B, E edge
+  // circulations at time t_E (leapfrog staggering handled by the
+  // caller; see dec_field_solver::set_initial_deutsch).
+  void set_initial_deutsch(buffer<Scalar>& E, buffer<Scalar>& B,
+                           Scalar Bp, Scalar Omega, Scalar obliquity,
+                           Scalar t_E, Scalar t_B) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    auto mp = m_mesh->get_ptrs(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, mp, Bp, Omega, obliquity, t_B, bs = m_b_split] LAMBDA(auto B_f) {
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
+            int g = lp.tri_face_l2g[l];
+            int vi0 = mp.tri_face_v0[g];
+            int vi1 = mp.tri_face_v1[g];
+            int vi2 = mp.tri_face_v2[g];
+            Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
+            vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
+            vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
+            vertex_unit(mp, vi2, r2_, a2x, a2y, a2z);
+            (void)r1_; (void)r2_;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double t) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
+                                  a2x, a2y, a2z,
+                                  static_cast<Scalar>(u), static_cast<Scalar>(t),
+                                  x, y, z, nx, ny, nz);
+                Scalar bx, by, bz;
+                deutsch_B_impl(x, y, z, t_B, Bp, Omega, obliquity, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[l] = static_cast<Scalar>(flux);
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int l) {
+            int g = lp.rect_face_l2g[l];
+            int vi0 = mp.rect_face_v0[g];
+            int vi1 = mp.rect_face_v1[g];
+            int vi3 = mp.rect_face_v3[g];
+            Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
+            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+            vertex_unit(mp, vi3, r_hi, ux3, uy3, uz3);
+            (void)r_tmp; (void)ux3; (void)uy3; (void)uz3;
+            double flux = gauss_quad([&](double u) -> double {
+              return gauss_quad([&](double v) -> double {
+                Scalar x, y, z, nx, ny, nz;
+                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                                   static_cast<Scalar>(u), static_cast<Scalar>(v),
+                                   x, y, z, nx, ny, nz);
+                Scalar bx, by, bz;
+                deutsch_B_impl(x, y, z, t_B, Bp, Omega, obliquity, bx, by, bz);
+                return bx*nx + by*ny + bz*nz;
+              }, 0.0, 1.0);
+            }, 0.0, 1.0);
+            B_f[bs + l] = static_cast<Scalar>(flux);
+          });
+        },
+        B);
+    ExecPolicy::launch(
+        [lp, mp, Bp, Omega, obliquity, t_E, es = m_e_split,
+         N_h_edges = (m_mesh->m_N_r + 1) * m_mesh->m_N_edge_s]
+        LAMBDA(auto E_e) {
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int l) {
+            int g = lp.h_edge_l2g[l];
+            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+            vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+            vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+            double circ = gauss_quad([&](double t) -> double {
+              Scalar x, y, z, dlx, dly, dlz;
+              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
+                                   static_cast<Scalar>(t),
+                                   x, y, z, dlx, dly, dlz);
+              Scalar ex, ey, ez;
+              deutsch_E_impl(x, y, z, t_E, Bp, Omega, obliquity, ex, ey, ez);
+              return ex*dlx + ey*dly + ez*dlz;
+            }, 0.0, 1.0);
+            E_e[l] = static_cast<Scalar>(circ);
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int l) {
+            int g = N_h_edges + lp.v_edge_l2g[l];
+            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+            vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+            vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+            (void)a1x; (void)a1y; (void)a1z;
+            double circ = gauss_quad([&](double t) -> double {
+              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
+                          static_cast<Scalar>(t) * r1;
+              Scalar dr = r1 - r0;
+              Scalar x = rt * a0x, y = rt * a0y, z = rt * a0z;
+              Scalar dlx = dr * a0x, dly = dr * a0y, dlz = dr * a0z;
+              Scalar ex, ey, ez;
+              deutsch_E_impl(x, y, z, t_E, Bp, Omega, obliquity, ex, ey, ez);
+              return ex*dlx + ey*dly + ez*dlz;
+            }, 0.0, 1.0);
+            E_e[es + l] = static_cast<Scalar>(circ);
+          });
+        },
+        E);
+    ExecPolicy::sync();
+  }
+
+  // out -= sub, on all local slots of a face buffer (delta formulation:
+  // subtract the static background cochain after an IC fill).
+  void subtract_face(buffer<Scalar>& out, buffer<Scalar>& sub) {
+    ExecPolicy::launch(
+        [n = m_n_faces_local] LAMBDA(auto o, auto s) {
+          ExecPolicy::loop(0, n, [&] LAMBDA(int f) { o[f] -= s[f]; });
+        },
+        out, sub);
+  }
+
+  // -----------------------------------------------------------------------
   // Host-side layout copies between global-indexed cochains (combined
   // [h|v] edge / [tri|rect] face arrays of global size) and this rank's
   // local combined buffers.  Build-time / test utilities.

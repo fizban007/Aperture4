@@ -58,7 +58,15 @@ class prismatic_surface_injector : public system_t {
     sim_env().params().get_value("inj_buffer_frac", m_buffer_frac);
     sim_env().params().get_value("inj_eb_threshold", m_eb_threshold);
     sim_env().params().get_value("inj_r_max", m_inj_r_max);
+    sim_env().params().get_value("inj_weight_r_scale", m_weight_r_scale);
     sim_env().params().get_value("inj_gca", m_inj_gca);
+    if (m_weight_r_scale > Scalar(0)) {
+      Logger::print_info(
+          "Radius-dependent macro weight: w(r) = {} * max(1, (r/{})^2) — "
+          "granularity fraction constant inside r = {}, coarsening as r^2 "
+          "outside (memory-budget enabler for L6)",
+          m_weight, m_weight_r_scale, m_weight_r_scale);
+    }
     if (m_inj_gca) {
       Logger::print_info(
           "GCA-native injection: mu = 0 (synchrotron-locked), "
@@ -123,6 +131,12 @@ class prismatic_surface_injector : public system_t {
   }
 
   void update(double dt, uint32_t step) override {
+    // Periodic occupancy log — the memory-pressure observable for the
+    // radius-dependent-weight studies.
+    if (step % 1000 == 0) {
+      Logger::print_info("ptc number: {} ({}% of buffer)", m_ptc->number(),
+                         Scalar(100) * m_ptc->number() / m_ptc->size());
+    }
     if (m_interval <= 0 || step % m_interval != 0) return;
 
     // Occupancy throttle: stay clear of the buffer end so the updater
@@ -258,8 +272,23 @@ class prismatic_surface_injector : public system_t {
           }
           return rng_maxwell_juttner_3d<Scalar>(state, kT);
         },
-        // weight: uniform
-        [weight] LAMBDA(auto& x_global, PtcType type) { return weight; },
+        // weight: uniform, or radius-dependent when inj_weight_r_scale
+        // r_w > 0: w(r) = w0 * max(1, (r/r_w)^2).  The per-cell GJ
+        // charge is constant on log shells, so a constant w0 costs a
+        // shell-count's worth of macros per decade; coarsening the
+        // macro fraction as r^2 beyond r_w caps the far-zone particle
+        // demand while keeping the tuned granularity where the physics
+        // is (the criteria stack self-limits against the SAME target
+        // density either way — heavier macros just reach it in fewer
+        // particles).
+        [weight, rs = m_weight_r_scale] LAMBDA(auto& x_global,
+                                               PtcType type) {
+          if (rs <= Scalar(0)) return weight;
+          Scalar r2_ratio = (x_global[0] * x_global[0] +
+                             x_global[1] * x_global[1] +
+                             x_global[2] * x_global[2]) / (rs * rs);
+          return r2_ratio > Scalar(1) ? weight * r2_ratio : weight;
+        },
         m_inj_gca ? [] { uint32_t f = 0;
                          set_flag(f, PtcFlagEx::gca_state);
                          return f; }()
@@ -281,6 +310,9 @@ class prismatic_surface_injector : public system_t {
   int m_pairs_per_cell = 1;
   int m_interval = 1;
   Scalar m_weight = Scalar(1);
+  // Radius scale r_w for w(r) = w * max(1, (r/r_w)^2); 0 disables
+  // (uniform legacy weight).
+  Scalar m_weight_r_scale = Scalar(0);
   Scalar m_kT = Scalar(0.1);
   Scalar m_buffer_frac = Scalar(0.9);
   Scalar m_eb_threshold = Scalar(0);

@@ -56,7 +56,7 @@ class dec_solver_dist {
     m_mesh = &mesh;
     m_mp = &mp;
     m_ml = prismatic_mesh_local::build(mesh, mp, ExecPolicy::data_mem_type());
-    m_d1 = prismatic_d1_local::build(mesh, mp);
+    m_d1 = prismatic_d1_local::build(mesh, mp, ExecPolicy::data_mem_type());
 
     m_e_split = mp.layout(cochain_type::h_edge).local_size();
     m_n_edges_local = m_e_split + mp.layout(cochain_type::v_edge).local_size();

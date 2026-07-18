@@ -6,7 +6,8 @@
 namespace Aperture {
 
 prismatic_d1_local prismatic_d1_local::build(
-    const prismatic_mesh& mesh, const prismatic_mesh_partition& mp) {
+    const prismatic_mesh& mesh, const prismatic_mesh_partition& mp,
+    MemType mem_type) {
   prismatic_d1_local out;
 
   struct csr_stage {
@@ -126,7 +127,10 @@ prismatic_d1_local prismatic_d1_local::build(
 
 
   // Move the staged CSR blocks into the buffer-backed storage.
-  auto commit = [](csr_stage& st, auto& blk) {
+  auto commit = [mem_type](csr_stage& st, auto& blk) {
+    blk.row_ptr.set_memtype(mem_type);
+    blk.col_idx.set_memtype(mem_type);
+    blk.val.set_memtype(mem_type);
     blk.row_ptr.resize(st.row_ptr.size());
     for (size_t i = 0; i < st.row_ptr.size(); i++) blk.row_ptr[i] = st.row_ptr[i];
     blk.col_idx.resize(st.col_idx.size());

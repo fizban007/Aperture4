@@ -192,6 +192,20 @@ target_link_libraries(test_prismatic_mpi_backend_multirank
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
   )
 
+# Multi-process test for the distributed DEC solver (4.1b B2).  Run with
+#   mpirun -n 20 ./test_prismatic_solver_multirank     (angular only)
+#   mpirun -n 80 ./test_prismatic_solver_multirank     (combined 20 x 4)
+# Compares the distributed explicit and semi-implicit updates (real MPI
+# halo exchanges at the plan's sync points) against a single-rank
+# reference on every rank's owned cells.
+add_executable(test_prismatic_solver_multirank
+  "test_prismatic_solver_multirank.cpp")
+target_link_libraries(test_prismatic_solver_multirank
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+
 add_executable(test_mpi2d "test_mpi2d_gpu.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
 target_link_libraries(test_mpi2d

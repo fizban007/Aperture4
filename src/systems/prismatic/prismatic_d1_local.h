@@ -53,8 +53,11 @@ class prismatic_d1_local {
   // its partition bundle.  The partition's halo plans must already
   // halo every neighbor referenced by d1 / d1^T on owned cells (this
   // is automatic for the standard angular + radial plan builders).
+  // mem_type host_only (default) keeps host-side consumers GPU-free;
+  // pass host_device (+ copy the blocks to device) for GPU kernels.
   static prismatic_d1_local build(const prismatic_mesh& mesh,
-                                  const prismatic_mesh_partition& mp);
+                                  const prismatic_mesh_partition& mp,
+                                  MemType mem_type = MemType::host_only);
 
   const prismatic_mesh_partition& partition() const { return *m_partition; }
 

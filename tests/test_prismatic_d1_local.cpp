@@ -3,6 +3,8 @@
 #include "systems/prismatic/prismatic_d1_local.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
+#include "systems/prismatic/prismatic_mesh_local.h"
+#include "systems/prismatic/prismatic_mesh_local_ptrs.h"
 #include "systems/prismatic/prismatic_partition.h"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
 #include <map>
@@ -447,5 +449,48 @@ TEST_CASE("d1_local operator: haloed local SpMV equals global on all "
       auto d1 = prismatic_d1_local::build(*mesh, mp);
       check_operator_equivalence(*mesh, mp, d1);
     }
+  }
+}
+
+
+TEST_CASE("mesh_local_ptrs: bundle mirrors local buffers and layouts",
+          "[prismatic][d1_local][local_ptrs]") {
+  const int L = 2;
+  const int N_r = 8;
+  auto mesh = make_mesh(L, N_r);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+  auto part = prismatic_partition::combined(L, N_r, 4, 1, 7);
+  part.set_topology(&topo);
+  auto mp = prismatic_mesh_partition::build(part, topo);
+  auto ml = prismatic_mesh_local::build(*mesh, mp);
+  auto d1 = prismatic_d1_local::build(*mesh, mp);
+
+  auto p = make_local_ptrs_host(ml, d1);
+
+  REQUIRE(p.n_owned_tri == mp.layout(cochain_type::tri_face).owned_size());
+  REQUIRE(p.n_local_tri == mp.layout(cochain_type::tri_face).local_size());
+  REQUIRE(p.n_owned_he == mp.layout(cochain_type::h_edge).owned_size());
+  REQUIRE(p.n_local_ve == mp.layout(cochain_type::v_edge).local_size());
+  REQUIRE(p.n_owned_v == mp.layout(cochain_type::vertex).owned_size());
+
+  // Pointer identity with the owning buffers.
+  REQUIRE(p.tri_face_area == ml.tri_face_area.host_ptr());
+  REQUIRE(p.v_edge_hodge1_inv == ml.v_edge_hodge1_inv.host_ptr());
+  REQUIRE(p.d1t_v_rect_val == d1.d1t_v_rect.val.host_ptr());
+
+  // Spot-check values against the global mesh through the layouts.
+  auto const& L_tri = mp.layout(cochain_type::tri_face);
+  for (int l : {0, p.n_owned_tri / 2, p.n_local_tri - 1}) {
+    REQUIRE_THAT(double(p.tri_face_area[l]),
+                 WithinAbs(double(mesh->face_area[L_tri.to_global(l)]),
+                           1e-12));
+  }
+  const int N_h_edges = (mesh->m_N_r + 1) * mesh->m_N_edge_s;
+  auto const& L_ve = mp.layout(cochain_type::v_edge);
+  for (int l : {0, p.n_local_ve - 1}) {
+    REQUIRE_THAT(
+        double(p.v_edge_hodge1_inv[l]),
+        WithinAbs(double(mesh->hodge1_inv[N_h_edges + L_ve.to_global(l)]),
+                  1e-12));
   }
 }

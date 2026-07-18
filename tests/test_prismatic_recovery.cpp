@@ -6,6 +6,8 @@
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include "systems/prismatic/prismatic_vertex_recovery.h"
+#include "systems/prismatic/prismatic_particles.h"
+#include "systems/prismatic/prismatic_ptc_update_kernel.hpp"
 
 #include "catch2/catch_all.hpp"
 #include <cmath>
@@ -277,4 +279,73 @@ TEST_CASE("Vertex recovery: gather is C0 across faces (primal is not)",
   // primal jumps at this resolution are O(10%); recovery must be at
   // float32-roundoff scale
   REQUIRE(max_jump < 1e-3);
+}
+
+
+TEST_CASE("GCA: ExB drift with recovery gather matches analytic",
+          "[prismatic][recovery][gca]") {
+  // L3: the flattened-prism Whitney E-basis reproduces constants only
+  // to O(h^2) (~8% at L2, ~2% at L3); the drift error tracks that
+  // truncation, not the GCA integrator.
+  prismatic_mesh mesh;
+  mesh.build(3, 12, 1.0, 2.0);
+  prismatic_vertex_recovery rec;
+  rec.build(mesh);
+
+  // Uniform crossed fields: B = 50 z_hat, E = 5 x_hat ->
+  // v_d = E x B / B^2 = -0.1 y_hat, independent of charge.
+  dv3 B0{0, 0, 50.0};
+  auto B_f = flux_cochain(mesh, [&](dv3) { return B0; });
+  compute_Bv(rec, mesh, B_f);
+  dv3 E0{5.0, 0, 0};
+  std::vector<Scalar> E_e(mesh.m_N_edges);
+  auto vpos = [&](int v) {
+    double r = mesh.vert_r[v], th = mesh.vert_theta[v], ph = mesh.vert_phi[v];
+    return dv3{r * std::sin(th) * std::cos(ph),
+               r * std::sin(th) * std::sin(ph), r * std::cos(th)};
+  };
+  for (int e = 0; e < mesh.m_N_edges; e++) {
+    dv3 a = vpos(mesh.edge_v0[e]), b = vpos(mesh.edge_v1[e]);
+    E_e[e] = Scalar(E0.x * (b.x - a.x) + E0.y * (b.y - a.y) +
+                    E0.z * (b.z - a.z));
+  }
+
+  prismatic_particles_t ptc(4, MemType::host_only);
+  ptc.init();
+  auto mp = mesh.host_ptrs();
+  auto p = ptc.get_host_ptrs();
+  located lc = locate(mp, {1.5, 0, 0});
+  p.x1[0] = lc.l[0]; p.x2[0] = lc.l[1]; p.x3[0] = lc.zeta;
+  p.p1[0] = 0; p.p2[0] = 0; p.p3[0] = 0;   // u_par = 0, mu = 0 (cold)
+  p.E[0] = 1; p.weight[0] = 1;
+  p.cell[0] = prism_cell_encode(lc.tri, lc.layer, mesh.m_N_tri);
+  p.flag[0] = gen_ptc_type_flag(PtcType::electron);
+  p.id[0] = 0;
+  ptc.set_num(1);
+
+  auto rp = rec.host_ptrs();
+  const Scalar dt = 0.05;
+  const int nsteps = 60;  // t = 3 -> drift displacement -0.3 y_hat
+  for (int s = 0; s < nsteps; s++) {
+    update_single_particle(mp, mesh.m_N_tri, p, 0, E_e.data(), B_f.data(),
+                           nullptr, nullptr, Scalar(-1), Scalar(1), dt,
+                           true, false, rp.Bv);
+    REQUIRE(p.cell[0] != empty_cell);
+  }
+
+  int tri, layer;
+  prism_cell_decode(p.cell[0], mesh.m_N_tri, tri, layer);
+  Scalar x, y, z;
+  local_to_cartesian_impl(mp, tri, layer, p.x1[0], p.x2[0], p.x3[0], x, y, z);
+
+  // Drift accuracy: interpolation is exact for constants, so the error
+  // budget is the fixed-point iteration + float round-off.
+  REQUIRE(std::abs(x - 1.5) < 0.02);
+  REQUIRE(std::abs(y + 0.3) < 0.02);
+  REQUIRE(std::abs(z) < 0.01);
+  // GCA invariants: mu conserved exactly, no parallel acceleration
+  // (E.B = 0), Gamma ~ drift kappa.
+  REQUIRE(p.p2[0] == Scalar(0));
+  REQUIRE(std::abs(p.p1[0]) < 1e-5);
+  REQUIRE(std::abs(p.E[0] - 1.0 / std::sqrt(1.0 - 0.01)) < 5e-4);
 }

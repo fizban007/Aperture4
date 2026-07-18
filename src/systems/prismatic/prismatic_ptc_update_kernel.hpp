@@ -118,7 +118,8 @@ HD_INLINE GCAPushResult gca_push(
     const prismatic_mesh_ptrs& mp,
     const Scalar* E_e, const Scalar* B_f,
     int tri_hint,
-    bool include_curvature) {
+    bool include_curvature,
+    const Scalar* Bv_rec = nullptr) {
   GCAPushResult result;
   result.mu = mu;
   result.valid = true;
@@ -196,6 +197,14 @@ HD_INLINE GCAPushResult gca_push(
     Scalar nEx, nEy, nEz, nBx, nBy, nBz;
     interpolate_fields(mp, new_tri, new_layer, nl, nzeta,
                        E_e, B_f, nEx, nEy, nEz, nBx, nBy, nBz);
+    if (Bv_rec != nullptr) {
+      // Second-order C0 recovery gather for B at the predicted
+      // position — the primal Whitney gather's O(h) face jumps
+      // random-walk guiding centers exactly like they scatter Boris
+      // particles (the A1 result); GCA is not exempt.
+      interpolate_B_recovery(mp, Bv_rec, new_tri, new_layer, nl, nzeta,
+                             nBx, nBy, nBz);
+    }
 
     Scalar nB = std::sqrt(nBx*nBx + nBy*nBy + nBz*nBz);
     if (nB < Scalar(1e-15)) { result.valid = false; return result; }
@@ -267,9 +276,6 @@ HOST_DEVICE inline void update_single_particle(
   interpolate_fields(mp, tri_idx, layer_idx, l, zeta,
                      E_e, B_f, Ex, Ey, Ez, Bx, By, Bz);
   if (Bv_rec != nullptr) {
-    // NOTE: the GCA path below re-interpolates B internally at predicted
-    // positions and still uses the primal gather there; recovery
-    // currently upgrades the Boris path only.
     interpolate_B_recovery(mp, Bv_rec, tri_idx, layer_idx, l, zeta,
                            Bx, By, Bz);
   }
@@ -289,7 +295,7 @@ HOST_DEVICE inline void update_single_particle(
     auto res = gca_push(old_x, old_y, old_z, u_par, mu,
                         Ex, Ey, Ez, Bx, By, Bz,
                         q, m, dt, mp, E_e, B_f, tri_idx,
-                        include_curvature);
+                        include_curvature, Bv_rec);
 
     if (!res.valid) {
       ptrs.cell[n] = empty_cell;

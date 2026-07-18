@@ -116,7 +116,18 @@ void dec_field_solver<ExecPolicy>::init() {
   }
   m_dist.build(m_mesh, m_mesh_part);
   if (m_distributed) {
-    m_ex.init(m_mesh_part, *m_mpi);
+    // Packed device-direct exchange by default; "halo_device_direct =
+    // false" falls back to the legacy full-buffer host-staged path
+    // (wire-compatible, for debugging).
+    bool halo_device_direct = true;
+    sim_env().params().get_value("halo_device_direct", halo_device_direct);
+    m_ex.init(m_mesh_part, *m_mpi, halo_device_direct);
+    Logger::print_info("Halo exchange path: {}",
+                       halo_device_direct
+                           ? (mpi_gpu_direct_available()
+                                  ? "packed, GPU-direct MPI"
+                                  : "packed, host-staged messages")
+                           : "full-buffer host staging");
     // The particle path is single-rank only (Phase 6).
     if (sim_env().get_data_optional("particles") != nullptr) {
       Logger::print_err(

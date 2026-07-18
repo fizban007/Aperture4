@@ -36,6 +36,23 @@ class mpi_halo_backend {
   // Isend / Irecv posts.  A no-op if the plan has zero peers.
   void exchange(Scalar* data, const halo_plan& plan, int tag = 0);
 
+  // Per-peer slice of pre-packed contiguous message buffers (offsets /
+  // counts into the flattened send and recv arrays).  Built once from a
+  // halo_plan by the caller that owns the packing.
+  struct packed_peer {
+    int peer_rank = -1;
+    int send_off = 0, send_cnt = 0;
+    int recv_off = 0, recv_cnt = 0;
+  };
+
+  // Exchange ALREADY-PACKED messages: post Irecv(recv_msgs + off) /
+  // Isend(send_msgs + off) per peer and Waitall.  The pointers may be
+  // host or device memory — device requires a GPU-aware MPI (see
+  // mpi_gpu_direct_available); packing/unpacking is the caller's job
+  // (prismatic_halo_exchanger does it in device kernels).
+  void exchange_packed(const Scalar* send_msgs, Scalar* recv_msgs,
+                       const std::vector<packed_peer>& peers, int tag = 0);
+
   MPI_Comm comm() const { return m_comm; }
 
  private:
@@ -49,5 +66,12 @@ class mpi_halo_backend {
 
 // MPI datatype matching Aperture's Scalar type (float or double).
 MPI_Datatype mpi_scalar_type();
+
+// True when the MPI library accepts device pointers in point-to-point
+// calls (GPU-aware / CUDA-aware MPI).  Queried once at first call; on
+// OpenMPI this uses the runtime MPIX_Query_cuda_support(), which also
+// covers the case of a CUDA-capable build whose accelerator component
+// failed to load.  Always false in host-only builds.
+bool mpi_gpu_direct_available();
 
 }  // namespace Aperture

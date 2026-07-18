@@ -111,7 +111,7 @@ class dec_field_solver : public system_t {
   // at the sync points.  m_ex is inactive (all no-ops) when single-rank.
   const prismatic_mpi_comm* m_mpi = nullptr;
   bool m_distributed = false;
-  prismatic_halo_exchanger m_ex;
+  prismatic_halo_exchanger<ExecPolicy> m_ex;
   // Per-rank dump cadence under distributed runs (config
   // "rank_dump_interval", 0 = off).
   int m_rank_dump_interval = 0;

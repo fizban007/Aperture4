@@ -349,3 +349,69 @@ TEST_CASE("GCA: ExB drift with recovery gather matches analytic",
   REQUIRE(std::abs(p.p1[0]) < 1e-5);
   REQUIRE(std::abs(p.E[0] - 1.0 / std::sqrt(1.0 - 0.01)) < 5e-4);
 }
+
+
+TEST_CASE("GCA: curvature drift on circular field lines",
+          "[prismatic][recovery][gca]") {
+  // B = B0p (-y, x, 0)/rho^2: circular field lines of radius rho,
+  // |B| = B0p/rho, kappa = -rho_hat/rho.  For u_par along +phi and
+  // mu = 0 the only first-order drift is curvature:
+  //   v_dr = m u_par^2 (b x kappa)/(Gamma q B) = -z_hat * 0.0157
+  // for u_par = 1, B(1.5) = 30, q = -1.  The gradient is piecewise
+  // constant per cell (first order), so tolerances are ~20%.
+  prismatic_mesh mesh;
+  mesh.build(3, 12, 1.0, 2.0);
+  prismatic_vertex_recovery rec;
+  rec.build(mesh);
+
+  const double B0p = 45.0;  // |B| = 30 at rho = 1.5
+  auto B_f = flux_cochain(mesh, [&](dv3 p) {
+    double rho2 = p.x * p.x + p.y * p.y;
+    return dv3{-B0p * p.y / rho2, B0p * p.x / rho2, 0.0};
+  });
+  compute_Bv(rec, mesh, B_f);
+  std::vector<Scalar> E_e(mesh.m_N_edges, 0);
+
+  prismatic_particles_t ptc(4, MemType::host_only);
+  ptc.init();
+  auto mp = mesh.host_ptrs();
+  auto p = ptc.get_host_ptrs();
+  located lc = locate(mp, {1.5, 0, 0});
+  p.x1[0] = lc.l[0]; p.x2[0] = lc.l[1]; p.x3[0] = lc.zeta;
+  p.p1[0] = 1; p.p2[0] = 0; p.p3[0] = 0;  // u_par = 1, mu = 0
+  p.E[0] = std::sqrt(2.0); p.weight[0] = 1;
+  p.cell[0] = prism_cell_encode(lc.tri, lc.layer, mesh.m_N_tri);
+  p.flag[0] = gen_ptc_type_flag(PtcType::electron);
+  set_flag(p.flag[0], PtcFlagEx::gca_state);
+  p.id[0] = 0;
+  ptc.set_num(1);
+
+  auto rp = rec.host_ptrs();
+  const Scalar dt = 0.05;
+  const int nsteps = 60;  // t = 3
+  for (int s = 0; s < nsteps; s++) {
+    update_single_particle(mp, mesh.m_N_tri, p, 0, E_e.data(), B_f.data(),
+                           nullptr, nullptr, Scalar(-1), Scalar(1), dt,
+                           true, true, rp.Bv, Scalar(0), nullptr, nullptr,
+                           Scalar(0.5), false);
+    REQUIRE(p.cell[0] != empty_cell);
+  }
+  REQUIRE(check_flag(p.flag[0], PtcFlagEx::gca_state));
+
+  int tri, layer;
+  prism_cell_decode(p.cell[0], mesh.m_N_tri, tri, layer);
+  Scalar x, y, z;
+  local_to_cartesian_impl(mp, tri, layer, p.x1[0], p.x2[0], p.x3[0], x, y, z);
+
+  // Parallel transport around the circle: phi(t) = (u_par/Gamma) t/rho
+  double phi_exp = (1.0 / std::sqrt(2.0)) * 3.0 / 1.5;
+  REQUIRE(std::abs(x - 1.5 * std::cos(phi_exp)) < 0.1);
+  REQUIRE(std::abs(y - 1.5 * std::sin(phi_exp)) < 0.1);
+  // Curvature drift: analytic -0.0472 in z; sign is the physics.
+  double z_exp = -1.0 / (std::sqrt(2.0) * 30.0 * 1.5) * 3.0;
+  REQUIRE(z < -0.5 * std::abs(z_exp));
+  REQUIRE(std::abs(z - z_exp) < 0.02);
+  // mu stays on the lowest Landau level; u_par unchanged (E = 0)
+  REQUIRE(p.p2[0] == Scalar(0));
+  REQUIRE(std::abs(p.p1[0] - 1.0) < 0.02);
+}

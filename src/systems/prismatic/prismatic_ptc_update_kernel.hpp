@@ -100,6 +100,48 @@ HD_INLINE Scalar boris_push(
 //   u_par^{n+1/2} = u_par^{n-1/2} + (q/m) * dt * E_par^n
 // =========================================================================
 
+// First-order GCA drifts beyond ExB, from the recovery gradient:
+//   v_drift = ( m u_par^2 (b x kappa) + mu (b x grad|B|) ) / (Gamma q B)
+// with kappa = (b.grad)b.  G is piecewise constant per prism (the hat
+// gradient of the recovery vertex field), so both terms are first-order
+// accurate.  The magnitude is clamped to 0.5c — near B nulls the drift
+// expansion diverges and the hybrid switch hands the particle to Boris
+// anyway.
+HD_INLINE void gca_drift_velocity(
+    const prismatic_mesh_ptrs& mp, const Scalar* Bv, int tri, int layer,
+    const Scalar l[3], Scalar zeta, Scalar u_par, Scalar mu,
+    Scalar q, Scalar m, Scalar Gamma, Scalar v_dr[3]) {
+  Scalar B[3], G[3][3];
+  interpolate_B_recovery_grad(mp, Bv, tri, layer, l, zeta, B, G);
+  Scalar Bmag = math::sqrt(B[0]*B[0] + B[1]*B[1] + B[2]*B[2]);
+  v_dr[0] = v_dr[1] = v_dr[2] = 0;
+  if (Bmag < Scalar(1e-15)) return;
+  Scalar b[3] = {B[0]/Bmag, B[1]/Bmag, B[2]/Bmag};
+  // (b.grad)B, then kappa = ((b.grad)B - b (b.(b.grad)B)) / |B|
+  Scalar dB[3];
+  for (int i = 0; i < 3; i++)
+    dB[i] = G[i][0]*b[0] + G[i][1]*b[1] + G[i][2]*b[2];
+  Scalar dBpar = dB[0]*b[0] + dB[1]*b[1] + dB[2]*b[2];
+  Scalar kap[3];
+  for (int i = 0; i < 3; i++) kap[i] = (dB[i] - b[i]*dBpar) / Bmag;
+  // grad|B|_j = b_i G[i][j]
+  Scalar gB[3];
+  for (int j = 0; j < 3; j++)
+    gB[j] = b[0]*G[0][j] + b[1]*G[1][j] + b[2]*G[2][j];
+  Scalar w[3];
+  for (int j = 0; j < 3; j++)
+    w[j] = m * u_par * u_par * kap[j] + mu * gB[j];
+  Scalar pref = Scalar(1) / (Gamma * q * Bmag);
+  v_dr[0] = pref * (b[1]*w[2] - b[2]*w[1]);
+  v_dr[1] = pref * (b[2]*w[0] - b[0]*w[2]);
+  v_dr[2] = pref * (b[0]*w[1] - b[1]*w[0]);
+  Scalar v2 = v_dr[0]*v_dr[0] + v_dr[1]*v_dr[1] + v_dr[2]*v_dr[2];
+  if (v2 > Scalar(0.25)) {
+    Scalar s = Scalar(0.5) / math::sqrt(v2);
+    v_dr[0] *= s; v_dr[1] *= s; v_dr[2] *= s;
+  }
+}
+
 struct GCAPushResult {
   Scalar new_x, new_y, new_z;
   Scalar u_par;   // updated parallel 4-velocity
@@ -119,7 +161,9 @@ HD_INLINE GCAPushResult gca_push(
     const Scalar* E_e, const Scalar* B_f,
     int tri_hint,
     bool include_curvature,
-    const Scalar* Bv_rec = nullptr) {
+    const Scalar* Bv_rec = nullptr,
+    int tri0 = -1, int layer0 = -1,
+    const Scalar* l0 = nullptr, Scalar zeta0 = Scalar(0)) {
   GCAPushResult result;
   result.mu = mu;
   result.valid = true;
@@ -174,12 +218,21 @@ HD_INLINE GCAPushResult gca_push(
   Scalar Gamma = kappa * std::sqrt(Scalar(1) + u_par_new*u_par_new + u_perp_sq);
   result.gamma = Gamma;
 
+  // Curvature + grad-B drift at the current position (recovery
+  // gradient; zero when the feature is off or state unavailable).
+  Scalar vdr0[3] = {0, 0, 0};
+  if (include_curvature && Bv_rec != nullptr && tri0 >= 0 &&
+      l0 != nullptr) {
+    gca_drift_velocity(mp, Bv_rec, tri0, layer0, l0, zeta0,
+                       u_par_new, mu, q, m, Gamma, vdr0);
+  }
+
   // Step 2: position update with fixed-point iteration (Eq 18)
   // R^{n+1} = R^n + dt * (u_par/Gamma * b + v_E)
   // Start with explicit Euler predict
-  Scalar Rx = old_x + dt * (u_par_new / Gamma * bx + vEx);
-  Scalar Ry = old_y + dt * (u_par_new / Gamma * by + vEy);
-  Scalar Rz = old_z + dt * (u_par_new / Gamma * bz + vEz);
+  Scalar Rx = old_x + dt * (u_par_new / Gamma * bx + vEx + vdr0[0]);
+  Scalar Ry = old_y + dt * (u_par_new / Gamma * by + vEy + vdr0[1]);
+  Scalar Rz = old_z + dt * (u_par_new / Gamma * bz + vEz + vdr0[2]);
 
   // Fixed-point iterations: evaluate b and v_E at the new position
   for (int iter = 0; iter < 3; iter++) {
@@ -228,13 +281,19 @@ HD_INLINE GCAPushResult gca_push(
     Scalar nGamma = nkappa * std::sqrt(Scalar(1) + u_par_new*u_par_new +
                                        Scalar(2)*mu*nB*nkappa/m);
 
-    // Average b/Gamma and v_E between old and new positions (Eq 14)
+    Scalar nvdr[3] = {0, 0, 0};
+    if (include_curvature && Bv_rec != nullptr) {
+      gca_drift_velocity(mp, Bv_rec, new_tri, new_layer, nl, nzeta,
+                         u_par_new, mu, q, m, nGamma, nvdr);
+    }
+
+    // Average b/Gamma, v_E, and the drifts between old/new (Eq 14)
     Rx = old_x + dt * Scalar(0.5) * (
-        u_par_new * (bx/Gamma + nbx/nGamma) + vEx + nvEx);
+        u_par_new * (bx/Gamma + nbx/nGamma) + vEx + nvEx + vdr0[0] + nvdr[0]);
     Ry = old_y + dt * Scalar(0.5) * (
-        u_par_new * (by/Gamma + nby/nGamma) + vEy + nvEy);
+        u_par_new * (by/Gamma + nby/nGamma) + vEy + nvEy + vdr0[1] + nvdr[1]);
     Rz = old_z + dt * Scalar(0.5) * (
-        u_par_new * (bz/Gamma + nbz/nGamma) + vEz + nvEz);
+        u_par_new * (bz/Gamma + nbz/nGamma) + vEz + nvEz + vdr0[2] + nvdr[2]);
   }
 
   result.new_x = Rx; result.new_y = Ry; result.new_z = Rz;
@@ -260,7 +319,8 @@ HOST_DEVICE inline void update_single_particle(
     Scalar q, Scalar m, Scalar dt,
     bool use_gca = false, bool include_curvature = false,
     const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0),
-    Scalar* rho_abs = nullptr, Scalar* gamma_wsum = nullptr) {
+    Scalar* rho_abs = nullptr, Scalar* gamma_wsum = nullptr,
+    Scalar gca_switch_wc = Scalar(0.5), bool zero_mu_on_capture = false) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
@@ -284,18 +344,77 @@ HOST_DEVICE inline void update_single_particle(
   local_to_cartesian_impl(mp, tri_idx, layer_idx, l1, l2, zeta,
                           old_x, old_y, old_z);
 
+  // Per-particle hybrid dispatch (master switch use_gca): a particle is
+  // pushed by GCA while its gyration is under-resolved and the drift
+  // frame exists, and handed to Boris "at the last minute" — near B
+  // nulls (current sheet) where omega_c dt / gamma drops below
+  // gca_switch_wc or E exceeds B.  The momentum slots are converted at
+  // each transition; the gca_state flag records the representation.
+  // With mu = 0 (synchrotron-locked injection) both conversions are
+  // exact: the momentum is u_par b in both representations.
+  bool do_gca = false;
+  if (use_gca) {
+    Scalar B2l = Bx*Bx + By*By + Bz*Bz;
+    Scalar E2l = Ex*Ex + Ey*Ey + Ez*Ez;
+    Scalar Bmag = math::sqrt(B2l);
+    Scalar gam_prev = ptrs.E[n] > Scalar(1) ? ptrs.E[n] : Scalar(1);
+    Scalar wc = math::abs(q / m) * Bmag * dt / gam_prev;
+    do_gca = (wc > gca_switch_wc) && (B2l > E2l) &&
+             (Bmag > Scalar(1e-15));
+    bool was_gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
+    if (was_gca && !do_gca) {
+      // GCA -> Boris: reconstruct momentum.  Perpendicular part uses a
+      // deterministic gyrophase (arbitrary; exact when mu = 0).
+      Scalar b0[3] = {Bx / Bmag, By / Bmag, Bz / Bmag};
+      Scalar u_par = ptrs.p1[n];
+      Scalar up2 = Scalar(2) * ptrs.p2[n] * Bmag / m;
+      Scalar u_perp = math::sqrt(up2 > Scalar(0) ? up2 : Scalar(0));
+      Scalar ax = (math::abs(b0[0]) < Scalar(0.9)) ? Scalar(1) : Scalar(0);
+      Scalar ay = Scalar(1) - ax;
+      Scalar e1[3] = {b0[1]*0 - b0[2]*ay, b0[2]*ax - b0[0]*0,
+                      b0[0]*ay - b0[1]*ax};
+      Scalar en = math::sqrt(e1[0]*e1[0] + e1[1]*e1[1] + e1[2]*e1[2]);
+      if (en > Scalar(1e-15)) {
+        e1[0] /= en; e1[1] /= en; e1[2] /= en;
+      } else {
+        e1[0] = e1[1] = e1[2] = 0;
+      }
+      ptrs.p1[n] = u_par * b0[0] + u_perp * e1[0];
+      ptrs.p2[n] = u_par * b0[1] + u_perp * e1[1];
+      ptrs.p3[n] = u_par * b0[2] + u_perp * e1[2];
+      clear_flag(ptrs.flag[n], PtcFlagEx::gca_state);
+    } else if (!was_gca && do_gca) {
+      // Boris -> GCA: project onto b; remainder becomes mu (or is
+      // radiated instantly under the synchrotron-locking option).
+      Scalar b0[3] = {Bx / Bmag, By / Bmag, Bz / Bmag};
+      Scalar px = ptrs.p1[n], py = ptrs.p2[n], pz = ptrs.p3[n];
+      Scalar u_par = px*b0[0] + py*b0[1] + pz*b0[2];
+      Scalar u_perp_sq = px*px + py*py + pz*pz - u_par*u_par;
+      if (u_perp_sq < Scalar(0)) u_perp_sq = Scalar(0);
+      ptrs.p1[n] = u_par;
+      ptrs.p2[n] = zero_mu_on_capture
+                       ? Scalar(0)
+                       : m * u_perp_sq / (Scalar(2) * Bmag);
+      ptrs.p3[n] = zero_mu_on_capture ? Scalar(0)
+                                      : math::sqrt(u_perp_sq);
+      set_flag(ptrs.flag[n], PtcFlagEx::gca_state);
+    }
+  }
+
   Scalar new_x, new_y, new_z;
   Scalar gamma;
 
-  if (use_gca) {
+  if (do_gca) {
     // GCA push
     Scalar u_par = ptrs.p1[n];
     Scalar mu = ptrs.p2[n];
 
+    Scalar l_old[3] = {l1, l2, l3};
     auto res = gca_push(old_x, old_y, old_z, u_par, mu,
                         Ex, Ey, Ez, Bx, By, Bz,
                         q, m, dt, mp, E_e, B_f, tri_idx,
-                        include_curvature, Bv_rec);
+                        include_curvature, Bv_rec,
+                        tri_idx, layer_idx, l_old, zeta);
 
     if (!res.valid) {
       ptrs.cell[n] = empty_cell;

@@ -66,6 +66,10 @@ class prismatic_ptc_updater : public system_t {
   int m_sort_interval = 100;
   bool m_use_gca = false;
   bool m_include_curvature = false;
+  // Hybrid switch: Boris when omega_c dt / gamma < this (B-null regions).
+  Scalar m_gca_switch_wc = Scalar(0.5);
+  // Synchrotron-locking option: zero mu when (re)captured by GCA.
+  bool m_gca_zero_mu = false;
 };
 
 using prismatic_ptc_updater_t = prismatic_ptc_updater<prismatic_exec_policy_dynamic>;

@@ -33,6 +33,12 @@ DEF_PARTICLE_STRUCT(prism_ptc,
 
 namespace Aperture {
 
+// Extended per-particle flag bits (see enum_types.h): gca_state marks a
+// particle whose momentum slots hold the GCA representation
+// (p1 = u_par, p2 = mu, p3 = u_perp) instead of Cartesian momentum.
+enum class PtcFlagEx : uint32_t { gca_state = (uint32_t)PtcFlag::count };
+
+
 using prismatic_particles_t = particles_base<prism_ptc_buffer>;
 
 // Cell encoding helpers

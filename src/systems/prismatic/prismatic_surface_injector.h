@@ -5,6 +5,7 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_particles.h"
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
 #include "utils/logger.h"
 #include <memory>
@@ -57,6 +58,12 @@ class prismatic_surface_injector : public system_t {
     sim_env().params().get_value("inj_buffer_frac", m_buffer_frac);
     sim_env().params().get_value("inj_eb_threshold", m_eb_threshold);
     sim_env().params().get_value("inj_r_max", m_inj_r_max);
+    sim_env().params().get_value("inj_gca", m_inj_gca);
+    if (m_inj_gca) {
+      Logger::print_info(
+          "GCA-native injection: mu = 0 (synchrotron-locked), "
+          "p1 = u_par ~ MJ({})", m_kT);
+    }
 
     // Shell count eligible for injection (for the occupancy estimate
     // and the log line).
@@ -239,12 +246,24 @@ class prismatic_surface_injector : public system_t {
         [pairs] LAMBDA(int tri, int k, const auto& mp) {
           return 2 * pairs;
         },
-        // momentum: isotropic Maxwell-Juttner at kT
-        [kT] LAMBDA(auto& x_global, auto& state, PtcType type) {
+        // momentum: isotropic Maxwell-Juttner at kT; in GCA-native
+        // mode (inj_gca) the particle is born on the lowest Landau
+        // level: mu = 0, u_par a signed 1D MJ magnitude.
+        [kT, inj_gca = m_inj_gca] LAMBDA(auto& x_global, auto& state,
+                                         PtcType type) {
+          if (inj_gca) {
+            Scalar u = rng_maxwell_juttner<Scalar>(state, kT);
+            if (rng_uniform<Scalar>(state) < Scalar(0.5)) u = -u;
+            return vec_t<Scalar, 3>(u, Scalar(0), Scalar(0));
+          }
           return rng_maxwell_juttner_3d<Scalar>(state, kT);
         },
         // weight: uniform
-        [weight] LAMBDA(auto& x_global, PtcType type) { return weight; });
+        [weight] LAMBDA(auto& x_global, PtcType type) { return weight; },
+        m_inj_gca ? [] { uint32_t f = 0;
+                         set_flag(f, PtcFlagEx::gca_state);
+                         return f; }()
+                  : uint32_t(0));
   }
 
  private:
@@ -272,6 +291,9 @@ class prismatic_surface_injector : public system_t {
   // is already below this (0 disables).
   Scalar m_min_sigma = Scalar(0);
   Scalar m_m_over_q = Scalar(1);
+  // Inject in the GCA representation (u_par, mu = 0) with the
+  // gca_state flag set.
+  bool m_inj_gca = false;
   bool m_throttled = false;
 };
 

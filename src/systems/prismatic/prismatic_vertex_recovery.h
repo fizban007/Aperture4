@@ -2,6 +2,7 @@
 
 #include "core/buffer.hpp"
 #include "core/exec_tags.h"
+#include "core/math.hpp"
 #include "core/typedefs_and_constants.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
@@ -142,6 +143,71 @@ HD_INLINE void interpolate_B_recovery(const prismatic_mesh_ptrs& mp,
     Bx += wb * Bv[0 * Nv + vb] + wt * Bv[0 * Nv + vt];
     By += wb * Bv[1 * Nv + vb] + wt * Bv[1 * Nv + vt];
     Bz += wb * Bv[2 * Nv + vb] + wt * Bv[2 * Nv + vt];
+  }
+}
+
+// Hat-interpolated B AND its gradient G[i][j] = dB_i/dx_j from the
+// per-vertex recovery field: within a prism B(x) = sum_i Bv_i N_i with
+// N_i = lambda_i(x) phi(zeta), so G is piecewise constant per cell —
+// first-order accurate, exactly what the GCA curvature / grad-B drift
+// terms need.  The barycentric gradients are computed on the flattened
+// triangle at the layer's radial midpoint (same convention as
+// interpolate_fields).
+HD_INLINE void interpolate_B_recovery_grad(
+    const prismatic_mesh_ptrs& mp, const Scalar* Bv, int tri_idx,
+    int layer_idx, const Scalar l[3], Scalar zeta,
+    Scalar B[3], Scalar G[3][3]) {
+  int sv[3];
+  for (int i = 0; i < 3; i++) sv[i] = mp.tri_verts[tri_idx * 3 + i];
+
+  Scalar r_mid = Scalar(0.5) * (mp.radii[layer_idx] +
+                                mp.radii[layer_idx + 1]);
+  Scalar px[3], py[3], pz[3];
+  for (int i = 0; i < 3; i++) {
+    px[i] = r_mid * mp.sphere_vx[sv[i]];
+    py[i] = r_mid * mp.sphere_vy[sv[i]];
+    pz[i] = r_mid * mp.sphere_vz[sv[i]];
+  }
+  Scalar e1x = px[1]-px[0], e1y = py[1]-py[0], e1z = pz[1]-pz[0];
+  Scalar e2x = px[2]-px[0], e2y = py[2]-py[0], e2z = pz[2]-pz[0];
+  Scalar nx = e1y*e2z - e1z*e2y;
+  Scalar ny = e1z*e2x - e1x*e2z;
+  Scalar nz = e1x*e2y - e1y*e2x;
+  Scalar two_A_sq = nx*nx + ny*ny + nz*nz;
+  Scalar gl[3][3];
+  for (int i = 0; i < 3; i++) {
+    int j = (i + 1) % 3, k2 = (i + 2) % 3;
+    Scalar dx = px[k2]-px[j], dy = py[k2]-py[j], dz = pz[k2]-pz[j];
+    gl[i][0] = (ny*dz - nz*dy) / two_A_sq;
+    gl[i][1] = (nz*dx - nx*dz) / two_A_sq;
+    gl[i][2] = (nx*dy - ny*dx) / two_A_sq;
+  }
+  // Radial direction and d(zeta)/dx at the interpolation point
+  Scalar rx = 0, ry = 0, rz = 0;
+  for (int i = 0; i < 3; i++) {
+    rx += l[i] * mp.sphere_vx[sv[i]];
+    ry += l[i] * mp.sphere_vy[sv[i]];
+    rz += l[i] * mp.sphere_vz[sv[i]];
+  }
+  Scalar rn = Scalar(1) / math::sqrt(rx*rx + ry*ry + rz*rz);
+  Scalar dr = mp.radii[layer_idx + 1] - mp.radii[layer_idx];
+  Scalar dz_[3] = {rx*rn/dr, ry*rn/dr, rz*rn/dr};
+
+  int Nv = mp.N_verts;
+  Scalar phi_b = Scalar(1) - zeta, phi_t = zeta;
+  for (int c = 0; c < 3; c++) { B[c] = 0; G[c][0]=G[c][1]=G[c][2]=0; }
+  for (int i = 0; i < 3; i++) {
+    int vb = layer_idx * mp.N_vert_s + sv[i];
+    int vt = vb + mp.N_vert_s;
+    for (int c = 0; c < 3; c++) {
+      Scalar Bb = Bv[c * Nv + vb], Bt = Bv[c * Nv + vt];
+      B[c] += l[i] * (phi_b * Bb + phi_t * Bt);
+      for (int j = 0; j < 3; j++) {
+        // grad N_bot = phi_b grad(lam) - lam grad(zeta);  top: + lam gz
+        G[c][j] += Bb * (phi_b * gl[i][j] - l[i] * dz_[j]) +
+                   Bt * (phi_t * gl[i][j] + l[i] * dz_[j]);
+      }
+    }
   }
 }
 

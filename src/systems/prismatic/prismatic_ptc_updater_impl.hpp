@@ -47,6 +47,8 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("sort_interval", m_sort_interval);
   sim_env().params().get_value("use_gca", m_use_gca);
   sim_env().params().get_value("include_curvature", m_include_curvature);
+  sim_env().params().get_value("gca_switch_omegac_dt", m_gca_switch_wc);
+  sim_env().params().get_value("gca_zero_mu_on_capture", m_gca_zero_mu);
   sim_env().params().get_value("use_recovery_gather", m_use_recovery_gather);
   sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
   sim_env().params().get_value("deposit_diagnostics", m_deposit_diagnostics);
@@ -107,9 +109,11 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   bool include_curvature = m_include_curvature;
   Scalar absorb_r = m_absorb_radius;
   bool dep_diag = m_deposit_diagnostics;
+  Scalar gca_wc = m_gca_switch_wc;
+  bool gca_zero_mu = m_gca_zero_mu;
   ExecPolicy::launch(
       [num, N_tri, charge_e, mass_e, dt, mp, use_gca, include_curvature,
-       Bv_rec, absorb_r, dep_diag]
+       Bv_rec, absorb_r, dep_diag, gca_wc, gca_zero_mu]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho,
              auto rho_abs, auto gamma_wsum) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
@@ -121,7 +125,8 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
                                  use_gca, include_curvature, Bv_rec,
                                  absorb_r,
                                  dep_diag ? (Scalar*)rho_abs : nullptr,
-                                 dep_diag ? (Scalar*)gamma_wsum : nullptr);
+                                 dep_diag ? (Scalar*)gamma_wsum : nullptr,
+                                 gca_wc, gca_zero_mu);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data(),

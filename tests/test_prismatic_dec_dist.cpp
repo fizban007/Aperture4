@@ -72,7 +72,35 @@ struct global_ref {
     }
   }
 
-  void damping(double dt, int len, Scalar coef, Scalar expnt) {
+  void compute_rhs(const std::vector<Scalar>& Ein,
+                   const std::vector<Scalar>& Bin, std::vector<Scalar>& dE,
+                   std::vector<Scalar>& dB) const {
+    auto const& m = *mesh;
+    const int* rp = m.d1_row_ptr.host_ptr();
+    const int* ci = m.d1_col_idx.host_ptr();
+    const Scalar* v = m.d1_val.host_ptr();
+    for (int f = 0; f < m.m_N_faces; f++) {
+      Scalar curl_E = Scalar(0);
+      for (int j = rp[f]; j < rp[f + 1]; j++) curl_E += v[j] * Ein[ci[j]];
+      dB[f] = -curl_E;
+    }
+    const int* trp = m.d1t_row_ptr.host_ptr();
+    const int* tci = m.d1t_col_idx.host_ptr();
+    const Scalar* tv = m.d1t_val.host_ptr();
+    const Scalar* h2 = m.hodge2.host_ptr();
+    const Scalar* h1i = m.hodge1_inv.host_ptr();
+    for (int e = 0; e < m.m_N_edges; e++) {
+      Scalar curl_H = Scalar(0);
+      for (int j = trp[e]; j < trp[e + 1]; j++) {
+        int f = tci[j];
+        curl_H += tv[j] * h2[f] * Bin[f];
+      }
+      dE[e] = h1i[e] * (curl_H - J[e]);
+    }
+  }
+
+  void damping_on(std::vector<Scalar>& Ex, std::vector<Scalar>& Bx, double dt,
+                  int len, Scalar coef, Scalar expnt) const {
     auto const& m = *mesh;
     int k_start = m.m_N_r - len;
     if (k_start < 1) k_start = 1;
@@ -82,29 +110,59 @@ struct global_ref {
       int k = erl[e];
       if (k >= k_start) {
         Scalar ramp = Scalar(k - k_start + 1) / Scalar(len);
-        E[e] *= std::exp(-coef * std::pow(ramp, expnt) * Scalar(dt));
+        Ex[e] *= std::exp(-coef * std::pow(ramp, expnt) * Scalar(dt));
       }
     }
     for (int f = 0; f < m.m_N_faces; f++) {
       int k = frl[f];
       if (k >= k_start) {
         Scalar ramp = Scalar(k - k_start + 1) / Scalar(len);
-        B[f] *= std::exp(-coef * std::pow(ramp, expnt) * Scalar(dt));
+        Bx[f] *= std::exp(-coef * std::pow(ramp, expnt) * Scalar(dt));
       }
     }
   }
+  void damping(double dt, int len, Scalar coef, Scalar expnt) {
+    damping_on(E, B, dt, len, coef, expnt);
+  }
 
   // Same index arithmetic as dec_field_solver::apply_pec_bc.
-  void pec() {
+  void pec_on(std::vector<Scalar>& Ex, std::vector<Scalar>& Bx) const {
     auto const& m = *mesh;
     for (int e = 0; e < m.m_N_edge_s; e++) {
-      E[e] = Scalar(0);
-      E[m.m_N_r * m.m_N_edge_s + e] = Scalar(0);
+      Ex[e] = Scalar(0);
+      Ex[m.m_N_r * m.m_N_edge_s + e] = Scalar(0);
     }
     for (int t = 0; t < m.m_N_tri; t++) {
-      B[t] = Scalar(0);
-      B[m.m_N_r * m.m_N_tri + t] = Scalar(0);
+      Bx[t] = Scalar(0);
+      Bx[m.m_N_r * m.m_N_tri + t] = Scalar(0);
     }
+  }
+  void pec() { pec_on(E, B); }
+
+  // Literal transcription of dec_field_solver::update_semi_implicit.
+  void semi_step(double dt, Scalar beta, int iters, int damp_len,
+                 Scalar damp_coef, Scalar damp_exp) {
+    Scalar alpha = Scalar(1) - beta;
+    std::vector<Scalar> dE(E.size()), dB(B.size());
+    std::vector<Scalar> dE2(E.size()), dB2(B.size());
+    std::vector<Scalar> tmpE(E.size()), tmpB(B.size());
+    compute_rhs(E, B, dE, dB);
+    for (size_t e = 0; e < E.size(); e++) tmpE[e] = E[e] + dt * dE[e];
+    for (size_t f = 0; f < B.size(); f++) tmpB[f] = B[f] + dt * dB[f];
+    damping_on(tmpE, tmpB, dt, damp_len, damp_coef, damp_exp);
+    pec_on(tmpE, tmpB);
+    for (int it = 0; it < iters; it++) {
+      compute_rhs(tmpE, tmpB, dE2, dB2);
+      for (size_t e = 0; e < E.size(); e++)
+        tmpE[e] = E[e] + dt * (alpha * dE[e] + beta * dE2[e]);
+      for (size_t f = 0; f < B.size(); f++)
+        tmpB[f] = B[f] + dt * (alpha * dB[f] + beta * dB2[f]);
+      damping_on(tmpE, tmpB, dt, damp_len, damp_coef, damp_exp);
+      pec_on(tmpE, tmpB);
+    }
+    E = tmpE;
+    B = tmpB;
+    pec_on(E, B);
   }
 };
 
@@ -116,6 +174,8 @@ struct rank_ctx {
   std::unique_ptr<prismatic_mesh_partition> mp;
   core_t core;
   buffer<Scalar> E, B, J, B0;
+  // Scratch for the semi-implicit path.
+  buffer<Scalar> tmpE, tmpB, dE, dB, dE2, dB2;
 };
 
 rank_ctx make_ctx(const prismatic_mesh& mesh, const icosphere_topology& topo,
@@ -135,6 +195,12 @@ rank_ctx make_ctx(const prismatic_mesh& mesh, const icosphere_topology& topo,
   alloc(c.J, c.core.n_edges_local());
   alloc(c.B, c.core.n_faces_local());
   alloc(c.B0, c.core.n_faces_local());
+  alloc(c.tmpE, c.core.n_edges_local());
+  alloc(c.dE, c.core.n_edges_local());
+  alloc(c.dE2, c.core.n_edges_local());
+  alloc(c.tmpB, c.core.n_faces_local());
+  alloc(c.dB, c.core.n_faces_local());
+  alloc(c.dB2, c.core.n_faces_local());
   c.core.edge_from_global(g0.E.data(), c.E);
   c.core.edge_from_global(g0.J.data(), c.J);
   c.core.face_from_global(g0.B.data(), c.B);
@@ -196,17 +262,25 @@ void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
   }
 }
 
-void exchange_E(std::vector<rank_ctx>& ranks) {
+using field_of = std::function<buffer<Scalar>&(rank_ctx&)>;
+
+void exchange_edge_field(std::vector<rank_ctx>& ranks, const field_of& get) {
   exchange(ranks, cochain_type::h_edge,
-           [](rank_ctx& c) { return c.E.host_ptr(); });
+           [&](rank_ctx& c) { return get(c).host_ptr(); });
   exchange(ranks, cochain_type::v_edge,
-           [](rank_ctx& c) { return c.E.host_ptr() + c.core.e_split(); });
+           [&](rank_ctx& c) { return get(c).host_ptr() + c.core.e_split(); });
+}
+void exchange_face_field(std::vector<rank_ctx>& ranks, const field_of& get) {
+  exchange(ranks, cochain_type::tri_face,
+           [&](rank_ctx& c) { return get(c).host_ptr(); });
+  exchange(ranks, cochain_type::rect_face,
+           [&](rank_ctx& c) { return get(c).host_ptr() + c.core.b_split(); });
+}
+void exchange_E(std::vector<rank_ctx>& ranks) {
+  exchange_edge_field(ranks, [](rank_ctx& c) -> buffer<Scalar>& { return c.E; });
 }
 void exchange_B(std::vector<rank_ctx>& ranks) {
-  exchange(ranks, cochain_type::tri_face,
-           [](rank_ctx& c) { return c.B.host_ptr(); });
-  exchange(ranks, cochain_type::rect_face,
-           [](rank_ctx& c) { return c.B.host_ptr() + c.core.b_split(); });
+  exchange_face_field(ranks, [](rank_ctx& c) -> buffer<Scalar>& { return c.B; });
 }
 
 // Gather every rank's owned cells into global arrays and return the max
@@ -245,6 +319,43 @@ void step_all(std::vector<rank_ctx>& ranks, double dt, int damp_len,
   for (auto& c : ranks)
     c.core.apply_damping(c.E, c.B, dt, damp_len, damp_coef, damp_exp);
   for (auto& c : ranks) boundary(c);
+}
+
+// One semi-implicit step across all ranks: the ghost refresh runs
+// before the initial RHS and inside EVERY Picard iteration (the
+// silent-drift gotcha called out in PHASE_4_1B_PLAN.md).
+void step_all_semi(std::vector<rank_ctx>& ranks, double dt, Scalar beta,
+                   int iters, int damp_len, Scalar damp_coef,
+                   Scalar damp_exp) {
+  Scalar alpha = Scalar(1) - beta;
+  auto tmpE_of = [](rank_ctx& c) -> buffer<Scalar>& { return c.tmpE; };
+  auto tmpB_of = [](rank_ctx& c) -> buffer<Scalar>& { return c.tmpB; };
+
+  exchange_E(ranks);
+  exchange_B(ranks);
+  for (auto& c : ranks) {
+    c.core.compute_rhs(c.E, c.B, c.J, c.dE, c.dB);
+    c.core.euler_predict(c.E, c.dE, c.tmpE, c.B, c.dB, c.tmpB, dt);
+    c.core.apply_damping(c.tmpE, c.tmpB, dt, damp_len, damp_coef, damp_exp);
+    c.core.apply_pec_bc(c.tmpE, c.tmpB);
+  }
+  for (int it = 0; it < iters; it++) {
+    exchange_edge_field(ranks, tmpE_of);
+    exchange_face_field(ranks, tmpB_of);
+    for (auto& c : ranks) {
+      c.core.compute_rhs(c.tmpE, c.tmpB, c.J, c.dE2, c.dB2);
+      c.core.picard_combine(c.E, c.dE, c.dE2, c.tmpE, c.B, c.dB, c.dB2,
+                            c.tmpB, dt, alpha, beta);
+      c.core.apply_damping(c.tmpE, c.tmpB, dt, damp_len, damp_coef, damp_exp);
+      c.core.apply_pec_bc(c.tmpE, c.tmpB);
+    }
+  }
+  for (auto& c : ranks) {
+    // Copy-back (ghosts included; they are refreshed before any read).
+    for (int e = 0; e < c.core.n_edges_local(); e++) c.E[e] = c.tmpE[e];
+    for (int f = 0; f < c.core.n_faces_local(); f++) c.B[f] = c.tmpB[f];
+    c.core.apply_pec_bc(c.E, c.B);
+  }
 }
 
 std::vector<rank_ctx> make_partitioned(const prismatic_mesh& mesh,
@@ -321,6 +432,47 @@ TEST_CASE("dec_dist: distributed explicit update matches global solver",
   }
   SECTION("radial slabs, K = 3") {
     run_and_check(make_partitioned(mesh, topo, g0, 3, false), Scalar(2e-5));
+  }
+  SECTION("combined 20 x 4") {
+    run_and_check(make_partitioned(mesh, topo, g0, 4, true), Scalar(2e-5));
+  }
+}
+
+// =========================================================================
+// Semi-implicit path: distributed predictor-corrector with per-Picard-
+// iteration ghost refresh matches the global transcription.
+// =========================================================================
+TEST_CASE("dec_dist: distributed semi-implicit update matches global solver",
+          "[prismatic][dec_dist]") {
+  const int n_steps = 6;
+  const int iters = 4;
+  const Scalar beta = 0.55;
+  const int damp_len = 3;
+  const Scalar damp_coef = 0.5, damp_exp = 3.0;
+
+  prismatic_mesh mesh;
+  mesh.build(TL, TN_r, 1.0, 2.0);
+  auto topo = icosphere_topology::build_from_mesh(mesh);
+
+  global_ref ref;
+  ref.init(mesh);
+  global_ref g0 = ref;
+  for (int s = 0; s < n_steps; s++)
+    ref.semi_step(TDT, beta, iters, damp_len, damp_coef, damp_exp);
+
+  auto run_and_check = [&](std::vector<rank_ctx> ranks, Scalar tol) {
+    for (int s = 0; s < n_steps; s++)
+      step_all_semi(ranks, TDT, beta, iters, damp_len, damp_coef, damp_exp);
+    Scalar rel = compare_owned(ranks, ref.E, ref.B);
+    INFO("n_ranks = " << ranks.size() << ", max rel diff = " << rel);
+    REQUIRE(rel < tol);
+  };
+
+  SECTION("single rank") {
+    std::vector<rank_ctx> ranks;
+    ranks.push_back(
+        make_ctx(mesh, topo, prismatic_partition::single_rank(TL, TN_r), g0));
+    run_and_check(std::move(ranks), Scalar(1e-6));
   }
   SECTION("combined 20 x 4") {
     run_and_check(make_partitioned(mesh, topo, g0, 4, true), Scalar(2e-5));

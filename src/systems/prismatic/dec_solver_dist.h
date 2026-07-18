@@ -164,6 +164,121 @@ class dec_solver_dist {
   }
 
   // -----------------------------------------------------------------------
+  // RHS for the semi-implicit path (mirrors dec_field_solver::compute_rhs):
+  //   dB_out[f] = -(d1 E)[f],   dE_out[e] = h1inv[e]((d1^T h2 B)[e] - J[e])
+  // on owned rows.  Requires fresh E AND B ghosts.
+  // -----------------------------------------------------------------------
+  void compute_rhs(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
+                   buffer<Scalar>& J, buffer<Scalar>& dE_out,
+                   buffer<Scalar>& dB_out) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto B_f, auto J_e, auto dE, auto dB) {
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int f) {
+            Scalar curl_E = Scalar(0);
+            for (int j = lp.d1_tri_h_row[f]; j < lp.d1_tri_h_row[f + 1]; j++) {
+              curl_E += lp.d1_tri_h_val[j] * E_e[lp.d1_tri_h_col[j]];
+            }
+            dB[f] = -curl_E;
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int f) {
+            Scalar curl_E = Scalar(0);
+            for (int j = lp.d1_rect_h_row[f]; j < lp.d1_rect_h_row[f + 1]; j++) {
+              curl_E += lp.d1_rect_h_val[j] * E_e[lp.d1_rect_h_col[j]];
+            }
+            for (int j = lp.d1_rect_v_row[f]; j < lp.d1_rect_v_row[f + 1]; j++) {
+              curl_E += lp.d1_rect_v_val[j] * E_e[es + lp.d1_rect_v_col[j]];
+            }
+            dB[bs + f] = -curl_E;
+          });
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1]; j++) {
+              int f = lp.d1t_h_tri_col[j];
+              curl_H += lp.d1t_h_tri_val[j] * lp.tri_face_hodge2[f] * B_f[f];
+            }
+            for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1]; j++) {
+              int f = lp.d1t_h_rect_col[j];
+              curl_H +=
+                  lp.d1t_h_rect_val[j] * lp.rect_face_hodge2[f] * B_f[bs + f];
+            }
+            dE[e] = lp.h_edge_hodge1_inv[e] * (curl_H - J_e[e]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1]; j++) {
+              int f = lp.d1t_v_rect_col[j];
+              curl_H +=
+                  lp.d1t_v_rect_val[j] * lp.rect_face_hodge2[f] * B_f[bs + f];
+            }
+            dE[es + e] =
+                lp.v_edge_hodge1_inv[e] * (curl_H - J_e[es + e]);
+          });
+        },
+        E_in, B_in, J, dE_out, dB_out);
+  }
+
+  // -----------------------------------------------------------------------
+  // Owned-slot linear combinations for the semi-implicit predictor /
+  // corrector (mirrors the update_semi_implicit kernels).  Ghost slots
+  // are left untouched — the Picard loop refreshes them by exchange
+  // before every compute_rhs.
+  //   euler_predict:  tmp = F + dt * rhs
+  //   picard_combine: tmp = F + dt * (alpha * rhs_n + beta * rhs_new)
+  // -----------------------------------------------------------------------
+  void euler_predict(buffer<Scalar>& E, buffer<Scalar>& dE,
+                     buffer<Scalar>& tmpE, buffer<Scalar>& B,
+                     buffer<Scalar>& dB, buffer<Scalar>& tmpB, double dt) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, dt, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto dE_e, auto tE, auto B_f, auto dB_f, auto tB) {
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            tE[e] = E_e[e] + dt * dE_e[e];
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            tE[es + e] = E_e[es + e] + dt * dE_e[es + e];
+          });
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int f) {
+            tB[f] = B_f[f] + dt * dB_f[f];
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int f) {
+            tB[bs + f] = B_f[bs + f] + dt * dB_f[bs + f];
+          });
+        },
+        E, dE, tmpE, B, dB, tmpB);
+  }
+
+  void picard_combine(buffer<Scalar>& E, buffer<Scalar>& dE_n,
+                      buffer<Scalar>& dE_new, buffer<Scalar>& tmpE,
+                      buffer<Scalar>& B, buffer<Scalar>& dB_n,
+                      buffer<Scalar>& dB_new, buffer<Scalar>& tmpB,
+                      double dt, Scalar alpha, Scalar beta) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, dt, alpha, beta, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto dEn, auto dEw, auto tE,
+               auto B_f, auto dBn, auto dBw, auto tB) {
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            tE[e] = E_e[e] + dt * (alpha * dEn[e] + beta * dEw[e]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            tE[es + e] =
+                E_e[es + e] + dt * (alpha * dEn[es + e] + beta * dEw[es + e]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int f) {
+            tB[f] = B_f[f] + dt * (alpha * dBn[f] + beta * dBw[f]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int f) {
+            tB[bs + f] =
+                B_f[bs + f] + dt * (alpha * dBn[bs + f] + beta * dBw[bs + f]);
+          });
+        },
+        E, dE_n, dE_new, tmpE, B, dB_n, dB_new, tmpB);
+  }
+
+  // -----------------------------------------------------------------------
   // Outer damping layer (mirrors dec_field_solver::apply_damping): each
   // rank damps the owned elements whose radial layer falls in the zone.
   // -----------------------------------------------------------------------

@@ -634,14 +634,18 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
           tri_circumcenter_sph(mp, a, b, c, theta_f, phi_f);
           (void)phi_f;
 
+          // Boundary shells use the TRUNCATED dual (the half-segment
+          // that actually exists), matching the base class — the old
+          // x2 "ghost" extension was removed there in the A2 boundary
+          // hygiene pass, and the two must agree for the flat metric.
           double dual_len;
           if (k == 0) {
             double r_above = 0.5 * (mp.radii[0] + mp.radii[1]);
-            dual_len = 2.0 * radial_edge_length(met, r, r_above, theta_f);
+            dual_len = radial_edge_length(met, r, r_above, theta_f);
           } else if (k == N_r_local) {
             double r_below =
                 0.5 * (mp.radii[N_r_local - 1] + mp.radii[N_r_local]);
-            dual_len = 2.0 * radial_edge_length(met, r_below, r, theta_f);
+            dual_len = radial_edge_length(met, r_below, r, theta_f);
           } else {
             double r_below = 0.5 * (mp.radii[k - 1] + mp.radii[k]);
             double r_above = 0.5 * (mp.radii[k] + mp.radii[k + 1]);

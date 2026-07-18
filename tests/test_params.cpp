@@ -19,6 +19,7 @@
 #include "framework/params_store.h"
 // #include "visit_struct/visit_struct_intrusive.hpp"
 #include "visit_struct/visit_struct.hpp"
+#include <filesystem>
 
 using namespace Aperture;
 
@@ -43,7 +44,10 @@ TEST_CASE("Parsing toml into our params store", "[param_store]") {
   Logger::init(0, LogLevel::debug);
   params_store store;
 
-  store.parse("test_parsing.toml");
+  // Resolve the fixture relative to this source file so the test works
+  // from any working directory (it used to require CWD = bin/).
+  store.parse((std::filesystem::path(__FILE__).parent_path() /
+               "test_parsing.toml").string());
 
   REQUIRE(store.get_as<double>("dt", 0.0) == 0.01);
   REQUIRE(store.get_as<int64_t>("steps", 0) == 10000);

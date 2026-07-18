@@ -57,6 +57,17 @@ void dec_field_solver<ExecPolicy>::register_data_components() {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::init() {
+  // 4.1b: build the distributed core.  Single-rank partition for now —
+  // the local cochain layouts are then identity maps onto the global
+  // ordering, so the registered field buffers pass straight into the
+  // core's kernels.  The MPI driver (B2) replaces this with the rank's
+  // real partition.
+  m_topo = icosphere_topology::build_from_mesh(m_mesh);
+  m_part = prismatic_partition::single_rank(m_mesh.m_L, m_mesh.m_N_r);
+  m_part.set_topology(&m_topo);
+  m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+  m_dist.build(m_mesh, m_mesh_part);
+
   sim_env().params().get_value("Bp", m_Bp);
   sim_env().params().get_value("Omega", m_Omega);
   sim_env().params().get_value("obliquity", m_obliquity);
@@ -152,34 +163,9 @@ template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::compute_rhs(
     buffer<Scalar>& E_in, buffer<Scalar>& B_in,
     buffer<Scalar>& dE_out, buffer<Scalar>& dB_out) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-
-  // dB/dt = -d1 * E
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, mp] LAMBDA(auto E_e, auto dB) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          Scalar curl_E = Scalar(0);
-          for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
-            curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
-          }
-          dB[f] = -curl_E;
-        });
-      },
-      E_in, dB_out);
-
-  // dE/dt = h1inv * (d1t * h2 * B - J)
-  ExecPolicy::launch(
-      [N_edges = mp.N_edges, mp] LAMBDA(auto B_f, auto J_e, auto dE) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          Scalar curl_H = Scalar(0);
-          for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
-            int f = mp.d1t_col_idx[j];
-            curl_H += mp.d1t_val[j] * mp.hodge2[f] * B_f[f];
-          }
-          dE[e] = mp.hodge1_inv[e] * (curl_H - J_e[e]);
-        });
-      },
-      B_in, m_J->data(), dE_out);
+  // [halo sync point] E_in (h+v) and B_in (tri+rect) ghosts must be
+  // fresh before the RHS — no-op under single_rank; B2 exchanges here.
+  m_dist.compute_rhs(E_in, B_in, m_J->data(), dE_out, dB_out);
 }
 
 // =========================================================================
@@ -191,34 +177,15 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Faraday: B -= dt * d1 * E
+  // [halo sync point] exchange E (h+v) before this — no-op single-rank.
   if (m_update_b) {
-    ExecPolicy::launch(
-        [N_faces = mp.N_faces, dt, mp] LAMBDA(auto E_e, auto B_f) {
-          ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-            Scalar curl_E = Scalar(0);
-            for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
-              curl_E += mp.d1_val[j] * E_e[mp.d1_col_idx[j]];
-            }
-            B_f[f] -= dt * curl_E;
-          });
-        },
-        m_E->data(), m_B->data());
+    m_dist.faraday(m_E->data(), m_B->data(), dt);
   }
 
   // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
+  // [halo sync point] exchange B (tri+rect) before this.
   if (m_update_e && !m_use_recon_hodge) {
-    ExecPolicy::launch(
-        [N_edges = mp.N_edges, dt, mp] LAMBDA(auto E_e, auto B_f, auto J_e) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          Scalar curl_H = Scalar(0);
-          for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
-            int f = mp.d1t_col_idx[j];
-            curl_H += mp.d1t_val[j] * mp.hodge2[f] * B_f[f];
-          }
-          E_e[e] += dt * mp.hodge1_inv[e] * (curl_H - J_e[e]);
-        });
-      },
-      m_E->data(), m_B->data(), m_J->data());
+    m_dist.ampere(m_E->data(), m_B->data(), m_J->data(), dt);
   } else if (m_update_e) {
     // Reconstruction-corrected Ampere (see prismatic_recon_hodge.h):
     //   circ[f] = W2-row(f) . B          (dual-segment circulations)
@@ -289,17 +256,8 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
   compute_rhs(m_E->data(), m_B->data(), m_dE_dt, m_dB_dt);
 
   // Step 2: Euler predict — F* = F^n + dt * RHS^n
-  ExecPolicy::launch(
-      [Ne = mp.N_edges, Nf = mp.N_faces, dt]
-      LAMBDA(auto E, auto tmpE, auto dE, auto B, auto tmpB, auto dB) {
-        ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
-          tmpE[e] = E[e] + dt * dE[e];
-        });
-        ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
-          tmpB[f] = B[f] + dt * dB[f];
-        });
-      },
-      m_E->data(), m_tmp_E, m_dE_dt, m_B->data(), m_tmp_B, m_dB_dt);
+  m_dist.euler_predict(m_E->data(), m_dE_dt, m_tmp_E,
+                       m_B->data(), m_dB_dt, m_tmp_B, dt);
 
   // Damp + apply BC to the Euler predict so the first RHS evaluation is
   // consistent.  Every candidate state F* is damped exactly once (here and
@@ -312,24 +270,15 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
   }
   ExecPolicy::sync();
 
-  // Step 3: Iterate corrector
+  // Step 3: Iterate corrector.  compute_rhs is a halo sync point — the
+  // ghost refresh must happen inside EVERY iteration (see the plan).
   for (int iter = 0; iter < m_implicit_iters; iter++) {
     compute_rhs(m_tmp_E, m_tmp_B, m_dE_dt_new, m_dB_dt_new);
 
     // F* = F^n + dt * (alpha * RHS^n + beta * RHS*)
-    ExecPolicy::launch(
-        [Ne = mp.N_edges, Nf = mp.N_faces, dt, alpha, beta]
-        LAMBDA(auto E, auto tmpE, auto dE_n, auto dE_new,
-               auto B, auto tmpB, auto dB_n, auto dB_new) {
-          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
-            tmpE[e] = E[e] + dt * (alpha * dE_n[e] + beta * dE_new[e]);
-          });
-          ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
-            tmpB[f] = B[f] + dt * (alpha * dB_n[f] + beta * dB_new[f]);
-          });
-        },
-        m_E->data(), m_tmp_E, m_dE_dt, m_dE_dt_new,
-        m_B->data(), m_tmp_B, m_dB_dt, m_dB_dt_new);
+    m_dist.picard_combine(m_E->data(), m_dE_dt, m_dE_dt_new, m_tmp_E,
+                          m_B->data(), m_dB_dt, m_dB_dt_new, m_tmp_B,
+                          dt, alpha, beta);
 
     apply_damping(m_tmp_E, m_tmp_B, dt);
     if (m_use_pec_bc) {
@@ -367,50 +316,12 @@ void dec_field_solver<ExecPolicy>::update_semi_implicit(double dt) {
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_damping(
     buffer<Scalar>& E, buffer<Scalar>& B, double dt) {
-  if (m_damping_length <= 0) return;
-
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int N_r = mp.N_r;
-  int k_start = N_r - m_damping_length;
-  if (k_start < 1) k_start = 1;
-  Scalar damp_coef = m_damping_coef;
-  int damp_len = m_damping_length;
-  Scalar damp_exp = m_damping_exponent;
-
   // sigma(k) = coef * ramp^p with ramp in (0, 1].  p >= 3 keeps the layer
   // entrance adiabatic: the entrance reflection interferes with the hard
   // inner-BC driver at FIRST order in the reflected amplitude and shifts
   // the steady-state luminosity (A2 absorber study).
-
-  // Damp E on edges
-  ExecPolicy::launch(
-      [N_edges = mp.N_edges, k_start, damp_coef, damp_len, damp_exp, dt, mp]
-      LAMBDA(auto E_e) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          int k = mp.edge_radial_layer[e];
-          if (k >= k_start) {
-            Scalar ramp = Scalar(k - k_start + 1) / Scalar(damp_len);
-            Scalar sigma = damp_coef * std::pow(ramp, damp_exp);
-            E_e[e] *= std::exp(-sigma * Scalar(dt));
-          }
-        });
-      },
-      E);
-
-  // Damp B on faces
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, k_start, damp_coef, damp_len, damp_exp, dt, mp]
-      LAMBDA(auto B_f) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          int k = mp.face_radial_layer[f];
-          if (k >= k_start) {
-            Scalar ramp = Scalar(k - k_start + 1) / Scalar(damp_len);
-            Scalar sigma = damp_coef * std::pow(ramp, damp_exp);
-            B_f[f] *= std::exp(-sigma * Scalar(dt));
-          }
-        });
-      },
-      B);
+  m_dist.apply_damping(E, B, dt, m_damping_length, m_damping_coef,
+                       m_damping_exponent);
 }
 
 // =========================================================================
@@ -429,156 +340,13 @@ void dec_field_solver<ExecPolicy>::apply_damping(
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_inner_bc(
     buffer<Scalar>& E, buffer<Scalar>& B, double time_E, double time_B) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  Scalar Bp_val = m_Bp;
-  Scalar Omega_val = m_Omega;
-  Scalar obliq = m_obliquity;
-  bool deutsch = m_use_deutsch_bc;
-  int n_tri_faces = mp.N_tri * (mp.N_r + 1);
-
-  // Instantaneous dipole moment (for standard BC mode), at each field's
-  // own time level (B is half-step staggered under leapfrog).
-  Scalar mx_B = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_B);
-  Scalar my_B = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_B);
-  Scalar mx_E = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_E);
-  Scalar my_E = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_E);
-  Scalar mz_i = Bp_val * std::cos(obliq);
-  Scalar t_bc_B = static_cast<Scalar>(time_B);
-  Scalar t_bc_E = static_cast<Scalar>(time_E);
-
-  // --- Overwrite B_f on inner boundary faces (at time_B) ---
-  // Optional (inner_bc_overwrite_b, default true for now): overwriting
-  // BOTH E and B over-determines the discrete characteristics at the
-  // ring and is the suspected source of the first-order boundary error
-  // seen in the Deutsch benchmark; driving tangential E only is the
-  // standard rotating-conductor BC.
-  // The analytic BC prescribes TOTAL fields; in the delta formulation the
-  // stored background cochain is subtracted from the quadrature result
-  // (B0 is zero when use_static_background is off; E0 is identically
-  // zero, so the E side needs no subtraction).
-  if (m_inner_bc_overwrite_b) {
-  ExecPolicy::launch(
-      [N_faces = mp.N_faces, n_tri_faces, mx_i = mx_B, my_i = my_B, mz_i,
-       Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_B, mp]
-      LAMBDA(auto B_f, auto B0_f) {
-        ExecPolicy::loop(0, N_faces, [&] LAMBDA(int f) {
-          if (mp.face_boundary[f] != 1) return;
-
-          if (f < n_tri_faces) {
-            // --- Spherical triangular face: Gauss quadrature in (u, t) ∈ [0,1]².
-            // Barycentric λ_a = (1-u)(1-t), λ_b = u, λ_c = (1-u)t;
-            // Position on the sphere of radius r via radial projection of
-            // λ_a·û_a + λ_b·û_b + λ_c·û_c; area element ∂P/∂u × ∂P/∂t absorbs
-            // the (1-u) Jacobian.
-            int vi0 = mp.tri_face_v0[f];
-            int vi1 = mp.tri_face_v1[f];
-            int vi2 = mp.tri_face_v2[f];
-            Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z, r2, a2x, a2y, a2z;
-            vertex_unit(mp, vi0, r0, a0x, a0y, a0z);
-            vertex_unit(mp, vi1, r1, a1x, a1y, a1z);
-            vertex_unit(mp, vi2, r2, a2x, a2y, a2z);
-            Scalar r_face = r0;  // all three vertices share the shell radius
-
-            Scalar flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double t) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                tri_sphere_sample(r_face, a0x, a0y, a0z, a1x, a1y, a1z,
-                                  a2x, a2y, a2z, u, t, x, y, z, nx, ny, nz);
-                Scalar bx, by, bz;
-                if (deutsch) {
-                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bx, by, bz);
-                } else {
-                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
-                }
-                return bx*nx + by*ny + bz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux) - B0_f[f];
-          } else {
-            // --- Ruled rectangular face: P(u,v) = r(v) · slerp(û_a, û_b, u).
-            // Layout: v0=(r_lo,û_a), v1=(r_lo,û_b), v2=(r_hi,û_b), v3=(r_hi,û_a).
-            int fi = f - n_tri_faces;
-            int vi0 = mp.rect_face_v0[fi];
-            int vi1 = mp.rect_face_v1[fi];
-            int vi3 = mp.rect_face_v3[fi];
-            Scalar r_lo, uax, uay, uaz;
-            Scalar r_tmp, ubx, uby, ubz;
-            Scalar r_hi, uax3, uay3, uaz3;
-            vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
-            vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
-            vertex_unit(mp, vi3, r_hi, uax3, uay3, uaz3);
-            (void)r_tmp; (void)uax3; (void)uay3; (void)uaz3;
-
-            Scalar flux = gauss_quad([&](double u) -> double {
-              return gauss_quad([&](double v) -> double {
-                Scalar x, y, z, nx, ny, nz;
-                rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
-                                   u, v, x, y, z, nx, ny, nz);
-                Scalar bbx, bby, bbz;
-                if (deutsch) {
-                  deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, bbx, bby, bbz);
-                } else {
-                  dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bbx, bby, bbz);
-                }
-                return bbx*nx + bby*ny + bbz*nz;
-              }, 0.0, 1.0);
-            }, 0.0, 1.0);
-            B_f[f] = static_cast<Scalar>(flux) - B0_f[f];
-          }
-        });
-      },
-      B, m_B0->data());
-  }
-
-  // --- Overwrite E_e on inner boundary edges (at time_E) ---
-  ExecPolicy::launch(
-      [N_edges = mp.N_edges, mx_i = mx_E, my_i = my_E, mz_i,
-       Bp_val, Omega_val, obliq, deutsch, t_bc = t_bc_E, mp]
-      LAMBDA(auto E_e) {
-        ExecPolicy::loop(0, N_edges, [&] LAMBDA(int e) {
-          if (mp.edge_boundary[e] != 1) return;
-          int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
-          Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
-          vertex_unit(mp, v0, r0, a0x, a0y, a0z);
-          vertex_unit(mp, v1, r1, a1x, a1y, a1z);
-
-          // Horizontal (arc) edge: same angular endpoints at different r is
-          // not possible, so r0 == r1 and the edge is an arc on the sphere.
-          // Vertical (radial) edge: same sphere vertex at different r.
-          bool is_radial = (r0 != r1);
-
-          Scalar circ = gauss_quad([&](double t) -> double {
-            Scalar x, y, z, dlx, dly, dlz;
-            if (is_radial) {
-              // P(t) = ((1-t) r0 + t r1) · û;  dl = (r1-r0) · û dt.
-              Scalar rt = (Scalar(1) - static_cast<Scalar>(t)) * r0 +
-                          static_cast<Scalar>(t) * r1;
-              Scalar dr = r1 - r0;
-              x = rt * a0x; y = rt * a0y; z = rt * a0z;
-              dlx = dr * a0x; dly = dr * a0y; dlz = dr * a0z;
-            } else {
-              h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
-                                   static_cast<Scalar>(t),
-                                   x, y, z, dlx, dly, dlz);
-            }
-            Scalar ex, ey, ez;
-            if (deutsch) {
-              deutsch_E_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq, ex, ey, ez);
-            } else {
-              // E = -(v × B) where v = Ω × r.
-              Scalar bx, by, bz;
-              dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
-              Scalar vx = -Omega_val * y, vy = Omega_val * x;
-              ex = -(vy * bz);
-              ey = -(-vx * bz);
-              ez = -(vx * by - vy * bx);
-            }
-            return ex*dlx + ey*dly + ez*dlz;
-          }, 0.0, 1.0);
-          E_e[e] = static_cast<Scalar>(circ);
-        });
-      },
-      E);
+  dec_inner_bc_params par;
+  par.Bp = m_Bp;
+  par.Omega = m_Omega;
+  par.obliquity = m_obliquity;
+  par.use_deutsch = m_use_deutsch_bc;
+  par.overwrite_b = m_inner_bc_overwrite_b;
+  m_dist.apply_inner_bc(E, B, m_B0->data(), par, time_E, time_B);
 }
 
 // =========================================================================
@@ -982,30 +750,7 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_pec_bc(
     buffer<Scalar>& E, buffer<Scalar>& B) {
-  auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
-  int N_edge_s = mp.N_edge_s;
-  int N_tri = mp.N_tri;
-  int N_r = mp.N_r;
-
-  // Zero tangential E on inner shell (k=0) and outer shell (k=N_r)
-  ExecPolicy::launch(
-      [N_edge_s, N_r] LAMBDA(auto E_e) {
-        ExecPolicy::loop(0, N_edge_s, [&] LAMBDA(int e) {
-          E_e[e] = Scalar(0);                          // shell k = 0
-          E_e[N_r * N_edge_s + e] = Scalar(0);          // shell k = N_r
-        });
-      },
-      E);
-
-  // Zero normal B on inner shell (k=0) and outer shell (k=N_r)
-  ExecPolicy::launch(
-      [N_tri, N_r] LAMBDA(auto B_f) {
-        ExecPolicy::loop(0, N_tri, [&] LAMBDA(int t) {
-          B_f[t] = Scalar(0);                          // shell k = 0
-          B_f[N_r * N_tri + t] = Scalar(0);            // shell k = N_r
-        });
-      },
-      B);
+  m_dist.apply_pec_bc(E, B);
 }
 
 }  // namespace Aperture

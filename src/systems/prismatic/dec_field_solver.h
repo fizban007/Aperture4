@@ -2,9 +2,13 @@
 
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
+#include "systems/prismatic/dec_solver_dist.h"
+#include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
+#include "systems/prismatic/prismatic_partition.h"
 #include "systems/prismatic/prismatic_recon_hodge.h"
 #include "utils/nonown_ptr.hpp"
 
@@ -73,6 +77,19 @@ class dec_field_solver : public system_t {
  private:
 
   prismatic_mesh& m_mesh;
+
+  // 4.1b distributed core: all step kernels (Faraday, Ampere, RHS,
+  // damping, PEC / inner BC) run through dec_solver_dist over the
+  // partition's local d1/d1^T blocks.  Currently a single_rank
+  // partition, under which the local layout IS the global ordering and
+  // the registered field buffers are passed straight through
+  // (bit-compatible with the old global kernels).  The MPI driver
+  // wiring (B2) swaps in a real partition + halo backend at the sync
+  // points marked in update_explicit / update_semi_implicit.
+  icosphere_topology m_topo;
+  prismatic_partition m_part;
+  prismatic_mesh_partition m_mesh_part;
+  dec_solver_dist<ExecPolicy> m_dist;
 
   // Shared field data (owned by env, found in register_data_components).
   // Mirrors the main-code background split: the solver evolves the delta

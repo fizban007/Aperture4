@@ -5,6 +5,8 @@
 #include "systems/prismatic/dec_solver_dist.h"
 #include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
+#include "systems/prismatic/prismatic_halo_exchanger.h"
+#include "systems/prismatic/prismatic_mpi_comm.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
@@ -19,12 +21,26 @@ class dec_field_solver : public system_t {
  public:
   static std::string name() { return "dec_field_solver"; }
 
-  dec_field_solver(prismatic_mesh& mesh);
+  // Pass a non-null, non-single-rank comm (prismatic_mpi_comm::create,
+  // 20*K ranks) to run distributed: the partition is built here so that
+  // register_data_components — which the framework calls at
+  // register_system time — sizes the field buffers locally.  The comm
+  // must outlive this system.  Under a distributed solver,
+  // combined-range consumers (particles, sph output, exporter) must
+  // NOT be registered — init() fatals if a "particles" data component
+  // exists.
+  dec_field_solver(prismatic_mesh& mesh,
+                   const prismatic_mpi_comm* comm = nullptr);
   ~dec_field_solver() = default;
 
   void register_data_components() override;
   void init() override;
   void update(double dt, uint32_t step) override;
+
+  // Per-rank field dump (4.1b.7 option (i)): writes this rank's OWNED
+  // slots of the total E/B cochains plus the owned l2g index maps to
+  // <output_dir>/rank<R>_step_<S>.h5.  Stitch with the l2g maps.
+  void dump_rank_fields(uint32_t step);
 
   // Initial condition helpers — call from main after env.init().
   void set_initial_dipole();
@@ -79,17 +95,27 @@ class dec_field_solver : public system_t {
   prismatic_mesh& m_mesh;
 
   // 4.1b distributed core: all step kernels (Faraday, Ampere, RHS,
-  // damping, PEC / inner BC) run through dec_solver_dist over the
-  // partition's local d1/d1^T blocks.  Currently a single_rank
-  // partition, under which the local layout IS the global ordering and
-  // the registered field buffers are passed straight through
-  // (bit-compatible with the old global kernels).  The MPI driver
-  // wiring (B2) swaps in a real partition + halo backend at the sync
-  // points marked in update_explicit / update_semi_implicit.
+  // damping, PEC / inner BC) and the dipole/Deutsch ICs run through
+  // dec_solver_dist over the partition's local d1/d1^T blocks.  With no
+  // comm (single-rank) the partition is single_rank, whose local
+  // layouts are identity maps onto the global ordering — the registered
+  // field buffers pass straight through, bit-compatible with the old
+  // global kernels.  With a comm the partition is the rank's slice of
+  // the combined 20xK decomposition and the fields are local-sized.
   icosphere_topology m_topo;
   prismatic_partition m_part;
   prismatic_mesh_partition m_mesh_part;
   dec_solver_dist<ExecPolicy> m_dist;
+
+  // Distributed mode (ctor comm): real partition + MPI halo exchanges
+  // at the sync points.  m_ex is inactive (all no-ops) when single-rank.
+  const prismatic_mpi_comm* m_mpi = nullptr;
+  bool m_distributed = false;
+  prismatic_halo_exchanger m_ex;
+  // Per-rank dump cadence under distributed runs (config
+  // "rank_dump_interval", 0 = off).
+  int m_rank_dump_interval = 0;
+  std::string m_output_dir = "Data/";
 
   // Shared field data (owned by env, found in register_data_components).
   // Mirrors the main-code background split: the solver evolves the delta

@@ -5,6 +5,7 @@
 #include "core/typedefs_and_constants.h"
 #include "framework/data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_particles.h"
 
 namespace Aperture {
@@ -52,6 +53,21 @@ class prismatic_field : public data_t {
     m_data.assign(Scalar(0));
   }
 
+  // 4.1b.6 part 2: LOCAL-sized construction for a distributed run —
+  // the two blocks are the partition's local (owned + ghost) cochain
+  // layouts.  Combined-range consumers (particles, sph output, the
+  // exporter) MUST NOT be registered alongside such fields.
+  prismatic_field(const prismatic_mesh_partition& mp,
+                  MemType mem = default_mem_type)
+      : m_data(local_field_size(mp), mem) {
+    if constexpr (Type == PrismaticFieldType::edge) {
+      m_split = mp.layout(cochain_type::h_edge).local_size();
+    } else if constexpr (Type == PrismaticFieldType::face) {
+      m_split = mp.layout(cochain_type::tri_face).local_size();
+    }
+    m_data.assign(Scalar(0));
+  }
+
   // No-op: systems write initial values (e.g. dipole B) in system init,
   // which runs before data init. We must not overwrite those values.
   void init() override {}
@@ -82,6 +98,17 @@ class prismatic_field : public data_t {
     if constexpr (Type == PrismaticFieldType::vertex) return mesh.m_N_verts;
     else if constexpr (Type == PrismaticFieldType::edge) return mesh.m_N_edges;
     else return mesh.m_N_faces;
+  }
+  static int local_field_size(const prismatic_mesh_partition& mp) {
+    if constexpr (Type == PrismaticFieldType::vertex) {
+      return mp.layout(cochain_type::vertex).local_size();
+    } else if constexpr (Type == PrismaticFieldType::edge) {
+      return mp.layout(cochain_type::h_edge).local_size() +
+             mp.layout(cochain_type::v_edge).local_size();
+    } else {
+      return mp.layout(cochain_type::tri_face).local_size() +
+             mp.layout(cochain_type::rect_face).local_size();
+    }
   }
 
   buffer<Scalar> m_data;

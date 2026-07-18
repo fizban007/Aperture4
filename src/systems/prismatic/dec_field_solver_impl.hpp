@@ -6,8 +6,11 @@
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "framework/environment.h"
 #include "utils/gauss_quadrature.h"
+#include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
 #include <cmath>
+#include <cstdio>
+#include <filesystem>
 
 namespace Aperture {
 
@@ -19,18 +22,62 @@ namespace Aperture {
 // =========================================================================
 
 template <typename ExecPolicy>
-dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh)
-    : m_mesh(mesh),
-      m_tmp_E(mesh.m_N_edges, ExecPolicy::data_mem_type()),
-      m_tmp_B(mesh.m_N_faces, ExecPolicy::data_mem_type()),
-      m_dE_dt(mesh.m_N_edges, ExecPolicy::data_mem_type()),
-      m_dB_dt(mesh.m_N_faces, ExecPolicy::data_mem_type()),
-      m_dE_dt_new(mesh.m_N_edges, ExecPolicy::data_mem_type()),
-      m_dB_dt_new(mesh.m_N_faces, ExecPolicy::data_mem_type()) {}
+dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh,
+                                               const prismatic_mpi_comm* comm)
+    : m_mesh(mesh) {
+  if (comm != nullptr && !comm->is_single_rank()) {
+    // Distributed mode must be established HERE: the framework calls
+    // register_data_components right after construction, and the field
+    // buffers are sized from this partition.
+    m_mpi = comm;
+    m_distributed = true;
+    m_topo = icosphere_topology::build_from_mesh(m_mesh);
+    m_part = prismatic_partition::combined(
+        m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(), comm->radial_rank(),
+        comm->angular_rank());
+    m_part.set_topology(&m_topo);
+    m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+  }
+  int ne = mesh.m_N_edges, nf = mesh.m_N_faces;
+  if (m_distributed) {
+    ne = m_mesh_part.layout(cochain_type::h_edge).local_size() +
+         m_mesh_part.layout(cochain_type::v_edge).local_size();
+    nf = m_mesh_part.layout(cochain_type::tri_face).local_size() +
+         m_mesh_part.layout(cochain_type::rect_face).local_size();
+  }
+  for (auto b : {&m_tmp_E, &m_dE_dt, &m_dE_dt_new}) {
+    b->set_memtype(ExecPolicy::data_mem_type());
+    b->resize(ne);
+  }
+  for (auto b : {&m_tmp_B, &m_dB_dt, &m_dB_dt_new}) {
+    b->set_memtype(ExecPolicy::data_mem_type());
+    b->resize(nf);
+  }
+}
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::register_data_components() {
   auto mem = ExecPolicy::data_mem_type();
+  if (m_distributed) {
+    // LOCAL-sized fields (owned + ghost per cochain, 4.1b.6 part 2).
+    // Combined-range consumers must not be registered in this mode.
+    m_Etotal = sim_env().template register_data<prismatic_edge_field>(
+        "E", m_mesh_part, mem);
+    m_Btotal = sim_env().template register_data<prismatic_face_field>(
+        "B", m_mesh_part, mem);
+    m_E = sim_env().template register_data<prismatic_edge_field>(
+        "Edelta", m_mesh_part, mem);
+    m_B = sim_env().template register_data<prismatic_face_field>(
+        "Bdelta", m_mesh_part, mem);
+    m_E0 = sim_env().template register_data<prismatic_edge_field>(
+        "E0", m_mesh_part, mem);
+    m_B0 = sim_env().template register_data<prismatic_face_field>(
+        "B0", m_mesh_part, mem);
+    m_J = sim_env().template register_data<prismatic_edge_field>(
+        "J", m_mesh_part, mem);
+    m_J->set_edge_kind(EdgeCochainKind::dual_2);
+    return;
+  }
   // Totals (background + delta): what particles, sph output, and the
   // exporter consume.
   m_Etotal = sim_env().template register_data<prismatic_edge_field>(
@@ -57,16 +104,35 @@ void dec_field_solver<ExecPolicy>::register_data_components() {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::init() {
-  // 4.1b: build the distributed core.  Single-rank partition for now —
-  // the local cochain layouts are then identity maps onto the global
-  // ordering, so the registered field buffers pass straight into the
-  // core's kernels.  The MPI driver (B2) replaces this with the rank's
-  // real partition.
-  m_topo = icosphere_topology::build_from_mesh(m_mesh);
-  m_part = prismatic_partition::single_rank(m_mesh.m_L, m_mesh.m_N_r);
-  m_part.set_topology(&m_topo);
-  m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+  // 4.1b: build the distributed core over this rank's partition — the
+  // real one from set_mpi under MPI, otherwise single_rank (identity
+  // layouts onto the global ordering, registered field buffers pass
+  // straight into the core's kernels).
+  if (!m_distributed) {
+    m_topo = icosphere_topology::build_from_mesh(m_mesh);
+    m_part = prismatic_partition::single_rank(m_mesh.m_L, m_mesh.m_N_r);
+    m_part.set_topology(&m_topo);
+    m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+  }
   m_dist.build(m_mesh, m_mesh_part);
+  if (m_distributed) {
+    m_ex.init(m_mesh_part, *m_mpi);
+    // The particle path is single-rank only (Phase 6).
+    if (sim_env().get_data_optional("particles") != nullptr) {
+      Logger::print_err(
+          "dec_field_solver: distributed mode cannot run with a particle "
+          "system registered (Phase 6)");
+      std::abort();
+    }
+    Logger::print_info(
+        "Distributed DEC solver: rank ({}, {}) of 20x{}, local edges {} / {} "
+        "global, local faces {} / {}",
+        m_mpi->angular_rank(), m_mpi->radial_rank(), m_mpi->n_radial_ranks(),
+        m_dist.n_edges_local(), m_mesh.m_N_edges, m_dist.n_faces_local(),
+        m_mesh.m_N_faces);
+  }
+  sim_env().params().get_value("rank_dump_interval", m_rank_dump_interval);
+  sim_env().params().get_value("output_dir", m_output_dir);
 
   sim_env().params().get_value("Bp", m_Bp);
   sim_env().params().get_value("Omega", m_Omega);
@@ -83,6 +149,12 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("use_pec_bc", m_use_pec_bc);
   sim_env().params().get_value("inner_bc_overwrite_b", m_inner_bc_overwrite_b);
   sim_env().params().get_value("use_reconstruction_hodge", m_use_recon_hodge);
+  if (m_use_recon_hodge && m_distributed) {
+    Logger::print_err(
+        "use_reconstruction_hodge is single-rank only (global path); "
+        "disabling");
+    m_use_recon_hodge = false;
+  }
   if (m_use_recon_hodge) {
     if (m_use_implicit) {
       Logger::print_err(
@@ -107,6 +179,9 @@ void dec_field_solver<ExecPolicy>::init() {
       // Aligned (static) dipole component only — see header note.
       fill_dipole_B(m_B0->data(), Scalar(0), Scalar(0),
                     m_Bp * std::cos(m_obliquity));
+      // Owned slots only were filled; refresh B0 ghosts once so
+      // refresh_total_fields is consistent on the full local range.
+      m_ex.exchange_face(m_B0->data(), m_dist.b_split());
       Logger::print_info(
           "Static background enabled: aligned dipole mz = {}",
           m_Bp * std::cos(m_obliquity));
@@ -139,6 +214,12 @@ void dec_field_solver<ExecPolicy>::update(double dt, uint32_t step) {
   }
   refresh_total_fields();
   m_time += dt;
+  // Same phase as prismatic_data_exporter: the step-s file holds the
+  // post-update state E((s+1)dt), B((s+1/2)dt).
+  if (m_distributed && m_rank_dump_interval > 0 &&
+      step % m_rank_dump_interval == 0) {
+    dump_rank_fields(step);
+  }
 }
 
 template <typename ExecPolicy>
@@ -163,7 +244,11 @@ void dec_field_solver<ExecPolicy>::compute_rhs(
     buffer<Scalar>& E_in, buffer<Scalar>& B_in,
     buffer<Scalar>& dE_out, buffer<Scalar>& dB_out) {
   // [halo sync point] E_in (h+v) and B_in (tri+rect) ghosts must be
-  // fresh before the RHS — no-op under single_rank; B2 exchanges here.
+  // fresh before the RHS.  Because update_semi_implicit calls this on
+  // the Picard iterate each iteration, this IS the per-iteration ghost
+  // refresh.  No-ops when single-rank.
+  m_ex.exchange_edge(E_in, m_dist.e_split());
+  m_ex.exchange_face(B_in, m_dist.b_split());
   m_dist.compute_rhs(E_in, B_in, m_J->data(), dE_out, dB_out);
 }
 
@@ -176,14 +261,16 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Faraday: B -= dt * d1 * E
-  // [halo sync point] exchange E (h+v) before this — no-op single-rank.
+  // [halo sync point] exchange E (h+v) — no-op single-rank.
   if (m_update_b) {
+    m_ex.exchange_edge(m_E->data(), m_dist.e_split());
     m_dist.faraday(m_E->data(), m_B->data(), dt);
   }
 
   // Ampere: E += dt * h1inv * (d1t * h2 * B - J)
-  // [halo sync point] exchange B (tri+rect) before this.
+  // [halo sync point] exchange B (tri+rect).
   if (m_update_e && !m_use_recon_hodge) {
+    m_ex.exchange_face(m_B->data(), m_dist.b_split());
     m_dist.ampere(m_E->data(), m_B->data(), m_J->data(), dt);
   } else if (m_update_e) {
     // Reconstruction-corrected Ampere (see prismatic_recon_hodge.h):
@@ -588,6 +675,53 @@ void dec_field_solver<ExecPolicy>::set_initial_resonator_mode(
 // (Vertical edges and rectangular faces of the boundary layers are NOT
 //  on the conducting surface itself, only adjacent — leave them alone.)
 // =========================================================================
+
+// =========================================================================
+// Per-rank field dump (4.1b.7 option (i)).  Owned slots of the TOTAL
+// E/B cochains, plus the owned l2g maps for stitching.  Blocks are
+// written separately (h/v edges, tri/rect faces) since the global
+// combined offsets are reconstructible from the mesh dimensions.
+// =========================================================================
+
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::dump_rank_fields(uint32_t step) {
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  m_Etotal->data().copy_to_host();
+  m_Btotal->data().copy_to_host();
+#endif
+  auto const& L_he = m_mesh_part.layout(cochain_type::h_edge);
+  auto const& L_ve = m_mesh_part.layout(cochain_type::v_edge);
+  auto const& L_tri = m_mesh_part.layout(cochain_type::tri_face);
+  auto const& L_rect = m_mesh_part.layout(cochain_type::rect_face);
+  int world_rank = m_mpi == nullptr
+                       ? 0
+                       : m_mpi->radial_rank() * 20 + m_mpi->angular_rank();
+  std::filesystem::create_directories(m_output_dir);
+  char fname[512];
+  std::snprintf(fname, sizeof(fname), "%s/rank%04d_step_%06u.h5",
+                m_output_dir.c_str(), world_rank, step);
+  auto file = hdf_create(fname);
+
+  auto dump_block = [&](const distributed_cochain_layout& L,
+                        const Scalar* vals, const char* vname,
+                        const char* gname) {
+    const int n = L.owned_size();
+    std::vector<Scalar> v(n);
+    std::vector<int> g(n);
+    for (int l = 0; l < n; ++l) {
+      v[l] = vals[l];
+      g[l] = L.to_global(l);
+    }
+    file.write(v.data(), n, vname);
+    file.write(g.data(), n, gname);
+  };
+  dump_block(L_he, m_Etotal->host_ptr_a(), "E_h", "E_h_g");
+  dump_block(L_ve, m_Etotal->host_ptr_b(), "E_v", "E_v_g");
+  dump_block(L_tri, m_Btotal->host_ptr_a(), "B_tri", "B_tri_g");
+  dump_block(L_rect, m_Btotal->host_ptr_b(), "B_rect", "B_rect_g");
+  file.write(double(m_time), "time");
+  file.close();
+}
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::apply_pec_bc(

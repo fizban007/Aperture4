@@ -7,7 +7,7 @@ namespace {
 
 template <typename T>
 void copy_with_offset(const T* base, const distributed_cochain_layout& layout,
-                       std::vector<T>& dst) {
+                       buffer<T>& dst) {
   const int n = layout.local_size();
   dst.resize(n);
   for (int l = 0; l < n; ++l) {

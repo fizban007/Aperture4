@@ -2,7 +2,7 @@
 
 #include "core/typedefs_and_constants.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
-#include <vector>
+#include "core/buffer.hpp"
 
 namespace Aperture {
 
@@ -39,9 +39,9 @@ class prismatic_mesh;
 // =========================================================================
 template <typename T>
 struct sparse_csr {
-  std::vector<int> row_ptr;   // size n_rows + 1
-  std::vector<int> col_idx;   // size nnz
-  std::vector<T> val;         // size nnz
+  buffer<int> row_ptr;   // size n_rows + 1
+  buffer<int> col_idx;   // size nnz
+  buffer<T> val;         // size nnz
 
   int n_rows() const { return int(row_ptr.size()) - 1; }
   int nnz() const { return int(col_idx.size()); }

@@ -2,7 +2,7 @@
 
 #include "core/typedefs_and_constants.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
-#include <vector>
+#include "core/buffer.hpp"
 
 namespace Aperture {
 
@@ -37,36 +37,36 @@ class prismatic_mesh_metric_local {
   const prismatic_mesh_partition& partition() const { return *m_partition; }
 
   // ---- Tri-face metric scalars (sampled at tri circumcenter) ----
-  std::vector<Scalar> tri_face_r_coord;
-  std::vector<Scalar> tri_face_sth;
-  std::vector<Scalar> tri_face_cth;
-  std::vector<Scalar> tri_face_alpha;
-  std::vector<Scalar> tri_face_sq_gamma_beta_r;
-  std::vector<Scalar> tri_face_sqrt_gamma;
+  buffer<Scalar> tri_face_r_coord;
+  buffer<Scalar> tri_face_sth;
+  buffer<Scalar> tri_face_cth;
+  buffer<Scalar> tri_face_alpha;
+  buffer<Scalar> tri_face_sq_gamma_beta_r;
+  buffer<Scalar> tri_face_sqrt_gamma;
 
   // ---- Rect-face metric scalars (sampled at face centroid) ----
-  std::vector<Scalar> rect_face_r_coord;
-  std::vector<Scalar> rect_face_sth;
-  std::vector<Scalar> rect_face_cth;
-  std::vector<Scalar> rect_face_alpha;
-  std::vector<Scalar> rect_face_sq_gamma_beta_r;
-  std::vector<Scalar> rect_face_sqrt_gamma;
+  buffer<Scalar> rect_face_r_coord;
+  buffer<Scalar> rect_face_sth;
+  buffer<Scalar> rect_face_cth;
+  buffer<Scalar> rect_face_alpha;
+  buffer<Scalar> rect_face_sq_gamma_beta_r;
+  buffer<Scalar> rect_face_sqrt_gamma;
 
   // ---- H-edge metric scalars (sampled at edge midpoint) ----
-  std::vector<Scalar> h_edge_r_coord;
-  std::vector<Scalar> h_edge_sth;
-  std::vector<Scalar> h_edge_cth;
-  std::vector<Scalar> h_edge_alpha;
-  std::vector<Scalar> h_edge_sq_gamma_beta_r;
-  std::vector<Scalar> h_edge_sqrt_gamma;
+  buffer<Scalar> h_edge_r_coord;
+  buffer<Scalar> h_edge_sth;
+  buffer<Scalar> h_edge_cth;
+  buffer<Scalar> h_edge_alpha;
+  buffer<Scalar> h_edge_sq_gamma_beta_r;
+  buffer<Scalar> h_edge_sqrt_gamma;
 
   // ---- V-edge metric scalars (sampled at edge midpoint) ----
-  std::vector<Scalar> v_edge_r_coord;
-  std::vector<Scalar> v_edge_sth;
-  std::vector<Scalar> v_edge_cth;
-  std::vector<Scalar> v_edge_alpha;
-  std::vector<Scalar> v_edge_sq_gamma_beta_r;
-  std::vector<Scalar> v_edge_sqrt_gamma;
+  buffer<Scalar> v_edge_r_coord;
+  buffer<Scalar> v_edge_sth;
+  buffer<Scalar> v_edge_cth;
+  buffer<Scalar> v_edge_alpha;
+  buffer<Scalar> v_edge_sq_gamma_beta_r;
+  buffer<Scalar> v_edge_sqrt_gamma;
 
  private:
   const prismatic_mesh_partition* m_partition = nullptr;

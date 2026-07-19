@@ -36,6 +36,7 @@ class prismatic_data_exporter : public system_t {
  private:
   void write_mesh();
   void write_snapshot(uint32_t step, double time);
+  void write_meta(H5File& file);
 
   const prismatic_mesh& m_mesh;
   const prismatic_mesh_partition* m_mp = nullptr;
@@ -43,6 +44,12 @@ class prismatic_data_exporter : public system_t {
   bool m_distributed = false;
   nonown_ptr<prismatic_edge_field> m_E;
   nonown_ptr<prismatic_face_field> m_B;
+  // Moment fields (7D: present when a particle updater is registered;
+  // the exporter is now the only production output system).
+  nonown_ptr<prismatic_edge_field> m_J;
+  nonown_ptr<prismatic_vertex_field> m_rho;
+  nonown_ptr<prismatic_vertex_field> m_rho_abs;
+  nonown_ptr<prismatic_vertex_field> m_gamma_wsum;
 
   // Distributed mode: contiguous owned runs per combined dataset
   // (E_e = [h|v] edges, B_f = [tri|rect] faces), built once at init.
@@ -51,7 +58,7 @@ class prismatic_data_exporter : public system_t {
   struct run_set {
     std::vector<hsize_t> mem_off, file_off, len;
   };
-  run_set m_E_runs, m_B_runs;
+  run_set m_E_runs, m_B_runs, m_V_runs;
 
   int m_output_interval = 100;
 

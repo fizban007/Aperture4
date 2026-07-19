@@ -153,6 +153,29 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
         "layers [{}, {}) at k0 = {}",
         m_world_rank, m_lmesh.n_tri_own(), m_lmesh.n_tri_local(),
         m_lmesh.lay_own_lo(), m_lmesh.lay_own_hi(), m_lmesh.k0());
+
+    // 7D memory audit: the per-rank footprint must scale ~ 1/(A*K) plus
+    // the O(4^L) replicated angular-table constant (weak-scaling smoke
+    // checks this across A*K shapes).
+    auto lp_sz = m_lmesh.host_ptrs();
+    const size_t local_3d_bytes =
+        sizeof(Scalar) * (size_t(m_E->data().size()) + m_B->data().size() +
+                          m_J->data().size() + 3 * m_rho->data().size() +
+                          m_Bv.size()) +
+        sizeof(int) * (size_t(lp_sz.N_r + 1) *
+                           (lp_sz.N_edge_s + lp_sz.N_tri + lp_sz.N_vert_s) +
+                       size_t(lp_sz.N_r) * (lp_sz.N_vert_s + lp_sz.N_edge_s));
+    const size_t angular_bytes =
+        size_t(m_mesh.m_N_tri) * 3 * sizeof(int) * 4 +
+        size_t(m_mesh.m_N_vert_s) * 5 * sizeof(Scalar) +
+        size_t(m_mesh.m_N_tri) * sizeof(double) +
+        size_t(m_mesh.m_N_edge_s) * (2 * sizeof(double) + 4 * sizeof(int)) +
+        size_t(m_mesh.m_N_vert_s) * sizeof(double);
+    Logger::print_info(
+        "Per-rank footprint: local 3D (fields+maps+Bv) ~ {:.1f} kB, "
+        "replicated angular tables ~ {:.1f} kB, particle buffer {:.1f} MB",
+        local_3d_bytes / 1.0e3, angular_bytes / 1.0e3,
+        double(m_ptc->size()) * (8 * sizeof(Scalar) + 2 * 4 + 8) / 1.0e6);
   }
 
   Logger::print_info("Prismatic particle updater initialized: {} particles",

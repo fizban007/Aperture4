@@ -215,9 +215,10 @@ void prismatic_vertex_recovery::build(const prismatic_mesh& mesh) {
       tri_fan[s * 6 + nt[s]++] = t;
     }
   }
-  // sphere edge e endpoints = layer-0 horizontal edge endpoints
+  // sphere edge endpoints (7D: from the persisted sphere tables — the
+  // recovery must build on a sphere-only mesh).
   for (int e = 0; e < mesh.m_N_edge_s; e++) {
-    int s0 = mesh.edge_v0[e], s1 = mesh.edge_v1[e];
+    int s0 = mesh.sphere_edge_v0[e], s1 = mesh.sphere_edge_v1[e];
     if (s0 >= m_N_vert_s || s1 >= m_N_vert_s)
       throw std::runtime_error("vertex recovery: bad layer-0 edge endpoint");
     edge_fan[s0 * 6 + ne[s0]++] = e;
@@ -268,7 +269,7 @@ void prismatic_vertex_recovery::build(const prismatic_mesh& mesh) {
             faces[f].r0, x_v);
       } else {
         int e = faces[f].idx;
-        int s0 = mesh.edge_v0[e], s1 = mesh.edge_v1[e];
+        int s0 = mesh.sphere_edge_v0[e], s1 = mesh.sphere_edge_v1[e];
         fm = rect_face_moments(
             {mesh.sphere_vx[s0], mesh.sphere_vy[s0], mesh.sphere_vz[s0]},
             {mesh.sphere_vx[s1], mesh.sphere_vy[s1], mesh.sphere_vz[s1]},

@@ -5,10 +5,12 @@
 // its owned ones), N steps of push -> Whitney deposit -> J reduction ->
 // migration -> field update, then global snapshot + sph output.
 //
-// Run single-process and under mpirun -n 20/40 with the same config
-// (different output_dir) and compare:
-//   - exporter step files / sph files: equal to FP-reordering tolerance
-//     (the deposit allreduce and atomics reorder float sums);
+// Run single-process and under mpirun (any canonical A*K shape) with
+// the same config (different output_dir) and compare:
+//   - exporter step files (E_e/B_f/J_e/rho/...): equal to FP-reordering
+//     tolerance (atomics reorder float deposit sums); since 7D the sph
+//     system is single-rank only, so cross-rank-count comparisons use
+//     the step files (which now carry the moments too);
 //   - LIVE particle counts: printed, must match across rank counts;
 //   - OWNERSHIP: every live particle sits on the rank owning its cell
 //     (fails if migration misroutes or drops particles).
@@ -67,7 +69,13 @@ int main(int argc, char* argv[]) {
   double p0 = env.params().get_as<double>("seed_p0", 1.0);
 
   prismatic_mesh mesh;
-  mesh.build(L, N_r, r_min, r_max);
+  // 7D: distributed runs use the sphere-only build (no global 3D
+  // arrays anywhere; local builders compute geometry).
+  if (world_size > 1) {
+    mesh.build_sphere_only(L, N_r, r_min, r_max);
+  } else {
+    mesh.build(L, N_r, r_min, r_max);
+  }
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   mesh.copy_to_device();
 #endif
@@ -92,7 +100,9 @@ int main(int argc, char* argv[]) {
   auto updater = env.register_system<prismatic_ptc_updater_t>(mesh, mp, pc);
   auto solver = env.register_system<dec_field_solver_t>(mesh, pc, mp);
   env.register_system<prismatic_data_exporter>(mesh, mp, pc);
-  env.register_system<prismatic_sph_output>(mesh, mp, pc);
+  if (world_size == 1) {
+    env.register_system<prismatic_sph_output>(mesh);
+  }
 
   env.init();
   solver->set_initial_dipole();

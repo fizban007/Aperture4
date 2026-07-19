@@ -47,6 +47,13 @@ void prismatic_data_exporter::register_data_components() {
 }
 
 void prismatic_data_exporter::init() {
+  // Moment fields exist when a particle updater is registered (init
+  // runs after every system's registration).
+  sim_env().get_data_optional("J", m_J);
+  sim_env().get_data_optional("rho", m_rho);
+  sim_env().get_data_optional("rho_abs", m_rho_abs);
+  sim_env().get_data_optional("gamma_wsum", m_gamma_wsum);
+
   sim_env().params().get_value("fld_output_interval", m_output_interval);
   sim_env().params().get_value("fld_output_radial_stride",
                                m_output_radial_stride);
@@ -93,6 +100,10 @@ void prismatic_data_exporter::init() {
                       m_B_runs.len);
     append_owned_runs(L_rect, L_tri.local_size(), n_tri_glob,
                       m_B_runs.mem_off, m_B_runs.file_off, m_B_runs.len);
+    if (m_rho != nullptr || m_rho_abs != nullptr || m_gamma_wsum != nullptr) {
+      append_owned_runs(m_mp->layout(cochain_type::vertex), 0, 0,
+                        m_V_runs.mem_off, m_V_runs.file_off, m_V_runs.len);
+    }
     Logger::print_info(
         "Distributed exporter: {} + {} owned runs (E, B) per snapshot",
         m_E_runs.len.size(), m_B_runs.len.size());
@@ -116,7 +127,12 @@ void prismatic_data_exporter::init() {
   const int N_edge_s  = m_mesh.m_N_edge_s;
   const int N_vert_s  = m_mesh.m_N_vert_s;
 
-  if (R > 1 || A > 1) {
+  if ((R > 1 || A > 1) && !m_mesh.has_3d()) {
+    Logger::print_err(
+        "prismatic_data_exporter: legacy stride downsampling needs the "
+        "full mesh build; writing full snapshots");
+    m_output_radial_stride = m_output_angular_stride = 1;
+  } else if (R > 1 || A > 1) {
     // ---- Faces: triangular shell faces, then rectangular faces ----
     // Triangular shell faces: (k, t) → k*N_tri + t, k ∈ [0, N_r], t ∈ [0, N_tri)
     for (int k = 0; k <= N_r; k += R) {
@@ -206,6 +222,46 @@ void prismatic_data_exporter::update(double dt, uint32_t step) {
 void prismatic_data_exporter::write_mesh() {
   std::string filename = m_output_dir + "/mesh.h5";
   auto file = hdf_create(filename);
+
+  // Phase 7D: under a sphere-only mesh (distributed runs) no rank holds
+  // the 3D per-cochain arrays; they are ANALYTIC in (sphere tables x
+  // radii), so the mesh file carries the sphere-level data + radii +
+  // parameters only, and post tools (python/sph_from_dump.py) recompute
+  // whatever per-element geometry they need via the same formulas
+  // (prismatic_mesh_geom.h).
+  if (!m_mesh.has_3d()) {
+    file.write(m_mesh.radii.host_ptr(), m_mesh.m_N_r + 1, "radii");
+    file.write(m_mesh.sphere_vx.host_ptr(), m_mesh.m_N_vert_s, "sphere_vx");
+    file.write(m_mesh.sphere_vy.host_ptr(), m_mesh.m_N_vert_s, "sphere_vy");
+    file.write(m_mesh.sphere_vz.host_ptr(), m_mesh.m_N_vert_s, "sphere_vz");
+    file.write(m_mesh.sphere_theta.host_ptr(), m_mesh.m_N_vert_s,
+               "sphere_theta");
+    file.write(m_mesh.sphere_phi.host_ptr(), m_mesh.m_N_vert_s,
+               "sphere_phi");
+    file.write(m_mesh.tri_verts.host_ptr(), m_mesh.m_N_tri * 3, "tri_verts");
+    file.write(m_mesh.tri_edges_s.host_ptr(), m_mesh.m_N_tri * 3,
+               "tri_edges_s");
+    file.write(m_mesh.tri_edge_signs.host_ptr(), m_mesh.m_N_tri * 3,
+               "tri_edge_signs");
+    file.write(m_mesh.tri_neighbor.host_ptr(), m_mesh.m_N_tri * 3,
+               "tri_neighbor");
+    file.write(m_mesh.sphere_edge_v0.host_ptr(), m_mesh.m_N_edge_s,
+               "sphere_edge_v0");
+    file.write(m_mesh.sphere_edge_v1.host_ptr(), m_mesh.m_N_edge_s,
+               "sphere_edge_v1");
+    file.write(m_mesh.m_L, "L");
+    file.write(m_mesh.m_N_r, "N_r");
+    file.write(m_mesh.m_N_verts, "N_verts");
+    file.write(m_mesh.m_N_edges, "N_edges");
+    file.write(m_mesh.m_N_faces, "N_faces");
+    file.write(m_mesh.m_N_tri, "N_tri");
+    file.write(m_mesh.m_N_vert_s, "N_vert_s");
+    file.write(m_mesh.m_N_edge_s, "N_edge_s");
+    file.write(1, "sphere_only");
+    file.close();
+    Logger::print_info("Mesh written (sphere-level) to {}", filename);
+    return;
+  }
 
   // Write vertex positions.  Mesh stores (r, θ, φ); derive Cartesian
   // arrays locally for backwards compat with analysis/viz scripts that
@@ -330,6 +386,23 @@ void prismatic_data_exporter::write_mesh() {
   Logger::print_info("Mesh written to {}", filename);
 }
 
+// Self-describing snapshot metadata (7D F9): enough for post tools to
+// rebuild the mesh (sphere stage) and interpret every dataset without
+// mesh.h5 at hand.  "J_kind_dual2" flags the raw dual-2 J cochain
+// (multiply by hodge1_inv — analytic — for the primal circulation).
+void prismatic_data_exporter::write_meta(H5File& file) {
+  file.write(m_mesh.m_L, "L");
+  file.write(m_mesh.m_N_r, "N_r");
+  file.write(m_mesh.m_N_tri, "N_tri");
+  file.write(m_mesh.m_N_edge_s, "N_edge_s");
+  file.write(m_mesh.m_N_vert_s, "N_vert_s");
+  file.write(m_mesh.radii.host_ptr(), m_mesh.m_N_r + 1, "radii");
+  if (m_J != nullptr) {
+    file.write(m_J->edge_kind() == EdgeCochainKind::dual_2 ? 1 : 0,
+               "J_kind_dual2");
+  }
+}
+
 void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   char fname[256];
   std::snprintf(fname, sizeof(fname), "%s/step_%06u.h5",
@@ -351,8 +424,26 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
     file.write_parallel_runs(m_B->host_ptr(), m_B->data().size(),
                              size_t(m_mesh.m_N_faces), m_B_runs.mem_off,
                              m_B_runs.file_off, m_B_runs.len, "B_f");
+    if (m_J != nullptr) {
+      m_J->data().copy_to_host();
+      file.write_parallel_runs(m_J->host_ptr(), m_J->data().size(),
+                               size_t(m_mesh.m_N_edges), m_E_runs.mem_off,
+                               m_E_runs.file_off, m_E_runs.len, "J_e");
+    }
+    auto write_vert = [&](nonown_ptr<prismatic_vertex_field>& f,
+                          const char* name) {
+      if (f == nullptr) return;
+      f->data().copy_to_host();
+      file.write_parallel_runs(f->host_ptr(), f->data().size(),
+                               size_t(m_mesh.m_N_verts), m_V_runs.mem_off,
+                               m_V_runs.file_off, m_V_runs.len, name);
+    };
+    write_vert(m_rho, "rho");
+    write_vert(m_rho_abs, "rho_abs");
+    write_vert(m_gamma_wsum, "gamma_wsum");
     file.write(static_cast<int>(step), "step");
     file.write(time, "time");
+    write_meta(file);
     file.close();
     if (m_comm->radial_rank() == 0 && m_comm->angular_rank() == 0) {
       Logger::print_info("Snapshot written (parallel): step={}, time={:.4f}",
@@ -381,11 +472,25 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
     // Full output (default).
     file.write(m_E->host_ptr(), m_mesh.m_N_edges, "E_e");
     file.write(m_B->host_ptr(), m_mesh.m_N_faces, "B_f");
+    if (m_J != nullptr) {
+      m_J->data().copy_to_host();
+      file.write(m_J->host_ptr(), m_mesh.m_N_edges, "J_e");
+    }
+    auto write_vert = [&](nonown_ptr<prismatic_vertex_field>& f,
+                          const char* name) {
+      if (f == nullptr) return;
+      f->data().copy_to_host();
+      file.write(f->host_ptr(), m_mesh.m_N_verts, name);
+    };
+    write_vert(m_rho, "rho");
+    write_vert(m_rho_abs, "rho_abs");
+    write_vert(m_gamma_wsum, "gamma_wsum");
   }
 
   // Write metadata
   file.write(static_cast<int>(step), "step");
   file.write(time, "time");
+  write_meta(file);
 
   file.close();
   Logger::print_info("Snapshot written: step={}, time={:.4f}", step, time);

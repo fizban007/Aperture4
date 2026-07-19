@@ -36,7 +36,13 @@ int main(int argc, char* argv[]) {
   prismatic_mesh mesh;
   mesh.sphere_optimize_iters =
       env.params().get_as<int64_t>("mesh_optimize_iters", 0);
-  mesh.build(L, N_r, r_min, r_max);
+  // 7D: distributed runs never build the global 3D mesh arrays — all
+  // per-element geometry is computed locally from the sphere stage.
+  if (world_size > 1) {
+    mesh.build_sphere_only(L, N_r, r_min, r_max);
+  } else {
+    mesh.build(L, N_r, r_min, r_max);
+  }
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   mesh.copy_to_device();
 #endif
@@ -62,8 +68,11 @@ int main(int argc, char* argv[]) {
   // must be local-sized).
   env.register_system<prismatic_data_exporter>(
       mesh, solver->mesh_partition(), world_size > 1 ? &mcomm : nullptr);
-  env.register_system<prismatic_sph_output>(
-      mesh, solver->mesh_partition(), world_size > 1 ? &mcomm : nullptr);
+  // 7D: the sph output is single-rank only (distributed runs
+  // post-process the exporter dumps with python/sph_from_dump.py).
+  if (world_size == 1) {
+    env.register_system<prismatic_sph_output>(mesh);
+  }
 
   env.init();
 

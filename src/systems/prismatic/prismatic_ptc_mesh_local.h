@@ -150,10 +150,15 @@ struct prismatic_ptc_mesh_ptrs {
   }
 
   // GLOBAL (rank-agnostic) wire encoding of a LOCAL cell, plan F7.
-  HD_INLINE uint32_t wire_cell(uint32_t cell) const {
+  // 64-bit: the global cell space k·N_tri_global + tri exceeds 2^32
+  // near L9 (checkpoint plan appendix item 1) — the wire and the
+  // checkpoint format carry uint64.  LOCAL cells stay uint32 (bounded
+  // by the per-rank mesh size; guarded loudly at build).
+  HD_INLINE uint64_t wire_cell(uint32_t cell) const {
     const int lay = int(cell) / N_tri;
     const int tri = int(cell) - lay * N_tri;
-    return uint32_t((k0 + lay) * N_tri_global + tri_l2g[tri]);
+    return uint64_t(k0 + lay) * uint64_t(N_tri_global) +
+           uint64_t(tri_l2g[tri]);
   }
 
   // =======================================================================
@@ -292,7 +297,7 @@ class prismatic_ptc_mesh_local {
   int lay_own_lo() const { return m_lay_own_lo; }
   int lay_own_hi() const { return m_lay_own_hi; }
   int n_tri_global() const { return m_n_tri_global; }
-  int max_cell() const { return m_n_tri_local * m_n_layers; }
+  size_t max_cell() const { return size_t(m_n_tri_local) * m_n_layers; }
 
   // World-rank migration parameters (canonical A·K decomposition).
   int n_angular_ranks() const { return m_A; }

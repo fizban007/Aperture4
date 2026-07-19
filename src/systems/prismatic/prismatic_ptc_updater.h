@@ -107,8 +107,9 @@ class prismatic_ptc_updater : public system_t {
   // Shared migration/restart wire machinery: component-wise Alltoallv
   // of the packed send arrays into the m_rcv_* staging (returns the
   // arrival count), and arrival append with GLOBAL→local cell
-  // translation (m_rcv_cell holds wire cells on entry).
-  int exchange_wire(const Scalar* const comps[8], const uint32_t* cells,
+  // translation (m_rcv_cell holds uint64 wire cells on entry — the
+  // global cell space passes 2^32 near L9).
+  int exchange_wire(const Scalar* const comps[8], const uint64_t* cells,
                     const uint32_t* flags, const uint64_t* ids,
                     const std::vector<int>& snd_cnt,
                     const std::vector<int>& snd_off);
@@ -139,13 +140,16 @@ class prismatic_ptc_updater : public system_t {
   uint32_t m_synced_step = uint32_t(-1);
 
   // Migration scratch: per-rank counts/cursors, packed send components
-  // (device-packed, host-staged through MPI), receive staging.
+  // (device-packed, host-staged through MPI), receive staging.  Cells
+  // travel in the 64-bit GLOBAL wire encoding.
   buffer<int> m_mig_count, m_mig_cursor;
   buffer<Scalar> m_snd_s[8];
-  buffer<uint32_t> m_snd_cell, m_snd_flag;
+  buffer<uint64_t> m_snd_cell;
+  buffer<uint32_t> m_snd_flag;
   buffer<uint64_t> m_snd_id;
   std::vector<Scalar> m_rcv_s[8];
-  std::vector<uint32_t> m_rcv_cell, m_rcv_flag;
+  std::vector<uint64_t> m_rcv_cell;
+  std::vector<uint32_t> m_rcv_flag;
   std::vector<uint64_t> m_rcv_id;
 
   nonown_ptr<prismatic_particle_data> m_ptc;

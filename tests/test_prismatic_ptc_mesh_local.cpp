@@ -354,13 +354,35 @@ TEST_CASE("ptc_mesh_local: cell ownership tiles and migrate_dest routes "
         } else {
           REQUIRE(dest == owner);
         }
-        // Wire round-trip: global encode → owner's local decode.
-        const uint32_t wc = l.wire_cell(cell);
-        const int glay = int(wc) / fx.mesh.m_N_tri;
-        const int gtri = int(wc) % fx.mesh.m_N_tri;
+        // Wire round-trip: global encode → owner's local decode (the
+        // wire is uint64 — global cells pass 2^32 near L9).
+        const uint64_t wc = l.wire_cell(cell);
+        const int glay = int(wc / uint64_t(fx.mesh.m_N_tri));
+        const int gtri = int(wc % uint64_t(fx.mesh.m_N_tri));
         REQUIRE(glay == gk);
         REQUIRE(gtri == gt);
       }
     }
   }
+}
+
+TEST_CASE("ptc_mesh_local: wire_cell is 64-bit above the uint32 wall",
+          "[prismatic][ptc_mesh_local]") {
+  // Synthetic L10-scale geometry (no mesh build): the global cell
+  // k * N_tri_global + tri passes 2^32 near L9 — the wire must carry
+  // it exactly (checkpoint plan appendix item 1).
+  prismatic_ptc_mesh_ptrs p{};
+  const int l2g[2] = {20971519, 3};  // local tri 0 -> the last L10 tri
+  p.N_tri = 2;
+  p.k0 = 3000;
+  p.N_tri_global = 20971520;  // 20 * 4^10
+  p.tri_l2g = l2g;
+
+  const uint32_t cell = uint32_t(1) * 2 + 0;  // local layer 1, local tri 0
+  const uint64_t wc = p.wire_cell(cell);
+  REQUIRE(wc == uint64_t(3001) * 20971520ull + 20971519ull);
+  REQUIRE(wc > (uint64_t(1) << 32));
+  // Decode round-trip at 64 bits.
+  REQUIRE(int(wc / uint64_t(p.N_tri_global)) == 3001);
+  REQUIRE(int(wc % uint64_t(p.N_tri_global)) == 20971519);
 }

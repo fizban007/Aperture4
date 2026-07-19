@@ -7,7 +7,6 @@
 #include "utils/logger.h"
 #include <chrono>
 #include <cmath>
-#include <limits>
 
 namespace Aperture {
 
@@ -145,10 +144,10 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
       b.set_memtype(ExecPolicy::data_mem_type());
       b.resize(16);
     }
-    for (auto* b : {&m_snd_cell, &m_snd_flag}) {
-      b->set_memtype(ExecPolicy::data_mem_type());
-      b->resize(16);
-    }
+    m_snd_cell.set_memtype(ExecPolicy::data_mem_type());
+    m_snd_cell.resize(16);
+    m_snd_flag.set_memtype(ExecPolicy::data_mem_type());
+    m_snd_flag.resize(16);
     m_snd_id.set_memtype(ExecPolicy::data_mem_type());
     m_snd_id.resize(16);
     Logger::print_info(
@@ -472,7 +471,7 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
 // least 1 so .data() is a real pointer under zero counts.
 template <typename ExecPolicy>
 int prismatic_ptc_updater<ExecPolicy>::exchange_wire(
-    const Scalar* const comps[8], const uint32_t* cells,
+    const Scalar* const comps[8], const uint64_t* cells,
     const uint32_t* flags, const uint64_t* ids,
     const std::vector<int>& snd_cnt, const std::vector<int>& snd_off) {
   const int ws = m_world_size;
@@ -488,7 +487,8 @@ int prismatic_ptc_updater<ExecPolicy>::exchange_wire(
   }
 
   const int rcv_cap = n_recv > 0 ? n_recv : 1;
-  for (auto* v : {&m_rcv_cell, &m_rcv_flag}) v->resize(rcv_cap);
+  m_rcv_cell.resize(rcv_cap);
+  m_rcv_flag.resize(rcv_cap);
   for (auto& v : m_rcv_s) v.resize(rcv_cap);
   m_rcv_id.resize(rcv_cap);
   const MPI_Datatype st = mpi_scalar_type();
@@ -497,9 +497,9 @@ int prismatic_ptc_updater<ExecPolicy>::exchange_wire(
                   m_rcv_s[c].data(), rcv_cnt.data(), rcv_off.data(), st,
                   wcomm);
   }
-  MPI_Alltoallv(cells, snd_cnt.data(), snd_off.data(), MPI_UINT32_T,
+  MPI_Alltoallv(cells, snd_cnt.data(), snd_off.data(), MPI_UINT64_T,
                 m_rcv_cell.data(), rcv_cnt.data(), rcv_off.data(),
-                MPI_UINT32_T, wcomm);
+                MPI_UINT64_T, wcomm);
   MPI_Alltoallv(flags, snd_cnt.data(), snd_off.data(), MPI_UINT32_T,
                 m_rcv_flag.data(), rcv_cnt.data(), rcv_off.data(),
                 MPI_UINT32_T, wcomm);
@@ -525,13 +525,14 @@ void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
     std::abort();
   }
   const auto& g2l = m_lmesh.tri_g2l();
-  const int N_tri_glob = m_lmesh.n_tri_global();
+  const uint64_t N_tri_glob = uint64_t(m_lmesh.n_tri_global());
   const int n_tri_loc = m_lmesh.n_tri_local();
   const int k0 = m_lmesh.k0();
+  auto hp = m_ptc->get_host_ptrs();
   for (int i = 0; i < n_recv; ++i) {
-    const uint32_t wc = m_rcv_cell[i];
-    const int glay = int(wc) / N_tri_glob;
-    const int gtri = int(wc) - glay * N_tri_glob;
+    const uint64_t wc = m_rcv_cell[i];
+    const int glay = int(wc / N_tri_glob);
+    const int gtri = int(wc % N_tri_glob);
     const int ltri = g2l[gtri];
     const int llay = glay - k0;
     if (ltri < 0 || llay < 0) {
@@ -541,10 +542,10 @@ void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
           wc);
       std::abort();
     }
-    m_rcv_cell[i] = uint32_t(llay * n_tri_loc + ltri);
+    // Local cells fit uint32 by the lmesh build guard.
+    hp.cell[num + i] = uint32_t(llay * n_tri_loc + ltri);
   }
 
-  auto hp = m_ptc->get_host_ptrs();
   const Scalar* rs[8] = {m_rcv_s[0].data(), m_rcv_s[1].data(),
                          m_rcv_s[2].data(), m_rcv_s[3].data(),
                          m_rcv_s[4].data(), m_rcv_s[5].data(),
@@ -554,7 +555,6 @@ void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
   for (int c = 0; c < 8; ++c) {
     std::copy(rs[c], rs[c] + n_recv, ds[c] + num);
   }
-  std::copy(m_rcv_cell.begin(), m_rcv_cell.begin() + n_recv, hp.cell + num);
   std::copy(m_rcv_flag.begin(), m_rcv_flag.begin() + n_recv, hp.flag + num);
   std::copy(m_rcv_id.begin(), m_rcv_id.begin() + n_recv, hp.id + num);
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
@@ -588,19 +588,6 @@ void prismatic_ptc_updater<ExecPolicy>::inject_wire_particles(
     const std::vector<Scalar> comps[8], const std::vector<uint64_t>& gcells,
     const std::vector<uint32_t>& flags, const std::vector<uint64_t>& ids) {
   const size_t n = gcells.size();
-  // The in-memory wire encoding is uint32 (widening is a separate
-  // prerequisite for L9+, see the checkpoint plan appendix); the disk
-  // format is uint64 from day one.  Guard the narrowing loudly.
-  const uint64_t cell_space =
-      uint64_t(m_mesh.m_N_r) * uint64_t(m_lmesh.n_tri_global());
-  if (cell_space > uint64_t(std::numeric_limits<uint32_t>::max())) {
-    Logger::print_err(
-        "inject_wire_particles: global cell space {} exceeds the uint32 "
-        "migration wire — widen wire_cell/migrate_dest first (checkpoint "
-        "plan appendix item 1)",
-        cell_space);
-    std::abort();
-  }
 
   if (!m_distributed) {
     // Single-rank: the local mesh is the identity bundle — wire cells
@@ -614,7 +601,7 @@ void prismatic_ptc_updater<ExecPolicy>::inject_wire_particles(
     for (int c = 0; c < 8; ++c) {
       std::copy(comps[c].begin(), comps[c].end(), m_rcv_s[c].begin());
     }
-    for (size_t i = 0; i < n; ++i) m_rcv_cell[i] = uint32_t(gcells[i]);
+    std::copy(gcells.begin(), gcells.end(), m_rcv_cell.begin());
     std::copy(flags.begin(), flags.end(), m_rcv_flag.begin());
     std::copy(ids.begin(), ids.end(), m_rcv_id.begin());
     append_wire_arrivals(nn);
@@ -651,13 +638,13 @@ void prismatic_ptc_updater<ExecPolicy>::inject_wire_particles(
   const int cap = n_send > 0 ? n_send : 1;
   std::vector<Scalar> snd_s[8];
   for (auto& v : snd_s) v.resize(cap);
-  std::vector<uint32_t> snd_cell(cap), snd_flag(cap);
-  std::vector<uint64_t> snd_id(cap);
+  std::vector<uint64_t> snd_cell(cap), snd_id(cap);
+  std::vector<uint32_t> snd_flag(cap);
   std::vector<int> cursor(snd_off);
   for (size_t i = 0; i < n; ++i) {
     const int slot = cursor[dest_of(gcells[i])]++;
     for (int c = 0; c < 8; ++c) snd_s[c][slot] = comps[c][i];
-    snd_cell[slot] = uint32_t(gcells[i]);
+    snd_cell[slot] = gcells[i];
     snd_flag[slot] = flags[i];
     snd_id[slot] = ids[i];
   }

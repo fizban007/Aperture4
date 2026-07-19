@@ -30,9 +30,11 @@ trap 'rm -rf "$work"' EXIT
 cd "$work"
 
 datasets=(E_e B_f J_e rho rho_abs gamma_wsum)
-# GPU float atomics reorder deposits; 1e-4 absolute covers the observed
-# ~1e-5 with margin (matches the acceptance-test tolerance).
-delta=1e-4
+# GPU float atomics reorder deposits: two INDEPENDENT straight runs of
+# this config differ by up to ~2e-4 absolute in J_e (measured), so the
+# delta must sit above the run-to-run envelope.  Real restart bugs show
+# up at O(field scale), orders of magnitude above this.
+delta=1e-3
 
 run() {  # run <nranks> <config> -> prints LIVE and ESUM lines
   local n="$1" cfg="$2"

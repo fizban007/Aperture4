@@ -310,14 +310,34 @@ L10 target and are prerequisites; item 3 sits above it and stays
 deferred — this demotion is the main practical payoff of choosing
 L10 over L12.
 
-**1. `uint32_t` global cell overflow (~L9) — hard correctness wall,
-PREREQUISITE.**  Global cell = k·N_tri + tri exceeds 2^32 near L9
-(5.2M tris × ~1.6k shells ≈ 8.6×10^9; L10 is ~6.9×10^10, see D2).
-The checkpoint stores uint64 from day one, so the FORMAT is safe, but
-the in-memory migration wire, `wire_cell()`, `migrate_dest()`, sort
-keys and every `uint32_t cell` in the particle structs must widen (or
-move to a (tri, k) pair encoding) before any run above ~L8.  Silent
-wraparound, not a crash — audit, don't wait for symptoms.
+**1. `uint32_t` global cell overflow (~L9) — DONE 2026-07-19.**
+Global cell = k·N_tri + tri exceeds 2^32 near L9 (5.2M tris × ~1.6k
+shells ≈ 8.6×10^9; L10 is ~6.9×10^10, see D2).  Resolution, after
+auditing the post-7C code: particle structs carry LOCAL cells
+(lay·N_tri_local + tri, bounded by the per-rank mesh — ~10^7 at L10
+under any realistic A×K), so the struct field, `migrate_dest()` and
+the sort keys were NEVER on the wall; only the GLOBAL encodings were.
+Landed: `wire_cell()` returns uint64, the migration Alltoallv cell
+buffers/type are uint64, `append_wire_arrivals` decodes at 64 bits,
+the checkpoint-restore narrowing guard is gone (file and wire are now
+the same width), `max_cell()` returns size_t, and the lmesh build
+aborts loudly if a rank's LOCAL cell space would reach the uint32
+`empty_cell` sentinel (means: decompose more).  Unit test pins the
+encoding above 2^32 with synthetic L10 numbers; host continuity stays
+BITWISE and all acceptance baselines are unchanged.
+
+**1b. `int` GLOBAL cochain/vertex indices (~L9) — DISCOVERED during
+item 1's audit, NEW PREREQUISITE, not yet done.**  The same wall in a
+different currency: global cochain indices (h_edges =
+(N_r+1)·30·4^L ≈ 1.3×10^10 at L9 > 2^31) and 3D vertex ids are `int`
+throughout `distributed_cochain_layout` (l2g maps, to_global/
+to_local), the halo-plan global-index vectors, `prismatic_partition::
+owns_*_cochain`, the exporter/checkpoint run offsets (narrowed before
+the hsize_t conversion), the BC/IC vertex-id decodes and
+`prismatic_mesh_geom` helpers.  L8 still fits (1.6×10^9 < 2^31); any
+run above needs an int64 sweep of every global-index surface (local
+indices stay int).  Mechanical but wide — do as its own pass with the
+bit-exactness suite as the pin.
 
 **2. `distributed_cochain_layout::build` O((N_r+1)·4^L) scans —
 PREREQUISITE.**  Init discovers ownership by scanning all

@@ -3,7 +3,9 @@
 #include "systems/prismatic/prismatic_cochain_layout.h"
 #include "systems/prismatic/prismatic_mesh_geom.h"
 #include "systems/prismatic/prismatic_vertex_recovery.h"
+#include "utils/logger.h"
 #include <algorithm>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace Aperture {
@@ -130,6 +132,18 @@ void prismatic_ptc_mesh_local::build(const prismatic_mesh& mesh,
   m_lay_own_hi = owned_top_slab + 1 - m_k0;
   m_shell_own_lo = kl - m_k0;
   m_shell_own_hi = std::min(part.shell_k_hi, N_r_g + 1) - m_k0;
+
+  // Particle LOCAL cells are uint32 (lay * N_tri_local + tri, with
+  // empty_cell = uint32 max as the sentinel).  The GLOBAL wire is
+  // 64-bit, but a rank whose LOCAL cell space reaches the sentinel
+  // would corrupt silently — refuse loudly (means: decompose more).
+  if (size_t(m_n_tri_local) * size_t(m_n_layers) >= size_t(empty_cell)) {
+    Logger::print_err(
+        "prismatic_ptc_mesh_local: local cell space {} x {} exceeds the "
+        "uint32 particle-cell encoding; increase A x K",
+        m_n_tri_local, m_n_layers);
+    std::abort();
+  }
 
   // -----------------------------------------------------------------------
   // Remapped sphere tables.

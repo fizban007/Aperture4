@@ -1,0 +1,22 @@
+# Acceptance config for test_prismatic_pic_multirank (Phase 6/7
+# distributed PIC).  Run the SAME config single-process and under
+# mpirun (change output_dir per run), then compare:
+#   ./bin/test_prismatic_pic_multirank -c tests/config_prismatic_pic_multirank.toml
+#   mpirun --oversubscribe -n 20 ./bin/test_prismatic_pic_multirank -c <copy with other output_dir>
+# Expected (2026-07-18 baseline, L=2 lattice): SEEDED 640, LIVE 630,
+# MISOWNED 0, ESUM equal across rank counts to float-reordering
+# precision (~8 digits); step_/sph_ HDF5 datasets within 1e-4 relative.
+dt = 0.015
+max_steps = 40
+subdivision_level = 2
+N_r = 8
+r_min = 1.0
+r_max = 2.0
+Bp = 1.0
+max_ptc_num = 2000000
+fld_output_interval = 40
+sph_N_theta = 16
+sph_N_phi = 32
+seed_stride = 4
+seed_p0 = 1.0
+output_dir = "Data_pic_multirank"

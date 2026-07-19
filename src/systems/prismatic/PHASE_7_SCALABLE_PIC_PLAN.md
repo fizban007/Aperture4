@@ -20,9 +20,9 @@
 index reads as base-4 digits `(ico_face, c1, ..., cL)`.  Consequence:
 every *level-m patch* (m ∈ [0, L]) is a contiguous block of 4^(L−m)
 triangles, and `unit(t) = t >> 2(L−m)` is pure arithmetic.  This is
-the backbone of the generalized angular axis: no lookup tables in hot
-paths, injector/migration ownership tests stay contiguous-range
-checks.
+the backbone of the generalized angular axis: ownership tests are
+O(1) arithmetic plus the 20-entry face-path table (F3), and each
+owned unit is a contiguous tri block.
 
 **F2 — Topology adjacency is already generic.** `icosphere_topology`
 carries edge→2-tris, vertex→tri-fan, vertex→edges.  Incident *units*
@@ -33,8 +33,11 @@ of any sphere element follow by mapping its incident tris through
 **F3 — Angular unit & rank definition.**
 - Choose patch level m and angular rank count A with A | 20·4^m.
   Units U = 20·4^m; angular rank a owns units
-  [a·U/A, (a+1)·U/A) — a contiguous unit range ⇒ a contiguous tri
-  range.  A is any divisor of 2^(2m+2)·5, i.e. A ∈ {2^j, 5·2^j}.
+  [a·U/A, (a+1)·U/A) *in the canonical (path) ordering below* — i.e.
+  a contiguous range of PATH-ordered units, each unit being a
+  contiguous tri block in global index space (the blocks themselves
+  are scattered per the face path when a rank owns several faces).
+  A is any divisor of 2^(2m+2)·5, i.e. A ∈ {2^j, 5·2^j}.
 - Examples: A=4 (m=0, 5 faces/rank) × K=2 → one 8-GCD node.
   A=80 (m=1) × K=100, or A=320 (m=2) × K=25 → 8000 ranks.
 - Ownership rule for shared sphere-edges/vertices: **lowest incident
@@ -113,9 +116,10 @@ wire-compatibility guarantee.  O(halo) traffic; the global allreduce
 dies here.
 
 **F7 — Migration under A·K.** Existing Alltoallv machinery survives.
-Destination: unit = global_tri >> 2(L−m); angular rank = unit·A/U
-(uniform ranges ⇒ arithmetic); radial rank via base/rem as today;
-world = rad·A + ang.  Wire format carries GLOBAL cell ids
+Destination: unit = global_tri >> 2(L−m); path unit =
+path_pos(face)·4^m + child_bits (20-entry table); angular rank =
+path_unit·A/U (uniform path ranges ⇒ arithmetic); radial rank via
+base/rem as today; world = rad·A + ang.  Wire format carries GLOBAL cell ids
 (rank-agnostic); pack translates local→global (table lookup), unpack
 global→local (binary search in the owner's sorted sphere l2g +
 layer arithmetic; host-side, per arrival — cheap at output-step
@@ -330,6 +334,43 @@ scope.
   sph datasets on identical inputs before the distributed gather path
   is deleted — the diagnostics pipeline (luminosity, recurrence,
   rotator scorecards) depends on those datasets.
+
+## Appendix — files touched per phase (orientation for fresh sessions)
+
+- 7A: `prismatic_partition.h/.cpp` (unit descriptor, path table,
+  ownership), `icosphere_topology.h/.cpp` (incident-unit queries),
+  `prismatic_halo_plan.h/.cpp` (generic angular builder, canonical
+  ordering), `prismatic_mpi_comm.h/.cpp` (A·K create, dist-graph),
+  `prismatic_mesh_partition.cpp` (plan wiring), tests:
+  `test_prismatic_partition`, `test_prismatic_halo_plan`,
+  `test_prismatic_dec_dist`, `test_prismatic_solver_multirank`.
+  Callers of `combined(...)`: `dec_field_solver_impl.hpp`,
+  `ns_rotator.cpp`, `test_prismatic_pic_multirank.cpp`.
+- 7B: `prismatic_halo_plan.*` (pic depth class),
+  `prismatic_cochain_layout.cpp` (ghost sets),
+  `prismatic_mpi_halo_backend.h/.cpp` + `prismatic_halo_exchanger.h`
+  (reduce()), new operator test alongside `test_prismatic_d1_local`.
+- 7C: new `prismatic_ptc_mesh_local.h/.cpp` (+ptrs),
+  `prismatic_ptc_update_kernel.hpp`, `prismatic_ptc_updater.*`,
+  `prismatic_ptc_injector.hpp`, `prismatic_surface_injector.h`,
+  `prismatic_vertex_recovery.*` (local rows + Bv exchange),
+  `prismatic_particles.h` (dest helper), DELETE
+  `prismatic_field_replicator.h` + `prismatic_field_sync.h`,
+  `dec_field_solver.*` (injected partition ref),
+  `ns_rotator.cpp`, `test_prismatic_pic_multirank.cpp`.
+- 7D: `prismatic_mesh.h/.cpp` (staged build),
+  `prismatic_data_exporter.*` (moments + aggregation + metadata),
+  `prismatic_sph_output.*` (gather-path deletion), new
+  `python/sph_from_dump.py` / `python/cart_from_dump.py`
+  (start from `python/prismatic_recovery.py` + `prismatic_interp`).
+- Validation entry points: `./check_prismatic.sh`;
+  `mpirun --oversubscribe -n <8|20|40|80> bin/test_prismatic_solver_multirank`;
+  `mpirun --oversubscribe -n <N> bin/test_prismatic_pic_multirank -c
+  tests/config_prismatic_pic_multirank.toml` (also run with -n 1 and
+  compare `step_*/sph_*` HDF5 datasets between the two output dirs at
+  ≤1e-4 relative; LIVE/MISOWNED/ESUM printed by the test must match).
+  NOTE: new CMake test targets need a reconfigure
+  (`cmake -S . -B build`) before `--build --target` finds them.
 
 ## Deltas vs. prior plan documents
 

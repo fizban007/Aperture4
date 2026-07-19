@@ -13,7 +13,11 @@
 //   - OWNERSHIP: every live particle sits on the rank owning its cell
 //     (fails if migration misroutes or drops particles).
 //
-//   ./test_prismatic_pic_multirank -c cfg.toml
+// Reference config: tests/config_prismatic_pic_multirank.toml (holds
+// the expected baseline numbers).  Use distinct output_dir per rank
+// count, then diff the HDF5 datasets.
+//
+//   ./test_prismatic_pic_multirank -c tests/config_prismatic_pic_multirank.toml
 //   mpirun -n 20 ./test_prismatic_pic_multirank -c cfg.toml
 
 #include "framework/environment.h"

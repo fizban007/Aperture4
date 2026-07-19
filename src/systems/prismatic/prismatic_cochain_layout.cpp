@@ -33,11 +33,72 @@ distributed_cochain_layout distributed_cochain_layout::build(
   (void)topo;
 
   // ---- Collect owned global indices (ascending by construction) ----
+  //
+  // Ownership factorizes: owns(g) = owns_radial(k) && owns_angular(s)
+  // with g = k·N_s + s (checkpoint plan appendix item 2).  The old
+  // form scanned all n_k·N_s global indices, re-answering the same
+  // ANGULAR question n_k times — O((N_r+1)·4^L) per cochain per rank,
+  // hour-scale at L10 and repaid on every restart.  Enumerate instead:
+  // the owned sphere set once (O(4^L) O(1)-per-element queries), then
+  // owned radial range × owned sphere list, k-major — identical set
+  // and order to the scan.
+  int N_s = 0, n_k = 0;
+  bool radial_is_slab = false;
+  switch (t) {
+    case cochain_type::tri_face:
+      N_s = part.N_tri_global;
+      n_k = part.N_r_global + 1;
+      break;
+    case cochain_type::rect_face:
+      N_s = part.N_edge_s_global;
+      n_k = part.N_r_global;
+      radial_is_slab = true;
+      break;
+    case cochain_type::h_edge:
+      N_s = part.N_edge_s_global;
+      n_k = part.N_r_global + 1;
+      break;
+    case cochain_type::v_edge:
+      N_s = part.N_vert_s_global;
+      n_k = part.N_r_global;
+      radial_is_slab = true;
+      break;
+    case cochain_type::vertex:
+      N_s = part.N_vert_s_global;
+      n_k = part.N_r_global + 1;
+      break;
+  }
+  std::vector<int> owned_s;
+  if (part.owns_all_angular()) {
+    owned_s.resize(N_s);
+    for (int s = 0; s < N_s; ++s) owned_s[s] = s;
+  } else {
+    for (int s = 0; s < N_s; ++s) {
+      bool own_s = false;
+      switch (t) {
+        case cochain_type::tri_face:
+          own_s = part.owns_sub_tri(s);
+          break;
+        case cochain_type::rect_face:
+        case cochain_type::h_edge:
+          own_s = part.owns_sphere_edge(s);
+          break;
+        case cochain_type::v_edge:
+        case cochain_type::vertex:
+          own_s = part.owns_sphere_vertex(s);
+          break;
+      }
+      if (own_s) owned_s.push_back(s);
+    }
+  }
   std::vector<int> owned;
   owned.reserve(out.m_global_size /
                 std::max(1, part.n_angular_ranks * part.n_radial_ranks));
-  for (int g = 0; g < out.m_global_size; ++g) {
-    if (owns(t, part, g)) owned.push_back(g);
+  for (int k = 0; k < n_k; ++k) {
+    const bool own_k =
+        radial_is_slab ? part.owns_slab(k) : part.owns_shell(k);
+    if (!own_k) continue;
+    for (int s : owned_s) owned.push_back(k * N_s + s);
   }
 
   // ---- Collect ghost global indices from plans (dedup via std::set) ----

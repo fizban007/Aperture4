@@ -340,18 +340,23 @@ indices stay int).  Mechanical but wide — do as its own pass with the
 bit-exactness suite as the pin.
 
 **2. `distributed_cochain_layout::build` O((N_r+1)·4^L) scans —
-PREREQUISITE.**  Init discovers ownership by scanning all
+DONE 2026-07-19.**  Init discovered ownership by scanning all
 (N_r+1)·N_s global indices per cochain per rank, re-answering the same
-ANGULAR ownership question N_r+1 times (ownership factorizes:
-owns(g) = owns_shell(k) && owns_sphere(s)).  ~1–3 s/rank at L6,
-~1–2 min at L8; at L10 the scan is ~10^11 indices per cochain per
-rank — HOUR-scale init, unacceptable (and paid again on every
-restart, which is the whole point of this plan).  Fix
-(constructor-only, no format or consumer changes): angular ownership
-bitmap once per cochain kind (O(4^L)), then ENUMERATE the owned set as
-(owned shell range × owned sphere list), ghosts from the halo plans —
-O(4^L + local), where the O(4^L) part is ~10^7 at L10 — trivial.
-Do this alongside the checkpoint work.
+ANGULAR ownership question N_r+1 times; at L10 that is ~10^11 indices
+per cochain per rank — hour-scale, repaid on every restart.  Landed
+exactly as designed (constructor-only, no format or consumer
+changes): the owned set is now ENUMERATED as (owned shell/slab range ×
+owned sphere list), with the sphere list built once per cochain via
+the O(1) angular queries and an `owns_all_angular()` fast path —
+O(4^L + local).  Ghosts still come from the halo plans.  Validation:
+a unit test pins the enumeration equal to the brute-force ownership
+scan (same set, same order) for all 5 cochains on every rank of six
+A×K(×m) shapes; the solver multirank suite stays bit-exact 0.000e+00
+and all PIC/checkpoint baselines are unchanged.  Measured (hidden
+benchmark `./tests '[layout_bench]'`, pic-depth 8×2 bundle): the
+global scan term is gone (0.61 → 0.41 s at L6/N_r=204; the residual
+is the unavoidable O(local) plan/ghost/sort work, which shrinks with
+rank count while the deleted term did not).
 
 **3. Replicated O(4^L) angular stage — memory wall at ~L11+,
 DEFERRED.**  The sphere-stage tables replicated per rank (tri/edge/

@@ -3,7 +3,9 @@
 #include "systems/prismatic/prismatic_cochain_layout.h"
 #include "systems/prismatic/prismatic_halo_plan.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_partition.h"
+#include <chrono>
 #include <memory>
 #include <set>
 #include <vector>
@@ -303,4 +305,76 @@ TEST_CASE("local-indexed plan: in-process exchange fills ghost slots",
       }
     }
   }
+}
+
+// =========================================================================
+// Factorized owned enumeration (checkpoint plan appendix item 2): the
+// (owned shell/slab range × owned sphere list) enumeration must produce
+// EXACTLY the set the full O(global) ownership scan produced, in the
+// same ascending order, for every cochain on every rank of assorted
+// A×K shapes (including a patch level above 0 and pure-radial).
+// =========================================================================
+TEST_CASE("layout owned enumeration equals the brute-force ownership scan",
+          "[prismatic][layout]") {
+  const int L = 2;
+  const int N_r = 8;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+  auto scan_owned = [&](cochain_type t, const prismatic_partition& p) {
+    std::vector<int> v;
+    const int n = global_cochain_size(t, p);
+    for (int g = 0; g < n; ++g) {
+      bool o = false;
+      switch (t) {
+        case cochain_type::tri_face:  o = p.owns_tri_face_cochain(g); break;
+        case cochain_type::rect_face: o = p.owns_rect_face_cochain(g); break;
+        case cochain_type::h_edge:    o = p.owns_h_edge_cochain(g); break;
+        case cochain_type::v_edge:    o = p.owns_v_edge_cochain(g); break;
+        case cochain_type::vertex:    o = p.owns_vertex_cochain(g); break;
+      }
+      if (o) v.push_back(g);
+    }
+    return v;
+  };
+
+  struct shape { int A, K, m; };
+  for (auto sh : {shape{1, 4, -1}, shape{4, 2, -1}, shape{8, 2, -1},
+                  shape{20, 2, -1}, shape{8, 2, 2}, shape{16, 1, -1}}) {
+    for (int w = 0; w < sh.A * sh.K; ++w) {
+      auto part = prismatic_partition::combined(L, N_r, sh.A, sh.K, w, sh.m);
+      part.set_topology(&topo);
+      for (cochain_type t : {cochain_type::tri_face, cochain_type::rect_face,
+                             cochain_type::h_edge, cochain_type::v_edge,
+                             cochain_type::vertex}) {
+        auto layout = distributed_cochain_layout::build(t, part, &topo, {});
+        const auto ref = scan_owned(t, part);
+        REQUIRE(layout.owned_size() == int(ref.size()));
+        for (size_t i = 0; i < ref.size(); ++i) {
+          REQUIRE(layout.to_global(int(i)) == ref[i]);
+        }
+      }
+    }
+  }
+}
+
+// =========================================================================
+// Hidden benchmark ([.]): isolates the mesh_partition::build cost (5
+// layouts + 10 plans + localization) at a production-ish scale.  Run
+// explicitly with:  ./tests '[layout_bench]'
+// =========================================================================
+TEST_CASE("layout build timing at L6", "[.][layout_bench]") {
+  const int L = 6, N_r = 204;
+  prismatic_mesh mesh;
+  mesh.build_sphere_only(L, N_r, 1.0, 45.0);
+  auto topo = icosphere_topology::build_from_mesh(mesh);
+
+  auto t0 = std::chrono::steady_clock::now();
+  auto part = prismatic_partition::combined(L, N_r, 8, 2, 0);
+  part.set_topology(&topo);
+  auto mp = prismatic_mesh_partition::build(part, topo, halo_depth::pic);
+  auto t1 = std::chrono::steady_clock::now();
+  WARN("mesh_partition::build(L=6, N_r=204, 8x2, pic) took "
+       << std::chrono::duration<double>(t1 - t0).count() << " s; owned tri "
+       << mp.layout(cochain_type::tri_face).owned_size());
 }

@@ -417,15 +417,44 @@ Host↔device copies at exchange points are acceptable at validation scale.
 - Device-direct (CUDA-aware) exchange in `mpi_halo_backend` if the
   host-staging shows up in the scaling data; it is one contained class.
 
-### B3 — Deferred (post-paper unless the paper needs a hero run)
+### B3 — Status update (2026-07-18): Phases 5–6 LANDED
+
+- **Halo exchange is packed device-direct** (config `halo_device_direct`,
+  default on; `false` falls back to full-buffer host staging for
+  debugging).  GPU-aware MPI detected at runtime; wire format identical
+  in both modes.  Bit-exact at 20/40 ranks in both modes.
+- **Phase 5 done**: exporter writes single global snapshot files via
+  collective parallel-HDF5 owned-run hyperslabs
+  (`H5File::write_parallel_runs`); sph output gathers owned cochains to
+  world rank 0 and runs the serial path there.  All outputs bit-identical
+  to 1-rank at 20/40 ranks.  Downsampling strides remain single-rank.
+- **Phase 6 done, ARCHITECTURE CHANGED from the original plan**: instead
+  of local-indexed particle kernels + halo reduce() (the recovery
+  B-gather stencils need far deeper halos than the solver plans), the
+  particle path runs on GLOBAL field replicas ("E_ptc"/"B_ptc"
+  refreshed each step by `prismatic_field_replicator`, registered
+  first), particles sharded by cell ownership, deposits allreduced
+  (`prismatic_field_sync`) into the local "J"/"rho"/... the solver and
+  sph consume, and leavers migrated by device-packed MPI_Alltoallv in
+  `prismatic_ptc_updater::migrate()`.  Rationale: every rank holds the
+  full global mesh anyway (until 4.1a.4), and fields are small next to
+  particle buffers, which are what sharding must scale.  Acceptance:
+  `test_prismatic_pic_multirank` — counts identical, zero misowned,
+  outputs within 3.6e-5 of serial at 20/40 ranks; ns_rotator runs the
+  full distributed stack.
+- Optimization backlog (do when profiles demand): device-side
+  scatter/pull in `prismatic_field_sync` (host loops today), owner-sum
+  neighbor reduction replacing the J/rho allreduce, allgather
+  replication replaced by halo-depth-extended local fields.
+
+### Still deferred
 
 - Partition-aware `prismatic_mesh::build()` + `release_global_buffers()`
-  (4.1a.4): only needed beyond L≈7 where the global-build footprint bites.
-- Phase 5 parallel HDF5.
-- Phase 6 distributed PIC: particle migration between ranks + additive
-  J/rho halo **reduction** (owner sums ghost contributions — the reverse
-  of the existing ghost-fill exchange; needs a new `reduce()` path in the
-  halo backends alongside `exchange()`).
+  (4.1a.4): only needed beyond L≈7 where the global-build footprint
+  bites.  Note Phase 6's replicated-field architecture also assumes the
+  global mesh per rank; 4.1a.4 requires revisiting it together.
+- Weak/strong scaling measurements + paper figure (deliberately pushed
+  until the full PIC stack existed — 2026-07-18 decision).
 
 ## Merge point (weeks 7–9)
 

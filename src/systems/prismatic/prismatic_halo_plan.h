@@ -156,14 +156,57 @@ halo_plan build_angular_halo_plan(cochain_type t,
 // cochain index and deduplicated — both peers derive identical lists
 // independently, with no matched-iteration requirement.
 //
-// The ghost-set depth class follows PHASE_7_SCALABLE_PIC_PLAN.md F4;
-// `pic` (1-ring T_halo + shells ±1 superset) lands in Phase 7B.
+// The ghost-set depth class follows PHASE_7_SCALABLE_PIC_PLAN.md F4.
+//
+// `pic` depth class (Phase 7B): ghost elements are ALL elements incident
+// to the prisms of T_halo = T_own ∪ ring, where ring = tris sharing ≥ 1
+// sphere-vertex with an owned tri (covers barycentric walks around
+// corners, including valence-5).  One generic rule serves every cochain
+// kind: element x is ghosted on rank R iff some prism incident to x is
+// in R's T_halo, equivalently R owns a tri sharing a vertex with a
+// prism of x.  Send sides mirror by enumerating the "halo consumer"
+// ranks of each owned element through the same relation.  The pic set
+// strictly contains the solver set (pinned by test), so a PIC run
+// builds ONE layout per cochain and the solver exchanges the slightly
+// larger halo.
+//
+// EXCHANGE / REDUCE ORDER CONTRACT (pic corner forwarding): corner
+// ghosts (angular-ghost column × radial-ghost shell) are delivered by
+// the RADIAL exchange forwarding the peer's angular ghosts — radial
+// peers share the angular rank, hence identical angular ghost columns.
+// Exchanges must therefore run ANGULAR round first, then RADIAL;
+// reductions run in exact reverse (RADIAL first, then ANGULAR), so
+// corner deposits fold into the radial peer's angular-ghost slot and
+// are forwarded onward to the angular owner.  For solver-depth plans
+// the order is immaterial (no corner ghosts exist).
 // =========================================================================
 enum class halo_depth { solver, pic };
 
 halo_plan build_angular_halo_plan_units(
     cochain_type t, const prismatic_partition& self,
     const icosphere_topology& topo, halo_depth depth = halo_depth::solver);
+
+// =========================================================================
+// Radial halo plan, depth-aware form (Phase 7B).  The solver class is
+// exactly build_radial_halo_plan above.  The pic class needs the
+// topology (for the angular owned∪ghost column filter) and extends the
+// radial pattern by the extra layers a particle in a ghost prism
+// touches:
+//   shell cochains: recv shells {k_lo−1} ∪ {k_hi, k_hi+1}, send
+//     {k_lo, k_lo+1} down and {k_hi−1} up (ghost prism k_hi spans
+//     shells k_hi AND k_hi+1 — the slab-k↔shell-k convention makes the
+//     upper side depth 2 in shells);
+//   slab cochains: recv slabs {k_lo−1, k_hi}, send {k_lo} down and
+//     {k_hi−1} up (the solver class has no upper ghost slab).
+// Columns include the rank's ANGULAR pic ghost columns, which delivers
+// the corner ghosts by forwarding (see order contract above).
+// Requires every radial slab to own ≥ 2 shells (throws otherwise —
+// k_hi+1 must be owned by the immediate upper peer).
+// =========================================================================
+halo_plan build_radial_halo_plan_depth(cochain_type t,
+                                       const prismatic_partition& self,
+                                       const icosphere_topology& topo,
+                                       halo_depth depth);
 
 // =========================================================================
 // In-process backend (test fixture).
@@ -204,6 +247,15 @@ class in_process_halo_backend {
   // peer's send entry by position, then copies.  Works with both
   // global-indexed and local-indexed plans.
   void exchange_all(const std::vector<halo_plan>& plans);
+
+  // Collective REDUCE (Phase 7B): the exact reverse of exchange_all —
+  // each rank's ghost (recv-list) slots are accumulated (+=) into the
+  // peer's corresponding send-list slots, then the ghost slots are
+  // zeroed.  Note the send-list target need not be owned by the peer:
+  // the pic radial plans fold corner contributions into the radial
+  // peer's angular-ghost slots, which a subsequent angular reduce_all
+  // forwards to the true owner (radial round FIRST, then angular).
+  void reduce_all(const std::vector<halo_plan>& plans);
 
   int size() const { return int(m_rank_buffers.size()); }
 

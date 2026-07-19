@@ -1,27 +1,40 @@
 #include "systems/prismatic/prismatic_mesh_partition.h"
+#include <stdexcept>
 
 namespace Aperture {
 
 prismatic_mesh_partition prismatic_mesh_partition::build(
-    const prismatic_partition& part, const icosphere_topology& topo) {
+    const prismatic_partition& part, const icosphere_topology& topo,
+    halo_depth depth) {
   prismatic_mesh_partition out;
   out.m_partition = part;
   out.m_topology = &topo;
+  out.m_depth = depth;
   // Ensure the partition's topology pointer is set so ownership queries
   // can use the full-fidelity sphere-edge / sphere-vertex path rather
   // than the owns_all_angular() fallback.
   out.m_partition.set_topology(&topo);
 
+  // The pic depth class exists only on the canonical path (the legacy
+  // per-ico-face builder and identity rank wiring die in 7C).
+  if (depth == halo_depth::pic && !part.canonical_rank_order &&
+      !part.owns_all_angular()) {
+    throw std::invalid_argument(
+        "prismatic_mesh_partition: pic depth requires a canonical-rank-"
+        "order partition (angular_units/combined factories)");
+  }
+
   // Build plans (global-indexed) for each cochain type on both axes.
   // Canonical path-ordered partitions (angular_units/combined) use the
   // generic unit-based angular builder; legacy identity-ordered
-  // partitions keep the per-ico-face builder until 7A.4.
+  // partitions keep the per-ico-face builder until 7C.
   auto fill_plans = [&](cochain_type t, plans_pair& pp) {
     pp.angular_global =
         part.canonical_rank_order
-            ? build_angular_halo_plan_units(t, out.m_partition, topo)
+            ? build_angular_halo_plan_units(t, out.m_partition, topo, depth)
             : build_angular_halo_plan(t, out.m_partition, topo);
-    pp.radial_global  = build_radial_halo_plan(t, out.m_partition);
+    pp.radial_global =
+        build_radial_halo_plan_depth(t, out.m_partition, topo, depth);
   };
   fill_plans(cochain_type::tri_face,  out.m_tri_face_plans);
   fill_plans(cochain_type::rect_face, out.m_rect_face_plans);

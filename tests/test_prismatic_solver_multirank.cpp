@@ -285,6 +285,66 @@ int main(int argc, char** argv) {
     }
   }
 
+  // ---- Phase 7B reduce roundtrip ---------------------------------------
+  // exchange fills every ghost with the owner's value; reduce ships the
+  // ghosts back and accumulates, then zeroes them.  Owned slot ->
+  // original * (1 + copies), where copies = occurrences of the local
+  // index in this rank's send lists over both axes; ghost slots -> 0.
+  for (auto md : {mode{"packed", &ex_packed}, mode{"staged", &ex_staged}}) {
+    fields f;
+    f.alloc(core);
+    f.seed(core, Eg, Bg, Jg);
+
+    std::vector<Scalar> expE(f.E.host_ptr(),
+                             f.E.host_ptr() + f.E.size());
+    std::vector<Scalar> expB(f.B.host_ptr(),
+                             f.B.host_ptr() + f.B.size());
+    // Expected result: owned slot += one original value per send-list
+    // occurrence (the contribution each ghosting peer ships back equals
+    // the owner's exchanged value); ghost slots end zero.
+    auto add_copies = [&](cochain_type t, int off, std::vector<Scalar>& exp,
+                          const std::vector<Scalar>& orig) {
+      for (const halo_plan* pl :
+           {&mp.radial_plan_local(t), &mp.angular_plan_local(t)}) {
+        for (auto const& pe : pl->peers) {
+          for (int l : pe.send_global_idx) exp[l + off] += orig[l + off];
+        }
+      }
+      for (const halo_plan* pl :
+           {&mp.radial_plan_local(t), &mp.angular_plan_local(t)}) {
+        for (auto const& pe : pl->peers) {
+          for (int l : pe.recv_global_idx) exp[l + off] = Scalar(0);
+        }
+      }
+    };
+    const std::vector<Scalar> origE = expE, origB = expB;
+    add_copies(cochain_type::h_edge, 0, expE, origE);
+    add_copies(cochain_type::v_edge, core.e_split(), expE, origE);
+    add_copies(cochain_type::tri_face, 0, expB, origB);
+    add_copies(cochain_type::rect_face, core.b_split(), expB, origB);
+
+    md.ex->exchange_edge(f.E, core.e_split());
+    md.ex->exchange_face(f.B, core.b_split());
+    md.ex->reduce_edge(f.E, core.e_split());
+    md.ex->reduce_face(f.B, core.b_split());
+
+    Scalar diff = 0;
+    for (size_t i = 0; i < expE.size(); ++i)
+      diff = std::max(diff, std::abs(f.E[int(i)] - expE[i]));
+    for (size_t i = 0; i < expB.size(); ++i)
+      diff = std::max(diff, std::abs(f.B[int(i)] - expB[i]));
+    Scalar diff_max = 0;
+    MPI_Allreduce(&diff, &diff_max, 1, mpi_scalar_type(), MPI_MAX,
+                  MPI_COMM_WORLD);
+    const bool ok = diff_max < Scalar(1e-5);
+    if (world_rank == 0)
+      std::printf("reduce roundtrip            [%s] (%s %dx%d): max abs diff "
+                  "= %.3e  %s\n",
+                  md.name, canonical ? "canonical" : "legacy", A, K,
+                  double(diff_max), ok ? "PASS" : "FAIL");
+    if (!ok) all_ok = false;
+  }
+
   if (world_rank == 0)
     std::printf("\n%s\n", all_ok ? "ALL PASS" : "FAILURE");
   MPI_Finalize();

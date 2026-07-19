@@ -81,6 +81,62 @@ void mpi_halo_backend::exchange(Scalar* data, const halo_plan& plan, int tag) {
   }
 }
 
+void mpi_halo_backend::reduce(Scalar* data, const halo_plan& plan, int tag) {
+  const int n_peers = int(plan.peers.size());
+  if (n_peers == 0) return;
+
+  const MPI_Datatype dt = mpi_scalar_type();
+
+  if (int(m_send_bufs.size()) < n_peers) m_send_bufs.resize(n_peers);
+  if (int(m_recv_bufs.size()) < n_peers) m_recv_bufs.resize(n_peers);
+  m_requests.assign(2 * n_peers, MPI_REQUEST_NULL);
+
+  // Roles swap vs exchange(): we SEND our ghost slots (recv list) and
+  // RECEIVE contributions for our send-list slots.
+  for (int i = 0; i < n_peers; ++i) {
+    auto const& pe = plan.peers[i];
+
+    auto& sb = m_send_bufs[i];
+    sb.resize(pe.recv_global_idx.size());
+    for (size_t j = 0; j < pe.recv_global_idx.size(); ++j) {
+      sb[j] = data[pe.recv_global_idx[j]];
+    }
+
+    auto& rb = m_recv_bufs[i];
+    rb.resize(pe.send_global_idx.size());
+
+    if (!rb.empty()) {
+      MPI_Irecv(rb.data(), int(rb.size()), dt, pe.peer_rank, tag, m_comm,
+                &m_requests[2 * i]);
+    }
+    if (!sb.empty()) {
+      MPI_Isend(sb.data(), int(sb.size()), dt, pe.peer_rank, tag, m_comm,
+                &m_requests[2 * i + 1]);
+    }
+  }
+
+  MPI_Waitall(int(m_requests.size()), m_requests.data(),
+              MPI_STATUSES_IGNORE);
+
+  // Accumulate received contributions into our send-list slots, then
+  // zero the ghost slots we just shipped.  Sequential per peer, so a
+  // slot appearing in several peers' send lists accumulates all of
+  // them without races.
+  for (int i = 0; i < n_peers; ++i) {
+    auto const& pe = plan.peers[i];
+    auto const& rb = m_recv_bufs[i];
+    for (size_t j = 0; j < pe.send_global_idx.size(); ++j) {
+      data[pe.send_global_idx[j]] += rb[j];
+    }
+  }
+  for (int i = 0; i < n_peers; ++i) {
+    auto const& pe = plan.peers[i];
+    for (size_t j = 0; j < pe.recv_global_idx.size(); ++j) {
+      data[pe.recv_global_idx[j]] = Scalar(0);
+    }
+  }
+}
+
 void mpi_halo_backend::exchange_packed(
     const Scalar* send_msgs, Scalar* recv_msgs,
     const std::vector<packed_peer>& peers, int tag) {
@@ -98,6 +154,36 @@ void mpi_halo_backend::exchange_packed(
     }
     if (pe.send_cnt > 0) {
       MPI_Isend(send_msgs + pe.send_off, pe.send_cnt, dt, pe.peer_rank, tag,
+                m_comm, &m_requests[2 * i + 1]);
+    }
+  }
+
+  MPI_Waitall(int(m_requests.size()), m_requests.data(),
+              MPI_STATUSES_IGNORE);
+}
+
+void mpi_halo_backend::reduce_packed(const Scalar* ghost_msgs,
+                                     Scalar* contrib_msgs,
+                                     const std::vector<packed_peer>& peers,
+                                     int tag) {
+  const int n_peers = int(peers.size());
+  if (n_peers == 0) return;
+
+  const MPI_Datatype dt = mpi_scalar_type();
+  m_requests.assign(2 * n_peers, MPI_REQUEST_NULL);
+
+  // Same wire pattern as exchange_packed with the roles swapped: my
+  // ghost slice (recv_off/recv_cnt) goes out, the peer's contribution
+  // for my send slice (send_off/send_cnt) comes in.  The peer posts
+  // the mirrored pair, so message sizes match by plan construction.
+  for (int i = 0; i < n_peers; ++i) {
+    auto const& pe = peers[i];
+    if (pe.send_cnt > 0) {
+      MPI_Irecv(contrib_msgs + pe.send_off, pe.send_cnt, dt, pe.peer_rank,
+                tag, m_comm, &m_requests[2 * i]);
+    }
+    if (pe.recv_cnt > 0) {
+      MPI_Isend(ghost_msgs + pe.recv_off, pe.recv_cnt, dt, pe.peer_rank, tag,
                 m_comm, &m_requests[2 * i + 1]);
     }
   }

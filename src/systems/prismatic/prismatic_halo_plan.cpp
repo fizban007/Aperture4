@@ -1,6 +1,7 @@
 #include "systems/prismatic/prismatic_halo_plan.h"
 #include "systems/prismatic/icosphere_topology.h"
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <map>
 #include <set>
@@ -395,20 +396,136 @@ halo_plan build_angular_halo_plan(cochain_type t,
 }
 
 // =========================================================================
-// Generic angular halo plan (Phase 7A.3) — see header for the per-element
-// ghost rules.  Loops are element-major over the sphere tables with the
-// radial k range inner; per-peer lists are sorted by global cochain index
-// and deduplicated at the end, which is the canonical wire order both
-// sides derive independently.
+// pic depth-class machinery (Phase 7B).
+//
+// TP(t) = "halo consumer" angular ranks of prism t: the ranks owning any
+// tri that shares ≥ 1 sphere-vertex with t (owner(t) included, since t
+// shares its own vertices).  Element x is in rank R's pic halo iff
+// R ∈ TP(t) for some prism t incident to x; the owner of x sends to
+// exactly ⋃ TP(tris(x)) \ {owner}.  Built once per builder call —
+// O(N_tri · 18) rank lookups, negligible at build time.
+// =========================================================================
+namespace {
+
+std::vector<std::vector<int>> build_tri_halo_consumers(
+    const prismatic_partition& self, const icosphere_topology& topo) {
+  const int n_tri = topo.N_tri();
+  auto rank_of_tri = [&](int tri) {
+    return self.angular_rank_of_path_unit(
+        self.path_of_unit(self.unit_of_tri(tri)));
+  };
+
+  // Invert the vertex→tri fans into tri→verts (the topology does not
+  // store tri_verts; every tri appears in exactly 3 fans).
+  std::vector<std::array<int, 3>> tri_verts(n_tri, {-1, -1, -1});
+  std::vector<int> nfill(n_tri, 0);
+  for (int v = 0; v < topo.N_vert_s(); ++v) {
+    const int* tris = topo.vertex_tris(v);
+    const int n = topo.vertex_tri_count(v);
+    for (int j = 0; j < n; ++j) {
+      const int t = tris[j];
+      assert(nfill[t] < 3 && "tri appears in more than 3 vertex fans");
+      tri_verts[t][nfill[t]++] = v;
+    }
+  }
+
+  std::vector<std::vector<int>> out(n_tri);
+  for (int t = 0; t < n_tri; ++t) {
+    auto& s = out[t];
+    for (int v : tri_verts[t]) {
+      const int* fan = topo.vertex_tris(v);
+      const int n = topo.vertex_tri_count(v);
+      for (int j = 0; j < n; ++j) s.push_back(rank_of_tri(fan[j]));
+    }
+    std::sort(s.begin(), s.end());
+    s.erase(std::unique(s.begin(), s.end()), s.end());
+  }
+  return out;
+}
+
+// Union of TP over the prisms incident to sphere element x, per cochain
+// kind, into `out` (cleared; sorted ascending, unique).
+void pic_consumer_ranks(cochain_type t, int sub,
+                        const icosphere_topology& topo,
+                        const std::vector<std::vector<int>>& TP,
+                        std::vector<int>& out) {
+  out.clear();
+  int tris[6];
+  int n_tris = 0;
+  switch (t) {
+    case cochain_type::tri_face:
+      tris[n_tris++] = sub;
+      break;
+    case cochain_type::h_edge:
+    case cochain_type::rect_face:
+      tris[n_tris++] = topo.edge_tri_a(sub);
+      tris[n_tris++] = topo.edge_tri_b(sub);
+      break;
+    case cochain_type::v_edge:
+    case cochain_type::vertex: {
+      const int* fan = topo.vertex_tris(sub);
+      n_tris = topo.vertex_tri_count(sub);
+      for (int j = 0; j < n_tris; ++j) tris[j] = fan[j];
+      break;
+    }
+  }
+  for (int j = 0; j < n_tris; ++j) {
+    const auto& tp = TP[tris[j]];
+    out.insert(out.end(), tp.begin(), tp.end());
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+}
+
+// Owner angular rank of sphere element `sub` of the given cochain kind.
+int pic_owner_rank(cochain_type t, int sub, const prismatic_partition& self,
+                   const icosphere_topology& topo) {
+  auto rank_of_unit = [&](int unit) {
+    return self.angular_rank_of_path_unit(self.path_of_unit(unit));
+  };
+  switch (t) {
+    case cochain_type::tri_face:
+      return rank_of_unit(self.unit_of_tri(sub));
+    case cochain_type::h_edge:
+    case cochain_type::rect_face:
+      return rank_of_unit(std::min(self.unit_of_tri(topo.edge_tri_a(sub)),
+                                   self.unit_of_tri(topo.edge_tri_b(sub))));
+    case cochain_type::v_edge:
+    case cochain_type::vertex: {
+      const int* tris = topo.vertex_tris(sub);
+      const int n = topo.vertex_tri_count(sub);
+      int u = self.unit_of_tri(tris[0]);
+      for (int j = 1; j < n; ++j) u = std::min(u, self.unit_of_tri(tris[j]));
+      return rank_of_unit(u);
+    }
+  }
+  return -1;  // unreachable
+}
+
+int pic_n_elems(cochain_type t, const icosphere_topology& topo) {
+  switch (t) {
+    case cochain_type::tri_face:  return topo.N_tri();
+    case cochain_type::h_edge:
+    case cochain_type::rect_face: return topo.N_edge_s();
+    case cochain_type::v_edge:
+    case cochain_type::vertex:    return topo.N_vert_s();
+  }
+  return 0;
+}
+
+}  // namespace
+
+// =========================================================================
+// Generic angular halo plan (Phase 7A.3 solver class, 7B pic class) —
+// see header for the per-element ghost rules.  Loops are element-major
+// over the sphere tables with the radial k range inner; per-peer lists
+// are sorted by global cochain index and deduplicated at the end, which
+// is the canonical wire order both sides derive independently.
 // =========================================================================
 halo_plan build_angular_halo_plan_units(cochain_type t,
                                         const prismatic_partition& self,
                                         const icosphere_topology& topo,
                                         halo_depth depth) {
-  if (depth != halo_depth::solver) {
-    throw std::invalid_argument(
-        "build_angular_halo_plan_units: pic depth class lands in Phase 7B");
-  }
   halo_plan out;
   if (self.owns_all_angular()) return out;
 
@@ -449,7 +566,29 @@ halo_plan build_angular_halo_plan_units(cochain_type t,
     for (int k = k_lo; k < k_hi; ++k) v.push_back(k * width + sub);
   };
 
-  if (t == cochain_type::tri_face) {
+  if (depth == halo_depth::pic) {
+    // One generic rule for every cochain kind (see header): the owner of
+    // x sends to every rank whose T_halo contains a prism incident to x.
+    const auto TP = build_tri_halo_consumers(self, topo);
+    const int n_elems = pic_n_elems(t, topo);
+    std::vector<int> peers;
+    for (int x = 0; x < n_elems; ++x) {
+      const int S = pic_owner_rank(t, x, self, topo);
+      pic_consumer_ranks(t, x, topo, TP, peers);
+      if (S == R) {
+        for (int p : peers) {
+          if (p != R) push_levels(send_per_peer, p, x);
+        }
+      } else {
+        for (int p : peers) {
+          if (p == R) {
+            push_levels(recv_per_peer, S, x);
+            break;
+          }
+        }
+      }
+    }
+  } else if (t == cochain_type::tri_face) {
     // Iterate sphere-edges: the edge owner needs the non-owned adjacent
     // tri (d1t/curl on the edge reads both adjacent tri faces).
     for (int e = 0; e < topo.N_edge_s(); ++e) {
@@ -558,6 +697,96 @@ halo_plan build_angular_halo_plan_units(cochain_type t,
 }
 
 // =========================================================================
+// Radial halo plan, depth-aware (Phase 7B) — see header for the layer
+// pattern and the exchange/reduce order contract.
+// =========================================================================
+halo_plan build_radial_halo_plan_depth(cochain_type t,
+                                       const prismatic_partition& self,
+                                       const icosphere_topology& topo,
+                                       halo_depth depth) {
+  if (depth == halo_depth::solver) return build_radial_halo_plan(t, self);
+
+  halo_plan out;
+  if (self.n_radial_ranks <= 1) return out;
+
+  // The depth-2 upper shell (k_hi+1) must be owned by the IMMEDIATE
+  // upper peer; under the uniform slab split the minimum span is
+  // N_r / K shells.
+  if (self.N_r_global / self.n_radial_ranks < 2) {
+    throw std::invalid_argument(
+        "pic radial halo: every radial slab must own >= 2 shells "
+        "(N_r / K < 2)");
+  }
+
+  const int width = per_level_width(t, self);
+
+  // Column filter: owned OR angular pic-ghost columns.  Including the
+  // ghost columns is what delivers corner ghosts by forwarding (radial
+  // peers share the angular rank, hence the same column set).
+  std::vector<char> in_halo(width, 1);
+  if (!self.owns_all_angular()) {
+    const auto TP = build_tri_halo_consumers(self, topo);
+    const int R = self.angular_rank;
+    std::vector<int> peers;
+    for (int x = 0; x < width; ++x) {
+      in_halo[x] = 0;
+      pic_consumer_ranks(t, x, topo, TP, peers);
+      for (int p : peers) {
+        if (p == R) {
+          in_halo[x] = 1;
+          break;
+        }
+      }
+    }
+  }
+
+  const int kl = self.shell_k_lo;
+  const int kh = self.shell_k_hi;
+  const int r = self.radial_rank;
+  const bool has_lower = r > 0;
+  const bool has_upper = r < self.n_radial_ranks - 1;
+  const bool shell_cochain = lives_on_shell(t);
+
+  auto filtered = [&](int k, std::vector<int>& dst) {
+    for (int i = 0; i < width; ++i) {
+      if (in_halo[i]) dst.push_back(k * width + i);
+    }
+  };
+
+  if (has_lower) {
+    halo_plan::peer_entry pe;
+    pe.peer_rank = r - 1;
+    if (shell_cochain) {
+      // Ghost prism kl-1 spans shells {kl-1, kl}; only kl-1 is new.
+      // The lower peer's ghost prism kh(=kl) spans shells {kl, kl+1}.
+      filtered(kl, pe.send_global_idx);
+      filtered(kl + 1, pe.send_global_idx);
+      filtered(kl - 1, pe.recv_global_idx);
+    } else {
+      filtered(kl, pe.send_global_idx);      // lower's upper ghost slab
+      filtered(kl - 1, pe.recv_global_idx);  // our lower ghost slab
+    }
+    out.peers.push_back(std::move(pe));
+  }
+
+  if (has_upper) {
+    halo_plan::peer_entry pe;
+    pe.peer_rank = r + 1;
+    if (shell_cochain) {
+      filtered(kh - 1, pe.send_global_idx);  // upper's shell kl-1
+      filtered(kh, pe.recv_global_idx);      // ghost prism kh: shells
+      filtered(kh + 1, pe.recv_global_idx);  // {kh, kh+1}
+    } else {
+      filtered(kh - 1, pe.send_global_idx);  // upper's lower ghost slab
+      filtered(kh, pe.recv_global_idx);      // our upper ghost slab
+    }
+    out.peers.push_back(std::move(pe));
+  }
+
+  return out;
+}
+
+// =========================================================================
 // In-process backend.
 // =========================================================================
 void in_process_halo_backend::register_rank(int rank, Scalar* buffer) {
@@ -618,6 +847,38 @@ void in_process_halo_backend::exchange_all(const std::vector<halo_plan>& plans) 
         const int a_idx = pe_a.recv_global_idx[i];
         const int b_idx = pe_b->send_global_idx[i];
         buf_a[a_idx] = buf_b[b_idx];
+      }
+    }
+  }
+}
+
+void in_process_halo_backend::reduce_all(const std::vector<halo_plan>& plans) {
+  assert(int(plans.size()) == size());
+  // Exact reverse of exchange_all: rank a's ghost slots accumulate into
+  // peer b's paired send slots, then a's ghosts are zeroed.  Within one
+  // call no += target is ever a slot this call zeroes (an axis' send
+  // slots are never that same axis' ghosts), so rank iteration order is
+  // immaterial; ACROSS calls the caller must run the radial axis before
+  // the angular one (pic corner forwarding — see header).
+  for (int a = 0; a < size(); ++a) {
+    Scalar* buf_a = m_rank_buffers[a];
+    if (buf_a == nullptr) continue;
+    auto const& plan_a = plans[a];
+    for (auto const& pe_a : plan_a.peers) {
+      const int b = pe_a.peer_rank;
+      Scalar* buf_b = m_rank_buffers[b];
+      if (buf_b == nullptr) continue;
+
+      const halo_plan::peer_entry* pe_b = nullptr;
+      for (auto const& ppe : plans[b].peers) {
+        if (ppe.peer_rank == a) { pe_b = &ppe; break; }
+      }
+      if (pe_b == nullptr) continue;
+
+      assert(pe_a.recv_global_idx.size() == pe_b->send_global_idx.size());
+      for (size_t i = 0; i < pe_a.recv_global_idx.size(); ++i) {
+        buf_b[pe_b->send_global_idx[i]] += buf_a[pe_a.recv_global_idx[i]];
+        buf_a[pe_a.recv_global_idx[i]] = Scalar(0);
       }
     }
   }

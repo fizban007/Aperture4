@@ -514,19 +514,13 @@ TEST_CASE("generic unit builder: solver stencils are fully covered after "
   }
 }
 
-TEST_CASE("generic unit builder: peers are unit-adjacent and pic depth "
-          "class is rejected until 7B",
+TEST_CASE("generic unit builder: A=1 has no angular peers; pic ghost set "
+          "contains the solver ghost set on every cochain (Phase 7B F4)",
           "[prismatic][angular_halo][units]") {
   const int L = 2;
   const int N_r = 4;
   auto mesh = make_mesh(L);
   auto topo = icosphere_topology::build_from_mesh(*mesh);
-  auto parts = make_unit_angular(L, N_r, 8, topo);
-
-  REQUIRE_THROWS_AS(
-      build_angular_halo_plan_units(cochain_type::vertex, parts[0], topo,
-                                    halo_depth::pic),
-      std::invalid_argument);
 
   // A=1 (full angular span): no angular peers.
   auto p1 = prismatic_partition::angular_units(L, N_r, 1, 0);
@@ -534,6 +528,30 @@ TEST_CASE("generic unit builder: peers are unit-adjacent and pic depth "
   auto plan =
       build_angular_halo_plan_units(cochain_type::tri_face, p1, topo);
   REQUIRE(plan.peers.empty());
+
+  // pic ⊇ solver: every solver recv/send entry appears in the pic plan
+  // for the same peer, on every cochain type and a spread of A.
+  for (int A : {4, 8, 20, 80}) {
+    auto parts = make_unit_angular(L, N_r, A, topo);
+    for (cochain_type t : kAllCochains) {
+      for (auto const& p : parts) {
+        auto sol = build_angular_halo_plan_units(t, p, topo);
+        auto pic =
+            build_angular_halo_plan_units(t, p, topo, halo_depth::pic);
+        for (auto const& spe : sol.peers) {
+          auto* ppe = find_peer(pic, spe.peer_rank);
+          REQUIRE(ppe != nullptr);
+          auto contains = [](const std::vector<int>& big,
+                             const std::vector<int>& small) {
+            return std::includes(big.begin(), big.end(), small.begin(),
+                                 small.end());
+          };
+          REQUIRE(contains(ppe->recv_global_idx, spe.recv_global_idx));
+          REQUIRE(contains(ppe->send_global_idx, spe.send_global_idx));
+        }
+      }
+    }
+  }
 }
 
 TEST_CASE("angular halo at valence-5 corners: non-owner recvs from owner",

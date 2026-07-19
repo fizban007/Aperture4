@@ -179,12 +179,13 @@ struct rank_ctx {
 };
 
 rank_ctx make_ctx(const prismatic_mesh& mesh, const icosphere_topology& topo,
-                  prismatic_partition part, const global_ref& g0) {
+                  prismatic_partition part, const global_ref& g0,
+                  halo_depth depth = halo_depth::solver) {
   rank_ctx c;
   part.set_topology(&topo);
   c.part = part;
   c.mp = std::make_unique<prismatic_mesh_partition>(
-      prismatic_mesh_partition::build(part, topo));
+      prismatic_mesh_partition::build(part, topo, depth));
   c.core.build(mesh, *c.mp);
   auto alloc = [](buffer<Scalar>& b, int n) {
     b.set_memtype(MemType::host_only);
@@ -230,14 +231,16 @@ void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
     return static_cast<const halo_plan::peer_entry*>(nullptr);
   };
 
-  // Radial axis.
+  // Angular axis first, then radial — the production exchanger order
+  // (radial forwarding of angular ghosts under pic-depth plans; for
+  // solver-depth plans the order is immaterial).
   for (auto& a : ranks) {
-    auto const& pa = a.mp->radial_plan_local(ct);
+    auto const& pa = a.mp->angular_plan_local(ct);
     for (auto const& pe : pa.peers) {
-      rank_ctx* b = find(a.part.angular_rank, pe.peer_rank);
+      rank_ctx* b = find(pe.peer_rank, a.part.radial_rank);
       REQUIRE(b != nullptr);
       auto const* peb =
-          peer_entry_for(b->mp->radial_plan_local(ct), a.part.radial_rank);
+          peer_entry_for(b->mp->angular_plan_local(ct), a.part.angular_rank);
       REQUIRE(peb != nullptr);
       REQUIRE(pe.recv_global_idx.size() == peb->send_global_idx.size());
       Scalar* ba = base(a);
@@ -246,14 +249,14 @@ void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
         ba[pe.recv_global_idx[i]] = bb[peb->send_global_idx[i]];
     }
   }
-  // Angular axis.
+  // Radial axis.
   for (auto& a : ranks) {
-    auto const& pa = a.mp->angular_plan_local(ct);
+    auto const& pa = a.mp->radial_plan_local(ct);
     for (auto const& pe : pa.peers) {
-      rank_ctx* b = find(pe.peer_rank, a.part.radial_rank);
+      rank_ctx* b = find(a.part.angular_rank, pe.peer_rank);
       REQUIRE(b != nullptr);
       auto const* peb =
-          peer_entry_for(b->mp->angular_plan_local(ct), a.part.angular_rank);
+          peer_entry_for(b->mp->radial_plan_local(ct), a.part.radial_rank);
       REQUIRE(peb != nullptr);
       REQUIRE(pe.recv_global_idx.size() == peb->send_global_idx.size());
       Scalar* ba = base(a);
@@ -464,6 +467,25 @@ TEST_CASE("dec_dist: distributed explicit update matches global solver",
   SECTION("canonical A=80 (sub-face quarter units, m=1)") {
     run_and_check(make_partitioned_units(mesh, topo, g0, 80, 1),
                   Scalar(2e-5));
+  }
+  // Phase 7B: the solver over PIC-DEPTH layouts (larger ghost sets, one
+  // layout per cochain for a PIC run) must still reproduce the global
+  // update — ghosts are exact copies regardless of set size.
+  SECTION("canonical A=4 x K=2, pic-depth layouts") {
+    std::vector<rank_ctx> ranks;
+    for (int w = 0; w < 8; w++)
+      ranks.push_back(make_ctx(mesh, topo,
+                               prismatic_partition::combined(TL, TN_r, 4, 2, w),
+                               g0, halo_depth::pic));
+    run_and_check(std::move(ranks), Scalar(2e-5));
+  }
+  SECTION("canonical A=80, pic-depth layouts") {
+    std::vector<rank_ctx> ranks;
+    for (int w = 0; w < 80; w++)
+      ranks.push_back(make_ctx(mesh, topo,
+                               prismatic_partition::combined(TL, TN_r, 80, 1, w),
+                               g0, halo_depth::pic));
+    run_and_check(std::move(ranks), Scalar(2e-5));
   }
 }
 

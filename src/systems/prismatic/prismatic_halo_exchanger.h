@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/buffer.hpp"
+#include "systems/prismatic/prismatic_deposit.h"  // atomic_add_scalar
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
 #include "systems/prismatic/prismatic_mpi_halo_backend.h"
@@ -21,12 +22,17 @@ namespace Aperture {
 // no-op.  This is the single-rank mode — the same step code runs
 // unchanged with ghost-free identity layouts.
 //
-// All exchange methods are collective on the sub-communicators: every
-// rank must reach the same sync points in the same order (the lockstep
-// step sequence guarantees this).  Radial exchanges run before angular
-// ones; the order is actually immaterial — no d1/d1^T stencil ever
-// needs a corner (diagonal) ghost, because rect faces are angularly
-// owned by their sphere-edge (see test_prismatic_dec_dist).
+// All exchange and reduce methods are collective on the sub-
+// communicators: every rank must reach the same sync points in the
+// same order (the lockstep step sequence guarantees this).
+//
+// AXIS ORDER (Phase 7B): exchanges run the ANGULAR round first, then
+// the RADIAL round; reductions run the exact reverse.  For solver-depth
+// plans the order is immaterial (no d1/d1^T stencil needs a corner
+// ghost — see test_prismatic_dec_dist), but pic-depth plans deliver
+// corner ghosts by radial FORWARDING of the freshly-exchanged angular
+// ghost columns, and fold corner deposits back through the same relay
+// (see prismatic_halo_plan.h).
 //
 // Two data paths, selected by init(..., device_direct):
 //
@@ -72,7 +78,10 @@ class prismatic_halo_exchanger {
           {cochain_type::h_edge, 0},
           {cochain_type::v_edge, e_split},
           {cochain_type::tri_face, 0},
-          {cochain_type::rect_face, b_split}};
+          {cochain_type::rect_face, b_split},
+          // Standalone vertex-cochain buffers (rho and friends, Phase
+          // 7B/7C): no combined-block offset.
+          {cochain_type::vertex, 0}};
       for (auto [t, off] : blocks) {
         build_packed(0, t, mp.radial_plan_local(t), off);
         build_packed(1, t, mp.angular_plan_local(t), off);
@@ -113,6 +122,60 @@ class prismatic_halo_exchanger {
     stage_out(buf);
   }
 
+  // Standalone local-layout vertex-cochain buffer (rho and friends).
+  void exchange_vertex(buffer<Scalar>& buf) {
+    if (!m_active) return;
+    if (m_device_direct) {
+      exchange_packed_round(buf, cochain_type::vertex);
+      return;
+    }
+    stage_in(buf);
+    exchange(cochain_type::vertex, buf.host_ptr());
+    stage_out(buf);
+  }
+
+  // ---- REDUCE sync points (Phase 7B) -----------------------------------
+  // Ghost slots ship to their owner, which accumulates (+=); ghosts are
+  // zeroed afterwards.  Radial round FIRST, then angular — the exact
+  // reverse of the exchange order (pic corner relay).
+
+  void reduce_edge(buffer<Scalar>& buf, int e_split) {
+    if (!m_active) return;
+    if (m_device_direct) {
+      reduce_packed_round(buf, cochain_type::h_edge);
+      reduce_packed_round(buf, cochain_type::v_edge);
+      return;
+    }
+    stage_in(buf);
+    reduce(cochain_type::h_edge, buf.host_ptr());
+    reduce(cochain_type::v_edge, buf.host_ptr() + e_split);
+    stage_out(buf);
+  }
+
+  void reduce_face(buffer<Scalar>& buf, int b_split) {
+    if (!m_active) return;
+    if (m_device_direct) {
+      reduce_packed_round(buf, cochain_type::tri_face);
+      reduce_packed_round(buf, cochain_type::rect_face);
+      return;
+    }
+    stage_in(buf);
+    reduce(cochain_type::tri_face, buf.host_ptr());
+    reduce(cochain_type::rect_face, buf.host_ptr() + b_split);
+    stage_out(buf);
+  }
+
+  void reduce_vertex(buffer<Scalar>& buf) {
+    if (!m_active) return;
+    if (m_device_direct) {
+      reduce_packed_round(buf, cochain_type::vertex);
+      return;
+    }
+    stage_in(buf);
+    reduce(cochain_type::vertex, buf.host_ptr());
+    stage_out(buf);
+  }
+
   // ---- packed (device-direct) path -------------------------------------
   // Public because CUDA/HIP require extended __device__ lambdas to live
   // in public methods; treat as implementation detail.
@@ -128,9 +191,69 @@ class prismatic_halo_exchanger {
   };
 
   void exchange_packed_round(buffer<Scalar>& buf, cochain_type t) {
-    // Radial round, then angular — same order as the host-staged path.
-    run_packed(buf, m_packed[0][int(t)], *m_radial, int(t));
+    // Angular round, then radial — same order as the host-staged path
+    // (radial forwarding of angular ghosts; see class comment).
     run_packed(buf, m_packed[1][int(t)], *m_angular, int(t));
+    run_packed(buf, m_packed[0][int(t)], *m_radial, int(t));
+  }
+
+  void reduce_packed_round(buffer<Scalar>& buf, cochain_type t) {
+    // Reverse of the exchange order: radial first, then angular.
+    run_packed_reduce(buf, m_packed[0][int(t)], *m_radial, int(t));
+    run_packed_reduce(buf, m_packed[1][int(t)], *m_angular, int(t));
+  }
+
+  void run_packed_reduce(buffer<Scalar>& buf, packed_plan& pp,
+                         mpi_halo_backend& backend, int tag) {
+    if (pp.peers.empty()) return;
+
+    // Pack GHOST slots (the recv-index list) into recv_msg.
+    if (pp.total_recv > 0) {
+      ExecPolicy::launch(
+          [n = pp.total_recv] LAMBDA(auto data, auto idx, auto msg) {
+            ExecPolicy::loop(0, n,
+                             [&] LAMBDA(int j) { msg[j] = data[idx[j]]; });
+          },
+          buf, pp.recv_idx, pp.recv_msg);
+      ExecPolicy::sync();
+    }
+
+    const bool dev_msgs =
+        buf.mem_type() != MemType::host_only && mpi_gpu_direct_available();
+    const Scalar* gptr;
+    Scalar* cptr;
+    if (dev_msgs) {
+      gptr = pp.recv_msg.dev_ptr();
+      cptr = pp.send_msg.dev_ptr();
+    } else {
+      pp.recv_msg.copy_to_host();
+      gptr = pp.recv_msg.host_ptr();
+      cptr = pp.send_msg.host_ptr();
+    }
+    backend.reduce_packed(gptr, cptr, pp.peers, tag);
+    if (!dev_msgs) pp.send_msg.copy_to_device();
+
+    // Scatter-ADD the received contributions through the send-index
+    // list.  The same owned slot can appear in several peers' slices of
+    // the flattened list, so the add must be atomic on device.
+    if (pp.total_send > 0) {
+      ExecPolicy::launch(
+          [n = pp.total_send] LAMBDA(auto data, auto idx, auto msg) {
+            ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
+              atomic_add_scalar(&data[idx[j]], msg[j]);
+            });
+          },
+          buf, pp.send_idx, pp.send_msg);
+    }
+    // Zero the ghost slots we shipped (each appears exactly once).
+    if (pp.total_recv > 0) {
+      ExecPolicy::launch(
+          [n = pp.total_recv] LAMBDA(auto data, auto idx) {
+            ExecPolicy::loop(0, n,
+                             [&] LAMBDA(int j) { data[idx[j]] = Scalar(0); });
+          },
+          buf, pp.recv_idx);
+    }
   }
 
   void run_packed(buffer<Scalar>& buf, packed_plan& pp,
@@ -179,8 +302,13 @@ class prismatic_halo_exchanger {
  private:
   // ---- legacy host-staged path -----------------------------------------
   void exchange(cochain_type t, Scalar* base) {
-    m_radial->exchange(base, m_mp->radial_plan_local(t), int(t));
     m_angular->exchange(base, m_mp->angular_plan_local(t), int(t));
+    m_radial->exchange(base, m_mp->radial_plan_local(t), int(t));
+  }
+
+  void reduce(cochain_type t, Scalar* base) {
+    m_radial->reduce(base, m_mp->radial_plan_local(t), int(t));
+    m_angular->reduce(base, m_mp->angular_plan_local(t), int(t));
   }
 
   void stage_in(buffer<Scalar>& buf) {
@@ -238,7 +366,6 @@ class prismatic_halo_exchanger {
   std::unique_ptr<mpi_halo_backend> m_radial;
   std::unique_ptr<mpi_halo_backend> m_angular;
   // Indexed [axis][int(cochain_type)]; axis 0 = radial, 1 = angular.
-  // Slot `vertex` is unused (no vertex cochain in the field state).
   packed_plan m_packed[2][5];
 };
 

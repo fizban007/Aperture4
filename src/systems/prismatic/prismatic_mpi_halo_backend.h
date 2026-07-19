@@ -36,6 +36,14 @@ class mpi_halo_backend {
   // Isend / Irecv posts.  A no-op if the plan has zero peers.
   void exchange(Scalar* data, const halo_plan& plan, int tag = 0);
 
+  // REDUCE (Phase 7B): the wire-mirror of exchange().  This rank's
+  // ghost (recv-list) slots are sent to the peer, which accumulates
+  // (+=) them into its paired send-list slots; afterwards the ghost
+  // slots are zeroed.  Collective like exchange(); the caller runs the
+  // radial axis before the angular one (pic corner forwarding — see
+  // prismatic_halo_plan.h).
+  void reduce(Scalar* data, const halo_plan& plan, int tag = 0);
+
   // Per-peer slice of pre-packed contiguous message buffers (offsets /
   // counts into the flattened send and recv arrays).  Built once from a
   // halo_plan by the caller that owns the packing.
@@ -52,6 +60,16 @@ class mpi_halo_backend {
   // (prismatic_halo_exchanger does it in device kernels).
   void exchange_packed(const Scalar* send_msgs, Scalar* recv_msgs,
                        const std::vector<packed_peer>& peers, int tag = 0);
+
+  // Packed REDUCE: identical wire pattern with the message roles
+  // swapped — this rank Isends its packed GHOST data (recv_off/
+  // recv_cnt slices of ghost_msgs) and Irecvs the peers' contributions
+  // into the send_off/send_cnt slices of contrib_msgs.  The caller
+  // packs ghost_msgs from the recv-index list beforehand and
+  // scatter-ADDS contrib_msgs through the send-index list (and zeroes
+  // the ghost slots) afterwards.
+  void reduce_packed(const Scalar* ghost_msgs, Scalar* contrib_msgs,
+                     const std::vector<packed_peer>& peers, int tag = 0);
 
   MPI_Comm comm() const { return m_comm; }
 

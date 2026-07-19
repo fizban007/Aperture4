@@ -43,8 +43,16 @@ class prismatic_mesh_partition {
   // Build from a partition (with its topology attached) and the
   // icosphere topology it points to.  Populates all 5 layouts and all
   // 10 halo plans (5 cochain × 2 axes).
-  static prismatic_mesh_partition build(const prismatic_partition& part,
-                                        const icosphere_topology& topo);
+  //
+  // `depth` selects the ghost-set depth class (PHASE_7 plan F4):
+  // halo_depth::solver is the d1/d1t depth-1 set; halo_depth::pic is
+  // the particle superset (T_own ∪ 1-ring prisms, radial ±1 prism
+  // layers — requires a canonical-rank-order partition and ≥ 2 shells
+  // per radial slab).  A PIC run builds ONE bundle at pic depth and
+  // the solver exchanges the slightly larger halo.
+  static prismatic_mesh_partition build(
+      const prismatic_partition& part, const icosphere_topology& topo,
+      halo_depth depth = halo_depth::solver);
 
   // ---- Layout accessors ----
   const distributed_cochain_layout& layout(cochain_type t) const {
@@ -69,10 +77,12 @@ class prismatic_mesh_partition {
   // ---- Environment ----
   const prismatic_partition& partition() const { return m_partition; }
   const icosphere_topology& topology() const { return *m_topology; }
+  halo_depth depth() const { return m_depth; }
 
  private:
   prismatic_partition m_partition;
   const icosphere_topology* m_topology = nullptr;
+  halo_depth m_depth = halo_depth::solver;
 
   distributed_cochain_layout m_tri_face;
   distributed_cochain_layout m_rect_face;

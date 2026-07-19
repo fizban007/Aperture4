@@ -42,10 +42,23 @@ of any sphere element follow by mapping its incident tris through
   the current lowest-ico-face rule at m=0/A=20 — the bit-exactness
   regression anchor.
 - World rank = radial_rank·A + angular_rank (generalizes ·20).
-- Multi-unit ranks (A < U) may own geometrically disconnected unit
-  sets depending on face ordering; this is *allowed* (plans are
-  generic).  An optional unit-permutation table for connected groups
-  is a later nicety, config-selectable, default identity.
+- **Canonical unit ordering (REQUIRED, decided 2026-07-18).**  Units
+  are ordered by (face position along a fixed Hamiltonian cycle of
+  the icosahedron's face-adjacency graph — the dodecahedral graph,
+  which is Hamiltonian; a static 20-entry table) × (base-4 child
+  order within the face).  Guarantees: any whole-face group
+  (A ∈ {1,2,4,5,10,20}) is a CONNECTED band — including the 4×2
+  single-node shape; any aligned power-of-4 range (A = 20·4^m) is a
+  single connected patch; mixed cases (e.g. A=8 → ten quarter-face
+  units) are connected up to at most one boundary sliver and correct
+  regardless.  Rationale: disconnected groups cost halo surface
+  (ghost-set size, peer count, traffic — potentially a few ×), never
+  correctness or dense allocations; the ordering removes that tax
+  for the configurations we will actually run.  Ownership and
+  migration-destination stay O(1) arithmetic + the 20-entry table
+  (`path_pos(face)·4^m + child_bits`); a rank's owned tris become a
+  short list of per-unit contiguous blocks instead of one global
+  range (injector bounds / local-mesh build generalize accordingly).
 
 **F4 — Ghost (halo) element sets, parameterized by depth class.**
 Two stencil classes, chosen at partition-build time:
@@ -125,21 +138,52 @@ The global-per-rank memory splits into:
   single-rank.  `release_global_buffers()` becomes moot (nothing to
   release).
 
-**F9 — What the output path needs.** After F8, no rank holds global
-3D arrays:
-- Exporter: already writes owned runs via parallel HDF5 — unaffected.
-- mesh.h5: currently rank-0 serial from global arrays.  Becomes
-  (a) parallel-written via the same owned-runs machinery for 3D
-  datasets + rank-0 for sphere-level data, or (b) regenerated offline
-  by a single-rank tool.  Choose (a); it is a mechanical reuse.
-- sph output: rank-0 gather of global *cochains* stays (output
-  cadence only), but its h1inv dual→primal conversion reads a global
-  3D array — replace with the analytic per-edge evaluation (sphere
-  tables × radii), which rank 0 can compute on the fly.  Parallel
-  sph interpolation (each rank interpolating its owned grid points)
-  is the eventual answer at 8000 ranks; keep it a separate,
-  later work item — output cadence makes the gather tolerable
-  meanwhile.
+**F9 — Output architecture (decided 2026-07-18): mesh-native dumps +
+post-processing; the sph system leaves the production path.**
+- The exporter becomes the ONLY production output system.  It grows
+  to write J, rho, rho_abs, gamma_wsum alongside E/B (the sph system
+  was the only consumer of the moment fields), all via the existing
+  parallel owned-runs machinery.
+- **Downsampled output = TRUE coarse cochains by chain-map
+  aggregation**, not fine-value sampling: coarse sphere edge = sum of
+  its 2 fine half-edges (normalized midpoints lie on the parent arc,
+  so the halves tile it exactly); coarse tri face = 4 children;
+  coarse v-edge = R stacked fine v-edges; coarse rect = 2R fine
+  rects; j angular levels = recursive base-4 child sums.  Because
+  aggregation is the transpose of refinement it COMMUTES WITH THE
+  DISCRETE d: the dump satisfies the coarse Gauss law / Faraday
+  consistency / charge conservation exactly and is a bona fide
+  level-(L−j) DEC field.  Vertex moments restrict with
+  partition-of-unity hat weights (vanishing fine vertices
+  redistribute charge to their coarse neighbors; total charge exactly
+  conserved) — one documented convention.  Cost: a few adds per
+  output element at output cadence.
+- Ownership of aggregation sums: angular is automatically safe (a
+  coarse tri's 4 children share a parent ⇒ same unit for any
+  m ≤ L−j; a boundary coarse edge's halves lie on the same boundary
+  arc ⇒ same owner).  Radial coarse elements can straddle slab
+  boundaries: DEFAULT constraint = slab boundaries aligned to
+  multiples of the radial stride when aggregated output is enabled
+  (checked at init); documented fallback = owner-sums-partials
+  reduce over the sparse boundary set at output cadence.
+- Dump format becomes self-describing ("level L−j icosphere, radii
+  subset [...]"); post tools build the coarse mesh themselves — the
+  `output_*_idx` kept-index maps disappear.
+- **Post-processing replaces in-code sph**: `sph_from_dump.py`
+  (Whitney E/J + vertex-recovery B on the dump's mesh → (r,θ,φ)
+  grids, reproducing today's sph datasets; prototypes exist in
+  `python/prismatic_recovery.py` and the `prismatic_interp` pybind
+  module) and a Cartesian-box variant for 3D visualization (accuracy
+  ↔ viz-convenience trade, chosen in post, not at run time).
+  Validation: in-code sph vs post-reconstruction on identical
+  full-resolution single-rank dumps.
+- The sph system's distributed gather path is DELETED (the one
+  knowingly non-scalable stage goes away entirely); the system stays
+  compiling for single-rank convenience runs only.
+- mesh.h5: parallel-written via owned runs for 3D datasets + rank-0
+  for sphere-level data (post-F8 no rank holds global 3D arrays).
+- Quantitative diagnostics (luminosity, recurrence) keep running
+  from full-resolution dumps at chosen cadence, as today.
 
 **F10 — Load balance.** Fields: exact by construction (units are
 congruent, shells uniform per slab).  Particles: radially concentrated
@@ -154,11 +198,17 @@ scope.
 ### 7A — Generalized angular partition, fields only (~1 week)
 
 1. `prismatic_partition`: replace {ico_face_lo, ico_face_hi} with
-   {patch_level m, unit_lo, unit_hi} (+ derived tri range); ownership
-   predicates via min-incident-unit through the topology tri fans;
-   factories `combined(L, N_r, A, K, rank)` with A | 20·4^m
-   validation.  A=20/m=0 must reproduce today's owned sets EXACTLY
-   (unit test: compare layouts against the old rule on all cochains).
+   {patch_level m, unit_lo, unit_hi} in the CANONICAL unit ordering
+   (Hamiltonian face path × base-4 children — the static table and
+   its inverse land here); ownership predicates via min-incident-unit
+   through the topology tri fans; factories
+   `combined(L, N_r, A, K, rank)` with A | 20·4^m validation.
+   A=20/m=0 must reproduce today's owned sets EXACTLY (unit test:
+   compare layouts against the old rule on all cochains; note the
+   identity-vs-path face order does not matter at A=20 since every
+   face is its own rank).  Include a unit-connectivity unit test:
+   every rank's owned unit set is connected for whole-face groups
+   and single-patch configurations.
 2. `icosphere_topology`: incident-unit queries (thin wrappers mapping
    incident tris / faces through `unit()`); drop nothing.
 3. Generic `build_angular_halo_plan`: topology-driven, per-peer
@@ -221,16 +271,25 @@ scope.
    field/sph agreement vs serial at FP-reordering tolerance; plus a
    migration-stress config (large p0) to exercise multi-unit hops.
 
-### 7D — Partition-aware mesh build (~1 week)
+### 7D — Partition-aware mesh build + output rework (~1.5 weeks)
 
 1. Split `prismatic_mesh::build()`: sphere stage (global, cheap) /
    3D stage (loop bounds from the partition; global path preserved
    when no partition given).  Solver + particle local builds consume
    it; assert (debug) that no (N_r+1)·N_s array is allocated under a
    partition.
-2. mesh.h5 → parallel owned-runs for 3D datasets, rank-0 for sphere
-   data; sph h1inv conversion → analytic per-edge evaluation.
-3. Memory audit: per-rank device+host footprint logged at init;
+2. Exporter: add J/rho/rho_abs/gamma_wsum datasets; aggregated
+   coarse-cochain downsampling (F9) with the slab-alignment check;
+   self-describing dump metadata (L_out, radii subset); mesh.h5 →
+   parallel owned-runs for 3D datasets, rank-0 for sphere data.
+3. Post tools: `sph_from_dump.py` (Whitney E/J + recovery B on the
+   dump's mesh → sph datasets) + Cartesian-box variant; validation
+   against in-code sph on identical single-rank full dumps.
+   Aggregation unit test: coarse Gauss law / total charge hold
+   EXACTLY on aggregated dumps (the property sampling never had).
+4. Delete the sph system's distributed gather path (single-rank
+   convenience use remains); ns_rotator/vacuum_dipole mains updated.
+5. Memory audit: per-rank device+host footprint logged at init;
    weak-scaling smoke (L fixed, A·K ∈ {8, 40, 160}) asserting
    footprint ~ 1/(A·K) + angular-table constant.
 
@@ -263,9 +322,14 @@ scope.
   internal build with an injected partition reference while touching
   its constructor in 7C.5 — removes the duplication instead of
   hoping.
-- **sph rank-0 gather** becomes the known non-scalable output stage;
-  acceptable at output cadence, flagged for parallel interpolation
-  later.  Do not let it silently become a per-step cost.
+- **Aggregated-output radial alignment**: the slab-boundary ∝ stride
+  constraint must fail loudly at init (not silently produce partial
+  sums); the fallback boundary reduce, if implemented, needs its own
+  unit test against a global aggregation reference.
+- **Post-tool parity**: `sph_from_dump.py` must reproduce the in-code
+  sph datasets on identical inputs before the distributed gather path
+  is deleted — the diagnostics pipeline (luminosity, recurrence,
+  rotator scorecards) depends on those datasets.
 
 ## Deltas vs. prior plan documents
 

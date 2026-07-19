@@ -26,6 +26,19 @@ class prismatic_mesh {
   void build(int L, int N_r, double r_min, double r_max,
              int n_ghost_inner = 0, int n_ghost_outer = 0);
 
+  // Phase 7D: SPHERE-ONLY build for distributed runs.  Persists the
+  // sphere tables, radii, counts and the double-precision angular
+  // geometry (solid angles, arc angles, dual-cell angles) — everything
+  // O(4^L) — but never allocates a (N_r+1)·N_s-sized 3D array.  Local
+  // builders compute per-element 3D geometry from these tables via
+  // prismatic_mesh_geom.h (bit-identical to the global arrays, pinned
+  // by test).
+  void build_sphere_only(int L, int N_r, double r_min, double r_max,
+                         int n_ghost_inner = 0, int n_ghost_outer = 0);
+
+  // True when the global 3D per-cochain arrays exist (full build()).
+  bool has_3d() const { return m_has_3d; }
+
   // --- Mesh parameters ---
   int m_L = 0;       // subdivision level
   int m_N_r = 0;     // number of radial layers
@@ -105,6 +118,23 @@ class prismatic_mesh {
   // tri_neighbor[t * 3 + j] = triangle across edge j of triangle t (-1 if none)
   buffer<int> tri_neighbor;    // [N_tri * 3]
 
+  // --- Sphere-edge endpoints (7D; v0 < v1 by construction) ---
+  buffer<int> sphere_edge_v0, sphere_edge_v1;   // [N_edge_s]
+
+  // --- Persisted double-precision angular geometry (7D) ---
+  // Everything a local builder needs to reproduce the 3D per-cochain
+  // geometry bit-exactly: per-element angular factors from the (double)
+  // sphere mesh, combined with the radii at build time by
+  // prismatic_mesh_geom.h.  Host-only, O(4^L).
+  std::vector<double> sph_tri_omega;   // [N_tri] solid angle
+  std::vector<double> sph_edge_alpha;  // [N_edge_s] endpoint arc angle
+  std::vector<double> sph_edge_beta;   // [N_edge_s] circumcenter-dir arc
+  std::vector<double> sph_vert_omega;  // [N_vert_s] dual polygon solid angle
+  std::vector<int> sph_edge_tri0, sph_edge_tri1;  // [N_edge_s] adjacent tris
+  // Vertex fan CSR (tris ascending — the global accumulation order).
+  std::vector<int> sph_vert_tri_offset;  // [N_vert_s + 1]
+  std::vector<int> sph_vert_tris;
+
   // --- Indexing helpers ---
   int h_edge_idx(int k, int e) const { return k * m_N_edge_s + e; }
   int v_edge_idx(int k, int s) const {
@@ -152,6 +182,11 @@ class prismatic_mesh {
   // duals.  0 (default) preserves the historical mesh exactly.
   int sphere_optimize_iters = 0;
 
+ private:
+  bool m_has_3d = false;
+
+ public:
+
   // Get a prismatic_mesh_ptrs struct filled with host pointers.
   prismatic_mesh_ptrs host_ptrs() const;
 
@@ -184,6 +219,10 @@ class prismatic_mesh {
     void subdivide();
   };
 
+  void build_stages(int L, int N_r, double r_min, double r_max,
+                    int n_ghost_inner, int n_ghost_outer, bool with_3d);
+  void compute_radii_and_counts();
+  void persist_sphere_geometry(const sphere_mesh& sm);
   void build_sphere_mesh(int L, sphere_mesh& sm);
   void optimize_sphere_mesh(sphere_mesh& sm, int iters);
   void extrude_to_3d(const sphere_mesh& sm);

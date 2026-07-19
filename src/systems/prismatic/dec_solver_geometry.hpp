@@ -31,6 +31,47 @@ HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, int vi,
   uz = mp.sphere_vz[s];
 }
 
+// =========================================================================
+// Phase 7D — analytic vertex-id decode for the BC/IC quadratures.  The
+// global tri_face_v* / rect_face_v* / edge_v0/v1 helper tables no longer
+// exist under a sphere-only mesh; the ids they held are pure arithmetic
+// over the persisted sphere tables (IDENTICAL integers — the tables were
+// built from exactly these expressions).
+// =========================================================================
+HD_INLINE void tri_face_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
+                                   int& vi0, int& vi1, int& vi2) {
+  const int k = g / mp.N_tri, t = g - k * mp.N_tri;
+  vi0 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 0];
+  vi1 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 1];
+  vi2 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 2];
+}
+
+// Corners v0 = (k, a), v1 = (k, b), v3 = (k+1, a) of rect face g — the
+// three the quadratures use (v2 = (k+1, b) is implied).
+HD_INLINE void rect_face_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
+                                    int& vi0, int& vi1, int& vi3) {
+  const int k = g / mp.N_edge_s, e = g - k * mp.N_edge_s;
+  vi0 = k * mp.N_vert_s + mp.sphere_edge_v0[e];
+  vi1 = k * mp.N_vert_s + mp.sphere_edge_v1[e];
+  vi3 = (k + 1) * mp.N_vert_s + mp.sphere_edge_v0[e];
+}
+
+// Endpoints of h-edge g (global h-edge index in [0, (N_r+1)·N_edge_s)).
+HD_INLINE void h_edge_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
+                                 int& v0, int& v1) {
+  const int k = g / mp.N_edge_s, e = g - k * mp.N_edge_s;
+  v0 = k * mp.N_vert_s + mp.sphere_edge_v0[e];
+  v1 = k * mp.N_vert_s + mp.sphere_edge_v1[e];
+}
+
+// Endpoints of v-edge g (global v-edge index in [0, N_r·N_vert_s)).
+HD_INLINE void v_edge_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
+                                 int& v0, int& v1) {
+  const int k = g / mp.N_vert_s, s = g - k * mp.N_vert_s;
+  v0 = k * mp.N_vert_s + s;
+  v1 = (k + 1) * mp.N_vert_s + s;
+}
+
 // Slerp two unit vectors, plus its u-derivative.  At u=0 returns û_a, at
 // u=1 returns û_b.  For very small α falls back to the linear tangent —
 // the quadrature inner integrand handles the α→0 limit gracefully.

@@ -376,9 +376,8 @@ class dec_solver_dist {
             ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
               if (lp.tri_face_boundary[l] != 1) return;
               int g = lp.tri_face_l2g[l];  // global tri-face index
-              int vi0 = mp.tri_face_v0[g];
-              int vi1 = mp.tri_face_v1[g];
-              int vi2 = mp.tri_face_v2[g];
+              int vi0, vi1, vi2;
+              tri_face_vertex_ids(mp, g, vi0, vi1, vi2);
               Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z, r2, a2x, a2y, a2z;
               vertex_unit(mp, vi0, r0, a0x, a0y, a0z);
               vertex_unit(mp, vi1, r1, a1x, a1y, a1z);
@@ -405,9 +404,8 @@ class dec_solver_dist {
             ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int l) {
               if (lp.rect_face_boundary[l] != 1) return;
               int g = lp.rect_face_l2g[l];  // global rect-face index
-              int vi0 = mp.rect_face_v0[g];
-              int vi1 = mp.rect_face_v1[g];
-              int vi3 = mp.rect_face_v3[g];
+              int vi0, vi1, vi3;
+              rect_face_vertex_ids(mp, g, vi0, vi1, vi3);
               Scalar r_lo, uax, uay, uaz;
               Scalar r_tmp, ubx, uby, ubz;
               Scalar r_hi, uax3, uay3, uaz3;
@@ -459,8 +457,9 @@ class dec_solver_dist {
           };
           ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int l) {
             if (lp.h_edge_boundary[l] != 1) return;
-            int g = lp.h_edge_l2g[l];  // global h-edge == global edge idx
-            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            int g = lp.h_edge_l2g[l];  // global h-edge index
+            int v0, v1;
+            h_edge_vertex_ids(mp, g, v0, v1);
             Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
             vertex_unit(mp, v0, r0, a0x, a0y, a0z);
             vertex_unit(mp, v1, r1, a1x, a1y, a1z);
@@ -477,8 +476,9 @@ class dec_solver_dist {
           });
           ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int l) {
             if (lp.v_edge_boundary[l] != 1) return;
-            int g = N_h_edges + lp.v_edge_l2g[l];  // global edge index
-            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            int g = lp.v_edge_l2g[l];  // global v-edge index
+            int v0, v1;
+            v_edge_vertex_ids(mp, g, v0, v1);
             Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
             vertex_unit(mp, v0, r0, a0x, a0y, a0z);
             vertex_unit(mp, v1, r1, a1x, a1y, a1z);
@@ -515,9 +515,8 @@ class dec_solver_dist {
         [lp, mp, mx_v, my_v, mz_v, bs = m_b_split] LAMBDA(auto B_f) {
           ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
             int g = lp.tri_face_l2g[l];
-            int vi0 = mp.tri_face_v0[g];
-            int vi1 = mp.tri_face_v1[g];
-            int vi2 = mp.tri_face_v2[g];
+            int vi0, vi1, vi2;
+            tri_face_vertex_ids(mp, g, vi0, vi1, vi2);
             Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
             vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
             vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
@@ -539,9 +538,8 @@ class dec_solver_dist {
           });
           ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int l) {
             int g = lp.rect_face_l2g[l];
-            int vi0 = mp.rect_face_v0[g];
-            int vi1 = mp.rect_face_v1[g];
-            int vi3 = mp.rect_face_v3[g];
+            int vi0, vi1, vi3;
+            rect_face_vertex_ids(mp, g, vi0, vi1, vi3);
             Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
             vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
             vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
@@ -577,9 +575,8 @@ class dec_solver_dist {
         [lp, mp, Bp, Omega, obliquity, t_B, bs = m_b_split] LAMBDA(auto B_f) {
           ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
             int g = lp.tri_face_l2g[l];
-            int vi0 = mp.tri_face_v0[g];
-            int vi1 = mp.tri_face_v1[g];
-            int vi2 = mp.tri_face_v2[g];
+            int vi0, vi1, vi2;
+            tri_face_vertex_ids(mp, g, vi0, vi1, vi2);
             Scalar r_face, a0x, a0y, a0z, r1_, a1x, a1y, a1z, r2_, a2x, a2y, a2z;
             vertex_unit(mp, vi0, r_face, a0x, a0y, a0z);
             vertex_unit(mp, vi1, r1_, a1x, a1y, a1z);
@@ -601,9 +598,8 @@ class dec_solver_dist {
           });
           ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int l) {
             int g = lp.rect_face_l2g[l];
-            int vi0 = mp.rect_face_v0[g];
-            int vi1 = mp.rect_face_v1[g];
-            int vi3 = mp.rect_face_v3[g];
+            int vi0, vi1, vi3;
+            rect_face_vertex_ids(mp, g, vi0, vi1, vi3);
             Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, ux3, uy3, uz3;
             vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
             vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
@@ -630,7 +626,8 @@ class dec_solver_dist {
         LAMBDA(auto E_e) {
           ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int l) {
             int g = lp.h_edge_l2g[l];
-            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            int v0, v1;
+            h_edge_vertex_ids(mp, g, v0, v1);
             Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
             vertex_unit(mp, v0, r0, a0x, a0y, a0z);
             vertex_unit(mp, v1, r1, a1x, a1y, a1z);
@@ -646,8 +643,9 @@ class dec_solver_dist {
             E_e[l] = static_cast<Scalar>(circ);
           });
           ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int l) {
-            int g = N_h_edges + lp.v_edge_l2g[l];
-            int v0 = mp.edge_v0[g], v1 = mp.edge_v1[g];
+            int g = lp.v_edge_l2g[l];  // global v-edge index
+            int v0, v1;
+            v_edge_vertex_ids(mp, g, v0, v1);
             Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
             vertex_unit(mp, v0, r0, a0x, a0y, a0z);
             vertex_unit(mp, v1, r1, a1x, a1y, a1z);

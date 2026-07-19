@@ -1,23 +1,24 @@
 #include "systems/prismatic/prismatic_mesh_local.h"
 #include "systems/prismatic/prismatic_cochain_layout.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_geom.h"
 
 namespace Aperture {
 
 namespace {
 
-// Copy a global buffer's local portion into `dst`, following `layout`.
-// The base pointer is offset into the mesh's flat storage so that
-// `layout.to_global(l)` addresses the right cell type (h or v edge,
-// tri or rect face).
-template <typename T>
-void copy_with_offset(const T* global_base, const distributed_cochain_layout& layout,
-                       buffer<T>& dst, MemType mem_type) {
+// Fill a local buffer by evaluating `f(global_sub_index)` for every
+// local slot of `layout` (Phase 7D: geometry is COMPUTED from the
+// sphere stage — bit-identical to the retired global arrays, pinned by
+// test_prismatic_mesh_geom — so the mesh needs no 3D allocations).
+template <typename T, typename F>
+void fill_local(const distributed_cochain_layout& layout, buffer<T>& dst,
+                MemType mem_type, F&& f) {
   const int n = layout.local_size();
   dst.set_memtype(mem_type);
   dst.resize(n);
   for (int l = 0; l < n; ++l) {
-    dst[l] = global_base[layout.to_global(l)];
+    dst[l] = f(layout.to_global(l));
   }
 }
 
@@ -26,17 +27,13 @@ void copy_with_offset(const T* global_base, const distributed_cochain_layout& la
 prismatic_mesh_local prismatic_mesh_local::build(
     const prismatic_mesh& mesh, const prismatic_mesh_partition& mp,
     MemType mem_type) {
+  namespace pg = prismatic_geom;
   prismatic_mesh_local out;
   out.m_partition = &mp;
 
-  // Base pointers into the mesh's flat storage.
-  //   Face buffers:  tri faces at [0, N_tri_faces),
-  //                  rect faces at [N_tri_faces, N_faces).
-  //   Edge buffers:  h edges   at [0, N_h_edges),
-  //                  v edges   at [N_h_edges, N_edges).
-  //   Vertex buffers are already a single block of size N_verts.
-  const int N_tri_faces = (mesh.m_N_r + 1) * mesh.m_N_tri;
-  const int N_h_edges   = (mesh.m_N_r + 1) * mesh.m_N_edge_s;
+  const int NT = mesh.m_N_tri;
+  const int NE = mesh.m_N_edge_s;
+  const int NV = mesh.m_N_vert_s;
 
   auto const& L_tri  = mp.layout(cochain_type::tri_face);
   auto const& L_rect = mp.layout(cochain_type::rect_face);
@@ -44,38 +41,77 @@ prismatic_mesh_local prismatic_mesh_local::build(
   auto const& L_ve   = mp.layout(cochain_type::v_edge);
   auto const& L_vert = mp.layout(cochain_type::vertex);
 
-  // ---- Tri-face buffers (base offset = 0) ----
-  copy_with_offset(mesh.face_area.host_ptr(),         L_tri, out.tri_face_area, mem_type);
-  copy_with_offset(mesh.hodge2.host_ptr(),            L_tri, out.tri_face_hodge2, mem_type);
-  copy_with_offset(mesh.face_boundary.host_ptr(),     L_tri, out.tri_face_boundary, mem_type);
-  copy_with_offset(mesh.face_radial_layer.host_ptr(), L_tri, out.tri_face_radial_layer, mem_type);
+  // ---- Tri-face buffers ----
+  fill_local(L_tri, out.tri_face_area, mem_type, [&](int g) {
+    return pg::tri_area(mesh, g / NT, g % NT);
+  });
+  fill_local(L_tri, out.tri_face_hodge2, mem_type, [&](int g) {
+    return pg::hodge2_tri(mesh, g / NT, g % NT);
+  });
+  fill_local(L_tri, out.tri_face_boundary, mem_type, [&](int g) {
+    return pg::tri_face_boundary(mesh, g / NT);
+  });
+  fill_local(L_tri, out.tri_face_radial_layer, mem_type,
+             [&](int g) { return g / NT; });
 
-  // ---- Rect-face buffers (base offset = N_tri_faces) ----
-  copy_with_offset(mesh.face_area.host_ptr()         + N_tri_faces, L_rect, out.rect_face_area, mem_type);
-  copy_with_offset(mesh.hodge2.host_ptr()            + N_tri_faces, L_rect, out.rect_face_hodge2, mem_type);
-  copy_with_offset(mesh.face_boundary.host_ptr()     + N_tri_faces, L_rect, out.rect_face_boundary, mem_type);
-  copy_with_offset(mesh.face_radial_layer.host_ptr() + N_tri_faces, L_rect, out.rect_face_radial_layer, mem_type);
+  // ---- Rect-face buffers ----
+  fill_local(L_rect, out.rect_face_area, mem_type, [&](int g) {
+    return pg::rect_area(mesh, g / NE, g % NE);
+  });
+  fill_local(L_rect, out.rect_face_hodge2, mem_type, [&](int g) {
+    return pg::hodge2_rect(mesh, g / NE, g % NE);
+  });
+  fill_local(L_rect, out.rect_face_boundary, mem_type, [&](int g) {
+    return pg::rect_face_boundary(mesh, g / NE);
+  });
+  fill_local(L_rect, out.rect_face_radial_layer, mem_type,
+             [&](int g) { return g / NE; });
 
-  // ---- H-edge buffers (base offset = 0) ----
-  copy_with_offset(mesh.edge_length.host_ptr(),       L_he, out.h_edge_length, mem_type);
-  copy_with_offset(mesh.hodge1_inv.host_ptr(),        L_he, out.h_edge_hodge1_inv, mem_type);
-  copy_with_offset(mesh.edge_v0.host_ptr(),           L_he, out.h_edge_v0, mem_type);
-  copy_with_offset(mesh.edge_v1.host_ptr(),           L_he, out.h_edge_v1, mem_type);
-  copy_with_offset(mesh.edge_boundary.host_ptr(),     L_he, out.h_edge_boundary, mem_type);
-  copy_with_offset(mesh.edge_radial_layer.host_ptr(), L_he, out.h_edge_radial_layer, mem_type);
+  // ---- H-edge buffers ----
+  fill_local(L_he, out.h_edge_length, mem_type, [&](int g) {
+    return pg::h_edge_length(mesh, g / NE, g % NE);
+  });
+  fill_local(L_he, out.h_edge_hodge1_inv, mem_type, [&](int g) {
+    return pg::hodge1_inv_h(mesh, g / NE, g % NE);
+  });
+  fill_local(L_he, out.h_edge_v0, mem_type, [&](int g) {
+    return pg::h_edge_gv0(mesh, g / NE, g % NE);
+  });
+  fill_local(L_he, out.h_edge_v1, mem_type, [&](int g) {
+    return pg::h_edge_gv1(mesh, g / NE, g % NE);
+  });
+  fill_local(L_he, out.h_edge_boundary, mem_type, [&](int g) {
+    return pg::h_edge_boundary(mesh, g / NE);
+  });
+  fill_local(L_he, out.h_edge_radial_layer, mem_type,
+             [&](int g) { return g / NE; });
 
-  // ---- V-edge buffers (base offset = N_h_edges) ----
-  copy_with_offset(mesh.edge_length.host_ptr()       + N_h_edges, L_ve, out.v_edge_length, mem_type);
-  copy_with_offset(mesh.hodge1_inv.host_ptr()        + N_h_edges, L_ve, out.v_edge_hodge1_inv, mem_type);
-  copy_with_offset(mesh.edge_v0.host_ptr()           + N_h_edges, L_ve, out.v_edge_v0, mem_type);
-  copy_with_offset(mesh.edge_v1.host_ptr()           + N_h_edges, L_ve, out.v_edge_v1, mem_type);
-  copy_with_offset(mesh.edge_boundary.host_ptr()     + N_h_edges, L_ve, out.v_edge_boundary, mem_type);
-  copy_with_offset(mesh.edge_radial_layer.host_ptr() + N_h_edges, L_ve, out.v_edge_radial_layer, mem_type);
+  // ---- V-edge buffers ----
+  fill_local(L_ve, out.v_edge_length, mem_type, [&](int g) {
+    return pg::v_edge_length(mesh, g / NV);
+  });
+  fill_local(L_ve, out.v_edge_hodge1_inv, mem_type, [&](int g) {
+    return pg::hodge1_inv_v(mesh, g / NV, g % NV);
+  });
+  fill_local(L_ve, out.v_edge_v0, mem_type, [&](int g) {
+    return pg::v_edge_gv0(mesh, g / NV, g % NV);
+  });
+  fill_local(L_ve, out.v_edge_v1, mem_type, [&](int g) {
+    return pg::v_edge_gv1(mesh, g / NV, g % NV);
+  });
+  fill_local(L_ve, out.v_edge_boundary, mem_type, [&](int g) {
+    return pg::v_edge_boundary(mesh, g / NV);
+  });
+  fill_local(L_ve, out.v_edge_radial_layer, mem_type,
+             [&](int g) { return g / NV; });
 
-  // ---- Vertex buffers (base offset = 0) ----
-  copy_with_offset(mesh.vert_r.host_ptr(),     L_vert, out.vert_r, mem_type);
-  copy_with_offset(mesh.vert_theta.host_ptr(), L_vert, out.vert_theta, mem_type);
-  copy_with_offset(mesh.vert_phi.host_ptr(),   L_vert, out.vert_phi, mem_type);
+  // ---- Vertex buffers ----
+  fill_local(L_vert, out.vert_r, mem_type,
+             [&](int g) { return pg::vert_r(mesh, g / NV); });
+  fill_local(L_vert, out.vert_theta, mem_type,
+             [&](int g) { return pg::vert_theta(mesh, g % NV); });
+  fill_local(L_vert, out.vert_phi, mem_type,
+             [&](int g) { return pg::vert_phi(mesh, g % NV); });
 
   // ---- Local -> global maps ----
   auto fill_l2g = [mem_type](const distributed_cochain_layout& layout,

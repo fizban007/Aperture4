@@ -76,6 +76,8 @@ struct prismatic_mesh_ptrs {
   const int* tri_edges_s;       // [N_tri * 3]
   const int* tri_edge_signs;    // [N_tri * 3]
   const int* tri_neighbor;      // [N_tri * 3]
+  const int* sphere_edge_v0;    // [N_edge_s] endpoint sphere vertices, v0 < v1
+  const int* sphere_edge_v1;    // [N_edge_s]
 
   // =======================================================================
   // Indexing helpers

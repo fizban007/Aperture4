@@ -214,6 +214,18 @@ void prismatic_mesh::sphere_mesh::subdivide() {
 
 void prismatic_mesh::build(int L, int N_r, double r_min, double r_max,
                            int n_ghost_inner, int n_ghost_outer) {
+  build_stages(L, N_r, r_min, r_max, n_ghost_inner, n_ghost_outer, true);
+}
+
+void prismatic_mesh::build_sphere_only(int L, int N_r, double r_min,
+                                       double r_max, int n_ghost_inner,
+                                       int n_ghost_outer) {
+  build_stages(L, N_r, r_min, r_max, n_ghost_inner, n_ghost_outer, false);
+}
+
+void prismatic_mesh::build_stages(int L, int N_r, double r_min, double r_max,
+                                  int n_ghost_inner, int n_ghost_outer,
+                                  bool with_3d) {
   // Prepend / append ghost radial layers below r_min / above r_max
   // preserving the log-spacing.  The physical domain is shells
   // [n_ghost_inner, n_ghost_inner + N_r].
@@ -228,31 +240,197 @@ void prismatic_mesh::build(int L, int N_r, double r_min, double r_max,
   m_r_min = r_min;
   m_r_max = r_max;
 
-  // Step 1: Build the sphere mesh
+  // ---- SPHERE STAGE (always; O(4^L) + O(N_r) state only) ----
   sphere_mesh sm;
   build_sphere_mesh(L, sm);
-
-  // Step 2: Extrude to 3D
-  extrude_to_3d(sm);
-
-  // Step 3: Build incidence matrix d1
-  build_incidence(sm);
-
-  // Step 4: Transpose d1 -> d1^T
-  transpose_d1();
-
-  // Step 5: Compute circumcentric dual Hodge star
-  compute_geometric_dual(sm);
-
-  // Step 6: Tag boundaries
-  tag_boundaries();
-
-  // Step 7: Persist sphere data for particle operations
+  compute_radii_and_counts();
   persist_sphere_data(sm);
+  persist_sphere_geometry(sm);
 
-  Logger::print_info(
-      "Prismatic mesh built: L={}, N_r={}, {} vertices, {} edges, {} faces",
-      m_L, m_N_r, m_N_verts, m_N_edges, m_N_faces);
+  // ---- 3D STAGE (skipped under a partition — local builders compute
+  //      the per-element geometry via prismatic_mesh_geom.h) ----
+  if (with_3d) {
+    extrude_to_3d(sm);
+    build_incidence(sm);
+    transpose_d1();
+    compute_geometric_dual(sm);
+    tag_boundaries();
+    m_has_3d = true;
+    Logger::print_info(
+        "Prismatic mesh built: L={}, N_r={}, {} vertices, {} edges, {} faces",
+        m_L, m_N_r, m_N_verts, m_N_edges, m_N_faces);
+  } else {
+    Logger::print_info(
+        "Prismatic mesh built (sphere stage only): L={}, N_r={}, {} sphere "
+        "vertices, {} sphere edges, {} tris",
+        m_L, m_N_r, m_N_vert_s, m_N_edge_s, m_N_tri);
+  }
+}
+
+void prismatic_mesh::compute_radii_and_counts() {
+  radii.resize(m_N_r + 1);
+  double log_ratio = std::log(m_r_max / m_r_min) / m_N_r;
+  for (int k = 0; k <= m_N_r; k++) {
+    radii[k] = m_r_min * std::exp(k * log_ratio);
+  }
+  m_N_verts = m_N_vert_s * (m_N_r + 1);
+  m_N_edges = m_N_edge_s * (m_N_r + 1) + m_N_vert_s * m_N_r;
+  m_N_faces = m_N_tri * (m_N_r + 1) + m_N_edge_s * m_N_r;
+}
+
+// Double-precision angular geometry, persisted so local builders can
+// reproduce every 3D per-cochain quantity bit-exactly without the global
+// arrays.  Expressions are copied VERBATIM from extrude_to_3d /
+// compute_geometric_dual (do not "simplify" — bit-identity is the
+// contract, pinned by test_prismatic_mesh_geom).
+void prismatic_mesh::persist_sphere_geometry(const sphere_mesh& sm) {
+  // Tri solid angles (extrude_to_3d's face-area factor).
+  sph_tri_omega.resize(m_N_tri);
+  for (int t = 0; t < m_N_tri; t++) {
+    int a = sm.triangles[t][0], b = sm.triangles[t][1],
+        c = sm.triangles[t][2];
+    sph_tri_omega[t] = sph_triangle_area(
+        sm.vx[a], sm.vy[a], sm.vz[a],
+        sm.vx[b], sm.vy[b], sm.vz[b],
+        sm.vx[c], sm.vy[c], sm.vz[c]);
+  }
+
+  // Edge endpoint arc angles (h-edge lengths / rect areas).
+  sph_edge_alpha.resize(m_N_edge_s);
+  sphere_edge_v0.resize(m_N_edge_s);
+  sphere_edge_v1.resize(m_N_edge_s);
+  for (int e = 0; e < m_N_edge_s; e++) {
+    int a = sm.edges[e][0], b = sm.edges[e][1];
+    sphere_edge_v0[e] = a;
+    sphere_edge_v1[e] = b;
+    double dot = sm.vx[a] * sm.vx[b] + sm.vy[a] * sm.vy[b] +
+                 sm.vz[a] * sm.vz[b];
+    dot = std::max(-1.0, std::min(1.0, dot));
+    sph_edge_alpha[e] = std::acos(dot);
+  }
+
+  // Circumcenter directions (transient) — same expressions as
+  // compute_geometric_dual step 1.
+  std::vector<double> circ_ux(m_N_tri), circ_uy(m_N_tri), circ_uz(m_N_tri);
+  for (int t = 0; t < m_N_tri; t++) {
+    int a = sm.triangles[t][0];
+    int b = sm.triangles[t][1];
+    int c = sm.triangles[t][2];
+    double e1x = sm.vx[b] - sm.vx[a];
+    double e1y = sm.vy[b] - sm.vy[a];
+    double e1z = sm.vz[b] - sm.vz[a];
+    double e2x = sm.vx[c] - sm.vx[a];
+    double e2y = sm.vy[c] - sm.vy[a];
+    double e2z = sm.vz[c] - sm.vz[a];
+    double nx = e1y * e2z - e1z * e2y;
+    double ny = e1z * e2x - e1x * e2z;
+    double nz = e1x * e2y - e1y * e2x;
+    double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
+    double ux = 0.0, uy = 0.0, uz = 0.0;
+    if (nlen > 0) {
+      ux = nx / nlen;
+      uy = ny / nlen;
+      uz = nz / nlen;
+      double mx = (sm.vx[a] + sm.vx[b] + sm.vx[c]) / 3.0;
+      double my = (sm.vy[a] + sm.vy[b] + sm.vy[c]) / 3.0;
+      double mz = (sm.vz[a] + sm.vz[b] + sm.vz[c]) / 3.0;
+      if (ux * mx + uy * my + uz * mz < 0) {
+        ux = -ux;
+        uy = -uy;
+        uz = -uz;
+      }
+    }
+    circ_ux[t] = ux;
+    circ_uy[t] = uy;
+    circ_uz[t] = uz;
+  }
+
+  // Sphere-edge adjacent tris (first-come in ascending-t order, matching
+  // compute_geometric_dual) + the dual-edge arc between their
+  // circumcenter directions.
+  sph_edge_tri0.assign(m_N_edge_s, -1);
+  sph_edge_tri1.assign(m_N_edge_s, -1);
+  for (int t = 0; t < m_N_tri; t++) {
+    for (int j = 0; j < 3; j++) {
+      int e = sm.tri_edges[t][j];
+      if (sph_edge_tri0[e] == -1) {
+        sph_edge_tri0[e] = t;
+      } else {
+        sph_edge_tri1[e] = t;
+      }
+    }
+  }
+  sph_edge_beta.assign(m_N_edge_s, 0.0);
+  for (int e = 0; e < m_N_edge_s; e++) {
+    int t0 = sph_edge_tri0[e], t1 = sph_edge_tri1[e];
+    if (t0 >= 0 && t1 >= 0) {
+      sph_edge_beta[e] = arc_angle(circ_ux[t0], circ_uy[t0], circ_uz[t0],
+                                   circ_ux[t1], circ_uy[t1], circ_uz[t1]);
+    }
+  }
+
+  // Vertex fans (tris ascending — the global accumulation order) and the
+  // dual polygon solid angle around each vertex (compute_geometric_dual's
+  // sorted-fan construction, verbatim).
+  std::vector<std::vector<int>> vert_tris(m_N_vert_s);
+  for (int t = 0; t < m_N_tri; t++) {
+    for (int j = 0; j < 3; j++) {
+      vert_tris[sm.triangles[t][j]].push_back(t);
+    }
+  }
+  sph_vert_tri_offset.assign(m_N_vert_s + 1, 0);
+  sph_vert_tris.clear();
+  for (int v = 0; v < m_N_vert_s; v++) {
+    sph_vert_tri_offset[v] = int(sph_vert_tris.size());
+    sph_vert_tris.insert(sph_vert_tris.end(), vert_tris[v].begin(),
+                         vert_tris[v].end());
+  }
+  sph_vert_tri_offset[m_N_vert_s] = int(sph_vert_tris.size());
+
+  sph_vert_omega.resize(m_N_vert_s);
+  for (int sv = 0; sv < m_N_vert_s; sv++) {
+    auto& tris = vert_tris[sv];
+    int np = int(tris.size());
+    double anchor_x = sm.vx[sv], anchor_y = sm.vy[sv], anchor_z = sm.vz[sv];
+    double tx, ty, tz;
+    if (std::fabs(anchor_x) < 0.9) {
+      tx = 0.0; ty = -anchor_z; tz = anchor_y;
+    } else {
+      tx = anchor_z; ty = 0.0; tz = -anchor_x;
+    }
+    double tn = std::sqrt(tx * tx + ty * ty + tz * tz);
+    tx /= tn; ty /= tn; tz /= tn;
+    double bx = anchor_y * tz - anchor_z * ty;
+    double by = anchor_z * tx - anchor_x * tz;
+    double bz = anchor_x * ty - anchor_y * tx;
+
+    std::vector<double> angles(np);
+    for (int i = 0; i < np; i++) {
+      int t = tris[i];
+      double dx = circ_ux[t] - anchor_x;
+      double dy = circ_uy[t] - anchor_y;
+      double dz = circ_uz[t] - anchor_z;
+      double u_coord = dx * tx + dy * ty + dz * tz;
+      double v_coord = dx * bx + dy * by + dz * bz;
+      angles[i] = std::atan2(v_coord, u_coord);
+    }
+    std::vector<int> order(np);
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(),
+              [&](int ia, int ib) { return angles[ia] < angles[ib]; });
+
+    double omega = 0.0;
+    for (int i = 0; i < np; i++) {
+      int j = (i + 1) % np;
+      int t0 = tris[order[i]];
+      int t1 = tris[order[j]];
+      omega += sph_triangle_area(
+          anchor_x, anchor_y, anchor_z,
+          circ_ux[t0], circ_uy[t0], circ_uz[t0],
+          circ_ux[t1], circ_uy[t1], circ_uz[t1]);
+    }
+    sph_vert_omega[sv] = omega;
+  }
 }
 
 void prismatic_mesh::build_sphere_mesh(int L, sphere_mesh& sm) {
@@ -1170,6 +1348,8 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.tri_edges_s = tri_edges_s.host_ptr();
   p.tri_edge_signs = tri_edge_signs.host_ptr();
   p.tri_neighbor = tri_neighbor.host_ptr();
+  p.sphere_edge_v0 = sphere_edge_v0.host_ptr();
+  p.sphere_edge_v1 = sphere_edge_v1.host_ptr();
 
   return p;
 }
@@ -1227,13 +1407,17 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.tri_edges_s = tri_edges_s.dev_ptr();
   p.tri_edge_signs = tri_edge_signs.dev_ptr();
   p.tri_neighbor = tri_neighbor.dev_ptr();
+  p.sphere_edge_v0 = sphere_edge_v0.dev_ptr();
+  p.sphere_edge_v1 = sphere_edge_v1.dev_ptr();
 
   return p;
 }
 
 void prismatic_mesh::copy_to_device() {
+  // Sphere-only builds (7D) leave the 3D per-cochain buffers empty —
+  // skip them.
   auto copy = [](auto& buf) {
-    buf.copy_to_device();
+    if (buf.size() > 0) buf.copy_to_device();
   };
   copy(radii);
   copy(d1_row_ptr); copy(d1_col_idx); copy(d1_val);
@@ -1249,6 +1433,7 @@ void prismatic_mesh::copy_to_device() {
   copy(sphere_vx); copy(sphere_vy); copy(sphere_vz);
   copy(sphere_theta); copy(sphere_phi);
   copy(tri_verts); copy(tri_edges_s); copy(tri_edge_signs); copy(tri_neighbor);
+  copy(sphere_edge_v0); copy(sphere_edge_v1);
 }
 #endif
 

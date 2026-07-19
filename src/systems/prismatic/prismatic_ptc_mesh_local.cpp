@@ -1,6 +1,7 @@
 #include "systems/prismatic/prismatic_ptc_mesh_local.h"
 #include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_cochain_layout.h"
+#include "systems/prismatic/prismatic_mesh_geom.h"
 #include "systems/prismatic/prismatic_vertex_recovery.h"
 #include <algorithm>
 #include <stdexcept>
@@ -216,19 +217,25 @@ void prismatic_ptc_mesh_local::build(const prismatic_mesh& mesh,
   // Layout-indexed geometry: dual volumes (vertex layout) and hodge1_inv
   // (combined [h|v] edge layout).
   // -----------------------------------------------------------------------
+  // Phase 7D: computed from the sphere stage (bit-identical to the
+  // retired global arrays; see prismatic_mesh_geom.h).
   {
     std::vector<Scalar> v(m_n_verts_layout);
-    const Scalar* g = mesh.vert_dual_vol.host_ptr();
-    for (int l = 0; l < m_n_verts_layout; ++l) v[l] = g[L_vert.to_global(l)];
+    for (int l = 0; l < m_n_verts_layout; ++l) {
+      const int g = L_vert.to_global(l);
+      v[l] = prismatic_geom::vert_dual_vol(mesh, g / NV, g % NV);
+    }
     fill_buffer(vert_dual_vol, v, mem);
   }
   {
     std::vector<Scalar> v(m_n_edges_layout);
-    const Scalar* g = mesh.hodge1_inv.host_ptr();
-    const int n_h_glob = (N_r_g + 1) * NE;
-    for (int l = 0; l < m_e_split; ++l) v[l] = g[L_h.to_global(l)];
+    for (int l = 0; l < m_e_split; ++l) {
+      const int g = L_h.to_global(l);
+      v[l] = prismatic_geom::hodge1_inv_h(mesh, g / NE, g % NE);
+    }
     for (int l = 0; l < L_v.local_size(); ++l) {
-      v[m_e_split + l] = g[n_h_glob + L_v.to_global(l)];
+      const int g = L_v.to_global(l);
+      v[m_e_split + l] = prismatic_geom::hodge1_inv_v(mesh, g / NV, g % NV);
     }
     fill_buffer(hodge1_inv, v, mem);
   }

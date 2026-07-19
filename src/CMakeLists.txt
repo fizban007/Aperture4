@@ -41,6 +41,7 @@ set(Aperture_src
   "systems/prismatic/prismatic_cochain_layout.cpp"
   "systems/prismatic/prismatic_mesh_partition.cpp"
   "systems/prismatic/prismatic_mesh_local.cpp"
+  "systems/prismatic/prismatic_ptc_mesh_local.cpp"
   "systems/prismatic/prismatic_d1_local.cpp"
   "systems/prismatic/prismatic_mesh_local_ptrs.cpp"
   "systems/prismatic/prismatic_mesh_metric_local.cpp"

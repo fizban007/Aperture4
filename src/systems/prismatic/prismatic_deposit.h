@@ -24,9 +24,9 @@ HD_INLINE void atomic_add_scalar(FloatT* addr, FloatT val) {
 // rho_v = q * weight * W^0_v(x) = q * weight * lambda_i * phi_k(zeta)
 // Deposits to the 6 vertices of the containing prism.
 // =========================================================================
-template <typename FloatT>
+template <typename MP, typename FloatT>
 HD_INLINE void deposit_rho(
-    const prismatic_mesh_ptrs& mesh,
+    const MP& mesh,
     int tri_idx, int layer_idx,
     const FloatT l[3], FloatT zeta,
     FloatT q_weight,
@@ -37,10 +37,10 @@ HD_INLINE void deposit_rho(
   for (int i = 0; i < 3; i++) {
     int sv = mesh.tri_verts[tri_idx * 3 + i];
     // Bottom vertex (shell = layer_idx)
-    int v_bot = layer_idx * mesh.N_vert_s + sv;
+    int v_bot = mesh.vertex_idx(layer_idx, sv);
     atomic_add_scalar(&rho[v_bot], q_weight * l[i] * phi_bot);
     // Top vertex (shell = layer_idx + 1)
-    int v_top = (layer_idx + 1) * mesh.N_vert_s + sv;
+    int v_top = mesh.vertex_idx(layer_idx + 1, sv);
     atomic_add_scalar(&rho[v_top], q_weight * l[i] * phi_top);
   }
 }
@@ -48,9 +48,9 @@ HD_INLINE void deposit_rho(
 // =========================================================================
 // Single-prism current deposition (Whitney 1-form path integrals)
 // =========================================================================
-template <typename FloatT>
+template <typename MP, typename FloatT>
 HOST_DEVICE void deposit_current_single_prism(
-    const prismatic_mesh_ptrs& mesh,
+    const MP& mesh,
     int tri_idx, int layer_idx,
     const FloatT l_old[3], FloatT zeta_old,
     const FloatT l_new[3], FloatT zeta_new,
@@ -137,9 +137,9 @@ HD_INLINE int detect_crossing(
 // =========================================================================
 // Multi-prism current deposition with trajectory splitting
 // =========================================================================
-template <typename FloatT>
+template <typename MP, typename FloatT>
 HOST_DEVICE void deposit_current(
-    const prismatic_mesh_ptrs& mesh,
+    const MP& mesh,
     int tri_idx, int layer_idx,
     const FloatT l_old[3], FloatT zeta_old,
     const FloatT l_new[3], FloatT zeta_new,
@@ -245,9 +245,9 @@ HOST_DEVICE void deposit_current(
 // =========================================================================
 // Whitney-form field interpolation
 // =========================================================================
-template <typename FloatT>
+template <typename MP, typename FloatT>
 HOST_DEVICE void interpolate_fields(
-    const prismatic_mesh_ptrs& mesh,
+    const MP& mesh,
     int tri_idx, int layer_idx,
     const FloatT l[3], FloatT zeta,
     const FloatT* E_e, const FloatT* B_f,

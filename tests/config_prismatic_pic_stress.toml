@@ -1,0 +1,21 @@
+# Migration-stress config for test_prismatic_pic_multirank (Phase 7C).
+# Same deterministic lattice as config_prismatic_pic_multirank.toml but
+# ultra-relativistic seeds (p0 = 10, v ~ c) and more steps, so
+# particles sweep across many cells — and across UNIT boundaries under
+# sub-face decompositions — exercising repeated migration hops.
+# Acceptance: SEEDED/LIVE identical across rank counts, MISOWNED 0.
+# Add "n_angular_ranks = 4" for the 8-rank (4x2) single-node shape.
+dt = 0.015
+max_steps = 60
+subdivision_level = 2
+N_r = 8
+r_min = 1.0
+r_max = 2.0
+Bp = 1.0
+max_ptc_num = 2000000
+fld_output_interval = 60
+sph_N_theta = 16
+sph_N_phi = 32
+seed_stride = 4
+seed_p0 = 10.0
+output_dir = "Data_pic_stress"

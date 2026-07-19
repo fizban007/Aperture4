@@ -15,8 +15,9 @@ namespace Aperture {
 // Coordinate helpers
 // =========================================================================
 
+template <typename MP>
 HD_INLINE void local_to_cartesian_impl(
-    const prismatic_mesh_ptrs& mp, int tri_idx, int layer_idx,
+    const MP& mp, int tri_idx, int layer_idx,
     Scalar l1, Scalar l2, Scalar zeta,
     Scalar& x, Scalar& y, Scalar& z) {
   Scalar l3 = Scalar(1) - l1 - l2;
@@ -32,8 +33,9 @@ HD_INLINE void local_to_cartesian_impl(
   x = r*sx; y = r*sy; z = r*sz;
 }
 
+template <typename MP>
 HD_INLINE bool cartesian_to_local_impl(
-    const prismatic_mesh_ptrs& mp, Scalar x, Scalar y, Scalar z,
+    const MP& mp, Scalar x, Scalar y, Scalar z,
     int& tri_idx, int& layer_idx, Scalar& l1, Scalar& l2, Scalar& zeta,
     int tri_hint = -1) {
   Scalar r = std::sqrt(x*x + y*y + z*z);
@@ -44,6 +46,15 @@ HD_INLINE bool cartesian_to_local_impl(
   tri_idx = mp.find_triangle(x*ri, y*ri, z*ri, tri_hint);
   Scalar l3;
   mp.compute_barycentric(tri_idx, x*ri, y*ri, z*ri, l1, l2, l3);
+  // Containment check: on the closed global sphere the walk always
+  // terminates inside a triangle (λ ≥ −1e-10); a clearly-outside result
+  // means the walk hit a LOCAL T_halo boundary (−1 neighbor) — i.e. the
+  // particle left the halo, which the CFL contract forbids.  Treat as
+  // absorption (the acceptance tests' cross-rank LIVE-count comparison
+  // detects any systematic occurrence loudly).
+  if (l1 < Scalar(-1e-4) || l2 < Scalar(-1e-4) || l3 < Scalar(-1e-4)) {
+    return false;
+  }
   return true;
 }
 
@@ -107,8 +118,9 @@ HD_INLINE Scalar boris_push(
 // accurate.  The magnitude is clamped to 0.5c — near B nulls the drift
 // expansion diverges and the hybrid switch hands the particle to Boris
 // anyway.
+template <typename MP>
 HD_INLINE void gca_drift_velocity(
-    const prismatic_mesh_ptrs& mp, const Scalar* Bv, int tri, int layer,
+    const MP& mp, const Scalar* Bv, int tri, int layer,
     const Scalar l[3], Scalar zeta, Scalar u_par, Scalar mu,
     Scalar q, Scalar m, Scalar Gamma, Scalar v_dr[3]) {
   Scalar B[3], G[3][3];
@@ -150,6 +162,7 @@ struct GCAPushResult {
   bool valid;
 };
 
+template <typename MP>
 HD_INLINE GCAPushResult gca_push(
     Scalar old_x, Scalar old_y, Scalar old_z,
     Scalar u_par_half,  // u_par at n-1/2
@@ -157,7 +170,7 @@ HD_INLINE GCAPushResult gca_push(
     Scalar Ex, Scalar Ey, Scalar Ez,
     Scalar Bx, Scalar By, Scalar Bz,
     Scalar q, Scalar m, Scalar dt,
-    const prismatic_mesh_ptrs& mp,
+    const MP& mp,
     const Scalar* E_e, const Scalar* B_f,
     int tri_hint,
     bool include_curvature,
@@ -325,8 +338,9 @@ HD_INLINE GCAPushResult gca_push(
 // The particle flag bit PtcFlag::tracked indicates GCA mode.
 // =========================================================================
 
+template <typename MP>
 HOST_DEVICE inline void update_single_particle(
-    const prismatic_mesh_ptrs& mp, int N_tri,
+    const MP& mp, int N_tri,
     prism_ptc_ptrs& ptrs, size_t n,
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,
@@ -528,8 +542,9 @@ HOST_DEVICE inline void update_single_particle(
 }
 
 // Update all particles in a loop (CPU version).
+template <typename MP>
 inline void update_particles_loop(
-    const prismatic_mesh_ptrs& mp, int N_tri,
+    const MP& mp, int N_tri,
     prism_ptc_ptrs& ptrs, size_t num,
     const Scalar* E_e, const Scalar* B_f,
     Scalar* J_e, Scalar* rho,

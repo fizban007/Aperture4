@@ -13,12 +13,13 @@
 // Update order matters: inject, then push/deposit (J at t+dt/2), then
 // advance the fields with that J.
 //
-// MPI (Phase 6): run under mpirun with 20*K ranks for distributed PIC.
-// The field solver runs on local cochains with halo exchanges; the
-// particle path runs on global field replicas (replicated at the start
-// of each step by prismatic_field_replicator, which must come first)
-// with particles sharded by cell ownership, deposits summed across
-// ranks, and particles migrating between ranks after each push.
+// MPI (Phase 7C): run under mpirun with A*K ranks (config
+// "n_angular_ranks" = A, default 20) for FULLY-LOCAL distributed PIC.
+// One pic-depth mesh_partition bundle is built here and shared by the
+// solver and every particle system; fields AND particles are local,
+// deposits fold back through halo reduce(), and particles migrate by
+// cell ownership after each push.  Requires >= 2 radial shells per
+// slab (N_r / K >= 2).
 //
 // Start: vacuum aligned dipole (set_initial_dipole).  The corotation E
 // spins up the magnetosphere as injected plasma fills it.
@@ -27,7 +28,6 @@
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
-#include "systems/prismatic/prismatic_field_replicator.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
@@ -57,10 +57,9 @@ int main(int argc, char* argv[]) {
   mesh.copy_to_device();
 #endif
 
-  // Distributed setup: the particle systems get their own partition
-  // bundle, built here so registration order (= update order) can stay
-  // physical.  The solver builds an identical bundle internally.
-  // All of these must outlive env.run().
+  // Distributed setup: ONE pic-depth partition bundle, shared by the
+  // solver and every particle system (plan 7C — removes the
+  // two-identical-bundles risk).  All of these must outlive env.run().
   prismatic_mpi_comm mcomm;
   icosphere_topology topo;
   prismatic_partition part;
@@ -68,27 +67,28 @@ int main(int argc, char* argv[]) {
   const prismatic_mesh_partition* mp = nullptr;
   const prismatic_mpi_comm* pc = nullptr;
   if (world_size > 1) {
-    if (world_size % 20 != 0) {
-      Logger::print_err("ns_rotator: MPI runs need 20*K ranks (got {})",
-                        world_size);
+    int A = env.params().get_as<int64_t>("n_angular_ranks", 20);
+    if (A < 1 || world_size % A != 0) {
+      Logger::print_err(
+          "ns_rotator: world size {} is not a multiple of n_angular_ranks "
+          "{}",
+          world_size, A);
       return 1;
     }
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, world_size / 20);
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
     topo = icosphere_topology::build_from_mesh(mesh);
-    part = prismatic_partition::combined_ico_face(mesh.m_L, mesh.m_N_r,
+    part = prismatic_partition::combined(mesh.m_L, mesh.m_N_r, A,
                                          mcomm.n_radial_ranks(),
-                                         mcomm.radial_rank(),
-                                         mcomm.angular_rank());
+                                         mcomm.world_rank());
     part.set_topology(&topo);
-    mpart = prismatic_mesh_partition::build(part, topo);
+    mpart = prismatic_mesh_partition::build(part, topo, halo_depth::pic);
     mp = &mpart;
     pc = &mcomm;
-    env.register_system<prismatic_field_replicator_t>(mesh, mp, pc);
   }
 
   env.register_system<prismatic_surface_injector_t>(mesh, mp, pc);
   env.register_system<prismatic_ptc_updater_t>(mesh, mp, pc);
-  auto solver = env.register_system<dec_field_solver_t>(mesh, pc);
+  auto solver = env.register_system<dec_field_solver_t>(mesh, pc, mp);
   env.register_system<prismatic_data_exporter>(mesh, mp, pc);
   env.register_system<prismatic_sph_output>(mesh, mp, pc);
 

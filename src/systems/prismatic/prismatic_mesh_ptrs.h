@@ -93,6 +93,11 @@ struct prismatic_mesh_ptrs {
   HD_INLINE int rect_face_idx(int k, int e) const {
     return (N_r + 1) * N_tri + k * N_edge_s + e;
   }
+  // Vertex 0-cochain index (rho and friends; also the Bv stride base).
+  // Mirrored by prismatic_ptc_mesh_ptrs via its tensor→layout map.
+  HD_INLINE int vertex_idx(int k, int s) const {
+    return k * N_vert_s + s;
+  }
 
   // =======================================================================
   // Get the 9 global edge indices for prism (tri_idx, layer_idx).

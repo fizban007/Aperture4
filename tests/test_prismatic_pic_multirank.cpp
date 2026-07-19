@@ -24,7 +24,6 @@
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
-#include "systems/prismatic/prismatic_field_replicator.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
@@ -42,9 +41,19 @@ int main(int argc, char* argv[]) {
   int world_size = 1, world_rank = 0;
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-  if (world_size > 1 && world_size % 20 != 0) {
+  // Canonical angular rank count: config "n_angular_ranks", default 20
+  // when the world size divides by 20, else the world size itself
+  // (pure-angular shapes like 8 = 8x1 or 80 = 80x1; use the config key
+  // for mixed shapes like 4x2).
+  int A = int(env.params().get_as<int64_t>("n_angular_ranks", 0));
+  if (world_size > 1 && A <= 0) {
+    A = (world_size % 20 == 0) ? 20 : world_size;
+  }
+  if (world_size > 1 &&
+      (world_size % A != 0 ||
+       prismatic_partition::min_patch_level_for(A) < 0)) {
     if (world_rank == 0)
-      std::fprintf(stderr, "SKIP: needs 1 or 20*K ranks (got %d)\n",
+      std::fprintf(stderr, "SKIP: invalid A=%d for %d ranks\n", A,
                    world_size);
     MPI_Finalize();
     return 0;
@@ -70,20 +79,18 @@ int main(int argc, char* argv[]) {
   const prismatic_mesh_partition* mp = nullptr;
   const prismatic_mpi_comm* pc = nullptr;
   if (world_size > 1) {
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, world_size / 20);
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
     topo = icosphere_topology::build_from_mesh(mesh);
-    part = prismatic_partition::combined_ico_face(mesh.m_L, mesh.m_N_r,
+    part = prismatic_partition::combined(mesh.m_L, mesh.m_N_r, A,
                                          mcomm.n_radial_ranks(),
-                                         mcomm.radial_rank(),
-                                         mcomm.angular_rank());
+                                         mcomm.world_rank());
     part.set_topology(&topo);
-    mpart = prismatic_mesh_partition::build(part, topo);
+    mpart = prismatic_mesh_partition::build(part, topo, halo_depth::pic);
     mp = &mpart;
     pc = &mcomm;
-    env.register_system<prismatic_field_replicator_t>(mesh, mp, pc);
   }
   auto updater = env.register_system<prismatic_ptc_updater_t>(mesh, mp, pc);
-  auto solver = env.register_system<dec_field_solver_t>(mesh, pc);
+  auto solver = env.register_system<dec_field_solver_t>(mesh, pc, mp);
   env.register_system<prismatic_data_exporter>(mesh, mp, pc);
   env.register_system<prismatic_sph_output>(mesh, mp, pc);
 
@@ -144,14 +151,7 @@ int main(int argc, char* argv[]) {
   ptc->copy_to_host();
 #endif
   auto hp = ptc->get_host_ptrs();
-  const int N_tri = mesh.m_N_tri;
-  const int tris_per_face = N_tri / 20;
-  const int K = world_size > 1 ? world_size / 20 : 1;
-  const int base = mesh.m_N_r / K;
-  const int rem = mesh.m_N_r - base * K;
-  const int me = world_size > 1
-                     ? mcomm.radial_rank() * 20 + mcomm.angular_rank()
-                     : 0;
+  auto lmp = updater->ptc_mesh().host_ptrs();
   long live = 0, misowned = 0;
   double esum = 0;
   for (size_t n = 0; n < ptc->number(); ++n) {
@@ -159,9 +159,7 @@ int main(int argc, char* argv[]) {
     live++;
     esum += double(hp.E[n]) * double(hp.weight[n]);
     if (world_size > 1) {
-      if (prism_migrate_dest(hp.cell[n], N_tri, tris_per_face, base, rem,
-                             me) >= 0)
-        misowned++;
+      if (lmp.migrate_dest(hp.cell[n]) >= 0) misowned++;
     }
   }
   MPI_Allreduce(MPI_IN_PLACE, &live, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);

@@ -123,14 +123,20 @@ class prismatic_halo_exchanger {
   }
 
   // Standalone local-layout vertex-cochain buffer (rho and friends).
-  void exchange_vertex(buffer<Scalar>& buf) {
+  // `base_off` addresses one component of a component-major multi-field
+  // buffer (e.g. the recovery Bv, 3 * layout_size): the exchanged slots
+  // are base_off + plan indices.
+  void exchange_vertex(buffer<Scalar>& buf, int base_off = 0) {
     if (!m_active) return;
     if (m_device_direct) {
-      exchange_packed_round(buf, cochain_type::vertex);
+      run_packed(buf, m_packed[1][int(cochain_type::vertex)], *m_angular,
+                 int(cochain_type::vertex), base_off);
+      run_packed(buf, m_packed[0][int(cochain_type::vertex)], *m_radial,
+                 int(cochain_type::vertex), base_off);
       return;
     }
     stage_in(buf);
-    exchange(cochain_type::vertex, buf.host_ptr());
+    exchange(cochain_type::vertex, buf.host_ptr() + base_off);
     stage_out(buf);
   }
 
@@ -165,14 +171,17 @@ class prismatic_halo_exchanger {
     stage_out(buf);
   }
 
-  void reduce_vertex(buffer<Scalar>& buf) {
+  void reduce_vertex(buffer<Scalar>& buf, int base_off = 0) {
     if (!m_active) return;
     if (m_device_direct) {
-      reduce_packed_round(buf, cochain_type::vertex);
+      run_packed_reduce(buf, m_packed[0][int(cochain_type::vertex)],
+                        *m_radial, int(cochain_type::vertex), base_off);
+      run_packed_reduce(buf, m_packed[1][int(cochain_type::vertex)],
+                        *m_angular, int(cochain_type::vertex), base_off);
       return;
     }
     stage_in(buf);
-    reduce(cochain_type::vertex, buf.host_ptr());
+    reduce(cochain_type::vertex, buf.host_ptr() + base_off);
     stage_out(buf);
   }
 
@@ -204,15 +213,17 @@ class prismatic_halo_exchanger {
   }
 
   void run_packed_reduce(buffer<Scalar>& buf, packed_plan& pp,
-                         mpi_halo_backend& backend, int tag) {
+                         mpi_halo_backend& backend, int tag,
+                         int base_off = 0) {
     if (pp.peers.empty()) return;
 
     // Pack GHOST slots (the recv-index list) into recv_msg.
     if (pp.total_recv > 0) {
       ExecPolicy::launch(
-          [n = pp.total_recv] LAMBDA(auto data, auto idx, auto msg) {
-            ExecPolicy::loop(0, n,
-                             [&] LAMBDA(int j) { msg[j] = data[idx[j]]; });
+          [n = pp.total_recv, base_off] LAMBDA(auto data, auto idx, auto msg) {
+            ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
+              msg[j] = data[base_off + idx[j]];
+            });
           },
           buf, pp.recv_idx, pp.recv_msg);
       ExecPolicy::sync();
@@ -238,9 +249,9 @@ class prismatic_halo_exchanger {
     // the flattened list, so the add must be atomic on device.
     if (pp.total_send > 0) {
       ExecPolicy::launch(
-          [n = pp.total_send] LAMBDA(auto data, auto idx, auto msg) {
+          [n = pp.total_send, base_off] LAMBDA(auto data, auto idx, auto msg) {
             ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
-              atomic_add_scalar(&data[idx[j]], msg[j]);
+              atomic_add_scalar(&data[base_off + idx[j]], msg[j]);
             });
           },
           buf, pp.send_idx, pp.send_msg);
@@ -248,23 +259,25 @@ class prismatic_halo_exchanger {
     // Zero the ghost slots we shipped (each appears exactly once).
     if (pp.total_recv > 0) {
       ExecPolicy::launch(
-          [n = pp.total_recv] LAMBDA(auto data, auto idx) {
-            ExecPolicy::loop(0, n,
-                             [&] LAMBDA(int j) { data[idx[j]] = Scalar(0); });
+          [n = pp.total_recv, base_off] LAMBDA(auto data, auto idx) {
+            ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
+              data[base_off + idx[j]] = Scalar(0);
+            });
           },
           buf, pp.recv_idx);
     }
   }
 
   void run_packed(buffer<Scalar>& buf, packed_plan& pp,
-                  mpi_halo_backend& backend, int tag) {
+                  mpi_halo_backend& backend, int tag, int base_off = 0) {
     if (pp.peers.empty()) return;
 
     if (pp.total_send > 0) {
       ExecPolicy::launch(
-          [n = pp.total_send] LAMBDA(auto data, auto idx, auto msg) {
-            ExecPolicy::loop(0, n,
-                             [&] LAMBDA(int j) { msg[j] = data[idx[j]]; });
+          [n = pp.total_send, base_off] LAMBDA(auto data, auto idx, auto msg) {
+            ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
+              msg[j] = data[base_off + idx[j]];
+            });
           },
           buf, pp.send_idx, pp.send_msg);
       // The MPI layer reads the packed buffer from the host thread (or
@@ -289,9 +302,10 @@ class prismatic_halo_exchanger {
 
     if (pp.total_recv > 0) {
       ExecPolicy::launch(
-          [n = pp.total_recv] LAMBDA(auto data, auto idx, auto msg) {
-            ExecPolicy::loop(0, n,
-                             [&] LAMBDA(int j) { data[idx[j]] = msg[j]; });
+          [n = pp.total_recv, base_off] LAMBDA(auto data, auto idx, auto msg) {
+            ExecPolicy::loop(0, n, [&] LAMBDA(int j) {
+              data[base_off + idx[j]] = msg[j];
+            });
           },
           buf, pp.recv_idx, pp.recv_msg);
       // Same-stream launches serialize, so downstream kernels see the

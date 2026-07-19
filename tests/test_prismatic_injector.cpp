@@ -2,9 +2,12 @@
 // — the port of the base functor-driven ptc_injector onto the prismatic
 // mesh.  Uses the direct-dependency constructor (no sim_environment).
 
+#include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
+#include "systems/prismatic/prismatic_ptc_mesh_local.h"
 
 #include "catch2/catch_all.hpp"
 #include <cmath>
@@ -17,6 +20,9 @@ struct injector_fixture {
   prismatic_mesh mesh;
   prismatic_particle_data ptc;
   rng_states_t<prismatic_exec_policy_host::exec_tag> states;
+  icosphere_topology topo;
+  prismatic_mesh_partition mpart;
+  prismatic_ptc_mesh_local lmesh;   // identity (single-rank) local mesh
 
   injector_fixture(int L = 2, int N_r = 4)
       : mesh(),
@@ -24,6 +30,11 @@ struct injector_fixture {
         states(42) {
     mesh.build(L, N_r, 1.0, 2.0);
     states.init();
+    topo = icosphere_topology::build_from_mesh(mesh);
+    auto part = prismatic_partition::single_rank(L, N_r);
+    part.set_topology(&topo);
+    mpart = prismatic_mesh_partition::build(part, topo);
+    lmesh.build(mesh, mpart);
   }
 };
 
@@ -32,7 +43,7 @@ struct injector_fixture {
 TEST_CASE("Prismatic injector: uniform volume pair injection",
           "[prismatic][injector]") {
   injector_fixture fx;
-  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.mesh, fx.ptc,
+  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.lmesh, fx.ptc,
                                                               fx.states);
 
   const int ppc = 6;  // per cell, must be even (pairs)
@@ -76,7 +87,7 @@ TEST_CASE("Prismatic injector: uniform volume pair injection",
 TEST_CASE("Prismatic injector: criteria restricts to surface shell",
           "[prismatic][injector]") {
   injector_fixture fx;
-  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.mesh, fx.ptc,
+  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.lmesh, fx.ptc,
                                                               fx.states);
 
   const int ppc = 2;
@@ -117,7 +128,7 @@ TEST_CASE("Prismatic injector: criteria restricts to surface shell",
 TEST_CASE("Prismatic injector: validator marks rejected slots inert",
           "[prismatic][injector]") {
   injector_fixture fx;
-  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.mesh, fx.ptc,
+  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.lmesh, fx.ptc,
                                                               fx.states);
 
   const int ppc = 4;

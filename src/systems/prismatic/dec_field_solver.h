@@ -21,16 +21,20 @@ class dec_field_solver : public system_t {
  public:
   static std::string name() { return "dec_field_solver"; }
 
-  // Pass a non-null, non-single-rank comm (prismatic_mpi_comm::create,
-  // 20*K ranks) to run distributed: the partition is built here so that
+  // Pass a non-null, non-single-rank comm (prismatic_mpi_comm::create)
+  // to run distributed: the partition is built here so that
   // register_data_components — which the framework calls at
   // register_system time — sizes the field buffers locally.  The comm
-  // must outlive this system.  Under a distributed solver,
-  // combined-range consumers (particles, sph output, exporter) must
-  // NOT be registered — init() fatals if a "particles" data component
-  // exists.
+  // must outlive this system.
+  //
+  // Phase 7C: a PIC main passes its own pic-depth bundle as `mp_ext`
+  // so the solver and every particle system share ONE mesh_partition
+  // (the two-instances risk from the plan doc); the solver then skips
+  // its internal build and exchanges the slightly larger pic halos.
+  // `mp_ext` (and the topology it references) must outlive this system.
   dec_field_solver(prismatic_mesh& mesh,
-                   const prismatic_mpi_comm* comm = nullptr);
+                   const prismatic_mpi_comm* comm = nullptr,
+                   const prismatic_mesh_partition* mp_ext = nullptr);
   ~dec_field_solver() = default;
 
   void register_data_components() override;

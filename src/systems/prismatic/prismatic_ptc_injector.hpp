@@ -8,8 +8,7 @@
 #include "framework/environment.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
-#include "systems/prismatic/prismatic_mesh.h"
-#include "systems/prismatic/prismatic_mesh_ptrs.h"
+#include "systems/prismatic/prismatic_ptc_mesh_local.h"
 #include "utils/util_functions.h"
 #include "utils/vec.hpp"
 
@@ -55,7 +54,10 @@ HD_INLINE vec_t<Scalar, 3> prism_position(const MeshPtrs& mp, int tri, int k,
 // fill-at-offsets structure, identical functor-driven interface, shared
 // rng_states data and particle-flag machinery.  Differences:
 //   - cells are prisms indexed cell = k * N_tri + tri (the particle cell
-//     encoding), iterated as a flat range;
+//     encoding), iterated as a flat range; Phase 7C: cells and the mesh
+//     ptrs are LOCAL (prismatic_ptc_mesh_local — identity single-rank),
+//     and the functors must gate on mp.owns_cell(tri, k) themselves when
+//     the rank must not inject into its ghost ring;
 //   - f_criteria / f_num receive (tri, k, mp) instead of (pos, grid, ext);
 //   - in-cell sampling is uniform in (barycentric, zeta) via the triangle
 //     fold (NOT uniform in physical volume -- the radial r^2 weighting and
@@ -73,11 +75,10 @@ class prismatic_ptc_injector {
 
   // Environment-coupled constructor (mirrors the base injector): fetches
   // "particles" and "rng_states" registered by prismatic_ptc_updater.
-  explicit prismatic_ptc_injector(const prismatic_mesh& mesh)
-      : m_mesh(mesh),
-        m_num_per_cell(mesh.m_N_tri * mesh.m_N_r, ExecPolicy::data_mem_type()),
-        m_cum_num_per_cell(mesh.m_N_tri * mesh.m_N_r,
-                           ExecPolicy::data_mem_type()) {
+  explicit prismatic_ptc_injector(const prismatic_ptc_mesh_local& lmesh)
+      : m_lmesh(lmesh),
+        m_num_per_cell(lmesh.max_cell(), ExecPolicy::data_mem_type()),
+        m_cum_num_per_cell(lmesh.max_cell(), ExecPolicy::data_mem_type()) {
     nonown_ptr<prismatic_particle_data> ptc;
     nonown_ptr<rng_states_t<exec_tag>> states;
     sim_env().get_data("particles", ptc);
@@ -89,13 +90,12 @@ class prismatic_ptc_injector {
   }
 
   // Direct-dependency constructor (tests, standalone drivers).
-  prismatic_ptc_injector(const prismatic_mesh& mesh,
+  prismatic_ptc_injector(const prismatic_ptc_mesh_local& lmesh,
                          prismatic_particle_data& ptc,
                          rng_states_t<exec_tag>& states)
-      : m_mesh(mesh),
-        m_num_per_cell(mesh.m_N_tri * mesh.m_N_r, ExecPolicy::data_mem_type()),
-        m_cum_num_per_cell(mesh.m_N_tri * mesh.m_N_r,
-                           ExecPolicy::data_mem_type()),
+      : m_lmesh(lmesh),
+        m_num_per_cell(lmesh.max_cell(), ExecPolicy::data_mem_type()),
+        m_cum_num_per_cell(lmesh.max_cell(), ExecPolicy::data_mem_type()),
         m_ptc(&ptc),
         m_states(&states) {}
 
@@ -106,9 +106,9 @@ class prismatic_ptc_injector {
                      uint32_t flag = 0,
                      const FValidate& f_validate = FValidate{},
                      PtcType pos_type = PtcType::positron) {
-    auto mp = m_mesh.get_ptrs(exec_tag{});
-    int N_tri = m_mesh.m_N_tri;
-    int N_cells = N_tri * m_mesh.m_N_r;
+    auto mp = m_lmesh.get_ptrs(exec_tag{});
+    int N_tri = mp.N_tri;
+    int N_cells = N_tri * mp.N_r;
 
     // Count particles per prism (writes every cell; no pre-zero needed).
     ExecPolicy::launch(
@@ -256,7 +256,7 @@ class prismatic_ptc_injector {
     return total;
   }
 
-  const prismatic_mesh& m_mesh;
+  const prismatic_ptc_mesh_local& m_lmesh;
   buffer<int> m_num_per_cell, m_cum_num_per_cell;
   prismatic_particle_data* m_ptc = nullptr;
   rng_states_t<exec_tag>* m_states = nullptr;

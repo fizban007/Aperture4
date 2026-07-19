@@ -3,31 +3,54 @@
 #include "core/typedefs_and_constants.h"
 #include "data/rng_states.h"
 #include "framework/system.h"
+#include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
-#include "systems/prismatic/prismatic_field_sync.h"
+#include "systems/prismatic/prismatic_halo_exchanger.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
+#include "systems/prismatic/prismatic_ptc_mesh_local.h"
 #include "systems/prismatic/prismatic_vertex_recovery.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
 
+// =========================================================================
+// Phase 7C — fully-local particle updater.
+//
+// The particle kernels run on a prismatic_ptc_mesh_local: local sphere
+// tables, tensor→layout maps into the SAME local field buffers the
+// solver uses ("E"/"B" totals in, "J"/"rho"/... deposits out), and
+// LOCAL particle cells.  Single-rank runs use the identity partition
+// (identity tables and maps — bit-exact with the old global path);
+// distributed runs REQUIRE a canonical A·K comm and a pic-depth
+// mesh_partition bundle shared with the field solver.
+//
+// Distributed step structure:
+//   sync_fields(step)   — exchange E/B pic halos, refresh the recovery
+//                         Bv on owned vertex slots and exchange it as 3
+//                         scalar vertex halos.  Collective + idempotent
+//                         per step: the injector (which runs BEFORE the
+//                         updater but reads the same fields) calls it
+//                         too, whoever comes first does the work.
+//   clear local J/rho/rho_abs/gamma_wsum (owned + ghost slots)
+//   push + Whitney deposit (local kernels, ghost slots absorb the
+//                         off-rank stencil ends)
+//   reduce() J/rho/...  — ghost deposits fold into their owners
+//                         (radial→angular relay for corners);
+//                         J and rho_abs are then re-EXCHANGED so the
+//                         next step's injector criteria see owner-summed
+//                         values in their ghost stencil slots.
+//   migrate()           — leavers to the owning world rank
+//                         (rank-agnostic GLOBAL cells on the wire)
+//   sort by local cell.
+// =========================================================================
 template <typename ExecPolicy>
 class prismatic_ptc_updater : public system_t {
  public:
   static std::string name() { return "prismatic_ptc_updater"; }
 
-  // Phase 6: pass the solver's partition + comm to run distributed.
-  // Particles are sharded by cell ownership (ico-face x radial slab);
-  // the kernels stay global-indexed and consume the "E_ptc"/"B_ptc"
-  // replicas maintained by prismatic_field_replicator (which MUST be
-  // registered before any particle system).  Deposits go to global
-  // "J_ptc"/"rho_ptc"/... replicas, then are summed across ranks and
-  // pulled into the local "J"/"rho"/... consumed by the solver and the
-  // sph output.  After each push, particles whose cell left this
-  // rank's owned region migrate via MPI_Alltoallv.
   prismatic_ptc_updater(prismatic_mesh& mesh,
                         const prismatic_mesh_partition* mp = nullptr,
                         const prismatic_mpi_comm* comm = nullptr);
@@ -38,6 +61,14 @@ class prismatic_ptc_updater : public system_t {
   void update(double dt, uint32_t step) override;
 
   nonown_ptr<prismatic_particle_data> particles() { return m_ptc; }
+
+  // The local particle mesh (identity when single-rank).  Valid after
+  // init(); shared by the injectors.
+  const prismatic_ptc_mesh_local& ptc_mesh() const { return m_lmesh; }
+
+  // Field sync point (see class comment).  Collective when distributed;
+  // idempotent per step.  Public so the injector can pull it forward.
+  void sync_fields(uint32_t step);
 
   int add_particle(Scalar x, Scalar y, Scalar z,
                    Scalar px, Scalar py, Scalar pz,
@@ -54,27 +85,25 @@ class prismatic_ptc_updater : public system_t {
   const prismatic_mpi_comm* m_comm = nullptr;
   bool m_distributed = false;
 
-  // What the kernels consume: the global fields single-rank, the
-  // global replicas distributed.
+  // Identity bundle for single-rank runs (built in init).
+  icosphere_topology m_topo_own;
+  prismatic_mesh_partition m_mp_own;
+
+  prismatic_ptc_mesh_local m_lmesh;
+  prismatic_halo_exchanger<ExecPolicy> m_ex;
+
+  // Local field state: solver totals in, deposits out (all local-sized
+  // under a partition; global-sized single-rank — same combined
+  // layouts either way).
   nonown_ptr<prismatic_edge_field> m_E;
   nonown_ptr<prismatic_face_field> m_B;
   nonown_ptr<prismatic_edge_field> m_J;
   nonown_ptr<prismatic_vertex_field> m_rho;
-  // Local solver-facing deposit targets (distributed only).
-  nonown_ptr<prismatic_edge_field> m_J_loc;
-  nonown_ptr<prismatic_vertex_field> m_rho_loc;
-  nonown_ptr<prismatic_vertex_field> m_rho_abs_loc;
-  nonown_ptr<prismatic_vertex_field> m_gw_loc;
-  // Owned by the replicator system; fetched in init().
-  prismatic_field_sync* m_sync = nullptr;
+  nonown_ptr<prismatic_vertex_field> m_rho_abs;
+  nonown_ptr<prismatic_vertex_field> m_gamma_wsum;
 
-  // Cell-ownership bounds (owned tris are one contiguous ico-face
-  // range, owned layers one contiguous slab) and the global slab map
-  // for computing destination ranks.
-  int m_tri_lo = 0, m_tri_hi = 0;
-  int m_layer_lo = 0, m_layer_hi = 0;
-  int m_slab_base = 0, m_slab_rem = 0;
   int m_world_rank = 0, m_world_size = 1;
+  uint32_t m_synced_step = uint32_t(-1);
 
   // Migration scratch: per-rank counts/cursors, packed send components
   // (device-packed, host-staged through MPI), receive staging.
@@ -94,15 +123,16 @@ class prismatic_ptc_updater : public system_t {
   // Optional diagnostic deposits (config "deposit_diagnostics",
   // default true): |q| w  ("rho_abs", the multiplicity numerator) and
   // gamma |q| w ("gamma_wsum", for the mean Lorentz factor).
-  nonown_ptr<prismatic_vertex_field> m_rho_abs;
-  nonown_ptr<prismatic_vertex_field> m_gamma_wsum;
   bool m_deposit_diagnostics = true;
 
   // C0 second-order B-gather (see prismatic_vertex_recovery.h); the
   // primal Whitney gather pitch-angle-scatters particles off face jumps.
   // Config "use_recovery_gather" (default true) selects it; E-gather and
-  // deposition always stay primal Whitney.
+  // deposition always stay primal Whitney.  Weights are built globally
+  // (sphere data is replicated); the per-vertex Bv lives in the LOCAL
+  // vertex layout, 3 components with stride = layout size.
   prismatic_vertex_recovery m_recovery;
+  buffer<Scalar> m_Bv;
   bool m_use_recovery_gather = true;
 
   // Absorb particles beyond this radius (config "ptc_absorb_radius").

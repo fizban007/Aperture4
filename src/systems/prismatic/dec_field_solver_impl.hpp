@@ -22,8 +22,9 @@ namespace Aperture {
 // =========================================================================
 
 template <typename ExecPolicy>
-dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh,
-                                               const prismatic_mpi_comm* comm)
+dec_field_solver<ExecPolicy>::dec_field_solver(
+    prismatic_mesh& mesh, const prismatic_mpi_comm* comm,
+    const prismatic_mesh_partition* mp_ext)
     : m_mesh(mesh) {
   if (comm != nullptr && !comm->is_single_rank()) {
     // Distributed mode must be established HERE: the framework calls
@@ -31,19 +32,27 @@ dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh,
     // buffers are sized from this partition.
     m_mpi = comm;
     m_distributed = true;
-    m_topo = icosphere_topology::build_from_mesh(m_mesh);
-    // Canonical A·K comms (create(world, A, K)) get the generalized
-    // path-ordered partition; the legacy 20·K identity comm keeps the
-    // per-ico-face partition until 7C retires it.
-    m_part = comm->canonical_rank_order()
-                 ? prismatic_partition::combined(
-                       m_mesh.m_L, m_mesh.m_N_r, comm->n_angular_ranks(),
-                       comm->n_radial_ranks(), comm->world_rank())
-                 : prismatic_partition::combined_ico_face(
-                       m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(),
-                       comm->radial_rank(), comm->angular_rank());
-    m_part.set_topology(&m_topo);
-    m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+    if (mp_ext != nullptr) {
+      // Phase 7C: share the main-built (pic-depth) bundle with the
+      // particle systems — one partition, one set of layouts.  The
+      // bundle's topology lives in main and must outlive us.
+      m_mesh_part = *mp_ext;
+      m_part = m_mesh_part.partition();
+    } else {
+      m_topo = icosphere_topology::build_from_mesh(m_mesh);
+      // Canonical A·K comms (create(world, A, K)) get the generalized
+      // path-ordered partition; the legacy 20·K identity comm keeps
+      // the per-ico-face partition until its callers retire.
+      m_part = comm->canonical_rank_order()
+                   ? prismatic_partition::combined(
+                         m_mesh.m_L, m_mesh.m_N_r, comm->n_angular_ranks(),
+                         comm->n_radial_ranks(), comm->world_rank())
+                   : prismatic_partition::combined_ico_face(
+                         m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(),
+                         comm->radial_rank(), comm->angular_rank());
+      m_part.set_topology(&m_topo);
+      m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
+    }
   }
   int ne = mesh.m_N_edges, nf = mesh.m_N_faces;
   if (m_distributed) {

@@ -2,8 +2,11 @@
 // policy (thrust exclusive scan, device rng_t, adapter plumbing) that the
 // host-side test_prismatic_injector.cpp cannot reach.
 
+#include "systems/prismatic/icosphere_topology.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
+#include "systems/prismatic/prismatic_ptc_mesh_local.h"
 
 #include "catch2/catch_all.hpp"
 
@@ -19,7 +22,15 @@ TEST_CASE("Prismatic injector device path: uniform pair injection",
   rng_states_t<exec_tags::device> states(42);
   states.init();
 
-  prismatic_ptc_injector<prismatic_exec_policy_gpu> injector(mesh, ptc,
+  icosphere_topology topo = icosphere_topology::build_from_mesh(mesh);
+  auto part = prismatic_partition::single_rank(2, 4);
+  part.set_topology(&topo);
+  auto mpart = prismatic_mesh_partition::build(part, topo);
+  prismatic_ptc_mesh_local lmesh;
+  lmesh.build(mesh, mpart, nullptr, MemType::host_device);
+  lmesh.copy_to_device();
+
+  prismatic_ptc_injector<prismatic_exec_policy_gpu> injector(lmesh, ptc,
                                                              states);
 
   const int ppc = 6;

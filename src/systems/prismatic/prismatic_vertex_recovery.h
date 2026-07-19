@@ -125,9 +125,90 @@ struct prismatic_recovery_ptrs {
   }
 };
 
+// =========================================================================
+// Phase 7C — fitted B at a LOCAL vertex tensor slot (k, s), from the
+// LOCAL face cochain, using the ptc-mesh-local recovery tables
+// (rec_valence / rec_tri_fan / rec_edge_fan / rec_w_*; local sphere
+// ids).  Writes Bv[c * mp.N_verts + mp.vertex_idx(k, s)].  Boundary
+// classes are decided on the GLOBAL shell index mp.k0 + k; the interior
+// radial rescaling uses the local radii window (same values as global).
+// Only OWNED slots are computed — ghost Bv arrives via the vertex-halo
+// exchange (3 scalar components).  The patch/slot order is identical to
+// prismatic_recovery_ptrs::compute_vertex_B (do not reorder).
+// =========================================================================
+template <typename MP>
+HD_INLINE void compute_vertex_B_local(const MP& mp, const Scalar* B_f,
+                                      Scalar* Bv, int k, int s) {
+  constexpr int stride_int = 30;
+  constexpr int stride_bnd = 24;
+  const int val = mp.rec_valence[s];
+  const int kg = mp.k0 + k;
+
+  const Scalar* w;
+  int stride;
+  int tri_shells[3], rect_layers[2];
+  int n_tri_shells;
+  Scalar scale = Scalar(1.0);
+  if (kg == 0) {
+    // k0 == 0 here, so local and global shell indices coincide.
+    w = mp.rec_w_inner + s * 3 * stride_bnd;
+    stride = stride_bnd;
+    tri_shells[0] = 0;
+    tri_shells[1] = 1;
+    n_tri_shells = 2;
+    rect_layers[0] = 0;
+    rect_layers[1] = 1;
+  } else if (kg == mp.N_r_global) {
+    w = mp.rec_w_outer + s * 3 * stride_bnd;
+    stride = stride_bnd;
+    tri_shells[0] = k - 1;
+    tri_shells[1] = k;
+    n_tri_shells = 2;
+    rect_layers[0] = k - 1;
+    rect_layers[1] = k - 2;
+  } else {
+    w = mp.rec_w_int + s * 3 * stride_int;
+    stride = stride_int;
+    tri_shells[0] = k - 1;
+    tri_shells[1] = k;
+    tri_shells[2] = k + 1;
+    n_tri_shells = 3;
+    rect_layers[0] = k - 1;
+    rect_layers[1] = k;
+    Scalar rk = mp.radii[k];
+    scale = (mp.rec_r_ref / rk) * (mp.rec_r_ref / rk);
+  }
+
+  Scalar b0 = 0, b1 = 0, b2 = 0;
+  int slot = 0;
+  for (int ks = 0; ks < n_tri_shells; ks++) {
+    for (int j = 0; j < val; j++, slot++) {
+      Scalar f =
+          B_f[mp.tri_face_idx(tri_shells[ks], mp.rec_tri_fan[s * 6 + j])];
+      b0 += w[0 * stride + slot] * f;
+      b1 += w[1 * stride + slot] * f;
+      b2 += w[2 * stride + slot] * f;
+    }
+  }
+  for (int kl = 0; kl < 2; kl++) {
+    for (int j = 0; j < val; j++, slot++) {
+      Scalar f =
+          B_f[mp.rect_face_idx(rect_layers[kl], mp.rec_edge_fan[s * 6 + j])];
+      b0 += w[0 * stride + slot] * f;
+      b1 += w[1 * stride + slot] * f;
+      b2 += w[2 * stride + slot] * f;
+    }
+  }
+  const int vi = mp.vertex_idx(k, s);
+  Bv[0 * mp.N_verts + vi] = scale * b0;
+  Bv[1 * mp.N_verts + vi] = scale * b1;
+  Bv[2 * mp.N_verts + vi] = scale * b2;
+}
+
 // Hat-function (barycentric x linear-in-zeta) interpolation of the
 // per-vertex B vectors: the C0 second-order particle B-gather.
-HD_INLINE void interpolate_B_recovery(const prismatic_mesh_ptrs& mp,
+template <typename MP>
+HD_INLINE void interpolate_B_recovery(const MP& mp,
                                       const Scalar* Bv, int tri_idx,
                                       int layer_idx, const Scalar l[3],
                                       Scalar zeta, Scalar& Bx, Scalar& By,
@@ -136,8 +217,8 @@ HD_INLINE void interpolate_B_recovery(const prismatic_mesh_ptrs& mp,
   Bx = By = Bz = Scalar(0.0);
   for (int i = 0; i < 3; i++) {
     int s = mp.tri_verts[tri_idx * 3 + i];
-    int vb = layer_idx * mp.N_vert_s + s;
-    int vt = vb + mp.N_vert_s;
+    int vb = mp.vertex_idx(layer_idx, s);
+    int vt = mp.vertex_idx(layer_idx + 1, s);
     Scalar wb = l[i] * (Scalar(1.0) - zeta);
     Scalar wt = l[i] * zeta;
     Bx += wb * Bv[0 * Nv + vb] + wt * Bv[0 * Nv + vt];
@@ -153,8 +234,9 @@ HD_INLINE void interpolate_B_recovery(const prismatic_mesh_ptrs& mp,
 // terms need.  The barycentric gradients are computed on the flattened
 // triangle at the layer's radial midpoint (same convention as
 // interpolate_fields).
+template <typename MP>
 HD_INLINE void interpolate_B_recovery_grad(
-    const prismatic_mesh_ptrs& mp, const Scalar* Bv, int tri_idx,
+    const MP& mp, const Scalar* Bv, int tri_idx,
     int layer_idx, const Scalar l[3], Scalar zeta,
     Scalar B[3], Scalar G[3][3]) {
   int sv[3];
@@ -197,8 +279,8 @@ HD_INLINE void interpolate_B_recovery_grad(
   Scalar phi_b = Scalar(1) - zeta, phi_t = zeta;
   for (int c = 0; c < 3; c++) { B[c] = 0; G[c][0]=G[c][1]=G[c][2]=0; }
   for (int i = 0; i < 3; i++) {
-    int vb = layer_idx * mp.N_vert_s + sv[i];
-    int vt = vb + mp.N_vert_s;
+    int vb = mp.vertex_idx(layer_idx, sv[i]);
+    int vt = mp.vertex_idx(layer_idx + 1, sv[i]);
     for (int c = 0; c < 3; c++) {
       Scalar Bb = Bv[c * Nv + vb], Bt = Bv[c * Nv + vt];
       B[c] += l[i] * (phi_b * Bb + phi_t * Bt);

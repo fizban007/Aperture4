@@ -32,6 +32,7 @@ set(test_src
   "test_prismatic_dec_dist.cpp"
   "test_prismatic_mesh_metric_local.cpp"
   "test_prismatic_pic_reduce.cpp"
+  "test_prismatic_ptc_mesh_local.cpp"
   "test_prismatic_recovery.cpp"
   "test_prismatic_injector.cpp"
   "test_icosphere_topology.cpp"

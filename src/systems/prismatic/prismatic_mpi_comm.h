@@ -53,16 +53,39 @@ class prismatic_mpi_comm {
 
   // Generalized A·K decomposition (Phase 7A.4): A angular ranks
   // (A | 20·4^m for some m ≤ L, validated) × K radial slabs, with
-  //   world_rank = radial_rank * A + angular_rank.
+  //   LOGICAL world rank = radial_rank * A + angular_rank.
   // Angular ranks follow the canonical path-ordered unit assignment
   // (prismatic_partition::angular_units), and canonical_rank_order()
   // reports true so consumers pick the generic plan builder.  The
   // angular sub-comm carries no Dist_graph decoration: the halo
   // backend posts plain Isend/Irecv to plan peer ranks and never
-  // queries the graph topology (placement hints can be added in 7E if
-  // a consumer appears).
+  // queries the graph topology.
+  //
+  // Phase 7E — node tiling (cluster-agnostic rank placement):
+  // `ranks_per_node` > 1 permutes the ACTUAL-world-rank → (ang, rad)
+  // assignment so every contiguous block of ranks_per_node actual
+  // ranks forms a compact a_t × k_t tile of the A × K grid (the
+  // universal launcher default places consecutive ranks on a node, so
+  // intra-node peers become geometric halo neighbors — no launcher
+  // placement files, no cluster names in code).  The tile shape is
+  // chosen automatically (a_t | A, k_t | K, a_t·k_t = ranks_per_node,
+  // squarest tile wins, angular-major tie-break); an unsatisfiable
+  // shape falls back to the identity assignment with a log note.
+  // All LOGICAL-rank machinery (partitions, plans, world_rank(),
+  // world()) is unaffected — only which physical process plays which
+  // logical rank changes, so global outputs are unchanged.
   static prismatic_mpi_comm create(MPI_Comm world, int n_angular_ranks,
-                                   int n_radial_ranks);
+                                   int n_radial_ranks,
+                                   int ranks_per_node = 0);
+
+  // Tile-shape and coordinate helpers (pure functions; unit-tested).
+  // node_tile_shape: picks (a_t, k_t); false when no valid shape.
+  static bool node_tile_shape(int A, int K, int ranks_per_node, int& a_t,
+                              int& k_t);
+  // node_tile_coords: (ang, rad) of ACTUAL world rank w under the tile
+  // layout.
+  static void node_tile_coords(int A, int a_t, int k_t, int w, int& ang,
+                               int& rad);
 
   // Degenerate single-process mode.
   static prismatic_mpi_comm single_rank();
@@ -74,6 +97,13 @@ class prismatic_mpi_comm {
 
   MPI_Comm angular() const { return m_comm_angular; }
   MPI_Comm radial() const { return m_comm_radial; }
+
+  // World-spanning communicator whose rank order is the LOGICAL order
+  // (rad·A + ang) — identical to the parent world without node tiling,
+  // a reordered dup under it.  Collectives that address ranks by the
+  // logical world rank (particle migration's Alltoallv) MUST use this,
+  // not MPI_COMM_WORLD.
+  MPI_Comm world() const { return m_comm_world_l; }
 
   int angular_rank() const { return m_angular_rank; }
   int radial_rank() const { return m_radial_rank; }
@@ -97,6 +127,7 @@ class prismatic_mpi_comm {
  private:
   MPI_Comm m_comm_angular = MPI_COMM_NULL;
   MPI_Comm m_comm_radial = MPI_COMM_NULL;
+  MPI_Comm m_comm_world_l = MPI_COMM_NULL;
   int m_angular_rank = 0;
   int m_radial_rank = 0;
   int m_n_angular = 1;

@@ -215,6 +215,19 @@ class prismatic_partition {
   // (A must be of the form 2^j or 5·2^j).
   static int min_patch_level_for(int A);
 
+  // Phase 7E: suggest an angular rank count for a given world size and
+  // mesh — the ANGULAR-MAJOR heuristic (plan F10: particles concentrate
+  // radially and, for oblique rotators, in latitude, so radial slabs
+  // load-imbalance first): the LARGEST valid A with
+  //   A | world_size,  A = 2^j or 5·2^j with patch level ≤ L,
+  //   K = world/A ≤ N_r, and (when `pic`) N_r / K ≥ 2
+  // (the pic-depth radial halos need ≥ 2 shells per slab).
+  // Returns 0 when no valid factorization exists.  Cluster-agnostic:
+  // shapes are chosen from (world, L, N_r) alone; config
+  // n_angular_ranks overrides.
+  static int suggest_angular_ranks(int world_size, int L, int N_r,
+                                   bool pic = true);
+
   // Single-rank fallback: rank owns the full mesh.  No MPI, no halos.
   // This is the constructor used until Phase 3 wires in MPI.
   static prismatic_partition single_rank(int L, int N_r_global) {

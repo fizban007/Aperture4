@@ -48,6 +48,22 @@ int prismatic_partition::min_patch_level_for(int A) {
   return -1;
 }
 
+int prismatic_partition::suggest_angular_ranks(int world_size, int L,
+                                               int N_r, bool pic) {
+  if (world_size < 1) return 0;
+  int best = 0;
+  for (int A = 1; A <= world_size; ++A) {
+    if (world_size % A != 0) continue;
+    const int m = min_patch_level_for(A);
+    if (m < 0 || m > L) continue;
+    const int K = world_size / A;
+    if (K > N_r) continue;
+    if (pic && K > 1 && N_r / K < 2) continue;
+    if (A > best) best = A;
+  }
+  return best;
+}
+
 void prismatic_partition::set_angular_units(int A, int angular_rank_in,
                                             int m) {
   if (m < 0) m = min_patch_level_for(A);

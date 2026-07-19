@@ -84,3 +84,51 @@ TEST_CASE("mpi_scalar_type returns a usable MPI datatype",
   MPI_Type_size(dt, &size);
   REQUIRE(size == int(sizeof(Scalar)));
 }
+
+TEST_CASE("node tiling: shapes and coordinate coverage",
+          "[prismatic][mpi][tiling]") {
+  int a_t, k_t;
+  // 8-GCD node on 80x100: squarest valid tile is 4x2.
+  REQUIRE(prismatic_mpi_comm::node_tile_shape(80, 100, 8, a_t, k_t));
+  REQUIRE(a_t == 4);
+  REQUIRE(k_t == 2);
+  // 320x25: k_t must divide 25 -> only 8x1 works.
+  REQUIRE(prismatic_mpi_comm::node_tile_shape(320, 25, 8, a_t, k_t));
+  REQUIRE(a_t == 8);
+  REQUIRE(k_t == 1);
+  // 4x2 with 8 ranks per node: the whole grid is one tile.
+  REQUIRE(prismatic_mpi_comm::node_tile_shape(4, 2, 8, a_t, k_t));
+  REQUIRE(a_t == 4);
+  REQUIRE(k_t == 2);
+  // Unsatisfiable: 3 ranks per node never factors into a 20x2 grid.
+  REQUIRE_FALSE(prismatic_mpi_comm::node_tile_shape(20, 2, 3, a_t, k_t));
+  // rpn <= 1: no tiling.
+  REQUIRE_FALSE(prismatic_mpi_comm::node_tile_shape(20, 2, 1, a_t, k_t));
+
+  // Coverage + compactness: every (ang, rad) hit exactly once, and each
+  // consecutive rpn block spans exactly one a_t x k_t patch.
+  for (auto [A, K, rpn] : {std::array<int, 3>{20, 4, 8},
+                           std::array<int, 3>{16, 4, 4},
+                           std::array<int, 3>{80, 2, 8}}) {
+    REQUIRE(prismatic_mpi_comm::node_tile_shape(A, K, rpn, a_t, k_t));
+    std::vector<int> hits(A * K, 0);
+    for (int node = 0; node < A * K / rpn; ++node) {
+      int amin = 1 << 30, amax = -1, kmin = 1 << 30, kmax = -1;
+      for (int i = 0; i < rpn; ++i) {
+        int ang, rad;
+        prismatic_mpi_comm::node_tile_coords(A, a_t, k_t, node * rpn + i,
+                                             ang, rad);
+        REQUIRE(ang >= 0);
+        REQUIRE(ang < A);
+        REQUIRE(rad >= 0);
+        REQUIRE(rad < K);
+        hits[rad * A + ang]++;
+        amin = std::min(amin, ang); amax = std::max(amax, ang);
+        kmin = std::min(kmin, rad); kmax = std::max(kmax, rad);
+      }
+      REQUIRE(amax - amin + 1 == a_t);   // contiguous angular band
+      REQUIRE(kmax - kmin + 1 == k_t);   // contiguous radial band
+    }
+    for (int h : hits) REQUIRE(h == 1);
+  }
+}

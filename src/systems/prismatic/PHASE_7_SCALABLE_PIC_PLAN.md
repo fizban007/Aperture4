@@ -429,14 +429,44 @@ Original plan bullets (for reference):
    weak-scaling smoke (L fixed, A·K ∈ {8, 40, 160}) asserting
    footprint ~ 1/(A·K) + angular-table constant.
 
-### 7E — Frontier readiness (~2–3 days)
+### 7E — Launch readiness (generalized) — COMPLETE 2026-07-19
 
-1. Configs + launch notes for: 1 node (4×2), 5 nodes (20×2),
-   40 nodes (320×1), 1000 nodes (320×25 or 80×100); rank-placement
-   map so co-noded ranks are geometric neighbors (placement file,
-   not code).
-2. Scaling harness stub (timers already exist per system) — actual
-   measurement campaign stays deferred per the 2026-07-18 decision.
+> REVISED from "Frontier readiness" per the 2026-07-19 decision: keep
+> the implementation cluster-agnostic; machine specifics live only in
+> documentation.  Landed as one commit; deliverables:
+>
+> 1. **Decomposition chooser** (code, general):
+>    `prismatic_partition::suggest_angular_ranks(world, L, N_r)` — the
+>    angular-major heuristic (F10) with the pic constraint N_r/K ≥ 2;
+>    config `n_angular_ranks = 0` selects it, explicit values override.
+> 2. **Node tiling instead of placement files** (code, general):
+>    `prismatic_mpi_comm::create(..., ranks_per_node)` permutes the
+>    actual-world-rank → (ang, rad) assignment so consecutive
+>    ranks-per-node blocks form compact a_t × k_t patches of the A × K
+>    grid (squarest valid tile, angular-major tie-break) — the
+>    universal block-placement launcher default then co-locates halo
+>    neighbors.  Logical-rank-addressed collectives (particle
+>    migration) moved onto a new LOGICAL-order world communicator
+>    (`comm.world()`, == MPI_COMM_WORLD without tiling).  Pure
+>    permutation: global outputs identical; solver_multirank bit-exact
+>    (0.0) with tiling on; PIC acceptance + migration stress unchanged
+>    under 4×2 tiles.  Unit tests pin tile shapes, coverage, and
+>    per-node contiguity.
+> 3. **Timing harness** (code, general): per-phase (sync / push /
+>    reduce / migrate / sort) min/mean/max across ranks every
+>    `step_timer_interval` steps — the instrument for the deferred
+>    measurement campaign.
+> 4. **LAUNCH_SCALING.md**: the generic recipe (shape choice, memory
+>    estimation from the 7D audit line, tiling knob, launcher
+>    examples) with Frontier and a generic CUDA cluster as worked
+>    examples, plus the first-contact verification checklist (items
+>    that can only be validated on-machine: GPU-aware MPI engage,
+>    parallel HDF5 on Lustre, the HIP compile of the templated
+>    particle kernels, migration at real node counts).
+>
+> Explicitly NOT done (by design): hardcoded shape tables, committed
+> rank/placement files, machine `#ifdef`s, automatic load rebalancing,
+> the measurement campaign itself.
 
 ## Risks / invariants to guard
 

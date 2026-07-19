@@ -5,6 +5,7 @@
 #include "core/particles_functions.h"
 #include "framework/environment.h"
 #include "utils/logger.h"
+#include <chrono>
 #include <cmath>
 
 namespace Aperture {
@@ -121,6 +122,7 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("gca_zero_mu_on_capture", m_gca_zero_mu);
   sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
   sim_env().params().get_value("deposit_diagnostics", m_deposit_diagnostics);
+  sim_env().params().get_value("step_timer_interval", m_timer_interval);
   if (m_absorb_radius > Scalar(0)) {
     Logger::print_info("Particle absorption radius: {}", m_absorb_radius);
   }
@@ -190,6 +192,7 @@ template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::sync_fields(uint32_t step) {
   if (step == m_synced_step) return;
   m_synced_step = step;
+  const auto t0 = std::chrono::steady_clock::now();
 
   if (m_distributed) {
     m_ex.exchange_edge(m_E->data(), m_E->split());
@@ -217,11 +220,15 @@ void prismatic_ptc_updater<ExecPolicy>::sync_fields(uint32_t step) {
       }
     }
   }
+  m_t_sync += std::chrono::duration<double>(
+                  std::chrono::steady_clock::now() - t0)
+                  .count();
 }
 
 template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   sync_fields(step);
+  const auto t_push0 = std::chrono::steady_clock::now();
 
   auto lmp = m_lmesh.get_ptrs(typename ExecPolicy::exec_tag{});
   const int N_tri = lmp.N_tri;
@@ -279,6 +286,8 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
       m_rho_abs->data(), m_gamma_wsum->data());
 
   ExecPolicy::sync();
+  const auto t_push1 = std::chrono::steady_clock::now();
+  m_t_push += std::chrono::duration<double>(t_push1 - t_push0).count();
 
   if (m_distributed) {
     // Fold ghost deposits into their owners (radial round first — the
@@ -292,15 +301,65 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
       m_ex.exchange_vertex(m_rho_abs->data());
       m_ex.reduce_vertex(m_gamma_wsum->data());
     }
+    const auto t_red1 = std::chrono::steady_clock::now();
+    m_t_reduce += std::chrono::duration<double>(t_red1 - t_push1).count();
 
     migrate();
+    m_t_migrate += std::chrono::duration<double>(
+                       std::chrono::steady_clock::now() - t_red1)
+                       .count();
   }
 
   // Periodically sort particles by cell for GPU cache efficiency
   if (m_sort_interval > 0 && step % m_sort_interval == 0) {
+    const auto t_s0 = std::chrono::steady_clock::now();
     size_t max_cell = m_lmesh.max_cell();
     ptc_sort_by_cell(typename ExecPolicy::exec_tag{}, *m_ptc, max_cell);
+    m_t_sort += std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - t_s0)
+                    .count();
   }
+
+  if (m_timer_interval > 0 && step > 0 && step % m_timer_interval == 0) {
+    report_timers(step);
+  }
+}
+
+// ===========================================================================
+// 7E scaling harness: min/mean/max of the accumulated per-phase wall
+// times across ranks, reported on logical rank 0 and reset.  Collective
+// when distributed (the step condition is uniform across ranks).
+// ===========================================================================
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::report_timers(uint32_t step) {
+  double loc[5] = {m_t_sync, m_t_push, m_t_reduce, m_t_migrate, m_t_sort};
+  double mn[5], mx[5], sm[5];
+  int ws = 1;
+  if (m_distributed) {
+    const MPI_Comm wcomm = m_comm->world();
+    MPI_Reduce(loc, mn, 5, MPI_DOUBLE, MPI_MIN, 0, wcomm);
+    MPI_Reduce(loc, mx, 5, MPI_DOUBLE, MPI_MAX, 0, wcomm);
+    MPI_Reduce(loc, sm, 5, MPI_DOUBLE, MPI_SUM, 0, wcomm);
+    ws = m_world_size;
+    if (m_world_rank != 0) {
+      m_t_sync = m_t_push = m_t_reduce = m_t_migrate = m_t_sort = 0;
+      return;
+    }
+  } else {
+    for (int i = 0; i < 5; ++i) {
+      mn[i] = mx[i] = sm[i] = loc[i];
+    }
+  }
+  const char* names[5] = {"sync", "push", "reduce", "migrate", "sort"};
+  const double per = double(m_timer_interval);
+  for (int i = 0; i < 5; ++i) {
+    Logger::print_info(
+        "step timing [{}..{}] {:8s}: min {:.3f} / mean {:.3f} / max {:.3f} "
+        "ms/step",
+        step - m_timer_interval + 1, step, names[i], 1e3 * mn[i] / per,
+        1e3 * sm[i] / (ws * per), 1e3 * mx[i] / per);
+  }
+  m_t_sync = m_t_push = m_t_reduce = m_t_migrate = m_t_sort = 0;
 }
 
 // =========================================================================
@@ -318,6 +377,10 @@ template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::migrate() {
   const size_t num = m_ptc->number();
   const int ws = m_world_size;
+  // Logical-rank-addressed collectives use the comm's LOGICAL-order
+  // world communicator (identical to MPI_COMM_WORLD without node
+  // tiling; a reordered dup under it — see prismatic_mpi_comm 7E).
+  const MPI_Comm wcomm = m_comm->world();
   auto lmp = m_lmesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Pass 1: count leavers per destination.
@@ -345,7 +408,7 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
     n_send += snd_cnt[r];
   }
   MPI_Alltoall(snd_cnt.data(), 1, MPI_INT, rcv_cnt.data(), 1, MPI_INT,
-               MPI_COMM_WORLD);
+               wcomm);
   int n_recv = 0;
   for (int r = 0; r < ws; ++r) {
     rcv_off[r] = n_recv;
@@ -412,17 +475,17 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
   for (int c = 0; c < 8; ++c) {
     MPI_Alltoallv(m_snd_s[c].host_ptr(), snd_cnt.data(), snd_off.data(), st,
                   m_rcv_s[c].data(), rcv_cnt.data(), rcv_off.data(), st,
-                  MPI_COMM_WORLD);
+                  wcomm);
   }
   MPI_Alltoallv(m_snd_cell.host_ptr(), snd_cnt.data(), snd_off.data(),
                 MPI_UINT32_T, m_rcv_cell.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT32_T, MPI_COMM_WORLD);
+                rcv_off.data(), MPI_UINT32_T, wcomm);
   MPI_Alltoallv(m_snd_flag.host_ptr(), snd_cnt.data(), snd_off.data(),
                 MPI_UINT32_T, m_rcv_flag.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT32_T, MPI_COMM_WORLD);
+                rcv_off.data(), MPI_UINT32_T, wcomm);
   MPI_Alltoallv(m_snd_id.host_ptr(), snd_cnt.data(), snd_off.data(),
                 MPI_UINT64_T, m_rcv_id.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT64_T, MPI_COMM_WORLD);
+                rcv_off.data(), MPI_UINT64_T, wcomm);
 
   if (n_recv == 0) return;
 

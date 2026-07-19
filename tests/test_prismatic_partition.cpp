@@ -581,3 +581,25 @@ TEST_CASE("legacy whole-face view sync: full sphere, single face, and "
   REQUIRE(p80.ico_face_lo == -1);
   REQUIRE(p80.ico_face_hi == -1);
 }
+
+TEST_CASE("suggest_angular_ranks: angular-major with pic radial "
+          "constraints",
+          "[prismatic][partition][units]") {
+  using pp = prismatic_partition;
+  // Angular-major: the largest valid A dividing the world size.
+  REQUIRE(pp::suggest_angular_ranks(8, 2, 8) == 8);      // 8x1 (m=1)
+  REQUIRE(pp::suggest_angular_ranks(40, 2, 8) == 40);    // 40x1 (m=1)
+  REQUIRE(pp::suggest_angular_ranks(160, 2, 8) == 160);  // m=2
+  // A capped by the patch level: at L=1, A=160 needs m=2 > L.
+  REQUIRE(pp::suggest_angular_ranks(160, 1, 8) == 80);   // 80x2
+  // pic constraint at L=0: divisors of 160 with patch level 0 are
+  // A in {1,2,4,5,10,20}; K = 160/A <= N_r = 8 forces A = 20, but then
+  // N_r/K = 1 < 2 -> no valid shape.
+  REQUIRE(pp::suggest_angular_ranks(160, 0, 8) == 0);
+  REQUIRE(pp::suggest_angular_ranks(160, 0, 16) == 20);  // K=8, 16/8=2 ok
+  // The 8000-GCD shapes.
+  REQUIRE(pp::suggest_angular_ranks(8000, 6, 204) == 320);   // 320x25
+  REQUIRE(pp::suggest_angular_ranks(8000, 1, 204) == 80);    // 80x100
+  // No factorization (odd prime worlds).
+  REQUIRE(pp::suggest_angular_ranks(7, 2, 8) == 7 * 0);
+}

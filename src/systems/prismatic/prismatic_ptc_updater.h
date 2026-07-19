@@ -150,6 +150,15 @@ class prismatic_ptc_updater : public system_t {
   Scalar m_gca_switch_wc = Scalar(0.5);
   // Synchrotron-locking option: zero mu when (re)captured by GCA.
   bool m_gca_zero_mu = false;
+
+  // 7E scaling harness: per-phase wall-time accumulators, reported as
+  // min/mean/max across ranks every `step_timer_interval` steps
+  // (config; 0 = off).  Feeds the deferred measurement campaign on any
+  // machine — grep "step timing".
+  int m_timer_interval = 0;
+  double m_t_sync = 0, m_t_push = 0, m_t_reduce = 0, m_t_migrate = 0,
+         m_t_sort = 0;
+  void report_timers(uint32_t step);
 };
 
 using prismatic_ptc_updater_t = prismatic_ptc_updater<prismatic_exec_policy_dynamic>;

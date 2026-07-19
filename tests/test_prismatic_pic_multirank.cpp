@@ -87,7 +87,10 @@ int main(int argc, char* argv[]) {
   const prismatic_mesh_partition* mp = nullptr;
   const prismatic_mpi_comm* pc = nullptr;
   if (world_size > 1) {
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
+    const int rpn =
+        int(env.params().get_as<int64_t>("ranks_per_node", 0));
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A,
+                                       rpn);
     topo = icosphere_topology::build_from_mesh(mesh);
     part = prismatic_partition::combined(mesh.m_L, mesh.m_N_r, A,
                                          mcomm.n_radial_ranks(),

@@ -49,16 +49,29 @@ int main(int argc, char* argv[]) {
 
   prismatic_mpi_comm mcomm;  // must outlive env.run()
   if (world_size > 1) {
+    // n_angular_ranks: explicit A, or 0 = auto (the angular-major
+    // suggestion for this world size and mesh — cluster-agnostic).
     int A = env.params().get_as<int64_t>("n_angular_ranks", 20);
+    if (A == 0) {
+      A = prismatic_partition::suggest_angular_ranks(
+          world_size, mesh.m_L, mesh.m_N_r);
+      Logger::print_info("vacuum_dipole: auto decomposition A = {} (K = {})", A,
+                         A > 0 ? world_size / A : 0);
+    }
     if (A < 1 || world_size % A != 0) {
       Logger::print_err(
-          "vacuum_dipole: world size {} is not a multiple of "
-          "n_angular_ranks {}",
+          "vacuum_dipole: world size {} has no valid angular rank count "
+          "(n_angular_ranks = {})",
           world_size, A);
       return 1;
     }
+    // ranks_per_node > 1 tiles consecutive rank blocks into compact
+    // patches of the A x K grid (see prismatic_mpi_comm) — set it to
+    // the launcher's tasks-per-node for cheap intra-node halos.
+    int rpn = env.params().get_as<int64_t>("ranks_per_node", 0);
     // create() validates A itself (2^j or 5*2^j).
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A,
+                                       world_size / A, rpn);
   }
 
   auto solver = env.register_system<dec_field_solver_t>(

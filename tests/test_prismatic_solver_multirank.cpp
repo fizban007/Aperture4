@@ -191,6 +191,11 @@ int main(int argc, char** argv) {
   if (argc > 1) A_arg = std::atoi(argv[1]);
   const bool canonical = A_arg > 0;
   const int A = canonical ? A_arg : 20;
+  // Optional second argument: ranks_per_node for the 7E node-tile rank
+  // remap (canonical mode only) — results must stay bit-exact, only
+  // which process plays which logical rank changes.
+  int rpn = 0;
+  if (argc > 2) rpn = std::atoi(argv[2]);
 
   if (world_size % A != 0 ||
       (canonical && prismatic_partition::min_patch_level_for(A) < 0)) {
@@ -203,7 +208,7 @@ int main(int argc, char** argv) {
   const int K = world_size / A;
 
   prismatic_mpi_comm mcomm =
-      canonical ? prismatic_mpi_comm::create(MPI_COMM_WORLD, A, K)
+      canonical ? prismatic_mpi_comm::create(MPI_COMM_WORLD, A, K, rpn)
                 : prismatic_mpi_comm::create(MPI_COMM_WORLD, K);
 
   prismatic_mesh mesh;

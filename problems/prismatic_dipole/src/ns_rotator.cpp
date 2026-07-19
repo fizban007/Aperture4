@@ -72,15 +72,28 @@ int main(int argc, char* argv[]) {
   const prismatic_mesh_partition* mp = nullptr;
   const prismatic_mpi_comm* pc = nullptr;
   if (world_size > 1) {
+    // n_angular_ranks: explicit A, or 0 = auto (the angular-major
+    // suggestion for this world size and mesh — cluster-agnostic).
     int A = env.params().get_as<int64_t>("n_angular_ranks", 20);
+    if (A == 0) {
+      A = prismatic_partition::suggest_angular_ranks(
+          world_size, mesh.m_L, mesh.m_N_r);
+      Logger::print_info("ns_rotator: auto decomposition A = {} (K = {})", A,
+                         A > 0 ? world_size / A : 0);
+    }
     if (A < 1 || world_size % A != 0) {
       Logger::print_err(
-          "ns_rotator: world size {} is not a multiple of n_angular_ranks "
-          "{}",
+          "ns_rotator: world size {} has no valid angular rank count "
+          "(n_angular_ranks = {})",
           world_size, A);
       return 1;
     }
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
+    // ranks_per_node > 1 tiles consecutive rank blocks into compact
+    // patches of the A x K grid (see prismatic_mpi_comm) — set it to
+    // the launcher's tasks-per-node for cheap intra-node halos.
+    int rpn = env.params().get_as<int64_t>("ranks_per_node", 0);
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A,
+                                       world_size / A, rpn);
     topo = icosphere_topology::build_from_mesh(mesh);
     part = prismatic_partition::combined(mesh.m_L, mesh.m_N_r, A,
                                          mcomm.n_radial_ranks(),

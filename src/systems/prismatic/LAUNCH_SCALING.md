@@ -114,7 +114,70 @@ flipped on a subset of ranks while debugging).
     srun -N 10 --ntasks-per-node=4 --gpus-per-task=1 ...
     # config: n_angular_ranks = 40, ranks_per_node = 4 -> 2x... tiles
 
-## 6. First-contact verification checklist (any new machine)
+## 6. Checkpoint / restart
+
+Any run longer than one allocation MUST checkpoint (the L6 t15 run was
+SIGKILLed at 2.5 P with no restart — ~3 h lost).  The format is
+rank-agnostic and GLOBAL-indexed (`CHECKPOINT_RESTART_PLAN.md`), so a
+checkpoint written at one `A × K × world` restarts at ANY other —
+resubmit at whatever node count the queue offers.
+
+Config keys (all drivers register `prismatic_checkpointer` last):
+
+| key                   | meaning                                    | default          |
+|-----------------------|--------------------------------------------|------------------|
+| `checkpoint_interval` | steps between generations (0 = off)        | 0                |
+| `checkpoint_dir`      | generation directory                       | `<output_dir>/ckpt` |
+| `checkpoint_keep`     | generations kept                           | 2                |
+| `restart_from`        | `""` fresh / `auto` newest complete / path | `""`             |
+
+Recipes:
+
+    # production: checkpoint every ~30 wall-minutes worth of steps and
+    # resubmit with restart_from = auto — the SAME config works for the
+    # first submission (no generation yet -> fresh start) and every
+    # resubmission after.
+    checkpoint_interval = 2000
+    restart_from = "auto"
+
+    # graceful preemption: SIGUSR1 forces a final checkpoint and exits
+    # (wire it to the scheduler's pre-termination signal)
+    scancel --signal=USR1 <jobid>     # or kill -USR1
+
+Behavior notes:
+
+- **Crash safety**: generations are written to `tmp/` and atomically
+  renamed to `ckpt_<step>/`; the oldest is deleted only after the
+  rename.  `restart_from = auto` skips incomplete generations (missing
+  `complete` marker).  A kill mid-write never destroys the last good
+  checkpoint.
+- **RNG**: same-rank-count restart restores exact per-rank streams
+  (host-build continuity is BITWISE, validated); different-rank-count
+  restart necessarily reseeds (streams are per-rank objects) —
+  physically irrelevant, logged loudly.  GPU continuity is exact in
+  LIVE counts and at the usual ~1e-6 FP-reorder level in fields (GPU
+  deposit atomics make even uninterrupted runs vary there).
+- **Different-count restart**: fields are re-read by ownership (any
+  decomposition), particles are re-routed by global-cell arithmetic
+  through the migration machinery.  Watch the particle-buffer size: a
+  different decomposition concentrates particles differently, and the
+  restore aborts loudly on `max_ptc_num` overflow.
+- **Sizing** (scaled from L6 t15: 654 M live macros, 7.2 GB fields): a
+  generation is particle-dominated at ~60 B/macro on disk (uint64
+  cells) — ~16 GB at L6, ~2 TB at L8, ~15 TB at L9, ~100–200 TB at
+  L10.  `checkpoint_keep = 2` at L10 is a ~0.3–0.4 PB Lustre quota
+  line item, and a write is minutes-to-tens-of-minutes at realistic
+  aggregate bandwidth — choose `checkpoint_interval` against
+  wall-time, not for free.  The single-shared-file collective write is
+  fine through ~L8–L9; at L10's ~10^4 writers expect to switch the
+  writer/reader pair to HDF5 subfiling or per-N-rank shards (the
+  global-indexed schema is unaffected; nothing outside the
+  writer/reader may assume one file per generation).
+- Validation: `tests/check_prismatic_checkpoint.sh <test_binary>
+  [--bitwise]` runs the full continuity/elasticity/crash-safety matrix
+  (use `--bitwise` on host builds).
+
+## 7. First-contact verification checklist (any new machine)
 
 Things that cannot be validated off-machine; run in this order on a
 few nodes before a production campaign:
@@ -137,3 +200,9 @@ few nodes before a production campaign:
    (`prismatic_ptc_update_kernel.hpp` on `prismatic_ptc_mesh_ptrs`)
    have been validated on CUDA; run the single-rank PIC acceptance on
    one GCD first to pin the HIP compile.
+6. Checkpoint/restart cycle at the node shape:
+   `tests/check_prismatic_checkpoint.sh bin/test_prismatic_pic_multirank`
+   (parallel HDF5 writes + reads on the parallel filesystem, atomic
+   rename semantics, cross-count redistribution).  Then one manual
+   SIGUSR1 against a running job to confirm the graceful-stop
+   checkpoint under the site's signal delivery.

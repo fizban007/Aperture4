@@ -32,6 +32,9 @@ class prismatic_sph_output : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  // Restart support: seed the time accumulator (it integrates += dt).
+  void set_time(double t) { m_time = t; }
+
  private:
   void precompute_grid();
   void write_grid_info();

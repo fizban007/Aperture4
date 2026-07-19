@@ -84,6 +84,19 @@ class H5File {
                            const std::vector<hsize_t>& file_off,
                            const std::vector<hsize_t>& run_len,
                            const std::string& name);
+  // Collective mirror of write_parallel_runs: each rank reads its runs
+  // of an existing dataset into array (one collective H5Dread with a
+  // union-of-hyperslabs selection).  All ranks of a parallel-opened
+  // file must call; a rank with no runs passes empty vectors.
+  template <typename T>
+  void read_parallel_runs(T* array, size_t array_size,
+                          const std::vector<hsize_t>& mem_off,
+                          const std::vector<hsize_t>& file_off,
+                          const std::vector<hsize_t>& run_len,
+                          const std::string& name);
+
+  // True when a dataset (or link) of this name exists in the file.
+  bool exists(const std::string& name) const;
 
   template <typename T, int Dim>
   multi_array<T, Dim> read_multi_array(const std::string& name);

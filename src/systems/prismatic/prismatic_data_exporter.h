@@ -7,6 +7,7 @@
 #include "systems/prismatic/prismatic_aggregation.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
+#include "systems/prismatic/prismatic_owned_runs.h"
 #include "utils/hdf_wrapper.h"
 #include "utils/nonown_ptr.hpp"
 #include <string>
@@ -34,6 +35,9 @@ class prismatic_data_exporter : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  // Restart support: seed the time accumulator (it integrates += dt).
+  void set_time(double t) { m_time = t; }
+
  private:
   void write_mesh();
   void write_snapshot(uint32_t step, double time);
@@ -56,10 +60,7 @@ class prismatic_data_exporter : public system_t {
   // (E_e = [h|v] edges, B_f = [tri|rect] faces), built once at init.
   // Run i writes field_buf[mem_off[i] .. +len[i]) to dataset position
   // file_off[i] — see H5File::write_parallel_runs.
-  struct run_set {
-    std::vector<hsize_t> mem_off, file_off, len;
-  };
-  run_set m_E_runs, m_B_runs, m_V_runs;
+  prismatic_run_set m_E_runs, m_B_runs, m_V_runs;
 
   int m_output_interval = 100;
 

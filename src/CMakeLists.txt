@@ -52,6 +52,7 @@ set(Aperture_src
   "systems/prismatic/prismatic_vertex_recovery.cpp"
   "systems/prismatic/prismatic_recon_hodge.cpp"
   "systems/prismatic/prismatic_ptc_updater.cpp"
+  "systems/prismatic/prismatic_checkpoint.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"
   "systems/prismatic/prismatic_sph_output.cpp"
   )
@@ -87,6 +88,7 @@ if (use_cuda OR use_hip)
     "systems/prismatic/dec_field_solver_gr_ks.hip.cpp"
     "systems/prismatic/prismatic_mesh_metric.hip.cpp"
     "systems/prismatic/prismatic_ptc_updater.hip.cpp"
+    "systems/prismatic/prismatic_checkpoint.hip.cpp"
     )
   if (use_cuda AND CMAKE_CUDA_COMPILER)
     set_source_files_properties(${Aperture_dev_src} PROPERTIES LANGUAGE CUDA)

@@ -196,10 +196,16 @@ H5File::write_parallel(const T* array, size_t array_size, size_t len_total,
   offsets_l[0] = idx_src;
   out_dim[0] = len;
 
-  H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride, count,
-                      out_dim);
-  H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride, count,
-                      out_dim);
+  if (len > 0) {
+    H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, offsets, stride, count,
+                        out_dim);
+    H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, offsets_l, stride, count,
+                        out_dim);
+  } else {
+    // A rank contributing nothing still participates in the collective.
+    H5Sselect_none(filespace_id);
+    H5Sselect_none(memspace_id);
+  }
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
@@ -268,6 +274,55 @@ H5File::write_parallel_runs(const T* array, size_t array_size,
 
   if (status < 0) {
     Logger::print_err("H5Dwrite (runs) error! Status is {}", status);
+  }
+}
+
+template <typename T>
+void
+H5File::read_parallel_runs(T* array, size_t array_size,
+                           const std::vector<hsize_t>& mem_off,
+                           const std::vector<hsize_t>& file_off,
+                           const std::vector<hsize_t>& run_len,
+                           const std::string& name) {
+  const size_t n_runs = run_len.size();
+
+  hsize_t array_dims[1] = {array_size};
+  auto dataset_id = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
+  auto filespace_id = H5Dget_space(dataset_id);
+  auto memspace_id = H5Screate_simple(1, array_dims, NULL);
+
+  bool selected = false;
+  for (size_t i = 0; i < n_runs; ++i) {
+    if (run_len[i] == 0) continue;
+    hsize_t count[1] = {1};
+    hsize_t stride[1] = {1};
+    hsize_t block[1] = {run_len[i]};
+    hsize_t f_off[1] = {file_off[i]};
+    hsize_t m_off[1] = {mem_off[i]};
+    auto op = selected ? H5S_SELECT_OR : H5S_SELECT_SET;
+    H5Sselect_hyperslab(filespace_id, op, f_off, stride, count, block);
+    H5Sselect_hyperslab(memspace_id, op, m_off, stride, count, block);
+    selected = true;
+  }
+  if (!selected) {
+    H5Sselect_none(filespace_id);
+    H5Sselect_none(memspace_id);
+  }
+
+  auto plist_id = H5Pcreate(H5P_DATASET_XFER);
+  if (m_is_parallel) {
+    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+  }
+  auto status = H5Dread(dataset_id, h5datatype<T>(), memspace_id,
+                        filespace_id, plist_id, array);
+
+  H5Dclose(dataset_id);
+  H5Sclose(filespace_id);
+  H5Sclose(memspace_id);
+  H5Pclose(plist_id);
+
+  if (status < 0) {
+    Logger::print_err("H5Dread (runs) error! Status is {}", status);
   }
 }
 
@@ -467,13 +522,21 @@ H5File::read_subset(T* array, size_t array_size, const std::string& name,
   offsets_l[0] = idx_dst;
   out_dim[0] = len;
 
-  H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offsets, stride, count,
-                      out_dim);
-  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride, count,
-                      out_dim);
+  if (len > 0) {
+    H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offsets, stride, count,
+                        out_dim);
+    H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offsets_l, stride, count,
+                        out_dim);
+  } else {
+    // A rank reading nothing still participates in the collective.
+    H5Sselect_none(dataspace);
+    H5Sselect_none(memspace);
+  }
 
   auto plist_id = H5Pcreate(H5P_DATASET_XFER);
-  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+  if (m_is_parallel) {
+    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+  }
   auto status =
       H5Dread(dataset, h5datatype<T>(), memspace, dataspace, plist_id, array);
 

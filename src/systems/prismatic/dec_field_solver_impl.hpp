@@ -259,6 +259,13 @@ void dec_field_solver<ExecPolicy>::refresh_total_fields() {
   ExecPolicy::sync();
 }
 
+template <typename ExecPolicy>
+void dec_field_solver<ExecPolicy>::refresh_delta_ghosts() {
+  // m_ex is inactive (all no-ops) when single-rank.
+  m_ex.exchange_edge(m_E->data(), m_dist.e_split());
+  m_ex.exchange_face(m_B->data(), m_dist.b_split());
+}
+
 // =========================================================================
 // Compute RHS: dB/dt = -d1*E, dE/dt = h1inv*(d1t*h2*B - J)
 // =========================================================================

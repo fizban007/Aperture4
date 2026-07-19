@@ -82,6 +82,15 @@ class dec_field_solver : public system_t {
   // every update and IC; particles, sph output, and dumps consume totals.
   void refresh_total_fields();
 
+  // Restart support (checkpoint plan): a checkpoint stores the OWNED
+  // slots of Edelta/Bdelta; after loading them, refresh the ghost slots
+  // (then call refresh_total_fields so totals are valid on the full
+  // local range).  Collective; no-op single-rank.
+  void refresh_delta_ghosts();
+  // Restart support: seed the solver clock (BC evaluation times).  An
+  // uninterrupted run has m_time = step * dt at the start of a step.
+  void set_time(double t) { m_time = t; }
+
   void compute_rhs(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dE_dt, buffer<Scalar>& dB_dt);
 

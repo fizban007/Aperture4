@@ -77,6 +77,11 @@ H5File::close() {
   }
 }
 
+bool
+H5File::exists(const std::string& name) const {
+  return m_is_open && H5Lexists(m_file_id, name.c_str(), H5P_DEFAULT) > 0;
+}
+
 H5File
 hdf_create(const std::string& filename, H5CreateMode mode) {
   // auto h5mode =

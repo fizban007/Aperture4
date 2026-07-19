@@ -13,6 +13,7 @@
 
 #include "framework/environment.h"
 #include "systems/prismatic/dec_field_solver.h"
+#include "systems/prismatic/prismatic_checkpoint.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
@@ -86,13 +87,18 @@ int main(int argc, char* argv[]) {
   if (world_size == 1) {
     env.register_system<prismatic_sph_output>(mesh);
   }
+  // LAST: captures end-of-step state (fields-only checkpoint here).
+  auto ckpt = env.register_system<prismatic_checkpointer_t>(
+      mesh, solver->mesh_partition(), world_size > 1 ? &mcomm : nullptr);
 
   env.init();
 
-  if (use_deutsch_ic) {
-    solver->set_initial_deutsch();
-  } else {
-    solver->set_initial_dipole();
+  if (!ckpt->try_restart()) {
+    if (use_deutsch_ic) {
+      solver->set_initial_deutsch();
+    } else {
+      solver->set_initial_dipole();
+    }
   }
 
   env.run();

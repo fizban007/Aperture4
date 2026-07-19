@@ -8,29 +8,6 @@
 
 namespace Aperture {
 
-namespace {
-
-// Compress a layout's owned set (locals 0..n_owned in ascending-global
-// order) into contiguous runs for scattered hyperslab writes.
-void append_owned_runs(const distributed_cochain_layout& L, size_t mem_base,
-                       size_t file_base, std::vector<hsize_t>& mem_off,
-                       std::vector<hsize_t>& file_off,
-                       std::vector<hsize_t>& len) {
-  const int n = L.owned_size();
-  int l = 0;
-  while (l < n) {
-    const int g0 = L.to_global(l);
-    int run = 1;
-    while (l + run < n && L.to_global(l + run) == g0 + run) run++;
-    mem_off.push_back(mem_base + l);
-    file_off.push_back(file_base + g0);
-    len.push_back(run);
-    l += run;
-  }
-}
-
-}  // namespace
-
 prismatic_data_exporter::prismatic_data_exporter(
     const prismatic_mesh& mesh, const prismatic_mesh_partition* mp,
     const prismatic_mpi_comm* comm)
@@ -109,17 +86,12 @@ void prismatic_data_exporter::init() {
     // ordering (at the global block sizes).
     const size_t n_h_glob = size_t(m_mesh.m_N_r + 1) * m_mesh.m_N_edge_s;
     const size_t n_tri_glob = size_t(m_mesh.m_N_r + 1) * m_mesh.m_N_tri;
-    append_owned_runs(L_he, 0, 0, m_E_runs.mem_off, m_E_runs.file_off,
-                      m_E_runs.len);
-    append_owned_runs(L_ve, L_he.local_size(), n_h_glob, m_E_runs.mem_off,
-                      m_E_runs.file_off, m_E_runs.len);
-    append_owned_runs(L_tri, 0, 0, m_B_runs.mem_off, m_B_runs.file_off,
-                      m_B_runs.len);
-    append_owned_runs(L_rect, L_tri.local_size(), n_tri_glob,
-                      m_B_runs.mem_off, m_B_runs.file_off, m_B_runs.len);
+    append_owned_runs(L_he, 0, 0, m_E_runs);
+    append_owned_runs(L_ve, L_he.local_size(), n_h_glob, m_E_runs);
+    append_owned_runs(L_tri, 0, 0, m_B_runs);
+    append_owned_runs(L_rect, L_tri.local_size(), n_tri_glob, m_B_runs);
     if (m_rho != nullptr || m_rho_abs != nullptr || m_gamma_wsum != nullptr) {
-      append_owned_runs(m_mp->layout(cochain_type::vertex), 0, 0,
-                        m_V_runs.mem_off, m_V_runs.file_off, m_V_runs.len);
+      append_owned_runs(m_mp->layout(cochain_type::vertex), 0, 0, m_V_runs);
     }
     Logger::print_info(
         "Distributed exporter: {} + {} owned runs (E, B) per snapshot",

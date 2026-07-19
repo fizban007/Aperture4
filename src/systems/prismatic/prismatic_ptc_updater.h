@@ -79,7 +79,40 @@ class prismatic_ptc_updater : public system_t {
   // end of every update().  Public for the CUDA extended-lambda rule.
   void migrate();
 
+  // -----------------------------------------------------------------------
+  // Restart support (checkpoint plan D3).
+  //
+  // inject_wire_particles: route particles carried with GLOBAL cells
+  // (the rank-agnostic migration wire encoding, widened to uint64 on
+  // disk) to their owning ranks and append them there — the reading
+  // distribution is arbitrary, so a checkpoint restarts at ANY rank
+  // count.  Destinations come from pure arithmetic on the global cell
+  // (unit path ordering × radial slab map = migrate_dest's math on
+  // global ids); the exchange and arrival unpack are the migration
+  // machinery.  Collective on the logical world comm when distributed;
+  // single-rank appends directly.  Component order: x1,x2,x3,p1,p2,p3,
+  // E,weight.  Aborts loudly on particle-buffer overflow.
+  void inject_wire_particles(const std::vector<Scalar> comps[8],
+                             const std::vector<uint64_t>& gcells,
+                             const std::vector<uint32_t>& flags,
+                             const std::vector<uint64_t>& ids);
+
+  // refresh_deposit_ghosts: refresh the ghost slots of the deposit
+  // fields whose owned slots were loaded from a checkpoint (the
+  // next-step injector criteria read J / rho_abs through their
+  // stencils).  Collective; no-op single-rank.
+  void refresh_deposit_ghosts();
+
  private:
+  // Shared migration/restart wire machinery: component-wise Alltoallv
+  // of the packed send arrays into the m_rcv_* staging (returns the
+  // arrival count), and arrival append with GLOBAL→local cell
+  // translation (m_rcv_cell holds wire cells on entry).
+  int exchange_wire(const Scalar* const comps[8], const uint32_t* cells,
+                    const uint32_t* flags, const uint64_t* ids,
+                    const std::vector<int>& snd_cnt,
+                    const std::vector<int>& snd_off);
+  void append_wire_arrivals(int n_recv);
   prismatic_mesh& m_mesh;
   const prismatic_mesh_partition* m_mp = nullptr;
   const prismatic_mpi_comm* m_comm = nullptr;

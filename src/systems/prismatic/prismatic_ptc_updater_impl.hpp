@@ -7,6 +7,7 @@
 #include "utils/logger.h"
 #include <chrono>
 #include <cmath>
+#include <limits>
 
 namespace Aperture {
 
@@ -377,10 +378,6 @@ template <typename ExecPolicy>
 void prismatic_ptc_updater<ExecPolicy>::migrate() {
   const size_t num = m_ptc->number();
   const int ws = m_world_size;
-  // Logical-rank-addressed collectives use the comm's LOGICAL-order
-  // world communicator (identical to MPI_COMM_WORLD without node
-  // tiling; a reordered dup under it — see prismatic_mpi_comm 7E).
-  const MPI_Comm wcomm = m_comm->world();
   auto lmp = m_lmesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Pass 1: count leavers per destination.
@@ -399,20 +396,14 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
   m_mig_count.copy_to_host();
 #endif
 
-  // Host: exclusive scan -> send offsets; exchange counts.
-  std::vector<int> snd_cnt(ws), snd_off(ws), rcv_cnt(ws), rcv_off(ws);
+  // Host: exclusive scan -> send offsets.  (The count exchange lives in
+  // exchange_wire, shared with the restart path.)
+  std::vector<int> snd_cnt(ws), snd_off(ws);
   int n_send = 0;
   for (int r = 0; r < ws; ++r) {
     snd_cnt[r] = m_mig_count[r];
     snd_off[r] = n_send;
     n_send += snd_cnt[r];
-  }
-  MPI_Alltoall(snd_cnt.data(), 1, MPI_INT, rcv_cnt.data(), 1, MPI_INT,
-               wcomm);
-  int n_recv = 0;
-  for (int r = 0; r < ws; ++r) {
-    rcv_off[r] = n_recv;
-    n_recv += rcv_cnt[r];
   }
 
   // Pass 2: pack leavers at per-destination cursors and vacate them.
@@ -465,37 +456,71 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
 #endif
   }
 
-  // Exchange.  (Component-wise Alltoallv; counts are identical.  Sized
-  // at least 1 so .data() is a real pointer under zero counts.)
+  // Exchange, then append the arrivals (shared with the restart path).
+  const Scalar* comps[8] = {
+      m_snd_s[0].host_ptr(), m_snd_s[1].host_ptr(), m_snd_s[2].host_ptr(),
+      m_snd_s[3].host_ptr(), m_snd_s[4].host_ptr(), m_snd_s[5].host_ptr(),
+      m_snd_s[6].host_ptr(), m_snd_s[7].host_ptr()};
+  const int n_arrived = exchange_wire(comps, m_snd_cell.host_ptr(),
+                                      m_snd_flag.host_ptr(),
+                                      m_snd_id.host_ptr(), snd_cnt, snd_off);
+  append_wire_arrivals(n_arrived);
+}
+
+// Component-wise Alltoallv of packed leavers into the m_rcv_* staging.
+// Counts are identical across components; receive buffers are sized at
+// least 1 so .data() is a real pointer under zero counts.
+template <typename ExecPolicy>
+int prismatic_ptc_updater<ExecPolicy>::exchange_wire(
+    const Scalar* const comps[8], const uint32_t* cells,
+    const uint32_t* flags, const uint64_t* ids,
+    const std::vector<int>& snd_cnt, const std::vector<int>& snd_off) {
+  const int ws = m_world_size;
+  const MPI_Comm wcomm = m_comm->world();
+
+  std::vector<int> rcv_cnt(ws), rcv_off(ws);
+  MPI_Alltoall(const_cast<int*>(snd_cnt.data()), 1, MPI_INT, rcv_cnt.data(),
+               1, MPI_INT, wcomm);
+  int n_recv = 0;
+  for (int r = 0; r < ws; ++r) {
+    rcv_off[r] = n_recv;
+    n_recv += rcv_cnt[r];
+  }
+
   const int rcv_cap = n_recv > 0 ? n_recv : 1;
   for (auto* v : {&m_rcv_cell, &m_rcv_flag}) v->resize(rcv_cap);
   for (auto& v : m_rcv_s) v.resize(rcv_cap);
   m_rcv_id.resize(rcv_cap);
   const MPI_Datatype st = mpi_scalar_type();
   for (int c = 0; c < 8; ++c) {
-    MPI_Alltoallv(m_snd_s[c].host_ptr(), snd_cnt.data(), snd_off.data(), st,
+    MPI_Alltoallv(comps[c], snd_cnt.data(), snd_off.data(), st,
                   m_rcv_s[c].data(), rcv_cnt.data(), rcv_off.data(), st,
                   wcomm);
   }
-  MPI_Alltoallv(m_snd_cell.host_ptr(), snd_cnt.data(), snd_off.data(),
-                MPI_UINT32_T, m_rcv_cell.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT32_T, wcomm);
-  MPI_Alltoallv(m_snd_flag.host_ptr(), snd_cnt.data(), snd_off.data(),
-                MPI_UINT32_T, m_rcv_flag.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT32_T, wcomm);
-  MPI_Alltoallv(m_snd_id.host_ptr(), snd_cnt.data(), snd_off.data(),
-                MPI_UINT64_T, m_rcv_id.data(), rcv_cnt.data(),
-                rcv_off.data(), MPI_UINT64_T, wcomm);
+  MPI_Alltoallv(cells, snd_cnt.data(), snd_off.data(), MPI_UINT32_T,
+                m_rcv_cell.data(), rcv_cnt.data(), rcv_off.data(),
+                MPI_UINT32_T, wcomm);
+  MPI_Alltoallv(flags, snd_cnt.data(), snd_off.data(), MPI_UINT32_T,
+                m_rcv_flag.data(), rcv_cnt.data(), rcv_off.data(),
+                MPI_UINT32_T, wcomm);
+  MPI_Alltoallv(ids, snd_cnt.data(), snd_off.data(), MPI_UINT64_T,
+                m_rcv_id.data(), rcv_cnt.data(), rcv_off.data(),
+                MPI_UINT64_T, wcomm);
+  return n_recv;
+}
 
+// Append arrivals at the end of the particle array, translating the
+// GLOBAL wire cells in m_rcv_cell to this rank's local encoding
+// (host-side, per arrival — cheap at migration counts).
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
   if (n_recv == 0) return;
+  const size_t num = m_ptc->number();
 
-  // Append arrivals at the end of the particle array, translating the
-  // GLOBAL wire cells to this rank's local encoding (host-side, per
-  // arrival — cheap at migration counts).
   if (num + n_recv > m_ptc->size()) {
     Logger::print_err(
-        "prismatic_ptc_updater::migrate: particle buffer overflow "
-        "({} + {} arrivals > {})",
+        "prismatic_ptc_updater::append_wire_arrivals: particle buffer "
+        "overflow ({} + {} arrivals > {})",
         num, n_recv, m_ptc->size());
     std::abort();
   }
@@ -511,8 +536,8 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
     const int llay = glay - k0;
     if (ltri < 0 || llay < 0) {
       Logger::print_err(
-          "prismatic_ptc_updater::migrate: arrival misrouted (global cell "
-          "{} not in this rank's halo)",
+          "prismatic_ptc_updater::append_wire_arrivals: arrival misrouted "
+          "(global cell {} not in this rank's halo)",
           wc);
       std::abort();
     }
@@ -546,6 +571,112 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
   m_ptc->id.copy_to_device(num, n_recv);
 #endif
   m_ptc->add_num(n_recv);
+}
+
+// =========================================================================
+// Restart support (checkpoint plan D3): arbitrary-distribution particle
+// load.  Every rank holds SOME chunk of the checkpoint's concatenated
+// particle datasets (global wire cells); destinations are computed by
+// pure arithmetic on the global cell — the canonical path-ordered
+// angular rank of the tri's unit × the uniform radial slab map — which
+// is exactly migrate_dest's math applied to global ids, valid for ANY
+// current decomposition.  The exchange and append reuse the migration
+// machinery verbatim.
+// =========================================================================
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::inject_wire_particles(
+    const std::vector<Scalar> comps[8], const std::vector<uint64_t>& gcells,
+    const std::vector<uint32_t>& flags, const std::vector<uint64_t>& ids) {
+  const size_t n = gcells.size();
+  // The in-memory wire encoding is uint32 (widening is a separate
+  // prerequisite for L9+, see the checkpoint plan appendix); the disk
+  // format is uint64 from day one.  Guard the narrowing loudly.
+  const uint64_t cell_space =
+      uint64_t(m_mesh.m_N_r) * uint64_t(m_lmesh.n_tri_global());
+  if (cell_space > uint64_t(std::numeric_limits<uint32_t>::max())) {
+    Logger::print_err(
+        "inject_wire_particles: global cell space {} exceeds the uint32 "
+        "migration wire — widen wire_cell/migrate_dest first (checkpoint "
+        "plan appendix item 1)",
+        cell_space);
+    std::abort();
+  }
+
+  if (!m_distributed) {
+    // Single-rank: the local mesh is the identity bundle — wire cells
+    // ARE local cells; stage into m_rcv_* and append.
+    const int nn = int(n);
+    const int cap = nn > 0 ? nn : 1;
+    for (auto& v : m_rcv_s) v.resize(cap);
+    m_rcv_cell.resize(cap);
+    m_rcv_flag.resize(cap);
+    m_rcv_id.resize(cap);
+    for (int c = 0; c < 8; ++c) {
+      std::copy(comps[c].begin(), comps[c].end(), m_rcv_s[c].begin());
+    }
+    for (size_t i = 0; i < n; ++i) m_rcv_cell[i] = uint32_t(gcells[i]);
+    std::copy(flags.begin(), flags.end(), m_rcv_flag.begin());
+    std::copy(ids.begin(), ids.end(), m_rcv_id.begin());
+    append_wire_arrivals(nn);
+    return;
+  }
+
+  // Destination world rank from the GLOBAL cell.
+  const auto& part = m_mp->partition();
+  const int N_tri_glob = m_lmesh.n_tri_global();
+  const int A = m_lmesh.n_angular_ranks();
+  const int slab_base = m_lmesh.slab_base();
+  const int slab_rem = m_lmesh.slab_rem();
+  const int split = slab_rem * (slab_base + 1);
+  auto dest_of = [&](uint64_t gcell) -> int {
+    const int glay = int(gcell / uint64_t(N_tri_glob));
+    const int gtri = int(gcell % uint64_t(N_tri_glob));
+    const int ang =
+        part.angular_rank_of_path_unit(part.path_of_unit(part.unit_of_tri(gtri)));
+    const int rad = glay < split ? glay / (slab_base + 1)
+                                 : slab_rem + (glay - split) / slab_base;
+    return rad * A + ang;
+  };
+
+  const int ws = m_world_size;
+  std::vector<int> snd_cnt(ws, 0), snd_off(ws, 0);
+  for (size_t i = 0; i < n; ++i) snd_cnt[dest_of(gcells[i])]++;
+  int n_send = 0;
+  for (int r = 0; r < ws; ++r) {
+    snd_off[r] = n_send;
+    n_send += snd_cnt[r];
+  }
+
+  // Pack per destination (host — the data just came off the disk).
+  const int cap = n_send > 0 ? n_send : 1;
+  std::vector<Scalar> snd_s[8];
+  for (auto& v : snd_s) v.resize(cap);
+  std::vector<uint32_t> snd_cell(cap), snd_flag(cap);
+  std::vector<uint64_t> snd_id(cap);
+  std::vector<int> cursor(snd_off);
+  for (size_t i = 0; i < n; ++i) {
+    const int slot = cursor[dest_of(gcells[i])]++;
+    for (int c = 0; c < 8; ++c) snd_s[c][slot] = comps[c][i];
+    snd_cell[slot] = uint32_t(gcells[i]);
+    snd_flag[slot] = flags[i];
+    snd_id[slot] = ids[i];
+  }
+
+  const Scalar* sc[8] = {snd_s[0].data(), snd_s[1].data(), snd_s[2].data(),
+                         snd_s[3].data(), snd_s[4].data(), snd_s[5].data(),
+                         snd_s[6].data(), snd_s[7].data()};
+  const int n_arrived = exchange_wire(sc, snd_cell.data(), snd_flag.data(),
+                                      snd_id.data(), snd_cnt, snd_off);
+  append_wire_arrivals(n_arrived);
+}
+
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::refresh_deposit_ghosts() {
+  if (!m_distributed) return;
+  m_ex.exchange_edge(m_J->data(), m_J->split());
+  m_ex.exchange_vertex(m_rho->data());
+  m_ex.exchange_vertex(m_rho_abs->data());
+  m_ex.exchange_vertex(m_gamma_wsum->data());
 }
 
 template <typename ExecPolicy>

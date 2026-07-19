@@ -1,7 +1,10 @@
 # Checkpoint / restart for distributed prismatic PIC — implementation plan
 
-> **Status: PLANNED 2026-07-19 (not started).**  Written to be executed
-> in a fresh session.  Phase 7 (A–E) is complete: fields, particles and
+> **Status: IMPLEMENTED 2026-07-19 (steps 0–5 complete; validation
+> matrix green).**  See "Implementation deltas" at the end for what
+> landed and where it deviates from the letter of the plan.
+>
+> Original context: Phase 7 (A–E) is complete: fields, particles and
 > mesh geometry are fully local under an arbitrary canonical A·K
 > decomposition; the exporter writes rank-agnostic global-indexed
 > snapshots via parallel owned-runs; migration moves particles with
@@ -199,6 +202,85 @@ node shape becomes item 6).
 
 Estimated effort: ~2 days.  Step 0 first — it is the only piece not
 fully under prismatic control.
+
+## Implementation deltas (landed 2026-07-19)
+
+**Files**: `prismatic_checkpoint.h` / `prismatic_checkpoint_impl.hpp`
+(+ `.cpp`/`.hip.cpp` instantiations), `prismatic_owned_runs.h` (run-set
+builder factored OUT of the exporter and shared), updater gains
+`inject_wire_particles` / `refresh_deposit_ghosts` (+ private
+`exchange_wire` / `append_wire_arrivals` factored out of `migrate()` —
+one count-Alltoall now lives in the shared helper), solver gains
+`refresh_delta_ghosts()` / `set_time()`, exporter + sph gain
+`set_time()`, hdf wrapper gains `read_parallel_runs` / `exists()` and
+zero-length-rank guards in `write_parallel` / `read_subset` (plus
+`read_subset` now applies MPIO-collective dxpl only on parallel-opened
+files).  Mains wired: `ns_rotator`, `vacuum_dipole`,
+`test_prismatic_pic_multirank` (`if (!ckpt->try_restart()) IC();`).
+
+**Deltas from the plan letter**:
+
+- Step 0 resolved with NO framework patch: `set_step`/`set_time`
+  already existed; the run loop is `while (step <= max_steps)`.  Bonus
+  found: the SIGUSR1 graceful-stop hook (`register_force_snapshot`)
+  fires with the post-increment (step, time) — exactly the resume
+  point — so the checkpointer registers it in `init()` and
+  `kill -USR1` writes a final checkpoint for free.
+- Reader is a member of the checkpointer (`try_restart()`), not a free
+  `prismatic_restart::load` — it already holds the run sets, data
+  pointers and comm.  `--restart <path>` on the command line overrides
+  the config key (the framework flag existed).
+- The writer/reader is templated on ExecPolicy (like the updater)
+  because the rng data type is `rng_states_t<exec_tag>`; no device
+  code inside — all staging is host-side.
+- One new HDF5 pattern sufficed on the write side (the plan's
+  `write_parallel_slice` is the pre-existing `write_parallel`); the
+  read side needed `read_parallel_runs` (collective mirror of
+  `write_parallel_runs`).
+- Resume time convention: a checkpoint at end of step s stores
+  `resume_step = s+1`, `time = (s+1)·dt`; EVERY per-system clock
+  (solver BC time, exporter, sph, checkpointer) is seeded with that
+  same value — an uninterrupted run has `m_time = step·dt` at the
+  start of a step in all of them.
+- Fingerprint r_min/r_max are taken from `mesh.radii[0]`/`radii[N_r]`
+  (config-default-independent); L, N_r, N_tri, dt as planned.  The
+  particle count is stored as `ptc_total` (uint64) and re-verified
+  after routing — a lost particle aborts.
+- The in-memory wire stays uint32 (cells narrow after a loud
+  `N_r·N_tri < 2^32` guard in `inject_wire_particles`); the FILE
+  stores uint64 as designed, so the format survives the future wire
+  widening untouched.
+
+**Validation (all green 2026-07-19, `tests/check_prismatic_checkpoint.sh`)**:
+
+- Continuity, host build (`-Duse_cuda=OFF`), 1 and 8 ranks: 2N straight
+  vs N + ckpt + fresh process + N → **BITWISE identical** step files
+  and ESUM.  GPU build: LIVE exact, fields ≤ ~1e-5 abs (the atomic
+  FP-reorder floor of an uninterrupted rerun).
+- Elasticity: 8-rank checkpoint restarted at 1, at 8 with
+  `ranks_per_node = 4` (logical-comm routing under tiling), and at 20
+  → LIVE 630 exact, MISOWNED 0, ESUM to 8 digits, dumps ≤ 1e-4.
+- Vacuum fields-only: 8-rank checkpoint → 4-rank restart → final dumps
+  **bitwise 0.0** (deterministic field path survives redistribution
+  exactly).
+- Crash safety: garbage `tmp/` + truncated `ckpt_99/` → `auto` logs
+  "Skipping incomplete generation", picks the last complete one;
+  loading a generation at `resume_step > max_steps` reproduces the
+  writer's final state exactly (roundtrip fidelity).
+- Rotation: keep-2 pruning observed (`ckpt_21` + `ckpt_41` retained).
+
+Reference commands:
+
+    # full matrix (host build: add --bitwise)
+    tests/check_prismatic_checkpoint.sh bin/test_prismatic_pic_multirank
+    # manual: checkpoint every 20 steps
+    mpirun -n 8 bin/test_prismatic_pic_multirank -c cfg.toml   # + checkpoint_interval = 20
+    # manual: restart (same or different rank count)
+    mpirun -n 20 bin/test_prismatic_pic_multirank -c cfg2.toml # + restart_from = "…/ckpt/ckpt_21"
+
+Not done here (tracked in the appendix): uint32 wire widening (item 1)
+and the factorized layout-enumeration build (item 2) — both
+PREREQUISITES for L9+/L10 runs, neither blocks checkpointing at ≤ L8.
 
 ## Gotchas for the implementing session (hard-won context)
 

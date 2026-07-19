@@ -27,6 +27,7 @@
 #include "framework/environment.h"
 #include "systems/prismatic/dec_field_solver.h"
 #include "systems/prismatic/icosphere_topology.h"
+#include "systems/prismatic/prismatic_checkpoint.h"
 #include "systems/prismatic/prismatic_data_exporter.h"
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
@@ -113,10 +114,15 @@ int main(int argc, char* argv[]) {
   if (world_size == 1) {
     env.register_system<prismatic_sph_output>(mesh);
   }
+  // LAST: captures end-of-step state (config checkpoint_interval /
+  // restart_from; SIGUSR1 forces a final checkpoint).
+  auto ckpt = env.register_system<prismatic_checkpointer_t>(mesh, mp, pc);
 
   env.init();
 
-  solver->set_initial_dipole();
+  if (!ckpt->try_restart()) {
+    solver->set_initial_dipole();
+  }
 
   env.run();
 

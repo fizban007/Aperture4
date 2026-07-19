@@ -52,4 +52,25 @@ HD_INLINE void prism_cell_decode(uint32_t cell, int N_tri,
   tri_idx = cell % N_tri;
 }
 
+// Phase 6: world rank owning a cell under the combined 20xK partition
+// (tri indices are grouped per ico-face; layers split into slabs with
+// base = N_r/K and the first `rem` slabs one larger, mirroring
+// prismatic_partition::radial_slab).  Returns -1 when `me` owns it.
+HD_INLINE int prism_migrate_dest(uint32_t cell, int N_tri,
+                                 int tris_per_face, int slab_base,
+                                 int slab_rem, int me) {
+  int tri, layer;
+  prism_cell_decode(cell, N_tri, tri, layer);
+  int ang = tri / tris_per_face;
+  int rad;
+  const int split = slab_rem * (slab_base + 1);
+  if (layer < split) {
+    rad = layer / (slab_base + 1);
+  } else {
+    rad = slab_rem + (layer - split) / slab_base;
+  }
+  int dest = rad * 20 + ang;
+  return dest == me ? -1 : dest;
+}
+
 }  // namespace Aperture

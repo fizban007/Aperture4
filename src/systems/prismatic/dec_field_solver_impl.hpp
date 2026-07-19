@@ -128,13 +128,9 @@ void dec_field_solver<ExecPolicy>::init() {
                                   ? "packed, GPU-direct MPI"
                                   : "packed, host-staged messages")
                            : "full-buffer host staging");
-    // The particle path is single-rank only (Phase 6).
-    if (sim_env().get_data_optional("particles") != nullptr) {
-      Logger::print_err(
-          "dec_field_solver: distributed mode cannot run with a particle "
-          "system registered (Phase 6)");
-      std::abort();
-    }
+    // Phase 6: particles are supported when the distributed particle
+    // stack is registered (replicator + partition-aware updater; the
+    // updater verifies its own requirements and aborts otherwise).
     Logger::print_info(
         "Distributed DEC solver: rank ({}, {}) of 20x{}, local edges {} / {} "
         "global, local faces {} / {}",

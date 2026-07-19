@@ -206,6 +206,17 @@ target_link_libraries(test_prismatic_solver_multirank
   $<TARGET_NAME_IF_EXISTS:Aperture_dev>
   )
 
+# Multi-process acceptance test for distributed prismatic PIC (Phase 6).
+# Run single-process and with mpirun -n 20/40 on the same config and
+# compare outputs; see the file header.
+add_executable(test_prismatic_pic_multirank
+  "test_prismatic_pic_multirank.cpp")
+target_link_libraries(test_prismatic_pic_multirank
+  PUBLIC
+  Aperture
+  $<TARGET_NAME_IF_EXISTS:Aperture_dev>
+  )
+
 add_executable(test_mpi2d "test_mpi2d_gpu.cpp")
 # target_link_libraries(test_mpi2d Aperture Aperture_dev)
 target_link_libraries(test_mpi2d

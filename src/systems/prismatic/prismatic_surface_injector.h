@@ -5,6 +5,8 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
+#include "systems/prismatic/prismatic_mpi_comm.h"
 #include "systems/prismatic/prismatic_particles.h"
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
 #include "utils/logger.h"
@@ -44,8 +46,18 @@ class prismatic_surface_injector : public system_t {
  public:
   static std::string name() { return "prismatic_surface_injector"; }
 
-  explicit prismatic_surface_injector(const prismatic_mesh& mesh)
-      : m_mesh(mesh) {}
+  // Phase 6: pass the solver's partition + comm to run distributed —
+  // the injector then reads the global "*_ptc" replicas (maintained by
+  // prismatic_field_replicator / the updater's deposit reduction) and
+  // injects only into cells this rank owns.
+  explicit prismatic_surface_injector(
+      const prismatic_mesh& mesh,
+      const prismatic_mesh_partition* mp = nullptr,
+      const prismatic_mpi_comm* comm = nullptr)
+      : m_mesh(mesh), m_comm(comm) {
+    m_distributed =
+        mp != nullptr && comm != nullptr && !comm->is_single_rank();
+  }
 
   void register_data_components() override {}
 
@@ -90,8 +102,25 @@ class prismatic_surface_injector : public system_t {
     m_injector =
         std::make_unique<prismatic_ptc_injector<ExecPolicy>>(m_mesh);
     sim_env().get_data("particles", m_ptc);
-    sim_env().get_data("E", m_E);
-    sim_env().get_data("B", m_B);
+    if (m_distributed) {
+      // Global replicas for the particle path (see class comment).
+      sim_env().get_data("E_ptc", m_E);
+      sim_env().get_data("B_ptc", m_B);
+      // Owned cell bounds (same layout logic as the updater).
+      const int tris_per_face = m_mesh.m_N_tri / 20;
+      m_tri_lo = m_comm->angular_rank() * tris_per_face;
+      m_tri_hi = m_tri_lo + tris_per_face;
+      const int K = m_comm->n_radial_ranks();
+      const int base = m_mesh.m_N_r / K, rem = m_mesh.m_N_r - base * K;
+      auto slab_lo = [&](int r) {
+        return r * base + (r < rem ? r : rem);
+      };
+      m_layer_lo = slab_lo(m_comm->radial_rank());
+      m_layer_hi = slab_lo(m_comm->radial_rank() + 1);
+    } else {
+      sim_env().get_data("E", m_E);
+      sim_env().get_data("B", m_B);
+    }
     sim_env().params().get_value("inj_max_multiplicity", m_max_multiplicity);
     sim_env().params().get_value("inj_min_sigma", m_min_sigma);
     Scalar q_e = 1, m_e = 1;
@@ -103,8 +132,13 @@ class prismatic_surface_injector : public system_t {
           "Injector cold-sigma floor: no injection below sigma = {}",
           m_min_sigma);
     }
-    sim_env().get_data_optional("rho_abs", m_rho_abs);
-    sim_env().get_data("J", m_Jf);
+    if (m_distributed) {
+      sim_env().get_data_optional("rho_abs_ptc", m_rho_abs);
+      sim_env().get_data("J_ptc", m_Jf);
+    } else {
+      sim_env().get_data_optional("rho_abs", m_rho_abs);
+      sim_env().get_data("J", m_Jf);
+    }
     if ((m_max_multiplicity > Scalar(0) || m_min_sigma > Scalar(0)) &&
         m_rho_abs != nullptr) {
       m_J_primal.set_memtype(ExecPolicy::data_mem_type());
@@ -140,8 +174,11 @@ class prismatic_surface_injector : public system_t {
     if (m_interval <= 0 || step % m_interval != 0) return;
 
     // Occupancy throttle: stay clear of the buffer end so the updater
-    // and sort always have room.
-    size_t expected = size_t(2) * m_pairs_per_cell * m_mesh.m_N_tri *
+    // and sort always have room.  (Distributed: count owned tris only —
+    // this rank injects into its own cells.)
+    const size_t n_tri_eff =
+        m_distributed ? size_t(m_tri_hi - m_tri_lo) : size_t(m_mesh.m_N_tri);
+    size_t expected = size_t(2) * m_pairs_per_cell * n_tri_eff *
                       m_n_shells_eligible;
     if (m_ptc->number() + expected >
         size_t(m_buffer_frac * m_ptc->size())) {
@@ -203,9 +240,14 @@ class prismatic_surface_injector : public system_t {
         // volumetric mode (cell center below inj_r_max); with a
         // positive inj_eb_threshold additionally require unscreened
         // E_par at the prism center, |E.B| > threshold * |B|^2.
+        // Distributed: only this rank's owned cells are eligible.
         [inj_shells, inj_r_max, eb_thr, max_mult, min_sigma, m_over_q,
-         E_e, B_f, J_p, rho_abs]
+         E_e, B_f, J_p, rho_abs, tri_lo = m_tri_lo, tri_hi = m_tri_hi,
+         layer_lo = m_layer_lo, layer_hi = m_layer_hi]
         LAMBDA(int tri, int k, const auto& mp) {
+          if (tri < tri_lo || tri >= tri_hi || k < layer_lo ||
+              k >= layer_hi)
+            return false;
           if (inj_r_max > Scalar(0)) {
             Scalar r_c = Scalar(0.5) * (mp.radii[k] + mp.radii[k + 1]);
             if (r_c >= inj_r_max) return false;
@@ -297,6 +339,12 @@ class prismatic_surface_injector : public system_t {
 
  private:
   const prismatic_mesh& m_mesh;
+  const prismatic_mpi_comm* m_comm = nullptr;
+  bool m_distributed = false;
+  // Owned cell bounds (distributed): injection is restricted to
+  // tris in [m_tri_lo, m_tri_hi) x layers in [m_layer_lo, m_layer_hi).
+  int m_tri_lo = 0, m_tri_hi = 1 << 30;
+  int m_layer_lo = 0, m_layer_hi = 1 << 30;
   std::unique_ptr<prismatic_ptc_injector<ExecPolicy>> m_injector;
   nonown_ptr<prismatic_particle_data> m_ptc;
   nonown_ptr<prismatic_edge_field> m_E;

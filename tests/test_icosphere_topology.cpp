@@ -223,6 +223,62 @@ TEST_CASE("20-way angular decomposition with topology: all cochain types tile",
                [](auto const& p, int g) { return p.owns_vertex_cochain(g); });
 }
 
+// =========================================================================
+// Phase 7A.2 — incident-unit queries.
+// =========================================================================
+TEST_CASE("incident-unit queries at m=0 reproduce the incident-ico-face "
+          "CSR lists on every sphere element",
+          "[prismatic][topology][units]") {
+  for (int L : {1, 2, 3}) {
+    auto mesh = make_mesh(L);
+    auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+    int out[6];
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      int n = topo.edge_incident_units(e, 0, out);
+      REQUIRE(n == topo.edge_valence(e));
+      const int* faces = topo.edge_ico_faces(e);
+      for (int j = 0; j < n; ++j) REQUIRE(out[j] == faces[j]);
+    }
+    for (int v = 0; v < topo.N_vert_s(); ++v) {
+      int n = topo.vertex_incident_units(v, 0, out);
+      REQUIRE(n == topo.vertex_valence(v));
+      const int* faces = topo.vertex_ico_faces(v);
+      for (int j = 0; j < n; ++j) REQUIRE(out[j] == faces[j]);
+    }
+  }
+}
+
+TEST_CASE("incident-unit queries at general m: sorted, unique, consistent "
+          "with brute-force mapping of incident tris",
+          "[prismatic][topology][units]") {
+  const int L = 2;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+  for (int m = 0; m <= L; ++m) {
+    const int shift = 2 * (L - m);
+    int out[6];
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      std::set<int> expect{topo.edge_tri_a(e) >> shift,
+                           topo.edge_tri_b(e) >> shift};
+      int n = topo.edge_incident_units(e, m, out);
+      REQUIRE(n == int(expect.size()));
+      int j = 0;
+      for (int u : expect) REQUIRE(out[j++] == u);
+    }
+    for (int v = 0; v < topo.N_vert_s(); ++v) {
+      std::set<int> expect;
+      for (int j = 0; j < topo.vertex_tri_count(v); ++j)
+        expect.insert(topo.vertex_tris(v)[j] >> shift);
+      int n = topo.vertex_incident_units(v, m, out);
+      REQUIRE(n == int(expect.size()));
+      int j = 0;
+      for (int u : expect) REQUIRE(out[j++] == u);
+    }
+  }
+}
+
 TEST_CASE("combined 4×20 decomposition with topology: all cochain types tile",
           "[prismatic][topology][tiling]") {
   const int L = 2;

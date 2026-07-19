@@ -108,6 +108,49 @@ class icosphere_topology {
     return m_vertex_edges.data() + m_vertex_edge_offset[v];
   }
 
+  // ---- Incident-unit queries (Phase 7A) ----
+  // A level-m patch unit is a contiguous block of 4^(L−m) triangles
+  // (see prismatic_partition): unit_of_tri(t) = t >> 2(L−m).  These
+  // map an element's incident triangles through that arithmetic and
+  // deduplicate.  Results are written to `out` sorted ascending; the
+  // return value is the count of distinct units.  At m = 0 the results
+  // equal the incident-ico-face lists (edge_ico_faces / vertex_ico_-
+  // faces); the m = 0 CSR tables are retained — these wrappers do not
+  // replace them.
+  //
+  // Capacity: an edge has ≤ 2 incident units (its 2 adjacent tris), a
+  // vertex ≤ 6 (its fan).
+  int edge_incident_units(int e, int patch_level, int out[2]) const {
+    const int shift = 2 * (m_L - patch_level);
+    int a = m_edge_tris[2 * e + 0] >> shift;
+    int b = m_edge_tris[2 * e + 1] >> shift;
+    if (a == b) {
+      out[0] = a;
+      return 1;
+    }
+    out[0] = a < b ? a : b;
+    out[1] = a < b ? b : a;
+    return 2;
+  }
+
+  int vertex_incident_units(int v, int patch_level, int out[6]) const {
+    const int shift = 2 * (m_L - patch_level);
+    const int* tris = vertex_tris(v);
+    const int n = vertex_tri_count(v);
+    int cnt = 0;
+    for (int j = 0; j < n; ++j) {
+      const int u = tris[j] >> shift;
+      // Insertion into the short sorted output, skipping duplicates.
+      int k = 0;
+      while (k < cnt && out[k] < u) ++k;
+      if (k < cnt && out[k] == u) continue;
+      for (int w = cnt; w > k; --w) out[w] = out[w - 1];
+      out[k] = u;
+      ++cnt;
+    }
+    return cnt;
+  }
+
  private:
   int m_L = 0;
   int m_N_tri = 0;

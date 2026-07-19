@@ -13,6 +13,7 @@ prismatic_mpi_comm::prismatic_mpi_comm(prismatic_mpi_comm&& other) noexcept
       m_radial_rank(other.m_radial_rank),
       m_n_angular(other.m_n_angular),
       m_n_radial(other.m_n_radial),
+      m_canonical(other.m_canonical),
       m_owns_comms(other.m_owns_comms) {
   other.m_comm_angular = MPI_COMM_NULL;
   other.m_comm_radial = MPI_COMM_NULL;
@@ -29,6 +30,7 @@ prismatic_mpi_comm::operator=(prismatic_mpi_comm&& other) noexcept {
     m_radial_rank = other.m_radial_rank;
     m_n_angular = other.m_n_angular;
     m_n_radial = other.m_n_radial;
+    m_canonical = other.m_canonical;
     m_owns_comms = other.m_owns_comms;
     other.m_comm_angular = MPI_COMM_NULL;
     other.m_comm_radial = MPI_COMM_NULL;
@@ -111,6 +113,49 @@ prismatic_mpi_comm prismatic_mpi_comm::create(MPI_Comm world, int n_radial) {
   MPI_Comm flat_radial = MPI_COMM_NULL;
   MPI_Comm_split(world, out.m_angular_rank, out.m_radial_rank, &flat_radial);
 
+  int dims[1] = {n_radial};
+  int periods[1] = {0};
+  MPI_Cart_create(flat_radial, 1, dims, periods, 0, &out.m_comm_radial);
+  MPI_Comm_free(&flat_radial);
+
+  out.m_owns_comms = true;
+  return out;
+}
+
+prismatic_mpi_comm prismatic_mpi_comm::create(MPI_Comm world, int n_angular,
+                                              int n_radial) {
+  int world_size = 0, world_rank = 0;
+  MPI_Comm_size(world, &world_size);
+  MPI_Comm_rank(world, &world_rank);
+
+  if (n_radial < 1) {
+    throw std::runtime_error("prismatic_mpi_comm::create: n_radial < 1");
+  }
+  if (prismatic_partition::min_patch_level_for(n_angular) < 0) {
+    throw std::runtime_error(
+        "prismatic_mpi_comm::create: invalid angular rank count (need "
+        "A = 2^j or 5*2^j with A | 20*4^m)");
+  }
+  if (world_size != n_angular * n_radial) {
+    throw std::runtime_error(
+        "prismatic_mpi_comm::create: world_size must equal A * K");
+  }
+
+  prismatic_mpi_comm out;
+  out.m_n_angular = n_angular;
+  out.m_n_radial = n_radial;
+  out.m_radial_rank = world_rank / n_angular;
+  out.m_angular_rank = world_rank % n_angular;
+  out.m_canonical = true;
+
+  // Plain split for the angular sub-comm (no Dist_graph decoration —
+  // see header).  Rank numbering follows the split key = angular rank.
+  MPI_Comm_split(world, out.m_radial_rank, out.m_angular_rank,
+                 &out.m_comm_angular);
+
+  // Radial sub-comm with 1D Cartesian topology, as in the legacy path.
+  MPI_Comm flat_radial = MPI_COMM_NULL;
+  MPI_Comm_split(world, out.m_angular_rank, out.m_radial_rank, &flat_radial);
   int dims[1] = {n_radial};
   int periods[1] = {0};
   MPI_Cart_create(flat_radial, 1, dims, periods, 0, &out.m_comm_radial);

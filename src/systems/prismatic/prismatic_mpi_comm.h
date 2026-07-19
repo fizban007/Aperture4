@@ -46,7 +46,23 @@ class prismatic_mpi_comm {
 
   // Construct from a world communicator (typically MPI_COMM_WORLD) and
   // the number of radial slabs K.  Requires world_size == 20 * K.
+  // LEGACY identity rank→face wiring (angular rank == ico-face index,
+  // matching build_angular_halo_plan and the Phase-6 particle stack);
+  // removed in 7C along with that stack.
   static prismatic_mpi_comm create(MPI_Comm world, int n_radial_ranks);
+
+  // Generalized A·K decomposition (Phase 7A.4): A angular ranks
+  // (A | 20·4^m for some m ≤ L, validated) × K radial slabs, with
+  //   world_rank = radial_rank * A + angular_rank.
+  // Angular ranks follow the canonical path-ordered unit assignment
+  // (prismatic_partition::angular_units), and canonical_rank_order()
+  // reports true so consumers pick the generic plan builder.  The
+  // angular sub-comm carries no Dist_graph decoration: the halo
+  // backend posts plain Isend/Irecv to plan peer ranks and never
+  // queries the graph topology (placement hints can be added in 7E if
+  // a consumer appears).
+  static prismatic_mpi_comm create(MPI_Comm world, int n_angular_ranks,
+                                   int n_radial_ranks);
 
   // Degenerate single-process mode.
   static prismatic_mpi_comm single_rank();
@@ -68,6 +84,16 @@ class prismatic_mpi_comm {
     return m_n_angular == 1 && m_n_radial == 1;
   }
 
+  // True when built by the generalized create(world, A, K): angular
+  // ranks are canonical path-ordered unit ranges and partitions must be
+  // built with prismatic_partition::combined().  False for the legacy
+  // 20-face identity factory (partitions via combined_ico_face()).
+  bool canonical_rank_order() const { return m_canonical; }
+
+  // This rank's index in world = radial_rank * A + angular_rank.
+  int world_rank() const { return m_radial_rank * m_n_angular + m_angular_rank; }
+  int world_size() const { return m_n_radial * m_n_angular; }
+
  private:
   MPI_Comm m_comm_angular = MPI_COMM_NULL;
   MPI_Comm m_comm_radial = MPI_COMM_NULL;
@@ -75,6 +101,7 @@ class prismatic_mpi_comm {
   int m_radial_rank = 0;
   int m_n_angular = 1;
   int m_n_radial = 1;
+  bool m_canonical = false;
   bool m_owns_comms = false;
 
   void release();

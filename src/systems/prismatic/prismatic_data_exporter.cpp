@@ -189,7 +189,7 @@ void prismatic_data_exporter::init() {
   // writes it alone with the ordinary serial path.
   int world_rank = 0;
   if (m_distributed) {
-    world_rank = m_comm->radial_rank() * 20 + m_comm->angular_rank();
+    world_rank = m_comm->world_rank();
   }
   if (world_rank == 0) write_mesh();
 

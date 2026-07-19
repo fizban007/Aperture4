@@ -107,6 +107,13 @@ class prismatic_surface_injector : public system_t {
       sim_env().get_data("E_ptc", m_E);
       sim_env().get_data("B_ptc", m_B);
       // Owned cell bounds (same layout logic as the updater).
+      if (m_comm->canonical_rank_order()) {
+        Logger::print_err(
+            "Phase-6 particle systems support only the legacy 20xK "
+            "identity comm (create(world, K)); the generalized A*K comm "
+            "lands for particles in Phase 7C");
+        std::abort();
+      }
       const int tris_per_face = m_mesh.m_N_tri / 20;
       m_tri_lo = m_comm->angular_rank() * tris_per_face;
       m_tri_hi = m_tri_lo + tris_per_face;

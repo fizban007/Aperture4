@@ -32,9 +32,16 @@ dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh,
     m_mpi = comm;
     m_distributed = true;
     m_topo = icosphere_topology::build_from_mesh(m_mesh);
-    m_part = prismatic_partition::combined_ico_face(
-        m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(), comm->radial_rank(),
-        comm->angular_rank());
+    // Canonical A·K comms (create(world, A, K)) get the generalized
+    // path-ordered partition; the legacy 20·K identity comm keeps the
+    // per-ico-face partition until 7C retires it.
+    m_part = comm->canonical_rank_order()
+                 ? prismatic_partition::combined(
+                       m_mesh.m_L, m_mesh.m_N_r, comm->n_angular_ranks(),
+                       comm->n_radial_ranks(), comm->world_rank())
+                 : prismatic_partition::combined_ico_face(
+                       m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(),
+                       comm->radial_rank(), comm->angular_rank());
     m_part.set_topology(&m_topo);
     m_mesh_part = prismatic_mesh_partition::build(m_part, m_topo);
   }
@@ -132,9 +139,10 @@ void dec_field_solver<ExecPolicy>::init() {
     // stack is registered (replicator + partition-aware updater; the
     // updater verifies its own requirements and aborts otherwise).
     Logger::print_info(
-        "Distributed DEC solver: rank ({}, {}) of 20x{}, local edges {} / {} "
+        "Distributed DEC solver: rank ({}, {}) of {}x{}, local edges {} / {} "
         "global, local faces {} / {}",
-        m_mpi->angular_rank(), m_mpi->radial_rank(), m_mpi->n_radial_ranks(),
+        m_mpi->angular_rank(), m_mpi->radial_rank(),
+        m_mpi->n_angular_ranks(), m_mpi->n_radial_ranks(),
         m_dist.n_edges_local(), m_mesh.m_N_edges, m_dist.n_faces_local(),
         m_mesh.m_N_faces);
   }
@@ -700,9 +708,7 @@ void dec_field_solver<ExecPolicy>::dump_rank_fields(uint32_t step) {
   auto const& L_ve = m_mesh_part.layout(cochain_type::v_edge);
   auto const& L_tri = m_mesh_part.layout(cochain_type::tri_face);
   auto const& L_rect = m_mesh_part.layout(cochain_type::rect_face);
-  int world_rank = m_mpi == nullptr
-                       ? 0
-                       : m_mpi->radial_rank() * 20 + m_mpi->angular_rank();
+  int world_rank = m_mpi == nullptr ? 0 : m_mpi->world_rank();
   std::filesystem::create_directories(m_output_dir);
   char fname[512];
   std::snprintf(fname, sizeof(fname), "%s/rank%04d_step_%06u.h5",

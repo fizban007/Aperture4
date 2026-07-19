@@ -1,12 +1,15 @@
 // Vacuum rotating oblique dipole: DEC field solver only, no particles.
 // Tests electromagnetic radiation from a rotating inclined magnetic dipole.
 //
-// MPI (4.1b B2 + Phase 5): run under mpirun with 20*K ranks for the
+// MPI (4.1b B2 + Phase 5 + 7A): run under mpirun with A*K ranks for the
 // distributed solver — fields are local-sized and halo exchanges happen
-// inside the solver.  The exporter writes single global snapshot files
-// collectively (parallel HDF5), and the sph output gathers to rank 0;
-// both are bit-identical to the single-process files.  Per-rank raw
-// dumps remain available via "rank_dump_interval".
+// inside the solver.  The angular rank count A comes from the config
+// key "n_angular_ranks" (default 20; must satisfy A = 2^j or 5*2^j and
+// divide the world size); K = world_size / A radial slabs.  The
+// exporter writes single global snapshot files collectively (parallel
+// HDF5), and the sph output gathers to rank 0; both are bit-identical
+// to the single-process files.  Per-rank raw dumps remain available
+// via "rank_dump_interval".
 
 #include "framework/environment.h"
 #include "systems/prismatic/dec_field_solver.h"
@@ -40,12 +43,16 @@ int main(int argc, char* argv[]) {
 
   prismatic_mpi_comm mcomm;  // must outlive env.run()
   if (world_size > 1) {
-    if (world_size % 20 != 0) {
-      Logger::print_err("vacuum_dipole: MPI runs need 20*K ranks (got {})",
-                        world_size);
+    int A = env.params().get_as<int64_t>("n_angular_ranks", 20);
+    if (A < 1 || world_size % A != 0) {
+      Logger::print_err(
+          "vacuum_dipole: world size {} is not a multiple of "
+          "n_angular_ranks {}",
+          world_size, A);
       return 1;
     }
-    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, world_size / 20);
+    // create() validates A itself (2^j or 5*2^j).
+    mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, A, world_size / A);
   }
 
   auto solver = env.register_system<dec_field_solver_t>(

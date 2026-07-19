@@ -118,6 +118,13 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
     // range (tri indices are grouped per ico-face, 4^L each); owned
     // layers are the radial slab.  The slab map (base/rem) mirrors
     // prismatic_partition::radial_slab.
+    if (m_comm->canonical_rank_order()) {
+      Logger::print_err(
+          "Phase-6 particle systems support only the legacy 20xK "
+          "identity comm (create(world, K)); the generalized A*K comm "
+          "lands for particles in Phase 7C");
+      std::abort();
+    }
     const int tris_per_face = m_mesh.m_N_tri / 20;
     m_tri_lo = m_comm->angular_rank() * tris_per_face;
     m_tri_hi = m_tri_lo + tris_per_face;
@@ -129,8 +136,8 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
     };
     m_layer_lo = slab_lo(m_comm->radial_rank());
     m_layer_hi = slab_lo(m_comm->radial_rank() + 1);
-    m_world_rank = m_comm->radial_rank() * 20 + m_comm->angular_rank();
-    m_world_size = 20 * K;
+    m_world_rank = m_comm->world_rank();
+    m_world_size = m_comm->world_size();
 
     m_mig_count.set_memtype(ExecPolicy::data_mem_type());
     m_mig_cursor.set_memtype(ExecPolicy::data_mem_type());

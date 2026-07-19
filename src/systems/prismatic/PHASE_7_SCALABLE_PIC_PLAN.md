@@ -301,7 +301,43 @@ Original plan bullets (for reference):
    single-rank sum — all cochains, A ∈ {4, 20, 80} × K, including
    valence-5 corners and slab boundaries.
 
-### 7C — Local particle mesh + kernel conversion (~1.5–2 weeks, the core)
+### 7C — Local particle mesh + kernel conversion — COMPLETE 2026-07-19
+
+> Landed as commit `9d9aaec88`.  Notes vs the bullets below:
+> - ONE code path: the updater always runs on prismatic_ptc_mesh_local
+>   (single-rank = identity bundle built internally).  The POD ptrs
+>   mirror prismatic_mesh_ptrs' interface, so kernels are TEMPLATED on
+>   the mesh-ptrs type (bodies unchanged).  Push/deposit/gather/walk are
+>   bit-exact vs the global path (pinned by test); the Bv LSQ fit
+>   differs by a few ULP across template instantiations (FP contraction)
+>   — tolerated, not a conversion bug.
+> - The local mesh is built at REGISTRATION time, not init: the
+>   injectors' init runs first (registration order = update order) and
+>   needs ptc_mesh().  This ordering bit segfaulted the first smoke.
+> - Field sync is `updater->sync_fields(step)` — collective, idempotent
+>   per step, and PULLED FORWARD by the surface injector before any
+>   divergent early-out (occupancy throttle is per-rank).  It exchanges
+>   E/B pic halos and computes+exchanges Bv (owned-slot fit with
+>   GLOBAL-shell boundary classes; 3 scalar vertex halos via the
+>   exchanger's new base_off).  After reduce(), J and rho_abs are
+>   re-EXCHANGED so next-step injector stencils see owner-summed ghosts.
+> - Radial locality is a pointer window: local radii = &global[k0].
+> - cartesian_to_local gains a T_halo containment guard (absorb on
+>   clearly-outside walk results); the cross-rank LIVE comparison is
+>   the loud detector.
+> - dec_field_solver takes an injected bundle (mp_ext); PIC mains build
+>   ONE pic-depth bundle for all systems.  Migration wire carries
+>   GLOBAL cells (migrate_dest/wire_cell on the ptrs; old
+>   prism_migrate_dest deleted, as are replicator + field_sync).
+> - Acceptance at {1, 8=4×2, 20, 40=20×2, 80×1}: SEEDED 640 / LIVE 630 /
+>   MISOWNED 0 everywhere (Phase-6 baseline), outputs ≤ 5.4e-5 rel;
+>   migration stress (tests/config_prismatic_pic_stress.toml, p0=10):
+>   LIVE 529 identical at 1/8/80.  ns_rotator 8-rank smoke with
+>   volumetric injection clean.  ESUM varies ~1e-8 run-to-run on GPU
+>   (atomic deposit ordering feeding back through fields) — compare
+>   counts exactly, energies to ~7 digits.
+
+Original plan bullets (for reference):
 
 1. `prismatic_ptc_mesh_local` (+ POD ptrs): local sphere numbering,
    remapped sphere tables, localized recovery-weight rows,

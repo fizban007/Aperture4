@@ -95,6 +95,20 @@ class H5File {
                           const std::vector<hsize_t>& run_len,
                           const std::string& name);
 
+  // Create a 1D dataset without writing any data (collective on
+  // parallel files — all ranks must call).  Fill it with write_slab.
+  template <typename T>
+  void create_dataset(const std::string& name, size_t len_total);
+  // Write a contiguous slab [file_off, file_off + len) of an EXISTING
+  // dataset.  Collective on parallel files: every rank must call the
+  // same number of times per dataset; a rank with nothing to add
+  // passes len = 0 (empty selection).  Lets large datasets be written
+  // in bounded-memory chunks (dataset creation is separate because
+  // H5Dcreate can only run once per name).
+  template <typename T>
+  void write_slab(const T* data, size_t file_off, size_t len,
+                  const std::string& name);
+
   // True when a dataset (or link) of this name exists in the file.
   bool exists(const std::string& name) const;
 

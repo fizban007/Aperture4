@@ -56,6 +56,9 @@ void prismatic_checkpointer<ExecPolicy>::init() {
   sim_env().params().get_value("checkpoint_dir", m_dir);
   sim_env().params().get_value("restart_from", m_restart_from);
   if (m_keep < 1) m_keep = 1;
+  int64_t win = 0;
+  sim_env().params().get_value("checkpoint_ptc_window", win);
+  if (win > 0) m_ptc_window = size_t(win);
 
   // Fingerprint values (validated loudly on load).  Radii come from the
   // mesh itself so the comparison is independent of config defaults.
@@ -197,10 +200,17 @@ void prismatic_checkpointer<ExecPolicy>::write_checkpoint(
 
   // ---- Particles: live macros only, one concatenated global dataset,
   // GLOBAL cells widened to uint64 on the wire (plan D2/D3).
+  //
+  // BOUNDED-MEMORY staging: the particle buffer's host mirror can
+  // exceed host RAM (1.2B macros = ~55 GB against 61 GiB on the L6
+  // workstation — the first a60 checkpoint OOM-killed the run by
+  // copy_to_host'ing all of it at once).  Only the cell component is
+  // staged whole (4 B/slot, needed for the live count); every other
+  // component is copied device→host and written in fixed windows, so
+  // the checkpoint's peak host footprint is ~WIN·60 B (~2 GB) no
+  // matter how large the buffer is.
   uint64_t n_live = 0, ptc_total = 0;
   if (m_ptc != nullptr && m_updater != nullptr) {
-    m_ptc->copy_to_host();
-    const auto hp = m_ptc->get_host_ptrs();
     const auto& lmesh = m_updater->ptc_mesh();
     const auto& l2g = lmesh.tri_l2g_host();
     const int n_tri_loc = lmesh.n_tri_local();
@@ -208,27 +218,11 @@ void prismatic_checkpointer<ExecPolicy>::write_checkpoint(
     const int k0 = lmesh.k0();
     const size_t num = m_ptc->number();
 
-    std::vector<Scalar> comps[8];
-    std::vector<uint64_t> cells, ids;
-    std::vector<uint32_t> flags;
+    m_ptc->cell.copy_to_host(0, num);
+    const uint32_t* cells_h = m_ptc->cell.host_ptr();
     for (size_t n = 0; n < num; ++n) {
-      if (hp.cell[n] == empty_cell) continue;
-      comps[0].push_back(hp.x1[n]);
-      comps[1].push_back(hp.x2[n]);
-      comps[2].push_back(hp.x3[n]);
-      comps[3].push_back(hp.p1[n]);
-      comps[4].push_back(hp.p2[n]);
-      comps[5].push_back(hp.p3[n]);
-      comps[6].push_back(hp.E[n]);
-      comps[7].push_back(hp.weight[n]);
-      const int lay = int(hp.cell[n]) / n_tri_loc;
-      const int tri = int(hp.cell[n]) - lay * n_tri_loc;
-      cells.push_back(uint64_t(k0 + lay) * uint64_t(N_tri_glob) +
-                      uint64_t(l2g[tri]));
-      flags.push_back(hp.flag[n]);
-      ids.push_back(hp.id[n]);
+      if (cells_h[n] != empty_cell) n_live++;
     }
-    n_live = cells.size();
 
     uint64_t offset = 0;
     ptc_total = n_live;
@@ -243,24 +237,83 @@ void prismatic_checkpointer<ExecPolicy>::write_checkpoint(
     static const char* comp_names[8] = {"ptc_x1", "ptc_x2", "ptc_x3",
                                         "ptc_p1", "ptc_p2", "ptc_p3",
                                         "ptc_E",  "ptc_weight"};
+    for (int c = 0; c < 8; ++c) {
+      file.create_dataset<Scalar>(comp_names[c], ptc_total);
+    }
+    file.create_dataset<uint64_t>("ptc_cell", ptc_total);
+    file.create_dataset<uint32_t>("ptc_flag", ptc_total);
+    file.create_dataset<uint64_t>("ptc_id", ptc_total);
+
+    // Window rounds over the RAW slot range.  Collective writes need
+    // the same call count on every rank, so the round count is the
+    // maximum over ranks; exhausted ranks write empty slabs.
+    uint64_t n_rounds = (num + m_ptc_window - 1) / m_ptc_window;
     if (m_distributed) {
-      for (int c = 0; c < 8; ++c) {
-        file.write_parallel(comps[c].data(), n_live, ptc_total, offset,
-                            n_live, 0, comp_names[c]);
+      MPI_Allreduce(MPI_IN_PLACE, &n_rounds, 1, MPI_UINT64_T, MPI_MAX,
+                    m_comm->world());
+    }
+    std::vector<Scalar> comps[8];
+    std::vector<uint64_t> cells, ids;
+    std::vector<uint32_t> flags;
+    for (auto& v : comps) v.reserve(m_ptc_window);
+    cells.reserve(m_ptc_window);
+    ids.reserve(m_ptc_window);
+    flags.reserve(m_ptc_window);
+
+    uint64_t written = 0;
+    for (uint64_t r = 0; r < n_rounds; ++r) {
+      const size_t p0 = std::min(size_t(r * m_ptc_window), num);
+      const size_t p1 = std::min(p0 + m_ptc_window, num);
+      for (auto& v : comps) v.clear();
+      cells.clear();
+      ids.clear();
+      flags.clear();
+      if (p1 > p0) {
+        const size_t span = p1 - p0;
+        m_ptc->x1.copy_to_host(p0, span);
+        m_ptc->x2.copy_to_host(p0, span);
+        m_ptc->x3.copy_to_host(p0, span);
+        m_ptc->p1.copy_to_host(p0, span);
+        m_ptc->p2.copy_to_host(p0, span);
+        m_ptc->p3.copy_to_host(p0, span);
+        m_ptc->E.copy_to_host(p0, span);
+        m_ptc->weight.copy_to_host(p0, span);
+        m_ptc->flag.copy_to_host(p0, span);
+        m_ptc->id.copy_to_host(p0, span);
+        const auto hp = m_ptc->get_host_ptrs();
+        for (size_t n = p0; n < p1; ++n) {
+          if (hp.cell[n] == empty_cell) continue;
+          comps[0].push_back(hp.x1[n]);
+          comps[1].push_back(hp.x2[n]);
+          comps[2].push_back(hp.x3[n]);
+          comps[3].push_back(hp.p1[n]);
+          comps[4].push_back(hp.p2[n]);
+          comps[5].push_back(hp.p3[n]);
+          comps[6].push_back(hp.E[n]);
+          comps[7].push_back(hp.weight[n]);
+          const int lay = int(hp.cell[n]) / n_tri_loc;
+          const int tri = int(hp.cell[n]) - lay * n_tri_loc;
+          cells.push_back(uint64_t(k0 + lay) * uint64_t(N_tri_glob) +
+                          uint64_t(l2g[tri]));
+          flags.push_back(hp.flag[n]);
+          ids.push_back(hp.id[n]);
+        }
       }
-      file.write_parallel(cells.data(), n_live, ptc_total, offset, n_live,
-                          0, "ptc_cell");
-      file.write_parallel(flags.data(), n_live, ptc_total, offset, n_live,
-                          0, "ptc_flag");
-      file.write_parallel(ids.data(), n_live, ptc_total, offset, n_live, 0,
-                          "ptc_id");
-    } else {
+      const size_t staged = cells.size();
       for (int c = 0; c < 8; ++c) {
-        file.write(comps[c].data(), n_live, comp_names[c]);
+        file.write_slab(comps[c].data(), offset + written, staged,
+                        comp_names[c]);
       }
-      file.write(cells.data(), n_live, "ptc_cell");
-      file.write(flags.data(), n_live, "ptc_flag");
-      file.write(ids.data(), n_live, "ptc_id");
+      file.write_slab(cells.data(), offset + written, staged, "ptc_cell");
+      file.write_slab(flags.data(), offset + written, staged, "ptc_flag");
+      file.write_slab(ids.data(), offset + written, staged, "ptc_id");
+      written += staged;
+    }
+    if (written != n_live) {
+      Logger::print_err(
+          "Checkpoint writer staged {} macros but counted {} live",
+          written, n_live);
+      std::abort();
     }
 
     // Per-WRITING-rank id counters (plan D4).
@@ -558,23 +611,46 @@ void prismatic_checkpointer<ExecPolicy>::load_generation(
     const uint64_t lo = r * base + std::min(r, rem);
     const uint64_t n_chunk = base + (r < rem ? 1 : 0);
 
-    std::vector<Scalar> comps[8];
-    std::vector<uint64_t> cells(n_chunk), ids(n_chunk);
-    std::vector<uint32_t> flags(n_chunk);
+    // Bounded-memory read: same windowing as the writer (collective
+    // reads and the routing Alltoallv need matching call counts, so
+    // the round count is the max over ranks; exhausted ranks pass
+    // empty rounds through).
+    uint64_t n_rounds = (n_chunk + m_ptc_window - 1) / m_ptc_window;
+    if (m_distributed) {
+      MPI_Allreduce(MPI_IN_PLACE, &n_rounds, 1, MPI_UINT64_T, MPI_MAX,
+                    m_comm->world());
+    }
     static const char* comp_names[8] = {"ptc_x1", "ptc_x2", "ptc_x3",
                                         "ptc_p1", "ptc_p2", "ptc_p3",
                                         "ptc_E",  "ptc_weight"};
-    for (int c = 0; c < 8; ++c) {
-      comps[c].resize(n_chunk);
-      file.read_subset(comps[c].data(), n_chunk, comp_names[c], lo, n_chunk,
-                       0);
-    }
-    file.read_subset(cells.data(), n_chunk, "ptc_cell", lo, n_chunk, 0);
-    file.read_subset(flags.data(), n_chunk, "ptc_flag", lo, n_chunk, 0);
-    file.read_subset(ids.data(), n_chunk, "ptc_id", lo, n_chunk, 0);
-
+    std::vector<Scalar> comps[8];
+    std::vector<uint64_t> cells, ids;
+    std::vector<uint32_t> flags;
+    // Keep .data() non-null even on all-empty rounds (HDF5 rejects a
+    // null buffer regardless of the empty selection).
+    for (auto& v : comps) v.reserve(1);
+    cells.reserve(1);
+    ids.reserve(1);
+    flags.reserve(1);
     const size_t n_before = m_ptc->number();
-    m_updater->inject_wire_particles(comps, cells, flags, ids);
+    uint64_t done = 0;
+    for (uint64_t rr = 0; rr < n_rounds; ++rr) {
+      const uint64_t len = std::min<uint64_t>(m_ptc_window,
+                                              n_chunk - done);
+      for (int c = 0; c < 8; ++c) {
+        comps[c].resize(len);
+        file.read_subset(comps[c].data(), len, comp_names[c], lo + done,
+                         len, 0);
+      }
+      cells.resize(len);
+      ids.resize(len);
+      flags.resize(len);
+      file.read_subset(cells.data(), len, "ptc_cell", lo + done, len, 0);
+      file.read_subset(flags.data(), len, "ptc_flag", lo + done, len, 0);
+      file.read_subset(ids.data(), len, "ptc_id", lo + done, len, 0);
+      m_updater->inject_wire_particles(comps, cells, flags, ids);
+      done += len;
+    }
     uint64_t n_loaded = m_ptc->number() - n_before;
     if (m_distributed) {
       MPI_Allreduce(MPI_IN_PLACE, &n_loaded, 1, MPI_UINT64_T, MPI_SUM,

@@ -112,6 +112,11 @@ class prismatic_checkpointer : public system_t {
 
   int m_interval = 0;
   int m_keep = 2;
+  // Particle staging window (raw slots per round) for bounded-memory
+  // writes/reads: ~60 B host staging per slot, independent of
+  // max_ptc_num (whose host mirror can exceed host RAM).  Config
+  // "checkpoint_ptc_window"; tests shrink it to force multi-round I/O.
+  size_t m_ptc_window = size_t(1) << 25;  // 33.5M ≈ 2 GB staging
   std::string m_dir;
   std::string m_restart_from;
   // Config fingerprint stored with every generation and validated

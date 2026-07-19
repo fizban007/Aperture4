@@ -225,6 +225,59 @@ H5File::write_parallel(const T* array, size_t array_size, size_t len_total,
 
 template <typename T>
 void
+H5File::create_dataset(const std::string& name, size_t len_total) {
+  hsize_t dims[1] = {len_total};
+  auto filespace_id = H5Screate_simple(1, dims, NULL);
+  auto dataset_id =
+      H5Dcreate2(m_file_id, name.c_str(), h5datatype<T>(), filespace_id,
+                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  H5Dclose(dataset_id);
+  H5Sclose(filespace_id);
+}
+
+template <typename T>
+void
+H5File::write_slab(const T* data, size_t file_off, size_t len,
+                   const std::string& name) {
+  auto dataset_id = H5Dopen(m_file_id, name.c_str(), H5P_DEFAULT);
+  auto filespace_id = H5Dget_space(dataset_id);
+  hsize_t mem_dims[1] = {len > 0 ? len : 1};
+  auto memspace_id = H5Screate_simple(1, mem_dims, NULL);
+
+  if (len > 0) {
+    hsize_t count[1] = {1};
+    hsize_t stride[1] = {1};
+    hsize_t block[1] = {len};
+    hsize_t f_off[1] = {file_off};
+    hsize_t m_off[1] = {0};
+    H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, f_off, stride, count,
+                        block);
+    H5Sselect_hyperslab(memspace_id, H5S_SELECT_SET, m_off, stride, count,
+                        block);
+  } else {
+    H5Sselect_none(filespace_id);
+    H5Sselect_none(memspace_id);
+  }
+
+  auto plist_id = H5Pcreate(H5P_DATASET_XFER);
+  if (m_is_parallel) {
+    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+  }
+  auto status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id,
+                         filespace_id, plist_id, data);
+
+  H5Dclose(dataset_id);
+  H5Sclose(filespace_id);
+  H5Sclose(memspace_id);
+  H5Pclose(plist_id);
+
+  if (status < 0) {
+    Logger::print_err("H5Dwrite (slab) error! Status is {}", status);
+  }
+}
+
+template <typename T>
+void
 H5File::write_parallel_runs(const T* array, size_t array_size,
                             size_t len_total,
                             const std::vector<hsize_t>& mem_off,

@@ -162,6 +162,14 @@ Behavior notes:
   through the migration machinery.  Watch the particle-buffer size: a
   different decomposition concentrates particles differently, and the
   restore aborts loudly on `max_ptc_num` overflow.
+- **Host memory**: particle staging is windowed
+  (`checkpoint_ptc_window`, default 33.5M slots ≈ 2 GB), so a
+  checkpoint's host footprint is bounded regardless of `max_ptc_num` —
+  whose host_device mirror (48 B/slot) can exceed host RAM and live in
+  swap untouched.  Found the hard way: the first L6 a60 checkpoint
+  copy_to_host'ed the full 55 GB mirror on a 61 GiB workstation and
+  the kernel killed the run mid-write (the tmp/ + rename design
+  contained it — no good generation was harmed).
 - **Sizing** (scaled from L6 t15: 654 M live macros, 7.2 GB fields): a
   generation is particle-dominated at ~60 B/macro on disk (uint64
   cells) — ~16 GB at L6, ~2 TB at L8, ~15 TB at L9, ~100–200 TB at

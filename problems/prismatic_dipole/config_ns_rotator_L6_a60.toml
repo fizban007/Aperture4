@@ -1,0 +1,82 @@
+# L6 oblique production run (a60, 2026-07-19): the t15 recipe verbatim
+# with obliquity = 60 deg (1.0471975511965976 rad).  Serves as (1) a
+# consistency check of the full stack after the checkpoint/restart +
+# int64-index work and (2) the first inclined-rotator PIC test at L6.
+#   - use_static_background subtracts only the ALIGNED component
+#     Bp*cos(60 deg) = 500 (the only obliquity-safe static choice); the
+#     rotating transverse component is evolved in the delta fields.
+#   - Checkpointing every 2560 steps (0.5 P, ~35 min at t15's plateau
+#     step cost); restart_from = "auto" makes THIS SAME config resume
+#     from the newest complete generation on relaunch.
+#
+# ----- t15 header for provenance: -----
+# L6 production run (t15, 2026-07-18): t14 recipe scaled to L=6.
+#   Lineage: t14 = supply-honest L5 reference (un-throttled equilibrium
+#   ~325M at 0.04 GJ weight + r^2 coarsening beyond r=5, GCA 0.1 +
+#   E<0.9B margin).  Changes for L6 (user-directed):
+#   - inj_weight x1.5 on top of t14 -> 6.87e-4 (0.06 GJ fraction).
+#   - ptc_absorb_radius 40 -> 13: the transported r>10 population
+#     dominated the L5 count (~60% beyond r=10) and diagnostics only
+#     use r<8; absorbing just outside the injection zone harvests it.
+#   - max_ptc_num 1.2B (~55GB particles + 7.2GB L6 fields of 92GB free);
+#     watch for first-throttle = overflow signal.
+#   Scalings: N_r 102->204 (same geometric shells, same r-range),
+#   dt = P/5120 (CFL, half of L5), 6P = 30720 steps, dumps every 640
+#   (same physical cadence), damping_length 22->44 shells (same
+#   physical entrance r ~ 19.8 = quarter-point).
+#   NOTE: inj_min_sigma (6.25 in t9) has been absent since t10 — kept
+#   absent here for t14-faithfulness; revisit if the belt overloads.
+dt = 0.0049087385212340515
+max_steps = 30720
+subdivision_level = 6
+N_r = 204
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 1.0471975511965976
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 44
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- particles ---
+max_ptc_num = 1200000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 13.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection ---
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 10
+inj_weight = 6.87e-4
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-3
+inj_r_max = 10.0
+
+fld_output_interval = 640
+output_dir = "Data_ns_rotator_L6_a60"
+sph_N_theta = 64
+sph_N_phi = 128
+inj_max_multiplicity = 10.0
+# GCA hybrid: mu = 0 injection, GCA everywhere magnetized (0.1 + E<0.9B
+# margin), Boris near B nulls.
+use_gca = true
+include_curvature = true
+gca_switch_omegac_dt = 0.1
+gca_zero_mu_on_capture = false
+inj_gca = true
+inj_weight_r_scale = 5.0
+
+# --- checkpoint/restart (new since t15; t15 died SIGKILLed at 2.5 P) ---
+checkpoint_interval = 2560
+checkpoint_keep = 2
+restart_from = "auto"

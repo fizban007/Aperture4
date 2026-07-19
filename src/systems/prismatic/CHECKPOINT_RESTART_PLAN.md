@@ -14,17 +14,21 @@
 > any run longer than one allocation.  (See the t15 postmortem in the
 > session memory / ROADMAP notes.)
 >
-> **Target scale: at least L12, not L8 (user directive 2026-07-19).**
-> Design choices must be judged against L12 numbers, where several
-> things that are merely uncomfortable at L8 become flatly impossible:
-> L12 means 20·4^12 ≈ 3.4×10^8 sphere tris, N_r ~ 1.3×10^4 shells
-> (doubling per level from 204 at L6), ~4×10^12 prisms, and trillions
-> of macroparticles.  Concretely for THIS plan: (a) the on-disk global
-> cell index must be 64-bit from day one (§D2); (b) checkpoint
-> generations are multi-TB to PB — sizing and I/O notes in §D5;
-> (c) every per-rank O(global) loop in the reader/writer is forbidden,
-> not merely slow (see the appendix, upgraded from "watch item" to
-> "prerequisite for the target scale").
+> **Target scale: L10 (user decision 2026-07-19, revised down from an
+> initial L12 ambition — L12 arithmetic kept in the appendix for
+> reference).**  L10 means 20·4^10 ≈ 2.1×10^7 sphere tris (0.062° ≈
+> 3.7 arcmin quasi-uniform spacing), N_r ≈ 3.3×10^3 shells (doubling
+> per level from 204 at L6), ~6.9×10^10 prisms, O(10^12) macros —
+> still a large step beyond current global pulsar PIC, and a
+> realistic 1000–2000-node Frontier run (memory floor ~460 nodes at
+> perfect packing).  Design consequences for THIS plan: (a) the
+> on-disk global cell index must be 64-bit from day one — the uint32
+> wall is at ~L9, BELOW the target (§D2); (b) checkpoint generations
+> are ~10^2 TB — sizing and I/O notes in §D5; (c) per-rank
+> O((N_r+1)·4^L) TIME loops are forbidden (hour-scale at L10), while
+> per-rank O(4^L) MEMORY is ~GB at L10 — tolerable, which is what
+> keeps the distributed sphere stage OFF the critical path (see the
+> appendix ranking).
 
 ## Design decisions (agreed with the user 2026-07-19)
 
@@ -95,20 +99,24 @@ fields + ~16 GB particles (48 B × ~325 M live) per generation —
 seconds-to-a-minute on Lustre, ~35 GB disk for two generations.
 
 *Sizing at the target scale.*  State grows ~8× per level (4× angular
-× 2× radial), so a generation is ~1 TB around L8 and reaches the
-**0.1–1 PB range at L12** (fields alone: ~4×10^12 slots × ~30 B over
-six cochains ≈ 10^2 TB; particles dominate on top of that).  This is
-inherent — checkpoint size is O(evolved state) and cannot be designed
-away — but it constrains the I/O pattern: the single-shared-file
-collective write is fine through ~L8–L9; at L12 a single HDF5 file
-hits metadata/lock contention at O(10^4–10^5) writers, so keep the
-format schema but plan for HDF5 **subfiling** (or per-N-rank file
-shards with an index dataset) as a switch-over that changes only the
-file layout, not the global-indexed schema.  Do NOT implement
-sharding now — just don't let any code assume "one file per
-checkpoint" outside the writer/reader pair.  `checkpoint_keep = 2`
-at L12 is a real filesystem-quota line item; document it in
-LAUNCH_SCALING.md.
+× 2× radial).  Scaling the measured L6 t15 numbers (654 M live
+macros, 7.2 GB fields): a generation is ~2 TB at L8, ~15 TB at L9,
+and **~100–200 TB at L10** (particle-dominated: ~2.7×10^12 macros ×
+~60 B on disk with uint64 cells; the stored field subset is only a
+few TB).  This is inherent — checkpoint size is O(evolved state) and
+cannot be designed away.  Consequences: `checkpoint_keep = 2` at L10
+is ~0.3–0.4 PB of Lustre — a real quota line item (document in
+LAUNCH_SCALING.md) — and a write is minutes-to-tens-of-minutes at
+realistic aggregate bandwidth, so checkpoint cadence must be chosen
+against wall-time, not taken for free.  I/O pattern: the
+single-shared-file collective write is fine through ~L8–L9; at L10's
+~10^4 writers a single HDF5 file is BORDERLINE (metadata/lock
+contention), so keep the format schema but expect to switch the file
+layout to HDF5 **subfiling** (or per-N-rank shards with an index
+dataset) for the target runs — a change confined to the
+writer/reader pair, not the global-indexed schema.  Do NOT implement
+sharding in the first pass; just don't let any code outside the
+writer/reader assume "one file per checkpoint".
 
 ## Implementation order
 
@@ -211,48 +219,56 @@ fully under prismatic control.
 - Single-rank runs use identity layouts, global-sized fields — the
   same schema falls out naturally; keep one code path where possible.
 
-## Appendix — scale-ceiling items (target is ≥ L12: prerequisites, not watch items)
+## Appendix — scale-ceiling items ranked against the L10 target
 
 The checkpoint FORMAT (global-indexed, layout-agnostic) survives to
 any L untouched; these are the surrounding pieces that don't.  Ranked
-by the level at which they break:
+by the level at which they break.  Items 1 and 2 sit BELOW or AT the
+L10 target and are prerequisites; item 3 sits above it and stays
+deferred — this demotion is the main practical payoff of choosing
+L10 over L12.
 
-**1. `uint32_t` global cell overflow (~L9) — hard correctness wall.**
-Global cell = k·N_tri + tri exceeds 2^32 near L9 (see D2).  The
-checkpoint stores uint64 from day one, so the FORMAT is safe, but the
-in-memory migration wire, `wire_cell()`, `migrate_dest()`, sort keys
-and every `uint32_t cell` in the particle structs must widen (or move
-to a (tri, k) pair encoding) before any run above ~L8.  Silent
+**1. `uint32_t` global cell overflow (~L9) — hard correctness wall,
+PREREQUISITE.**  Global cell = k·N_tri + tri exceeds 2^32 near L9
+(5.2M tris × ~1.6k shells ≈ 8.6×10^9; L10 is ~6.9×10^10, see D2).
+The checkpoint stores uint64 from day one, so the FORMAT is safe, but
+the in-memory migration wire, `wire_cell()`, `migrate_dest()`, sort
+keys and every `uint32_t cell` in the particle structs must widen (or
+move to a (tri, k) pair encoding) before any run above ~L8.  Silent
 wraparound, not a crash — audit, don't wait for symptoms.
 
 **2. `distributed_cochain_layout::build` O((N_r+1)·4^L) scans —
-unusable long before L12.**  Init discovers ownership by scanning all
+PREREQUISITE.**  Init discovers ownership by scanning all
 (N_r+1)·N_s global indices per cochain per rank, re-answering the same
 ANGULAR ownership question N_r+1 times (ownership factorizes:
 owns(g) = owns_shell(k) && owns_sphere(s)).  ~1–3 s/rank at L6,
-~1–2 min at L8 (annoying); at L12 the scan is ~4×10^12 indices per
-cochain per rank — HOURS of init per rank, flatly impossible.  Fix
+~1–2 min at L8; at L10 the scan is ~10^11 indices per cochain per
+rank — HOUR-scale init, unacceptable (and paid again on every
+restart, which is the whole point of this plan).  Fix
 (constructor-only, no format or consumer changes): angular ownership
 bitmap once per cochain kind (O(4^L)), then ENUMERATE the owned set as
 (owned shell range × owned sphere list), ghosts from the halo plans —
-O(4^L + local).  Mandatory before the target scale; do it whenever
-init time first becomes measurable.
+O(4^L + local), where the O(4^L) part is ~10^7 at L10 — trivial.
+Do this alongside the checkpoint work.
 
-**3. Replicated O(4^L) angular stage — memory wall at ~L10–L12.**
-The F8 design ("angular tables replicated per rank") was budgeted for
-L8, where 20·4^8 ≈ 1.3×10^6 tris keeps the sphere-stage tables at tens
-of MB — bearable.  At L12 the same tables (tri/edge/vertex geometry,
-fan CSR, recovery weights, tri_verts) are ~10^8–10^9 doubles ≈
-**tens of GB PER RANK** — impossible on GPU nodes.  So the
-"distributed subdivision / distributed sphere stage" item, previously
-parked as out-of-scope "L9+", is ON THE CRITICAL PATH to L12: the
-sphere stage itself must become patch-local (each rank builds only its
-units' 1-ring), and with it everything that today does per-rank
-O(4^L) work (subdivision, recovery-weight fits, the bitmap in item 2,
-the exporter's aggregation tables).  This is a real project of its own
-— plan it as its own phase; nothing in the checkpoint schema needs to
-change when it lands, which is exactly why the schema is global-indexed.
+**3. Replicated O(4^L) angular stage — memory wall at ~L11+,
+DEFERRED.**  The sphere-stage tables replicated per rank (tri/edge/
+vertex geometry, fan CSR, tri_verts, recovery weights) are tens of MB
+at L8 and an estimated **~2–4 GB per rank at L10** — a noticeable but
+survivable slice of a 64 GB GCD next to the particle buffer.  At L11
+that becomes ~10–15 GB and at L12 tens of GB — impossible.  So the
+"distributed subdivision / patch-local sphere stage" project is
+needed only if the target moves above L10 again; it stays parked as
+out-of-scope, with one obligation now: at init, LOG the replicated-
+table total alongside the existing memory audit so the estimate is
+replaced by a measurement the first time an L9/L10 config is built.
+Nothing in the checkpoint schema changes if it ever lands — which is
+exactly why the schema is global-indexed.
 
-Rule of thumb going forward: **O(4^L) per rank in memory or time was
-acceptable under the L8 assumption and is DISQUALIFYING under L12.**
-New code should be O(local) + O(A·K) unless explicitly justified.
+Rule of thumb going forward: per-rank **O((N_r+1)·4^L) TIME is
+disqualifying** at the target scale; per-rank **O(4^L) MEMORY (~GB at
+L10) is a budgeted line item** — acceptable case-by-case, never
+free.  New code should be O(local) + O(A·K) unless explicitly
+justified.  (For reference, the abandoned L12 numbers: 3.4×10^8
+tris, ~4×10^12 prisms, replicated tables tens of GB/rank, generations
+0.1–1 PB — every item above becomes mandatory including item 3.)

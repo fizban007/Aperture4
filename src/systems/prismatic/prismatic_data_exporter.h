@@ -4,6 +4,7 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_aggregation.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
 #include "utils/hdf_wrapper.h"
@@ -82,6 +83,17 @@ class prismatic_data_exporter : public system_t {
   // can render the downsampled mesh standalone.
   int m_output_radial_stride  = 1;
   int m_output_angular_stride = 1;
+  // 7D F9: TRUE coarse-cochain aggregation (fld_output_aggregate with
+  // fld_output_angular_level = j and the radial stride as R).  Replaces
+  // full snapshots with bona fide level-(L−j) DEC dumps; works in both
+  // modes (distributed ranks sum partials over owned fine elements and
+  // MPI-reduce — no slab-alignment constraint needed at all).
+  bool m_aggregate = false;
+  int m_agg_level = 0;
+  prismatic_coarse_aggregator m_agg;
+  std::vector<double> m_agg_E, m_agg_B, m_agg_J;
+  std::vector<double> m_agg_rho, m_agg_ra, m_agg_gw;
+  void write_aggregated(uint32_t step, double time);
   std::string m_output_dir = "Data";
   double m_time = 0.0;
 

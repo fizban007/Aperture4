@@ -59,7 +59,24 @@ void prismatic_data_exporter::init() {
                                m_output_radial_stride);
   sim_env().params().get_value("fld_output_angular_stride",
                                m_output_angular_stride);
+  sim_env().params().get_value("fld_output_aggregate", m_aggregate);
+  sim_env().params().get_value("fld_output_angular_level", m_agg_level);
   sim_env().params().get_value("output_dir", m_output_dir);
+
+  if (m_aggregate) {
+    // Chain-map aggregation (F9): coarse level L - j, radial stride R.
+    // Throws loudly on an invalid (j, R).
+    m_agg.build(m_mesh, m_agg_level,
+                m_output_radial_stride < 1 ? 1 : m_output_radial_stride);
+    m_output_radial_stride = 1;   // disable the legacy sampling path
+    m_output_angular_stride = 1;
+    m_agg_E.resize(m_agg.n_h_c() + m_agg.n_v_c());
+    m_agg_B.resize(m_agg.n_trif_c() + m_agg.n_rect_c());
+    Logger::print_info(
+        "Aggregated output: level {} (j={}) x radial stride {} -> "
+        "{} coarse edges, {} coarse faces per snapshot",
+        m_agg.L_out, m_agg.j, m_agg.R, m_agg_E.size(), m_agg_B.size());
+  }
 
   if (m_output_radial_stride  < 1) m_output_radial_stride  = 1;
   if (m_output_angular_stride < 1) m_output_angular_stride = 1;
@@ -412,6 +429,11 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   m_E->data().copy_to_host();
   m_B->data().copy_to_host();
 
+  if (m_aggregate) {
+    write_aggregated(step, time);
+    return;
+  }
+
   if (m_distributed) {
     // Collective parallel write: each rank contributes its owned runs
     // of the global cochain datasets.  Bit-identical to the
@@ -494,6 +516,129 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
 
   file.close();
   Logger::print_info("Snapshot written: step={}, time={:.4f}", step, time);
+}
+
+// ===========================================================================
+// Aggregated coarse-cochain snapshots (7D F9).  Each rank accumulates
+// partial coarse sums over the fine elements it OWNS; distributed runs
+// MPI_SUM-reduce the (small) coarse arrays to world rank 0, which
+// writes serially.  No slab alignment constraint: partial sums add up
+// correctly regardless of where rank boundaries fall.
+// ===========================================================================
+void prismatic_data_exporter::write_aggregated(uint32_t step, double time) {
+  // Fine-value accessors: the cochain's OWN global index in, the field
+  // value out — 0 for contributions this rank does not own (each fine
+  // element has exactly one owner, so the MPI_SUM of partials is the
+  // complete aggregation).
+  auto make_val = [&](cochain_type t, const Scalar* data, int block_off) {
+    const distributed_cochain_layout* L =
+        m_distributed ? &m_mp->layout(t) : nullptr;
+    return [L, data, block_off](int g) -> double {
+      if (L == nullptr) return double(data[block_off + g]);
+      const int l = L->to_local(g);
+      if (l < 0 || l >= L->owned_size()) return 0.0;
+      return double(data[block_off + l]);
+    };
+  };
+  // NOTE on indexing: the per-cochain accessors take the cochain's OWN
+  // global index (h edges from 0, v edges from 0, ...).  Single-rank
+  // block offsets place the sub-blocks inside the combined buffers.
+  const int e_split =
+      m_distributed ? m_E->split() : (m_mesh.m_N_r + 1) * m_mesh.m_N_edge_s;
+  const int b_split =
+      m_distributed ? m_B->split() : (m_mesh.m_N_r + 1) * m_mesh.m_N_tri;
+
+  auto fill = [&](std::vector<double>& out_E, const Scalar* E_data) {
+    std::fill(out_E.begin(), out_E.end(), 0.0);
+    m_agg.agg_h_edges(make_val(cochain_type::h_edge, E_data, 0),
+                      out_E.data());
+    m_agg.agg_v_edges(make_val(cochain_type::v_edge, E_data, e_split),
+                      out_E.data() + m_agg.n_h_c());
+  };
+  auto fill_face = [&](std::vector<double>& out_B, const Scalar* B_data) {
+    std::fill(out_B.begin(), out_B.end(), 0.0);
+    m_agg.agg_tri_faces(make_val(cochain_type::tri_face, B_data, 0),
+                        out_B.data());
+    m_agg.agg_rect_faces(make_val(cochain_type::rect_face, B_data, b_split),
+                         out_B.data() + m_agg.n_trif_c());
+  };
+
+  fill(m_agg_E, m_E->host_ptr());
+  fill_face(m_agg_B, m_B->host_ptr());
+  if (m_J != nullptr) {
+    m_J->data().copy_to_host();
+    m_agg_J.resize(m_agg_E.size());
+    fill(m_agg_J, m_J->host_ptr());
+  }
+  auto fill_vert = [&](std::vector<double>& out,
+                       nonown_ptr<prismatic_vertex_field>& f) {
+    if (f == nullptr) return;
+    f->data().copy_to_host();
+    out.assign(m_agg.n_vertc_c(), 0.0);
+    m_agg.agg_vertices(make_val(cochain_type::vertex, f->host_ptr(), 0),
+                       out.data());
+  };
+  fill_vert(m_agg_rho, m_rho);
+  fill_vert(m_agg_ra, m_rho_abs);
+  fill_vert(m_agg_gw, m_gamma_wsum);
+
+  int world_rank = 0;
+  if (m_distributed) {
+    world_rank = m_comm->world_rank();
+    auto reduce = [&](std::vector<double>& v) {
+      if (v.empty()) return;
+      MPI_Reduce(world_rank == 0 ? MPI_IN_PLACE : v.data(), v.data(),
+                 int(v.size()), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    };
+    reduce(m_agg_E);
+    reduce(m_agg_B);
+    reduce(m_agg_J);
+    reduce(m_agg_rho);
+    reduce(m_agg_ra);
+    reduce(m_agg_gw);
+    if (world_rank != 0) return;
+  }
+
+  char fname[256];
+  std::snprintf(fname, sizeof(fname), "%s/step_%06u.h5",
+                m_output_dir.c_str(), step);
+  auto file = hdf_create(std::string(fname));
+  auto wr = [&](const std::vector<double>& v, const char* name) {
+    if (v.empty()) return;
+    std::vector<Scalar> tmp(v.begin(), v.end());
+    file.write(tmp.data(), tmp.size(), name);
+  };
+  wr(m_agg_E, "E_e");
+  wr(m_agg_B, "B_f");
+  wr(m_agg_J, "J_e");
+  wr(m_agg_rho, "rho");
+  wr(m_agg_ra, "rho_abs");
+  wr(m_agg_gw, "gamma_wsum");
+  file.write(static_cast<int>(step), "step");
+  file.write(time, "time");
+  // Self-describing COARSE metadata: the dump is a bona fide
+  // level-L_out DEC field on the strided radii.
+  file.write(1, "aggregated");
+  file.write(m_agg.L_out, "L");
+  file.write(m_agg.N_r_c, "N_r");
+  file.write(m_agg.n_tri_c, "N_tri");
+  file.write(m_agg.n_edge_c, "N_edge_s");
+  file.write(m_agg.n_vert_c, "N_vert_s");
+  {
+    std::vector<Scalar> cr(m_agg.N_r_c + 1);
+    for (int K = 0; K <= m_agg.N_r_c; ++K) {
+      cr[K] = m_mesh.radii[K * m_agg.R];
+    }
+    file.write(cr.data(), cr.size(), "radii");
+  }
+  if (m_J != nullptr) {
+    // Aggregation of the raw dual-2 J is NOT a dual cochain on the
+    // coarse mesh; flag it so post tools convert per-fine-edge instead.
+    file.write(m_J->edge_kind() == EdgeCochainKind::dual_2 ? 1 : 0,
+               "J_kind_dual2");
+  }
+  file.close();
+  Logger::print_info("Aggregated snapshot: step={}, time={:.4f}", step, time);
 }
 
 }  // namespace Aperture

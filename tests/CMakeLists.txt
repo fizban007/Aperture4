@@ -22,6 +22,7 @@ set(test_src
   "test_metric_ks_cartesian.cpp"
   "test_prismatic_mesh_metric.cpp"
   "test_prismatic_mesh_geom.cpp"
+  "test_prismatic_aggregation.cpp"
   "test_prismatic_partition.cpp"
   "test_prismatic_halo_plan.cpp"
   "test_prismatic_angular_halo.cpp"

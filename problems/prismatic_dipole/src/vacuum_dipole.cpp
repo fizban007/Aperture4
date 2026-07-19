@@ -1,12 +1,12 @@
 // Vacuum rotating oblique dipole: DEC field solver only, no particles.
 // Tests electromagnetic radiation from a rotating inclined magnetic dipole.
 //
-// MPI (4.1b B2): run under mpirun with 20*K ranks for the distributed
-// solver — fields are local-sized, halo exchanges happen inside the
-// solver, and output switches to per-rank dumps controlled by
-// "rank_dump_interval" (the combined-range exporter / sph systems are
-// single-rank only and are not registered).  Single-process runs are
-// unchanged.
+// MPI (4.1b B2 + Phase 5): run under mpirun with 20*K ranks for the
+// distributed solver — fields are local-sized and halo exchanges happen
+// inside the solver.  The exporter writes single global snapshot files
+// collectively (parallel HDF5), and the sph output gathers to rank 0;
+// both are bit-identical to the single-process files.  Per-rank raw
+// dumps remain available via "rank_dump_interval".
 
 #include "framework/environment.h"
 #include "systems/prismatic/dec_field_solver.h"
@@ -50,10 +50,13 @@ int main(int argc, char* argv[]) {
 
   auto solver = env.register_system<dec_field_solver_t>(
       mesh, world_size > 1 ? &mcomm : nullptr);
-  if (world_size == 1) {
-    env.register_system<prismatic_data_exporter>(mesh);
-    env.register_system<prismatic_sph_output>(mesh);
-  }
+  // Phase 5: the output systems run in both modes.  Under MPI they take
+  // the solver's partition (solver registered first — field components
+  // must be local-sized).
+  env.register_system<prismatic_data_exporter>(
+      mesh, solver->mesh_partition(), world_size > 1 ? &mcomm : nullptr);
+  env.register_system<prismatic_sph_output>(
+      mesh, solver->mesh_partition(), world_size > 1 ? &mcomm : nullptr);
 
   env.init();
 

@@ -8,10 +8,40 @@
 
 namespace Aperture {
 
-prismatic_data_exporter::prismatic_data_exporter(const prismatic_mesh& mesh)
-    : m_mesh(mesh) {}
+namespace {
+
+// Compress a layout's owned set (locals 0..n_owned in ascending-global
+// order) into contiguous runs for scattered hyperslab writes.
+void append_owned_runs(const distributed_cochain_layout& L, size_t mem_base,
+                       size_t file_base, std::vector<hsize_t>& mem_off,
+                       std::vector<hsize_t>& file_off,
+                       std::vector<hsize_t>& len) {
+  const int n = L.owned_size();
+  int l = 0;
+  while (l < n) {
+    const int g0 = L.to_global(l);
+    int run = 1;
+    while (l + run < n && L.to_global(l + run) == g0 + run) run++;
+    mem_off.push_back(mem_base + l);
+    file_off.push_back(file_base + g0);
+    len.push_back(run);
+    l += run;
+  }
+}
+
+}  // namespace
+
+prismatic_data_exporter::prismatic_data_exporter(
+    const prismatic_mesh& mesh, const prismatic_mesh_partition* mp,
+    const prismatic_mpi_comm* comm)
+    : m_mesh(mesh), m_mp(mp), m_comm(comm) {
+  m_distributed = mp != nullptr && comm != nullptr && !comm->is_single_rank();
+}
 
 void prismatic_data_exporter::register_data_components() {
+  // Under a distributed solver the solver registered these local-sized;
+  // register_data returns the existing components (the solver must be
+  // registered first — init() verifies the sizes).
   m_E = sim_env().register_data<prismatic_edge_field>("E", m_mesh);
   m_B = sim_env().register_data<prismatic_face_field>("B", m_mesh);
 }
@@ -26,6 +56,47 @@ void prismatic_data_exporter::init() {
 
   if (m_output_radial_stride  < 1) m_output_radial_stride  = 1;
   if (m_output_angular_stride < 1) m_output_angular_stride = 1;
+
+  if (m_distributed) {
+    if (m_output_radial_stride > 1 || m_output_angular_stride > 1) {
+      Logger::print_err(
+          "prismatic_data_exporter: output downsampling is not supported "
+          "in distributed mode; writing full snapshots");
+      m_output_radial_stride = 1;
+      m_output_angular_stride = 1;
+    }
+    // The solver must have registered the fields local-sized (solver
+    // before exporter in main); a global-sized "E" here means the
+    // registration order is wrong and every write would be garbage.
+    auto const& L_he = m_mp->layout(cochain_type::h_edge);
+    auto const& L_ve = m_mp->layout(cochain_type::v_edge);
+    auto const& L_tri = m_mp->layout(cochain_type::tri_face);
+    auto const& L_rect = m_mp->layout(cochain_type::rect_face);
+    if (int(m_E->data().size()) != L_he.local_size() + L_ve.local_size() ||
+        int(m_B->data().size()) != L_tri.local_size() + L_rect.local_size()) {
+      Logger::print_err(
+          "prismatic_data_exporter: field sizes are not local-sized; "
+          "register the distributed solver BEFORE the exporter");
+      std::abort();
+    }
+    // Owned runs for the combined global datasets.  Block bases: v
+    // edges follow all h edges, rect faces follow all tri faces, in
+    // both the local buffer (at the field's split()) and the global
+    // ordering (at the global block sizes).
+    const size_t n_h_glob = size_t(m_mesh.m_N_r + 1) * m_mesh.m_N_edge_s;
+    const size_t n_tri_glob = size_t(m_mesh.m_N_r + 1) * m_mesh.m_N_tri;
+    append_owned_runs(L_he, 0, 0, m_E_runs.mem_off, m_E_runs.file_off,
+                      m_E_runs.len);
+    append_owned_runs(L_ve, L_he.local_size(), n_h_glob, m_E_runs.mem_off,
+                      m_E_runs.file_off, m_E_runs.len);
+    append_owned_runs(L_tri, 0, 0, m_B_runs.mem_off, m_B_runs.file_off,
+                      m_B_runs.len);
+    append_owned_runs(L_rect, L_tri.local_size(), n_tri_glob,
+                      m_B_runs.mem_off, m_B_runs.file_off, m_B_runs.len);
+    Logger::print_info(
+        "Distributed exporter: {} + {} owned runs (E, B) per snapshot",
+        m_E_runs.len.size(), m_B_runs.len.size());
+  }
 
   // Create output directory
   std::filesystem::create_directories(m_output_dir);
@@ -113,8 +184,14 @@ void prismatic_data_exporter::init() {
         static_cast<int>(m_out_vert_idx.size()), m_mesh.m_N_verts);
   }
 
-  // Write mesh file once
-  write_mesh();
+  // Write mesh file once.  Every rank holds the full global mesh
+  // (build-then-extract-local, until 4.1a.4), so under MPI world rank 0
+  // writes it alone with the ordinary serial path.
+  int world_rank = 0;
+  if (m_distributed) {
+    world_rank = m_comm->radial_rank() * 20 + m_comm->angular_rank();
+  }
+  if (world_rank == 0) write_mesh();
 
   m_time = 0.0;
 }
@@ -257,11 +334,34 @@ void prismatic_data_exporter::write_snapshot(uint32_t step, double time) {
   char fname[256];
   std::snprintf(fname, sizeof(fname), "%s/step_%06u.h5",
                 m_output_dir.c_str(), step);
-  auto file = hdf_create(std::string(fname));
 
   // Sync fields to host (no-op for host-only buffers)
   m_E->data().copy_to_host();
   m_B->data().copy_to_host();
+
+  if (m_distributed) {
+    // Collective parallel write: each rank contributes its owned runs
+    // of the global cochain datasets.  Bit-identical to the
+    // single-rank file (owned values are exact, every global slot has
+    // exactly one owner).
+    auto file = hdf_create(std::string(fname), H5CreateMode::trunc_parallel);
+    file.write_parallel_runs(m_E->host_ptr(), m_E->data().size(),
+                             size_t(m_mesh.m_N_edges), m_E_runs.mem_off,
+                             m_E_runs.file_off, m_E_runs.len, "E_e");
+    file.write_parallel_runs(m_B->host_ptr(), m_B->data().size(),
+                             size_t(m_mesh.m_N_faces), m_B_runs.mem_off,
+                             m_B_runs.file_off, m_B_runs.len, "B_f");
+    file.write(static_cast<int>(step), "step");
+    file.write(time, "time");
+    file.close();
+    if (m_comm->radial_rank() == 0 && m_comm->angular_rank() == 0) {
+      Logger::print_info("Snapshot written (parallel): step={}, time={:.4f}",
+                         step, time);
+    }
+    return;
+  }
+
+  auto file = hdf_create(std::string(fname));
 
   if (m_output_radial_stride > 1 || m_output_angular_stride > 1) {
     // Gather subsampled values from the host buffers and write them.

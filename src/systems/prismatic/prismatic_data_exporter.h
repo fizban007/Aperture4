@@ -4,6 +4,9 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
+#include "systems/prismatic/prismatic_mpi_comm.h"
+#include "utils/hdf_wrapper.h"
 #include "utils/nonown_ptr.hpp"
 #include <string>
 #include <vector>
@@ -14,7 +17,16 @@ class prismatic_data_exporter : public system_t {
  public:
   static std::string name() { return "prismatic_data_exporter"; }
 
-  prismatic_data_exporter(const prismatic_mesh& mesh);
+  // Phase 5: pass the solver's partition + comm (dec_field_solver::
+  // mesh_partition() / the same comm given to the solver) to run
+  // distributed — snapshots become single global-indexed files written
+  // collectively via parallel HDF5 hyperslabs, bit-identical to the
+  // single-rank output.  The solver MUST be registered first so the
+  // "E"/"B" data components are local-sized.  mesh.h5 is written by
+  // world rank 0 alone (every rank holds the full mesh).
+  prismatic_data_exporter(const prismatic_mesh& mesh,
+                          const prismatic_mesh_partition* mp = nullptr,
+                          const prismatic_mpi_comm* comm = nullptr);
   ~prismatic_data_exporter() = default;
 
   void register_data_components() override;
@@ -26,8 +38,20 @@ class prismatic_data_exporter : public system_t {
   void write_snapshot(uint32_t step, double time);
 
   const prismatic_mesh& m_mesh;
+  const prismatic_mesh_partition* m_mp = nullptr;
+  const prismatic_mpi_comm* m_comm = nullptr;
+  bool m_distributed = false;
   nonown_ptr<prismatic_edge_field> m_E;
   nonown_ptr<prismatic_face_field> m_B;
+
+  // Distributed mode: contiguous owned runs per combined dataset
+  // (E_e = [h|v] edges, B_f = [tri|rect] faces), built once at init.
+  // Run i writes field_buf[mem_off[i] .. +len[i]) to dataset position
+  // file_off[i] — see H5File::write_parallel_runs.
+  struct run_set {
+    std::vector<hsize_t> mem_off, file_off, len;
+  };
+  run_set m_E_runs, m_B_runs;
 
   int m_output_interval = 100;
 

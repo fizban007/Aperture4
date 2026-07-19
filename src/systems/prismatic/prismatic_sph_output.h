@@ -4,8 +4,11 @@
 #include "framework/system.h"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh.h"
+#include "systems/prismatic/prismatic_mesh_partition.h"
+#include "systems/prismatic/prismatic_mpi_comm.h"
 #include "systems/prismatic/prismatic_vertex_recovery.h"
 #include "utils/nonown_ptr.hpp"
+#include <mpi.h>
 #include <string>
 #include <vector>
 
@@ -15,7 +18,15 @@ class prismatic_sph_output : public system_t {
  public:
   static std::string name() { return "prismatic_sph_output"; }
 
-  prismatic_sph_output(prismatic_mesh& mesh);
+  // Phase 5: pass the solver's partition + comm to run distributed.
+  // The interpolation consumes global-indexed cochains, so each output
+  // step the owned slots are gathered to world rank 0 (a few global
+  // cochains — small next to the interpolation sweep itself, and every
+  // rank already holds the full global mesh), which then runs the
+  // ordinary single-rank path.  Output is bit-identical to 1-rank.
+  prismatic_sph_output(prismatic_mesh& mesh,
+                       const prismatic_mesh_partition* mp = nullptr,
+                       const prismatic_mpi_comm* comm = nullptr);
   ~prismatic_sph_output() = default;
 
   void register_data_components() override;
@@ -25,9 +36,38 @@ class prismatic_sph_output : public system_t {
  private:
   void precompute_grid();
   void write_grid_info();
-  void write_snapshot(uint32_t step, double time);
+  // Field pointers are GLOBAL-indexed cochains: the fields themselves
+  // single-rank, the gathered vectors under MPI.  Null = not present.
+  void write_snapshot(uint32_t step, double time, const Scalar* E_raw,
+                      const Scalar* B_f, const Scalar* J_raw,
+                      const Scalar* rho, const Scalar* rho_abs,
+                      const Scalar* gamma_wsum);
+
+  // Owned-slots -> root gather for one cochain layout (built once).
+  struct cochain_gather {
+    int n_owned = 0;
+    int global_size = 0;
+    std::vector<int> counts, displs;  // root only
+    std::vector<int> gidx;            // root: concatenated owned globals
+    std::vector<Scalar> scratch;      // root: gathered owned values
+
+    void build(const distributed_cochain_layout& L, MPI_Comm comm);
+    // Scatter into global_out[base + gidx[i]]; global_out must already
+    // be sized by the caller (shared across the two blocks of a
+    // combined cochain).  Collective on comm.
+    void gather(const Scalar* owned, std::vector<Scalar>& global_out,
+                size_t base, MPI_Comm comm);
+  };
 
   prismatic_mesh& m_mesh;
+  const prismatic_mesh_partition* m_mp = nullptr;
+  const prismatic_mpi_comm* m_comm = nullptr;
+  bool m_distributed = false;
+  bool m_is_root = true;
+  cochain_gather m_g_he, m_g_ve, m_g_tri, m_g_rect, m_g_vert;
+  // Root-side gathered global cochains (distributed mode only).
+  std::vector<Scalar> m_E_glob, m_B_glob, m_J_glob;
+  std::vector<Scalar> m_rho_glob, m_rho_abs_glob, m_gw_glob;
 
   // Shared data (found from env)
   nonown_ptr<prismatic_edge_field> m_E;

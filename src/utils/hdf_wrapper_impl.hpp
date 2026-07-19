@@ -217,6 +217,60 @@ H5File::write_parallel(const T* array, size_t array_size, size_t len_total,
   }
 }
 
+template <typename T>
+void
+H5File::write_parallel_runs(const T* array, size_t array_size,
+                            size_t len_total,
+                            const std::vector<hsize_t>& mem_off,
+                            const std::vector<hsize_t>& file_off,
+                            const std::vector<hsize_t>& run_len,
+                            const std::string& name) {
+  const size_t n_runs = run_len.size();
+
+  hsize_t dims[1] = {len_total};
+  hsize_t array_dims[1] = {array_size};
+  auto filespace_id = H5Screate_simple(1, dims, NULL);
+  auto memspace_id = H5Screate_simple(1, array_dims, NULL);
+
+  auto dataset_id =
+      H5Dcreate2(m_file_id, name.c_str(), h5datatype<T>(), filespace_id,
+                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+  // Union of hyperslabs on both spaces; empty selection when this rank
+  // holds no runs (it still participates in the collective write).
+  bool selected = false;
+  for (size_t i = 0; i < n_runs; ++i) {
+    if (run_len[i] == 0) continue;
+    hsize_t count[1] = {1};
+    hsize_t stride[1] = {1};
+    hsize_t block[1] = {run_len[i]};
+    hsize_t f_off[1] = {file_off[i]};
+    hsize_t m_off[1] = {mem_off[i]};
+    auto op = selected ? H5S_SELECT_OR : H5S_SELECT_SET;
+    H5Sselect_hyperslab(filespace_id, op, f_off, stride, count, block);
+    H5Sselect_hyperslab(memspace_id, op, m_off, stride, count, block);
+    selected = true;
+  }
+  if (!selected) {
+    H5Sselect_none(filespace_id);
+    H5Sselect_none(memspace_id);
+  }
+
+  auto plist_id = H5Pcreate(H5P_DATASET_XFER);
+  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+  auto status = H5Dwrite(dataset_id, h5datatype<T>(), memspace_id,
+                         filespace_id, plist_id, array);
+
+  H5Dclose(dataset_id);
+  H5Sclose(filespace_id);
+  H5Sclose(memspace_id);
+  H5Pclose(plist_id);
+
+  if (status < 0) {
+    Logger::print_err("H5Dwrite (runs) error! Status is {}", status);
+  }
+}
+
 template <typename T, int Dim>
 void
 H5File::read_multi_array(const std::string& name, multi_array<T, Dim>& array) {

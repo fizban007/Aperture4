@@ -70,6 +70,20 @@ class H5File {
   void write_parallel(const T* array, size_t array_size, size_t len_total,
                       size_t idx_dst, size_t len, size_t idx_src,
                       const std::string& name);
+  // Scattered variant: this rank contributes an arbitrary set of
+  // contiguous runs, run i copying array[mem_off[i] .. +run_len[i])
+  // to dataset positions [file_off[i] .. +run_len[i]).  All ranks must
+  // call collectively (dataset creation and the write are collective);
+  // a rank with no data passes empty vectors.  Used for partition
+  // ownership patterns that are not a single contiguous slab (e.g.
+  // prismatic cochains, where a rank owns shell-slab x sphere-subset).
+  template <typename T>
+  void write_parallel_runs(const T* array, size_t array_size,
+                           size_t len_total,
+                           const std::vector<hsize_t>& mem_off,
+                           const std::vector<hsize_t>& file_off,
+                           const std::vector<hsize_t>& run_len,
+                           const std::string& name);
 
   template <typename T, int Dim>
   multi_array<T, Dim> read_multi_array(const std::string& name);

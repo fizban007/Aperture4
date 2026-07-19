@@ -37,6 +37,13 @@ class dec_field_solver : public system_t {
   void init() override;
   void update(double dt, uint32_t step) override;
 
+  // Phase 5: the rank's partition bundle, for output systems that need
+  // the local cochain layouts (exporter / sph output).  Null when
+  // single-rank (the partition is built lazily in init() then).
+  const prismatic_mesh_partition* mesh_partition() const {
+    return m_distributed ? &m_mesh_part : nullptr;
+  }
+
   // Per-rank field dump (4.1b.7 option (i)): writes this rank's OWNED
   // slots of the total E/B cochains plus the owned l2g index maps to
   // <output_dir>/rank<R>_step_<S>.h5.  Stitch with the l2g maps.

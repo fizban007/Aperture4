@@ -4,6 +4,7 @@
 #include <cassert>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <utility>
 
 namespace Aperture {
@@ -390,6 +391,169 @@ halo_plan build_angular_halo_plan(cochain_type t,
     out.peers.push_back(std::move(pe));
   }
 
+  return out;
+}
+
+// =========================================================================
+// Generic angular halo plan (Phase 7A.3) — see header for the per-element
+// ghost rules.  Loops are element-major over the sphere tables with the
+// radial k range inner; per-peer lists are sorted by global cochain index
+// and deduplicated at the end, which is the canonical wire order both
+// sides derive independently.
+// =========================================================================
+halo_plan build_angular_halo_plan_units(cochain_type t,
+                                        const prismatic_partition& self,
+                                        const icosphere_topology& topo,
+                                        halo_depth depth) {
+  if (depth != halo_depth::solver) {
+    throw std::invalid_argument(
+        "build_angular_halo_plan_units: pic depth class lands in Phase 7B");
+  }
+  halo_plan out;
+  if (self.owns_all_angular()) return out;
+
+  // Angular rank of the owner of each sphere-element kind, from the
+  // partition's unit arithmetic (min incident unit owns shared
+  // elements).  All O(1) per query.
+  auto rank_of_unit = [&](int unit) {
+    return self.angular_rank_of_path_unit(self.path_of_unit(unit));
+  };
+  auto rank_of_tri = [&](int tri) {
+    return rank_of_unit(self.unit_of_tri(tri));
+  };
+  auto rank_of_edge = [&](int e) {
+    return rank_of_unit(std::min(self.unit_of_tri(topo.edge_tri_a(e)),
+                                 self.unit_of_tri(topo.edge_tri_b(e))));
+  };
+  auto rank_of_vertex = [&](int v) {
+    const int* tris = topo.vertex_tris(v);
+    const int n = topo.vertex_tri_count(v);
+    int u = self.unit_of_tri(tris[0]);
+    for (int j = 1; j < n; ++j) u = std::min(u, self.unit_of_tri(tris[j]));
+    return rank_of_unit(u);
+  };
+
+  const int R = self.angular_rank;
+  const bool shell_cochain = lives_on_shell(t);
+  const int width = per_level_width(t, self);
+  const int k_lo = self.shell_k_lo;
+  const int k_hi = shell_cochain
+                       ? self.shell_k_hi
+                       : std::min(self.shell_k_hi, self.N_r_global);
+
+  std::map<int, std::vector<int>> recv_per_peer;
+  std::map<int, std::vector<int>> send_per_peer;
+  auto push_levels = [&](std::map<int, std::vector<int>>& dst, int peer,
+                         int sub) {
+    auto& v = dst[peer];
+    for (int k = k_lo; k < k_hi; ++k) v.push_back(k * width + sub);
+  };
+
+  if (t == cochain_type::tri_face) {
+    // Iterate sphere-edges: the edge owner needs the non-owned adjacent
+    // tri (d1t/curl on the edge reads both adjacent tri faces).
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      const int tri_a = topo.edge_tri_a(e);
+      const int tri_b = topo.edge_tri_b(e);
+      const int r_e = rank_of_edge(e);
+      const int r_a = rank_of_tri(tri_a);
+      const int r_b = rank_of_tri(tri_b);
+      if (r_e == R) {
+        if (r_a != R) push_levels(recv_per_peer, r_a, tri_a);
+        if (r_b != R) push_levels(recv_per_peer, r_b, tri_b);
+      } else {
+        if (r_a == R) push_levels(send_per_peer, r_e, tri_a);
+        if (r_b == R) push_levels(send_per_peer, r_e, tri_b);
+      }
+    }
+  } else if (t == cochain_type::h_edge || t == cochain_type::rect_face) {
+    // Sphere-edge data.  Consumers: d1 rows of adjacent tri faces; for
+    // rect_face additionally the v_edge update fan at each endpoint
+    // vertex.  Peers of edge e = owner ranks of those consumer anchors.
+    const bool fan = (t == cochain_type::rect_face);
+    for (int e = 0; e < topo.N_edge_s(); ++e) {
+      const int r_e = rank_of_edge(e);
+      int peers[4];
+      int n_peers = 0;
+      auto add_peer = [&](int r) {
+        for (int j = 0; j < n_peers; ++j)
+          if (peers[j] == r) return;
+        peers[n_peers++] = r;
+      };
+      add_peer(rank_of_tri(topo.edge_tri_a(e)));
+      add_peer(rank_of_tri(topo.edge_tri_b(e)));
+      if (fan) {
+        add_peer(rank_of_vertex(topo.edge_v0(e)));
+        add_peer(rank_of_vertex(topo.edge_v1(e)));
+      }
+      if (r_e == R) {
+        for (int j = 0; j < n_peers; ++j) {
+          if (peers[j] != R) push_levels(send_per_peer, peers[j], e);
+        }
+      } else {
+        for (int j = 0; j < n_peers; ++j) {
+          if (peers[j] == R) {
+            push_levels(recv_per_peer, r_e, e);
+            break;
+          }
+        }
+      }
+    }
+  } else {  // vertex or v_edge
+    // Sphere-vertex data.  Consumers: d1 rows of incident edges /
+    // rect-face updates — all anchored on the fan tris.
+    for (int v = 0; v < topo.N_vert_s(); ++v) {
+      const int r_v = rank_of_vertex(v);
+      const int* tris = topo.vertex_tris(v);
+      const int n = topo.vertex_tri_count(v);
+      if (r_v == R) {
+        int sent_to[6];
+        int n_sent = 0;
+        for (int j = 0; j < n; ++j) {
+          const int r_t = rank_of_tri(tris[j]);
+          if (r_t == R) continue;
+          bool dup = false;
+          for (int w = 0; w < n_sent; ++w)
+            if (sent_to[w] == r_t) { dup = true; break; }
+          if (dup) continue;
+          sent_to[n_sent++] = r_t;
+          push_levels(send_per_peer, r_t, v);
+        }
+      } else {
+        for (int j = 0; j < n; ++j) {
+          if (rank_of_tri(tris[j]) == R) {
+            push_levels(recv_per_peer, r_v, v);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Canonical wire order: ascending global cochain index, unique.
+  auto canonicalize = [](std::map<int, std::vector<int>>& m) {
+    for (auto& kv : m) {
+      auto& v = kv.second;
+      std::sort(v.begin(), v.end());
+      v.erase(std::unique(v.begin(), v.end()), v.end());
+    }
+  };
+  canonicalize(recv_per_peer);
+  canonicalize(send_per_peer);
+
+  std::set<int> peer_set;
+  for (auto const& p : recv_per_peer) peer_set.insert(p.first);
+  for (auto const& p : send_per_peer) peer_set.insert(p.first);
+  out.peers.reserve(peer_set.size());
+  for (int g : peer_set) {
+    halo_plan::peer_entry pe;
+    pe.peer_rank = g;
+    auto itr = recv_per_peer.find(g);
+    if (itr != recv_per_peer.end()) pe.recv_global_idx = std::move(itr->second);
+    auto its = send_per_peer.find(g);
+    if (its != send_per_peer.end()) pe.send_global_idx = std::move(its->second);
+    out.peers.push_back(std::move(pe));
+  }
   return out;
 }
 

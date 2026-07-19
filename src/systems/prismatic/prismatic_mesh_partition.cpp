@@ -13,8 +13,14 @@ prismatic_mesh_partition prismatic_mesh_partition::build(
   out.m_partition.set_topology(&topo);
 
   // Build plans (global-indexed) for each cochain type on both axes.
+  // Canonical path-ordered partitions (angular_units/combined) use the
+  // generic unit-based angular builder; legacy identity-ordered
+  // partitions keep the per-ico-face builder until 7A.4.
   auto fill_plans = [&](cochain_type t, plans_pair& pp) {
-    pp.angular_global = build_angular_halo_plan(t, out.m_partition, topo);
+    pp.angular_global =
+        part.canonical_rank_order
+            ? build_angular_halo_plan_units(t, out.m_partition, topo)
+            : build_angular_halo_plan(t, out.m_partition, topo);
     pp.radial_global  = build_radial_halo_plan(t, out.m_partition);
   };
   fill_plans(cochain_type::tri_face,  out.m_tri_face_plans);

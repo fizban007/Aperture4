@@ -72,6 +72,7 @@ void prismatic_partition::set_angular_units(int A, int angular_rank_in,
   unit_hi = unit_lo + per_rank;
   angular_rank = angular_rank_in;
   n_angular_ranks = A;
+  canonical_rank_order = true;
 
   // Sync the legacy whole-face view.
   if (owns_all_angular()) {

@@ -79,6 +79,15 @@ class prismatic_partition {
   int ico_face_lo = 0;
   int ico_face_hi = 20;
 
+  // True when angular ranks are assigned by canonical path-ordered unit
+  // ranges (the angular_units()/combined() factories) — peer ranks in
+  // halo plans are then angular_rank_of_path_unit values.  False for
+  // the legacy identity rank→face factories (ico_face_angular /
+  // combined_ico_face), whose peer ranks are ico-face indices.  Decides
+  // which angular plan builder prismatic_mesh_partition uses; the
+  // legacy wiring is removed in 7A.4.
+  bool canonical_rank_order = false;
+
   // -----------------------------------------------------------------------
   // Radial partition: this rank owns physics shells [shell_k_lo, shell_k_hi).
   // Ghost shells read from radial neighbors are in

@@ -126,6 +126,46 @@ halo_plan build_angular_halo_plan(cochain_type t,
                                    const icosphere_topology& topo);
 
 // =========================================================================
+// Generic angular halo plan builder (Phase 7A.3).
+//
+// Works for ANY canonical-rank-order partition (angular_units/combined
+// factories): arbitrary patch level m and angular rank count A, including
+// multi-face bands, sub-face units, valence-5 corners spanning up to 5
+// distinct ranks, and ordinary patch corners at valence-6 vertices.
+// Peer ranks are ANGULAR ranks under the path-ordered A-way split (not
+// ico-face indices — use the legacy builder above for identity-ordered
+// partitions until 7A.4 removes them).
+//
+// Per-element ghost rules (solver depth class, d1/d1t stencils; each
+// reduces exactly to the legacy per-face rule at m=0):
+//   tri_face:  recv non-owned tris adjacent (across a sphere-edge) to
+//              self-owned sphere-edges; send owned tris to the owner
+//              rank of any adjacent non-self-owned sphere-edge.
+//   h_edge:    recv non-owned sphere-edges adjacent to self-owned tris;
+//              send owned edges to owner ranks of adjacent tris.
+//   rect_face: h_edge rule PLUS endpoint-vertex owners — the v_edge
+//              update at an owned vertex reads the full fan of rect
+//              faces, so a rect face is also ghosted to the owner of
+//              each endpoint vertex (this uniformly subsumes the legacy
+//              valence-5 corner fan patch).
+//   vertex /
+//   v_edge:    recv non-owned sphere-vertices with a self-owned fan
+//              tri; send owned vertices to owner ranks of fan tris.
+//
+// Wire order: per-peer send/recv lists are sorted ascending by global
+// cochain index and deduplicated — both peers derive identical lists
+// independently, with no matched-iteration requirement.
+//
+// The ghost-set depth class follows PHASE_7_SCALABLE_PIC_PLAN.md F4;
+// `pic` (1-ring T_halo + shells ±1 superset) lands in Phase 7B.
+// =========================================================================
+enum class halo_depth { solver, pic };
+
+halo_plan build_angular_halo_plan_units(
+    cochain_type t, const prismatic_partition& self,
+    const icosphere_topology& topo, halo_depth depth = halo_depth::solver);
+
+// =========================================================================
 // In-process backend (test fixture).
 //
 // Runs multiple "ranks" in a single process and emulates MPI point-to-

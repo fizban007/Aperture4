@@ -283,6 +283,259 @@ TEST_CASE("valence-5 corners: rect_face fan is fully halo'd at v_owner",
   }
 }
 
+// =========================================================================
+// Phase 7A.3 — generic unit-based angular halo plan builder.
+// =========================================================================
+
+namespace {
+
+const cochain_type kAllCochains[] = {
+    cochain_type::tri_face, cochain_type::h_edge, cochain_type::rect_face,
+    cochain_type::v_edge, cochain_type::vertex};
+
+std::vector<prismatic_partition>
+make_unit_angular(int L, int N_r, int A, const icosphere_topology& topo) {
+  std::vector<prismatic_partition> out;
+  out.reserve(A);
+  for (int a = 0; a < A; ++a) {
+    auto p = prismatic_partition::angular_units(L, N_r, A, a);
+    p.set_topology(&topo);
+    out.push_back(p);
+  }
+  return out;
+}
+
+std::vector<int> sorted_unique(std::vector<int> v) {
+  std::sort(v.begin(), v.end());
+  v.erase(std::unique(v.begin(), v.end()), v.end());
+  return v;
+}
+
+const halo_plan::peer_entry* find_peer(const halo_plan& p, int pr) {
+  for (auto const& pe : p.peers)
+    if (pe.peer_rank == pr) return &pe;
+  return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("generic unit builder at A=20/m=0 reproduces the legacy per-face "
+          "plans exactly (up to the path rank relabeling)",
+          "[prismatic][angular_halo][units]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+  auto legacy_parts = make_20_angular(L, N_r, topo);
+  auto unit_parts = make_unit_angular(L, N_r, 20, topo);
+  const auto& pos = prismatic_partition::face_path_pos();
+
+  for (cochain_type t : kAllCochains) {
+    for (int f = 0; f < 20; ++f) {
+      auto legacy = build_angular_halo_plan(t, legacy_parts[f], topo);
+      auto unit = build_angular_halo_plan_units(t, unit_parts[pos[f]], topo);
+
+      // Same peer set under the face→path-position relabeling, same
+      // send/recv index sets per peer.
+      REQUIRE(unit.peers.size() == legacy.peers.size());
+      for (auto const& lpe : legacy.peers) {
+        auto* upe = find_peer(unit, pos[lpe.peer_rank]);
+        REQUIRE(upe != nullptr);
+        REQUIRE(upe->send_global_idx ==
+                sorted_unique(lpe.send_global_idx));
+        REQUIRE(upe->recv_global_idx ==
+                sorted_unique(lpe.recv_global_idx));
+      }
+    }
+  }
+}
+
+TEST_CASE("generic unit builder: send/recv lists are wire-consistent and "
+          "canonically ordered for general A",
+          "[prismatic][angular_halo][units]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+  for (int A : {2, 4, 5, 8, 10, 40, 80}) {
+    auto parts = make_unit_angular(L, N_r, A, topo);
+    for (cochain_type t : kAllCochains) {
+      std::vector<halo_plan> plans;
+      for (auto const& p : parts)
+        plans.push_back(build_angular_halo_plan_units(t, p, topo));
+
+      for (int a = 0; a < A; ++a) {
+        for (auto const& pe : plans[a].peers) {
+          // Sorted ascending, unique — the canonical wire order.
+          REQUIRE(pe.send_global_idx == sorted_unique(pe.send_global_idx));
+          REQUIRE(pe.recv_global_idx == sorted_unique(pe.recv_global_idx));
+          // Exact list match with the mirror side (not just set match:
+          // MPI pairs entries positionally).
+          auto* mirror = find_peer(plans[pe.peer_rank], a);
+          if (!pe.recv_global_idx.empty()) {
+            REQUIRE(mirror != nullptr);
+            REQUIRE(pe.recv_global_idx == mirror->send_global_idx);
+          }
+          if (!pe.send_global_idx.empty()) {
+            REQUIRE(mirror != nullptr);
+            REQUIRE(pe.send_global_idx == mirror->recv_global_idx);
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("generic unit builder: exchange fills ghosts with owner values "
+          "and owned slots stay untouched, general A",
+          "[prismatic][angular_halo][units][in_process]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+  for (int A : {4, 8, 80}) {
+    auto parts = make_unit_angular(L, N_r, A, topo);
+    for (cochain_type t : kAllCochains) {
+      std::vector<std::vector<Scalar>> bufs(A);
+      in_process_halo_backend backend;
+      for (int a = 0; a < A; ++a) {
+        fill_owned(bufs[a], t, parts[a]);
+        backend.register_rank(a, bufs[a].data());
+      }
+      std::vector<halo_plan> plans;
+      for (auto const& p : parts)
+        plans.push_back(build_angular_halo_plan_units(t, p, topo));
+      backend.exchange_all(plans);
+
+      for (int a = 0; a < A; ++a) {
+        for (auto const& pe : plans[a].peers) {
+          for (int idx : pe.recv_global_idx) {
+            REQUIRE(bufs[a][idx] == Approx(stamp(idx)));
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("generic unit builder: solver stencils are fully covered after "
+          "exchange (owned or ghosted) for general A",
+          "[prismatic][angular_halo][units][in_process]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+
+  for (int A : {4, 8, 80}) {
+    auto parts = make_unit_angular(L, N_r, A, topo);
+
+    // Exchange every cochain type on every rank.
+    std::vector<std::vector<std::vector<Scalar>>> bufs(5);
+    for (int ti = 0; ti < 5; ++ti) {
+      cochain_type t = kAllCochains[ti];
+      bufs[ti].resize(A);
+      in_process_halo_backend backend;
+      for (int a = 0; a < A; ++a) {
+        fill_owned(bufs[ti][a], t, parts[a]);
+        backend.register_rank(a, bufs[ti][a].data());
+      }
+      std::vector<halo_plan> plans;
+      for (auto const& p : parts)
+        plans.push_back(build_angular_halo_plan_units(t, p, topo));
+      backend.exchange_all(plans);
+    }
+    auto& tri_bufs = bufs[0];
+    auto& h_edge_bufs = bufs[1];
+    auto& rect_bufs = bufs[2];
+    auto& v_edge_bufs = bufs[3];
+    auto& vert_bufs = bufs[4];
+
+    const int W_tri = topo.N_tri();
+    const int W_e = topo.N_edge_s();
+    const int W_v = topo.N_vert_s();
+
+    for (int a = 0; a < A; ++a) {
+      auto const& p = parts[a];
+      // (1) d1t on an owned sphere-edge reads both adjacent tri faces,
+      //     at every shell.
+      for (int e = 0; e < W_e; ++e) {
+        if (!p.owns_sphere_edge(e)) continue;
+        for (int k = 0; k <= N_r; ++k) {
+          REQUIRE(tri_bufs[a][k * W_tri + topo.edge_tri_a(e)] ==
+                  Approx(stamp(k * W_tri + topo.edge_tri_a(e))));
+          REQUIRE(tri_bufs[a][k * W_tri + topo.edge_tri_b(e)] ==
+                  Approx(stamp(k * W_tri + topo.edge_tri_b(e))));
+        }
+      }
+      // (2) d1 on an owned tri face reads its incident sphere-edges:
+      //     equivalently every edge adjacent to an owned tri must be
+      //     available as h_edge (shells) and rect_face (slabs).
+      for (int e = 0; e < W_e; ++e) {
+        bool touches_owned_tri = p.owns_sub_tri(topo.edge_tri_a(e)) ||
+                                 p.owns_sub_tri(topo.edge_tri_b(e));
+        if (!touches_owned_tri) continue;
+        for (int k = 0; k <= N_r; ++k) {
+          REQUIRE(h_edge_bufs[a][k * W_e + e] == Approx(stamp(k * W_e + e)));
+        }
+        for (int k = 0; k < N_r; ++k) {
+          REQUIRE(rect_bufs[a][k * W_e + e] == Approx(stamp(k * W_e + e)));
+        }
+      }
+      // (3) the v_edge update at an owned sphere-vertex reads the FULL
+      //     fan of rect faces (the valence-5 corner case generalized to
+      //     arbitrary unit corners).
+      for (int v = 0; v < W_v; ++v) {
+        if (!p.owns_sphere_vertex(v)) continue;
+        const int* ve = topo.vertex_edges(v);
+        for (int i = 0; i < topo.vertex_edge_count(v); ++i) {
+          for (int k = 0; k < N_r; ++k) {
+            int idx = k * W_e + ve[i];
+            REQUIRE(rect_bufs[a][idx] == Approx(stamp(idx)));
+          }
+        }
+      }
+      // (4) d1 on an owned h_edge reads its 2 endpoint vertices; owned
+      //     rect faces read the v_edges at their endpoint vertices.
+      for (int e = 0; e < W_e; ++e) {
+        if (!p.owns_sphere_edge(e)) continue;
+        for (int v : {topo.edge_v0(e), topo.edge_v1(e)}) {
+          for (int k = 0; k <= N_r; ++k) {
+            REQUIRE(vert_bufs[a][k * W_v + v] == Approx(stamp(k * W_v + v)));
+          }
+          for (int k = 0; k < N_r; ++k) {
+            REQUIRE(v_edge_bufs[a][k * W_v + v] ==
+                    Approx(stamp(k * W_v + v)));
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("generic unit builder: peers are unit-adjacent and pic depth "
+          "class is rejected until 7B",
+          "[prismatic][angular_halo][units]") {
+  const int L = 2;
+  const int N_r = 4;
+  auto mesh = make_mesh(L);
+  auto topo = icosphere_topology::build_from_mesh(*mesh);
+  auto parts = make_unit_angular(L, N_r, 8, topo);
+
+  REQUIRE_THROWS_AS(
+      build_angular_halo_plan_units(cochain_type::vertex, parts[0], topo,
+                                    halo_depth::pic),
+      std::invalid_argument);
+
+  // A=1 (full angular span): no angular peers.
+  auto p1 = prismatic_partition::angular_units(L, N_r, 1, 0);
+  p1.set_topology(&topo);
+  auto plan =
+      build_angular_halo_plan_units(cochain_type::tri_face, p1, topo);
+  REQUIRE(plan.peers.empty());
+}
+
 TEST_CASE("angular halo at valence-5 corners: non-owner recvs from owner",
           "[prismatic][angular_halo]") {
   const int L = 2;

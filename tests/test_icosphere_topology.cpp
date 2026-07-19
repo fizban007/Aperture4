@@ -236,7 +236,7 @@ TEST_CASE("combined 4×20 decomposition with topology: all cochain types tile",
   parts.reserve(K * 20);
   for (int r = 0; r < K; ++r) {
     for (int f = 0; f < 20; ++f) {
-      auto p = prismatic_partition::combined(L, N_r, K, r, f);
+      auto p = prismatic_partition::combined_ico_face(L, N_r, K, r, f);
       p.set_topology(&topo);
       parts.push_back(p);
     }

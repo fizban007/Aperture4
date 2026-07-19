@@ -102,7 +102,7 @@ TEST_CASE("metric_local combined partition: shrinks + values match",
 
   for (auto rk : std::vector<std::pair<int, int>>{
            {0, 7}, {1, 13}, {2, 19}, {3, 0}}) {
-    auto part = prismatic_partition::combined(L, N_r, K, rk.first, rk.second);
+    auto part = prismatic_partition::combined_ico_face(L, N_r, K, rk.first, rk.second);
     part.set_topology(&topo);
     auto mp = prismatic_mesh_partition::build(part, topo);
     auto local = prismatic_mesh_metric_local::build(*met, mp);

@@ -15,16 +15,13 @@ class icosphere_topology;
 // GLOBAL — the same on every rank — so a partition change doesn't shift
 // the meaning of any index (critical for parallel HDF5 and restart files).
 //
-// Partition scheme (see PARALLELIZATION_PLAN.md):
-//   Angular: each rank owns one or more of the 20 original icosahedron
-//            faces, which after L subdivisions group sub-triangles into
-//            20 contiguous ranges of length 4^L.
+// Partition scheme (see PHASE_7_SCALABLE_PIC_PLAN.md F3):
+//   Angular: the sphere is decomposed into U = 20·4^m congruent level-m
+//            "patch units" (m = patch_level); each angular rank owns a
+//            contiguous range of units in the canonical path ordering
+//            below.  m = 0 with one unit per rank reproduces the
+//            historical one-ico-face-per-rank decomposition.
 //   Radial:  each rank owns a range of shells [shell_k_lo, shell_k_hi).
-//
-// Phase 1 (current): single-rank degenerate case only — the rank owns
-// everything, there are no halos, no neighbors.  Downstream code can
-// use this API and will run identically to the pre-MPI code.  MPI-aware
-// construction and halo tables are populated in later phases.
 // =========================================================================
 class prismatic_partition {
  public:
@@ -45,9 +42,40 @@ class prismatic_partition {
   int N_verts_global = 0;        // = (N_r_global + 1) * N_vert_s_global
 
   // -----------------------------------------------------------------------
-  // Angular partition: this rank owns sub-triangles in ico-face indices
-  // [ico_face_lo, ico_face_hi).  Single-rank default: [0, 20).
+  // Angular partition — generalized level-m patch units (Phase 7A).
+  //
+  // The angular axis is decomposed into U = 20·4^m congruent units,
+  // m = patch_level ∈ [0, L].  Unit u (GLOBAL numbering) covers the
+  // contiguous triangle block [u·4^(L−m), (u+1)·4^(L−m)) — subdivide()
+  // pushes the 4 children of a parent consecutively, so a triangle's
+  // global unit index is pure arithmetic: unit_of_tri(t) = t >> 2(L−m).
+  // At m = 0 units are the 20 icosahedron faces.
+  //
+  // For rank assignment, units are ordered along a fixed Hamiltonian
+  // cycle of the icosahedron's face-adjacency graph (face_path()),
+  // times base-4 child order within each face:
+  //   path_of_unit(u) = face_path_pos()[u / 4^m]·4^m + u % 4^m.
+  // This rank owns PATH units [unit_lo, unit_hi).  The path ordering
+  // makes every whole-face group (A ∈ {1,2,4,5,10,20}) a connected band
+  // and any aligned power-of-4 unit range a single connected patch.
+  //
+  // Ownership of shared sphere-edges / sphere-vertices: the LOWEST
+  // incident unit in GLOBAL unit numbering owns the element (min over
+  // its incident triangles of unit_of_tri).  At m = 0 this reduces
+  // exactly to the historical lowest-incident-ico-face rule, and the
+  // owning RANK is independent of the m used at fixed A (refining m
+  // splits each unit into 4 consecutive global units, preserving the
+  // relative order across distinct coarser units).
   // -----------------------------------------------------------------------
+  int patch_level = 0;  // m
+  int unit_lo = 0;      // owned PATH-ordered unit range [unit_lo, unit_hi)
+  int unit_hi = 20;
+
+  // LEGACY whole-face view, consumed by the per-ico-face angular halo
+  // plan builder (replaced in 7A.3) and a few tests.  Synced by the
+  // factories: [0, 20) when the rank owns the full sphere, [f, f+1)
+  // when it owns exactly ico-face f, [-1, -1) otherwise (generalized
+  // unit partitions the legacy builder cannot serve).
   int ico_face_lo = 0;
   int ico_face_hi = 20;
 
@@ -128,31 +156,55 @@ class prismatic_partition {
   }
 
   // Angular-only decomposition factory.  20-way split by ico-face, with
-  // full radial range owned.  Rank k owns ico-face k.
+  // full radial range owned.  Rank k owns ico-face k (IDENTITY rank→face
+  // order — the pre-7A comm wiring; the generalized factories below use
+  // the canonical path order instead).
   static prismatic_partition ico_face_angular(int L, int N_r_global,
                                               int ico_face_idx) {
     auto p = single_rank(L, N_r_global);
     p.ico_face_lo = ico_face_idx;
     p.ico_face_hi = ico_face_idx + 1;
+    p.unit_lo = face_path_pos()[ico_face_idx];
+    p.unit_hi = p.unit_lo + 1;
     p.angular_rank = ico_face_idx;
     p.n_angular_ranks = 20;
     return p;
   }
 
-  // Combined decomposition: K radial slabs × 20 angular ico-faces.
-  // Rank (radial_rank, ico_face_idx) owns sub-triangles from one ico-face
-  // on shells of one radial slab.  Used by production-target partitions
-  // (20·K ranks total) and combined-decomposition tests.
-  static prismatic_partition combined(int L, int N_r_global,
-                                      int n_radial_ranks, int radial_rank,
-                                      int ico_face_idx) {
+  // LEGACY combined decomposition: K radial slabs × 20 angular ico-faces
+  // with identity rank→face order.  Kept while the per-face halo plan
+  // builder and the 20·K comm wiring remain (removed in 7A.3/7A.4).
+  static prismatic_partition combined_ico_face(int L, int N_r_global,
+                                               int n_radial_ranks,
+                                               int radial_rank,
+                                               int ico_face_idx) {
     auto p = radial_slab(L, N_r_global, n_radial_ranks, radial_rank);
     p.ico_face_lo = ico_face_idx;
     p.ico_face_hi = ico_face_idx + 1;
+    p.unit_lo = face_path_pos()[ico_face_idx];
+    p.unit_hi = p.unit_lo + 1;
     p.angular_rank = ico_face_idx;
     p.n_angular_ranks = 20;
     return p;
   }
+
+  // Generalized angular-only decomposition (Phase 7A): A angular ranks
+  // over U = 20·4^m level-m patch units, A | U.  Angular rank a owns
+  // path units [a·U/A, (a+1)·U/A).  m defaults to the smallest level
+  // with A | 20·4^m; an explicit m must satisfy A | 20·4^m and m ≤ L.
+  // Throws std::invalid_argument on an unsatisfiable A or m.
+  static prismatic_partition angular_units(int L, int N_r_global, int A,
+                                           int angular_rank, int m = -1);
+
+  // Generalized combined decomposition: A angular × K radial ranks,
+  // world_rank = radial_rank·A + angular_rank (Phase 7 convention,
+  // generalizing the historical radial·20 + face).
+  static prismatic_partition combined(int L, int N_r_global, int A, int K,
+                                      int world_rank, int m = -1);
+
+  // Smallest patch level m ≥ 0 with A | 20·4^m, or -1 if none exists
+  // (A must be of the form 2^j or 5·2^j).
+  static int min_patch_level_for(int A);
 
   // Single-rank fallback: rank owns the full mesh.  No MPI, no halos.
   // This is the constructor used until Phase 3 wires in MPI.
@@ -171,6 +223,9 @@ class prismatic_partition {
 
     p.ico_face_lo = 0;
     p.ico_face_hi = 20;
+    p.patch_level = 0;
+    p.unit_lo = 0;
+    p.unit_hi = 20;
     p.shell_k_lo = 0;
     // Shells live at k ∈ [0, N_r_global] — single rank owns all N_r+1 of
     // them.  Slab index range [0, N_r_global) is derived via owns_slab().
@@ -205,21 +260,54 @@ class prismatic_partition {
     return slab_k >= 0 && slab_k < N_r_global && owns_shell(slab_k);
   }
 
+  // -----------------------------------------------------------------------
+  // Angular unit arithmetic (Phase 7A).  All O(1): shifts plus the
+  // static 20-entry face-path table.
+  // -----------------------------------------------------------------------
+  int units_per_face() const { return pow4L(patch_level); }  // = 4^m
+  int n_units() const { return 20 * units_per_face(); }      // = U
+
+  // GLOBAL unit index of a global sub-triangle.
+  int unit_of_tri(int global_tri_idx) const {
+    return global_tri_idx >> (2 * (L - patch_level));
+  }
+
+  // Canonical (Hamiltonian-path) position of a GLOBAL unit index.
+  int path_of_unit(int unit) const {
+    const int upf = units_per_face();
+    return face_path_pos()[unit / upf] * upf + unit % upf;
+  }
+
+  bool owns_path_unit(int path_unit) const {
+    return path_unit >= unit_lo && path_unit < unit_hi;
+  }
+  bool owns_unit(int unit) const { return owns_path_unit(path_of_unit(unit)); }
+
+  // Angular rank owning a path unit under the uniform A-way split used
+  // by angular_units()/combined().  NOT meaningful for the legacy
+  // identity-ordered factories (ico_face_angular / combined_ico_face),
+  // whose rank→face map bypasses the path ordering.
+  int angular_rank_of_path_unit(int path_unit) const {
+    return static_cast<int>(static_cast<long>(path_unit) * n_angular_ranks /
+                            n_units());
+  }
+
+  // True iff this rank owns EVERY unit of the given ico-face.
   bool owns_ico_face(int ico_face) const {
-    return ico_face >= ico_face_lo && ico_face < ico_face_hi;
+    const int upf = units_per_face();
+    const int p0 = face_path_pos()[ico_face] * upf;
+    return p0 >= unit_lo && p0 + upf <= unit_hi;
   }
 
   bool owns_sub_tri(int global_tri_idx) const {
-    const int sz = N_tri_global / 20;  // = 4^L
-    int ico_face = global_tri_idx / sz;
-    return owns_ico_face(ico_face);
+    return owns_unit(unit_of_tri(global_tri_idx));
   }
 
   // True if this rank covers the full angular span (no angular partition),
   // equivalently: angular ownership questions degenerate to "everyone
   // owns everything angular".  Purely radial decomposition sets this.
   bool owns_all_angular() const {
-    return ico_face_lo == 0 && ico_face_hi == 20;
+    return unit_lo == 0 && unit_hi == n_units();
   }
 
   // -----------------------------------------------------------------------
@@ -232,17 +320,20 @@ class prismatic_partition {
   void set_topology(const icosphere_topology* t) { m_topology = t; }
   const icosphere_topology* topology() const { return m_topology; }
 
-  // Angular ownership of a sphere-edge.  Rule: lowest-index incident
-  // ico-face owns the edge.  Interior sphere-edges are in exactly one
-  // ico-face; ico-edge boundary edges are in two and go to the smaller
-  // ico-face index.
+  // Angular ownership of a sphere-edge.  Rule: lowest incident unit (in
+  // GLOBAL unit numbering, via the edge's 2 adjacent triangles) owns the
+  // edge.  At m = 0 this is the historical lowest-incident-ico-face rule.
   bool owns_sphere_edge(int sphere_edge_idx) const;
 
-  // Angular ownership of a sphere-vertex.  Rule: lowest-index incident
-  // ico-face owns the vertex.  Interior vertices: 1 face; ico-edge
-  // vertices: 2 faces; valence-5 icosahedron corners: 5 faces.  Lowest
-  // index always wins.
+  // Angular ownership of a sphere-vertex.  Rule: lowest incident unit
+  // over the vertex's triangle fan (valence 5 at icosahedron corners,
+  // 6 elsewhere).  At m = 0: lowest incident ico-face.
   bool owns_sphere_vertex(int sphere_vertex_idx) const;
+
+  // Owner in GLOBAL unit numbering (min incident unit); -1 without an
+  // attached topology.
+  int owner_unit_of_sphere_edge(int sphere_edge_idx) const;
+  int owner_unit_of_sphere_vertex(int sphere_vertex_idx) const;
 
   // -----------------------------------------------------------------------
   // Ownership queries — full cochain index space.
@@ -301,14 +392,28 @@ class prismatic_partition {
   static const std::array<std::array<int, 6>, 20>& diagonal_neighbors();
 
   // -----------------------------------------------------------------------
+  // Canonical face ordering (Phase 7A): a fixed Hamiltonian cycle on the
+  // icosahedron's face-adjacency graph (the dodecahedral graph).
+  // face_path()[p] = ico-face at path position p; face_path_pos() is the
+  // inverse.  Consecutive entries (cyclically) share an ico-edge, so any
+  // contiguous run of whole faces in path order is a connected band.
+  // -----------------------------------------------------------------------
+  static const std::array<int, 20>& face_path();
+  static const std::array<int, 20>& face_path_pos();
+
+  // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
- private:
   static constexpr int pow4L(int L) {
     int p = 1;
     for (int i = 0; i < L; ++i) p *= 4;
     return p;
   }
+
+ private:
+  // Set the generalized angular-unit fields (validates A, m; syncs the
+  // legacy ico_face_lo/hi view).  Shared by angular_units()/combined().
+  void set_angular_units(int A, int angular_rank, int m);
 
   const icosphere_topology* m_topology = nullptr;
 };

@@ -247,7 +247,7 @@ TEST_CASE("d1_local combined partition: rows match global d1",
   // Spot-check a few interior + boundary partitions.
   for (auto rk : std::vector<std::pair<int, int>>{
            {0, 0}, {1, 5}, {2, 11}, {3, 19}}) {
-    auto part = prismatic_partition::combined(L, N_r, K, rk.first, rk.second);
+    auto part = prismatic_partition::combined_ico_face(L, N_r, K, rk.first, rk.second);
     part.set_topology(&topo);
     auto mp = prismatic_mesh_partition::build(part, topo);
     auto d1 = prismatic_d1_local::build(*mesh, mp);
@@ -442,7 +442,7 @@ TEST_CASE("d1_local operator: haloed local SpMV equals global on all "
   SECTION("combined 20 x 4") {
     for (auto rk : std::vector<std::pair<int, int>>{
              {0, 0}, {0, 7}, {1, 3}, {2, 11}, {3, 19}, {3, 0}}) {
-      auto part = prismatic_partition::combined(L, N_r, 4, rk.first,
+      auto part = prismatic_partition::combined_ico_face(L, N_r, 4, rk.first,
                                                 rk.second);
       part.set_topology(&topo);
       auto mp = prismatic_mesh_partition::build(part, topo);
@@ -459,7 +459,7 @@ TEST_CASE("mesh_local_ptrs: bundle mirrors local buffers and layouts",
   const int N_r = 8;
   auto mesh = make_mesh(L, N_r);
   auto topo = icosphere_topology::build_from_mesh(*mesh);
-  auto part = prismatic_partition::combined(L, N_r, 4, 1, 7);
+  auto part = prismatic_partition::combined_ico_face(L, N_r, 4, 1, 7);
   part.set_topology(&topo);
   auto mp = prismatic_mesh_partition::build(part, topo);
   auto ml = prismatic_mesh_local::build(*mesh, mp);

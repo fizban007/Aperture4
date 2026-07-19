@@ -215,7 +215,7 @@ int main(int argc, char** argv) {
   exchanger_t no_ex;  // inactive
 
   // This rank's slice of the combined 20 x K decomposition.
-  auto part = prismatic_partition::combined(TL, TN_r, K, mcomm.radial_rank(),
+  auto part = prismatic_partition::combined_ico_face(TL, TN_r, K, mcomm.radial_rank(),
                                             mcomm.angular_rank());
   part.set_topology(&topo);
   auto mp = prismatic_mesh_partition::build(part, topo);

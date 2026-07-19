@@ -116,7 +116,7 @@ TEST_CASE("mesh_local combined partition: sizes shrink + values match global",
 
   for (int r = 0; r < K; ++r) {
     for (int f = 0; f < 20; ++f) {
-      auto part = prismatic_partition::combined(L, N_r, K, r, f);
+      auto part = prismatic_partition::combined_ico_face(L, N_r, K, r, f);
       part.set_topology(&topo);
       auto mp = prismatic_mesh_partition::build(part, topo);
       auto local = prismatic_mesh_local::build(*mesh, mp);
@@ -168,7 +168,7 @@ TEST_CASE("mesh_local: owned counts sum to global across all ranks",
   int sum_tri = 0, sum_rect = 0, sum_he = 0, sum_ve = 0, sum_vt = 0;
   for (int r = 0; r < K; ++r) {
     for (int f = 0; f < 20; ++f) {
-      auto part = prismatic_partition::combined(L, N_r, K, r, f);
+      auto part = prismatic_partition::combined_ico_face(L, N_r, K, r, f);
       part.set_topology(&topo);
       auto mp = prismatic_mesh_partition::build(part, topo);
       sum_tri  += mp.layout(cochain_type::tri_face).owned_size();

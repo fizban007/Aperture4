@@ -368,7 +368,7 @@ std::vector<rank_ctx> make_partitioned(const prismatic_mesh& mesh,
       for (int f = 0; f < 20; f++)
         ranks.push_back(make_ctx(
             mesh, topo,
-            prismatic_partition::combined(TL, TN_r, n_radial, r, f), g0));
+            prismatic_partition::combined_ico_face(TL, TN_r, n_radial, r, f), g0));
   } else if (angular) {
     for (int f = 0; f < 20; f++)
       ranks.push_back(make_ctx(

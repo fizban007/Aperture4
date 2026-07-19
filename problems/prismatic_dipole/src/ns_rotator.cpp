@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
     }
     mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, world_size / 20);
     topo = icosphere_topology::build_from_mesh(mesh);
-    part = prismatic_partition::combined(mesh.m_L, mesh.m_N_r,
+    part = prismatic_partition::combined_ico_face(mesh.m_L, mesh.m_N_r,
                                          mcomm.n_radial_ranks(),
                                          mcomm.radial_rank(),
                                          mcomm.angular_rank());

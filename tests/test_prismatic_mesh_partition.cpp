@@ -32,7 +32,7 @@ TEST_CASE("mesh_partition build: matches independent layout + plan builders",
   auto mesh = make_mesh(L);
   auto topo = icosphere_topology::build_from_mesh(*mesh);
 
-  auto part = prismatic_partition::combined(L, N_r, K, 1, 5);
+  auto part = prismatic_partition::combined_ico_face(L, N_r, K, 1, 5);
   part.set_topology(&topo);
   auto mp = prismatic_mesh_partition::build(part, topo);
 
@@ -80,7 +80,7 @@ TEST_CASE("copy_global_to_local: local buffer matches global at mapped indices",
   auto mesh = make_mesh(L);
   auto topo = icosphere_topology::build_from_mesh(*mesh);
 
-  auto part = prismatic_partition::combined(L, N_r, K, 2, 11);
+  auto part = prismatic_partition::combined_ico_face(L, N_r, K, 2, 11);
   part.set_topology(&topo);
   auto mp = prismatic_mesh_partition::build(part, topo);
 

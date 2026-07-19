@@ -162,7 +162,7 @@ TEST_CASE("combined layout: owned and ghost sets are disjoint",
                          cochain_type::vertex}) {
     for (int r = 0; r < K; ++r) {
       for (int f = 0; f < 20; ++f) {
-        auto part = prismatic_partition::combined(L, N_r, K, r, f);
+        auto part = prismatic_partition::combined_ico_face(L, N_r, K, r, f);
         part.set_topology(&topo);
         auto plan_a = build_angular_halo_plan(t, part, topo);
         auto plan_r = build_radial_halo_plan(t, part);
@@ -194,7 +194,7 @@ TEST_CASE("localize: translated indices round-trip via to_global",
   auto mesh = make_mesh(L);
   auto topo = icosphere_topology::build_from_mesh(*mesh);
 
-  auto part = prismatic_partition::combined(L, N_r, K, 1, 5);  // interior
+  auto part = prismatic_partition::combined_ico_face(L, N_r, K, 1, 5);  // interior
   part.set_topology(&topo);
   auto plan_a_g = build_angular_halo_plan(cochain_type::tri_face, part, topo);
   auto plan_r_g = build_radial_halo_plan(cochain_type::tri_face, part);

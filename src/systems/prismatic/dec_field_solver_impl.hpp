@@ -32,7 +32,7 @@ dec_field_solver<ExecPolicy>::dec_field_solver(prismatic_mesh& mesh,
     m_mpi = comm;
     m_distributed = true;
     m_topo = icosphere_topology::build_from_mesh(m_mesh);
-    m_part = prismatic_partition::combined(
+    m_part = prismatic_partition::combined_ico_face(
         m_mesh.m_L, m_mesh.m_N_r, comm->n_radial_ranks(), comm->radial_rank(),
         comm->angular_rank());
     m_part.set_topology(&m_topo);

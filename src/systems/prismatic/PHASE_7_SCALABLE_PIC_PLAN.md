@@ -258,7 +258,35 @@ Original plan bullets (for reference):
    scenarios.  8-rank (4×2) is the single-node Frontier shape and
    becomes a permanent CI configuration.
 
-### 7B — PIC-depth ghosts + reduce() (~3–4 days)
+### 7B — PIC-depth ghosts + reduce() — COMPLETE 2026-07-18
+
+> Landed as commit `981aae075`.  Notes vs the bullets below:
+> - One generic ghost rule implements F4 for every cochain kind, via
+>   per-tri "halo consumer" rank sets (TP(t) = ranks owning any tri
+>   sharing a vertex with t): element x is ghosted on R iff a prism
+>   incident to x has R ∈ TP.  Radial pic plans recv shells
+>   {k_lo−1, k_hi, k_hi+1} (upper side is DEPTH 2 in shells — the
+>   slab-k↔shell-k convention) and slabs {k_lo−1, k_hi}, with columns
+>   = owned ∪ angular-pic-ghost.
+> - CORNER ghosts (angular-ghost column × radial-ghost layer) are
+>   delivered by radial FORWARDING (radial peers share the angular
+>   rank ⇒ same ghost columns), which fixes an axis ORDER CONTRACT:
+>   exchange angular→radial, reduce radial→angular.  The exchanger and
+>   the dec_dist lockstep driver were flipped accordingly (bit-neutral
+>   at solver depth, verified 0.0 under MPI).
+> - pic depth requires a canonical partition and ≥ 2 shells per radial
+>   slab (throws otherwise: k_hi+1 must be owned by the immediate
+>   upper peer).
+> - The exchanger also gained exchange_vertex/reduce_vertex and packs
+>   the vertex cochain block (rho and friends, ready for 7C).
+> - Validation: pic ghost sets == brute-force F4 transcription on all
+>   cochains × (A,K) ∈ {4×1, 4×2, 20×2, 80×1, 8×3} (angular/radial
+>   recv sets disjoint); exchange fills all ghosts incl. forwarded
+>   corners; staged reduce == global contribution sums with all ghosts
+>   zeroed; solver over pic layouts unchanged; MPI reduce roundtrip
+>   bit-exact (0.0) packed+staged at 4×2 / 20×2 / 80×1 / legacy 20×1.
+
+Original plan bullets (for reference):
 
 1. Ghost-set builder for the `pic` depth class (T_halo 1-ring +
    shells ±1); layouts rebuilt; solver tests rerun (still bit-exact —

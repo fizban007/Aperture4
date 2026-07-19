@@ -42,80 +42,80 @@ prismatic_mesh_local prismatic_mesh_local::build(
   auto const& L_vert = mp.layout(cochain_type::vertex);
 
   // ---- Tri-face buffers ----
-  fill_local(L_tri, out.tri_face_area, mem_type, [&](int g) {
-    return pg::tri_area(mesh, g / NT, g % NT);
+  fill_local(L_tri, out.tri_face_area, mem_type, [&](gidx_t g) {
+    return pg::tri_area(mesh, int(g / NT), int(g % NT));
   });
-  fill_local(L_tri, out.tri_face_hodge2, mem_type, [&](int g) {
-    return pg::hodge2_tri(mesh, g / NT, g % NT);
+  fill_local(L_tri, out.tri_face_hodge2, mem_type, [&](gidx_t g) {
+    return pg::hodge2_tri(mesh, int(g / NT), int(g % NT));
   });
-  fill_local(L_tri, out.tri_face_boundary, mem_type, [&](int g) {
-    return pg::tri_face_boundary(mesh, g / NT);
+  fill_local(L_tri, out.tri_face_boundary, mem_type, [&](gidx_t g) {
+    return pg::tri_face_boundary(mesh, int(g / NT));
   });
   fill_local(L_tri, out.tri_face_radial_layer, mem_type,
-             [&](int g) { return g / NT; });
+             [&](gidx_t g) { return int(g / NT); });
 
   // ---- Rect-face buffers ----
-  fill_local(L_rect, out.rect_face_area, mem_type, [&](int g) {
-    return pg::rect_area(mesh, g / NE, g % NE);
+  fill_local(L_rect, out.rect_face_area, mem_type, [&](gidx_t g) {
+    return pg::rect_area(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_rect, out.rect_face_hodge2, mem_type, [&](int g) {
-    return pg::hodge2_rect(mesh, g / NE, g % NE);
+  fill_local(L_rect, out.rect_face_hodge2, mem_type, [&](gidx_t g) {
+    return pg::hodge2_rect(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_rect, out.rect_face_boundary, mem_type, [&](int g) {
-    return pg::rect_face_boundary(mesh, g / NE);
+  fill_local(L_rect, out.rect_face_boundary, mem_type, [&](gidx_t g) {
+    return pg::rect_face_boundary(mesh, int(g / NE));
   });
   fill_local(L_rect, out.rect_face_radial_layer, mem_type,
-             [&](int g) { return g / NE; });
+             [&](gidx_t g) { return int(g / NE); });
 
   // ---- H-edge buffers ----
-  fill_local(L_he, out.h_edge_length, mem_type, [&](int g) {
-    return pg::h_edge_length(mesh, g / NE, g % NE);
+  fill_local(L_he, out.h_edge_length, mem_type, [&](gidx_t g) {
+    return pg::h_edge_length(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_he, out.h_edge_hodge1_inv, mem_type, [&](int g) {
-    return pg::hodge1_inv_h(mesh, g / NE, g % NE);
+  fill_local(L_he, out.h_edge_hodge1_inv, mem_type, [&](gidx_t g) {
+    return pg::hodge1_inv_h(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_he, out.h_edge_v0, mem_type, [&](int g) {
-    return pg::h_edge_gv0(mesh, g / NE, g % NE);
+  fill_local(L_he, out.h_edge_v0, mem_type, [&](gidx_t g) {
+    return pg::h_edge_gv0(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_he, out.h_edge_v1, mem_type, [&](int g) {
-    return pg::h_edge_gv1(mesh, g / NE, g % NE);
+  fill_local(L_he, out.h_edge_v1, mem_type, [&](gidx_t g) {
+    return pg::h_edge_gv1(mesh, int(g / NE), int(g % NE));
   });
-  fill_local(L_he, out.h_edge_boundary, mem_type, [&](int g) {
-    return pg::h_edge_boundary(mesh, g / NE);
+  fill_local(L_he, out.h_edge_boundary, mem_type, [&](gidx_t g) {
+    return pg::h_edge_boundary(mesh, int(g / NE));
   });
   fill_local(L_he, out.h_edge_radial_layer, mem_type,
-             [&](int g) { return g / NE; });
+             [&](gidx_t g) { return int(g / NE); });
 
   // ---- V-edge buffers ----
-  fill_local(L_ve, out.v_edge_length, mem_type, [&](int g) {
-    return pg::v_edge_length(mesh, g / NV);
+  fill_local(L_ve, out.v_edge_length, mem_type, [&](gidx_t g) {
+    return pg::v_edge_length(mesh, int(g / NV));
   });
-  fill_local(L_ve, out.v_edge_hodge1_inv, mem_type, [&](int g) {
-    return pg::hodge1_inv_v(mesh, g / NV, g % NV);
+  fill_local(L_ve, out.v_edge_hodge1_inv, mem_type, [&](gidx_t g) {
+    return pg::hodge1_inv_v(mesh, int(g / NV), int(g % NV));
   });
-  fill_local(L_ve, out.v_edge_v0, mem_type, [&](int g) {
-    return pg::v_edge_gv0(mesh, g / NV, g % NV);
+  fill_local(L_ve, out.v_edge_v0, mem_type, [&](gidx_t g) {
+    return pg::v_edge_gv0(mesh, int(g / NV), int(g % NV));
   });
-  fill_local(L_ve, out.v_edge_v1, mem_type, [&](int g) {
-    return pg::v_edge_gv1(mesh, g / NV, g % NV);
+  fill_local(L_ve, out.v_edge_v1, mem_type, [&](gidx_t g) {
+    return pg::v_edge_gv1(mesh, int(g / NV), int(g % NV));
   });
-  fill_local(L_ve, out.v_edge_boundary, mem_type, [&](int g) {
-    return pg::v_edge_boundary(mesh, g / NV);
+  fill_local(L_ve, out.v_edge_boundary, mem_type, [&](gidx_t g) {
+    return pg::v_edge_boundary(mesh, int(g / NV));
   });
   fill_local(L_ve, out.v_edge_radial_layer, mem_type,
-             [&](int g) { return g / NV; });
+             [&](gidx_t g) { return int(g / NV); });
 
   // ---- Vertex buffers ----
   fill_local(L_vert, out.vert_r, mem_type,
-             [&](int g) { return pg::vert_r(mesh, g / NV); });
+             [&](gidx_t g) { return pg::vert_r(mesh, int(g / NV)); });
   fill_local(L_vert, out.vert_theta, mem_type,
-             [&](int g) { return pg::vert_theta(mesh, g % NV); });
+             [&](gidx_t g) { return pg::vert_theta(mesh, int(g % NV)); });
   fill_local(L_vert, out.vert_phi, mem_type,
-             [&](int g) { return pg::vert_phi(mesh, g % NV); });
+             [&](gidx_t g) { return pg::vert_phi(mesh, int(g % NV)); });
 
   // ---- Local -> global maps ----
   auto fill_l2g = [mem_type](const distributed_cochain_layout& layout,
-                             buffer<int>& dst) {
+                             buffer<gidx_t>& dst) {
     const int n = layout.local_size();
     dst.set_memtype(mem_type);
     dst.resize(n);

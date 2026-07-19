@@ -178,17 +178,17 @@ inline int rect_face_boundary(const prismatic_mesh& m, int k) {
 // ---- GLOBAL vertex-id helpers (edge endpoints, matching the global
 //      edge_v0/v1 tables' content) ---------------------------------------
 
-inline int h_edge_gv0(const prismatic_mesh& m, int k, int e) {
-  return k * m.m_N_vert_s + m.sphere_edge_v0[e];
+inline gidx_t h_edge_gv0(const prismatic_mesh& m, int k, int e) {
+  return gidx_t(k) * m.m_N_vert_s + m.sphere_edge_v0[e];
 }
-inline int h_edge_gv1(const prismatic_mesh& m, int k, int e) {
-  return k * m.m_N_vert_s + m.sphere_edge_v1[e];
+inline gidx_t h_edge_gv1(const prismatic_mesh& m, int k, int e) {
+  return gidx_t(k) * m.m_N_vert_s + m.sphere_edge_v1[e];
 }
-inline int v_edge_gv0(const prismatic_mesh& m, int k, int s) {
-  return k * m.m_N_vert_s + s;
+inline gidx_t v_edge_gv0(const prismatic_mesh& m, int k, int s) {
+  return gidx_t(k) * m.m_N_vert_s + s;
 }
-inline int v_edge_gv1(const prismatic_mesh& m, int k, int s) {
-  return (k + 1) * m.m_N_vert_s + s;
+inline gidx_t v_edge_gv1(const prismatic_mesh& m, int k, int s) {
+  return gidx_t(k + 1) * m.m_N_vert_s + s;
 }
 
 }  // namespace prismatic_geom

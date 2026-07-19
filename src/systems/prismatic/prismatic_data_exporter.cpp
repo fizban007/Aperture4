@@ -505,7 +505,7 @@ void prismatic_data_exporter::write_aggregated(uint32_t step, double time) {
   auto make_val = [&](cochain_type t, const Scalar* data, int block_off) {
     const distributed_cochain_layout* L =
         m_distributed ? &m_mp->layout(t) : nullptr;
-    return [L, data, block_off](int g) -> double {
+    return [L, data, block_off](gidx_t g) -> double {
       if (L == nullptr) return double(data[block_off + g]);
       const int l = L->to_local(g);
       if (l < 0 || l >= L->owned_size()) return 0.0;

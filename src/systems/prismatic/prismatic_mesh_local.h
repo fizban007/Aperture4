@@ -66,15 +66,16 @@ class prismatic_mesh_local {
   // ---- Edge-side ----
   buffer<Scalar> h_edge_length;
   buffer<Scalar> h_edge_hodge1_inv;
-  buffer<int>       h_edge_v0;
-  buffer<int>       h_edge_v1;
+  // GLOBAL 3D vertex ids (k * N_vert_s + s) — 64-bit past ~L9.
+  buffer<gidx_t>    h_edge_v0;
+  buffer<gidx_t>    h_edge_v1;
   buffer<int>       h_edge_boundary;
   buffer<int>       h_edge_radial_layer;
 
   buffer<Scalar> v_edge_length;
   buffer<Scalar> v_edge_hodge1_inv;
-  buffer<int>       v_edge_v0;
-  buffer<int>       v_edge_v1;
+  buffer<gidx_t>    v_edge_v0;
+  buffer<gidx_t>    v_edge_v1;
   buffer<int>       v_edge_boundary;
   buffer<int>       v_edge_radial_layer;
 
@@ -90,10 +91,10 @@ class prismatic_mesh_local {
   // quadratures) use these to reach the replicated global mesh
   // geometry (face vertex tables, sphere coords) that the local ptrs
   // bundle deliberately does not duplicate.
-  buffer<int> tri_face_l2g;
-  buffer<int> rect_face_l2g;
-  buffer<int> h_edge_l2g;
-  buffer<int> v_edge_l2g;
+  buffer<gidx_t> tri_face_l2g;
+  buffer<gidx_t> rect_face_l2g;
+  buffer<gidx_t> h_edge_l2g;
+  buffer<gidx_t> v_edge_l2g;
 
  private:
   const prismatic_mesh_partition* m_partition = nullptr;

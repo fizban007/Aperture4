@@ -86,7 +86,7 @@ prismatic_mesh_local_ptrs make_local_ptrs_host(
     const prismatic_mesh_local& ml, const prismatic_d1_local& d1) {
   return assemble(ml, d1,
                   [](const buffer<Scalar>& b) { return b.host_ptr(); },
-                  [](const buffer<int>& b) { return b.host_ptr(); });
+                  [](const auto& b) { return b.host_ptr(); });
 }
 
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
@@ -94,7 +94,7 @@ prismatic_mesh_local_ptrs make_local_ptrs_dev(
     const prismatic_mesh_local& ml, const prismatic_d1_local& d1) {
   return assemble(ml, d1,
                   [](const buffer<Scalar>& b) { return b.dev_ptr(); },
-                  [](const buffer<int>& b) { return b.dev_ptr(); });
+                  [](const auto& b) { return b.dev_ptr(); });
 }
 #endif
 

@@ -33,12 +33,14 @@ struct halo_plan {
     // the associated communicator.
     int peer_rank = -1;
 
-    // Global cochain indices we SEND to the peer.
-    std::vector<int> send_global_idx;
+    // Global cochain indices we SEND to the peer (64-bit: global 3D
+    // indices pass 2^31 near L9).  Localized plans (layout.localize)
+    // store LOCAL indices in the same fields.
+    std::vector<gidx_t> send_global_idx;
 
     // Global cochain indices we RECEIVE from the peer (written into the
     // local buffer at exactly these global indices).
-    std::vector<int> recv_global_idx;
+    std::vector<gidx_t> recv_global_idx;
   };
   std::vector<peer_entry> peers;
 
@@ -71,7 +73,7 @@ enum class cochain_type {
 };
 
 // Return the total cochain size for the full global mesh.
-int global_cochain_size(cochain_type t, const prismatic_partition& p);
+gidx_t global_cochain_size(cochain_type t, const prismatic_partition& p);
 
 // =========================================================================
 // Radial halo plan builder.

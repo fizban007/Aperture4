@@ -95,9 +95,15 @@ class prismatic_field : public data_t {
 
  private:
   static int field_size(const prismatic_mesh& mesh) {
-    if constexpr (Type == PrismaticFieldType::vertex) return mesh.m_N_verts;
-    else if constexpr (Type == PrismaticFieldType::edge) return mesh.m_N_edges;
-    else return mesh.m_N_faces;
+    // Explicit narrow: the mesh-sized ctor is the SINGLE-RANK path (a
+    // global-sized field above 2^31 elements cannot exist on one rank).
+    if constexpr (Type == PrismaticFieldType::vertex) {
+      return int(mesh.m_N_verts);
+    } else if constexpr (Type == PrismaticFieldType::edge) {
+      return int(mesh.m_N_edges);
+    } else {
+      return int(mesh.m_N_faces);
+    }
   }
   static int local_field_size(const prismatic_mesh_partition& mp) {
     if constexpr (Type == PrismaticFieldType::vertex) {

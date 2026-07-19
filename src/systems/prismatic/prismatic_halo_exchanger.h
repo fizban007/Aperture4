@@ -361,9 +361,11 @@ class prismatic_halo_exchanger {
       m.recv_off = roff;
       m.recv_cnt = int(pe.recv_global_idx.size());
       for (int j = 0; j < m.send_cnt; ++j)
-        pp.send_idx[soff + j] = pe.send_global_idx[j] + block_off;
+        // Localized plans carry LOCAL indices (fit int) in the gidx_t
+        // wire vectors.
+        pp.send_idx[soff + j] = int(pe.send_global_idx[j]) + block_off;
       for (int j = 0; j < m.recv_cnt; ++j)
-        pp.recv_idx[roff + j] = pe.recv_global_idx[j] + block_off;
+        pp.recv_idx[roff + j] = int(pe.recv_global_idx[j]) + block_off;
       soff += m.send_cnt;
       roff += m.recv_cnt;
       pp.peers.push_back(m);

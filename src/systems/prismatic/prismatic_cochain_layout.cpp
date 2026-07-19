@@ -8,7 +8,7 @@ namespace Aperture {
 
 namespace {
 
-bool owns(cochain_type t, const prismatic_partition& p, int g) {
+bool owns(cochain_type t, const prismatic_partition& p, gidx_t g) {
   switch (t) {
     case cochain_type::tri_face:  return p.owns_tri_face_cochain(g);
     case cochain_type::rect_face: return p.owns_rect_face_cochain(g);
@@ -91,22 +91,22 @@ distributed_cochain_layout distributed_cochain_layout::build(
       if (own_s) owned_s.push_back(s);
     }
   }
-  std::vector<int> owned;
+  std::vector<gidx_t> owned;
   owned.reserve(out.m_global_size /
                 std::max(1, part.n_angular_ranks * part.n_radial_ranks));
   for (int k = 0; k < n_k; ++k) {
     const bool own_k =
         radial_is_slab ? part.owns_slab(k) : part.owns_shell(k);
     if (!own_k) continue;
-    for (int s : owned_s) owned.push_back(k * N_s + s);
+    for (int s : owned_s) owned.push_back(gidx_t(k) * N_s + s);
   }
 
   // ---- Collect ghost global indices from plans (dedup via std::set) ----
-  std::set<int> ghost_set;
+  std::set<gidx_t> ghost_set;
   for (const halo_plan* p : plans) {
     if (p == nullptr) continue;
     for (auto const& pe : p->peers) {
-      for (int g : pe.recv_global_idx) {
+      for (gidx_t g : pe.recv_global_idx) {
         // Ownership & ghosthood should be disjoint; if a plan was
         // built consistently with this partition, no owned index
         // should appear in recv.  Check defensively.
@@ -119,8 +119,8 @@ distributed_cochain_layout distributed_cochain_layout::build(
   out.m_n_owned = int(owned.size());
   out.m_n_ghost = int(ghost_set.size());
   out.m_local_to_global.reserve(out.m_n_owned + out.m_n_ghost);
-  for (int g : owned) out.m_local_to_global.push_back(g);
-  for (int g : ghost_set) out.m_local_to_global.push_back(g);
+  for (gidx_t g : owned) out.m_local_to_global.push_back(g);
+  for (gidx_t g : ghost_set) out.m_local_to_global.push_back(g);
 
   // ---- Sorted view for global→local lookups ----
   const int n_local = out.local_size();
@@ -140,7 +140,8 @@ distributed_cochain_layout distributed_cochain_layout::build(
             [&](int a, int b) {
               return out.m_sorted_global[a] < out.m_sorted_global[b];
             });
-  std::vector<int> sg(n_local), sl(n_local);
+  std::vector<gidx_t> sg(n_local);
+  std::vector<int> sl(n_local);
   for (int i = 0; i < n_local; ++i) {
     sg[i] = out.m_sorted_global[indices[i]];
     sl[i] = out.m_sorted_local[indices[i]];
@@ -151,7 +152,7 @@ distributed_cochain_layout distributed_cochain_layout::build(
   return out;
 }
 
-int distributed_cochain_layout::to_local(int global_idx) const {
+int distributed_cochain_layout::to_local(gidx_t global_idx) const {
   auto it = std::lower_bound(m_sorted_global.begin(), m_sorted_global.end(),
                              global_idx);
   if (it == m_sorted_global.end() || *it != global_idx) return -1;
@@ -167,12 +168,12 @@ halo_plan distributed_cochain_layout::localize(
     local_pe.peer_rank = pe.peer_rank;
     local_pe.send_global_idx.reserve(pe.send_global_idx.size());
     local_pe.recv_global_idx.reserve(pe.recv_global_idx.size());
-    for (int g : pe.send_global_idx) {
+    for (gidx_t g : pe.send_global_idx) {
       int l = to_local(g);
       assert(l >= 0 && "send index must be owned by this rank");
       local_pe.send_global_idx.push_back(l);
     }
-    for (int g : pe.recv_global_idx) {
+    for (gidx_t g : pe.recv_global_idx) {
       int l = to_local(g);
       assert(l >= 0 && "recv index must be a ghost on this rank");
       local_pe.recv_global_idx.push_back(l);

@@ -3,6 +3,7 @@
 #include "core/buffer.hpp"
 #include "core/exec_tags.h"
 #include "core/typedefs_and_constants.h"
+#include "systems/prismatic/prismatic_gidx.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include <map>
 #include <vector>
@@ -51,10 +52,13 @@ class prismatic_mesh {
   int m_N_vert_s = 0;  // vertices per shell = 10 * 4^L + 2
   int m_N_edge_s = 0;  // edges per shell = 30 * 4^L
 
-  // --- Total 3D counts ---
-  int m_N_verts = 0;   // = m_N_vert_s * (N_r + 1)
-  int m_N_edges = 0;   // = m_N_edge_s * (N_r+1) + m_N_vert_s * N_r
-  int m_N_faces = 0;   // = m_N_tri * (N_r+1) + m_N_edge_s * N_r
+  // --- Total 3D counts (64-bit: they pass 2^31 between L8 and L9;
+  //     the full-3D arrays sized by them exist only in the single-rank
+  //     build, but the sphere-only build still records the true counts
+  //     for global dataset sizing) ---
+  gidx_t m_N_verts = 0;   // = m_N_vert_s * (N_r + 1)
+  gidx_t m_N_edges = 0;   // = m_N_edge_s * (N_r+1) + m_N_vert_s * N_r
+  gidx_t m_N_faces = 0;   // = m_N_tri * (N_r+1) + m_N_edge_s * N_r
 
   // --- Geometry (spherical coordinates) ---
   // Vertex positions in (r, θ, φ).  Cartesian (x, y, z) is derivable as

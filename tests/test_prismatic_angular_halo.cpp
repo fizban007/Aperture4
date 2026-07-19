@@ -111,7 +111,7 @@ TEST_CASE("angular halo plan: send_i→j == recv_j←i for every cochain type",
         int g = pe.peer_rank;
         auto* mirror = find_peer(plans[g], f);
         // Sort both sides for set comparison.
-        auto sort_copy = [](std::vector<int> v) {
+        auto sort_copy = [](std::vector<gidx_t> v) {
           std::sort(v.begin(), v.end());
           return v;
         };
@@ -305,7 +305,7 @@ make_unit_angular(int L, int N_r, int A, const icosphere_topology& topo) {
   return out;
 }
 
-std::vector<int> sorted_unique(std::vector<int> v) {
+std::vector<gidx_t> sorted_unique(std::vector<gidx_t> v) {
   std::sort(v.begin(), v.end());
   v.erase(std::unique(v.begin(), v.end()), v.end());
   return v;
@@ -541,8 +541,8 @@ TEST_CASE("generic unit builder: A=1 has no angular peers; pic ghost set "
         for (auto const& spe : sol.peers) {
           auto* ppe = find_peer(pic, spe.peer_rank);
           REQUIRE(ppe != nullptr);
-          auto contains = [](const std::vector<int>& big,
-                             const std::vector<int>& small) {
+          auto contains = [](const std::vector<gidx_t>& big,
+                             const std::vector<gidx_t>& small) {
             return std::includes(big.begin(), big.end(), small.begin(),
                                  small.end());
           };

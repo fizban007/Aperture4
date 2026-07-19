@@ -51,14 +51,14 @@ struct prismatic_mesh_local_ptrs {
   // ---- Edge-side mesh data ----
   const Scalar* h_edge_length = nullptr;
   const Scalar* h_edge_hodge1_inv = nullptr;
-  const int* h_edge_v0 = nullptr;  // GLOBAL vertex indices
-  const int* h_edge_v1 = nullptr;
+  const gidx_t* h_edge_v0 = nullptr;  // GLOBAL 3D vertex ids (64-bit)
+  const gidx_t* h_edge_v1 = nullptr;
   const int* h_edge_boundary = nullptr;
   const int* h_edge_radial_layer = nullptr;
   const Scalar* v_edge_length = nullptr;
   const Scalar* v_edge_hodge1_inv = nullptr;
-  const int* v_edge_v0 = nullptr;
-  const int* v_edge_v1 = nullptr;
+  const gidx_t* v_edge_v0 = nullptr;
+  const gidx_t* v_edge_v1 = nullptr;
   const int* v_edge_boundary = nullptr;
   const int* v_edge_radial_layer = nullptr;
 
@@ -72,10 +72,10 @@ struct prismatic_mesh_local_ptrs {
   // rect faces, h edges, v edges each start at 0).  Used by the
   // rarely-executed geometry kernels (ICs, inner-BC quadratures) to
   // reach the replicated global mesh via prismatic_mesh_ptrs.
-  const int* tri_face_l2g = nullptr;
-  const int* rect_face_l2g = nullptr;
-  const int* h_edge_l2g = nullptr;
-  const int* v_edge_l2g = nullptr;
+  const gidx_t* tri_face_l2g = nullptr;
+  const gidx_t* rect_face_l2g = nullptr;
+  const gidx_t* h_edge_l2g = nullptr;
+  const gidx_t* v_edge_l2g = nullptr;
 
   // ---- d1 / d1^T sparse blocks ----
   const int* d1_tri_h_row = nullptr;

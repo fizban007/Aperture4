@@ -152,4 +152,10 @@ h5datatype<uint64_t>() {
   return H5T_NATIVE_UINT64;
 }
 
+template <>
+hid_t
+h5datatype<int64_t>() {
+  return H5T_NATIVE_INT64;
+}
+
 }  // namespace Aperture

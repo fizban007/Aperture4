@@ -203,7 +203,7 @@ void prismatic_ptc_mesh_local::build(const prismatic_mesh& mesh,
     for (int k = 0; k < n_levels; ++k) {
       const int kg = m_k0 + k;
       for (int s = 0; s < n_s_loc; ++s) {
-        const int g = kg * width_glob + s_l2g[s];
+        const gidx_t g = gidx_t(kg) * width_glob + s_l2g[s];
         const int loc = L.to_local(g);
         if (loc < 0) {
           throw std::runtime_error(
@@ -236,20 +236,20 @@ void prismatic_ptc_mesh_local::build(const prismatic_mesh& mesh,
   {
     std::vector<Scalar> v(m_n_verts_layout);
     for (int l = 0; l < m_n_verts_layout; ++l) {
-      const int g = L_vert.to_global(l);
-      v[l] = prismatic_geom::vert_dual_vol(mesh, g / NV, g % NV);
+      const gidx_t g = L_vert.to_global(l);
+      v[l] = prismatic_geom::vert_dual_vol(mesh, int(g / NV), int(g % NV));
     }
     fill_buffer(vert_dual_vol, v, mem);
   }
   {
     std::vector<Scalar> v(m_n_edges_layout);
     for (int l = 0; l < m_e_split; ++l) {
-      const int g = L_h.to_global(l);
-      v[l] = prismatic_geom::hodge1_inv_h(mesh, g / NE, g % NE);
+      const gidx_t g = L_h.to_global(l);
+      v[l] = prismatic_geom::hodge1_inv_h(mesh, int(g / NE), int(g % NE));
     }
     for (int l = 0; l < L_v.local_size(); ++l) {
-      const int g = L_v.to_global(l);
-      v[m_e_split + l] = prismatic_geom::hodge1_inv_v(mesh, g / NV, g % NV);
+      const gidx_t g = L_v.to_global(l);
+      v[m_e_split + l] = prismatic_geom::hodge1_inv_v(mesh, int(g / NV), int(g % NV));
     }
     fill_buffer(hodge1_inv, v, mem);
   }

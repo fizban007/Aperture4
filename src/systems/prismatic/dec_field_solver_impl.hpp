@@ -736,7 +736,7 @@ void dec_field_solver<ExecPolicy>::dump_rank_fields(uint32_t step) {
                         const char* gname) {
     const int n = L.owned_size();
     std::vector<Scalar> v(n);
-    std::vector<int> g(n);
+    std::vector<gidx_t> g(n);
     for (int l = 0; l < n; ++l) {
       v[l] = vals[l];
       g[l] = L.to_global(l);

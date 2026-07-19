@@ -492,7 +492,7 @@ void prismatic_mesh_metric::compute_metric(const Metric& met) {
   // first-ring θ to a spurious near-zero midpoint, giving a negative
   // sth_m and a negative edge_sqrt_gamma.
   ExecPolicy::launch(
-      [met, Ne = m_N_edges, Nh = (m_N_r + 1) * m_N_edge_s]
+      [met, Ne = int(m_N_edges), Nh = (m_N_r + 1) * m_N_edge_s]
       LAMBDA(auto mp, auto er, auto esth, auto ecth, auto ealpha, auto esgb,
              auto esg) {
         ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {

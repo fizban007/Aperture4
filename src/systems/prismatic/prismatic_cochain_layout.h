@@ -55,17 +55,19 @@ class distributed_cochain_layout {
       std::initializer_list<const halo_plan*> plans);
 
   // ---- Sizes ----
-  int global_size() const { return m_global_size; }
+  gidx_t global_size() const { return m_global_size; }
   int owned_size() const { return m_n_owned; }
   int ghost_size() const { return m_n_ghost; }
   int local_size() const { return m_n_owned + m_n_ghost; }
 
   // ---- Mappings ----
-  int to_global(int local_idx) const {
+  // Global 3D indices are 64-bit (they pass 2^31 near L9); local
+  // indices stay int.
+  gidx_t to_global(int local_idx) const {
     return m_local_to_global[local_idx];
   }
   // Returns -1 if this rank doesn't have the given global index.
-  int to_local(int global_idx) const;
+  int to_local(gidx_t global_idx) const;
 
   // ---- Plan translation ----
   // Given a halo_plan with global indices in its send/recv fields,
@@ -76,12 +78,12 @@ class distributed_cochain_layout {
   halo_plan localize(const halo_plan& global_plan) const;
 
  private:
-  int m_global_size = 0;
+  gidx_t m_global_size = 0;
   int m_n_owned = 0;
   int m_n_ghost = 0;
 
   // local_to_global[l] gives the global index of local element l.
-  std::vector<int> m_local_to_global;
+  std::vector<gidx_t> m_local_to_global;
 
   // Sorted ascending, same content as m_local_to_global, for binary-
   // search lookups in to_local().  Using a sorted vector + lower_bound
@@ -93,8 +95,8 @@ class distributed_cochain_layout {
   // the same data — kept separate so we can add non-sorted local index
   // orderings later (e.g., owned block + interleaved ghost) without
   // changing the lookup path.
-  std::vector<int> m_sorted_global;   // sorted globals
-  std::vector<int> m_sorted_local;    // parallel local indices
+  std::vector<gidx_t> m_sorted_global;  // sorted globals
+  std::vector<int> m_sorted_local;      // parallel local indices
 };
 
 // =========================================================================

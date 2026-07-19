@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/typedefs_and_constants.h"
+#include "systems/prismatic/prismatic_gidx.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include <cmath>
 
@@ -21,10 +22,10 @@ namespace Aperture {
 // Fetch (r, unit-direction) for global vertex index vi.  The angular part
 // is read from the Cartesian sphere_v{x,y,z} buffer (which we retain for
 // particle operations) to avoid recomputing cos/sin per Gauss point.
-HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, int vi,
+HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, gidx_t vi,
                            Scalar& r, Scalar& ux, Scalar& uy, Scalar& uz) {
-  int k = vi / mp.N_vert_s;
-  int s = vi % mp.N_vert_s;
+  int k = int(vi / mp.N_vert_s);
+  int s = int(vi % mp.N_vert_s);
   r = mp.radii[k];
   ux = mp.sphere_vx[s];
   uy = mp.sphere_vy[s];
@@ -38,38 +39,38 @@ HD_INLINE void vertex_unit(const prismatic_mesh_ptrs& mp, int vi,
 // over the persisted sphere tables (IDENTICAL integers — the tables were
 // built from exactly these expressions).
 // =========================================================================
-HD_INLINE void tri_face_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
-                                   int& vi0, int& vi1, int& vi2) {
-  const int k = g / mp.N_tri, t = g - k * mp.N_tri;
-  vi0 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 0];
-  vi1 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 1];
-  vi2 = k * mp.N_vert_s + mp.tri_verts[t * 3 + 2];
+HD_INLINE void tri_face_vertex_ids(const prismatic_mesh_ptrs& mp, gidx_t g,
+                                   gidx_t& vi0, gidx_t& vi1, gidx_t& vi2) {
+  const int k = int(g / mp.N_tri), t = int(g - gidx_t(k) * mp.N_tri);
+  vi0 = gidx_t(k) * mp.N_vert_s + mp.tri_verts[t * 3 + 0];
+  vi1 = gidx_t(k) * mp.N_vert_s + mp.tri_verts[t * 3 + 1];
+  vi2 = gidx_t(k) * mp.N_vert_s + mp.tri_verts[t * 3 + 2];
 }
 
 // Corners v0 = (k, a), v1 = (k, b), v3 = (k+1, a) of rect face g — the
 // three the quadratures use (v2 = (k+1, b) is implied).
-HD_INLINE void rect_face_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
-                                    int& vi0, int& vi1, int& vi3) {
-  const int k = g / mp.N_edge_s, e = g - k * mp.N_edge_s;
-  vi0 = k * mp.N_vert_s + mp.sphere_edge_v0[e];
-  vi1 = k * mp.N_vert_s + mp.sphere_edge_v1[e];
-  vi3 = (k + 1) * mp.N_vert_s + mp.sphere_edge_v0[e];
+HD_INLINE void rect_face_vertex_ids(const prismatic_mesh_ptrs& mp, gidx_t g,
+                                    gidx_t& vi0, gidx_t& vi1, gidx_t& vi3) {
+  const int k = int(g / mp.N_edge_s), e = int(g - gidx_t(k) * mp.N_edge_s);
+  vi0 = gidx_t(k) * mp.N_vert_s + mp.sphere_edge_v0[e];
+  vi1 = gidx_t(k) * mp.N_vert_s + mp.sphere_edge_v1[e];
+  vi3 = gidx_t(k + 1) * mp.N_vert_s + mp.sphere_edge_v0[e];
 }
 
 // Endpoints of h-edge g (global h-edge index in [0, (N_r+1)·N_edge_s)).
-HD_INLINE void h_edge_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
-                                 int& v0, int& v1) {
-  const int k = g / mp.N_edge_s, e = g - k * mp.N_edge_s;
-  v0 = k * mp.N_vert_s + mp.sphere_edge_v0[e];
-  v1 = k * mp.N_vert_s + mp.sphere_edge_v1[e];
+HD_INLINE void h_edge_vertex_ids(const prismatic_mesh_ptrs& mp, gidx_t g,
+                                 gidx_t& v0, gidx_t& v1) {
+  const int k = int(g / mp.N_edge_s), e = int(g - gidx_t(k) * mp.N_edge_s);
+  v0 = gidx_t(k) * mp.N_vert_s + mp.sphere_edge_v0[e];
+  v1 = gidx_t(k) * mp.N_vert_s + mp.sphere_edge_v1[e];
 }
 
 // Endpoints of v-edge g (global v-edge index in [0, N_r·N_vert_s)).
-HD_INLINE void v_edge_vertex_ids(const prismatic_mesh_ptrs& mp, int g,
-                                 int& v0, int& v1) {
-  const int k = g / mp.N_vert_s, s = g - k * mp.N_vert_s;
-  v0 = k * mp.N_vert_s + s;
-  v1 = (k + 1) * mp.N_vert_s + s;
+HD_INLINE void v_edge_vertex_ids(const prismatic_mesh_ptrs& mp, gidx_t g,
+                                 gidx_t& v0, gidx_t& v1) {
+  const int k = int(g / mp.N_vert_s), s = int(g - gidx_t(k) * mp.N_vert_s);
+  v0 = gidx_t(k) * mp.N_vert_s + s;
+  v1 = gidx_t(k + 1) * mp.N_vert_s + s;
 }
 
 // Slerp two unit vectors, plus its u-derivative.  At u=0 returns û_a, at

@@ -229,7 +229,7 @@ struct prismatic_coarse_aggregator {
       for (int E = 0; E < n_edge_c; ++E) {
         double s = 0;
         for (int c = chain_off[E]; c < chain_off[E + 1]; ++c) {
-          s += double(chain_sign[c]) * val(kf * NEf + chain_edge[c]);
+          s += double(chain_sign[c]) * val(gidx_t(kf) * NEf + chain_edge[c]);
         }
         out[K * n_edge_c + E] += s;
       }
@@ -243,7 +243,7 @@ struct prismatic_coarse_aggregator {
       for (int S = 0; S < n_vert_c; ++S) {
         double s = 0;
         for (int i = 0; i < R; ++i) {
-          s += val((K * R + i) * NVf + S);
+          s += val(gidx_t(K * R + i) * NVf + S);
         }
         out[K * n_vert_c + S] += s;
       }
@@ -259,7 +259,7 @@ struct prismatic_coarse_aggregator {
       for (int T = 0; T < n_tri_c; ++T) {
         double s = 0;
         for (int c = 0; c < nchild; ++c) {
-          s += val(kf * NTf + T * nchild + c);
+          s += val(gidx_t(kf) * NTf + T * nchild + c);
         }
         out[K * n_tri_c + T] += s;
       }
@@ -275,7 +275,7 @@ struct prismatic_coarse_aggregator {
         for (int c = chain_off[E]; c < chain_off[E + 1]; ++c) {
           for (int i = 0; i < R; ++i) {
             s += double(chain_sign[c]) *
-                 val((K * R + i) * NEf + chain_edge[c]);
+                 val(gidx_t(K * R + i) * NEf + chain_edge[c]);
           }
         }
         out[K * n_edge_c + E] += s;
@@ -293,7 +293,7 @@ struct prismatic_coarse_aggregator {
       const int K0 = k / R;
       const double frac = double(k - K0 * R) / R;
       for (int s = 0; s < NVf; ++s) {
-        const double v = val(k * NVf + s);
+        const double v = val(gidx_t(k) * NVf + s);
         if (v == 0.0) continue;
         for (int c = 0; c < 3; ++c) {
           const double w = vw_w[s][c];

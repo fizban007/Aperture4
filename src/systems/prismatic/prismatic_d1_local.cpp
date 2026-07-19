@@ -54,10 +54,10 @@ prismatic_d1_local prismatic_d1_local::build(
   // ===== d1: tri faces → h edges =====
   st_d1_tri_h.row_ptr.assign(L_tri.owned_size() + 1, 0);
   for (int l = 0; l < L_tri.owned_size(); ++l) {
-    const int g_face = L_tri.to_global(l);  // [0, N_tri_faces)
-    const int k = g_face / NT, t = g_face % NT;
+    const gidx_t g_face = L_tri.to_global(l);  // [0, N_tri_faces)
+    const int k = int(g_face / NT), t = int(g_face % NT);
     for (int j = 0; j < 3; ++j) {
-      const int local_he = L_he.to_local(k * NE + tri_edges_s[t * 3 + j]);
+      const int local_he = L_he.to_local(gidx_t(k) * NE + tri_edges_s[t * 3 + j]);
       assert(local_he >= 0 && "h_edge boundary of owned tri must be in halo");
       st_d1_tri_h.col_idx.push_back(local_he);
       st_d1_tri_h.val.push_back(Scalar(tri_signs[t * 3 + j]));
@@ -71,14 +71,14 @@ prismatic_d1_local prismatic_d1_local::build(
   st_d1_rect_h.row_ptr.assign(L_rect.owned_size() + 1, 0);
   st_d1_rect_v.row_ptr.assign(L_rect.owned_size() + 1, 0);
   for (int l = 0; l < L_rect.owned_size(); ++l) {
-    const int g_rect = L_rect.to_global(l);  // [0, N_rect_faces)
-    const int k = g_rect / NE, e = g_rect % NE;
+    const gidx_t g_rect = L_rect.to_global(l);  // [0, N_rect_faces)
+    const int k = int(g_rect / NE), e = int(g_rect % NE);
     const int a = edge_a[e], b = edge_b[e];
 
-    const int he_bot = L_he.to_local(k * NE + e);
-    const int he_top = L_he.to_local((k + 1) * NE + e);
-    const int ve_r = L_ve.to_local(k * NV + b);
-    const int ve_l = L_ve.to_local(k * NV + a);
+    const int he_bot = L_he.to_local(gidx_t(k) * NE + e);
+    const int he_top = L_he.to_local(gidx_t(k + 1) * NE + e);
+    const int ve_r = L_ve.to_local(gidx_t(k) * NV + b);
+    const int ve_l = L_ve.to_local(gidx_t(k) * NV + a);
     assert(he_bot >= 0 && he_top >= 0 &&
            "h_edge boundary of owned rect must be in halo");
     assert(ve_r >= 0 && ve_l >= 0 &&
@@ -103,8 +103,8 @@ prismatic_d1_local prismatic_d1_local::build(
   st_d1t_h_tri.row_ptr.assign(L_he.owned_size() + 1, 0);
   st_d1t_h_rect.row_ptr.assign(L_he.owned_size() + 1, 0);
   for (int l = 0; l < L_he.owned_size(); ++l) {
-    const int g_he = L_he.to_global(l);  // [0, N_h_edges)
-    const int k = g_he / NE, e = g_he % NE;
+    const gidx_t g_he = L_he.to_global(l);  // [0, N_h_edges)
+    const int k = int(g_he / NE), e = int(g_he % NE);
     const int t0 = mesh.sph_edge_tri0[e], t1 = mesh.sph_edge_tri1[e];
     for (int t : {t0 < t1 ? t0 : t1, t0 < t1 ? t1 : t0}) {
       if (t < 0) continue;
@@ -113,21 +113,21 @@ prismatic_d1_local prismatic_d1_local::build(
       for (int j = 0; j < 3; ++j) {
         if (tri_edges_s[t * 3 + j] == e) sgn = Scalar(tri_signs[t * 3 + j]);
       }
-      const int local_tri = L_tri.to_local(k * NT + t);
+      const int local_tri = L_tri.to_local(gidx_t(k) * NT + t);
       assert(local_tri >= 0 &&
              "tri face adjacent to owned h_edge must be in halo");
       st_d1t_h_tri.col_idx.push_back(local_tri);
       st_d1t_h_tri.val.push_back(sgn);
     }
     if (k > 0) {
-      const int local_rect = L_rect.to_local((k - 1) * NE + e);
+      const int local_rect = L_rect.to_local(gidx_t(k - 1) * NE + e);
       assert(local_rect >= 0 &&
              "rect face adjacent to owned h_edge must be in halo");
       st_d1t_h_rect.col_idx.push_back(local_rect);
       st_d1t_h_rect.val.push_back(Scalar(-1));
     }
     if (k < N_r) {
-      const int local_rect = L_rect.to_local(k * NE + e);
+      const int local_rect = L_rect.to_local(gidx_t(k) * NE + e);
       assert(local_rect >= 0 &&
              "rect face adjacent to owned h_edge must be in halo");
       st_d1t_h_rect.col_idx.push_back(local_rect);
@@ -143,12 +143,12 @@ prismatic_d1_local prismatic_d1_local::build(
   // vertical), −1 for the a endpoint.
   st_d1t_v_rect.row_ptr.assign(L_ve.owned_size() + 1, 0);
   for (int l = 0; l < L_ve.owned_size(); ++l) {
-    const int g_ve = L_ve.to_global(l);  // [0, N_v_edges)
-    const int k = g_ve / NV, sv = g_ve % NV;
+    const gidx_t g_ve = L_ve.to_global(l);  // [0, N_v_edges)
+    const int k = int(g_ve / NV), sv = int(g_ve % NV);
     const auto& fan = vert_edges[sv];
     const auto& sgn = vert_edge_sign[sv];
     for (size_t j = 0; j < fan.size(); ++j) {
-      const int local_rect = L_rect.to_local(k * NE + fan[j]);
+      const int local_rect = L_rect.to_local(gidx_t(k) * NE + fan[j]);
       assert(local_rect >= 0 &&
              "rect face adjacent to owned v_edge must be in halo");
       st_d1t_v_rect.col_idx.push_back(local_rect);

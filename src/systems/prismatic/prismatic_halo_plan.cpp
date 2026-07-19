@@ -13,7 +13,7 @@ namespace Aperture {
 // =========================================================================
 // Global cochain sizes.
 // =========================================================================
-int global_cochain_size(cochain_type t, const prismatic_partition& p) {
+gidx_t global_cochain_size(cochain_type t, const prismatic_partition& p) {
   switch (t) {
     case cochain_type::tri_face:  return p.N_tri_faces_global;
     case cochain_type::rect_face: return p.N_rect_faces_global;
@@ -89,7 +89,7 @@ bool lives_on_shell(cochain_type t) {
 // angular ownership — independent of radial ownership.  Equivalent to
 // "would self.owns_*_cochain be true if the shell/slab were owned".
 static bool angular_owns(cochain_type t, const prismatic_partition& self,
-                          int global_idx) {
+                          gidx_t global_idx) {
   int width = 0;
   switch (t) {
     case cochain_type::tri_face:  width = self.N_tri_global;    break;
@@ -98,7 +98,7 @@ static bool angular_owns(cochain_type t, const prismatic_partition& self,
     case cochain_type::v_edge:    width = self.N_vert_s_global; break;
     case cochain_type::vertex:    width = self.N_vert_s_global; break;
   }
-  int sub = global_idx % width;
+  int sub = int(global_idx % width);
   switch (t) {
     case cochain_type::tri_face:  return self.owns_sub_tri(sub);
     case cochain_type::h_edge:
@@ -126,9 +126,9 @@ halo_plan build_radial_halo_plan(cochain_type t,
   // indices whose angular side is owned by `self`.  Under the radial
   // peer's convention the peer shares the same angular ownership, so
   // this filter is symmetric between sender and receiver.
-  auto angular_filtered = [&](int k, std::vector<int>& out) {
+  auto angular_filtered = [&](int k, std::vector<gidx_t>& out) {
     for (int i = 0; i < width; ++i) {
-      int g = k * width + i;
+      gidx_t g = gidx_t(k) * width + i;
       if (angular_owns(t, self, g)) out.push_back(g);
     }
   };
@@ -207,8 +207,8 @@ halo_plan build_angular_halo_plan(cochain_type t,
                        ? self.shell_k_hi
                        : std::min(self.shell_k_hi, self.N_r_global);
 
-  std::map<int, std::vector<int>> recv_per_peer;
-  std::map<int, std::vector<int>> send_per_peer;
+  std::map<int, std::vector<gidx_t>> recv_per_peer;
+  std::map<int, std::vector<gidx_t>> send_per_peer;
 
   // --------------------------------------------------------------------
   // tri_face: halo is the "other" adjacent tri face across a boundary
@@ -231,12 +231,12 @@ halo_plan build_angular_halo_plan(cochain_type t,
       if (F == owner) {
         // F owns e → halos the adjacent tri in G.
         for (int k = k_lo; k < k_hi; ++k) {
-          recv_per_peer[G].push_back(k * width + tri_in_G);
+          recv_per_peer[G].push_back(gidx_t(k) * width + tri_in_G);
         }
       } else {
         // G owns e → sends our adjacent tri (in F) to G.
         for (int k = k_lo; k < k_hi; ++k) {
-          send_per_peer[G].push_back(k * width + tri_in_F);
+          send_per_peer[G].push_back(gidx_t(k) * width + tri_in_F);
         }
       }
     }
@@ -256,11 +256,11 @@ halo_plan build_angular_halo_plan(cochain_type t,
 
       if (F == owner) {
         for (int k = k_lo; k < k_hi; ++k) {
-          send_per_peer[G].push_back(k * width + e);
+          send_per_peer[G].push_back(gidx_t(k) * width + e);
         }
       } else {
         for (int k = k_lo; k < k_hi; ++k) {
-          recv_per_peer[G].push_back(k * width + e);
+          recv_per_peer[G].push_back(gidx_t(k) * width + e);
         }
       }
     }
@@ -314,7 +314,7 @@ halo_plan build_angular_halo_plan(cochain_type t,
             if (einc[0] == F || einc[1] == F) continue;  // F-incident: already handled
             const int e_owner = einc[0];
             for (int k = k_lo; k < k_hi; ++k) {
-              recv_per_peer[e_owner].push_back(k * width + e);
+              recv_per_peer[e_owner].push_back(gidx_t(k) * width + e);
             }
           }
         } else if (F == incs[0]) {
@@ -331,7 +331,7 @@ halo_plan build_angular_halo_plan(cochain_type t,
             // Only edges not incident to v_owner produce extra sends.
             if (einc[0] == v_owner || einc[1] == v_owner) continue;
             for (int k = k_lo; k < k_hi; ++k) {
-              send_per_peer[v_owner].push_back(k * width + e);
+              send_per_peer[v_owner].push_back(gidx_t(k) * width + e);
             }
           }
         }
@@ -365,13 +365,13 @@ halo_plan build_angular_halo_plan(cochain_type t,
           if (incs[j] == F) continue;
           const int G = incs[j];
           for (int k = k_lo; k < k_hi; ++k) {
-            send_per_peer[G].push_back(k * width + v);
+            send_per_peer[G].push_back(gidx_t(k) * width + v);
           }
         }
       } else {
         // Recv from the owner only.
         for (int k = k_lo; k < k_hi; ++k) {
-          recv_per_peer[owner].push_back(k * width + v);
+          recv_per_peer[owner].push_back(gidx_t(k) * width + v);
         }
       }
     }
@@ -558,12 +558,12 @@ halo_plan build_angular_halo_plan_units(cochain_type t,
                        ? self.shell_k_hi
                        : std::min(self.shell_k_hi, self.N_r_global);
 
-  std::map<int, std::vector<int>> recv_per_peer;
-  std::map<int, std::vector<int>> send_per_peer;
-  auto push_levels = [&](std::map<int, std::vector<int>>& dst, int peer,
+  std::map<int, std::vector<gidx_t>> recv_per_peer;
+  std::map<int, std::vector<gidx_t>> send_per_peer;
+  auto push_levels = [&](std::map<int, std::vector<gidx_t>>& dst, int peer,
                          int sub) {
     auto& v = dst[peer];
-    for (int k = k_lo; k < k_hi; ++k) v.push_back(k * width + sub);
+    for (int k = k_lo; k < k_hi; ++k) v.push_back(gidx_t(k) * width + sub);
   };
 
   if (depth == halo_depth::pic) {
@@ -670,7 +670,7 @@ halo_plan build_angular_halo_plan_units(cochain_type t,
   }
 
   // Canonical wire order: ascending global cochain index, unique.
-  auto canonicalize = [](std::map<int, std::vector<int>>& m) {
+  auto canonicalize = [](std::map<int, std::vector<gidx_t>>& m) {
     for (auto& kv : m) {
       auto& v = kv.second;
       std::sort(v.begin(), v.end());
@@ -747,9 +747,9 @@ halo_plan build_radial_halo_plan_depth(cochain_type t,
   const bool has_upper = r < self.n_radial_ranks - 1;
   const bool shell_cochain = lives_on_shell(t);
 
-  auto filtered = [&](int k, std::vector<int>& dst) {
+  auto filtered = [&](int k, std::vector<gidx_t>& dst) {
     for (int i = 0; i < width; ++i) {
-      if (in_halo[i]) dst.push_back(k * width + i);
+      if (in_halo[i]) dst.push_back(gidx_t(k) * width + i);
     }
   };
 
@@ -809,7 +809,7 @@ void in_process_halo_backend::exchange(int my_rank, Scalar* my_buffer,
     Scalar* peer_buf = m_rank_buffers[pe.peer_rank];
     assert(peer_buf != nullptr);
     for (int i = 0; i < int(pe.recv_global_idx.size()); ++i) {
-      int idx = pe.recv_global_idx[i];
+      const gidx_t idx = pe.recv_global_idx[i];
       my_buffer[idx] = peer_buf[idx];
     }
   }
@@ -844,8 +844,8 @@ void in_process_halo_backend::exchange_all(const std::vector<halo_plan>& plans) 
       // Recv at a is paired with send at b: same i-th position.
       assert(pe_a.recv_global_idx.size() == pe_b->send_global_idx.size());
       for (size_t i = 0; i < pe_a.recv_global_idx.size(); ++i) {
-        const int a_idx = pe_a.recv_global_idx[i];
-        const int b_idx = pe_b->send_global_idx[i];
+        const gidx_t a_idx = pe_a.recv_global_idx[i];
+        const gidx_t b_idx = pe_b->send_global_idx[i];
         buf_a[a_idx] = buf_b[b_idx];
       }
     }

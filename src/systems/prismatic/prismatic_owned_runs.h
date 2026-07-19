@@ -24,7 +24,7 @@ append_owned_runs(const distributed_cochain_layout& L, size_t mem_base,
   const int n = L.owned_size();
   int l = 0;
   while (l < n) {
-    const int g0 = L.to_global(l);
+    const gidx_t g0 = L.to_global(l);
     int run = 1;
     while (l + run < n && L.to_global(l + run) == g0 + run) run++;
     rs.mem_off.push_back(mem_base + l);

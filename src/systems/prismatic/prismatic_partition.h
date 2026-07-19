@@ -1,5 +1,6 @@
 #pragma once
 
+#include "systems/prismatic/prismatic_gidx.h"
 #include <array>
 #include <vector>
 
@@ -35,11 +36,12 @@ class prismatic_partition {
   int N_edge_s_global = 0;  // = 30 * 4^L
 
   // Total cochain counts across the full mesh (used for global-indexing).
-  int N_tri_faces_global = 0;    // = (N_r_global + 1) * N_tri_global
-  int N_rect_faces_global = 0;   // = N_r_global * N_edge_s_global
-  int N_h_edges_global = 0;      // = (N_r_global + 1) * N_edge_s_global
-  int N_v_edges_global = 0;      // = N_r_global * N_vert_s_global
-  int N_verts_global = 0;        // = (N_r_global + 1) * N_vert_s_global
+  // 64-bit: these pass 2^31 between L8 and L9 (appendix item 1b).
+  gidx_t N_tri_faces_global = 0;    // = (N_r_global + 1) * N_tri_global
+  gidx_t N_rect_faces_global = 0;   // = N_r_global * N_edge_s_global
+  gidx_t N_h_edges_global = 0;      // = (N_r_global + 1) * N_edge_s_global
+  gidx_t N_v_edges_global = 0;      // = N_r_global * N_vert_s_global
+  gidx_t N_verts_global = 0;        // = (N_r_global + 1) * N_vert_s_global
 
   // -----------------------------------------------------------------------
   // Angular partition — generalized level-m patch units (Phase 7A).
@@ -237,11 +239,11 @@ class prismatic_partition {
     p.N_tri_global = 20 * pow4L(L);
     p.N_vert_s_global = 10 * pow4L(L) + 2;
     p.N_edge_s_global = 30 * pow4L(L);
-    p.N_tri_faces_global  = (N_r_global + 1) * p.N_tri_global;
-    p.N_rect_faces_global = N_r_global * p.N_edge_s_global;
-    p.N_h_edges_global    = (N_r_global + 1) * p.N_edge_s_global;
-    p.N_v_edges_global    = N_r_global * p.N_vert_s_global;
-    p.N_verts_global      = (N_r_global + 1) * p.N_vert_s_global;
+    p.N_tri_faces_global  = gidx_t(N_r_global + 1) * p.N_tri_global;
+    p.N_rect_faces_global = gidx_t(N_r_global) * p.N_edge_s_global;
+    p.N_h_edges_global    = gidx_t(N_r_global + 1) * p.N_edge_s_global;
+    p.N_v_edges_global    = gidx_t(N_r_global) * p.N_vert_s_global;
+    p.N_verts_global      = gidx_t(N_r_global + 1) * p.N_vert_s_global;
 
     p.ico_face_lo = 0;
     p.ico_face_hi = 20;
@@ -372,33 +374,33 @@ class prismatic_partition {
   // only valid when this rank covers the full angular span.
   // -----------------------------------------------------------------------
 
-  bool owns_tri_face_cochain(int global_idx) const {
-    int shell_k = global_idx / N_tri_global;
-    int tri_idx = global_idx % N_tri_global;
+  bool owns_tri_face_cochain(gidx_t global_idx) const {
+    int shell_k = int(global_idx / N_tri_global);
+    int tri_idx = int(global_idx % N_tri_global);
     return owns_shell(shell_k) && owns_sub_tri(tri_idx);
   }
 
-  bool owns_rect_face_cochain(int global_idx) const {
-    int slab_k = global_idx / N_edge_s_global;
-    int sphere_edge = global_idx % N_edge_s_global;
+  bool owns_rect_face_cochain(gidx_t global_idx) const {
+    int slab_k = int(global_idx / N_edge_s_global);
+    int sphere_edge = int(global_idx % N_edge_s_global);
     return owns_slab(slab_k) && owns_sphere_edge(sphere_edge);
   }
 
-  bool owns_h_edge_cochain(int global_idx) const {
-    int shell_k = global_idx / N_edge_s_global;
-    int sphere_edge = global_idx % N_edge_s_global;
+  bool owns_h_edge_cochain(gidx_t global_idx) const {
+    int shell_k = int(global_idx / N_edge_s_global);
+    int sphere_edge = int(global_idx % N_edge_s_global);
     return owns_shell(shell_k) && owns_sphere_edge(sphere_edge);
   }
 
-  bool owns_v_edge_cochain(int global_idx) const {
-    int slab_k = global_idx / N_vert_s_global;
-    int sphere_vert = global_idx % N_vert_s_global;
+  bool owns_v_edge_cochain(gidx_t global_idx) const {
+    int slab_k = int(global_idx / N_vert_s_global);
+    int sphere_vert = int(global_idx % N_vert_s_global);
     return owns_slab(slab_k) && owns_sphere_vertex(sphere_vert);
   }
 
-  bool owns_vertex_cochain(int global_idx) const {
-    int shell_k = global_idx / N_vert_s_global;
-    int sphere_vert = global_idx % N_vert_s_global;
+  bool owns_vertex_cochain(gidx_t global_idx) const {
+    int shell_k = int(global_idx / N_vert_s_global);
+    int sphere_vert = int(global_idx % N_vert_s_global);
     return owns_shell(shell_k) && owns_sphere_vertex(sphere_vert);
   }
 

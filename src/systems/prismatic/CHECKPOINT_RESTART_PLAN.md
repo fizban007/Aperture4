@@ -326,18 +326,35 @@ aborts loudly if a rank's LOCAL cell space would reach the uint32
 encoding above 2^32 with synthetic L10 numbers; host continuity stays
 BITWISE and all acceptance baselines are unchanged.
 
-**1b. `int` GLOBAL cochain/vertex indices (~L9) — DISCOVERED during
-item 1's audit, NEW PREREQUISITE, not yet done.**  The same wall in a
-different currency: global cochain indices (h_edges =
-(N_r+1)·30·4^L ≈ 1.3×10^10 at L9 > 2^31) and 3D vertex ids are `int`
-throughout `distributed_cochain_layout` (l2g maps, to_global/
-to_local), the halo-plan global-index vectors, `prismatic_partition::
-owns_*_cochain`, the exporter/checkpoint run offsets (narrowed before
-the hsize_t conversion), the BC/IC vertex-id decodes and
-`prismatic_mesh_geom` helpers.  L8 still fits (1.6×10^9 < 2^31); any
-run above needs an int64 sweep of every global-index surface (local
-indices stay int).  Mechanical but wide — do as its own pass with the
-bit-exactness suite as the pin.
+**1b. `int` GLOBAL cochain/vertex indices (~L9) — DONE 2026-07-19.**
+The same wall in a different currency: global cochain indices
+(h_edges = (N_r+1)·30·4^L ≈ 1.3×10^10 at L9 > 2^31) and 3D vertex ids
+were `int` throughout.  Landed as `gidx_t = int64_t`
+(`prismatic_gidx.h`), swept across every GLOBAL-index surface:
+partition 3D counts + `owns_*_cochain`, `global_cochain_size`, the
+halo-plan index vectors (localized plans store LOCAL values in the
+same gidx_t fields; the exchanger's device flattening narrows them
+back explicitly), layout l2g/`to_global`/`to_local` + the factorized
+enumeration products, every plan-builder `k·width + sub` product, the
+mesh 3D counts (`m_N_verts/edges/faces`), `prismatic_mesh_geom`
+vertex-id helpers, mesh_local per-cochain l2g maps + 3D endpoint-id
+buffers, the `dec_solver_dist` BC/IC decodes
+(`dec_solver_geometry.hpp` vertex-id helpers), `prismatic_d1_local`
+build decodes, ptc_mesh_local map-build products, aggregation fine
+indices, owned-runs `g0`, and the rank-dump l2g datasets (hdf wrapper
+gained `h5datatype<int64_t>` — mesh.h5's 3D counts and rank-dump *_g
+datasets are now int64 on disk; h5py readers are dtype-agnostic).
+LOCAL and SPHERE-level indices stay int; the single-rank global-path
+narrows (mesh_ptrs counts, `prismatic_field::field_size`,
+recon-hodge, sph_output) are explicit and commented — that path caps
+far below 2^31 by memory.  Validation: suite 248/248; solver
+multirank bit-exact 0.000e+00 (packed + staged + node tiling); PIC
+acceptance/stress baselines unchanged; host checkpoint matrix
+BITWISE; an 8-rank vacuum run is bit-identical to the pre-sweep
+binary's output.  With items 1, 1b and 2 all landed, nothing indexed
+per-element blocks runs above L8 — the remaining L10 line items are
+the DEFERRED replicated sphere stage (item 3) and the D5 subfiling
+note, both above/at the target only.
 
 **2. `distributed_cochain_layout::build` O((N_r+1)·4^L) scans —
 DONE 2026-07-19.**  Init discovered ownership by scanning all

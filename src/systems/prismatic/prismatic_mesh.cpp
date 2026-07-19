@@ -273,9 +273,9 @@ void prismatic_mesh::compute_radii_and_counts() {
   for (int k = 0; k <= m_N_r; k++) {
     radii[k] = m_r_min * std::exp(k * log_ratio);
   }
-  m_N_verts = m_N_vert_s * (m_N_r + 1);
-  m_N_edges = m_N_edge_s * (m_N_r + 1) + m_N_vert_s * m_N_r;
-  m_N_faces = m_N_tri * (m_N_r + 1) + m_N_edge_s * m_N_r;
+  m_N_verts = gidx_t(m_N_vert_s) * (m_N_r + 1);
+  m_N_edges = gidx_t(m_N_edge_s) * (m_N_r + 1) + gidx_t(m_N_vert_s) * m_N_r;
+  m_N_faces = gidx_t(m_N_tri) * (m_N_r + 1) + gidx_t(m_N_edge_s) * m_N_r;
 }
 
 // Double-precision angular geometry, persisted so local builders can
@@ -557,9 +557,9 @@ void prismatic_mesh::extrude_to_3d(const sphere_mesh& sm) {
   }
 
   // Compute total counts
-  m_N_verts = m_N_vert_s * (m_N_r + 1);
-  m_N_edges = m_N_edge_s * (m_N_r + 1) + m_N_vert_s * m_N_r;
-  m_N_faces = m_N_tri * (m_N_r + 1) + m_N_edge_s * m_N_r;
+  m_N_verts = gidx_t(m_N_vert_s) * (m_N_r + 1);
+  m_N_edges = gidx_t(m_N_edge_s) * (m_N_r + 1) + gidx_t(m_N_vert_s) * m_N_r;
+  m_N_faces = gidx_t(m_N_tri) * (m_N_r + 1) + gidx_t(m_N_edge_s) * m_N_r;
 
   // Allocate and fill vertex positions in spherical coordinates.
   //   r     = radii[k]
@@ -1302,9 +1302,11 @@ prismatic_mesh_ptrs prismatic_mesh::host_ptrs() const {
   p.N_tri = m_N_tri;
   p.N_vert_s = m_N_vert_s;
   p.N_edge_s = m_N_edge_s;
-  p.N_verts = m_N_verts;
-  p.N_edges = m_N_edges;
-  p.N_faces = m_N_faces;
+  // Explicit narrow: the POD ptrs bundle serves the SINGLE-RANK global
+  // path only (the full-3D arrays it points at cap well below 2^31).
+  p.N_verts = int(m_N_verts);
+  p.N_edges = int(m_N_edges);
+  p.N_faces = int(m_N_faces);
 
   p.radii = radii.host_ptr();
 
@@ -1361,9 +1363,11 @@ prismatic_mesh_ptrs prismatic_mesh::dev_ptrs() const {
   p.N_tri = m_N_tri;
   p.N_vert_s = m_N_vert_s;
   p.N_edge_s = m_N_edge_s;
-  p.N_verts = m_N_verts;
-  p.N_edges = m_N_edges;
-  p.N_faces = m_N_faces;
+  // Explicit narrow: the POD ptrs bundle serves the SINGLE-RANK global
+  // path only (the full-3D arrays it points at cap well below 2^31).
+  p.N_verts = int(m_N_verts);
+  p.N_edges = int(m_N_edges);
+  p.N_faces = int(m_N_faces);
 
   p.radii = radii.dev_ptr();
 

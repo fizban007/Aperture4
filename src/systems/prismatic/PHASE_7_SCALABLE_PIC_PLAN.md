@@ -366,7 +366,48 @@ Original plan bullets (for reference):
    field/sph agreement vs serial at FP-reordering tolerance; plus a
    migration-stress config (large p0) to exercise multi-unit hops.
 
-### 7D — Partition-aware mesh build + output rework (~1.5 weeks)
+### 7D — Partition-aware mesh build + output rework — COMPLETE 2026-07-19
+
+> Landed as commits `334bb35b1` (staged mesh build), `e712af822`
+> (sphere-only production + moments + sph gather deletion),
+> `ba4857d6a` (post tools), `896f0e436` (aggregation + audit).
+> Notes vs the bullets below:
+> - The mesh split keeps the historical 3D-stage code VERBATIM; local
+>   builders instead COMPUTE per-element geometry from newly persisted
+>   double-precision angular tables × radii (prismatic_mesh_geom.h),
+>   bit-exact including the global build's float round-trips (r_mid
+>   and the v-edge dr round through Scalar; vert_dual_vol replicates
+>   the per-fan-tri float accumulation order) — pinned by
+>   test_prismatic_mesh_geom (97k bitwise assertions).  d1_local
+>   SYNTHESIZES its six CSR blocks from the shell pattern × sphere
+>   topology; BC/IC quadratures decode vertex ids analytically
+>   (identical integers — zero float impact).  END-TO-END: the 8-rank
+>   sphere-only vacuum run is BITWISE identical to the single-rank
+>   full-mesh output.
+> - mesh.h5 under a sphere-only mesh carries sphere tables + radii +
+>   params only (rank 0) — the 3D datasets are analytic and post tools
+>   recompute them, so nothing is parallel-written (simpler than the
+>   planned owned-runs mesh write; flagged "sphere_only").
+> - Post tools gather at EXPLICIT (layer, zeta) per shell — deriving
+>   the layer from the float radius scatters the interpolant's
+>   discontinuous normal components.  Parity criteria
+>   (check_sph_parity.py): ≤ 1e-4 (measured ~2e-6) except exact facet
+>   ties (min λ < 1e-12; E/J one-sided limits), vacuum gamma_mean, and
+>   Bph pole rows (the in-code path leaks a float sin(π) residual at
+>   the SOUTH pole; the tool writes the intended 0 at both).
+> - Aggregation derives the coarse topology from the fine tri_verts
+>   alone (corner-first child ordering encodes the genealogy) — no
+>   subdivision instrumentation.  Distributed aggregation = per-rank
+>   partials over owned fine elements + MPI_SUM to rank 0, which
+>   removes the slab-alignment constraint entirely (better than the
+>   F9 design).  d-commutation pinned EXACT on integer cochains;
+>   aggregated dumps bitwise identical 1 vs 8 ranks.
+> - Weak scaling (L=3, A·K ∈ {8, 40, 160}): local 3D footprint
+>   236.8 → 72.8 → 30.6 kB vs flat 151.1 kB angular constant.
+> - The legacy stride-sampling output survives for single-rank
+>   full-mesh runs only (back-compat); aggregation supersedes it.
+
+Original plan bullets (for reference):
 
 1. Split `prismatic_mesh::build()`: sphere stage (global, cheap) /
    3D stage (loop bounds from the partition; global path preserved

@@ -199,7 +199,34 @@ scope.
 
 ## Phasing (each phase leaves the tree green; commit ≈ one bullet)
 
-### 7A — Generalized angular partition, fields only (~1 week)
+### 7A — Generalized angular partition, fields only — COMPLETE 2026-07-18
+
+> Landed as commits `0eaccdec4` (7A.1), `3b52723d9` (7A.2), `63893d661`
+> (7A.3), `02a345c68` (7A.4), plus the 7A.5 validation commit.  Notes on
+> deltas vs the bullets below:
+> - The legacy per-face builder, identity factories
+>   (`ico_face_angular`/`combined_ico_face`) and `create(world, K)` are
+>   RETAINED for the Phase-6 particle stack (updater/injector abort
+>   loudly on a canonical comm) and as the reference the A=20
+>   equivalence tests pin against; they are deleted in 7C.  Dispatch is
+>   `prismatic_partition::canonical_rank_order` /
+>   `prismatic_mpi_comm::canonical_rank_order()`.
+> - The old `combined()` was renamed `combined_ico_face()` so the new
+>   `combined(L, N_r, A, K, world_rank)` (identical arity/types) cannot
+>   be silently misread at old call sites.
+> - No Dist_graph decoration on the generalized angular sub-comm: the
+>   halo backend posts plain Isend/Irecv to plan peer ranks and never
+>   queries the graph; placement hints can return in 7E if a consumer
+>   appears.
+> - vacuum_dipole reads config `n_angular_ranks` (default 20, i.e.
+>   canonical A=20); ns_rotator + PIC acceptance stay legacy until 7C.
+> - Validation results: in-process dec_dist bit-level at canonical
+>   4×2 / 20×2 / 80×1 (all three scenarios); real-MPI solver_multirank
+>   bit-exact (0.0) at canonical 4×1 / 4×2 / 20×2 / 80×1 AND legacy
+>   20×{1,2,4}; vacuum_dipole exporter+sph outputs bit-identical for
+>   1 vs 8 (A=4×2) vs 20 ranks on a 100-step L2 Deutsch run.
+
+Original plan bullets (for reference):
 
 1. `prismatic_partition`: replace {ico_face_lo, ico_face_hi} with
    {patch_level m, unit_lo, unit_hi} in the CANONICAL unit ordering
@@ -364,7 +391,10 @@ scope.
   `python/sph_from_dump.py` / `python/cart_from_dump.py`
   (start from `python/prismatic_recovery.py` + `prismatic_interp`).
 - Validation entry points: `./check_prismatic.sh`;
-  `mpirun --oversubscribe -n <8|20|40|80> bin/test_prismatic_solver_multirank`;
+  `mpirun --oversubscribe -n <A*K> bin/test_prismatic_solver_multirank [A]`
+  (optional argument = canonical angular rank count; omit for the legacy
+  20·K identity wiring — e.g. `-n 8 ... 4` is the single-node Frontier
+  shape 4×2);
   `mpirun --oversubscribe -n <N> bin/test_prismatic_pic_multirank -c
   tests/config_prismatic_pic_multirank.toml` (also run with -n 1 and
   compare `step_*/sph_*` HDF5 datasets between the two output dirs at

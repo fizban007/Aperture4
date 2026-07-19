@@ -210,15 +210,17 @@ rank_ctx make_ctx(const prismatic_mesh& mesh, const icosphere_topology& topo,
 // -------------------------------------------------------------------------
 // Lockstep halo exchange across in-process "ranks" — same pairing
 // semantics as in_process_halo_backend::exchange_all, but resolved per
-// sub-communicator: angular peer_rank is the peer's ico-face index
-// (within the same radial slab), radial peer_rank is the peer's radial
-// rank (within the same ico face).
+// sub-communicator: angular peer_rank is the peer's ANGULAR rank
+// (ico-face index for legacy identity partitions, path-ordered rank
+// for canonical unit partitions — both stored in part.angular_rank),
+// radial peer_rank is the peer's radial rank within the same angular
+// rank.
 // -------------------------------------------------------------------------
 void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
               const std::function<Scalar*(rank_ctx&)>& base) {
-  auto find = [&](int face_lo, int rad) -> rank_ctx* {
+  auto find = [&](int ang, int rad) -> rank_ctx* {
     for (auto& r : ranks)
-      if (r.part.ico_face_lo == face_lo && r.part.radial_rank == rad)
+      if (r.part.angular_rank == ang && r.part.radial_rank == rad)
         return &r;
     return nullptr;
   };
@@ -232,7 +234,7 @@ void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
   for (auto& a : ranks) {
     auto const& pa = a.mp->radial_plan_local(ct);
     for (auto const& pe : pa.peers) {
-      rank_ctx* b = find(a.part.ico_face_lo, pe.peer_rank);
+      rank_ctx* b = find(a.part.angular_rank, pe.peer_rank);
       REQUIRE(b != nullptr);
       auto const* peb =
           peer_entry_for(b->mp->radial_plan_local(ct), a.part.radial_rank);
@@ -251,7 +253,7 @@ void exchange(std::vector<rank_ctx>& ranks, cochain_type ct,
       rank_ctx* b = find(pe.peer_rank, a.part.radial_rank);
       REQUIRE(b != nullptr);
       auto const* peb =
-          peer_entry_for(b->mp->angular_plan_local(ct), a.part.ico_face_lo);
+          peer_entry_for(b->mp->angular_plan_local(ct), a.part.angular_rank);
       REQUIRE(peb != nullptr);
       REQUIRE(pe.recv_global_idx.size() == peb->send_global_idx.size());
       Scalar* ba = base(a);
@@ -358,6 +360,20 @@ void step_all_semi(std::vector<rank_ctx>& ranks, double dt, Scalar beta,
   }
 }
 
+// Canonical A x K unit decomposition (Phase 7A) — path-ordered angular
+// ranks via prismatic_partition::combined.
+std::vector<rank_ctx> make_partitioned_units(const prismatic_mesh& mesh,
+                                             const icosphere_topology& topo,
+                                             const global_ref& g0, int A,
+                                             int K) {
+  std::vector<rank_ctx> ranks;
+  ranks.reserve(A * K);
+  for (int w = 0; w < A * K; w++)
+    ranks.push_back(make_ctx(
+        mesh, topo, prismatic_partition::combined(TL, TN_r, A, K, w), g0));
+  return ranks;
+}
+
 std::vector<rank_ctx> make_partitioned(const prismatic_mesh& mesh,
                                        const icosphere_topology& topo,
                                        const global_ref& g0,
@@ -436,6 +452,19 @@ TEST_CASE("dec_dist: distributed explicit update matches global solver",
   SECTION("combined 20 x 4") {
     run_and_check(make_partitioned(mesh, topo, g0, 4, true), Scalar(2e-5));
   }
+  // Phase 7A canonical unit partitions (path-ordered angular ranks,
+  // generic plan builder).
+  SECTION("canonical A=4 x K=2 (single Frontier node shape)") {
+    run_and_check(make_partitioned_units(mesh, topo, g0, 4, 2), Scalar(2e-5));
+  }
+  SECTION("canonical A=20 x K=2") {
+    run_and_check(make_partitioned_units(mesh, topo, g0, 20, 2),
+                  Scalar(2e-5));
+  }
+  SECTION("canonical A=80 (sub-face quarter units, m=1)") {
+    run_and_check(make_partitioned_units(mesh, topo, g0, 80, 1),
+                  Scalar(2e-5));
+  }
 }
 
 // =========================================================================
@@ -476,6 +505,13 @@ TEST_CASE("dec_dist: distributed semi-implicit update matches global solver",
   }
   SECTION("combined 20 x 4") {
     run_and_check(make_partitioned(mesh, topo, g0, 4, true), Scalar(2e-5));
+  }
+  SECTION("canonical A=4 x K=2") {
+    run_and_check(make_partitioned_units(mesh, topo, g0, 4, 2), Scalar(2e-5));
+  }
+  SECTION("canonical A=80 (sub-face quarter units, m=1)") {
+    run_and_check(make_partitioned_units(mesh, topo, g0, 80, 1),
+                  Scalar(2e-5));
   }
 }
 
@@ -528,18 +564,30 @@ TEST_CASE("dec_dist: inner dipole BC consistent across partitioning",
   std::vector<rank_ctx> single;
   single.push_back(
       make_ctx(mesh, topo, prismatic_partition::single_rank(TL, TN_r), g0));
-  auto [E1, B1] = run(std::move(single));
-  auto [EN, BN] = run(make_partitioned(mesh, topo, g0, 4, true));
+  auto single_result = run(std::move(single));
+  const std::vector<Scalar>& E1 = single_result.first;
+  const std::vector<Scalar>& B1 = single_result.second;
 
-  Scalar scale = Scalar(0), diff = Scalar(0);
-  for (int e = 0; e < mesh.m_N_edges; e++) {
-    scale = std::max(scale, std::abs(E1[e]));
-    diff = std::max(diff, std::abs(EN[e] - E1[e]));
-  }
-  for (int f = 0; f < mesh.m_N_faces; f++) {
-    scale = std::max(scale, std::abs(B1[f]));
-    diff = std::max(diff, std::abs(BN[f] - B1[f]));
-  }
-  INFO("max rel diff (80 ranks vs 1) = " << diff / scale);
-  REQUIRE(diff / scale < Scalar(2e-5));
+  auto check_against_single = [&](std::vector<rank_ctx> ranks,
+                                  const char* label) {
+    auto [EN, BN] = run(std::move(ranks));
+    Scalar scale = Scalar(0), diff = Scalar(0);
+    for (int e = 0; e < mesh.m_N_edges; e++) {
+      scale = std::max(scale, std::abs(E1[e]));
+      diff = std::max(diff, std::abs(EN[e] - E1[e]));
+    }
+    for (int f = 0; f < mesh.m_N_faces; f++) {
+      scale = std::max(scale, std::abs(B1[f]));
+      diff = std::max(diff, std::abs(BN[f] - B1[f]));
+    }
+    INFO(label << ": max rel diff vs 1 rank = " << diff / scale);
+    REQUIRE(diff / scale < Scalar(2e-5));
+  };
+
+  check_against_single(make_partitioned(mesh, topo, g0, 4, true),
+                       "legacy 20 x 4");
+  check_against_single(make_partitioned_units(mesh, topo, g0, 4, 2),
+                       "canonical 4 x 2");
+  check_against_single(make_partitioned_units(mesh, topo, g0, 80, 1),
+                       "canonical 80 x 1");
 }

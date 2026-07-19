@@ -36,6 +36,7 @@
 #include "systems/prismatic/prismatic_partition.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <mpi.h>
 #include <vector>
 
@@ -182,15 +183,28 @@ int main(int argc, char** argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-  if (world_size % 20 != 0) {
+  // Optional first argument: angular rank count A (Phase 7A canonical
+  // path-ordered decomposition, prismatic_mpi_comm::create(world, A, K)
+  // + prismatic_partition::combined).  Without it, the legacy 20-face
+  // identity wiring is exercised (create(world, K) + combined_ico_face).
+  int A_arg = 0;
+  if (argc > 1) A_arg = std::atoi(argv[1]);
+  const bool canonical = A_arg > 0;
+  const int A = canonical ? A_arg : 20;
+
+  if (world_size % A != 0 ||
+      (canonical && prismatic_partition::min_patch_level_for(A) < 0)) {
     if (world_rank == 0)
-      std::fprintf(stderr, "SKIP: needs 20*K ranks (got %d)\n", world_size);
+      std::fprintf(stderr, "SKIP: needs A*K ranks with valid A=%d (got %d)\n",
+                   A, world_size);
     MPI_Finalize();
     return 0;
   }
-  const int K = world_size / 20;
+  const int K = world_size / A;
 
-  prismatic_mpi_comm mcomm = prismatic_mpi_comm::create(MPI_COMM_WORLD, K);
+  prismatic_mpi_comm mcomm =
+      canonical ? prismatic_mpi_comm::create(MPI_COMM_WORLD, A, K)
+                : prismatic_mpi_comm::create(MPI_COMM_WORLD, K);
 
   prismatic_mesh mesh;
   mesh.build(TL, TN_r, 1.0, 2.0);
@@ -214,9 +228,13 @@ int main(int argc, char** argv) {
   ref_core.build(mesh, ref_mp);
   exchanger_t no_ex;  // inactive
 
-  // This rank's slice of the combined 20 x K decomposition.
-  auto part = prismatic_partition::combined_ico_face(TL, TN_r, K, mcomm.radial_rank(),
-                                            mcomm.angular_rank());
+  // This rank's slice of the combined A x K decomposition.
+  auto part = canonical
+                  ? prismatic_partition::combined(TL, TN_r, A, K,
+                                                  mcomm.world_rank())
+                  : prismatic_partition::combined_ico_face(
+                        TL, TN_r, K, mcomm.radial_rank(),
+                        mcomm.angular_rank());
   part.set_topology(&topo);
   auto mp = prismatic_mesh_partition::build(part, topo);
   core_t core;
@@ -260,9 +278,9 @@ int main(int argc, char** argv) {
       bool ok = rel_max < tol;
       if (world_rank == 0)
         std::printf(
-            "%-28s [%s] (%2d ranks, %2d steps): max rel diff = %.3e  %s\n",
-            sc.name, md.name, world_size, sc.n_steps, double(rel_max),
-            ok ? "PASS" : "FAIL");
+            "%-28s [%s] (%s %dx%d, %2d steps): max rel diff = %.3e  %s\n",
+            sc.name, md.name, canonical ? "canonical" : "legacy", A, K,
+            sc.n_steps, double(rel_max), ok ? "PASS" : "FAIL");
       if (!ok) all_ok = false;
     }
   }

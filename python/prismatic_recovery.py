@@ -48,12 +48,19 @@ class Mesh:
         self.tri_edge_signs = self.tri_edge_signs.reshape(self.N_tri, 3)
         self.tri_neighbor = self.tri_neighbor.reshape(self.N_tri, 3)
 
-        # Sphere-edge endpoints from the layer-0 horizontal edges
-        # (edge (k,e) endpoints are 3D vertex ids k*N_vert_s + s).
-        h0_v0 = self.edge_v0[: self.N_edge_s]
-        h0_v1 = self.edge_v1[: self.N_edge_s]
-        assert h0_v0.max() < self.N_vert_s and h0_v1.max() < self.N_vert_s
-        self.sphere_edges = np.stack([h0_v0, h0_v1], axis=1)
+        # Sphere-edge endpoints: 7D sphere-only mesh files carry them
+        # directly; older full-mesh files derive them from the layer-0
+        # horizontal edges (edge (k,e) endpoints are 3D vertex ids
+        # k*N_vert_s + s).
+        if hasattr(self, "sphere_edge_v0"):
+            self.sphere_edges = np.stack(
+                [self.sphere_edge_v0, self.sphere_edge_v1], axis=1
+            )
+        else:
+            h0_v0 = self.edge_v0[: self.N_edge_s]
+            h0_v1 = self.edge_v1[: self.N_edge_s]
+            assert h0_v0.max() < self.N_vert_s and h0_v1.max() < self.N_vert_s
+            self.sphere_edges = np.stack([h0_v0, h0_v1], axis=1)
 
         # Vertex → incident triangles / sphere edges (ragged lists).
         self.vert_tris = [[] for _ in range(self.N_vert_s)]

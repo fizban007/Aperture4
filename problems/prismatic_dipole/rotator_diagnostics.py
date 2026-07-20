@@ -29,8 +29,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 data_dir = sys.argv[1] if len(sys.argv) > 1 else "Data_ns_rotator_L5_t1"
-OMEGA = float(os.environ.get("OMEGA", 0.2))
-BP = float(os.environ.get("BP", 1.0))
+# Defaults match the production normalization (t4+): Omega = 0.25
+# (R_LC = 4), Bp = 1000.  Override via env for older runs.
+OMEGA = float(os.environ.get("OMEGA", 0.25))
+BP = float(os.environ.get("BP", 1000.0))
 M_OVER_Q = float(os.environ.get("M_OVER_Q", 1.0))
 R_LC = 1.0 / OMEGA
 

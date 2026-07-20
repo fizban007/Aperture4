@@ -18,15 +18,41 @@
 #   <test_binary>  path to test_prismatic_pic_multirank
 #   --bitwise      require bit-identical continuity dumps (host builds)
 #
+# Environment:
+#   PRISM_MPI_LAUNCH  override the rank launcher (see run() below).  Without
+#                     it: srun inside a Slurm allocation, else mpirun.
+#   TMPDIR            where the scratch tree is created.  On Frontier this
+#                     MUST point at Lustre -- /tmp is RAM-backed tmpfs on the
+#                     compute nodes, so the default would neither exercise the
+#                     parallel filesystem nor hold a real generation.
+#
 # Everything runs in a temp directory; exits nonzero on any failure.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 bin="${1:?usage: $0 <test_prismatic_pic_multirank> [--bitwise]}"
 bitwise="${2:-}"
+# Resolve the binary to an absolute path BEFORE the cd below.  The documented
+# invocation passes a relative path ("./bin/test_prismatic_pic_multirank"),
+# which stops resolving the moment we cd into the scratch tree.
+if [[ "$bin" != /* ]]; then
+  bin="$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")"
+fi
+[[ -x "$bin" ]] || { echo "FAIL: $bin is not an executable file"; exit 1; }
 cfg_src="$repo_root/tests/config_prismatic_pic_multirank.toml"
 work="$(mktemp -d "${TMPDIR:-/tmp}/prismatic_ckpt.XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+# Keep the scratch tree when something fails -- it holds the per-run logs
+# (log_*.txt) that say WHY.  Unconditional cleanup destroys the evidence at
+# exactly the moment it is needed.
+cleanup() {
+  local rc=$?
+  if [[ $rc -eq 0 ]]; then
+    rm -rf "$work"
+  else
+    echo "FAILED (rc=$rc) -- scratch tree preserved for diagnosis: $work" >&2
+  fi
+}
+trap cleanup EXIT
 cd "$work"
 
 datasets=(E_e B_f J_e rho rho_abs gamma_wsum)
@@ -36,9 +62,23 @@ datasets=(E_e B_f J_e rho rho_abs gamma_wsum)
 # up at O(field scale), orders of magnitude above this.
 delta=1e-3
 
+# Rank launcher.  A workstation uses mpirun; Cray systems (Frontier) ship no
+# mpirun at all and launch MPI through srun, so auto-detect via SLURM_JOB_ID.
+# Override either with:
+#   PRISM_MPI_LAUNCH="srun --overlap --gpus-per-task=1 --gpu-bind=closest"
+# The launcher is invoked as: $PRISM_MPI_LAUNCH -n <nranks> <bin> -c <cfg>
+#
+# NOTE on rank counts under Slurm: --gpus-per-task=1 means the 20-rank
+# elasticity case needs >= 20 GCDs, i.e. >= 3 Frontier nodes.  The prismatic
+# path does not do local_rank % n_devices binding (that lives in domain_comm,
+# which it does not use) -- it takes whatever single GCD srun makes visible.
 run() {  # run <nranks> <config> -> prints LIVE and ESUM lines
   local n="$1" cfg="$2"
-  if [[ "$n" == 1 ]]; then
+  if [[ -n "${PRISM_MPI_LAUNCH:-}" ]]; then
+    ${PRISM_MPI_LAUNCH} -n "$n" "$bin" -c "$cfg"
+  elif [[ -n "${SLURM_JOB_ID:-}" ]]; then
+    srun --overlap -n "$n" --gpus-per-task=1 --gpu-bind=closest "$bin" -c "$cfg"
+  elif [[ "$n" == 1 ]]; then
     "$bin" -c "$cfg"
   else
     mpirun --oversubscribe -n "$n" "$bin" -c "$cfg"

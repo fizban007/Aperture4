@@ -61,9 +61,17 @@ os.makedirs(os.path.dirname(out), exist_ok=True)
 with h5py.File(os.path.join(args.data_dir, "sph_grid.h5")) as f:
     th, ph, radii = f["theta"][:], f["phi"][:], f["radii"][:]
 N_th, N_ph = len(th), len(ph)
-TH = th[1:-1]  # drop the pole rows (sentinel/singular columns)
+# Keep the pole rows (theta = 0, pi): since the pole-row fix the sph
+# writer stores per-column meridian frames there, so scalars (rho,
+# gamma) and the in-plane transverse component (Jth at our slice
+# azimuth) are directly valid on the axis.  Only the out-of-plane
+# phihat components are genuinely undefined at the axis (0/0, and the
+# SOUTH-pole Bph column carries a float sin(pi) residual) — those two
+# are nearest-ring padded below.  This closes the axis wedge entirely.
+TH = th
 r = radii[:, None]
 sin_th = np.sin(TH)[None, :]
+sin_th_safe = np.maximum(sin_th, np.sin(th[1]) / 2)
 
 # Meridional mesh: right half x = +r sin th, left half x = -r sin th.
 Rg, THg = np.meshgrid(radii, TH, indexing="ij")
@@ -93,7 +101,7 @@ def panel_fields(path):
         t = float(f["time"][()])
         step = int(f["step"][()])
         shp = (len(radii), N_th, N_ph)
-        d = {k: f[k][:].reshape(shp)[:, 1:-1, :]
+        d = {k: f[k][:].reshape(shp)
              for k in ["Br", "Bph", "Jr", "Jth", "Jph", "rho", "gamma_mean"]}
     phi_m = (OMEGA * t) % (2 * np.pi)
     halves = {}
@@ -101,10 +109,18 @@ def panel_fields(path):
         Jr = slice_phi(d["Jr"], phi_t)
         Jth = slice_phi(d["Jth"], phi_t)
         Jph = slice_phi(d["Jph"], phi_t)
-        Jmag = np.sqrt(Jr**2 + (Jth / r) ** 2 + (Jph / (r * sin_th)) ** 2)
+        # phihat components: guarded division; the pole rows' value is
+        # replaced by the adjacent ring (undefined direction on the
+        # axis; S-pole Bph is additionally garbage — see header).
+        Jph_o = Jph / (r * sin_th_safe)
+        bphi = slice_phi(d["Bph"], phi_t) * r * sin_th * r**2 / BP
+        for row, src in ((0, 1), (-1, -2)):
+            Jph_o[:, row] = Jph_o[:, src]
+            bphi[:, row] = bphi[:, src]
+        Jmag = np.sqrt(Jr**2 + (Jth / r) ** 2 + Jph_o**2)
         halves[side] = dict(
             j=np.sign(Jr) * Jmag / rho_gj,
-            bphi=slice_phi(d["Bph"], phi_t) * r * sin_th * r**2 / BP,
+            bphi=bphi,
             rho=slice_phi(d["rho"], phi_t) / rho_gj,
             gam=slice_phi(d["gamma_mean"], phi_t),
         )

@@ -1,0 +1,122 @@
+# L7 oblique production run (a60) — Frontier, distributed PIC.
+#
+# Derived from config_ns_rotator_L6_a60.toml by the FRONTIER_RUNBOOK.md §4
+# scaling table.  ONLY the level-dependent knobs move; every physics knob
+# (Bp, Omega, obliquity, injection weights/thresholds, absorber radius, GCA
+# settings) is carried over verbatim so this is a clean resolution study.
+#
+#   knob                 L6            L7          rule
+#   subdivision_level    6             7           target
+#   N_r                  204           408         x2 per level (same shells)
+#   dt                   0.00490874    0.00245437  /2 per level (CFL), = P/10240
+#   max_steps            25600         51200       5 P at the new dt
+#   fld_output_interval  640           1280        x2 (same physical cadence)
+#   damping_length       44            88          x2 (same entrance r ~ 19.8)
+#   checkpoint_interval  2560          5120        x2 (0.5 P)
+#   max_ptc_num          1.4e9         4.0e8       NOW PER RANK, not per GPU
+#
+# P = 2*pi/Omega = 25.132741228718345; dt = P/10240 exactly, so the
+# step-51200 dump lands exactly at t = 5 P.
+#
+# max_ptc_num is the big semantic change: L6 ran single-GPU, so 1.4e9 was
+# the whole census.  Here the ~8e9 L7 census is spread over 320 ranks =>
+# mean 25M/rank, hot rank ~55M at the measured 2.2x imbalance (runbook §3).
+# See the max_ptc_num block below for the sizing argument.
+#
+# Decomposition: 40 nodes x 8 GCDs = 320 ranks, A=320 angular x K=1 radial
+# (angular-major; runbook Rule 1 -- K>1 drives imbalance to 3-5x).
+
+dt = 0.0024543692606170259
+max_steps = 51200
+subdivision_level = 7
+N_r = 408
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 1.0471975511965976
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 88
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- decomposition (runbook §3) ---
+# A = 320 is tied to a 320-rank world (40 nodes).  If you are ever handed a
+# different node count, either update this or set it to 0 for the
+# angular-major auto-heuristic -- ns_rotator aborts if world_size % A != 0.
+n_angular_ranks = 320
+ranks_per_node = 8
+halo_device_direct = true
+step_timer_interval = 500
+
+# --- particles ---
+# PER-RANK buffer.  See the header note above before changing.
+#
+# 4.0e8 x 48 B = 19.2 GB of the 64 GB GCD, leaving ~44 GB headroom.  Sized
+# well above the ~55M hot-rank estimate on purpose -- the buffer is nearly
+# free (see below), and the headroom buys two things:
+#   1. Throttle margin: the injector soft-throttles at 0.9 x max_ptc_num
+#      (= 3.6e8 here, ~6.5x the estimate).  The L7 census is extrapolated
+#      from the L5 a60 load map; if the better-resolved sheet makes more
+#      pairs than that scaling assumed, a tight buffer silently starves the
+#      physics instead of erroring (runbook pitfall #10).
+#   2. Restart-shape freedom (pitfall #7): hot rank ~ 2.2e9/nodes, so 4.0e8
+#      permits restarting anywhere from ~7 nodes up.  At 8.0e7 the same run
+#      could only ever resume on >= 31 nodes.
+#
+# Why it is nearly free: sort scratch is a fixed 10M-element segment
+# (~0.2 GB), NOT capacity-scaled; the checkpoint writes n_live, not
+# capacity; and the host mirror's untouched pages are never faulted in.
+#
+# Do NOT push much past ~8e8: the host mirror is host_device (allocated on
+# BOTH sides), so 8 ranks/node x 48 B x max_ptc_num is charged against the
+# node's 512 GB of DDR4 -- survivable only while those pages stay untouched.
+# Hard ceiling regardless: max_ptc_num is read into an `int`
+# (prismatic_ptc_updater_impl.hpp:51), so it must stay under 2.147e9.
+max_ptc_num = 400000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 13.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection (unchanged from L6: physics) ---
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 10
+inj_weight = 6.87e-4
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-3
+inj_r_max = 10.0
+inj_max_multiplicity = 10.0
+inj_gca = true
+inj_weight_r_scale = 5.0
+
+# --- GCA hybrid (unchanged from L6: physics) ---
+use_gca = true
+include_curvature = true
+gca_switch_omegac_dt = 0.1
+gca_zero_mu_on_capture = false
+
+# --- output ---
+# Under MPI the in-code spherical output is skipped (runbook §4); the
+# exporter writes mesh-native step_XXXXXX.h5.  sph_N_* are kept only so a
+# single-rank rerun of this config behaves like the L6 one.
+fld_output_interval = 1280
+output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60/output"
+sph_N_theta = 64
+sph_N_phi = 128
+
+# --- checkpoint/restart ---
+# keep = 2 so a SIGKILL during a write still leaves a complete older
+# generation (runbook §9.5).  Each generation is ~O(census x 48 B) ~ 380 GB
+# of particle state, so keep=2 is ~0.8 TB resident -- drop to 1 if quota bites.
+checkpoint_interval = 5120
+checkpoint_keep = 2
+checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60/checkpoints"
+restart_from = "auto"

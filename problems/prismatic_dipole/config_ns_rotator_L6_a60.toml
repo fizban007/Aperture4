@@ -27,7 +27,7 @@
 #   NOTE: inj_min_sigma (6.25 in t9) has been absent since t10 — kept
 #   absent here for t14-faithfulness; revisit if the belt overloads.
 dt = 0.0049087385212340515
-max_steps = 30720
+max_steps = 25600
 subdivision_level = 6
 N_r = 204
 r_min = 1.0
@@ -44,7 +44,7 @@ damping_coef = 1.0
 damping_exponent = 3.0
 
 # --- particles ---
-max_ptc_num = 1200000000
+max_ptc_num = 1400000000
 q_e = 1.0
 m_e = 1.0
 ptc_absorb_radius = 13.0
@@ -78,5 +78,5 @@ inj_weight_r_scale = 5.0
 
 # --- checkpoint/restart (new since t15; t15 died SIGKILLed at 2.5 P) ---
 checkpoint_interval = 2560
-checkpoint_keep = 2
+checkpoint_keep = 1
 restart_from = "auto"

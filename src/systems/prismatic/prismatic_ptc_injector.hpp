@@ -12,7 +12,16 @@
 #include "utils/util_functions.h"
 #include "utils/vec.hpp"
 
-#ifdef GPU_ENABLED
+// Only pull in thrust when this TU is actually being compiled as device code.
+// GPU_ENABLED is set for every TU in a GPU build, including host-only ones
+// (e.g. tests/test_prismatic_injector.cpp), and ROCm 7's bundled Thrust is
+// CCCL-based but ships no CCCL headers -- so a host TU that reaches
+// <thrust/...> fails with "'cuda/__cccl_config' file not found".  The device
+// scan below is guarded by the same condition; it is unreachable from a host
+// TU anyway, since instantiating the device exec_policy requires a device
+// compiler to emit the kernel launch.
+#if defined(GPU_ENABLED) && (defined(__CUDACC__) || defined(__HIPCC__))
+#define PRISM_INJECTOR_DEVICE_SCAN
 #include <thrust/device_ptr.h>
 #include <thrust/scan.h>
 #endif
@@ -231,7 +240,7 @@ class prismatic_ptc_injector {
   // total.  Device path scans in place with thrust and copies back only
   // the two tail elements; host path is a running sum.
   int exclusive_scan(int N_cells) {
-#ifdef GPU_ENABLED
+#ifdef PRISM_INJECTOR_DEVICE_SCAN
     if constexpr (std::is_same_v<exec_tag, exec_tags::device>) {
       thrust::device_ptr<int> p_num(m_num_per_cell.dev_ptr());
       thrust::device_ptr<int> p_cum(m_cum_num_per_cell.dev_ptr());

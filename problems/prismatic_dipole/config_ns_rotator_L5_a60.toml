@@ -1,26 +1,44 @@
-# L5 oblique baseline (a60, 2026-07-19): the t14 recipe verbatim with
-# obliquity = 60 deg.  Replaces the called-off L6 a60 attempt (which
-# loaded to 74% of its buffer by 1 P — the oblique rotator supplies
-# plasma much heavier than aligned); L5 gives the inclined-rotator
-# baseline fast, with t14 as the exactly-matched aligned reference.
-# Checkpointing every 2560 steps (1 P at L5 dt), restart_from = auto.
+# L5 oblique baseline (a60, 2026-07-19, v2): DERIVED FROM
+# config_ns_rotator_L6_a60 by inverting exactly the level-dependent
+# scalings its t15 header documents (L 6->5, N_r 204->102 same
+# geometric shells, dt = P/2560 CFL, 6 P = 15360 steps, output every
+# 320 = same physical cadence, damping_length 44->22 = same physical
+# entrance).  Everything else — notably the L6 recipe's deliberate
+# choices inj_weight 6.87e-4 and ptc_absorb_radius 13 — is UNCHANGED,
+# so this run is the direct coarse partner of the L6 a60 run (and of
+# any future L6 completion) rather than a t14-recipe hybrid.
+# max_ptc_num reduced 1.2B -> 800M (engineering headroom only: the L5
+# census should sit far below it; 37 GB host mirror instead of 55).
 #
-# ----- t14 header for provenance: -----
-# A3 t4: user-prescribed normalization (2026-07-17).
-#   Bp = 1000 -> surface B = 2000 (pole): particles magnetized at
-#     mildly relativistic gamma everywhere inside the LC (r_g ~ gamma/B).
-#     B drops to ~15-30 at the light cylinder.
-#   R_LC = 4 (Omega = 0.25), P = 25.133; dt = P/2560 (same CFL dt).
-#   Volumetric injection weight from the NOMINAL GJ density
-#     rho_GJ,nom(r) = 2 Omega Bp / r^3 (radius-only — avoids the null-line
-#     zeros of the local GJ):  each macro carries 10% of the local
-#     nominal GJ charge:
-#       w q = 0.1 * rho_GJ,nom(r) * V_cell(r)
-#           = 0.1 * (2 Omega Bp) * A_tri * dln(r)      [V_cell ~ r^3
-#             on geometric shells, so w is exactly constant]
-#           = 0.1 * 500 * 2.29e-5 = 1.145e-3.
-#   E.B threshold 1e-2 (above the measured ~1e-2 fluctuation floor of
-#     the overloaded t3 run; supply now heavy enough to quench fast).
+# ----- L6 a60 header for provenance: -----
+# L6 oblique production run (a60, 2026-07-19): the t15 recipe verbatim
+# with obliquity = 60 deg (1.0471975511965976 rad).  Serves as (1) a
+# consistency check of the full stack after the checkpoint/restart +
+# int64-index work and (2) the first inclined-rotator PIC test at L6.
+#   - use_static_background subtracts only the ALIGNED component
+#     Bp*cos(60 deg) = 500 (the only obliquity-safe static choice); the
+#     rotating transverse component is evolved in the delta fields.
+#   - Checkpointing every 2560 steps (0.5 P, ~35 min at t15's plateau
+#     step cost); restart_from = "auto" makes THIS SAME config resume
+#     from the newest complete generation on relaunch.
+#
+# ----- t15 header for provenance: -----
+# L6 production run (t15, 2026-07-18): t14 recipe scaled to L=6.
+#   Lineage: t14 = supply-honest L5 reference (un-throttled equilibrium
+#   ~325M at 0.04 GJ weight + r^2 coarsening beyond r=5, GCA 0.1 +
+#   E<0.9B margin).  Changes for L6 (user-directed):
+#   - inj_weight x1.5 on top of t14 -> 6.87e-4 (0.06 GJ fraction).
+#   - ptc_absorb_radius 40 -> 13: the transported r>10 population
+#     dominated the L5 count (~60% beyond r=10) and diagnostics only
+#     use r<8; absorbing just outside the injection zone harvests it.
+#   - max_ptc_num 1.2B (~55GB particles + 7.2GB L6 fields of 92GB free);
+#     watch for first-throttle = overflow signal.
+#   Scalings: N_r 102->204 (same geometric shells, same r-range),
+#   dt = P/5120 (CFL, half of L5), 6P = 30720 steps, dumps every 640
+#   (same physical cadence), damping_length 22->44 shells (same
+#   physical entrance r ~ 19.8 = quarter-point).
+#   NOTE: inj_min_sigma (6.25 in t9) has been absent since t10 — kept
+#   absent here for t14-faithfulness; revisit if the belt overloads.
 dt = 0.009817477042468103
 max_steps = 15360
 subdivision_level = 5
@@ -42,7 +60,7 @@ damping_exponent = 3.0
 max_ptc_num = 800000000
 q_e = 1.0
 m_e = 1.0
-ptc_absorb_radius = 40.0
+ptc_absorb_radius = 13.0
 use_recovery_gather = true
 sort_interval = 20
 random_seed = 42
@@ -51,7 +69,7 @@ random_seed = 42
 inj_shells = 1
 inj_pairs_per_cell = 1
 inj_interval = 10
-inj_weight = 4.58e-4
+inj_weight = 6.87e-4
 inj_kT = 0.2
 inj_buffer_frac = 0.9
 inj_eb_threshold = 1e-3
@@ -62,8 +80,8 @@ output_dir = "Data_ns_rotator_L5_a60"
 sph_N_theta = 64
 sph_N_phi = 128
 inj_max_multiplicity = 10.0
-# GCA hybrid experiment: mu = 0 injection (synchrotron-locked lowest
-# Landau level), GCA everywhere magnetized, Boris only near B nulls.
+# GCA hybrid: mu = 0 injection, GCA everywhere magnetized (0.1 + E<0.9B
+# margin), Boris near B nulls.
 use_gca = true
 include_curvature = true
 gca_switch_omegac_dt = 0.1
@@ -71,7 +89,7 @@ gca_zero_mu_on_capture = false
 inj_gca = true
 inj_weight_r_scale = 5.0
 
-# --- checkpoint/restart ---
+# --- checkpoint/restart (new since t15; t15 died SIGKILLed at 2.5 P) ---
 checkpoint_interval = 2560
 checkpoint_keep = 2
 restart_from = "auto"

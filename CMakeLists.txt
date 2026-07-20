@@ -18,6 +18,7 @@ option(use_boost_filesystem "Use boost filesystem instead of std::filesystem" OF
 option(use_libcpp "Use libc++ instead of libstdc++" OFF)
 option(enable_para_perp "Enable tracking of parallel vs perpendicular E.v work" OFF)
 option(on_frontier "Compile on frontier" OFF)
+option(build_python "Build the pybind11 python helper modules" ON)
 set(cuda_target_gpu "A100" CACHE STRING "The CUDA GPU target, which determines the CUDA_ARCHITECTURE variable")
 set(hip_target_gpu "GFX90A" CACHE STRING "The HIP GPU target, which determines the HIP_ARCHITECTURE variable")
 
@@ -330,7 +331,9 @@ endfunction()
 
 add_subdirectory(src)
 add_subdirectory(problems)
-add_subdirectory(python)
+if(build_python)
+  add_subdirectory(python)
+endif()
 
 if(build_tests)
   add_subdirectory(tests)

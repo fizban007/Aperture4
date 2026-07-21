@@ -358,8 +358,8 @@ class prismatic_surface_injector : public system_t {
         // now decoupled from the cell size.  Omega_tri via the Van
         // Oosterom–Strackee solid-angle formula on the triangle's
         // unit-sphere vertices.
-        [weight] LAMBDA(auto& x_global, int tri, int k, const auto& mp,
-                        PtcType type) {
+        cell_aware_weight([weight] LAMBDA(auto& x_global, int tri, int k,
+                                          const auto& mp, PtcType type) {
           int v0 = mp.tri_verts[tri * 3 + 0];
           int v1 = mp.tri_verts[tri * 3 + 1];
           int v2 = mp.tri_verts[tri * 3 + 2];
@@ -378,7 +378,7 @@ class prismatic_surface_injector : public system_t {
           Scalar omega = Scalar(2) * math::atan2(math::abs(triple), denom);
           Scalar dxi = math::log(mp.radii[k + 1] / mp.radii[k]);
           return weight * omega * dxi;
-        },
+        }),
         m_inj_gca ? [] { uint32_t f = 0;
                          set_flag(f, PtcFlagEx::gca_state);
                          return f; }()

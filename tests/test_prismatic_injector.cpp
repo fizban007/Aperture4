@@ -134,11 +134,12 @@ TEST_CASE("Prismatic injector: cell-aware weight (coordinate-volume norm)",
                                                               fx.states);
 
   // Mirror of prismatic_surface_injector's production weight functor:
-  // w = Omega_tri * dln r (inj_weight = 1), via the extended
-  // (x_global, tri, k, mp, type) signature.  The triangle solid angles
-  // of an icosphere shell tile the sphere, so per radial layer the
-  // total injected weight must be ppc * 4 pi * dln r — checking that
-  // both validates the arity dispatch and the solid-angle formula.
+  // w = Omega_tri * dln r (inj_weight = 1), via the cell_aware_weight
+  // wrapper's (x_global, tri, k, mp, type) signature.  The triangle
+  // solid angles of an icosphere shell tile the sphere, so per radial
+  // layer the total injected weight must be ppc * 4 pi * dln r —
+  // checking that both validates the marker dispatch and the
+  // solid-angle formula.
   const int ppc = 2;
   injector.inject_pairs(
       [] LAMBDA(int tri, int k, auto& mp) { return true; },
@@ -146,8 +147,8 @@ TEST_CASE("Prismatic injector: cell-aware weight (coordinate-volume norm)",
       [] LAMBDA(auto& x_global, rand_state& state, PtcType type) {
         return vec_t<Scalar, 3>(0.0, 0.0, 0.0);
       },
-      [] LAMBDA(auto& x_global, int tri, int k, const auto& mp,
-                PtcType type) {
+      cell_aware_weight([] LAMBDA(auto& x_global, int tri, int k,
+                                  const auto& mp, PtcType type) {
         int v0 = mp.tri_verts[tri * 3 + 0];
         int v1 = mp.tri_verts[tri * 3 + 1];
         int v2 = mp.tri_verts[tri * 3 + 2];
@@ -165,7 +166,7 @@ TEST_CASE("Prismatic injector: cell-aware weight (coordinate-volume norm)",
         Scalar omega = Scalar(2) * math::atan2(math::abs(triple), denom);
         Scalar dxi = math::log(mp.radii[k + 1] / mp.radii[k]);
         return omega * dxi;
-      });
+      }));
 
   int N_cells = fx.mesh.m_N_tri * fx.mesh.m_N_r;
   REQUIRE(fx.ptc.number() == size_t(N_cells * ppc));

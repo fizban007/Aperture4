@@ -78,10 +78,32 @@ HD_INLINE vec_t<Scalar, 3> prism_position(const MeshPtrs& mp, int tri, int k,
 // and f_weight(x_global, PtcType) -> weight match the base signatures, so
 // samplers from core/random.h (maxwell_juttner etc.) work unchanged.
 // f_weight may alternatively take the extended cell-aware signature
-// (x_global, tri, k, mp, PtcType) — dispatched by arity at compile time —
-// so weights can carry per-prism measures (e.g. the coordinate-volume
-// normalization of prismatic_surface_injector) without a point-location
-// round trip.
+// (x_global, tri, k, mp, PtcType) by wrapping the functor in
+// cell_aware_weight(...) below, so weights can carry per-prism measures
+// (e.g. the coordinate-volume normalization of
+// prismatic_surface_injector) without a point-location round trip.
+// The wrapper is an explicit marker rather than arity detection because
+// hip-clang (ROCm 7) evaluates std::is_invocable on a __device__ lambda
+// in the HOST context while substituting into the nested kernel lambda,
+// so any invocability-based dispatch picks the wrong branch on the
+// device pass (fine on gcc/CUDA — do not "simplify" this back).
+
+// Marker wrapper opting a weight functor into the cell-aware signature
+// f(x_global, tri, k, mp, PtcType).
+template <typename F>
+struct cell_aware_weight_t {
+  F f;
+};
+
+template <typename F>
+cell_aware_weight_t<F> cell_aware_weight(F f) {
+  return {f};
+}
+
+template <typename T>
+struct is_cell_aware_weight : std::false_type {};
+template <typename F>
+struct is_cell_aware_weight<cell_aware_weight_t<F>> : std::true_type {};
 template <typename ExecPolicy>
 class prismatic_ptc_injector {
  public:
@@ -200,12 +222,12 @@ class prismatic_ptc_injector {
               ptc.p3[offset_p] = p[2];
               ptc.E[offset_p] = math::sqrt(value_t(1) + p.dot(p));
 
-              if constexpr (std::is_invocable_v<decltype(f_weight),
-                                                decltype(x_global)&, int, int,
-                                                decltype(mp)&, PtcType>) {
+              if constexpr (is_cell_aware_weight<
+                                std::decay_t<decltype(f_weight)>>::value) {
                 ptc.weight[offset_e] =
-                    f_weight(x_global, tri, k, mp, PtcType::electron);
-                ptc.weight[offset_p] = f_weight(x_global, tri, k, mp, pos_type);
+                    f_weight.f(x_global, tri, k, mp, PtcType::electron);
+                ptc.weight[offset_p] =
+                    f_weight.f(x_global, tri, k, mp, pos_type);
               } else {
                 ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
                 ptc.weight[offset_p] = f_weight(x_global, pos_type);

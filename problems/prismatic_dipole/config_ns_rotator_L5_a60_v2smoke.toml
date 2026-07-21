@@ -1,0 +1,69 @@
+# L5 smoke check of the v2 injection normalization (2026-07-21).
+# Base: config_ns_rotator_L5_a60.toml (the direct coarse partner of the
+# L6 a60 baseline) with exactly the v2 knob migration applied:
+#   inj_weight   = 240.0                (coordinate charge density;
+#                                        was 6.87e-4 raw macro charge)
+#   inj_interval = 0.04908738521234052  (TIME = P/512 = 5 L5 steps;
+#                                        was 10 steps = P/256 at L5)
+#   inj_weight_r_scale                  DELETED (aborts if present)
+# The new values are level-invariant by design — these are the SAME
+# numbers as the L7 v2 production config.  1 P (2560 steps), single
+# node.  Pass = injector init line shows "coordinate density 240 ...
+# (5 step(s))" and census/rho_abs track the historical L5/L6 numbers
+# (a few 1e8 census, NOT a v1-style over-injection ramp).
+dt = 0.009817477042468103
+max_steps = 2560
+# 1 node x 8 GCDs: A=8 angular ranks, K=1 radial (8 = 2^3 divides
+# 20*4^m; same choice as the L6 frontier config's 8-rank runs).
+n_angular_ranks = 8
+subdivision_level = 5
+N_r = 102
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 1.0471975511965976
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 22
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- particles ---
+max_ptc_num = 800000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 13.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection ---
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 0.04908738521234052
+inj_weight = 240.0
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-3
+inj_r_max = 10.0
+
+fld_output_interval = 320
+output_dir = "output"
+sph_N_theta = 64
+sph_N_phi = 128
+inj_max_multiplicity = 10.0
+# GCA hybrid: mu = 0 injection, GCA everywhere magnetized (0.1 + E<0.9B
+# margin), Boris near B nulls.
+use_gca = true
+include_curvature = true
+gca_switch_omegac_dt = 0.1
+gca_zero_mu_on_capture = false
+inj_gca = true
+
+# --- checkpoint/restart (new since t15; t15 died SIGKILLed at 2.5 P) ---
+checkpoint_interval = 2560
+checkpoint_keep = 2
+restart_from = "auto"

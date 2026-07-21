@@ -40,7 +40,8 @@ def shell_luminosity(f, N_theta, N_phi, N_shells, theta, radii):
     integrand = (np.sin(theta)[None, :, None] ** 2) * Eth * Bph - Eph * Bth
     dphi = 2 * np.pi / N_phi
     az = integrand.sum(axis=2) * dphi                    # (N_shells, N_theta)
-    L = radii**2 * np.trapezoid(az, theta, axis=1)       # (N_shells,)
+    trapezoid = getattr(np, "trapezoid", None) or np.trapz  # numpy < 2.0
+    L = radii**2 * trapezoid(az, theta, axis=1)          # (N_shells,)
     return L
 
 

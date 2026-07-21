@@ -11,6 +11,7 @@
 #include "systems/prismatic/prismatic_ptc_mesh_local.h"
 #include "utils/util_functions.h"
 #include "utils/vec.hpp"
+#include <type_traits>
 
 // Only pull in thrust when this TU is actually being compiled as device code.
 // GPU_ENABLED is set for every TU in a GPU build, including host-only ones
@@ -76,6 +77,11 @@ HD_INLINE vec_t<Scalar, 3> prism_position(const MeshPtrs& mp, int tri, int k,
 // f_dist(x_global, state, PtcType) -> vec_t<value_t, 3> Cartesian momentum
 // and f_weight(x_global, PtcType) -> weight match the base signatures, so
 // samplers from core/random.h (maxwell_juttner etc.) work unchanged.
+// f_weight may alternatively take the extended cell-aware signature
+// (x_global, tri, k, mp, PtcType) — dispatched by arity at compile time —
+// so weights can carry per-prism measures (e.g. the coordinate-volume
+// normalization of prismatic_surface_injector) without a point-location
+// round trip.
 template <typename ExecPolicy>
 class prismatic_ptc_injector {
  public:
@@ -194,8 +200,16 @@ class prismatic_ptc_injector {
               ptc.p3[offset_p] = p[2];
               ptc.E[offset_p] = math::sqrt(value_t(1) + p.dot(p));
 
-              ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
-              ptc.weight[offset_p] = f_weight(x_global, pos_type);
+              if constexpr (std::is_invocable_v<decltype(f_weight),
+                                                decltype(x_global)&, int, int,
+                                                decltype(mp)&, PtcType>) {
+                ptc.weight[offset_e] =
+                    f_weight(x_global, tri, k, mp, PtcType::electron);
+                ptc.weight[offset_p] = f_weight(x_global, tri, k, mp, pos_type);
+              } else {
+                ptc.weight[offset_e] = f_weight(x_global, PtcType::electron);
+                ptc.weight[offset_p] = f_weight(x_global, pos_type);
+              }
               uint32_t local_flag = flag;
               if (!check_flag(local_flag, PtcFlag::ignore_tracking) &&
                   rng.template uniform<value_t>() < tracked_fraction) {

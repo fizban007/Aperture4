@@ -11,14 +11,31 @@
 #include "systems/prismatic/prismatic_ptc_injector.hpp"
 #include "systems/prismatic/prismatic_ptc_updater.h"
 #include "utils/logger.h"
+#include <algorithm>
+#include <cmath>
 #include <memory>
 
 namespace Aperture {
 
-// Pair injection for magnetosphere runs: every inj_interval steps,
-// inject inj_pairs_per_cell neutral e+/e- pairs, uniformly placed, in
-// every eligible prism, with an isotropic Maxwell-Juttner momentum
-// spread of temperature inj_kT and macro-weight inj_weight.
+// Pair injection for magnetosphere runs: every inj_interval TIME units
+// (simulation units, converted to a step count internally), inject
+// inj_pairs_per_cell neutral e+/e- pairs, uniformly placed, in every
+// eligible prism, with an isotropic Maxwell-Juttner momentum spread of
+// temperature inj_kT.
+//
+// Weight convention (the base-code invariant, ported to this mesh):
+// inj_weight is a charge density per COORDINATE cell volume, not a raw
+// charge.  A macro is born with w = inj_weight * Omega_tri * dln r
+// (Omega_tri = the triangle's solid angle, dln r = the shell's log
+// thickness), so its physical charge-density contribution is
+// inj_weight / r^3 — the GJ radial profile — and both the injected
+// density per unit time and the macros-per-cell granularity are
+// invariant under subdivision-level / N_r / dt changes.  (The previous
+// convention, w = inj_weight as a raw charge, made the injected density
+// scale as 1/(V_cell dt): the L7 a60 production run injected 16x more
+// plasma than the L6 run it was meant to resolution-match, overloading
+// the magnetosphere and pulling the Y-point inside the light cylinder.
+// Legacy configs abort loudly in init().)
 //
 // Eligibility has two modes:
 //   - surface (inj_r_max <= 0): the first inj_shells radial layers;
@@ -34,9 +51,7 @@ namespace Aperture {
 // electrosphere) with large unscreened E_par regions.  The volumetric
 // E.B-triggered mode is the simplest scheme that does converge
 // (standing in for the self-consistent pair production of
-// Chen & Beloborodov 2014); note a uniform macro-weight already gives
-// an injected number density per event ~ 1/V_cell ~ r^-3, i.e. the GJ
-// radial scaling.
+// Chen & Beloborodov 2014).
 // Additionally throttled by total buffer occupancy (inj_buffer_frac).
 //
 // Register AFTER the field solver and BEFORE prismatic_ptc_updater, so
@@ -66,21 +81,47 @@ class prismatic_surface_injector : public system_t {
   void init() override {
     sim_env().params().get_value("inj_shells", m_inj_shells);
     sim_env().params().get_value("inj_pairs_per_cell", m_pairs_per_cell);
-    sim_env().params().get_value("inj_interval", m_interval);
+    // Loud migration guard: inj_weight_r_scale is gone (the coordinate-
+    // density weight below already carries the r^-3 profile it existed
+    // to complement), and its presence marks a config written for the
+    // old charge-denominated weight / step-denominated interval.
+    if (sim_env().params().has("inj_weight_r_scale")) {
+      Logger::print_err(
+          "inj_weight_r_scale has been removed.  inj_weight is now a "
+          "coordinate charge density (w_macro = inj_weight * Omega_tri * "
+          "dln r, physical density/event = inj_weight / r^3 at every "
+          "resolution) and inj_interval is now a TIME.  Migrate: "
+          "new inj_weight = old / (Omega_tri_mean * dln_r) at the level "
+          "the old value was tuned (L6 a60: 6.87e-4 -> 240), "
+          "new inj_interval = old steps * dt.");
+      std::abort();
+    }
+    // inj_interval is a TIME in simulation units; the injector fires
+    // every round(inj_interval / dt) steps, so the injection cadence is
+    // dt-invariant.  A legacy integer step count aborts.
+    double inj_interval_time = 0.0;
+    sim_env().params().get_value("inj_interval", inj_interval_time);
+    if (inj_interval_time <= 0.0) {
+      int legacy_steps = 0;
+      sim_env().params().get_value("inj_interval", legacy_steps);
+      if (legacy_steps > 0) {
+        Logger::print_err(
+            "inj_interval is now a TIME in simulation units (was: a step "
+            "count).  Found a legacy integer ({}); set inj_interval = "
+            "{} * dt instead.",
+            legacy_steps, legacy_steps);
+        std::abort();
+      }
+    }
+    double dt = 1.0;
+    sim_env().params().get_value("dt", dt);
+    m_interval = std::max(1, (int)std::lround(inj_interval_time / dt));
     sim_env().params().get_value("inj_weight", m_weight);
     sim_env().params().get_value("inj_kT", m_kT);
     sim_env().params().get_value("inj_buffer_frac", m_buffer_frac);
     sim_env().params().get_value("inj_eb_threshold", m_eb_threshold);
     sim_env().params().get_value("inj_r_max", m_inj_r_max);
-    sim_env().params().get_value("inj_weight_r_scale", m_weight_r_scale);
     sim_env().params().get_value("inj_gca", m_inj_gca);
-    if (m_weight_r_scale > Scalar(0)) {
-      Logger::print_info(
-          "Radius-dependent macro weight: w(r) = {} * max(1, (r/{})^2) — "
-          "granularity fraction constant inside r = {}, coarsening as r^2 "
-          "outside (memory-budget enabler for L6)",
-          m_weight, m_weight_r_scale, m_weight_r_scale);
-    }
     if (m_inj_gca) {
       Logger::print_info(
           "GCA-native injection: mu = 0 (synchrotron-locked), "
@@ -141,14 +182,17 @@ class prismatic_surface_injector : public system_t {
     if (m_inj_r_max > Scalar(0)) {
       Logger::print_info(
           "Volumetric injector: {} pairs/cell for r < {} ({} shells) every "
-          "{} step(s), E.B threshold {}, kT = {}, weight = {}",
-          m_pairs_per_cell, m_inj_r_max, m_n_shells_eligible, m_interval,
-          m_eb_threshold, m_kT, m_weight);
+          "{} t.u. ({} step(s)), E.B threshold {}, kT = {}, coordinate "
+          "density {} (physical density/event = {}/r^3)",
+          m_pairs_per_cell, m_inj_r_max, m_n_shells_eligible,
+          m_interval * dt, m_interval, m_eb_threshold, m_kT, m_weight,
+          Scalar(2) * m_pairs_per_cell * m_weight);
     } else {
       Logger::print_info(
-          "Surface injector: {} pairs/cell in {} shell(s) every {} step(s), "
-          "kT = {}, weight = {}",
-          m_pairs_per_cell, m_inj_shells, m_interval, m_kT, m_weight);
+          "Surface injector: {} pairs/cell in {} shell(s) every {} t.u. "
+          "({} step(s)), kT = {}, coordinate density {}",
+          m_pairs_per_cell, m_inj_shells, m_interval * dt, m_interval,
+          m_kT, m_weight);
     }
   }
 
@@ -159,8 +203,7 @@ class prismatic_surface_injector : public system_t {
     // occupancy throttle is per-rank).
     m_updater->sync_fields(step);
 
-    // Periodic occupancy log — the memory-pressure observable for the
-    // radius-dependent-weight studies.
+    // Periodic occupancy log — the memory-pressure observable.
     if (step % 1000 == 0) {
       Logger::print_info("ptc number: {} ({}% of buffer)", m_ptc->number(),
                          Scalar(100) * m_ptc->number() / m_ptc->size());
@@ -306,22 +349,35 @@ class prismatic_surface_injector : public system_t {
           }
           return rng_maxwell_juttner_3d<Scalar>(state, kT);
         },
-        // weight: uniform, or radius-dependent when inj_weight_r_scale
-        // r_w > 0: w(r) = w0 * max(1, (r/r_w)^2).  The per-cell GJ
-        // charge is constant on log shells, so a constant w0 costs a
-        // shell-count's worth of macros per decade; coarsening the
-        // macro fraction as r^2 beyond r_w caps the far-zone particle
-        // demand while keeping the tuned granularity where the physics
-        // is (the criteria stack self-limits against the SAME target
-        // density either way — heavier macros just reach it in fewer
-        // particles).
-        [weight, rs = m_weight_r_scale] LAMBDA(auto& x_global,
-                                               PtcType type) {
-          if (rs <= Scalar(0)) return weight;
-          Scalar r2_ratio = (x_global[0] * x_global[0] +
-                             x_global[1] * x_global[1] +
-                             x_global[2] * x_global[2]) / (rs * rs);
-          return r2_ratio > Scalar(1) ? weight * r2_ratio : weight;
+        // weight: coordinate-volume normalization (the base-code
+        // invariant ported to the log-shell prismatic mesh; see the
+        // header).  The macro's physical charge is q * inj_weight *
+        // Omega_tri * dln r, so its charge-DENSITY contribution is
+        // inj_weight / r^3 at every resolution — the GJ radial profile
+        // the old fixed-charge convention got implicitly from 1/V_cell,
+        // now decoupled from the cell size.  Omega_tri via the Van
+        // Oosterom–Strackee solid-angle formula on the triangle's
+        // unit-sphere vertices.
+        [weight] LAMBDA(auto& x_global, int tri, int k, const auto& mp,
+                        PtcType type) {
+          int v0 = mp.tri_verts[tri * 3 + 0];
+          int v1 = mp.tri_verts[tri * 3 + 1];
+          int v2 = mp.tri_verts[tri * 3 + 2];
+          Scalar ax = mp.sphere_vx[v0], ay = mp.sphere_vy[v0],
+                 az = mp.sphere_vz[v0];
+          Scalar bx = mp.sphere_vx[v1], by = mp.sphere_vy[v1],
+                 bz = mp.sphere_vz[v1];
+          Scalar cx = mp.sphere_vx[v2], cy = mp.sphere_vy[v2],
+                 cz = mp.sphere_vz[v2];
+          Scalar triple = ax * (by * cz - bz * cy) +
+                          ay * (bz * cx - bx * cz) +
+                          az * (bx * cy - by * cx);
+          Scalar denom = Scalar(1) + (ax * bx + ay * by + az * bz) +
+                         (bx * cx + by * cy + bz * cz) +
+                         (ax * cx + ay * cy + az * cz);
+          Scalar omega = Scalar(2) * math::atan2(math::abs(triple), denom);
+          Scalar dxi = math::log(mp.radii[k + 1] / mp.radii[k]);
+          return weight * omega * dxi;
         },
         m_inj_gca ? [] { uint32_t f = 0;
                          set_flag(f, PtcFlagEx::gca_state);
@@ -345,11 +401,11 @@ class prismatic_surface_injector : public system_t {
   int m_inj_shells = 1;
   int m_n_shells_eligible = 1;
   int m_pairs_per_cell = 1;
+  // Injection cadence in steps, derived from the inj_interval TIME.
   int m_interval = 1;
+  // Coordinate charge density per macro: w_macro = m_weight * Omega_tri
+  // * dln r (physical density contribution m_weight / r^3).
   Scalar m_weight = Scalar(1);
-  // Radius scale r_w for w(r) = w * max(1, (r/r_w)^2); 0 disables
-  // (uniform legacy weight).
-  Scalar m_weight_r_scale = Scalar(0);
   Scalar m_kT = Scalar(0.1);
   Scalar m_buffer_frac = Scalar(0.9);
   Scalar m_eb_threshold = Scalar(0);

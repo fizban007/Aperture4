@@ -149,6 +149,17 @@ Scale from the committed L6 config
 injection weights/thresholds, absorber radius, GCA settings) is physics
 and stays fixed:
 
+> **Injection units changed after the first L7 campaign** (see pitfall
+> #14): `inj_weight` is now a charge density per coordinate cell volume
+> (`w_macro = inj_weight * Omega_tri * dln r`; physical density/event
+> `= inj_weight / r^3`) and `inj_interval` is a TIME in simulation
+> units.  Under these units the injection knobs really are physics and
+> never rescale across levels.  Legacy charge/step-denominated configs
+> abort at init; migrate with `inj_weight_new = inj_weight_old /
+> (Omega_tri_mean * dln_r)` at the tuning level (L6 a60: `6.87e-4 ->
+> 240.0`) and `inj_interval_new = old_steps * dt`.
+> `inj_weight_r_scale` is gone.
+
 | knob | rule | L6 → L7 |
 |---|---|---|
 | `subdivision_level` | target | 6 → **7** |
@@ -324,6 +335,7 @@ the tilted structure. Both default to the production normalization
 | 11 | **int32 global-index overflow** | (historical) silent wraparound above ~L8 | CLOSED: global cell wire is uint64, global cochain/vertex indices are `int64` (`gidx_t`). Safe through L10+. New code must still write `gidx_t(k)*width+s`, never an int product. |
 | 12 | **Replicated sphere-stage memory at L10** | per-rank angular tables ~2–4 GB | DEFERRED, survivable at L10. Init logs the real number — check it before an L10 campaign; a distributed/patch-local sphere stage is the fix if it ever bites. |
 | 13 | **Single-shared-file HDF5 at ~10⁴ writers (L10)** | metadata/lock contention on the checkpoint file | BORDERLINE at L10 only. Schema is unaffected; switch the writer/reader pair to subfiling or per-N-rank shards. Nothing outside the writer/reader may assume "one file per generation". Fine through L8–L9. |
+| 14 | **Charge-denominated injection knobs across a level change** | (historical) L7 a60 v1: injected density rate scaled as 1/(V_cell·dt) → 16× over-injection vs L6; ρ_abs 5–7.5× high, sub-corotation (Ω_pl/Ω 0.55 vs 0.78), Y-point inside the LC, L(R_LC) ≈ 7.2 L_dip, ~7× shot noise in ρ/ρ_GJ | CLOSED: `inj_weight` is now a coordinate charge density (`w_macro = inj_weight·Ω_tri·dln r`, physical density/event `= inj_weight/r³`) and `inj_interval` is a TIME — both resolution-invariant; legacy configs (or any `inj_weight_r_scale`) abort at init. See §4 for migration. Lesson: any knob denominated in per-cell or per-step units is a resolution knob in disguise — audit new knobs for this before the next level jump. |
 
 ---
 

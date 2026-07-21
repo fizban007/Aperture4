@@ -10,7 +10,9 @@
 #include "systems/prismatic/prismatic_ptc_mesh_local.h"
 
 #include "catch2/catch_all.hpp"
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 using namespace Aperture;
 
@@ -123,6 +125,69 @@ TEST_CASE("Prismatic injector: criteria restricts to surface shell",
       },
       [] LAMBDA(auto& x_global, PtcType type) { return Scalar(1.0); });
   REQUIRE(fx.ptc.number() == size_t(2 * fx.mesh.m_N_tri * ppc));
+}
+
+TEST_CASE("Prismatic injector: cell-aware weight (coordinate-volume norm)",
+          "[prismatic][injector]") {
+  injector_fixture fx;
+  prismatic_ptc_injector<prismatic_exec_policy_host> injector(fx.lmesh, fx.ptc,
+                                                              fx.states);
+
+  // Mirror of prismatic_surface_injector's production weight functor:
+  // w = Omega_tri * dln r (inj_weight = 1), via the extended
+  // (x_global, tri, k, mp, type) signature.  The triangle solid angles
+  // of an icosphere shell tile the sphere, so per radial layer the
+  // total injected weight must be ppc * 4 pi * dln r — checking that
+  // both validates the arity dispatch and the solid-angle formula.
+  const int ppc = 2;
+  injector.inject_pairs(
+      [] LAMBDA(int tri, int k, auto& mp) { return true; },
+      [ppc] LAMBDA(int tri, int k, auto& mp) { return ppc; },
+      [] LAMBDA(auto& x_global, rand_state& state, PtcType type) {
+        return vec_t<Scalar, 3>(0.0, 0.0, 0.0);
+      },
+      [] LAMBDA(auto& x_global, int tri, int k, const auto& mp,
+                PtcType type) {
+        int v0 = mp.tri_verts[tri * 3 + 0];
+        int v1 = mp.tri_verts[tri * 3 + 1];
+        int v2 = mp.tri_verts[tri * 3 + 2];
+        Scalar ax = mp.sphere_vx[v0], ay = mp.sphere_vy[v0],
+               az = mp.sphere_vz[v0];
+        Scalar bx = mp.sphere_vx[v1], by = mp.sphere_vy[v1],
+               bz = mp.sphere_vz[v1];
+        Scalar cx = mp.sphere_vx[v2], cy = mp.sphere_vy[v2],
+               cz = mp.sphere_vz[v2];
+        Scalar triple = ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) +
+                        az * (bx * cy - by * cx);
+        Scalar denom = Scalar(1) + (ax * bx + ay * by + az * bz) +
+                       (bx * cx + by * cy + bz * cz) +
+                       (ax * cx + ay * cy + az * cz);
+        Scalar omega = Scalar(2) * math::atan2(math::abs(triple), denom);
+        Scalar dxi = math::log(mp.radii[k + 1] / mp.radii[k]);
+        return omega * dxi;
+      });
+
+  int N_cells = fx.mesh.m_N_tri * fx.mesh.m_N_r;
+  REQUIRE(fx.ptc.number() == size_t(N_cells * ppc));
+
+  auto ptrs = fx.ptc.get_host_ptrs();
+  std::vector<double> shell_weight(fx.mesh.m_N_r, 0.0);
+  double w_min = 1e30, w_max = 0.0;
+  for (size_t i = 0; i < fx.ptc.number(); i++) {
+    int tri, k;
+    prism_cell_decode(ptrs.cell[i], fx.mesh.m_N_tri, tri, k);
+    shell_weight[k] += ptrs.weight[i];
+    w_min = std::min(w_min, (double)ptrs.weight[i]);
+    w_max = std::max(w_max, (double)ptrs.weight[i]);
+  }
+  for (int k = 0; k < fx.mesh.m_N_r; k++) {
+    double dxi = std::log(fx.mesh.radii[k + 1] / fx.mesh.radii[k]);
+    REQUIRE(shell_weight[k] ==
+            Catch::Approx(ppc * 4.0 * M_PI * dxi).epsilon(1e-4));
+  }
+  // The icosphere's triangles are not congruent: per-cell weights must
+  // actually vary, proving the cell-aware overload was dispatched.
+  REQUIRE(w_max > w_min * 1.05);
 }
 
 TEST_CASE("Prismatic injector: validator marks rejected slots inert",

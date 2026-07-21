@@ -1,0 +1,108 @@
+# L7 oblique production rerun (a60), v2 — corrected injection normalization.
+#
+# The first L7 campaign (config_ns_rotator_L7_a60.toml) carried the L6
+# injection knobs verbatim, but under the OLD injector convention
+# inj_weight was a raw macro charge and inj_interval a step count, so
+# the injected density rate scaled as 1/(V_cell*dt): L7 injected 16x
+# more plasma than the L6 run it was meant to resolution-match.  The
+# measured symptoms (diagnostics/ in the L7 run dir): rho_abs 5-7.5x
+# L6 at matched t/P, surface corotation 0.55 vs 0.78, Y-point pulled
+# inside the LC, L(R_LC) ~ 7.2 L_dip vs 4.5, and ~7x shot noise in
+# rho/rho_GJ.
+#
+# The injector now uses the base-code convention (see
+# prismatic_surface_injector.h): inj_weight is a charge density per
+# coordinate cell volume — w_macro = inj_weight * Omega_tri * dln r,
+# physical density/event = inj_weight / r^3 — and inj_interval is a
+# TIME.  Both are resolution-invariant: they are PHYSICS knobs now and
+# never rescale across levels.
+#
+#   inj_weight   = 240.0        = 6.87e-4 / (Omega_tri_L6 * dlnr_L6);
+#                                 per-event pair density 2*240/r^3 =
+#                                 0.96 rho_GJ(r)  (rho_GJ r^3 = 2 Omega Bp
+#                                 = 500) — identical to the L6 physics.
+#   inj_interval = 0.04908738521234052
+#                                 = 10 * dt_L6 = P/512 (= 20 L7 steps),
+#                                 the same physical cadence as L6.
+#   inj_weight_r_scale            REMOVED (the r^2 far-zone macro
+#                                 coarsening hack; the injector aborts if
+#                                 it is present).  Expect a somewhat
+#                                 larger far-zone (r > 5) census than the
+#                                 hacked L6 run — see max_ptc_num below.
+#
+# Everything else is carried from config_ns_rotator_L7_a60.toml
+# unchanged (FRONTIER_RUNBOOK.md §4 scaling table).  Fresh output/
+# checkpoint dirs: this is a from-scratch rerun, NOT a restart — the v1
+# state is overloaded and would not relax quickly.
+
+dt = 0.0024543692606170259
+max_steps = 51200
+subdivision_level = 7
+N_r = 408
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 1.0471975511965976
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 88
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- decomposition (runbook §3) ---
+n_angular_ranks = 320
+ranks_per_node = 8
+halo_device_direct = true
+step_timer_interval = 500
+
+# --- particles ---
+# PER-RANK buffer (see the v1 config for the full sizing argument).
+# v2 note: the corrected weights reproduce L6's macros-per-cell at every
+# radius, ~59/cell -> ~8e9 total, but WITHOUT the r^2 far-zone
+# coarsening the r > 5 census grows a few-fold: budget ~1.6e10 total,
+# hot rank ~1.1e8 at the measured 2.2x imbalance — still under 30% of
+# this buffer.  Watch the injector's occupancy log line early on.
+max_ptc_num = 400000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 13.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection ---
+# Resolution-invariant units (see header): density knob + time cadence.
+inj_shells = 1
+inj_pairs_per_cell = 1
+inj_interval = 0.04908738521234052
+inj_weight = 240.0
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-3
+inj_r_max = 10.0
+inj_max_multiplicity = 10.0
+inj_gca = true
+
+# --- GCA hybrid (unchanged: physics) ---
+use_gca = true
+include_curvature = true
+gca_switch_omegac_dt = 0.1
+gca_zero_mu_on_capture = false
+
+# --- output ---
+# Under MPI the in-code spherical output is skipped (runbook §4); the
+# exporter writes mesh-native step_XXXXXX.h5.  sph_N_* are kept only so a
+# single-rank rerun of this config behaves like the L6 one.
+fld_output_interval = 1280
+output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/output"
+sph_N_theta = 64
+sph_N_phi = 128
+
+# --- checkpoint/restart ---
+checkpoint_interval = 5120
+checkpoint_keep = 2
+checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/checkpoints"
+restart_from = "auto"

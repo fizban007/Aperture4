@@ -861,15 +861,31 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   // The following implements the 2nd order predictor-corrector scheme, aka Heun
   // method
 
+  using value_t = typename Conf::value_t;
+
   // Compute the RHS at the current time step n
   compute_dB_dt(*m_dB_dt, *(this->B), *(this->E));
   compute_dD_dt(*m_dD_dt, *(this->B), *(this->E), *(this->J));
 
-  // Construct the Euler estimate for the next time step n+1
-  m_tmpB->copy_from(*(this->B));
-  m_tmpD->copy_from(*(this->E));
-  m_tmpB->add_by(*m_dB_dt, dt);
-  m_tmpD->add_by(*m_dD_dt, dt);
+  // Construct the Euler estimate for the next time step n+1 as a single fused
+  // kernel over all 6 components: tmp = U^n + dt * dU_dt. Same arithmetic
+  // order as the previous copy_from + add_by chain.
+  value_t dt_v = dt;
+  ExecPolicy<Conf>::launch(
+      [dt_v] LAMBDA(auto tmpB, auto tmpD, auto B, auto E, auto dB, auto dD) {
+        auto &grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        using idx_t = typename Conf::idx_t;
+        ExecPolicy<Conf>::loop(idx_t(0, ext), idx_t(ext.size(), ext),
+                               [&] LAMBDA(auto idx) {
+                                 for (int c = 0; c < 3; c++) {
+                                   tmpB[c][idx] = B[c][idx] + dB[c][idx] * dt_v;
+                                   tmpD[c][idx] = E[c][idx] + dD[c][idx] * dt_v;
+                                 }
+                               });
+      },
+      *m_tmpB, *m_tmpD, *(this->B), *(this->E), *m_dB_dt, *m_dD_dt);
+  ExecPolicy<Conf>::sync();
 
   // Communicate if necessary. B and D are fused into a single message per
   // direction to halve the exchange count.
@@ -885,17 +901,30 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     compute_dB_dt(*m_tmpdB_dt, *m_tmpB, *m_tmpD);
     compute_dD_dt(*m_tmpdD_dt, *m_tmpB, *m_tmpD, *(this->J));
 
-    // Set new B and D at n+1
-    m_tmpB->copy_from(*(this->B));
-    m_tmpD->copy_from(*(this->E));
-    // m_tmpB->add_by(*m_tmpdB_dt, dt * 0.5f);
-    // m_tmpB->add_by(*m_dB_dt, dt * 0.5f);
-    // m_tmpD->add_by(*m_tmpdD_dt, dt * 0.5f);
-    // m_tmpD->add_by(*m_dD_dt, dt * 0.5f);
-    m_tmpB->add_by(*m_tmpdB_dt, dt * this->m_beta);
-    m_tmpB->add_by(*m_dB_dt, dt * this->m_alpha);
-    m_tmpD->add_by(*m_tmpdD_dt, dt * this->m_beta);
-    m_tmpD->add_by(*m_dD_dt, dt * this->m_alpha);
+    // Set new B and D at n+1: tmp = U^n + dt*beta*dU_dt(guess) +
+    // dt*alpha*dU_dt(n), fused into one kernel with the same left-to-right
+    // arithmetic order as the previous copy_from + add_by chain.
+    value_t sb = dt * this->m_beta;
+    value_t sa = dt * this->m_alpha;
+    ExecPolicy<Conf>::launch(
+        [sb, sa] LAMBDA(auto tmpB, auto tmpD, auto B, auto E, auto tdB,
+                        auto tdD, auto dB, auto dD) {
+          auto &grid = ExecPolicy<Conf>::grid();
+          auto ext = grid.extent();
+          using idx_t = typename Conf::idx_t;
+          ExecPolicy<Conf>::loop(
+              idx_t(0, ext), idx_t(ext.size(), ext), [&] LAMBDA(auto idx) {
+                for (int c = 0; c < 3; c++) {
+                  tmpB[c][idx] =
+                      B[c][idx] + tdB[c][idx] * sb + dB[c][idx] * sa;
+                  tmpD[c][idx] =
+                      E[c][idx] + tdD[c][idx] * sb + dD[c][idx] * sa;
+                }
+              });
+        },
+        *m_tmpB, *m_tmpD, *(this->B), *(this->E), *m_tmpdB_dt, *m_tmpdD_dt,
+        *m_dB_dt, *m_dD_dt);
+    ExecPolicy<Conf>::sync();
 
     // Communicate the result (B and D fused into one message per direction)
     if (this->m_comm != nullptr) {
@@ -905,8 +934,22 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     boundary_conditions(*m_tmpD, *m_tmpB);
   }
 
-  this->E->copy_from(*m_tmpD);
-  this->B->copy_from(*m_tmpB);
+  // Copy the result back to B and E in one fused kernel
+  ExecPolicy<Conf>::launch(
+      [] LAMBDA(auto B, auto E, auto tmpB, auto tmpD) {
+        auto &grid = ExecPolicy<Conf>::grid();
+        auto ext = grid.extent();
+        using idx_t = typename Conf::idx_t;
+        ExecPolicy<Conf>::loop(idx_t(0, ext), idx_t(ext.size(), ext),
+                               [&] LAMBDA(auto idx) {
+                                 for (int c = 0; c < 3; c++) {
+                                   B[c][idx] = tmpB[c][idx];
+                                   E[c][idx] = tmpD[c][idx];
+                                 }
+                               });
+      },
+      *(this->B), *(this->E), *m_tmpB, *m_tmpD);
+  ExecPolicy<Conf>::sync();
 }
 
 template <typename Conf, template <class> class ExecPolicy>

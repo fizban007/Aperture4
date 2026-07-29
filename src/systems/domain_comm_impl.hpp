@@ -43,6 +43,121 @@ constexpr bool use_cuda_mpi = false;
 
 namespace Aperture {
 
+namespace detail {
+
+// Batched slab pack/unpack kernels for guard-cell exchange. Each call is one
+// kernel covering all components (3 for one vector field, 6 for two fused
+// fields) and does NOT synchronize -- the caller issues a single
+// ExecPolicy::sync() after launching the packs for both directions, replacing
+// the per-component kernel+sync round-trips of the generic copy() helper.
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+pack_vec_slab(typename Conf::multi_array_t &buf, vector_field<Conf> &f,
+              const index_t<Conf::dim> &src_pos,
+              const extent_t<Conf::dim> &slab_ext,
+              const extent_t<Conf::dim> &arr_ext,
+              const extent_t<Conf::dim> &buf_ext) {
+  ExecPolicy<Conf>::launch(
+      [src_pos, slab_ext, arr_ext, buf_ext] LAMBDA(auto buf_p, auto f_p) {
+        using col_idx_t = idx_col_major_t<Conf::dim>;
+        size_t slab_size = slab_ext.size();
+        ExecPolicy<Conf>::loop((size_t)0, 3 * slab_size, [&] LAMBDA(auto n) {
+          int c = n / slab_size;
+          auto pos = get_pos(col_idx_t(n % slab_size, slab_ext), slab_ext);
+          auto dst_pos = pos;
+          dst_pos[Conf::dim - 1] += c * slab_ext[Conf::dim - 1];
+          buf_p[buf_p.get_idx(dst_pos, buf_ext)] =
+              f_p[c][f_p[c].get_idx(src_pos + pos, arr_ext)];
+        });
+      },
+      buf, f);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+unpack_vec_slab(vector_field<Conf> &f, typename Conf::multi_array_t &buf,
+                const index_t<Conf::dim> &dst_pos,
+                const extent_t<Conf::dim> &slab_ext,
+                const extent_t<Conf::dim> &arr_ext,
+                const extent_t<Conf::dim> &buf_ext, bool add_to_field) {
+  ExecPolicy<Conf>::launch(
+      [dst_pos, slab_ext, arr_ext, buf_ext,
+       add_to_field] LAMBDA(auto f_p, auto buf_p) {
+        using col_idx_t = idx_col_major_t<Conf::dim>;
+        size_t slab_size = slab_ext.size();
+        ExecPolicy<Conf>::loop((size_t)0, 3 * slab_size, [&] LAMBDA(auto n) {
+          int c = n / slab_size;
+          auto pos = get_pos(col_idx_t(n % slab_size, slab_ext), slab_ext);
+          auto src_pos = pos;
+          src_pos[Conf::dim - 1] += c * slab_ext[Conf::dim - 1];
+          auto &dst = f_p[c][f_p[c].get_idx(dst_pos + pos, arr_ext)];
+          auto val = buf_p[buf_p.get_idx(src_pos, buf_ext)];
+          if (add_to_field)
+            dst += val;
+          else
+            dst = val;
+        });
+      },
+      f, buf);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+pack_vec2_slab(typename Conf::multi_array_t &buf, vector_field<Conf> &fa,
+               vector_field<Conf> &fb, const index_t<Conf::dim> &src_pos,
+               const extent_t<Conf::dim> &slab_ext,
+               const extent_t<Conf::dim> &arr_ext,
+               const extent_t<Conf::dim> &buf_ext) {
+  ExecPolicy<Conf>::launch(
+      [src_pos, slab_ext, arr_ext, buf_ext] LAMBDA(auto buf_p, auto fa_p,
+                                                   auto fb_p) {
+        using col_idx_t = idx_col_major_t<Conf::dim>;
+        size_t slab_size = slab_ext.size();
+        ExecPolicy<Conf>::loop((size_t)0, 6 * slab_size, [&] LAMBDA(auto n) {
+          int c = n / slab_size;
+          auto pos = get_pos(col_idx_t(n % slab_size, slab_ext), slab_ext);
+          auto dst_pos = pos;
+          dst_pos[Conf::dim - 1] += c * slab_ext[Conf::dim - 1];
+          auto src_idx = fa_p[0].get_idx(src_pos + pos, arr_ext);
+          buf_p[buf_p.get_idx(dst_pos, buf_ext)] =
+              (c < 3 ? fa_p[c][src_idx] : fb_p[c - 3][src_idx]);
+        });
+      },
+      buf, fa, fb);
+}
+
+template <typename Conf, template <class> class ExecPolicy>
+void
+unpack_vec2_slab(vector_field<Conf> &fa, vector_field<Conf> &fb,
+                 typename Conf::multi_array_t &buf,
+                 const index_t<Conf::dim> &dst_pos,
+                 const extent_t<Conf::dim> &slab_ext,
+                 const extent_t<Conf::dim> &arr_ext,
+                 const extent_t<Conf::dim> &buf_ext) {
+  ExecPolicy<Conf>::launch(
+      [dst_pos, slab_ext, arr_ext, buf_ext] LAMBDA(auto fa_p, auto fb_p,
+                                                   auto buf_p) {
+        using col_idx_t = idx_col_major_t<Conf::dim>;
+        size_t slab_size = slab_ext.size();
+        ExecPolicy<Conf>::loop((size_t)0, 6 * slab_size, [&] LAMBDA(auto n) {
+          int c = n / slab_size;
+          auto pos = get_pos(col_idx_t(n % slab_size, slab_ext), slab_ext);
+          auto src_pos = pos;
+          src_pos[Conf::dim - 1] += c * slab_ext[Conf::dim - 1];
+          auto val = buf_p[buf_p.get_idx(src_pos, buf_ext)];
+          auto dst_idx = fa_p[0].get_idx(dst_pos + pos, arr_ext);
+          if (c < 3)
+            fa_p[c][dst_idx] = val;
+          else
+            fb_p[c - 3][dst_idx] = val;
+        });
+      },
+      fa, fb, buf);
+}
+
+}  // namespace detail
+
 template <typename Conf, template <class> class ExecPolicy>
 // domain_comm<Conf>::domain_comm(sim_environment &env) : system_t(env) {
 domain_comm<Conf, ExecPolicy>::domain_comm(int *argc, char ***argv) {
@@ -440,19 +555,14 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_both_dirs(
       }
     } else {
       use_mpi[di] = true;
-      for (int n = 0; n < 3; n++) {
-        auto &array = field[n];
-        index_t<Conf::dim> vec_buf_idx{};
-        vec_buf_idx[Conf::dim - 1] =
-            n * m_send_buffers[bi].extent()[Conf::dim - 1];
-        copy(typename ExecPolicy<Conf>::exec_tag{}, m_send_vec_buffers[bi],
-             array, vec_buf_idx, send_idx[di], m_send_buffers[bi].extent());
-      }
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
-        m_send_vec_buffers[bi].copy_to_host();
-      }
+      detail::pack_vec_slab<Conf, ExecPolicy>(
+          m_send_vec_buffers[bi], field, send_idx[di],
+          m_send_buffers[bi].extent(), field[0].extent(),
+          m_send_vec_buffers[bi].extent());
     }
   }
+  // One sync covers the pack kernels of both directions
+  ExecPolicy<Conf>::sync();
 
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di]) continue;
@@ -462,6 +572,8 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_both_dirs(
     if CONST_EXPR (m_is_device && use_cuda_mpi) {
       send_ptr = m_send_vec_buffers[bi].dev_ptr();
       recv_ptr = m_recv_vec_buffers[bi].dev_ptr();
+    } else {
+      m_send_vec_buffers[bi].copy_to_host();
     }
     MPI_Irecv(recv_ptr, m_recv_vec_buffers[bi].size(), m_scalar_type,
               origin[di], di, m_cart, &reqs[nreq++]);
@@ -470,22 +582,20 @@ domain_comm<Conf, ExecPolicy>::send_vector_field_guard_cells_both_dirs(
   }
   if (nreq > 0) MPI_Waitall(nreq, reqs, MPI_STATUSES_IGNORE);
 
+  bool unpacked = false;
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di] || origin[di] == MPI_PROC_NULL) continue;
     int bi = 2 * dim + di;
     if CONST_EXPR (m_is_device && !use_cuda_mpi) {
       m_recv_vec_buffers[bi].copy_to_device();
     }
-    for (int n = 0; n < 3; n++) {
-      auto &array = field[n];
-      index_t<Conf::dim> vec_buf_idx{};
-      vec_buf_idx[Conf::dim - 1] =
-          n * m_recv_buffers[bi].extent()[Conf::dim - 1];
-      copy(typename ExecPolicy<Conf>::exec_tag{}, array,
-           m_recv_vec_buffers[bi], recv_idx[di], vec_buf_idx,
-           m_recv_buffers[bi].extent());
-    }
+    detail::unpack_vec_slab<Conf, ExecPolicy>(
+        field, m_recv_vec_buffers[bi], recv_idx[di],
+        m_recv_buffers[bi].extent(), field[0].extent(),
+        m_recv_vec_buffers[bi].extent(), false);
+    unpacked = true;
   }
+  if (unpacked) ExecPolicy<Conf>::sync();
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -526,21 +636,14 @@ domain_comm<Conf, ExecPolicy>::send_two_vector_fields_guard_cells_both_dirs(
       }
     } else {
       use_mpi[di] = true;
-      for (int f = 0; f < 2; f++) {
-        for (int n = 0; n < 3; n++) {
-          auto &array = (*fields[f])[n];
-          index_t<Conf::dim> vec_buf_idx{};
-          vec_buf_idx[Conf::dim - 1] =
-              (3 * f + n) * m_send_buffers[bi].extent()[Conf::dim - 1];
-          copy(typename ExecPolicy<Conf>::exec_tag{}, m_send_vec2_buffers[bi],
-               array, vec_buf_idx, send_idx[di], m_send_buffers[bi].extent());
-        }
-      }
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
-        m_send_vec2_buffers[bi].copy_to_host();
-      }
+      detail::pack_vec2_slab<Conf, ExecPolicy>(
+          m_send_vec2_buffers[bi], field_a, field_b, send_idx[di],
+          m_send_buffers[bi].extent(), field_a[0].extent(),
+          m_send_vec2_buffers[bi].extent());
     }
   }
+  // One sync covers the pack kernels of both directions
+  ExecPolicy<Conf>::sync();
 
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di]) continue;
@@ -550,6 +653,8 @@ domain_comm<Conf, ExecPolicy>::send_two_vector_fields_guard_cells_both_dirs(
     if CONST_EXPR (m_is_device && use_cuda_mpi) {
       send_ptr = m_send_vec2_buffers[bi].dev_ptr();
       recv_ptr = m_recv_vec2_buffers[bi].dev_ptr();
+    } else {
+      m_send_vec2_buffers[bi].copy_to_host();
     }
     MPI_Irecv(recv_ptr, m_recv_vec2_buffers[bi].size(), m_scalar_type,
               origin[di], di, m_cart, &reqs[nreq++]);
@@ -558,24 +663,20 @@ domain_comm<Conf, ExecPolicy>::send_two_vector_fields_guard_cells_both_dirs(
   }
   if (nreq > 0) MPI_Waitall(nreq, reqs, MPI_STATUSES_IGNORE);
 
+  bool unpacked = false;
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di] || origin[di] == MPI_PROC_NULL) continue;
     int bi = 2 * dim + di;
     if CONST_EXPR (m_is_device && !use_cuda_mpi) {
       m_recv_vec2_buffers[bi].copy_to_device();
     }
-    for (int f = 0; f < 2; f++) {
-      for (int n = 0; n < 3; n++) {
-        auto &array = (*fields[f])[n];
-        index_t<Conf::dim> vec_buf_idx{};
-        vec_buf_idx[Conf::dim - 1] =
-            (3 * f + n) * m_recv_buffers[bi].extent()[Conf::dim - 1];
-        copy(typename ExecPolicy<Conf>::exec_tag{}, array,
-             m_recv_vec2_buffers[bi], recv_idx[di], vec_buf_idx,
-             m_recv_buffers[bi].extent());
-      }
-    }
+    detail::unpack_vec2_slab<Conf, ExecPolicy>(
+        field_a, field_b, m_recv_vec2_buffers[bi], recv_idx[di],
+        m_recv_buffers[bi].extent(), field_a[0].extent(),
+        m_recv_vec2_buffers[bi].extent());
+    unpacked = true;
   }
+  if (unpacked) ExecPolicy<Conf>::sync();
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -613,19 +714,14 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_both_dirs(
       }
     } else {
       use_mpi[di] = true;
-      for (int n = 0; n < 3; n++) {
-        auto &array = field[n];
-        index_t<Conf::dim> vec_buf_idx{};
-        vec_buf_idx[Conf::dim - 1] =
-            n * m_send_buffers[bi].extent()[Conf::dim - 1];
-        copy(typename ExecPolicy<Conf>::exec_tag{}, m_send_vec_buffers[bi],
-             array, vec_buf_idx, send_idx[di], m_send_buffers[bi].extent());
-      }
-      if CONST_EXPR (m_is_device && !use_cuda_mpi) {
-        m_send_vec_buffers[bi].copy_to_host();
-      }
+      detail::pack_vec_slab<Conf, ExecPolicy>(
+          m_send_vec_buffers[bi], field, send_idx[di],
+          m_send_buffers[bi].extent(), field[0].extent(),
+          m_send_vec_buffers[bi].extent());
     }
   }
+  // One sync covers the pack kernels of both directions
+  ExecPolicy<Conf>::sync();
 
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di]) continue;
@@ -635,6 +731,8 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_both_dirs(
     if CONST_EXPR (m_is_device && use_cuda_mpi) {
       send_ptr = m_send_vec_buffers[bi].dev_ptr();
       recv_ptr = m_recv_vec_buffers[bi].dev_ptr();
+    } else {
+      m_send_vec_buffers[bi].copy_to_host();
     }
     MPI_Irecv(recv_ptr, m_recv_vec_buffers[bi].size(), m_scalar_type,
               origin[di], di, m_cart, &reqs[nreq++]);
@@ -643,22 +741,20 @@ domain_comm<Conf, ExecPolicy>::send_add_vector_field_guard_cells_both_dirs(
   }
   if (nreq > 0) MPI_Waitall(nreq, reqs, MPI_STATUSES_IGNORE);
 
+  bool unpacked = false;
   for (int di = 0; di < 2; di++) {
     if (!use_mpi[di] || origin[di] == MPI_PROC_NULL) continue;
     int bi = 2 * dim + di;
     if CONST_EXPR (m_is_device && !use_cuda_mpi) {
       m_recv_vec_buffers[bi].copy_to_device();
     }
-    for (int n = 0; n < 3; n++) {
-      auto &array = field[n];
-      index_t<Conf::dim> vec_buf_idx{};
-      vec_buf_idx[Conf::dim - 1] =
-          n * m_recv_buffers[bi].extent()[Conf::dim - 1];
-      add(typename ExecPolicy<Conf>::exec_tag{}, array,
-          m_recv_vec_buffers[bi], recv_idx[di], vec_buf_idx,
-          m_recv_buffers[bi].extent());
-    }
+    detail::unpack_vec_slab<Conf, ExecPolicy>(
+        field, m_recv_vec_buffers[bi], recv_idx[di],
+        m_recv_buffers[bi].extent(), field[0].extent(),
+        m_recv_vec_buffers[bi].extent(), true);
+    unpacked = true;
   }
+  if (unpacked) ExecPolicy<Conf>::sync();
 }
 
 // template <typename Conf, template <class> class ExecPolicy>

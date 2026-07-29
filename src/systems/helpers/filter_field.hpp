@@ -175,14 +175,18 @@ struct field_filter_with_geom_factor<3> {
 
 }  // namespace detail
 
+// When `extend` is positive, the filter also computes `extend` guard rings on
+// sides facing an MPI neighbor (physical-boundary sides are unchanged). Those
+// rings have valid stencil inputs as long as extend < guard, which allows
+// running multiple filter passes between guard-cell exchanges.
 template <typename ExecPolicy, int Dim, typename value_t, typename Idx_t>
 void
 filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                        multi_array<value_t, Dim, Idx_t>& tmp,
                        const vec_t<bool, 2 * Dim>& is_boundary,
-                       stagger_t stagger) {
+                       stagger_t stagger, int extend = 0) {
   ExecPolicy::launch(
-      [is_boundary, stagger] LAMBDA(auto result, auto f) {
+      [is_boundary, stagger, extend] LAMBDA(auto result, auto f) {
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
         // vec_t<int, Dim> offsets;
@@ -192,7 +196,15 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
         ExecPolicy::loop(
             Idx_t(0, ext), Idx_t(ext.size(), ext), [&] LAMBDA(auto idx) {
               auto pos = get_pos(idx, ext);
-              if (grid.is_in_bound(pos, stagger)) {
+              bool in_bound = true;
+#pragma unroll
+              for (int i = 0; i < Dim; i++) {
+                int lo = grid.guard[i] - (is_boundary[i * 2] ? 0 : extend);
+                int hi = grid.dims[i] - grid.guard[i] + stagger[i] +
+                         (is_boundary[i * 2 + 1] ? 0 : extend);
+                if (pos[i] < lo || pos[i] >= hi) in_bound = false;
+              }
+              if (in_bound) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
 #pragma unroll
                 for (int i = 0; i < Dim; i++) {
@@ -220,9 +232,9 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
                        multi_array<value_t, Dim, Idx_t>& tmp,
                        const multi_array<value_t, Dim, Idx_t>& geom_factor,
                        const vec_t<bool, 2 * Dim>& is_boundary,
-                       stagger_t stagger) {
+                       stagger_t stagger, int extend = 0) {
   ExecPolicy::launch(
-      [is_boundary, stagger] LAMBDA(auto result, auto f, auto factor) {
+      [is_boundary, stagger, extend] LAMBDA(auto result, auto f, auto factor) {
         auto& grid = ExecPolicy::grid();
         auto ext = grid.extent();
         // vec_t<int, Dim> offsets;
@@ -236,7 +248,15 @@ filter_field_component(multi_array<value_t, Dim, Idx_t>& field,
             [&] LAMBDA(auto idx) {
               // auto idx = Idx_t(n, ext);
               auto pos = get_pos(idx, ext);
-              if (grid.is_in_bound(pos, stagger)) {
+              bool in_bound = true;
+#pragma unroll
+              for (int i = 0; i < Dim; i++) {
+                int lo = grid.guard[i] - (is_boundary[i * 2] ? 0 : extend);
+                int hi = grid.dims[i] - grid.guard[i] + stagger[i] +
+                         (is_boundary[i * 2 + 1] ? 0 : extend);
+                if (pos[i] < lo || pos[i] >= hi) in_bound = false;
+              }
+              if (in_bound) {
                 vec_t<bool, 2 * Dim> boundary_cell = is_boundary;
 #pragma unroll
                 for (int i = 0; i < Dim; i++) {

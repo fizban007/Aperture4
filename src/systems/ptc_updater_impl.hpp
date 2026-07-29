@@ -208,10 +208,11 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::update(
   if (m_comm != nullptr) {
     m_comm->send_add_guard_cells(*J);
     m_comm->send_guard_cells(*J);
-    m_comm->send_add_guard_cells(*rho_total);
-    m_comm->send_guard_cells(*rho_total);
-    // if ((step + 1) % m_data_interval == 0) {
+    // rho_total and Rho are only deposited when step % rho_interval == 0, so
+    // there is nothing to communicate on other steps
     if (step % m_rho_interval == 0) {
+      m_comm->send_add_guard_cells(*rho_total);
+      m_comm->send_guard_cells(*rho_total);
       for (uint32_t i = 0; i < Rho.size(); i++) {
         m_comm->send_add_guard_cells(*(Rho[i]));
         m_comm->send_guard_cells(*(Rho[i]));
@@ -714,25 +715,43 @@ ptc_updater<Conf, ExecPolicy, CoordPolicy, PhysicsPolicy>::filter_current(
   is_boundary.set(true);
   if (m_comm != nullptr) is_boundary = m_comm->domain_info().is_boundary;
 
+  // rho fields are only deposited (and consumed) on rho_interval steps, so
+  // they only need filtering then. J drives the field solver and is always
+  // filtered.
+  bool filter_rho = (step % m_rho_interval == 0);
+
+  // With enough guard cells we can run two filter passes per guard-cell
+  // exchange: the first pass of each pair uses extend = 1 to also fill one
+  // guard ring on MPI-neighbor sides, giving the second pass valid stencil
+  // inputs. Computing that ring reads one cell beyond it, and on the upper
+  // side of a staggered dimension only guard - stagger rings exist past the
+  // owned points, so batching requires guard >= extend + stagger + 1 = 3.
+  int min_guard = m_grid.guard[0];
+  for (int d = 1; d < Conf::dim; d++) {
+    if ((int)m_grid.guard[d] < min_guard) min_guard = m_grid.guard[d];
+  }
+  int batch = (min_guard >= 3) ? 2 : 1;
+
   for (int i = 0; i < num_times; i++) {
+    bool do_exchange = ((i + 1) % batch == 0) || (i == num_times - 1);
+    int extend = do_exchange ? 0 : 1;
+
     m_coord_policy->template filter_field<ExecPolicy<Conf>>(*J, m_tmpj,
-                                                            is_boundary);
-
-    if (m_comm != nullptr) {
-      m_comm->send_guard_cells(*J);
-    }
-
-    m_coord_policy->template filter_field<ExecPolicy<Conf>>(
-        *rho_total, m_tmpj, is_boundary);
-    if (m_comm != nullptr) {
-      m_comm->send_guard_cells(*rho_total);
-    }
-        
-    if (step % m_rho_interval == 0) {
+                                                            is_boundary, extend);
+    if (filter_rho) {
+      m_coord_policy->template filter_field<ExecPolicy<Conf>>(
+          *rho_total, m_tmpj, is_boundary, extend);
       for (int sp = 0; sp < m_num_species; sp++) {
         m_coord_policy->template filter_field<ExecPolicy<Conf>>(
-            *Rho[sp], m_tmpj, is_boundary);
-        if (m_comm != nullptr) {
+            *Rho[sp], m_tmpj, is_boundary, extend);
+      }
+    }
+
+    if (do_exchange && m_comm != nullptr) {
+      m_comm->send_guard_cells(*J);
+      if (filter_rho) {
+        m_comm->send_guard_cells(*rho_total);
+        for (int sp = 0; sp < m_num_species; sp++) {
           m_comm->send_guard_cells(*Rho[sp]);
         }
       }

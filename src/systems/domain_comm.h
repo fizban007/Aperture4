@@ -57,6 +57,11 @@ class domain_comm : public system_t {
 
   void send_guard_cells(phase_space_vlasov<Conf, 1>& data, const grid_t<Conf>& grid) const;
   void send_guard_cells(vector_field<Conf>& field) const;
+  // Fused exchange of two vector fields sharing the same grid: both fields'
+  // guard cells travel in a single message per direction, halving the message
+  // count compared to two separate exchanges.
+  void send_guard_cells(vector_field<Conf>& field_a,
+                        vector_field<Conf>& field_b) const;
   void send_guard_cells(scalar_field<Conf>& field) const;
   virtual void send_guard_cells(typename Conf::multi_array_t& array,
                                 const typename Conf::grid_t& grid) const;
@@ -106,10 +111,17 @@ class domain_comm : public system_t {
   typedef typename Conf::multi_array_t multi_array_t;
   typedef typename Conf::value_t value_t;
 
+  // Guard-cell exchange buffers, one per (dim, direction) pair, indexed as
+  // 2 * dim + di with di = 0 (left) or 1 (right). Separate per-direction
+  // buffers allow both directions of a dimension to be exchanged concurrently
+  // with nonblocking sends. The vec buffers bundle 3 field components; the
+  // vec2 buffers bundle 6 (two vector fields fused into one message).
   mutable std::vector<multi_array_t> m_send_buffers;
   mutable std::vector<multi_array_t> m_recv_buffers;
   mutable std::vector<multi_array_t> m_send_vec_buffers;
   mutable std::vector<multi_array_t> m_recv_vec_buffers;
+  mutable std::vector<multi_array_t> m_send_vec2_buffers;
+  mutable std::vector<multi_array_t> m_recv_vec2_buffers;
 
   mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_send_buffers1d;
   mutable std::vector<multi_array<value_t, Conf::dim + 1>> m_phase_space_recv_buffers1d;
@@ -129,16 +141,23 @@ class domain_comm : public system_t {
 
   void setup_domain();
   void setup_devices();
-  void send_array_guard_cells_single_dir(typename Conf::multi_array_t& array,
-                                         const typename Conf::grid_t& grid,
-                                         int dim, int dir) const;
-  void send_add_array_guard_cells_single_dir(
+  // Each of these exchanges both directions of one dimension concurrently:
+  // pack both sides, post nonblocking send/recv pairs, wait, unpack. The
+  // per-dimension call order in the drivers stays sequential so that corner
+  // guard cells are still filled correctly.
+  void send_array_guard_cells_both_dirs(typename Conf::multi_array_t& array,
+                                        const typename Conf::grid_t& grid,
+                                        int dim) const;
+  void send_add_array_guard_cells_both_dirs(
       typename Conf::multi_array_t& array, const typename Conf::grid_t& grid,
-      int dim, int dir) const;
-  void send_vector_field_guard_cells_single_dir(vector_field<Conf>& field,
-                                                int dim, int dir) const;
-  void send_add_vector_field_guard_cells_single_dir(vector_field<Conf>& field,
-                                                    int dim, int dir) const;
+      int dim) const;
+  void send_vector_field_guard_cells_both_dirs(vector_field<Conf>& field,
+                                               int dim) const;
+  void send_add_vector_field_guard_cells_both_dirs(vector_field<Conf>& field,
+                                                   int dim) const;
+  void send_two_vector_fields_guard_cells_both_dirs(vector_field<Conf>& field_a,
+                                                    vector_field<Conf>& field_b,
+                                                    int dim) const;
   template <typename PtcType>
   void send_particles_impl(PtcType& ptc, const grid_t<Conf>& grid) const;
 

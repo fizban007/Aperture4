@@ -425,21 +425,23 @@ class coord_policy_gr_ks_sph {
   template <typename ExecPolicy>
   void filter_field(vector_field<Conf> &field,
                     typename Conf::multi_array_t &tmp,
-                    const vec_t<bool, Conf::dim * 2> &is_boundary) const {
+                    const vec_t<bool, Conf::dim * 2> &is_boundary,
+                    int extend = 0) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ad[0],
-                                       is_boundary);
+                                       is_boundary, field.stagger(0), extend);
     filter_field_component<ExecPolicy>(field.at(1), tmp, m_grid.m_Ad[1],
-                                       is_boundary);
+                                       is_boundary, field.stagger(1), extend);
     filter_field_component<ExecPolicy>(field.at(2), tmp, m_grid.m_Ad[2],
-                                       is_boundary);
+                                       is_boundary, field.stagger(2), extend);
   }
 
   template <typename ExecPolicy>
   void filter_field(scalar_field<Conf> &field,
                     typename Conf::multi_array_t &tmp,
-                    const vec_t<bool, Conf::dim * 2> &is_boundary) const {
+                    const vec_t<bool, Conf::dim * 2> &is_boundary,
+                    int extend = 0) const {
     filter_field_component<ExecPolicy>(field.at(0), tmp, m_grid.m_Ad[2],
-                                       is_boundary);
+                                       is_boundary, field.stagger(), extend);
   }
 
  private:

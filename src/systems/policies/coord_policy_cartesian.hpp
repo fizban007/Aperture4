@@ -143,9 +143,11 @@ class coord_policy_cartesian_base {
 
   template <typename ExecPolicy, int N>
   void filter_field(field_t<N, Conf>& field, typename Conf::multi_array_t& tmp,
-                    const vec_t<bool, Conf::dim * 2>& is_boundary) const {
+                    const vec_t<bool, Conf::dim * 2>& is_boundary,
+                    int extend = 0) const {
     for (int i = 0; i < N; i++) {
-      filter_field_component<ExecPolicy>(field.at(i), tmp, is_boundary, field.stagger(i));
+      filter_field_component<ExecPolicy>(field.at(i), tmp, is_boundary,
+                                         field.stagger(i), extend);
     }
   }
 

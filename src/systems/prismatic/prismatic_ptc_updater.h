@@ -114,6 +114,12 @@ class prismatic_ptc_updater : public system_t {
                     const std::vector<int>& snd_cnt,
                     const std::vector<int>& snd_off);
   void append_wire_arrivals(int n_recv);
+  // Parse and validate the synchrotron cooling knobs, and set
+  // m_sync_cool_coef.  Aborts loudly on an on-but-unset configuration.
+  void init_sync_cooling();
+  // Parse the hybrid-switch rate, abort on the removed per-step key, and
+  // check that Boris can actually resolve gyrations at the switch.
+  void init_gca_switch();
   prismatic_mesh& m_mesh;
   const prismatic_mesh_partition* m_mp = nullptr;
   const prismatic_mpi_comm* m_comm = nullptr;
@@ -183,10 +189,22 @@ class prismatic_ptc_updater : public system_t {
   int m_sort_interval = 100;
   bool m_use_gca = false;
   bool m_include_curvature = false;
-  // Hybrid switch: Boris when omega_c dt / gamma < this (B-null regions).
-  Scalar m_gca_switch_wc = Scalar(0.5);
+  // Hybrid switch: Boris when the gyro-frequency omega_c / gamma falls
+  // below this (B-null regions).  Config "gca_switch_omegac", a RATE in
+  // inverse time units -- NOT the old per-step "gca_switch_omegac_dt",
+  // whose physical switching surface moved with dt (that key now aborts
+  // at init; see init_gca_switch()).
+  Scalar m_gca_switch_omegac = Scalar(20);
   // Synchrotron-locking option: zero mu when (re)captured by GCA.
   bool m_gca_zero_mu = false;
+
+  // Landau-Lifshitz synchrotron drag on the Boris branch (config
+  // "use_sync_cooling").  The coefficient is a RATE coefficient in
+  // inverse time units -- deliberately not per-step, so the cooling
+  // physics is the same at every dt and refinement level.  Set either
+  // from "sync_gamma_rad" anchored at "sync_cool_b_lc", or directly by
+  // "sync_cooling_coef" which overrides it.  0 disables the drag.
+  Scalar m_sync_cool_coef = Scalar(0);
 
   // 7E scaling harness: per-phase wall-time accumulators, reported as
   // min/mean/max across ranks every `step_timer_interval` steps

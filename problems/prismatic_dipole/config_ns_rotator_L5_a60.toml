@@ -80,11 +80,16 @@ output_dir = "Data_ns_rotator_L5_a60"
 sph_N_theta = 64
 sph_N_phi = 128
 inj_max_multiplicity = 10.0
-# GCA hybrid: mu = 0 injection, GCA everywhere magnetized (0.1 + E<0.9B
-# margin), Boris near B nulls.
+# GCA hybrid: mu = 0 injection, GCA everywhere magnetized (rate 20 +
+# E<0.9B margin), Boris near B nulls.
 use_gca = true
 include_curvature = true
-gca_switch_omegac_dt = 0.1
+# Hybrid switch as a RATE (inverse time), not per-step: the criterion is
+# omega_c/gamma > this, with no dt in it, so the physical switching
+# surface is identical at every level.  20.0 == the L6 baseline surface
+# (old 0.1 at L6 dt) == the L7 gca005 A/B branch that restored it.
+# Replaces gca_switch_omegac_dt, which aborts at init if present.
+gca_switch_omegac = 20.0
 gca_zero_mu_on_capture = false
 inj_gca = true
 inj_weight_r_scale = 5.0

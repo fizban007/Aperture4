@@ -118,7 +118,6 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("sort_interval", m_sort_interval);
   sim_env().params().get_value("use_gca", m_use_gca);
   sim_env().params().get_value("include_curvature", m_include_curvature);
-  sim_env().params().get_value("gca_switch_omegac_dt", m_gca_switch_wc);
   sim_env().params().get_value("gca_zero_mu_on_capture", m_gca_zero_mu);
   sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
   sim_env().params().get_value("deposit_diagnostics", m_deposit_diagnostics);
@@ -126,6 +125,8 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   if (m_absorb_radius > Scalar(0)) {
     Logger::print_info("Particle absorption radius: {}", m_absorb_radius);
   }
+  init_gca_switch();
+  init_sync_cooling();
 
   if (m_distributed) {
     bool halo_device_direct = true;
@@ -182,6 +183,175 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
 
   Logger::print_info("Prismatic particle updater initialized: {} particles",
                      m_ptc->size());
+}
+
+// ===========================================================================
+// Hybrid-switch setup.
+//
+// The switch fires on the gyro-frequency omega_c / gamma = |q/m| B / gamma
+// against gca_switch_omegac, a RATE in inverse time units.  It replaces
+// gca_switch_omegac_dt, which compared omega_c dt / gamma to a fixed number
+// and so moved the PHYSICAL switching surface every time dt changed: the
+// same "0.1" meant 10.2 at L5, 20.4 at L6 and 40.7 at L7, and the L7
+// discrepancies (Y-point jitter 21.3 deg vs L6's 12.0, +22% open flux, a
+// spurious P/2 shedding cycle) were largely that artifact.  The L7 gca005
+// A/B branch fixed it by hand -- 0.05 at L7 dt is exactly 0.1 at L6 dt,
+// i.e. rate 20.37 -- and recovered the L6 surface.  20.0 is that value,
+// rounded; it is now the same physical surface at every level.
+//
+// Boris still has to be able to integrate the gyrations it is handed, and
+// that constraint DOES involve dt: at the switch a Boris particle sees
+// omega_c dt / gamma = gca_switch_omegac * dt radians per step.  The old
+// units capped this implicitly; the rate form does not, so it is checked
+// here instead.
+// ===========================================================================
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::init_gca_switch() {
+  if (sim_env().params().has("gca_switch_omegac_dt")) {
+    double legacy = 0.0, dt = 0.0;
+    sim_env().params().get_value("gca_switch_omegac_dt", legacy);
+    sim_env().params().get_value("dt", dt);
+    Logger::print_err(
+        "gca_switch_omegac_dt has been removed.  It compared omega_c dt / "
+        "gamma to a fixed number, so the physical switching surface moved "
+        "with dt -- the same 0.1 meant rate 10.2 at L5, 20.4 at L6 and "
+        "40.7 at L7.  Use gca_switch_omegac, a RATE in inverse time units "
+        "(the criterion is now omega_c / gamma > gca_switch_omegac, with "
+        "no dt in it).  Migrate: gca_switch_omegac = old value / dt = {} "
+        "for this config, which reproduces its current surface exactly.  "
+        "The unified production value anchored on the L6 baseline (and on "
+        "the L7 gca005 A/B branch that restored it) is 20.0.",
+        dt > 0.0 ? legacy / dt : 0.0);
+    std::abort();
+  }
+
+  if (!sim_env().params().has("gca_switch_omegac")) {
+    Logger::print_err(
+        "use_gca requires gca_switch_omegac (the hybrid switch rate, in "
+        "inverse time units): a particle is pushed by GCA while "
+        "omega_c / gamma > gca_switch_omegac and by Boris below it.  The "
+        "production value is 20.0.");
+    std::abort();
+  }
+  double omegac = 0.0;
+  sim_env().params().get_value("gca_switch_omegac", omegac);
+  if (omegac <= 0.0) {
+    Logger::print_err("gca_switch_omegac must be positive, got {}", omegac);
+    std::abort();
+  }
+  m_gca_switch_omegac = Scalar(omegac);
+
+  if (!m_use_gca) {
+    Logger::print_info("Hybrid GCA switch: OFF (use_gca = false)");
+    return;
+  }
+
+  double dt = 0.0;
+  sim_env().params().get_value("dt", dt);
+  const double wc_at_switch = omegac * dt;
+  Logger::print_info(
+      "Hybrid GCA switch: omega_c/gamma > {:.4g} (rate; dt-invariant), "
+      "= {:.4f} rad/step at the switch ({:.1f} steps/gyration)",
+      omegac, wc_at_switch,
+      wc_at_switch > 0.0 ? 2.0 * M_PI / wc_at_switch : 0.0);
+
+  // Boris resolution guard.  The switch rate is dt-invariant by design,
+  // which means a coarse enough dt would silently hand Boris gyrations it
+  // cannot integrate.  ~0.5 rad/step is ~12 steps/gyration; past that the
+  // Boris side is garbage and the whole hybrid is meaningless.
+  if (wc_at_switch > 0.5) {
+    Logger::print_err(
+        "gca_switch_omegac * dt = {:.3f} rad/step (only {:.1f} "
+        "steps/gyration at the switch): Boris cannot resolve the gyrations "
+        "it is being handed.  Reduce dt, or lower gca_switch_omegac (which "
+        "moves the physical switching surface -- do not do this to silence "
+        "the check).",
+        wc_at_switch, 2.0 * M_PI / wc_at_switch);
+    std::abort();
+  } else if (wc_at_switch > 0.25) {
+    Logger::print_info(
+        "  WARNING: {:.3f} rad/step at the switch is only {:.1f} "
+        "steps/gyration -- Boris is marginal here; prefer <= 0.25",
+        wc_at_switch, 2.0 * M_PI / wc_at_switch);
+  }
+}
+
+// ===========================================================================
+// Synchrotron cooling setup (Landau-Lifshitz drag on the Boris branch).
+//
+// The knob is deliberately a RATE coefficient, never a per-step quantity:
+// runbook pitfall #14 (and the dt-coupled GCA switch that motivated this
+// work) both came from knobs denominated in steps or cells, which silently
+// change meaning at a new resolution.  c_r here has the same meaning at
+// every dt and level.
+//
+// Primary knob is sync_gamma_rad, the radiation-reaction-limited Lorentz
+// factor: the gamma at which the drag balances acceleration by a
+// reconnection field E ~ B_LC.  Ultrarelativistic, 90 deg pitch,
+//   dgamma/dt = -c_r gamma^2 B^2   and   accel = |q/m| E,
+// so  c_r gamma_rad^2 B_LC^2 = |q/m| B_LC  =>
+//   c_r = |q/m| / (gamma_rad^2 B_LC).
+// sync_cooling_coef, if present, sets c_r directly and overrides that.
+// ===========================================================================
+template <typename ExecPolicy>
+void prismatic_ptc_updater<ExecPolicy>::init_sync_cooling() {
+  bool use_cooling = false;
+  sim_env().params().get_value("use_sync_cooling", use_cooling);
+  if (!use_cooling) {
+    m_sync_cool_coef = Scalar(0);
+    Logger::print_info("Synchrotron cooling: OFF");
+    return;
+  }
+
+  const double q_over_m = std::abs(double(m_charge_e) / double(m_mass_e));
+  double b_lc = 0.0, gamma_rad = 0.0, coef = 0.0;
+  sim_env().params().get_value("sync_cool_b_lc", b_lc);
+  sim_env().params().get_value("sync_gamma_rad", gamma_rad);
+
+  if (sim_env().params().has("sync_cooling_coef")) {
+    sim_env().params().get_value("sync_cooling_coef", coef);
+    if (coef <= 0.0) {
+      Logger::print_err(
+          "use_sync_cooling is on but sync_cooling_coef = {} is not "
+          "positive.  Give a positive coefficient, or drop the key and set "
+          "sync_gamma_rad + sync_cool_b_lc instead.",
+          coef);
+      std::abort();
+    }
+    // Back out the equivalent gamma_rad purely for the log below.
+    if (b_lc > 0.0) gamma_rad = std::sqrt(q_over_m / (coef * b_lc));
+  } else {
+    if (gamma_rad <= 0.0 || b_lc <= 0.0) {
+      Logger::print_err(
+          "use_sync_cooling is on but the cooling strength is unset.  Set "
+          "sync_gamma_rad (radiation-reaction-limited Lorentz factor) and "
+          "sync_cool_b_lc (the field it is anchored to, e.g. B_LC = Bp / "
+          "R_LC^3), or set sync_cooling_coef directly.  Got "
+          "sync_gamma_rad = {}, sync_cool_b_lc = {}.",
+          gamma_rad, b_lc);
+      std::abort();
+    }
+    coef = q_over_m / (gamma_rad * gamma_rad * b_lc);
+  }
+  m_sync_cool_coef = Scalar(coef);
+
+  // Report the implied cooling time so the regime is visible in the log:
+  // t_cool(gamma, B) = 1 / (c_r gamma B^2), evaluated at the anchor field
+  // and gamma_rad.  The "locked limit" this scheme targets wants that to
+  // be short compared with the dynamical time.
+  double dt = 0.0;
+  sim_env().params().get_value("dt", dt);
+  Logger::print_info(
+      "Synchrotron cooling: ON (Landau-Lifshitz drag, Boris branch only), "
+      "coef = {:.6e}",
+      coef);
+  if (b_lc > 0.0 && gamma_rad > 0.0) {
+    const double t_cool = 1.0 / (coef * gamma_rad * b_lc * b_lc);
+    Logger::print_info(
+        "  gamma_rad = {:.4g} anchored at B = {:.4g}; "
+        "t_cool(gamma_rad, B_LC) = {:.4e} = {:.2f} steps",
+        gamma_rad, b_lc, t_cool, dt > 0.0 ? t_cool / dt : 0.0);
+  }
 }
 
 // ===========================================================================
@@ -262,11 +432,12 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   bool include_curvature = m_include_curvature;
   Scalar absorb_r = m_absorb_radius;
   bool dep_diag = m_deposit_diagnostics;
-  Scalar gca_wc = m_gca_switch_wc;
+  Scalar gca_omegac = m_gca_switch_omegac;
   bool gca_zero_mu = m_gca_zero_mu;
+  Scalar sync_cool_coef = m_sync_cool_coef;
   ExecPolicy::launch(
       [num, N_tri, charge_e, mass_e, dt, lmp, use_gca, include_curvature,
-       Bv_rec, absorb_r, dep_diag, gca_wc, gca_zero_mu]
+       Bv_rec, absorb_r, dep_diag, gca_omegac, gca_zero_mu, sync_cool_coef]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho,
              auto rho_abs, auto gamma_wsum) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
@@ -279,7 +450,7 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
                                  absorb_r,
                                  dep_diag ? (Scalar*)rho_abs : nullptr,
                                  dep_diag ? (Scalar*)gamma_wsum : nullptr,
-                                 gca_wc, gca_zero_mu);
+                                 gca_omegac, gca_zero_mu, sync_cool_coef);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data(),

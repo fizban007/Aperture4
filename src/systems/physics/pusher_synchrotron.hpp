@@ -23,6 +23,7 @@
 #include "data/phase_space.hpp"
 #include "data/scalar_data.hpp"
 #include "framework/environment.h"
+#include "systems/physics/radiation_reaction.hpp"
 #include "systems/physics/sync_emission_helper.hpp"
 #include "systems/sync_curv_emission.h"
 
@@ -299,33 +300,26 @@ class pusher_synchrotron {
   HD_INLINE vec3 rhs_u(const vec3& E, const vec3& B, const vec3& u,
                        value_t e_over_m, value_t cooling_coef,
                        value_t dt) const {
-    vec3 result;
     value_t gamma = math::sqrt(1.0f + u.dot(u));
     vec3 Epbetaxb = E + cross(u, B) / gamma;
 
-    result =
-        e_over_m * Epbetaxb +
-        cooling_coef *
-            (cross(Epbetaxb, B) + E * u.dot(E) / gamma -
-             u * (gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma))));
-    // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
-
-    return result * dt;
+    return (e_over_m * Epbetaxb +
+            sync_force(E, B, u, e_over_m, cooling_coef, value_t(1))) *
+           dt;
   }
 
+  // Radiation reaction alone (no Lorentz force).  The force itself lives in
+  // systems/physics/radiation_reaction.hpp so that pushers which are not
+  // built on this policy -- the prismatic hybrid Boris/GCA updater -- apply
+  // the same drag from the same source.  Term order there matches the vec3
+  // expression this replaced, so the reconnection runs are unchanged.
   HD_INLINE vec3 sync_force(const vec3& E, const vec3& B, const vec3& u,
                             value_t e_over_m, value_t cooling_coef,
                             value_t dt) const {
-    vec3 result;
     value_t gamma = math::sqrt(1.0f + u.dot(u));
-    vec3 Epbetaxb = E + cross(u, B) / gamma;
-
-    result =
-        cooling_coef *
-        (cross(Epbetaxb, B) + E * u.dot(E) / gamma -
-         u * (gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma))));
-    // u * (-gamma * (Epbetaxb.dot(Epbetaxb) - square(u.dot(E) / gamma)));
-
+    vec3 result;
+    sync_drag_force(u[0], u[1], u[2], gamma, E[0], E[1], E[2], B[0], B[1],
+                    B[2], cooling_coef, result[0], result[1], result[2]);
     return result * dt;
   }
 

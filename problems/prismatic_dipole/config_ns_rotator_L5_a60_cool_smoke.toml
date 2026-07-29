@@ -1,3 +1,13 @@
+# L5 smoke check of synchrotron cooling on the Boris branch (2026-07-28).
+# Base: config_ns_rotator_L5_a60_v2smoke.toml verbatim, plus the
+# use_sync_cooling block below.  Pass = the init log prints the
+# "Synchrotron cooling: ON ..." lines with a sane t_cool in steps, census
+# and rho_abs still track the v2 smoke numbers, and push time does not
+# regress by more than ~10% (the drag is a handful of flops per Boris
+# particle, so it should be well under that).
+#
+# Original v2 smoke header follows.
+# ---------------------------------------------------------------------
 # L5 smoke check of the v2 injection normalization (2026-07-21).
 # Base: config_ns_rotator_L5_a60.toml (the direct coarse partner of the
 # L6 a60 baseline) with exactly the v2 knob migration applied:
@@ -67,6 +77,28 @@ include_curvature = true
 gca_switch_omegac = 20.0
 gca_zero_mu_on_capture = false
 inj_gca = true
+
+# --- synchrotron cooling on the Boris branch (SYNC_COOLING_PLAN.md 2a) ---
+# Landau-Lifshitz radiation reaction, operator-split after the Boris
+# momentum update.  The GCA branch is untouched (it already holds mu = 0).
+# This exists so the two sides of the hybrid switch run the SAME physics:
+# without it, GCA was synchrotron-locked and Boris had no drag at all, so
+# the switching surface -- which moves with dt -- left a footprint on the
+# solution.  Note the drag preserves pitch angle at high gamma rather than
+# zeroing it, and vanishes with the field, so the hot uncooled kinetic core
+# inside the sheet survives on its own.
+use_sync_cooling = true
+# Raw Landau-Lifshitz coefficient, given directly rather than via
+# sync_gamma_rad.  t_cool(gamma, B) = 1 / (sync_cooling_coef * gamma * B^2),
+# a RATE coefficient in inverse time units -- identical meaning at every dt
+# and level (runbook pitfall #14 discipline).  2.56e-3 is the value used by
+# the L7 v3 cool branch, measured against that run's Boris-side population:
+# t_cool/t_gyro < 1 across the whole Boris region, nu*dt <= 0.024.
+# Equivalent to sync_gamma_rad = 5 anchored at B_LC = 15.625.
+sync_cooling_coef = 2.56e-3
+# Retained only so the init log can report the equivalent gamma_rad and
+# t_cool; does not enter the physics when sync_cooling_coef is set.
+sync_cool_b_lc = 15.625
 
 # --- checkpoint/restart (new since t15; t15 died SIGKILLed at 2.5 P) ---
 checkpoint_interval = 2560

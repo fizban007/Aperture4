@@ -2,6 +2,7 @@
 
 #include "core/gpu_translation_layer.h"
 #include "core/typedefs_and_constants.h"
+#include "systems/physics/radiation_reaction.hpp"
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include "systems/prismatic/prismatic_particles.h"
@@ -348,7 +349,8 @@ HOST_DEVICE inline void update_single_particle(
     bool use_gca = false, bool include_curvature = false,
     const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0),
     Scalar* rho_abs = nullptr, Scalar* gamma_wsum = nullptr,
-    Scalar gca_switch_wc = Scalar(0.5), bool zero_mu_on_capture = false) {
+    Scalar gca_switch_omegac = Scalar(20), bool zero_mu_on_capture = false,
+    Scalar sync_cool_coef = Scalar(0)) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
@@ -375,24 +377,36 @@ HOST_DEVICE inline void update_single_particle(
   // Per-particle hybrid dispatch (master switch use_gca): a particle is
   // pushed by GCA while its gyration is under-resolved and the drift
   // frame exists, and handed to Boris "at the last minute" — near B
-  // nulls (current sheet) where omega_c dt / gamma drops below
-  // gca_switch_wc or E exceeds B.  The momentum slots are converted at
-  // each transition; the gca_state flag records the representation.
+  // nulls (current sheet) where the gyro-frequency drops below
+  // gca_switch_omegac or E exceeds B.  The momentum slots are converted
+  // at each transition; the gca_state flag records the representation.
   // With mu = 0 (synchrotron-locked injection) both conversions are
   // exact: the momentum is u_par b in both representations.
+  //
+  // The criterion is the RATE omega_c/gamma against a rate threshold --
+  // dt appears nowhere.  It used to: the test was omega_c dt / gamma >
+  // 0.1, which made the PHYSICAL switching surface a function of the
+  // step.  "0.1 at every level" silently meant a different surface at
+  // every level (L5 10.2, L6 20.4, L7 40.7 in these units), and the
+  // measured L7 consequences -- Y-point jitter 21.3 deg vs L6's 12.0,
+  // +22% open flux, a spurious P/2 shedding cycle -- were largely that
+  // artifact.  Holding the RATE fixed is what the L7 gca005 A/B branch
+  // did by hand (0.05 at L7 dt == 0.1 at L6 dt == 20.37), and it
+  // restored the L6 surface.  Keep dt out of here: the dispatch must be
+  // bit-identical at dt and dt/2 (tests/test_prismatic_pusher.cpp).
   bool do_gca = false;
   if (use_gca) {
     Scalar B2l = Bx*Bx + By*By + Bz*Bz;
     Scalar E2l = Ex*Ex + Ey*Ey + Ez*Ez;
     Scalar Bmag = math::sqrt(B2l);
     Scalar gam_prev = ptrs.E[n] > Scalar(1) ? ptrs.E[n] : Scalar(1);
-    Scalar wc = math::abs(q / m) * Bmag * dt / gam_prev;
+    Scalar wc = math::abs(q / m) * Bmag / gam_prev;
     // Margin below E = B: the GCA drift frame degenerates (kappa ->
     // inf; 1 - 4w² rounds float-negative -> NaN) as E -> B.  t11
     // (threshold 0.05) crashed exactly this way when the current sheet
     // formed.  Requiring E < 0.9 B hands near-degenerate particles to
     // Boris, which is the physically correct pusher there anyway.
-    do_gca = (wc > gca_switch_wc) && (B2l * Scalar(0.81) > E2l) &&
+    do_gca = (wc > gca_switch_omegac) && (B2l * Scalar(0.81) > E2l) &&
              (Bmag > Scalar(1e-15));
     bool was_gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
     if (was_gca && !do_gca) {
@@ -463,6 +477,28 @@ HOST_DEVICE inline void update_single_particle(
     // Boris push
     Scalar px = ptrs.p1[n], py = ptrs.p2[n], pz = ptrs.p3[n];
     gamma = boris_push(px, py, pz, Ex, Ey, Ez, Bx, By, Bz, q, m, dt);
+
+    // Synchrotron drag, operator-split onto the Lorentz force above.
+    // This is what makes the hybrid switch physical: the GCA side holds
+    // mu = 0 (synchrotron-locked) while the Boris side had NO radiative
+    // drag at all, so the two branches ran different physics and the
+    // switching surface -- which moves with dt -- left a footprint on the
+    // solution.  With the drag on, cooled-Boris relaxes onto the mu = 0
+    // GCA state wherever both are valid, and the surface stops mattering.
+    //
+    // The Landau-Lifshitz force (systems/physics/radiation_reaction.hpp,
+    // shared with pusher_synchrotron) preserves the pitch angle at high
+    // gamma rather than driving it to zero, and needs no E >= B or
+    // B -> 0 guard: it falls smoothly to zero with the fields, so the
+    // hot kinetic core inside the sheet stays uncooled on its own.
+    // The GCA path is deliberately untouched (mu = 0 there already; a
+    // parallel-only particle radiates by CURVATURE, out of scope here).
+    if (sync_cool_coef > Scalar(0) &&
+        !check_flag(ptrs.flag[n], PtcFlag::ignore_radiation)) {
+      sync_drag_substep(px, py, pz, gamma, Ex, Ey, Ez, Bx, By, Bz,
+                        sync_cool_coef, dt);
+    }
+
     ptrs.p1[n] = px; ptrs.p2[n] = py; ptrs.p3[n] = pz;
     ptrs.E[n] = gamma;
 
@@ -550,14 +586,15 @@ inline void update_particles_loop(
     Scalar* J_e, Scalar* rho,
     Scalar charge_e, Scalar mass_e, Scalar dt,
     bool use_gca = false, bool include_curvature = false,
-    Scalar absorb_r = Scalar(0)) {
+    Scalar absorb_r = Scalar(0), Scalar sync_cool_coef = Scalar(0)) {
   for (size_t n = 0; n < num; n++) {
     if (ptrs.cell[n] == empty_cell) continue;
     int sp = get_ptc_type(ptrs.flag[n]);
     Scalar q = (sp == (int)PtcType::positron) ? -charge_e : charge_e;
     update_single_particle(mp, N_tri, ptrs, n, E_e, B_f, J_e, rho,
                            q, mass_e, dt, use_gca, include_curvature,
-                           nullptr, absorb_r);
+                           nullptr, absorb_r, nullptr, nullptr,
+                           Scalar(20), false, sync_cool_coef);
   }
 }
 

@@ -59,7 +59,12 @@ inj_max_multiplicity = 10.0
 # margin), Boris near B nulls.
 use_gca = true
 include_curvature = true
-gca_switch_omegac_dt = 0.1
+# Hybrid switch as a RATE (inverse time); replaces the removed per-step
+# gca_switch_omegac_dt.  This value is the EXACT equivalent of this
+# archived run's original 0.1 at dt = 0.0049087385212340517, so it reproduces the
+# surface this config actually ran with.  It is deliberately NOT the
+# unified production value of 20.0 (= the L6 baseline surface).
+gca_switch_omegac = 20.371833
 gca_zero_mu_on_capture = false
 inj_gca = true
 inj_weight_r_scale = 5.0

@@ -58,6 +58,11 @@ inj_max_multiplicity = 10.0
 # Landau level), GCA everywhere magnetized, Boris only near B nulls.
 use_gca = true
 include_curvature = true
-gca_switch_omegac_dt = 0.1
+# Hybrid switch as a RATE (inverse time); replaces the removed per-step
+# gca_switch_omegac_dt.  This value is the EXACT equivalent of this
+# archived run's original 0.1 at dt = 0.0098174770424681035, so it reproduces the
+# surface this config actually ran with.  It is deliberately NOT the
+# unified production value of 20.0 (= the L6 baseline surface).
+gca_switch_omegac = 10.185916
 gca_zero_mu_on_capture = false
 inj_gca = true

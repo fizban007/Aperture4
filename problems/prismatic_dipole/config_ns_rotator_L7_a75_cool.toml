@@ -1,3 +1,34 @@
+# L7 a75 "cool" — FULL RUN FROM t = 0 at 75 degree inclination.
+#
+# IDENTICAL to ns_rotator_L7_a60_v3_cool in every respect except
+# obliquity: 1.0471975511965976 (60 deg) -> 1.3089969389957472 (75 deg).
+# Same binary (copied byte-for-byte from that run dir), same resolution,
+# same injection, same cooling and switch knobs, same 40-node shape,
+# same max_steps.  Nothing else was touched, so any difference is
+# attributable to inclination alone.
+#
+# PURPOSE: test the surface plume feature seen in the a60 run.  Those
+# plumes originate at the stellar surface, accelerate particles to high
+# Lorentz factors, and sit near the NULL SURFACE's intersection with the
+# star -- not on the return current sheet and not on the polar cap.
+# Inclination moves the null surface relative to both the polar cap and
+# the current sheet, so if the plumes track the null surface they must
+# move with it here; if they are a polar-cap or return-sheet artifact
+# they will not.  That is the discriminating observation.
+#
+# Physics/knobs carried over from the a60 run (see that config for the
+# full rationale and the calibration measurement):
+#   - synchrotron cooling ON, sync_cooling_coef = 2.56e-3 (LL drag on the
+#     Boris branch; t_cool/t_gyro < 1 across the whole Boris region)
+#   - gca_switch_omegac = 20.0 (dt-invariant rate, = the L6 surface)
+#
+# Run mechanics: FROM SCRATCH, no --restart anywhere.  checkpoints/ starts
+# empty so restart_from = "auto" initialises at t = 0; resubmits pick up
+# this run's own newest generation.  The a60 run reached 4.375 P in one
+# 2 h window, so expect the same here and one resubmit to pass 5 P.
+#
+# Original v2 production header follows.
+# ----------------------------------------------------------------------
 # L7 oblique production rerun (a60), v2 — corrected injection normalization.
 #
 # The first L7 campaign (config_ns_rotator_L7_a60.toml) carried the L6
@@ -36,14 +67,14 @@
 # state is overloaded and would not relax quickly.
 
 dt = 0.0024543692606170259
-max_steps = 51200
+max_steps = 71680
 subdivision_level = 7
 N_r = 408
 r_min = 1.0
 r_max = 45.0
 Bp = 1000.0
 Omega = 0.25
-obliquity = 1.0471975511965976
+obliquity = 1.3089969389957472
 use_flat_metric = true
 use_deutsch_ic = false
 use_deutsch_bc = false
@@ -89,25 +120,32 @@ inj_gca = true
 # --- GCA hybrid (unchanged: physics) ---
 use_gca = true
 include_curvature = true
-# Hybrid switch as a RATE (inverse time), not per-step: the criterion is
-# omega_c/gamma > this, with no dt in it, so the physical switching
-# surface is identical at every level.  20.0 == the L6 baseline surface
-# (old 0.1 at L6 dt) == the L7 gca005 A/B branch that restored it.
-# Replaces gca_switch_omegac_dt, which aborts at init if present.
 gca_switch_omegac = 20.0
 gca_zero_mu_on_capture = false
+
+# --- synchrotron cooling (Boris branch only) ---
+# Raw Landau-Lifshitz coefficient, given directly rather than via
+# sync_gamma_rad.  t_cool(gamma, B) = 1 / (sync_cooling_coef * gamma * B^2),
+# a RATE coefficient in inverse time units -- identical meaning at every
+# dt and level.  2.56e-3 == the sync_gamma_rad = 5 anchoring at B_LC.
+# sync_cool_b_lc is retained only so the init log can report the
+# equivalent gamma_rad and t_cool; it does not enter the physics when
+# sync_cooling_coef is set explicitly.
+use_sync_cooling = true
+sync_cooling_coef = 2.56e-3
+sync_cool_b_lc = 15.625
 
 # --- output ---
 # Under MPI the in-code spherical output is skipped (runbook §4); the
 # exporter writes mesh-native step_XXXXXX.h5.  sph_N_* are kept only so a
 # single-rank rerun of this config behaves like the L6 one.
 fld_output_interval = 1280
-output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/output"
+output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a75_cool/output"
 sph_N_theta = 64
 sph_N_phi = 128
 
 # --- checkpoint/restart ---
 checkpoint_interval = 5120
 checkpoint_keep = 2
-checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/checkpoints"
+checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a75_cool/checkpoints"
 restart_from = "auto"

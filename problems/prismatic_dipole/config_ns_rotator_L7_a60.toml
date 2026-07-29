@@ -100,7 +100,12 @@ inj_weight_r_scale = 5.0
 # --- GCA hybrid (unchanged from L6: physics) ---
 use_gca = true
 include_curvature = true
-gca_switch_omegac_dt = 0.1
+# Hybrid switch as a RATE (inverse time), not per-step: the criterion is
+# omega_c/gamma > this, with no dt in it, so the physical switching
+# surface is identical at every level.  20.0 == the L6 baseline surface
+# (old 0.1 at L6 dt) == the L7 gca005 A/B branch that restored it.
+# Replaces gca_switch_omegac_dt, which aborts at init if present.
+gca_switch_omegac = 20.0
 gca_zero_mu_on_capture = false
 
 # --- output ---

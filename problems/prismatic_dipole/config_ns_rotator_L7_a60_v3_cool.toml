@@ -1,3 +1,40 @@
+# L7 a60 v3 "cool" — FULL RUN FROM t = 0.
+# Synchrotron cooling ON + the dt-invariant hybrid switch.  This is NOT a
+# branch off v2: it is an independent from-scratch run in its own run dir,
+# directly comparable to the v2 production run (same resolution, same
+# injection, same 40-node shape) with exactly two physics changes.
+#
+#  1. Synchrotron cooling on the Boris branch (SYNC_COOLING_PLAN.md 2a/5b).
+#     Landau-Lifshitz radiation reaction, operator-split after the Boris
+#     momentum update; GCA path untouched (mu = 0 there already).  Both
+#     sides of the hybrid switch now run the SAME physics, so the switch
+#     position stops leaving a footprint on the solution.
+#     Calibration is measured on the v2 t = 5.0 P snapshot, not guessed:
+#     the Boris-side bulk sits at gamma ~ 2 with |B| ~ 20 (median), and
+#     sync_cooling_coef = 2.56e-3 gives t_cool/t_gyro < 1 across the WHOLE
+#     Boris region (0.025 at the switch surface -> 0.64 at the weakest
+#     fields).  A gamma = 5 particle at B_LC cools in 0.32 time units
+#     = 130 steps = 1.3% of a rotation.  nu*dt <= 0.024 everywhere, so the
+#     drag is time-resolved with ~3 orders of margin on stiffness.
+#
+#  2. gca_switch_omegac = 20.0 replaces gca_switch_omegac_dt = 0.1.
+#     The old per-step key aborts at init now.  0.1 at L7 dt was rate
+#     40.7 -- a DIFFERENT physical surface from L6's 20.4, which is what
+#     the gca005 A/B branch diagnosed.  20.0 is the L6 baseline surface,
+#     and is now level-invariant: L5/L6/L7 share one switching surface.
+#
+# Run mechanics:
+#   - FROM SCRATCH: checkpoints/ starts empty, restart_from = "auto" finds
+#     no generation and initialises at t = 0.  No --restart flag anywhere.
+#     On RESUBMIT, auto picks up this run's own newest checkpoint.
+#   - max_steps = 71680 (7 P).  Production reached 5 P (51200 steps) in
+#     96 min, so the 2 h window at 40 nodes gets ~5 P per submit; resubmit
+#     submit.sbatch unchanged to carry it to 7 P.  7 P rather than 5 P
+#     because Psi_open was still declining at 6 P in the gca005 branch.
+#   - own run dir: nothing here can touch the v2 production tree.
+#
+# Original v2 production header follows.
+# ----------------------------------------------------------------------
 # L7 oblique production rerun (a60), v2 — corrected injection normalization.
 #
 # The first L7 campaign (config_ns_rotator_L7_a60.toml) carried the L6
@@ -36,7 +73,7 @@
 # state is overloaded and would not relax quickly.
 
 dt = 0.0024543692606170259
-max_steps = 51200
+max_steps = 71680
 subdivision_level = 7
 N_r = 408
 r_min = 1.0
@@ -89,25 +126,32 @@ inj_gca = true
 # --- GCA hybrid (unchanged: physics) ---
 use_gca = true
 include_curvature = true
-# Hybrid switch as a RATE (inverse time), not per-step: the criterion is
-# omega_c/gamma > this, with no dt in it, so the physical switching
-# surface is identical at every level.  20.0 == the L6 baseline surface
-# (old 0.1 at L6 dt) == the L7 gca005 A/B branch that restored it.
-# Replaces gca_switch_omegac_dt, which aborts at init if present.
 gca_switch_omegac = 20.0
 gca_zero_mu_on_capture = false
+
+# --- synchrotron cooling (Boris branch only) ---
+# Raw Landau-Lifshitz coefficient, given directly rather than via
+# sync_gamma_rad.  t_cool(gamma, B) = 1 / (sync_cooling_coef * gamma * B^2),
+# a RATE coefficient in inverse time units -- identical meaning at every
+# dt and level.  2.56e-3 == the sync_gamma_rad = 5 anchoring at B_LC.
+# sync_cool_b_lc is retained only so the init log can report the
+# equivalent gamma_rad and t_cool; it does not enter the physics when
+# sync_cooling_coef is set explicitly.
+use_sync_cooling = true
+sync_cooling_coef = 2.56e-3
+sync_cool_b_lc = 15.625
 
 # --- output ---
 # Under MPI the in-code spherical output is skipped (runbook §4); the
 # exporter writes mesh-native step_XXXXXX.h5.  sph_N_* are kept only so a
 # single-rank rerun of this config behaves like the L6 one.
 fld_output_interval = 1280
-output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/output"
+output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v3_cool/output"
 sph_N_theta = 64
 sph_N_phi = 128
 
 # --- checkpoint/restart ---
 checkpoint_interval = 5120
 checkpoint_keep = 2
-checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v2/checkpoints"
+checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a60_v3_cool/checkpoints"
 restart_from = "auto"

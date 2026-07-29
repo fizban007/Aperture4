@@ -871,10 +871,10 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
   m_tmpB->add_by(*m_dB_dt, dt);
   m_tmpD->add_by(*m_dD_dt, dt);
 
-  // Communicate if necessary
+  // Communicate if necessary. B and D are fused into a single message per
+  // direction to halve the exchange count.
   if (this->m_comm != nullptr) {
-    this->m_comm->send_guard_cells(*m_tmpB);
-    this->m_comm->send_guard_cells(*m_tmpD);
+    this->m_comm->send_guard_cells(*m_tmpB, *m_tmpD);
   }
 
   boundary_conditions(*m_tmpD, *m_tmpB);
@@ -897,10 +897,9 @@ field_solver_mod<Conf, ExecPolicy, coord_policy_gr_ks_sph>::iterate_predictor(
     m_tmpD->add_by(*m_tmpdD_dt, dt * this->m_beta);
     m_tmpD->add_by(*m_dD_dt, dt * this->m_alpha);
 
-    // Communicate the result
+    // Communicate the result (B and D fused into one message per direction)
     if (this->m_comm != nullptr) {
-      this->m_comm->send_guard_cells(*m_tmpB);
-      this->m_comm->send_guard_cells(*m_tmpD);
+      this->m_comm->send_guard_cells(*m_tmpB, *m_tmpD);
     }
 
     boundary_conditions(*m_tmpD, *m_tmpB);

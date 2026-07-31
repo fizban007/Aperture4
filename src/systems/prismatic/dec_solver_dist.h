@@ -9,6 +9,8 @@
 #include "systems/prismatic/prismatic_mesh_local_ptrs.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "utils/gauss_quadrature.h"
+#include "utils/logger.h"
+#include <vector>
 
 namespace Aperture {
 
@@ -47,6 +49,14 @@ struct dec_inner_bc_params {
   Scalar obliquity = 0.0;
   bool use_deutsch = false;
   bool overwrite_b = true;
+  // Frame dragging ("fake GR"): the corotation EMF is set by the star's
+  // rotation RELATIVE TO the local dragged frame,
+  // omega_eff(r) = Omega - omega_lt(r) with
+  // omega_lt(r) = omega_lt0 * (lt_r_star / r)^lt_p about the SPIN axis
+  // (z).  omega_lt0 = 0 recovers flat spacetime exactly.
+  Scalar omega_lt0 = 0.0;
+  Scalar lt_r_star = 1.0;
+  int lt_p = 3;
 };
 
 template <typename ExecPolicy>
@@ -125,6 +135,342 @@ class dec_solver_dist {
         },
         E, B);
   }
+
+  // -----------------------------------------------------------------------
+  // Frame dragging ("fake GR", Philippov+2015b / Philippov & Spitkovsky
+  // 2018 in slow-rotation shift-only form): Faraday advances B with the
+  // EFFECTIVE circulation of  E + v_LT x B,  v_LT = omega_lt(r) ẑ x r.
+  // The steady corotation state of a star spun at Omega with surface EMF
+  // (Omega - omega_lt) — the Muslimov-Tsygan reduced-rho_GJ configuration
+  // — is an exact equilibrium of this pair of modifications; without the
+  // volume term the sub-corotation profile omega_eff(r) cannot develop.
+  //
+  // Discretely, W_e = ∮_e (v_LT x B)·dl is built as a per-edge linear
+  // functional of the ADJACENT face fluxes (the d1t sparsity):
+  //     W_e = sum_f w_ef B_f,   sum_f w_ef N_f = A_e,
+  // where N_f is the face's uniform-field probe vector (flux of the
+  // Cartesian basis fields through f, computed with the SAME quadrature
+  // as every other flux in this file — so orientation conventions are
+  // inherited, not re-derived) and A_e = ∮_e dl x v_LT.
+  //
+  // ACCURACY (measured, tests/test_dec_frame_drag.cpp): v-edges are
+  // exact to round-off for uniform B.  h-edges carry an O(h²)
+  // truncation — every adjacent face normal is ⊥ the edge tangent to
+  // O(h), so the B_parallel part of the circulation (itself O(h²) on
+  // the curved arc) is unrepresentable by the stencil; max edge error
+  // converges 1.09e-3 / 2.60e-4 / 6.5e-5 at L2/L3/L4 (ratios 4.19,
+  // 3.99).  Second order on a term that is itself an
+  // O(omega_lt/Omega) correction — far below the solver's own
+  // first-order quasi-static Hodge tier.
+  //
+  // Because W enters ONLY through d1 (Faraday), div B stays exactly
+  // conserved (d∘d = 0) and charge conservation is untouched.  The
+  // Ampere-side shift term (v_LT x E) is dropped: it is
+  // O(omega_lt r/c · E/B) ~ 1% of B at the star and dies as r^-3 —
+  // documented approximation, matching the "modified Faraday equation"
+  // scope of PS18.
+  // -----------------------------------------------------------------------
+
+  // Build the per-edge weights (host, init-time; O(N_local) quadratures).
+  void build_frame_drag(Scalar omega0, Scalar r_star, int lt_p) {
+    auto lp = m_lp_host;
+    auto mp = m_mesh->host_ptrs();
+
+    m_fd_h_tri_val.set_memtype(ExecPolicy::data_mem_type());
+    m_fd_h_rect_val.set_memtype(ExecPolicy::data_mem_type());
+    m_fd_v_rect_val.set_memtype(ExecPolicy::data_mem_type());
+    m_fd_h_tri_val.resize(m_d1.d1t_h_tri.val.size());
+    m_fd_h_rect_val.resize(m_d1.d1t_h_rect.val.size());
+    m_fd_v_rect_val.resize(m_d1.d1t_v_rect.val.size());
+
+    // ---- Per-local-face uniform-field probe vectors N_f = ∫ dA ----
+    // (3 components accumulated in one quadrature pass per face.)
+    const double gxs[5] = {0.1488743389816312, 0.4333953941292472,
+                           0.6794095682990244, 0.8650633666889845,
+                           0.9739065285171717};
+    const double gws[5] = {0.2955242247147529, 0.2692667193099963,
+                           0.2190863625159821, 0.1494513491505806,
+                           0.0666713443086881};
+    // 10 nodes/weights on [0,1]
+    double n01[10], w01[10];
+    for (int i = 0; i < 5; i++) {
+      n01[2 * i] = 0.5 + 0.5 * gxs[i];
+      n01[2 * i + 1] = 0.5 - 0.5 * gxs[i];
+      w01[2 * i] = 0.5 * gws[i];
+      w01[2 * i + 1] = 0.5 * gws[i];
+    }
+
+    std::vector<double> Ntri(size_t(3) * lp.n_local_tri, 0.0);
+    for (int f = 0; f < lp.n_local_tri; f++) {
+      gidx_t g = lp.tri_face_l2g[f];
+      gidx_t vi0, vi1, vi2;
+      tri_face_vertex_ids(mp, g, vi0, vi1, vi2);
+      Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z, r2, a2x, a2y, a2z;
+      vertex_unit(mp, vi0, r0, a0x, a0y, a0z);
+      vertex_unit(mp, vi1, r1, a1x, a1y, a1z);
+      vertex_unit(mp, vi2, r2, a2x, a2y, a2z);
+      double nxs = 0, nys = 0, nzs = 0;
+      for (int iu = 0; iu < 10; iu++) {
+        for (int it = 0; it < 10; it++) {
+          Scalar x, y, z, nx, ny, nz;
+          tri_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z, a2x, a2y,
+                            a2z, Scalar(n01[iu]), Scalar(n01[it]), x, y, z,
+                            nx, ny, nz);
+          double w = w01[iu] * w01[it];
+          nxs += w * nx; nys += w * ny; nzs += w * nz;
+        }
+      }
+      Ntri[3 * f] = nxs; Ntri[3 * f + 1] = nys; Ntri[3 * f + 2] = nzs;
+    }
+    std::vector<double> Nrect(size_t(3) * lp.n_local_rect, 0.0);
+    for (int f = 0; f < lp.n_local_rect; f++) {
+      gidx_t g = lp.rect_face_l2g[f];
+      gidx_t vi0, vi1, vi3;
+      rect_face_vertex_ids(mp, g, vi0, vi1, vi3);
+      Scalar r_lo, uax, uay, uaz, r_tmp, ubx, uby, ubz, r_hi, u3x, u3y, u3z;
+      vertex_unit(mp, vi0, r_lo, uax, uay, uaz);
+      vertex_unit(mp, vi1, r_tmp, ubx, uby, ubz);
+      vertex_unit(mp, vi3, r_hi, u3x, u3y, u3z);
+      (void)r_tmp; (void)u3x; (void)u3y; (void)u3z;
+      double nxs = 0, nys = 0, nzs = 0;
+      for (int iu = 0; iu < 10; iu++) {
+        for (int iv = 0; iv < 10; iv++) {
+          Scalar x, y, z, nx, ny, nz;
+          rect_sphere_sample(r_lo, r_hi, uax, uay, uaz, ubx, uby, ubz,
+                             Scalar(n01[iu]), Scalar(n01[iv]), x, y, z, nx,
+                             ny, nz);
+          double w = w01[iu] * w01[iv];
+          nxs += w * nx; nys += w * ny; nzs += w * nz;
+        }
+      }
+      Nrect[3 * f] = nxs; Nrect[3 * f + 1] = nys; Nrect[3 * f + 2] = nzs;
+    }
+
+    // ---- Per-owned-edge target A_e = ∮ dl x v_LT and min-norm solve ----
+    // Full 3-component constraint sum_f w_f N_f = A_e with the min-norm
+    // ansatz w_f = c · N_f:  (N Nᵀ) c = A_e.  All three components must
+    // be enforced where the stencil supports them — a solve restricted
+    // to the plane ⊥ the edge lets the edge-parallel component of
+    // sum w_f N_f float free, and B_parallel then leaks an O(h) error
+    // into W_e (measured 2-8% at L2).  But the Gram is GENUINELY rank-2
+    // on v-edges (all adjacent rect normals ⊥ r̂ — and so is the target,
+    // A_e ∝ θ̂) and near-rank-2 on boundary h-edges, so the solve is a
+    // rank-adaptive pseudo-inverse: 3x3 Jacobi eigensolve, invert only
+    // eigenvalues > eps_rel · lambda_max, project the target onto the
+    // kept directions.  Dropped-direction residuals are O(h²)|A_e| —
+    // second order on a term that is itself an O(omega_lt/Omega)
+    // correction.
+    int n_degenerate = 0;
+    auto solve_edge = [&](const double Le[3], const double Ae[3],
+                          const double* Nf, const int* cols, int nf,
+                          Scalar* wout) {
+      (void)Le;
+      double G[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+      for (int j = 0; j < nf; j++) {
+        const double* N = &Nf[3 * cols[j]];
+        for (int a = 0; a < 3; a++)
+          for (int b = 0; b < 3; b++) G[a][b] += N[a] * N[b];
+      }
+      // Jacobi eigensolve of the symmetric 3x3 Gram: G = V diag(lam) Vᵀ.
+      double V[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+      double A[3][3];
+      for (int a = 0; a < 3; a++)
+        for (int b = 0; b < 3; b++) A[a][b] = G[a][b];
+      for (int sweep = 0; sweep < 30; sweep++) {
+        double off = std::abs(A[0][1]) + std::abs(A[0][2]) +
+                     std::abs(A[1][2]);
+        if (off < 1e-14 * (std::abs(A[0][0]) + std::abs(A[1][1]) +
+                           std::abs(A[2][2]) + 1e-300)) {
+          break;
+        }
+        for (int p = 0; p < 2; p++) {
+          for (int q = p + 1; q < 3; q++) {
+            if (std::abs(A[p][q]) < 1e-300) continue;
+            double theta = 0.5 * (A[q][q] - A[p][p]) / A[p][q];
+            double t = (theta >= 0 ? 1.0 : -1.0) /
+                       (std::abs(theta) + std::sqrt(theta * theta + 1.0));
+            double cth = 1.0 / std::sqrt(t * t + 1.0), sth = t * cth;
+            for (int k = 0; k < 3; k++) {
+              double akp = A[k][p], akq = A[k][q];
+              A[k][p] = cth * akp - sth * akq;
+              A[k][q] = sth * akp + cth * akq;
+            }
+            for (int k = 0; k < 3; k++) {
+              double apk = A[p][k], aqk = A[q][k];
+              A[p][k] = cth * apk - sth * aqk;
+              A[q][k] = sth * apk + cth * aqk;
+            }
+            for (int k = 0; k < 3; k++) {
+              double vkp = V[k][p], vkq = V[k][q];
+              V[k][p] = cth * vkp - sth * vkq;
+              V[k][q] = sth * vkp + cth * vkq;
+            }
+          }
+        }
+      }
+      double lam[3] = {A[0][0], A[1][1], A[2][2]};
+      double lam_max = std::max({lam[0], lam[1], lam[2]});
+      if (!(lam_max > 0)) {
+        for (int j = 0; j < nf; j++) wout[j] = Scalar(0);
+        n_degenerate++;
+        return;
+      }
+      // c = sum_kept  v_k (v_k · A_e) / lam_k
+      double c[3] = {0, 0, 0};
+      const double eps_rel = 1e-6;
+      for (int k = 0; k < 3; k++) {
+        if (lam[k] <= eps_rel * lam_max) continue;
+        double vk[3] = {V[0][k], V[1][k], V[2][k]};
+        double proj = (vk[0]*Ae[0] + vk[1]*Ae[1] + vk[2]*Ae[2]) / lam[k];
+        c[0] += proj * vk[0];
+        c[1] += proj * vk[1];
+        c[2] += proj * vk[2];
+      }
+      for (int j = 0; j < nf; j++) {
+        const double* N = &Nf[3 * cols[j]];
+        wout[j] = Scalar(c[0]*N[0] + c[1]*N[1] + c[2]*N[2]);
+      }
+    };
+
+    auto vlt = [&](double x, double y, double z, double v[3]) {
+      Scalar vx, vy, vz;
+      frame_drag_velocity(Scalar(x), Scalar(y), Scalar(z), omega0, r_star,
+                          lt_p, vx, vy, vz);
+      v[0] = vx; v[1] = vy; v[2] = vz;
+    };
+
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      gidx_t g = lp.h_edge_l2g[e];
+      gidx_t v0, v1;
+      h_edge_vertex_ids(mp, g, v0, v1);
+      Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+      vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+      vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+      double Le[3] = {double(r1)*a1x - double(r0)*a0x,
+                      double(r1)*a1y - double(r0)*a0y,
+                      double(r1)*a1z - double(r0)*a0z};
+      double Ae[3] = {0, 0, 0};
+      for (int i = 0; i < 10; i++) {
+        Scalar x, y, z, dlx, dly, dlz;
+        h_edge_sphere_sample(r0, a0x, a0y, a0z, a1x, a1y, a1z,
+                             Scalar(n01[i]), x, y, z, dlx, dly, dlz);
+        double v[3];
+        vlt(x, y, z, v);
+        Ae[0] += w01[i] * (double(dly)*v[2] - double(dlz)*v[1]);
+        Ae[1] += w01[i] * (double(dlz)*v[0] - double(dlx)*v[2]);
+        Ae[2] += w01[i] * (double(dlx)*v[1] - double(dly)*v[0]);
+      }
+      // Adjacent faces: tri block then rect block, solved TOGETHER (one
+      // combined stencil) so the weights share one min-norm solution.
+      int cols[8]; double Nf[24]; Scalar w[8];
+      int nf = 0;
+      const int jt0 = lp.d1t_h_tri_row[e], jt1 = lp.d1t_h_tri_row[e + 1];
+      const int jr0 = lp.d1t_h_rect_row[e], jr1 = lp.d1t_h_rect_row[e + 1];
+      for (int j = jt0; j < jt1 && nf < 8; j++, nf++) {
+        int f = lp.d1t_h_tri_col[j];
+        Nf[3*nf] = Ntri[3*f]; Nf[3*nf+1] = Ntri[3*f+1]; Nf[3*nf+2] = Ntri[3*f+2];
+        cols[nf] = nf;
+      }
+      for (int j = jr0; j < jr1 && nf < 8; j++, nf++) {
+        int f = lp.d1t_h_rect_col[j];
+        Nf[3*nf] = Nrect[3*f]; Nf[3*nf+1] = Nrect[3*f+1]; Nf[3*nf+2] = Nrect[3*f+2];
+        cols[nf] = nf;
+      }
+      solve_edge(Le, Ae, Nf, cols, nf, w);
+      int k = 0;
+      for (int j = jt0; j < jt1; j++, k++) m_fd_h_tri_val[j] = w[k];
+      for (int j = jr0; j < jr1; j++, k++) m_fd_h_rect_val[j] = w[k];
+    }
+
+    for (int e = 0; e < lp.n_owned_ve; e++) {
+      gidx_t g = lp.v_edge_l2g[e];
+      gidx_t v0, v1;
+      v_edge_vertex_ids(mp, g, v0, v1);
+      Scalar r0, a0x, a0y, a0z, r1, a1x, a1y, a1z;
+      vertex_unit(mp, v0, r0, a0x, a0y, a0z);
+      vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+      (void)a1x; (void)a1y; (void)a1z;
+      double Le[3] = {double(r1 - r0) * a0x, double(r1 - r0) * a0y,
+                      double(r1 - r0) * a0z};
+      double Ae[3] = {0, 0, 0};
+      for (int i = 0; i < 10; i++) {
+        double rt = (1.0 - n01[i]) * r0 + n01[i] * r1;
+        double x = rt * a0x, y = rt * a0y, z = rt * a0z;
+        double dl[3] = {double(r1 - r0) * a0x, double(r1 - r0) * a0y,
+                        double(r1 - r0) * a0z};
+        double v[3];
+        vlt(x, y, z, v);
+        Ae[0] += w01[i] * (dl[1]*v[2] - dl[2]*v[1]);
+        Ae[1] += w01[i] * (dl[2]*v[0] - dl[0]*v[2]);
+        Ae[2] += w01[i] * (dl[0]*v[1] - dl[1]*v[0]);
+      }
+      int cols[8]; double Nf[24]; Scalar w[8];
+      int nf = 0;
+      const int jr0 = lp.d1t_v_rect_row[e], jr1 = lp.d1t_v_rect_row[e + 1];
+      for (int j = jr0; j < jr1 && nf < 8; j++, nf++) {
+        int f = lp.d1t_v_rect_col[j];
+        Nf[3*nf] = Nrect[3*f]; Nf[3*nf+1] = Nrect[3*f+1]; Nf[3*nf+2] = Nrect[3*f+2];
+        cols[nf] = nf;
+      }
+      solve_edge(Le, Ae, Nf, cols, nf, w);
+      int k = 0;
+      for (int j = jr0; j < jr1; j++, k++) m_fd_v_rect_val[j] = w[k];
+    }
+
+    if (n_degenerate > 0) {
+      Logger::print_err(
+          "build_frame_drag: {} degenerate edge stencils (weights zeroed)",
+          n_degenerate);
+    }
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+    if (ExecPolicy::data_mem_type() != MemType::host_only) {
+      m_fd_h_tri_val.copy_to_device();
+      m_fd_h_rect_val.copy_to_device();
+      m_fd_v_rect_val.copy_to_device();
+    }
+#endif
+    m_fd_built = true;
+  }
+
+  // Eeff[e] = E[e] + W_e(Bdelta + B0) on OWNED edges (caller exchanges
+  // Eeff ghosts, then feeds it to faraday()/compute_rhs() in place of E).
+  // Requires fresh Bdelta ghosts; B0 is static (exchanged once at init).
+  void frame_drag_eff_E(buffer<Scalar>& E, buffer<Scalar>& Bdelta,
+                        buffer<Scalar>& B0, buffer<Scalar>& Eeff) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto Bd, auto B0_f, auto Ef, auto wht, auto whr,
+               auto wvr) {
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            Scalar W = Scalar(0);
+            for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1];
+                 j++) {
+              int f = lp.d1t_h_tri_col[j];
+              W += wht[j] * (Bd[f] + B0_f[f]);
+            }
+            for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1];
+                 j++) {
+              int f = lp.d1t_h_rect_col[j];
+              W += whr[j] * (Bd[bs + f] + B0_f[bs + f]);
+            }
+            Ef[e] = E_e[e] + W;
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            Scalar W = Scalar(0);
+            for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1];
+                 j++) {
+              int f = lp.d1t_v_rect_col[j];
+              W += wvr[j] * (Bd[bs + f] + B0_f[bs + f]);
+            }
+            Ef[es + e] = E_e[es + e] + W;
+          });
+        },
+        E, Bdelta, B0, Eeff, m_fd_h_tri_val, m_fd_h_rect_val,
+        m_fd_v_rect_val);
+  }
+
+  bool frame_drag_built() const { return m_fd_built; }
 
   // -----------------------------------------------------------------------
   // Ampere half-step: E[e] += dt * h1inv[e] * ((d1^T h2 B)[e] - J[e]) on
@@ -435,12 +781,20 @@ class dec_solver_dist {
           B, B0);
     }
 
+    Scalar wlt0 = par.omega_lt0;
+    Scalar wlt_rs = par.lt_r_star;
+    Scalar wlt_p = par.lt_p;
     ExecPolicy::launch(
         [lp, mp, mx_i = mx_E, my_i = my_E, mz_i, Bp_val, Omega_val, obliq,
-         deutsch, t_bc = t_bc_E, es = m_e_split,
+         deutsch, t_bc = t_bc_E, es = m_e_split, wlt0, wlt_rs, wlt_p,
          N_h_edges = (m_mesh->m_N_r + 1) * m_mesh->m_N_edge_s]
         LAMBDA(auto E_e) {
-          // Corotation E = -(v × B), v = Ω × r, shared by both edge kinds.
+          // Corotation E = -(v × B) with v = (Ω - ω_LT(r)) × r, shared by
+          // both edge kinds.  ω_LT = 0 in flat spacetime; with frame
+          // dragging the star's EMF is set by its rotation relative to
+          // the local dragged frame (Muslimov & Tsygan 1992).  The
+          // Deutsch BC is flat-vacuum analytic and incompatible with
+          // ω_LT != 0 — the solver init aborts on that combination.
           auto corot_E = [&] LAMBDA(Scalar x, Scalar y, Scalar z,
                                     Scalar& ex, Scalar& ey, Scalar& ez) {
             if (deutsch) {
@@ -449,7 +803,12 @@ class dec_solver_dist {
             } else {
               Scalar bx, by, bz;
               dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
-              Scalar vx = -Omega_val * y, vy = Omega_val * x;
+              Scalar om = Omega_val;
+              if (wlt0 != Scalar(0)) {
+                Scalar r = std::sqrt(x * x + y * y + z * z);
+                om -= frame_drag_omega(r, wlt0, wlt_rs, wlt_p);
+              }
+              Scalar vx = -om * y, vy = om * x;
               ex = -(vy * bz);
               ey = -(-vx * bz);
               ez = -(vx * by - vy * bx);
@@ -733,6 +1092,11 @@ class dec_solver_dist {
 
   int m_e_split = 0, m_n_edges_local = 0;
   int m_b_split = 0, m_n_faces_local = 0;
+
+  // Frame-drag EMF weights, CSR-value arrays aligned with the d1t_*
+  // sparsity blocks (see build_frame_drag).
+  buffer<Scalar> m_fd_h_tri_val, m_fd_h_rect_val, m_fd_v_rect_val;
+  bool m_fd_built = false;
 };
 
 }  // namespace Aperture

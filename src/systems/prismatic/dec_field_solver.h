@@ -208,6 +208,24 @@ class dec_field_solver : public system_t {
   // retardation physics from the delta equations).
   bool m_use_static_background = false;
 
+  // Frame dragging ("fake GR", config "use_frame_dragging"): slow-rotation
+  // Lense-Thirring shift, Faraday-side only (see dec_solver_dist's
+  // build_frame_drag header note).  omega_lt(r) = m_omega_lt0 *
+  // (r_star/r)^m_lt_exponent about the spin axis;
+  // m_omega_lt0 = gr_omega_lt_frac * Omega with gr_omega_lt_frac
+  // defaulting to (2/5) * gr_compactness (uniform-density moment of
+  // inertia; 0.2 at compactness 0.5, the Philippov+2015b value).  The
+  // inner-BC corotation EMF uses Omega - omega_lt(r) — together with the
+  // volume term this makes the Muslimov-Tsygan reduced-rho_GJ state the
+  // equilibrium.  Incompatible with use_deutsch_bc / use_pec_bc /
+  // use_reconstruction_hodge (init aborts).
+  bool m_use_frame_drag = false;
+  Scalar m_gr_compactness = 0.0;
+  Scalar m_omega_lt0 = 0.0;
+  Scalar m_lt_r_star = 1.0;
+  int m_lt_exponent = 3;
+  buffer<Scalar> m_Eeff;  // scratch: E + W(B) effective circulation
+
   double m_time = 0.0;
 };
 

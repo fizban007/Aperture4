@@ -192,6 +192,41 @@ void dec_field_solver<ExecPolicy>::init() {
     }
   }
   sim_env().params().get_value("resonator_amp", m_resonator_amp);
+
+  // ---- Frame dragging ("fake GR") ----
+  sim_env().params().get_value("use_frame_dragging", m_use_frame_drag);
+  if (m_use_frame_drag) {
+    if (m_use_deutsch_bc || m_use_pec_bc || m_use_recon_hodge) {
+      Logger::print_err(
+          "use_frame_dragging is incompatible with use_deutsch_bc (flat "
+          "vacuum analytic BC), use_pec_bc, and use_reconstruction_hodge.");
+      std::abort();
+    }
+    double compactness = 0.0, lt_frac = -1.0, r_star = 0.0;
+    sim_env().params().get_value("gr_compactness", compactness);
+    sim_env().params().get_value("gr_omega_lt_frac", lt_frac);
+    sim_env().params().get_value("r_min", r_star);
+    sim_env().params().get_value("gr_lt_exponent", m_lt_exponent);
+    if (lt_frac < 0.0) {
+      // Uniform-density stellar moment of inertia: omega_LT(R*) =
+      // (2/5) (r_s/R*) Omega.
+      lt_frac = 0.4 * compactness;
+    }
+    if (lt_frac <= 0.0 || lt_frac >= 1.0) {
+      Logger::print_err(
+          "use_frame_dragging is on but the drag strength is unset or "
+          "unphysical: gr_omega_lt_frac = {} (derived from gr_compactness "
+          "= {}).  Set gr_compactness (r_s/R*, e.g. 0.5) or "
+          "gr_omega_lt_frac (omega_LT(R*)/Omega, e.g. 0.2) explicitly.",
+          lt_frac, compactness);
+      std::abort();
+    }
+    if (r_star <= 0.0) r_star = 1.0;
+    m_gr_compactness = Scalar(compactness);
+    m_omega_lt0 = Scalar(lt_frac) * m_Omega;
+    m_lt_r_star = Scalar(r_star);
+  }
+
   sim_env().params().get_value("use_static_background", m_use_static_background);
   if (m_use_static_background) {
     if (m_use_pec_bc) {
@@ -212,6 +247,19 @@ void dec_field_solver<ExecPolicy>::init() {
     }
   }
   refresh_total_fields();
+
+  if (m_use_frame_drag) {
+    m_dist.build_frame_drag(m_omega_lt0, m_lt_r_star, m_lt_exponent);
+    m_Eeff.set_memtype(ExecPolicy::data_mem_type());
+    m_Eeff.resize(m_dist.n_edges_local());
+    m_Eeff.assign(Scalar(0));
+    Logger::print_info(
+        "Frame dragging ON: omega_LT(R*)/Omega = {:.4g} (compactness {}), "
+        "profile (R*/r)^{}, R* = {}; surface rho_GJ reduced by {:.3g}",
+        double(m_omega_lt0) / double(m_Omega), m_gr_compactness,
+        m_lt_exponent, m_lt_r_star,
+        double(m_omega_lt0) / double(m_Omega));
+  }
 
   m_time = 0.0;
   if (m_use_implicit) {
@@ -280,7 +328,18 @@ void dec_field_solver<ExecPolicy>::compute_rhs(
   // refresh.  No-ops when single-rank.
   m_ex.exchange_edge(E_in, m_dist.e_split());
   m_ex.exchange_face(B_in, m_dist.b_split());
-  m_dist.compute_rhs(E_in, B_in, m_J->data(), dE_out, dB_out);
+  if (m_use_frame_drag) {
+    // Frame dragging: the Faraday rows of the RHS take the effective
+    // circulation E + W(B).  Built from the CURRENT iterate (inside the
+    // Picard loop), so the shift term is fully implicit-consistent.
+    // The Ampere rows read B and J only, so passing Eeff through is
+    // exact for them.
+    m_dist.frame_drag_eff_E(E_in, B_in, m_B0->data(), m_Eeff);
+    m_ex.exchange_edge(m_Eeff, m_dist.e_split());
+    m_dist.compute_rhs(m_Eeff, B_in, m_J->data(), dE_out, dB_out);
+  } else {
+    m_dist.compute_rhs(E_in, B_in, m_J->data(), dE_out, dB_out);
+  }
 }
 
 // =========================================================================
@@ -291,9 +350,17 @@ template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
-  // Faraday: B -= dt * d1 * E
+  // Faraday: B -= dt * d1 * E   (frame dragging: E -> E + W(B), the
+  // effective circulation including the Lense-Thirring EMF; W needs
+  // fresh B ghosts, and Eeff needs its own exchange because d1 reads
+  // ghost edge columns.)
   // [halo sync point] exchange E (h+v) — no-op single-rank.
-  if (m_update_b) {
+  if (m_update_b && m_use_frame_drag) {
+    m_ex.exchange_face(m_B->data(), m_dist.b_split());
+    m_dist.frame_drag_eff_E(m_E->data(), m_B->data(), m_B0->data(), m_Eeff);
+    m_ex.exchange_edge(m_Eeff, m_dist.e_split());
+    m_dist.faraday(m_Eeff, m_B->data(), dt);
+  } else if (m_update_b) {
     m_ex.exchange_edge(m_E->data(), m_dist.e_split());
     m_dist.faraday(m_E->data(), m_B->data(), dt);
   }
@@ -463,6 +530,11 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
   par.obliquity = m_obliquity;
   par.use_deutsch = m_use_deutsch_bc;
   par.overwrite_b = m_inner_bc_overwrite_b;
+  if (m_use_frame_drag) {
+    par.omega_lt0 = m_omega_lt0;
+    par.lt_r_star = m_lt_r_star;
+    par.lt_p = m_lt_exponent;
+  }
   m_dist.apply_inner_bc(E, B, m_B0->data(), par, time_E, time_B);
 }
 

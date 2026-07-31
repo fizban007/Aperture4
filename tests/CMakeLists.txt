@@ -38,6 +38,7 @@ set(test_src
   "test_prismatic_recovery.cpp"
   "test_prismatic_injector.cpp"
   "test_prismatic_pusher.cpp"
+  "test_dec_frame_drag.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"
   "test_stagger.cpp"

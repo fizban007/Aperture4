@@ -190,6 +190,29 @@ HD_INLINE void h_edge_sphere_sample(Scalar r,
   dlx = r * dux;  dly = r * duy;  dlz = r * duz;
 }
 
+// Lense-Thirring angular velocity profile for the fake-GR frame-drag
+// terms: omega_lt(r) = w0 * (r_star / r)^p with integer p (3 physically;
+// 0 gives a uniform drag, used by the unit tests where curl(v x B) is
+// analytic).  About the SPIN axis z by the code's convention (obliquity
+// tilts the magnetic axis, never Omega).
+HD_INLINE Scalar frame_drag_omega(Scalar r, Scalar w0, Scalar r_star,
+                                  int p) {
+  Scalar q = r_star / r, f = Scalar(1);
+  for (int i = 0; i < p; i++) f *= q;
+  return w0 * f;
+}
+
+// v_LT = omega_lt(r) ẑ × x.
+HD_INLINE void frame_drag_velocity(Scalar x, Scalar y, Scalar z, Scalar w0,
+                                   Scalar r_star, int p, Scalar& vx,
+                                   Scalar& vy, Scalar& vz) {
+  Scalar r = std::sqrt(x * x + y * y + z * z);
+  Scalar w = frame_drag_omega(r, w0, r_star, p);
+  vx = -w * y;
+  vy = w * x;
+  vz = Scalar(0);
+}
+
 // =========================================================================
 // Device-callable analytic field evaluators
 // =========================================================================

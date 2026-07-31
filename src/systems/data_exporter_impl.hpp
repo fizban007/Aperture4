@@ -26,6 +26,7 @@
 #include "framework/params_store.h"
 #include "utils/for_each_dual.hpp"
 #include "utils/timer.h"
+#include <mpi.h>
 #if (__GNUC__ >= 8 || __clang_major__ >= 7) && \
     !defined(__USE_BOOST_FILESYSTEM__)
 #include <filesystem>
@@ -119,8 +120,9 @@ data_exporter<Conf, ExecPolicy>::init() {
   write_grid();
 
   // Register the graceful-stop checkpoint callback with the environment.
-  sim_env().register_force_snapshot(
-      [this](uint32_t step, double time) { this->force_snapshot(step, time); });
+  sim_env().register_force_snapshot([this](uint32_t step, double time) {
+    return this->force_snapshot(step, time);
+  });
 }
 
 template <typename Conf, template <class> class ExecPolicy>
@@ -326,28 +328,56 @@ data_exporter<Conf, ExecPolicy>::update(double dt, uint32_t step) {
   if (m_snapshot_interval > 0 && step % m_snapshot_interval == 0 && step > 0) {
     std::string snapshot_name("snapshot");
     snapshot_name += std::to_string(m_current_snapshot) + ".h5";
-    write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
-                   time);
-    update_latest_symlink(snapshot_name);
+    bool snapshot_ok = write_snapshot(
+        (fs::path(m_output_dir) / snapshot_name).string(), step, time);
+    if (snapshot_ok) {
+      update_latest_symlink(snapshot_name);
+    }
+    // On failure keep the symlink and the rotation slot where they are, so the
+    // last good snapshot stays reachable and the next attempt retries this
+    // slot rather than consuming the one holding the last good state.
     if (m_special_snapshot_interval > 0 && step % m_special_snapshot_interval == 0 && step > 0) {
       // Permanent named snapshot -- do NOT update the rotating "latest" symlink.
       std::string special_name = std::string("snapshot") + std::to_string(step) + ".h5";
       write_snapshot((fs::path(m_output_dir) / special_name).string(), step,
                      time);
     }
-    m_current_snapshot += 1;
-    m_current_snapshot = m_current_snapshot % m_num_snapshots;
+    // Rotate only after the special snapshot has been written: write_snapshot
+    // derives its companion .xmf name from m_current_snapshot, so advancing
+    // the counter first would make the special snapshot overwrite the *other*
+    // slot's .xmf file.
+    if (snapshot_ok) {
+      m_current_snapshot += 1;
+      m_current_snapshot = m_current_snapshot % m_num_snapshots;
+    }
   }
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-void
+bool
 data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
                                                 uint32_t step, double time) {
   auto create_mode = H5CreateMode::trunc_parallel;
   if (sim_env().use_mpi() == false) create_mode = H5CreateMode::trunc;
   // if (!is_multi_rank()) create_mode = H5CreateMode::trunc;
   H5File snapfile = hdf_create(filename, create_mode);
+
+  // Bail out before any collective write if the file could not be created.
+  // The reduction is essential, not just informative: the writes below are
+  // collective, so if some ranks returned early and others did not, the run
+  // would deadlock instead of failing. Every rank must reach the same verdict.
+  int local_ok = snapfile.is_valid() ? 1 : 0;
+  int global_ok = local_ok;
+  if (sim_env().use_mpi()) {
+    MPI_Allreduce(&local_ok, &global_ok, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
+  }
+  if (!global_ok) {
+    Logger::print_err(
+        "Failed to write snapshot {} at step {} -- leaving previous snapshots "
+        "untouched",
+        filename, step);
+    return false;
+  }
 
   // Walk over all data components and write them to the snapshot file according
   // to their `include_in_snapshot`
@@ -422,16 +452,24 @@ data_exporter<Conf, ExecPolicy>::write_snapshot(const std::string& filename,
 
   Logger::print_info("Finished writing snapshot at time {}, step {}",
                      time, step);
+  return true;
 }
 
 template <typename Conf, template <class> class ExecPolicy>
-void
+bool
 data_exporter<Conf, ExecPolicy>::force_snapshot(uint32_t step, double time) {
   std::string snapshot_name("snapshot");
   snapshot_name += std::to_string(m_current_snapshot) + ".h5";
-  write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step, time);
+  if (!write_snapshot((fs::path(m_output_dir) / snapshot_name).string(), step,
+                      time)) {
+    // Do NOT move the symlink or advance the rotation. Repointing
+    // snapshot_latest.h5 at a file we just failed to write silently rewinds
+    // the run to whatever stale state that file still holds.
+    return false;
+  }
   update_latest_symlink(snapshot_name);
   m_current_snapshot = (m_current_snapshot + 1) % m_num_snapshots;
+  return true;
 }
 
 template <typename Conf, template <class> class ExecPolicy>

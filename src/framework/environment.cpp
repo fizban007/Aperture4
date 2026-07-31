@@ -20,6 +20,7 @@
 #include "utils/logger.h"
 #include "utils/timer.h"
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <mpi.h>
 
@@ -236,12 +237,28 @@ sim_environment_impl::run() {
       Logger::print_info(
           "Graceful stop requested at step {}, time {} -- writing checkpoint.",
           step, time);
+      // A checkpoint we failed to write must not look like a clean stop. If
+      // this process exited 0 here, an --dependency=afterok chain would launch
+      // the next job, which would restart from a stale snapshot and silently
+      // redo the work this job just did.
+      bool checkpoint_ok = false;
       if (m_force_snapshot) {
-        m_force_snapshot(step, time);
+        checkpoint_ok = m_force_snapshot(step, time);
       } else {
         Logger::print_err(
             "No force_snapshot callback registered -- exiting without "
             "checkpoint!");
+      }
+      if (!checkpoint_ok) {
+        Logger::print_err(
+            "Graceful-stop checkpoint FAILED at step {} -- aborting with a "
+            "non-zero status so any job chain halts instead of restarting "
+            "from a stale snapshot.",
+            step);
+        if (m_use_mpi) {
+          MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        std::exit(1);
       }
       break;
     }

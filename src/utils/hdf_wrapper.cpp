@@ -17,12 +17,16 @@
 
 #include "hdf_wrapper.h"
 #include "mpi.h"
+#include "utils/logger.h"
 
 namespace Aperture {
 
 H5File::H5File() {}
 
-H5File::H5File(hid_t file_id) : m_file_id(file_id) { m_is_open = true; }
+// Only claim the handle is open if it is actually valid. Marking a negative
+// hid_t as open makes the destructor call H5Fclose on it, which is where the
+// "H5Fclose(): not a file ID" diagnostics come from after a failed create.
+H5File::H5File(hid_t file_id) : m_file_id(file_id) { m_is_open = (file_id >= 0); }
 
 H5File::H5File(const std::string& filename, H5OpenMode mode) {
   open(filename, mode);
@@ -30,7 +34,11 @@ H5File::H5File(const std::string& filename, H5OpenMode mode) {
 
 H5File::H5File(H5File&& other) {
   m_file_id = other.m_file_id;
-  m_is_open = true;
+  // Carry over the source's open state rather than assuming it was open:
+  // hdf_create() returns by value, so moving an invalid handle used to
+  // resurrect it as "open" and hand the destructor a negative hid_t.
+  m_is_open = other.m_is_open;
+  m_is_parallel = other.m_is_parallel;
   other.m_is_open = false;
 }
 
@@ -38,8 +46,11 @@ H5File::~H5File() { close(); }
 
 H5File&
 H5File::operator=(H5File&& other) {
+  if (this == &other) return *this;
+  close();
   m_file_id = other.m_file_id;
-  m_is_open = true;
+  m_is_open = other.m_is_open;
+  m_is_parallel = other.m_is_parallel;
   other.m_is_open = false;
   return *this;
 }
@@ -62,7 +73,10 @@ H5File::open(const std::string& filename, H5OpenMode mode) {
   }
 
   m_file_id = H5Fopen(filename.c_str(), h5mode, plist_id);
-  m_is_open = true;
+  m_is_open = (m_file_id >= 0);
+  if (!m_is_open) {
+    Logger::print_err("Failed to open HDF5 file {}", filename);
+  }
 
   if (mode == H5OpenMode::rw_parallel) {
     H5Pclose(plist_id);
@@ -103,6 +117,14 @@ hdf_create(const std::string& filename, H5CreateMode mode) {
   if (mode == H5CreateMode::trunc_parallel ||
       mode == H5CreateMode::excl_parallel) {
     H5Pclose(plist_id);
+  }
+
+  // H5Fcreate returns a negative hid_t on failure. Report it here so the
+  // failure is visible even for callers that do not check is_valid(); the
+  // resulting H5File is marked not-open so writes are no-ops rather than
+  // operations on a bogus id.
+  if (datafile < 0) {
+    Logger::print_err("Failed to create HDF5 file {}", filename);
   }
 
   H5File file(datafile);

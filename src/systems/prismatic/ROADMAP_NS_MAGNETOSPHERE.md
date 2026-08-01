@@ -5,12 +5,76 @@
 
 ## Strategic decisions
 
-1. **GR work is shelved.** The near-term paper is a numerical-methods paper
-   on the prismatic icosahedral mesh applied to NS (flat-space)
-   magnetospheres. The traditional-grid 3D GR effort on `develop` covers the
-   BH science. `dec_field_solver_gr_ks`, `prismatic_wald`, and the Wald/drift
-   diagnostics are frozen — not deleted, not maintained. Do not resume them
-   without revisiting this document.
+1. **GR work is ACTIVE (promoted 2026-08-01).** Superseded: "GR work is
+   shelved … frozen, not maintained." `dec_field_solver_gr_ks`,
+   `prismatic_wald`, and the Wald diagnostics are back under active
+   development and are expected to stay green.
+
+   The near-term paper is still the numerical-methods paper on the prismatic
+   mesh applied to NS (flat-space) magnetospheres — that has not changed, and
+   GR does not displace it. What changed is that the reason for shelving no
+   longer exists: vacuum Kerr-Wald relaxes to the rotating Wald solution with
+   Meissner flux expulsion, and the observable converges at **second order
+   over L3–L6**. The traditional-grid 3D GR effort on `develop` still covers
+   the BH science; this is a second, independent path, not a replacement.
+
+   **Promotion evidence (2026-08-01 convergence study).** Cap-flux ratio
+   `Phi_cap(1.10569)/Phi_cap(8.016)`, continuum 6.414483e-3, relaxed value
+   scored as the mean over 150–220 M:
+
+   | L | analytic on mesh | vs continuum | relaxed | vs continuum |
+   |---|---|---|---|---|
+   | 3 | 6.407144e-3 | −0.1144% | 6.408183e-3 | −0.098% |
+   | 4 | 6.412630e-3 | −0.0289% | 6.413868e-3 | −0.010% |
+   | 5 | 6.414018e-3 | −0.0072% | 6.415703e-3 | +0.019% |
+   | 6 | 6.414366e-3 | −0.0018% | — | — |
+
+   Order **+1.99 at every refinement** — the direct reversal of the old
+   "refining makes it worse" symptom. ~66% of the flux a non-rotating hole
+   would thread is expelled. The `H_phi -> 0` movie
+   (`problems/prismatic_wald/make_wald_movie.py`) shows the transient
+   radiating away and the field lines closing around the horizon.
+
+   **What limits it.** Relaxed vs the mesh's own analytic state sits at
+   +1.6e-4 / +2.0e-4 / +2.7e-4 (L3/L4/L5): settled, and mildly *growing*, so
+   it does not converge. Only weakly sensitive to domain size. End-to-end
+   accuracy therefore floors around 2e-4 and an L6 relaxation buys nothing
+   (~3 h for a discretization error ~1.8e-5, an order under the floor).
+   Identifying that floor is the obvious next GR task.
+
+   **Operator orders — the earlier figures were boundary-contaminated.**
+   Using the normalization-free cancellation ratio:
+
+   | rows | Faraday `d1.E_aux` | Ampere `d1t.H_aux` |
+   |---|---|---|
+   | all | 1.27, 1.15, 1.08 | 0.66, 0.60, 0.56 |
+   | **bulk**, ghost masked at **both** ends | **1.03, 1.01, 1.01** | **0.97, 0.98, 0.98** |
+
+   Both operators are clean, stable first order in the bulk. The
+   sub-first-order Ampere order *and its apparent degradation with
+   refinement* were entirely ghost-layer rows: half-open dual loops fail the
+   residual identity by O(1), and at a ~1/N_r fraction they drag the global
+   figure down. Masking only the outer end (which produced the "+0.90 to
+   +0.95" figure below) is insufficient. Faraday is first order, not the
+   ~1.3 previously reported.
+
+   One real spin effect: Ampere on vertical edges (rect faces only) is
+   second order in Schwarzschild (1.99/2.00/2.00) but first order in Kerr
+   (1.00/0.95/0.90) — the rect-face shift cross-term degrading an otherwise
+   superconvergent stencil. Worth ~25x on those rows; a constant, not an
+   order, for the bulk. **SCVT does not help** (bulk Ampere 0.0742h vs
+   0.0805h, ~8%), consistent with the flat-solver result in the
+   order-isolation study below.
+
+   **Trap that cost real time:** `H_aux` already carries `hodge2` (it is a
+   dual 1-cochain; `dec_field_solver_gr_ks_impl.hpp:246`), and the Ampere
+   update is a bare `d1t_val * H_aux`. Applying `hodge2` again in
+   post-processing fabricates a sub-first-order order with a spurious O(1)
+   floor. The FLAT solver is the opposite (`dec_solver_dist.h:489`), where
+   `hodge2 * B` is correct. The stale class comment that showed the GR form
+   with an explicit `hodge2` has been fixed.
+
+   ---
 
    **AMENDED 2026-08-01 — the stated reason for shelving was wrong, and the
    principal cause is now identified and fixed.** The GR solver was shelved
@@ -63,6 +127,18 @@
    | Ampere `d1t.H_aux`, global | +0.65 |
    | Ampere, excluding the outermost shell | **+0.90 to +0.95** |
 
+   > **SUPERSEDED — see the promotion block above.** These came from a single
+   > refinement pair with only the OUTER ghost layer masked. Over L3–L6 with
+   > the ghost layer masked at BOTH radial ends the bulk orders are Faraday
+   > 1.01 and Ampere 0.98, both stable; the global figures degrade with
+   > refinement (Ampere 0.66 → 0.56) purely from boundary rows. So the claim
+   > below that "the entire global deficit comes from ONE shell" is right in
+   > spirit — it is boundary rows — but it is both ends, not the outermost
+   > alone, and Faraday is first order rather than ~1.3. The
+   > spin-independence claim also needs qualifying: it holds for the global
+   > figure, but Ampere on vertical edges is 2nd order in Schwarzschild and
+   > 1st in Kerr.
+
    The entire global deficit comes from ONE shell — the outermost, which is
    a ghost layer (`n_ghost_outer = 1`) that `analyze_drift.py` nonetheless
    includes, and whose one-sided shift stencil `834d15d2` flagged as needing
@@ -93,6 +169,13 @@
    (see the mitigation matrix below). Whether the GR effort should resume is
    still a scheduling question — but "the prismatic mesh cannot do GR" is no
    longer a supported reason.
+
+   > **RESOLVED.** The scheduling question was settled the same day: GR is
+   > promoted to active (see the top of this item). The "~9% flux error" was
+   > an artifact of the retired inside-horizon scoring point and a 60 M run
+   > that had not settled — measured properly the relaxed state matches the
+   > continuum to 0.01–0.1% and converges at 2nd order. The ~25% toroidal
+   > error has NOT been re-measured and remains open.
 2. **MPI field work continues to completion.** Phases 1–4.1a are done and
    tested; Phase 4.1b proceeds, but **retargeted at the flat
    `dec_field_solver`** instead of the GR solver. The flat solver has no
@@ -127,9 +210,11 @@
   `prismatic_sph_output`; `face_area`/`edge_length` in `prismatic_mesh_ptrs`).
   Review the ~70-line deletion in `dec_field_solver_impl.hpp` and the
   `wald_solution.hpp` changes separately; keep only what the flat path needs.
-- 0.2 Shelve GR in the build: keep `dec_field_solver_gr_ks*` compiling if
-  trivial after 0.1, otherwise gate it and `problems/prismatic_wald` behind
-  a CMake option (default OFF). Add a status header to both files' docs.
+- 0.2 ~~Shelve GR in the build~~ **WITHDRAWN (2026-08-01, GR promoted to
+  active — see Strategic decisions §1).** Do NOT gate `dec_field_solver_gr_ks*`
+  or `problems/prismatic_wald` behind a default-OFF CMake option; both build
+  by default and are expected to stay green. The status headers now read
+  ACTIVE.
 - 0.3 Add a fast compile check (script or CI) covering the prismatic
   targets + tests, so the tree never regresses to non-building again.
 

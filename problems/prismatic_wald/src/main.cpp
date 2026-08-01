@@ -45,6 +45,18 @@ int main(int argc, char* argv[]) {
   // shift-term cross coupling).
   int n_ghost_inner = env.params().get_as<int64_t>("n_ghost_inner", 1);
   int n_ghost_outer = env.params().get_as<int64_t>("n_ghost_outer", 1);
+  // Mesh-quality knobs, same config keys as vacuum_dipole.cpp.  Both
+  // default to the historical mesh, so existing configs are unaffected.
+  // mesh_optimize_iters > 0 runs spherical Lloyd (SCVT) relaxation, which
+  // re-centers the circumcentric duals on primal-edge midpoints — the
+  // offset that makes the diagonal Hodge low-order.  Needed here because
+  // the Ampere residual on this mesh degrades fastest in the immediate
+  // neighborhood of the 12 valence-5 vertices, which is exactly what SCVT
+  // relaxes.
+  mesh.sphere_optimize_iters =
+      env.params().get_as<int64_t>("mesh_optimize_iters", 0);
+  mesh.dual_centroid =
+      env.params().get_as<bool>("mesh_dual_centroid", false);
   mesh.build(L, N_r, r_min, r_max, n_ghost_inner, n_ghost_outer);
   // Copy mesh topology to device *before* compute_metric so the
   // metric evaluation and Hodge-quadrature kernels can read the

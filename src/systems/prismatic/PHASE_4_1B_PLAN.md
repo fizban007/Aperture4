@@ -16,7 +16,15 @@
 
 > **STATUS (2026-07): RETARGETED.**  GR work is shelved
 > (`ROADMAP_NS_MAGNETOSPHERE.md`); this conversion now applies to the flat
-> `dec_field_solver`, not `dec_field_solver_gr_ks`.  The buffer splits,
+> `dec_field_solver`, not `dec_field_solver_gr_ks`.
+>
+> **(2026-08-01) GR is no longer shelved** — it was promoted to active.  The
+> retarget still stands on its own merits: the flat solver is the paper's
+> critical path and has the simpler halo structure, so do 4.1b there first.
+> But the GR solver is now a live target for a later pass rather than a dead
+> one, so keep its shift-cross-term halo dependencies (B before
+> `compute_dB_dt`, D̃-tangent before `compute_dD_dt`) in mind — they are
+> documented below and have not been invalidated.  The buffer splits,
 > commit boundaries, and gotchas below carry over, but the shift
 > cross-terms — and their halo dependencies (B before compute_dB_dt,
 > D̃-tangent before compute_dD_dt) — do not exist in the flat solver:

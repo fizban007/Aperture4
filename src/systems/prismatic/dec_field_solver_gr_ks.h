@@ -9,11 +9,14 @@
 
 namespace Aperture {
 
-// STATUS (2026-07): SHELVED.  The prismatic effort is focused on flat-space
-// NS magnetospheres (see ROADMAP_NS_MAGNETOSPHERE.md); 3D GR science is
-// covered by the traditional-grid solver on the develop branch.  This
-// solver is kept compiling but is not maintained or validated — do not
-// build new work on it without revisiting the roadmap.
+// STATUS (2026-08-01): ACTIVE.  Un-shelved.  The July "SHELVED — not
+// maintained or validated" banner is withdrawn: the vacuum Kerr-Wald
+// relaxation now reproduces Meissner flux expulsion, and the observable
+// converges at second order over L3–L6 (see ROADMAP_NS_MAGNETOSPHERE.md
+// "Strategic decisions" §1 and problems/prismatic_wald/README.md).  Both
+// discrete operators are clean first order in the bulk.  The flat-space NS
+// magnetosphere remains the near-term paper; this solver is now a
+// maintained path rather than a frozen one, so keep it green.
 //
 // DEC field solver for any spherical-metric spacetime with a purely
 // radial shift (β^θ = β^φ = 0).  Examples: flat space (trivially),
@@ -84,11 +87,21 @@ class dec_field_solver_gr_ks : public system_t {
 
   // Compute 3+1 right-hand side:
   //   dB[f]/dt = -sum_e d1[f,e] * E_aux[e]
-  //   dD[e]/dt = hodge1_inv[e] * (sum_f d1t[e,f] * hodge2[f] * H_aux[f] - J[e])
+  //   dD[e]/dt = hodge1_inv[e] * (sum_f d1t[e,f] * H_aux[f] - J[e])
   //
   // E_aux and H_aux encode the full constitutive relations (lapse scaling
   // + radial shift cross-coupling).  For flat/no-gravity metrics these
   // reduce to D and B, recovering the standard flat-space update.
+  //
+  // NOTE hodge2 does NOT appear in the Ampere sum: H_aux is a dual
+  // 1-cochain (a line integral along the dual edge) and already carries
+  // it -- see the impl, H_aux[f] = face_alpha[f] * hodge2[f] * B[f] +
+  // shift cross term.  This differs from the FLAT solver, where the
+  // equivalent sum is d1t[e,f] * hodge2[f] * B[f] with B a primal
+  // 2-cochain (dec_solver_dist.h, ampere()).  Post-processing that
+  // reconstructs the Ampere residual from a dumped H_aux must not apply
+  // hodge2 a second time; doing so leaves the boundary rows O(1) and
+  // makes the measured convergence order look sub-first-order.
   void compute_rhs(buffer<Scalar>& D_in, buffer<Scalar>& B_in,
                    buffer<Scalar>& dD_dt, buffer<Scalar>& dB_dt);
 

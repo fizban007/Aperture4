@@ -20,6 +20,7 @@ targets=(
   streaming_test
   prismatic_interp
   prismatic_wald   # shelved GR problem — kept compiling on purpose
+  ptc_orbit_test
   test_prismatic_mpi_backend_multirank
 )
 

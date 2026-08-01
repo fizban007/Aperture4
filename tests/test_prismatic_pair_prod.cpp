@@ -35,7 +35,7 @@ struct pp_fixture {
   prismatic_mesh mesh;
   prismatic_particles_t ptc;
   int cursor = 0, overflow = 0, capped = 0;
-  std::vector<Scalar> rho_abs;
+  std::vector<Scalar> rho_abs, E_e, B_f;
   uint64_t id_counter = 0;
 
   pp_fixture(int cap = 64) : ptc(cap, MemType::host_only) {
@@ -70,7 +70,9 @@ struct pp_fixture {
     for (size_t n = 0; n < num; n++) {
       pair_produce_single(mp, mesh.m_N_tri, h, n, num, capacity, &cursor,
                           &overflow, &capped, &id_counter, uint64_t(7) << 32,
-                          par, rho_abs.empty() ? nullptr : rho_abs.data());
+                          par, rho_abs.empty() ? nullptr : rho_abs.data(),
+                          E_e.empty() ? nullptr : E_e.data(),
+                          B_f.empty() ? nullptr : B_f.data());
     }
     const int produced = std::min(cursor, capacity & ~1);
     ptc.set_num(num + produced);
@@ -306,52 +308,103 @@ TEST_CASE("Pair production: rejected parents never reserve a slot",
 // neighbouring rank sat at 6e5.  The cap must stop production in cells that
 // already hold more than max_mult * n_GJ(r).
 // ===========================================================================
-TEST_CASE("Pair production: multiplicity cap halts a loaded cell",
-          "[pairprod]") {
-  pp_fixture fx;
-  auto mp = fx.mesh.host_ptrs();
-  pair_prod_params par;
-  par.gamma_thr = 50;
-  par.gamma_s = 4;
-  par.max_mult = 10;
-  par.n_ref = 1000;  // n_GJ(r=1); profile r^-3
 
+// ===========================================================================
+// Multiplicity cap referenced to the LOCAL field.
+//
+// The cap must bind on max_mult * n_GJ with n_GJ = |2 Omega B_z| taken from
+// the interpolated field, NOT from an analytic dipole profile.  The two
+// disagree exactly where it matters: in the equatorial current sheet the
+// real field collapses, so a dipole reference stays finite and the cap goes
+// permissive precisely where reconnection is driving particles past the
+// threshold.  That is how job 5135731 ran away in ~20 steps on the ranks
+// owning the sheet while the average rank sat at 2% of buffer.
+//
+// These cases pin the behaviour at both ends: a strong local field must
+// PERMIT production at a density that a weak local field must FORBID, with
+// the loaded density held identical between the two.
+// ===========================================================================
+TEST_CASE("Pair production: multiplicity cap follows the local field",
+          "[pairprod]") {
   const Scalar g = 100;
   const Scalar p = std::sqrt(g * g - 1);
   const int layer = 2, tri = 7;
-  size_t n0 = fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
 
-  // rho_abs cochain: start empty -> cap must NOT bite.
-  fx.rho_abs.assign(fx.mesh.m_N_verts, Scalar(0));
-  REQUIRE(fx.run(par) == 2);
-  REQUIRE(fx.capped == 0);
-
-  // Now load the parent's cell above the cap.  deposit is |q|w per vertex
-  // and the kernel divides by vert_dual_vol, so load each of the 6 prism
-  // vertices to (11 * n_GJ) * dual_vol -> density 11 n_GJ > 10 n_GJ.
-  const Scalar r = Scalar(0.5) * (mp.radii[layer] + mp.radii[layer + 1]);
-  const Scalar n_gj = par.n_ref / (r * r * r);
-  for (int vi = 0; vi < 3; vi++) {
-    const int sv = mp.tri_verts[tri * 3 + vi];
-    for (int kk : {layer, layer + 1}) {
-      const int v = mp.vertex_idx(kk, sv);
-      fx.rho_abs[v] = Scalar(11.0) * n_gj * mp.vert_dual_vol[v];
+  // Load the parent's cell to a fixed |charge| density.
+  auto load_cell = [](pp_fixture& fx, double dens) {
+    auto mp = fx.mesh.host_ptrs();
+    fx.rho_abs.assign(fx.mesh.m_N_verts, Scalar(0));
+    for (int vi = 0; vi < 3; vi++) {
+      const int sv = mp.tri_verts[tri * 3 + vi];
+      for (int kk : {layer, layer + 1}) {
+        const int v = mp.vertex_idx(kk, sv);
+        fx.rho_abs[v] = Scalar(dens) * mp.vert_dual_vol[v];
+      }
     }
-  }
-  // Reset to a single fresh above-threshold parent in the same cell.
-  fx.ptc.set_num(0);
-  fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
-  const int produced = fx.run(par);
+  };
+  // Uniform vertical field of magnitude Bz as exact face fluxes.
+  auto set_uniform_Bz = [](pp_fixture& fx, double Bz) {
+    auto mp = fx.mesh.host_ptrs();
+    fx.B_f.assign(fx.mesh.m_N_faces, Scalar(0));
+    fx.E_e.assign(fx.mesh.m_N_edges, Scalar(0));
+    // tri faces: flux = Bz * (area projected on z) ; use the stored
+    // face area times the z-component of the outward normal, which for
+    // the shell triangles is r_hat . z_hat at the centroid.
+    for (int f = 0; f < mp.N_tri * (mp.N_r + 1); f++) {
+      const int k = f / mp.N_tri, t = f - k * mp.N_tri;
+      Scalar cz = 0;
+      for (int i = 0; i < 3; i++) cz += mp.sphere_vz[mp.tri_verts[t * 3 + i]];
+      cz /= 3;
+      fx.B_f[f] = Scalar(Bz) * mp.face_area[f] * cz;
+    }
+  };
 
-  INFO("capped = " << fx.capped << ", produced = " << produced);
-  REQUIRE(produced == 0);        // cap bit
-  REQUIRE(fx.capped == 1);
-  auto h = fx.ptc.get_host_ptrs();
-  REQUIRE(h.E[0] == Catch::Approx(100.0));  // parent untouched by a capped
-                                            // rejection (no energy drained)
-  // And max_mult <= 0 disables the cap entirely (legacy behaviour).
-  par.max_mult = 0;
-  fx.ptc.set_num(0);
-  fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
-  REQUIRE(fx.run(par) == 2);
+  const double Omega = 0.25, dens = 100.0;
+
+  SECTION("weak local field -> cap binds") {
+    pp_fixture fx;
+    pair_prod_params par;
+    par.gamma_thr = 50; par.gamma_s = 4; par.max_mult = 10;
+    par.Omega = Scalar(Omega); par.n_floor = Scalar(1e-6);
+    set_uniform_Bz(fx, 0.1);          // n_GJ = 2*0.25*0.1 = 0.05
+    load_cell(fx, dens);              // 100 >> 10 * 0.05
+    fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+    REQUIRE(fx.run(par) == 0);
+    REQUIRE(fx.capped == 1);
+  }
+
+  SECTION("strong local field, SAME density -> cap does not bind") {
+    pp_fixture fx;
+    pair_prod_params par;
+    par.gamma_thr = 50; par.gamma_s = 4; par.max_mult = 10;
+    par.Omega = Scalar(Omega); par.n_floor = Scalar(1e-6);
+    set_uniform_Bz(fx, 1000.0);       // n_GJ = 500 ; 10*500 = 5000 > 100
+    load_cell(fx, dens);
+    fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+    REQUIRE(fx.run(par) == 2);
+    REQUIRE(fx.capped == 0);
+  }
+
+  SECTION("field null is floored, not infinitely strict") {
+    pp_fixture fx;
+    pair_prod_params par;
+    par.gamma_thr = 50; par.gamma_s = 4; par.max_mult = 10;
+    par.Omega = Scalar(Omega);
+    par.n_floor = Scalar(50.0);       // floor alone permits 10*50 = 500
+    set_uniform_Bz(fx, 0.0);          // exact null: |2 Om B_z| = 0
+    load_cell(fx, dens);              // 100 < 500 -> allowed via the floor
+    fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+    REQUIRE(fx.run(par) == 2);
+    REQUIRE(fx.capped == 0);
+  }
+
+  SECTION("max_mult <= 0 disables the cap entirely") {
+    pp_fixture fx;
+    pair_prod_params par;
+    par.gamma_thr = 50; par.gamma_s = 4; par.max_mult = 0;
+    set_uniform_Bz(fx, 0.1);
+    load_cell(fx, 1e9);
+    fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+    REQUIRE(fx.run(par) == 2);
+  }
 }

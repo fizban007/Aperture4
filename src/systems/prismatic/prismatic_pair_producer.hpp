@@ -40,9 +40,20 @@ struct pair_prod_params {
   Scalar r_max = 0;        // radial gate; <= 0 = everywhere
   // Multiplicity cap (PS18: "a limiter on the number of produced pairs
   // ... so that the multiplicity in every cell where pairs are produced
-  // does not exceed 10").  Production stops in a cell whose |charge|
-  // density already exceeds max_mult * n_ref / r^3, with n_ref the
-  // Goldreich-Julian scale at the stellar surface.  <= 0 disables.
+  // does not exceed 10").  Production stops where the local |charge|
+  // density exceeds max_mult * n_GJ with the LOCAL Goldreich-Julian
+  // density n_GJ = |2 Omega . B| taken from the interpolated field at
+  // the particle.  <= 0 disables.
+  //
+  // The reference MUST be the local field, not an analytic dipole
+  // profile n_ref/r^3.  A dipole reference is maximally permissive
+  // exactly where the real field collapses -- the equatorial current
+  // sheet -- so the cap fails to bind in the one place reconnection is
+  // driving particles past the threshold.  With the r^-3 reference this
+  // ran away in ~20 steps on the ranks owning the sheet (2026-08-01,
+  // job 5135731) while the domain-average rank sat at 2% of buffer.
+  // n_GJ floors at max_mult*n_floor so a true field null cannot make the
+  // cap infinitely strict (which would forbid all production there).
   //
   // WHY THIS IS NOT OPTIONAL: threshold production is self-limiting per
   // PARTICLE (each pair costs the parent 2*gamma_s) but NOT per REGION.
@@ -53,7 +64,8 @@ struct pair_prod_params {
   // imbalance, killing the job.  The cap is what makes the cascade
   // terminate on the plasma it has produced.
   Scalar max_mult = 0;
-  Scalar n_ref = 0;        // n_GJ at r = 1 (= 4 Omega Bp in code units)
+  Scalar Omega = 0;        // stellar angular velocity (for n_GJ = |2 Om.B|)
+  Scalar n_floor = 0;      // absolute density floor for the cap reference
 };
 
 // Produce a pair from particle n if it qualifies.  `cursor` counts
@@ -67,7 +79,7 @@ HOST_DEVICE inline void pair_produce_single(
     const MP& mp, int N_tri, prism_ptc_ptrs& ptrs, size_t n, size_t num,
     int capacity, int* cursor, int* overflow, int* capped, IdPtr ptc_id,
     uint64_t track_rank, const pair_prod_params& par,
-    const Scalar* rho_abs) {
+    const Scalar* rho_abs, const Scalar* E_e, const Scalar* B_f) {
   if (ptrs.cell[n] == empty_cell) return;
   const int sp = get_ptc_type(ptrs.flag[n]);
   if (sp != (int)PtcType::electron && sp != (int)PtcType::positron) return;
@@ -84,12 +96,12 @@ HOST_DEVICE inline void pair_produce_single(
   if (par.r_max > Scalar(0) && r > par.r_max) return;
 
   // Multiplicity cap: stop where the cell already holds more than
-  // max_mult * n_GJ(r).  rho_abs is the PREVIOUS step's deposit (this
-  // system runs before the updater) -- one step stale, which is
-  // irrelevant against a cap that only has to act on a timescale of
-  // several doublings.  Hat weights are all 1/6 at the prism centre,
-  // matching the injector's own multiplicity read.
-  if (par.max_mult > Scalar(0) && rho_abs != nullptr) {
+  // max_mult * n_GJ, with n_GJ from the LOCAL field.  rho_abs is the
+  // PREVIOUS step's deposit (this system runs before the updater) --
+  // one step stale, irrelevant against a cap that only has to act over
+  // several doubling times.  Hat weights are all 1/6 at the prism
+  // centre, matching the injector's own multiplicity read.
+  if (par.max_mult > Scalar(0) && rho_abs != nullptr && B_f != nullptr) {
     Scalar ra = 0;
     for (int vi = 0; vi < 3; vi++) {
       const int sv = mp.tri_verts[tri_idx * 3 + vi];
@@ -102,7 +114,17 @@ HOST_DEVICE inline void pair_produce_single(
             (mp.vert_dual_vol[vt] > 0 ? rho_abs[vt] / mp.vert_dual_vol[vt]
                                       : Scalar(0));
     }
-    const Scalar n_gj = par.n_ref / (r * r * r);
+    // Local GJ density, rationalized units: rho_GJ = 2 Omega . B, with
+    // Omega along the SPIN axis (z).  Using |B_z| rather than |B| keeps
+    // the sign structure that actually sets the required charge; the
+    // floor stops a field null from making the cap infinitely strict.
+    Scalar l3[3] = {ptrs.x1[n], ptrs.x2[n],
+                    Scalar(1) - ptrs.x1[n] - ptrs.x2[n]};
+    Scalar Ex, Ey, Ez, Bx, By, Bz;
+    interpolate_fields(mp, tri_idx, layer_idx, l3, ptrs.x3[n], E_e, B_f,
+                       Ex, Ey, Ez, Bx, By, Bz);
+    const Scalar n_gj =
+        max(math::abs(Scalar(2) * par.Omega * Bz), par.n_floor);
     if (ra > par.max_mult * n_gj) {
       atomic_add(capped, 1);
       return;
@@ -230,12 +252,20 @@ class prismatic_pair_producer : public system_t {
     // n_GJ(r) = 2 Omega B_pole / r^3 with B_pole = 2 Bp (dipole_B_impl
     // takes the moment, so the polar field is twice the config's Bp);
     // rationalized units, rho_GJ = 2 Omega . B, no 4pi.
-    double max_mult = 0, Omega = 0, Bp = 0;
+    double max_mult = 0, Omega = 0, Bp = 0, r_max_dom = 45.0;
     sim_env().params().get_value("pair_max_multiplicity", max_mult);
     sim_env().params().get_value("Omega", Omega);
     sim_env().params().get_value("Bp", Bp);
+    sim_env().params().get_value("r_max", r_max_dom);
     m_par.max_mult = Scalar(max_mult);
-    m_par.n_ref = Scalar(4.0 * Omega * Bp);
+    m_par.Omega = Scalar(Omega);
+    // Floor for the cap reference: the GJ density the dipole would have
+    // at the OUTER domain edge.  A field null (current sheet) would
+    // otherwise drive n_GJ -> 0 and forbid production outright, which is
+    // as wrong as the old dipole reference was permissive.
+    double n_floor = 2.0 * Omega * Bp / (r_max_dom * r_max_dom * r_max_dom);
+    sim_env().params().get_value("pair_n_floor", n_floor);
+    m_par.n_floor = Scalar(n_floor);
     if (max_mult <= 0) {
       Logger::print_err(
           "pair_max_multiplicity is unset (<= 0): threshold pair "
@@ -255,6 +285,8 @@ class prismatic_pair_producer : public system_t {
           "deposit_diagnostics.");
       std::abort();
     }
+    sim_env().get_data("E", m_E);
+    sim_env().get_data("B", m_B);
 
     auto upd = sim_env().get_system("prismatic_ptc_updater");
     if (upd == nullptr) {
@@ -277,10 +309,10 @@ class prismatic_pair_producer : public system_t {
     Logger::print_info(
         "Pair production ON (stage 1, instant): gamma_thr = {}, "
         "gamma_secondary = {}, r_max = {}, max_multiplicity = {} "
-        "(n_GJ(1) = {:.4g}, profile r^-3)",
+        "(n_GJ = |2 Omega B_z| from the LOCAL field, floor {:.4g})",
         thr, gs, rmax > 0 ? std::to_string(rmax) : std::string("(none)"),
         max_mult > 0 ? std::to_string(max_mult) : std::string("UNCAPPED"),
-        4.0 * Omega * Bp);
+        n_floor);
   }
 
   void update(double dt, uint32_t step) override {
@@ -299,13 +331,20 @@ class prismatic_pair_producer : public system_t {
                    ? m_rho_abs->data().dev_ptr()
                    : m_rho_abs->data().host_ptr())
             : nullptr;
+    const Scalar* E_e = m_E->data().dev_ptr() != nullptr
+                            ? m_E->data().dev_ptr()
+                            : m_E->data().host_ptr();
+    const Scalar* B_f = m_B->data().dev_ptr() != nullptr
+                            ? m_B->data().dev_ptr()
+                            : m_B->data().host_ptr();
     ExecPolicy::launch(
-        [num, N_tri, capacity, par, lmp, track_rank, rho_abs_p]
+        [num, N_tri, capacity, par, lmp, track_rank, rho_abs_p, E_e, B_f]
         LAMBDA(auto ptc, auto counters, auto ptc_id) {
           ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
             pair_produce_single(lmp, N_tri, ptc, size_t(n), num, capacity,
                                 &counters[0], &counters[1], &counters[2],
-                                ptc_id, track_rank, par, rho_abs_p);
+                                ptc_id, track_rank, par, rho_abs_p, E_e,
+                                B_f);
           });
         },
         *m_ptc, m_counters, m_ptc->ptc_id());
@@ -351,6 +390,8 @@ class prismatic_pair_producer : public system_t {
   uint64_t m_total_pairs = 0, m_total_skipped = 0, m_total_capped = 0;
   size_t m_last_alarm = 1;
   prismatic_vertex_field* m_rho_abs = nullptr;
+  nonown_ptr<prismatic_edge_field> m_E;
+  nonown_ptr<prismatic_face_field> m_B;
   buffer<int> m_counters;
 };
 

@@ -384,3 +384,123 @@ TEST_CASE("Hybrid switch dispatch is dt-invariant", "[pusher][prismatic]") {
     REQUIRE(at_dt[n] == at_quarter[n]);
   }
 }
+
+// =========================================================================
+// Mirror force on the GCA branch.  A trapped mu != 0 particle in a static
+// dipole must decelerate along b, reverse u_par at the mirror point
+// predicted by Gamma conservation (B_turn = B_0 + u_par0^2 / (2 mu),
+// kappa = 1 since E = 0), and conserve Gamma throughout.  The recovery
+// vertex field is filled with the analytic dipole directly, so this
+// exercises gca_push + gca_grad_B_par on a real mesh without flux
+// integrals.  The pre-fix kernel (no mirror term) fails the reversal
+// REQUIRE outright.
+// =========================================================================
+namespace {
+void dipole_at(double Bp, double x, double y, double z, Scalar& Bx,
+               Scalar& By, Scalar& Bz) {
+  double r2 = x * x + y * y + z * z, r = std::sqrt(r2);
+  double ir3 = 1.0 / (r2 * r), mdr = z / r;
+  Bx = Scalar(Bp * ir3 * 3.0 * mdr * x / r);
+  By = Scalar(Bp * ir3 * 3.0 * mdr * y / r);
+  Bz = Scalar(Bp * ir3 * (3.0 * mdr * z / r - 1.0));
+}
+}  // namespace
+
+TEST_CASE("GCA mirror force bounces trapped particles in a dipole",
+          "[pusher][prismatic]") {
+  const double Bp = 100.0;
+  prismatic_mesh mesh;
+  mesh.build(2, 24, 1.0, 3.0);
+  auto mp = mesh.host_ptrs();
+
+  // Recovery vertex field = analytic dipole at every vertex.
+  std::vector<Scalar> Bv(3 * size_t(mesh.m_N_verts));
+  for (int k = 0; k <= mesh.m_N_r; ++k) {
+    for (int s = 0; s < mesh.m_N_vert_s; ++s) {
+      int vi = k * mesh.m_N_vert_s + s;
+      double r = mesh.radii[k];
+      Scalar bx, by, bz;
+      dipole_at(Bp, r * mp.sphere_vx[s], r * mp.sphere_vy[s],
+                r * mp.sphere_vz[s], bx, by, bz);
+      Bv[0 * mesh.m_N_verts + vi] = bx;
+      Bv[1 * mesh.m_N_verts + vi] = by;
+      Bv[2 * mesh.m_N_verts + vi] = bz;
+    }
+  }
+  std::vector<Scalar> E_e(mesh.m_N_edges, Scalar(0));
+  std::vector<Scalar> B_f(mesh.m_N_faces, Scalar(0));
+
+  // Trapped particle: equator at r0 = 2, pitch 45 deg -> B_turn = 2 B_eq.
+  const double r0 = 2.0;
+  const Scalar q = Scalar(-1), m = Scalar(1);
+  Scalar B0x, B0y, B0z;
+  dipole_at(Bp, r0, 0, 0, B0x, B0y, B0z);
+  const double B_eq =
+      std::sqrt(double(B0x) * B0x + double(B0y) * B0y + double(B0z) * B0z);
+  const double u0 = 1.0;  // |u|, split 45 deg
+  const double u_par0 = -u0 / std::sqrt(2.0);  // along b = -zhat: northward
+  const double mu0 = (u0 * u0 / 2.0) / (2.0 * B_eq);  // u_perp^2 / (2 B)
+  const double B_turn = B_eq + (u_par0 * u_par0) / (2.0 * mu0);
+
+  double x = r0, y = 0, z = 0;
+  Scalar u_par = Scalar(u_par0), mu = Scalar(mu0);
+  const Scalar dt = Scalar(0.01);
+  const double Gamma0 =
+      std::sqrt(1.0 + u_par0 * u_par0 + 2.0 * mu0 * B_eq);
+
+  bool reversed = false;
+  double B_at_reversal = 0, gamma_worst = 0;
+  int tri_hint = -1;
+  for (int step = 0; step < 4000 && !reversed; ++step) {
+    int tri, layer;
+    Scalar l1, l2, zeta;
+    REQUIRE(cartesian_to_local_impl(mp, Scalar(x), Scalar(y), Scalar(z),
+                                    tri, layer, l1, l2, zeta, tri_hint));
+    tri_hint = tri;
+    Scalar l[3] = {l1, l2, Scalar(1) - l1 - l2};
+    Scalar Bx, By, Bz;
+    interpolate_B_recovery(mp, Bv.data(), tri, layer, l, zeta, Bx, By, Bz);
+
+    auto res = gca_push(Scalar(x), Scalar(y), Scalar(z), u_par, mu,
+                        Scalar(0), Scalar(0), Scalar(0), Bx, By, Bz, q, m,
+                        dt, mp, E_e.data(), B_f.data(), tri_hint,
+                        /*include_curvature=*/true, Bv.data(), tri, layer,
+                        l, zeta);
+    REQUIRE(res.valid);
+    gamma_worst =
+        std::max(gamma_worst, std::abs(double(res.gamma) / Gamma0 - 1.0));
+    if (double(res.u_par) * u_par0 < 0) {
+      reversed = true;
+      B_at_reversal =
+          std::sqrt(double(Bx) * Bx + double(By) * By + double(Bz) * Bz);
+    }
+    x = res.new_x; y = res.new_y; z = res.new_z;
+    u_par = res.u_par;
+    REQUIRE(res.mu == mu);  // mu is a state variable, bitwise unchanged
+  }
+
+  // The pre-fix kernel never decelerates u_par: no reversal.
+  REQUIRE(reversed);
+  // Mirror point where Gamma conservation says it must be (first-order
+  // gradient on an L=2 mesh: allow 15%).
+  REQUIRE(std::abs(B_at_reversal / B_turn - 1.0) < 0.15);
+  // E = 0: Gamma is conserved along the bounce.
+  REQUIRE(gamma_worst < 5e-3);
+
+  // mu = 0 control: without perpendicular energy there is no mirror
+  // force; u_par must stay exactly constant (E = 0).
+  {
+    int tri, layer;
+    Scalar l1, l2, zeta;
+    REQUIRE(cartesian_to_local_impl(mp, Scalar(r0), Scalar(0), Scalar(0),
+                                    tri, layer, l1, l2, zeta, -1));
+    Scalar l[3] = {l1, l2, Scalar(1) - l1 - l2};
+    auto res = gca_push(Scalar(r0), Scalar(0), Scalar(0), Scalar(u_par0),
+                        Scalar(0), Scalar(0), Scalar(0), Scalar(0), B0x,
+                        B0y, B0z, q, m, dt, mp, E_e.data(), B_f.data(),
+                        tri, /*include_curvature=*/true, Bv.data(), tri,
+                        layer, l, zeta);
+    REQUIRE(res.valid);
+    REQUIRE(res.u_par == Scalar(u_par0));  // bitwise: no force at mu = 0
+  }
+}

@@ -325,6 +325,12 @@ void prismatic_mesh::persist_sphere_geometry(const sphere_mesh& sm) {
     double nx = e1y * e2z - e1z * e2y;
     double ny = e1z * e2x - e1x * e2z;
     double nz = e1x * e2y - e1y * e2x;
+    if (dual_centroid) {
+      // Keep VERBATIM in sync with compute_geometric_dual step 1.
+      nx = sm.vx[a] + sm.vx[b] + sm.vx[c];
+      ny = sm.vy[a] + sm.vy[b] + sm.vy[c];
+      nz = sm.vz[a] + sm.vz[b] + sm.vz[c];
+    }
     double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
     double ux = 0.0, uy = 0.0, uz = 0.0;
     if (nlen > 0) {
@@ -851,6 +857,13 @@ void prismatic_mesh::compute_geometric_dual(const sphere_mesh& sm) {
     double nx = e1y * e2z - e1z * e2y;
     double ny = e1z * e2x - e1x * e2z;
     double nz = e1x * e2y - e1y * e2x;
+    if (dual_centroid) {
+      // Diagnostic centroidal dual (mesh_dual_centroid): use the spherical
+      // centroid direction instead — loses edge ⟂ dual-face.
+      nx = sm.vx[a] + sm.vx[b] + sm.vx[c];
+      ny = sm.vy[a] + sm.vy[b] + sm.vy[c];
+      nz = sm.vz[a] + sm.vz[b] + sm.vz[c];
+    }
     double nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
     double ux = 0.0, uy = 0.0, uz = 0.0;
     if (nlen > 0) {

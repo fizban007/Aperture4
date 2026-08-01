@@ -1,0 +1,19 @@
+# Circumcenter-vs-centroid dual A/B (paper Sec 6.3): static aligned
+# dipole, PEC walls, 10 light-crossings of the unit-thickness shell.
+dt = 0.005
+max_steps = 2000
+subdivision_level = 5
+N_r = 32
+r_min = 1.0
+r_max = 2.0
+Bp = 1.0
+Omega = 0.0
+obliquity = 0.0
+mesh_dual_centroid = false
+damping_length = 0
+damping_coef = 0.0
+fld_output_interval = 100
+output_dir = "Data_dualtest_L5_circ"
+sph_N_theta = 16
+sph_N_phi = 32
+use_pec_bc = true

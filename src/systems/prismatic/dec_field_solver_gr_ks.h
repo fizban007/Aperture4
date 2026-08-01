@@ -67,7 +67,16 @@ class dec_field_solver_gr_ks : public system_t {
   // Both integrations use 10-point Gauss quadrature along the primal
   // edge in Cartesian space, so curved-edge effects on the icosphere
   // are handled consistently with the Hodge construction.
-  void set_initial_kerr_wald(Scalar a_field, Scalar Bp = 1.0);
+  // set_background = false leaves m_D_bg / m_B_bg (and the precomputed
+  // background RHS) untouched, so the IC and the subtracted background can
+  // differ.  The relaxation test needs exactly that: IC = Wald(0) but
+  // background = Wald(bh_spin), i.e. call once with the on-shell spin to
+  // establish the background, then again with the off-shell spin for the
+  // IC.  Subtracting an OFF-shell background would be meaningless — its
+  // continuum time derivative is not zero, so its discrete RHS is not pure
+  // truncation residual.
+  void set_initial_kerr_wald(Scalar a_field, Scalar Bp = 1.0,
+                             bool set_background = true);
 
   // Public for GPU lambda access
   void update_explicit(double dt);
@@ -154,6 +163,33 @@ class dec_field_solver_gr_ks : public system_t {
   // back to damping toward zero (flat-space convention).
   buffer<Scalar> m_D_bg, m_B_bg;
   bool m_has_background = false;
+
+  // Static background subtraction (config "use_static_background",
+  // default false = legacy behavior).  For VACUUM Maxwell the RHS is
+  // linear, so subtracting the background's own discrete RHS from every
+  // update is algebraically identical to evolving the perturbation
+  // δ = (D, B) − (D_bg, B_bg) while treating the background as exactly
+  // stationary.  That makes δ = 0 an exact fixed point of the
+  // discretization, eliminating the background's O(h) truncation
+  // residual — which is otherwise what destroys near-horizon
+  // observables built from cancelling contributions (e.g. Wald flux
+  // expulsion, where the expelled flux is ~0.2% of the far-field flux
+  // while the Ampère residual near the horizon is percent-level).
+  //
+  // Legitimate here in a way it is not in flat space: Kerr-Wald is an
+  // exact stationary vacuum Maxwell solution on Kerr, so nothing
+  // physical is deleted by holding it fixed.  Requires a background
+  // (set_initial_kerr_wald) and is only meaningful when that background
+  // is on-shell, i.e. field_spin == bh_spin.  With a current J present
+  // the subtraction still removes the vacuum background's residual;
+  // the plasma-induced deviation carries the usual O(h).
+  bool m_use_static_background = false;
+  buffer<Scalar> m_dD_bg, m_dB_bg;
+  bool m_bg_rhs_ready = false;
+
+  // Precompute the background's discrete RHS into m_dD_bg / m_dB_bg.
+  // Called from set_initial_kerr_wald once the background exists.
+  void compute_background_rhs();
 
   // Background-metric spin (Kerr-Schild).  Read from the "bh_spin" config
   // key in init(); must match the spin passed to compute_metric() on the

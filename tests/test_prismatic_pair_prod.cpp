@@ -235,3 +235,62 @@ TEST_CASE("Pair production: buffer overflow is clamped and safe",
   REQUIRE(h.cell[4] != empty_cell);
   REQUIRE(h.cell[5] != empty_cell);
 }
+
+// ===========================================================================
+// REGRESSION (2026-08-01): a rejection test that runs AFTER the slot
+// reservation leaves an unwritten hole which add_num() still counts, so the
+// buffer gains a "live" particle holding a STALE cell.  In production that
+// particle reached migrate(), was routed on garbage, and aborted a 320-rank
+// job with "arrival misrouted" (diagnosed from a core dump, because the
+// rank-0-only logger swallowed the message).
+//
+// The trigger is a lepton above threshold whose momentum is degenerate, so
+// the pair has no direction to be beamed along.  Every rejection must now
+// happen before the reservation; this test pins that by poisoning the
+// slots past the live range and requiring that nothing claims them.
+// ===========================================================================
+TEST_CASE("Pair production: rejected parents never reserve a slot",
+          "[pairprod]") {
+  pp_fixture fx(16);
+  pair_prod_params par;
+  par.gamma_thr = 50;
+  par.gamma_s = 4;
+
+  const Scalar g = 100;
+  const Scalar p = std::sqrt(g * g - 1);
+  // (a) degenerate: above threshold but zero momentum -> must be rejected
+  fx.seed(0, 0, 0, g, PtcType::electron);
+  // (b) healthy parent -> must produce, and must land in slot 0/1
+  size_t ok = fx.seed(p, 0, 0, g, PtcType::electron);
+
+  // Poison every slot past the live range with a cell that no rank could
+  // own: if a rejected parent reserves a slot, add_num() exposes it and
+  // the poison survives as a "live" particle.
+  auto h = fx.ptc.get_host_ptrs();
+  const size_t n_live = fx.ptc.number();
+  for (size_t i = n_live; i < fx.ptc.size(); i++) {
+    h.cell[i] = 0xDEADBEEFu;
+    h.E[i] = -1.0f;
+  }
+
+  const int produced = fx.run(par);
+
+  // Exactly one pair, from the healthy parent only.
+  REQUIRE(produced == 2);
+  REQUIRE(fx.overflow == 1);            // the degenerate one was counted
+  REQUIRE(fx.ptc.number() == n_live + 2);
+
+  // Every particle now counted as live must carry a real cell.  Before
+  // the fix the degenerate parent reserved slots 0/1, the healthy parent
+  // wrote 2/3, and add_num(4) exposed the poisoned 0/1.
+  for (size_t i = 0; i < fx.ptc.number(); i++) {
+    INFO("slot " << i << " cell=" << h.cell[i]);
+    REQUIRE(h.cell[i] != 0xDEADBEEFu);
+    REQUIRE(h.E[i] > 0.0f);
+  }
+  // The degenerate parent is untouched (not silently drained of energy).
+  REQUIRE(h.E[0] == Catch::Approx(100.0));
+  REQUIRE(h.p1[0] == Scalar(0));
+  // The healthy parent produced normally.
+  REQUIRE(h.E[ok] == Catch::Approx(92.0));
+}

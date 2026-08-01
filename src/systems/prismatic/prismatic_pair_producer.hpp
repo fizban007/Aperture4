@@ -68,6 +68,54 @@ HOST_DEVICE inline void pair_produce_single(
     if (r > par.r_max) return;
   }
 
+  // ---------------------------------------------------------------------
+  // INVARIANT: every rejection test must run BEFORE the slot reservation.
+  // A thread that reserves a slot and then bails leaves an unwritten hole
+  // that add_num() still counts, so the buffer gains a "live" particle
+  // holding a STALE cell — which migrate() then routes on garbage and the
+  // receiver rejects as a misrouted arrival (an abort 40 nodes wide).
+  // The capacity check below is the ONLY post-reservation bail, and it is
+  // safe because slots are handed out in increasing order: the threads
+  // that skip are exactly the highest-slot ones, and the caller counts
+  // only min(reserved, capacity & ~1).
+  // ---------------------------------------------------------------------
+  const bool gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
+  const Scalar gamma_new = gamma - Scalar(2) * par.gamma_s;
+  const Scalar us = math::sqrt(par.gamma_s * par.gamma_s - Scalar(1));
+
+  Scalar ce1, ce2, ce3;      // child momentum slots
+  Scalar pp1, pp2, pp3;      // parent momentum after the deduction
+  if (gca) {
+    // (u_par, mu, u_perp) representation; locked-limit deduction.
+    const Scalar sign = ptrs.p1[n] >= Scalar(0) ? Scalar(1) : Scalar(-1);
+    const Scalar up2 = gamma_new * gamma_new - Scalar(1);
+    pp1 = sign * math::sqrt(up2 > Scalar(0) ? up2 : Scalar(0));
+    pp2 = ptrs.p2[n];  // mu untouched
+    pp3 = ptrs.p3[n];
+    ce1 = sign * us;
+    ce2 = Scalar(0);  // mu = 0 (synchrotron-locked birth, as inj_gca)
+    ce3 = Scalar(0);
+  } else {
+    const Scalar p = math::sqrt(ptrs.p1[n] * ptrs.p1[n] +
+                                ptrs.p2[n] * ptrs.p2[n] +
+                                ptrs.p3[n] * ptrs.p3[n]);
+    // Degenerate: gamma above threshold but no momentum direction to
+    // beam the pair along.  Reject BEFORE reserving (see invariant).
+    if (!(p > Scalar(1e-20))) {  // also rejects NaN
+      atomic_add(overflow, 1);
+      return;
+    }
+    const Scalar d1 = ptrs.p1[n] / p, d2 = ptrs.p2[n] / p,
+                 d3 = ptrs.p3[n] / p;
+    const Scalar pn = math::sqrt(gamma_new * gamma_new - Scalar(1));
+    pp1 = d1 * pn;
+    pp2 = d2 * pn;
+    pp3 = d3 * pn;
+    ce1 = d1 * us;
+    ce2 = d2 * us;
+    ce3 = d3 * us;
+  }
+
   const int slot = atomic_add(cursor, 2);
   if (slot + 1 >= capacity) {
     atomic_add(overflow, 1);
@@ -76,39 +124,11 @@ HOST_DEVICE inline void pair_produce_single(
   const size_t ie = num + slot;      // electron child
   const size_t ip = num + slot + 1;  // positron child
 
-  const bool gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
-  const Scalar gamma_new = gamma - Scalar(2) * par.gamma_s;
-  const Scalar us = math::sqrt(par.gamma_s * par.gamma_s - Scalar(1));
-
-  Scalar ce1, ce2, ce3;  // child momentum slots
-  if (gca) {
-    // (u_par, mu, u_perp) representation; locked-limit deduction.
-    const Scalar sign = ptrs.p1[n] >= Scalar(0) ? Scalar(1) : Scalar(-1);
-    Scalar up2 = gamma_new * gamma_new - Scalar(1);
-    ptrs.p1[n] = sign * math::sqrt(up2 > Scalar(0) ? up2 : Scalar(0));
-    ptrs.E[n] = gamma_new;
-    ce1 = sign * us;
-    ce2 = Scalar(0);  // mu = 0 (synchrotron-locked birth, as inj_gca)
-    ce3 = Scalar(0);
-  } else {
-    const Scalar p = math::sqrt(ptrs.p1[n] * ptrs.p1[n] +
-                                ptrs.p2[n] * ptrs.p2[n] +
-                                ptrs.p3[n] * ptrs.p3[n]);
-    if (p < Scalar(1e-20)) {  // pathological zero-momentum "fast" particle
-      atomic_add(overflow, 1);
-      return;
-    }
-    const Scalar d1 = ptrs.p1[n] / p, d2 = ptrs.p2[n] / p,
-                 d3 = ptrs.p3[n] / p;
-    const Scalar pn = math::sqrt(gamma_new * gamma_new - Scalar(1));
-    ptrs.p1[n] = d1 * pn;
-    ptrs.p2[n] = d2 * pn;
-    ptrs.p3[n] = d3 * pn;
-    ptrs.E[n] = gamma_new;
-    ce1 = d1 * us;
-    ce2 = d2 * us;
-    ce3 = d3 * us;
-  }
+  // Commit the parent only now that the children's slots are secured.
+  ptrs.p1[n] = pp1;
+  ptrs.p2[n] = pp2;
+  ptrs.p3[n] = pp3;
+  ptrs.E[n] = gamma_new;
 
   const uint32_t base_flag =
       (gca ? flag_or(PtcFlag::secondary, PtcFlagEx::gca_state)

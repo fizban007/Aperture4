@@ -25,6 +25,7 @@
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_pair_producer.hpp"
 #include <cmath>
+#include <vector>
 
 using namespace Aperture;
 
@@ -33,7 +34,8 @@ namespace {
 struct pp_fixture {
   prismatic_mesh mesh;
   prismatic_particles_t ptc;
-  int cursor = 0, overflow = 0;
+  int cursor = 0, overflow = 0, capped = 0;
+  std::vector<Scalar> rho_abs;
   uint64_t id_counter = 0;
 
   pp_fixture(int cap = 64) : ptc(cap, MemType::host_only) {
@@ -67,7 +69,8 @@ struct pp_fixture {
     overflow = 0;
     for (size_t n = 0; n < num; n++) {
       pair_produce_single(mp, mesh.m_N_tri, h, n, num, capacity, &cursor,
-                          &overflow, &id_counter, uint64_t(7) << 32, par);
+                          &overflow, &capped, &id_counter, uint64_t(7) << 32,
+                          par, rho_abs.empty() ? nullptr : rho_abs.data());
     }
     const int produced = std::min(cursor, capacity & ~1);
     ptc.set_num(num + produced);
@@ -293,4 +296,62 @@ TEST_CASE("Pair production: rejected parents never reserve a slot",
   REQUIRE(h.p1[0] == Scalar(0));
   // The healthy parent produced normally.
   REQUIRE(h.E[ok] == Catch::Approx(92.0));
+}
+
+// ===========================================================================
+// Multiplicity cap (PS18-style).  Threshold production is self-limiting per
+// PARTICLE but not per REGION: where E_par stays unscreened, each generation
+// re-accelerates past the threshold and the population doubles every few
+// steps.  On 2026-08-01 that filled one rank's entire 4e8 buffer while a
+// neighbouring rank sat at 6e5.  The cap must stop production in cells that
+// already hold more than max_mult * n_GJ(r).
+// ===========================================================================
+TEST_CASE("Pair production: multiplicity cap halts a loaded cell",
+          "[pairprod]") {
+  pp_fixture fx;
+  auto mp = fx.mesh.host_ptrs();
+  pair_prod_params par;
+  par.gamma_thr = 50;
+  par.gamma_s = 4;
+  par.max_mult = 10;
+  par.n_ref = 1000;  // n_GJ(r=1); profile r^-3
+
+  const Scalar g = 100;
+  const Scalar p = std::sqrt(g * g - 1);
+  const int layer = 2, tri = 7;
+  size_t n0 = fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+
+  // rho_abs cochain: start empty -> cap must NOT bite.
+  fx.rho_abs.assign(fx.mesh.m_N_verts, Scalar(0));
+  REQUIRE(fx.run(par) == 2);
+  REQUIRE(fx.capped == 0);
+
+  // Now load the parent's cell above the cap.  deposit is |q|w per vertex
+  // and the kernel divides by vert_dual_vol, so load each of the 6 prism
+  // vertices to (11 * n_GJ) * dual_vol -> density 11 n_GJ > 10 n_GJ.
+  const Scalar r = Scalar(0.5) * (mp.radii[layer] + mp.radii[layer + 1]);
+  const Scalar n_gj = par.n_ref / (r * r * r);
+  for (int vi = 0; vi < 3; vi++) {
+    const int sv = mp.tri_verts[tri * 3 + vi];
+    for (int kk : {layer, layer + 1}) {
+      const int v = mp.vertex_idx(kk, sv);
+      fx.rho_abs[v] = Scalar(11.0) * n_gj * mp.vert_dual_vol[v];
+    }
+  }
+  // Reset to a single fresh above-threshold parent in the same cell.
+  fx.ptc.set_num(0);
+  fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+  const int produced = fx.run(par);
+
+  INFO("capped = " << fx.capped << ", produced = " << produced);
+  REQUIRE(produced == 0);        // cap bit
+  REQUIRE(fx.capped == 1);
+  auto h = fx.ptc.get_host_ptrs();
+  REQUIRE(h.E[0] == Catch::Approx(100.0));  // parent untouched by a capped
+                                            // rejection (no energy drained)
+  // And max_mult <= 0 disables the cap entirely (legacy behaviour).
+  par.max_mult = 0;
+  fx.ptc.set_num(0);
+  fx.seed(p, 0, 0, g, PtcType::electron, 0, layer, tri);
+  REQUIRE(fx.run(par) == 2);
 }

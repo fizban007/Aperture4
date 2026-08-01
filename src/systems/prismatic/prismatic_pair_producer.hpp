@@ -38,6 +38,22 @@ struct pair_prod_params {
   Scalar gamma_thr = 0;    // trigger Lorentz factor
   Scalar gamma_s = 5;      // child Lorentz factor
   Scalar r_max = 0;        // radial gate; <= 0 = everywhere
+  // Multiplicity cap (PS18: "a limiter on the number of produced pairs
+  // ... so that the multiplicity in every cell where pairs are produced
+  // does not exceed 10").  Production stops in a cell whose |charge|
+  // density already exceeds max_mult * n_ref / r^3, with n_ref the
+  // Goldreich-Julian scale at the stellar surface.  <= 0 disables.
+  //
+  // WHY THIS IS NOT OPTIONAL: threshold production is self-limiting per
+  // PARTICLE (each pair costs the parent 2*gamma_s) but NOT per REGION.
+  // Where E_par stays unscreened, each generation re-accelerates past
+  // the threshold and the population doubles every few steps.  On
+  // 2026-08-01 this filled one rank's entire 4e8 particle buffer in
+  // ~1990 steps while a neighbouring rank sat at 6e5 -- a 650x
+  // imbalance, killing the job.  The cap is what makes the cascade
+  // terminate on the plasma it has produced.
+  Scalar max_mult = 0;
+  Scalar n_ref = 0;        // n_GJ at r = 1 (= 4 Omega Bp in code units)
 };
 
 // Produce a pair from particle n if it qualifies.  `cursor` counts
@@ -49,8 +65,9 @@ struct pair_prod_params {
 template <typename MP, typename IdPtr>
 HOST_DEVICE inline void pair_produce_single(
     const MP& mp, int N_tri, prism_ptc_ptrs& ptrs, size_t n, size_t num,
-    int capacity, int* cursor, int* overflow, IdPtr ptc_id,
-    uint64_t track_rank, const pair_prod_params& par) {
+    int capacity, int* cursor, int* overflow, int* capped, IdPtr ptc_id,
+    uint64_t track_rank, const pair_prod_params& par,
+    const Scalar* rho_abs) {
   if (ptrs.cell[n] == empty_cell) return;
   const int sp = get_ptc_type(ptrs.flag[n]);
   if (sp != (int)PtcType::electron && sp != (int)PtcType::positron) return;
@@ -58,14 +75,38 @@ HOST_DEVICE inline void pair_produce_single(
   const Scalar gamma = ptrs.E[n];
   if (gamma < par.gamma_thr) return;
 
-  if (par.r_max > Scalar(0)) {
-    int tri_idx, layer_idx;
-    prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
-    // Layer midpoint radius is a sufficient gate (the gate is a coarse
-    // region switch, not physics).
-    const Scalar r = Scalar(0.5) * (mp.radii[layer_idx] +
-                                    mp.radii[layer_idx + 1]);
-    if (r > par.r_max) return;
+  int tri_idx, layer_idx;
+  prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
+  // Layer midpoint radius (the gates below are coarse region switches,
+  // not physics).
+  const Scalar r = Scalar(0.5) * (mp.radii[layer_idx] +
+                                  mp.radii[layer_idx + 1]);
+  if (par.r_max > Scalar(0) && r > par.r_max) return;
+
+  // Multiplicity cap: stop where the cell already holds more than
+  // max_mult * n_GJ(r).  rho_abs is the PREVIOUS step's deposit (this
+  // system runs before the updater) -- one step stale, which is
+  // irrelevant against a cap that only has to act on a timescale of
+  // several doublings.  Hat weights are all 1/6 at the prism centre,
+  // matching the injector's own multiplicity read.
+  if (par.max_mult > Scalar(0) && rho_abs != nullptr) {
+    Scalar ra = 0;
+    for (int vi = 0; vi < 3; vi++) {
+      const int sv = mp.tri_verts[tri_idx * 3 + vi];
+      const int vb = mp.vertex_idx(layer_idx, sv);
+      const int vt = mp.vertex_idx(layer_idx + 1, sv);
+      ra += Scalar(1.0 / 6) *
+            (mp.vert_dual_vol[vb] > 0 ? rho_abs[vb] / mp.vert_dual_vol[vb]
+                                      : Scalar(0));
+      ra += Scalar(1.0 / 6) *
+            (mp.vert_dual_vol[vt] > 0 ? rho_abs[vt] / mp.vert_dual_vol[vt]
+                                      : Scalar(0));
+    }
+    const Scalar n_gj = par.n_ref / (r * r * r);
+    if (ra > par.max_mult * n_gj) {
+      atomic_add(capped, 1);
+      return;
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -185,6 +226,36 @@ class prismatic_pair_producer : public system_t {
     m_par.gamma_s = Scalar(gs);
     m_par.r_max = Scalar(rmax);
 
+    // Multiplicity cap.  Reference density is the GJ scale at the pole,
+    // n_GJ(r) = 2 Omega B_pole / r^3 with B_pole = 2 Bp (dipole_B_impl
+    // takes the moment, so the polar field is twice the config's Bp);
+    // rationalized units, rho_GJ = 2 Omega . B, no 4pi.
+    double max_mult = 0, Omega = 0, Bp = 0;
+    sim_env().params().get_value("pair_max_multiplicity", max_mult);
+    sim_env().params().get_value("Omega", Omega);
+    sim_env().params().get_value("Bp", Bp);
+    m_par.max_mult = Scalar(max_mult);
+    m_par.n_ref = Scalar(4.0 * Omega * Bp);
+    if (max_mult <= 0) {
+      Logger::print_err(
+          "pair_max_multiplicity is unset (<= 0): threshold pair "
+          "production is UNCAPPED.  It is self-limiting per particle but "
+          "not per region — an unscreened gap doubles its population "
+          "every few steps and will fill the particle buffer (this "
+          "happened on 2026-08-01).  Set pair_max_multiplicity (PS18 use "
+          "10) unless you specifically want the uncapped behaviour.");
+    }
+    nonown_ptr<prismatic_vertex_field> rho_abs;
+    sim_env().get_data_optional("rho_abs", rho_abs);
+    if (rho_abs != nullptr) m_rho_abs = &(*rho_abs);
+    if (max_mult > 0 && m_rho_abs == nullptr) {
+      Logger::print_err(
+          "pair_max_multiplicity is set but 'rho_abs' is unavailable "
+          "(deposit_diagnostics off?) — the cap CANNOT act.  Enable "
+          "deposit_diagnostics.");
+      std::abort();
+    }
+
     auto upd = sim_env().get_system("prismatic_ptc_updater");
     if (upd == nullptr) {
       Logger::print_err(
@@ -198,15 +269,18 @@ class prismatic_pair_producer : public system_t {
     m_ptc = &(*ptc);
 
     m_counters.set_memtype(ExecPolicy::data_mem_type());
-    m_counters.resize(2);  // [0] = slot cursor, [1] = overflow count
+    m_counters.resize(3);  // [0] cursor, [1] overflow, [2] capped
 
     // Same tracked-id convention as the injector: rank in the high bits.
     m_track_rank = static_cast<uint64_t>(sim_env().get_rank()) << 32;
 
     Logger::print_info(
         "Pair production ON (stage 1, instant): gamma_thr = {}, "
-        "gamma_secondary = {}, r_max = {}",
-        thr, gs, rmax > 0 ? std::to_string(rmax) : std::string("(none)"));
+        "gamma_secondary = {}, r_max = {}, max_multiplicity = {} "
+        "(n_GJ(1) = {:.4g}, profile r^-3)",
+        thr, gs, rmax > 0 ? std::to_string(rmax) : std::string("(none)"),
+        max_mult > 0 ? std::to_string(max_mult) : std::string("UNCAPPED"),
+        4.0 * Omega * Bp);
   }
 
   void update(double dt, uint32_t step) override {
@@ -219,13 +293,19 @@ class prismatic_pair_producer : public system_t {
     const uint64_t track_rank = m_track_rank;
 
     m_counters.assign(0);
+    const Scalar* rho_abs_p =
+        m_rho_abs != nullptr
+            ? (m_rho_abs->data().dev_ptr() != nullptr
+                   ? m_rho_abs->data().dev_ptr()
+                   : m_rho_abs->data().host_ptr())
+            : nullptr;
     ExecPolicy::launch(
-        [num, N_tri, capacity, par, lmp, track_rank]
+        [num, N_tri, capacity, par, lmp, track_rank, rho_abs_p]
         LAMBDA(auto ptc, auto counters, auto ptc_id) {
           ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
             pair_produce_single(lmp, N_tri, ptc, size_t(n), num, capacity,
-                                &counters[0], &counters[1], ptc_id,
-                                track_rank, par);
+                                &counters[0], &counters[1], &counters[2],
+                                ptc_id, track_rank, par, rho_abs_p);
           });
         },
         *m_ptc, m_counters, m_ptc->ptc_id());
@@ -238,10 +318,27 @@ class prismatic_pair_producer : public system_t {
     m_ptc->add_num(produced);
     m_total_pairs += produced / 2;
     m_total_skipped += m_counters[1];
+    m_total_capped += m_counters[2];
     if (step % 100 == 0 && (m_total_pairs > 0 || m_total_skipped > 0)) {
       Logger::print_info(
-          "pair_producer: {} pairs to date ({} skipped on full buffer)",
-          m_total_pairs, m_total_skipped);
+          "pair_producer: {} pairs to date ({} capped by multiplicity, "
+          "{} skipped on full buffer)",
+          m_total_pairs, m_total_capped, m_total_skipped);
+    }
+    // Rank-LOCAL runaway alarm.  The census above prints on rank 0 only,
+    // which is exactly how the 2026-08-01 blow-up hid: rank 0 sat at
+    // 6e5 particles while rank 266 filled its whole 4e8 buffer.  Report
+    // from ANY rank that crosses a fraction of its own buffer, and again
+    // on each further decade of occupancy.
+    const double frac = double(m_ptc->number()) / double(m_ptc->size());
+    if (frac > 0.5 && m_ptc->number() > m_last_alarm * 2) {
+      m_last_alarm = m_ptc->number();
+      Logger::print_err_all(
+          "pair_producer: particle buffer {:.1f}% full ({} of {}) at step "
+          "{} — local cascade may be running away; {} pairs made here, {} "
+          "capped by multiplicity",
+          100.0 * frac, m_ptc->number(), m_ptc->size(), step, m_total_pairs,
+          m_total_capped);
     }
   }
 
@@ -251,7 +348,9 @@ class prismatic_pair_producer : public system_t {
   prismatic_ptc_updater<ExecPolicy>* m_updater = nullptr;
   prismatic_particle_data* m_ptc = nullptr;
   uint64_t m_track_rank = 0;
-  uint64_t m_total_pairs = 0, m_total_skipped = 0;
+  uint64_t m_total_pairs = 0, m_total_skipped = 0, m_total_capped = 0;
+  size_t m_last_alarm = 1;
+  prismatic_vertex_field* m_rho_abs = nullptr;
   buffer<int> m_counters;
 };
 

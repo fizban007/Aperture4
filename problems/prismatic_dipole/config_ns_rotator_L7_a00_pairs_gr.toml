@@ -1,0 +1,258 @@
+# L7 a00 "pairs_gr" — ALIGNED rotator, threshold pairs + FRAME DRAGGING.
+#
+# Successor to ns_rotator_L7_a00_pairs, which reproduced the flat-space
+# PCTS15 result: surface multiplicity by colatitude was measured at
+#   0-10 deg 0.97 | 10-20 deg 1.58 | 20-30 deg 8.2 | 30-45 deg 9.5
+# i.e. the polar cap CENTRE ran at exactly 1 x n_GJ -- a perfectly
+# charge-separated flow that screens E_par with no pairs (Timokhin &
+# Arons sub-GJ regime), with pairs only outside ~20 deg.  That is the
+# flat-space dead cap, not a code failure.  Frame dragging is the
+# published cure: omega_LT reduces rho_GJ near the star while the
+# current stays set at the light cylinder, pushing j/(c rho_GJ) > 1 in a
+# finite region around the axis.
+#
+# CHANGES vs ns_rotator_L7_a00_pairs (5 knobs, deliberate):
+#  1. use_frame_dragging = true, gr_compactness = 0.5 (omega_LT/Omega =
+#     0.2, the PCTS15 value).  Should light up the cap centre.
+#  2. pair_gamma_thr 10 -> 6, pair_gamma_secondary 2 -> 1.5.  Lower
+#     trigger reaches the bulk (measured Boris-side bulk sits at
+#     gamma ~ 2); cheaper pairs (cost 3 instead of 4 per pair) give
+#     ~33% more multiplicity per unit voltage.  Init guard needs
+#     thr >= 2*gs + 2 = 5, so 6 now has headroom.
+#  3. use_sync_cooling = false.  Removes the only energy sink other than
+#     pair creation, so particles reach the threshold more readily.
+#     KNOWN TRADEOFF: this restores the GCA/Boris physics mismatch that
+#     the cooling work fixed, so the switch position regains a physical
+#     footprint.  Accepted for this experiment.
+#  4. Injection GRANULARITY: inj_weight 240 -> 120 with inj_interval
+#     halved (P/512 -> P/1024, 20 -> 10 L7 steps).  Time-averaged
+#     injected density is IDENTICAL; the number of macroparticles
+#     doubles and each carries half the weight.  Statistics only, no
+#     physics change.  The interval stays an exact step multiple.
+#  5. gca_switch_omegac stays at 20 and inj_gca stays TRUE -- see below.
+#
+# WHY THE SWITCH AND inj_gca ARE UNCHANGED (considered and rejected):
+# raising the switch was proposed to put more particles on Boris so a
+# magnetic bottle could keep the closed zone filled.  Two facts kill it
+# for now: (a) gca_push has NO MIRROR FORCE -- the parallel update is
+# u_par += (q/m) dt E_par and nothing else -- so GCA particles never
+# mirror regardless of mu; (b) with mu != 0 the GCA energy
+# Gamma = kappa sqrt(1 + u_par^2 + 2 mu B kappa) changes as B varies
+# along the orbit with nothing doing work on it, so GCA is only
+# self-consistent at mu = 0.  inj_gca = true (mu = 0 birth) is therefore
+# the only correct choice until a mirror force exists, and with mu = 0
+# there is nothing to trap, so a higher switch buys nothing.  Revisit
+# both together if the bottle is ever wanted.
+#
+# KNOWN REMAINING RISK: nothing here directly fills the closed zone.
+# The measured global deficit was 55x below the volumetric baseline
+# (multiplicity ~10 vs ~250-550).  The bet is that a GR-activated cap
+# ignites a cascade strong enough to raise multiplicity globally.  If
+# the cap lights up but the Y-point still does not form, the diagnosis
+# is clean -- cap fixed, supply still short -- and the fallback is to
+# restore volumetric injection (inj_r_max > 0) WITH the E.B gate, which
+# self-quenches where the cascade succeeds.
+#
+# Frame dragging validation status: unit-tested (v-edge exactness,
+# h-edge 2nd-order convergence, analytic-curl Stokes check, zero-drag
+# no-op) AND partition-invariance-tested (every owned edge of a 4x2
+# decomposition reproduces the single-rank weights to < 1e-5), so the
+# per-rank weight construction is safe at 320 ranks.  The Eeff halo
+# exchange itself is the generic exchange_edge path already used for E.
+#
+# Run mechanics: FROM SCRATCH, no --restart.  The flat-space partner ran
+# 7 P in 41 min at ~500k particles; expect this one to be slower if the
+# cascade ignites (that would be the good outcome).
+#
+# Original v2 production header follows.
+# ----------------------------------------------------------------------
+# L7 oblique production rerun (a60), v2 — corrected injection normalization.
+#
+# The first L7 campaign (config_ns_rotator_L7_a60.toml) carried the L6
+# injection knobs verbatim, but under the OLD injector convention
+# inj_weight was a raw macro charge and inj_interval a step count, so
+# the injected density rate scaled as 1/(V_cell*dt): L7 injected 16x
+# more plasma than the L6 run it was meant to resolution-match.  The
+# measured symptoms (diagnostics/ in the L7 run dir): rho_abs 5-7.5x
+# L6 at matched t/P, surface corotation 0.55 vs 0.78, Y-point pulled
+# inside the LC, L(R_LC) ~ 7.2 L_dip vs 4.5, and ~7x shot noise in
+# rho/rho_GJ.
+#
+# The injector now uses the base-code convention (see
+# prismatic_surface_injector.h): inj_weight is a charge density per
+# coordinate cell volume — w_macro = inj_weight * Omega_tri * dln r,
+# physical density/event = inj_weight / r^3 — and inj_interval is a
+# TIME.  Both are resolution-invariant: they are PHYSICS knobs now and
+# never rescale across levels.
+#
+#   inj_weight   = 240.0        = 6.87e-4 / (Omega_tri_L6 * dlnr_L6);
+#                                 per-event pair density 2*240/r^3 =
+#                                 0.96 rho_GJ(r)  (rho_GJ r^3 = 2 Omega Bp
+#                                 = 500) — identical to the L6 physics.
+#   inj_interval = 0.04908738521234052
+#                                 = 10 * dt_L6 = P/512 (= 20 L7 steps),
+#                                 the same physical cadence as L6.
+#   inj_weight_r_scale            REMOVED (the r^2 far-zone macro
+#                                 coarsening hack; the injector aborts if
+#                                 it is present).  Expect a somewhat
+#                                 larger far-zone (r > 5) census than the
+#                                 hacked L6 run — see max_ptc_num below.
+#
+# Everything else is carried from config_ns_rotator_L7_a60.toml
+# unchanged (FRONTIER_RUNBOOK.md §4 scaling table).  Fresh output/
+# checkpoint dirs: this is a from-scratch rerun, NOT a restart — the v1
+# state is overloaded and would not relax quickly.
+
+dt = 0.0024543692606170259
+max_steps = 71680
+subdivision_level = 7
+N_r = 408
+r_min = 1.0
+r_max = 45.0
+Bp = 1000.0
+Omega = 0.25
+obliquity = 0.0
+use_flat_metric = true
+use_deutsch_ic = false
+use_deutsch_bc = false
+use_static_background = true
+damping_length = 88
+damping_coef = 1.0
+damping_exponent = 3.0
+
+# --- decomposition (runbook §3) ---
+n_angular_ranks = 320
+ranks_per_node = 8
+halo_device_direct = true
+step_timer_interval = 500
+
+# --- particles ---
+# PER-RANK buffer (see the v1 config for the full sizing argument).
+# v2 note: the corrected weights reproduce L6's macros-per-cell at every
+# radius, ~59/cell -> ~8e9 total, but WITHOUT the r^2 far-zone
+# coarsening the r > 5 census grows a few-fold: budget ~1.6e10 total,
+# hot rank ~1.1e8 at the measured 2.2x imbalance — still under 30% of
+# this buffer.  Watch the injector's occupancy log line early on.
+max_ptc_num = 400000000
+q_e = 1.0
+m_e = 1.0
+ptc_absorb_radius = 13.0
+use_recovery_gather = true
+sort_interval = 20
+random_seed = 42
+
+# --- volumetric E.B-triggered injection ---
+# Resolution-invariant units (see header): density knob + time cadence.
+inj_shells = 2
+inj_pairs_per_cell = 8
+inj_interval = 0.02454369260617026
+inj_weight = 120.0
+inj_kT = 0.2
+inj_buffer_frac = 0.9
+inj_eb_threshold = 1e-3
+inj_r_max = 0.0
+inj_max_multiplicity = 10.0
+inj_gca = true
+
+# --- GCA hybrid (unchanged: physics) ---
+use_gca = true
+include_curvature = true
+gca_switch_omegac = 20.0
+gca_zero_mu_on_capture = false
+
+# --- synchrotron cooling (Boris branch only) ---
+# Raw Landau-Lifshitz coefficient, given directly rather than via
+# sync_gamma_rad.  t_cool(gamma, B) = 1 / (sync_cooling_coef * gamma * B^2),
+# a RATE coefficient in inverse time units -- identical meaning at every
+# dt and level.  2.56e-3 == the sync_gamma_rad = 5 anchoring at B_LC.
+# sync_cool_b_lc is retained only so the init log can report the
+# equivalent gamma_rad and t_cool; it does not enter the physics when
+# sync_cooling_coef is set explicitly.
+use_sync_cooling = false
+sync_cooling_coef = 2.56e-3
+sync_cool_b_lc = 15.625
+
+# --- output ---
+# Under MPI the in-code spherical output is skipped (runbook §4); the
+# exporter writes mesh-native step_XXXXXX.h5.  sph_N_* are kept only so a
+# single-rank rerun of this config behaves like the L6 one.
+fld_output_interval = 1280
+output_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a00_pairs_gr/output"
+sph_N_theta = 64
+sph_N_phi = 128
+
+# --- checkpoint/restart ---
+checkpoint_interval = 5120
+checkpoint_keep = 2
+checkpoint_dir = "/lustre/orion/ast229/proj-shared/alex/runs/ns_rotator_L7_a00_pairs_gr/checkpoints"
+restart_from = "auto"
+
+#
+# SUPPLY FIX (2026-08-01, applied while the job was still PENDING).
+# Measured multiplicity in the flat-space predecessor, correctly
+# normalized (rho_GJ = 2 Omega.B; rationalized units -- the Ampere
+# update carries no 4pi, and dipole_B_impl gives B_pole = 2*Bp):
+#     r = 1.0  kappa = 0.73    r = 2  0.63    r = 4  0.52   r = 10  0.91
+# i.e. BELOW n_GJ everywhere -- the plasma could not even supply the
+# corotation charge, which is why no Y-point formed.  For contrast the
+# working volumetric run (a00_cool) sits at kappa = 5-44, straddling the
+# kappa ~ 10 that Philippov & Spitkovsky 2014 report as sufficient for a
+# force-free solution with a Y-point ("Our solution has multiplicity
+# n/n_GJ ~ 10 near the pole").
+#
+# Raise supply ~16x via COUNT, not weight, so granularity is preserved:
+#   inj_pairs_per_cell  1 -> 8   (the per-cell count lambda returns
+#                                 2*pairs particles while the weight
+#                                 lambda is independent of pairs, so this
+#                                 scales density AND macroparticle count
+#                                 together -- raising inj_weight instead
+#                                 would coarsen the deposit)
+#   inj_shells          1 -> 2   (also deposits into a thicker surface
+#                                 layer rather than a single shell)
+# inj_weight stays 120 and inj_interval stays P/1024: the granularity
+# chosen earlier is untouched.
+#
+# WHY OVERSHOOT IS SAFE: injection is gated on |E.B| > inj_eb_threshold *
+# |B|^2, so it self-quenches wherever the plasma succeeds in screening
+# E_par.  At kappa < 1 the gate is wide open and the RATE binds; as kappa
+# approaches the screening value the gate closes and the rate stops
+# mattering.  Being generous here cannot overfill -- the feedback sets
+# the stopping point, not this number.
+#
+# Cost: injected macroparticles per event go 6.6e5 -> 1.05e7; expected
+# live count ~8e6 against max_ptc_num = 4e8 (~2% of buffer).
+
+# --- threshold pair production (PAIR_PRODUCTION_PLAN.md stage 1) ---
+# Instant e+/e- creation when a lepton reaches pair_gamma_thr: children
+# carry pair_gamma_secondary each along the parent direction with the
+# parent's weight; the parent loses 2*gamma_s, so sum(gamma*w) is
+# conserved exactly (the intermediate photon is instantaneous in this
+# stage -- stage 2 gives it a finite free path).  Children are flagged
+# PtcFlag::secondary, so the cascade can be mapped separately from
+# injected plasma in post-processing.
+use_pair_production = true
+pair_gamma_thr = 5.0
+pair_gamma_secondary = 1.5
+pair_prod_r_max = 10.0
+# Multiplicity cap (PS18: "a limiter ... so that the multiplicity in every
+# cell where pairs are produced does not exceed 10").  REQUIRED: threshold
+# production is self-limiting per PARTICLE (each pair costs the parent
+# 2*gamma_s) but NOT per REGION -- where E_par stays unscreened each
+# generation re-accelerates past the threshold and the population doubles
+# every few steps.  Uncapped on 2026-08-01 this filled ONE rank's entire
+# 4e8 buffer in ~1990 steps while a neighbouring rank sat at 6e5 (650x
+# imbalance), aborting the job.  Production stops in cells already holding
+# more than pair_max_multiplicity * n_GJ(r), n_GJ(r) = 4*Omega*Bp / r^3
+# = 1000/r^3 here (rationalized units, rho_GJ = 2 Omega.B, B_pole = 2Bp).
+pair_max_multiplicity = 10.0
+
+# --- frame dragging ("fake GR"): Lense-Thirring shift, Faraday-side ---
+# omega_LT(r) = (2/5) * gr_compactness * Omega * (R*/r)^3 about the spin
+# axis, plus the inner-BC corotation EMF driven at Omega - omega_LT(R*).
+# Together these make the Muslimov-Tsygan reduced-rho_GJ state the
+# equilibrium: rho_GJ is cut ~20% near the star while j stays set at the
+# light cylinder, so j/(c rho_GJ) exceeds 1 around the magnetic axis and
+# the cap discharge becomes unscreenable.  Compactness 0.5 = the
+# Philippov+2015b / PS18 value (r_s/R* = 0.5, omega_LT/Omega = 0.2).
+use_frame_dragging = true
+gr_compactness = 0.5

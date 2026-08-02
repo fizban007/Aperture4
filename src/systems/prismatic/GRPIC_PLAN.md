@@ -218,6 +218,38 @@ unconditionally unstable" verdict: its recorded diagnosis was
 "single-anchor row ASYMMETRY -> strongly non-normal", i.e. a fixable cause,
 not a property of wide stencils.
 
+#### B1a — the diagnostics have null spaces (why none of this showed up)
+
+This is the important methodological finding, and it invalidates the way
+some already-committed numbers read.
+
+- **The on-shell fixed-point residual is blind.** Scored on the same states,
+  the diagonal star and Galerkin M2 give C = 7.964e-2/4.059e-2/2.060e-2 and
+  7.917e-2/4.060e-2/2.063e-2 -- **identical to 3 digits**, order +0.98 both.
+  A correct and a 20%-wrong Hodge are indistinguishable to it.  Root cause:
+  the residual is a *curl*, so it annihilates curl-free error.  Rescaling
+  `H_aux` by 2 everywhere changes C by **exactly 0.0%**; a smooth `1+1/r`
+  (2x near the horizon) by 2.8%.
+- **Cap-circulation is also blind.**  Summing the residual over a polar cap
+  telescopes to `\oint H.dl` = enclosed current = 0 -- reference-free with
+  exact ground truth, but the rim integrand `H_phi` is identically zero for a
+  stationary axisymmetric state, so a multiplicative error times zero is
+  still zero.  Measured: clean +1.00 order at r=3 and r=8, i.e. no signal.
+- **Static background subtraction pins the endpoint.**  With
+  `use_static_background`, vacuum Maxwell being linear makes the evolution
+  exactly `rhs(dD, dB)`, so `delta = 0` is an exact fixed point REGARDLESS of
+  how wrong the operator is.  The relaxation's final state is therefore
+  pinned to the analytic background by construction, not by accuracy.
+
+**Two projections that DO work, and why.**  Both have integrands that are
+nonzero pointwise but integrate to a known value, so a systematic error
+breaks the cancellation instead of being annihilated:
+  1. `hodge1` -> Gauss flux through r=const (truth exactly 0).
+  2. `hodge2` -> near-horizon magnetic energy (positive-definite quadratic
+     form, so errors accumulate; truth from a 2-D quadrature).
+Use them as a PAIR.  Either alone misleads: the residual says "no
+difference", the energy says "20% wrong and not converging".
+
 #### B1b — REFERENCE IMPLEMENTATION: proper Whitney forms (validated)
 
 `python/hodge_lab_whitney.py` is the reference a C++ port should reproduce.
@@ -288,38 +320,6 @@ a ~20% floor.  Runtime 39 s at L5 in Python -- no port needed for the lab.
 **Inversion.**  The solver needs `M^-1` (state is `D~`, `E_aux` needs
 `D_primal`).  Jacobi-preconditioned `cond = 1.15`; PCG converges in 7
 iterations to 1e-10.  Cheap against the 5 Picard iterations already present.
-
-#### B1a — the diagnostics have null spaces (why none of this showed up)
-
-This is the important methodological finding, and it invalidates the way
-some already-committed numbers read.
-
-- **The on-shell fixed-point residual is blind.** Scored on the same states,
-  the diagonal star and Galerkin M2 give C = 7.964e-2/4.059e-2/2.060e-2 and
-  7.917e-2/4.060e-2/2.063e-2 -- **identical to 3 digits**, order +0.98 both.
-  A correct and a 20%-wrong Hodge are indistinguishable to it.  Root cause:
-  the residual is a *curl*, so it annihilates curl-free error.  Rescaling
-  `H_aux` by 2 everywhere changes C by **exactly 0.0%**; a smooth `1+1/r`
-  (2x near the horizon) by 2.8%.
-- **Cap-circulation is also blind.**  Summing the residual over a polar cap
-  telescopes to `\oint H.dl` = enclosed current = 0 -- reference-free with
-  exact ground truth, but the rim integrand `H_phi` is identically zero for a
-  stationary axisymmetric state, so a multiplicative error times zero is
-  still zero.  Measured: clean +1.00 order at r=3 and r=8, i.e. no signal.
-- **Static background subtraction pins the endpoint.**  With
-  `use_static_background`, vacuum Maxwell being linear makes the evolution
-  exactly `rhs(dD, dB)`, so `delta = 0` is an exact fixed point REGARDLESS of
-  how wrong the operator is.  The relaxation's final state is therefore
-  pinned to the analytic background by construction, not by accuracy.
-
-**Two projections that DO work, and why.**  Both have integrands that are
-nonzero pointwise but integrate to a known value, so a systematic error
-breaks the cancellation instead of being annihilated:
-  1. `hodge1` -> Gauss flux through r=const (truth exactly 0).
-  2. `hodge2` -> near-horizon magnetic energy (positive-definite quadratic
-     form, so errors accumulate; truth from a 2-D quadrature).
-Use them as a PAIR.  Either alone misleads: the residual says "no
-difference", the energy says "20% wrong and not converging".
 
 #### Corrections to commit f5f00a9f1
 

@@ -144,9 +144,9 @@ random_seed = 42
 # --- volumetric E.B-triggered injection ---
 # Resolution-invariant units (see header): density knob + time cadence.
 inj_shells = 2
-inj_pairs_per_cell = 8
+inj_pairs_per_cell = 1
 inj_interval = 0.02454369260617026
-inj_weight = 120.0
+inj_weight = 960.0
 inj_kT = 0.2
 inj_buffer_frac = 0.9
 inj_eb_threshold = 1e-3
@@ -222,6 +222,25 @@ restart_from = "auto"
 # Cost: injected macroparticles per event go 6.6e5 -> 1.05e7; expected
 # live count ~8e6 against max_ptc_num = 4e8 (~2% of buffer).
 
+#
+# WEIGHT/COUNT SWAP (2026-08-01, after the step-10939 buffer overflow).
+# With pair_max_multiplicity binding, the EQUILIBRIUM DENSITY is fixed at
+# 10 n_GJ — so the macroparticle count is set entirely by the macro
+# WEIGHT, not by the injection count.  The earlier granular choice
+# (pairs_per_cell 1->8 at weight 120) therefore bought 8x the buffer for
+# statistics we do not need: measured 137 ptc/cell on rank 0 and ~503 on
+# the hot ranks, against Philippov & Spitkovsky 2014's 15 near the pole.
+# Hot ranks reached 52% of a 4e8 buffer by step ~10933 and one overflowed
+# on migration arrivals at 10939.
+#
+# Swap back to weight at IDENTICAL injected density:
+#     inj_weight  120 -> 960   (x8)
+#     inj_pairs_per_cell 8 -> 1 (/8)
+#   density/event = 2*pairs*inj_weight/r^3 : 16*120 == 2*960, unchanged.
+# Children inherit the heavier weight, so the cascade fills to the same
+# kappa = 10 with 8x fewer macros: hot ranks ~26M (6.5% of buffer),
+# 17-63 ptc/cell — still at or above the PS14 sampling.
+
 # --- threshold pair production (PAIR_PRODUCTION_PLAN.md stage 1) ---
 # Instant e+/e- creation when a lepton reaches pair_gamma_thr: children
 # carry pair_gamma_secondary each along the parent direction with the
@@ -231,7 +250,7 @@ restart_from = "auto"
 # PtcFlag::secondary, so the cascade can be mapped separately from
 # injected plasma in post-processing.
 use_pair_production = true
-pair_gamma_thr = 5.0
+pair_gamma_thr = 6.0
 pair_gamma_secondary = 1.5
 pair_prod_r_max = 10.0
 # Multiplicity cap (PS18: "a limiter ... so that the multiplicity in every

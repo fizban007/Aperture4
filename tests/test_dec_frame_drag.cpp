@@ -309,3 +309,99 @@ TEST_CASE("Frame-drag EMF: zero drag is an exact no-op",
   }
   SUCCEED("bitwise identical");
 }
+
+// ===========================================================================
+// Partition invariance: the frame-drag weights and the resulting effective
+// circulation must be independent of how the mesh is decomposed.
+//
+// This is the check that matters before a distributed production run.  The
+// MPI exchange of Eeff itself is the generic exchange_edge path already
+// validated for E; what is NEW and untested is the per-rank WEIGHT
+// CONSTRUCTION on a partitioned mesh -- ghost-face indexing through the
+// d1t blocks, l2g mapping, and owned/ghost boundaries.  Those are all
+// exercised in-process here (no MPI needed): every rank of an A x K
+// decomposition must reproduce the single-rank answer on its owned edges.
+// ===========================================================================
+TEST_CASE("Frame-drag EMF: weights are partition-invariant",
+          "[prismatic][framedrag]") {
+  constexpr int L = 2, N_r = 8;
+  const Scalar omega0 = 0.25;
+  const int p = 3;
+
+  prismatic_mesh mesh;
+  mesh.build(L, N_r, 1.0, 2.0);
+  auto topo = icosphere_topology::build_from_mesh(mesh);
+
+  // ---- Reference: single-rank (identity layouts) ----
+  auto part_g = prismatic_partition::single_rank(L, N_r);
+  part_g.set_topology(&topo);
+  auto mp_g = prismatic_mesh_partition::build(part_g, topo);
+  core_t core_g;
+  core_g.build(mesh, mp_g);
+  core_g.build_frame_drag(omega0, Scalar(1.0), p);
+
+  // Global field arrays: smooth but arbitrary (exercises all stencil
+  // entries, unlike a uniform field which the scheme is exact on).
+  std::vector<Scalar> Eg(mesh.m_N_edges), Bg(mesh.m_N_faces), B0g(mesh.m_N_faces);
+  for (int e = 0; e < mesh.m_N_edges; e++)
+    Eg[e] = std::sin(Scalar(0.013) * e) + Scalar(0.21);
+  for (int f = 0; f < mesh.m_N_faces; f++) {
+    Bg[f] = std::cos(Scalar(0.007) * f) - Scalar(0.13);
+    B0g[f] = Scalar(0.4) * std::sin(Scalar(0.004) * f);
+  }
+
+  auto run_core = [&](core_t& c, buffer<Scalar>& W) {
+    const int ne = c.n_edges_local(), nf = c.n_faces_local();
+    buffer<Scalar> E, B, B0;
+    for (auto* b : {&E, &W}) { b->set_memtype(MemType::host_only); b->resize(ne); }
+    for (auto* b : {&B, &B0}) { b->set_memtype(MemType::host_only); b->resize(nf); }
+    c.edge_from_global(Eg.data(), E);
+    c.face_from_global(Bg.data(), B);
+    c.face_from_global(B0g.data(), B0);
+    c.frame_drag_eff_E(E, B, B0, W);
+  };
+
+  buffer<Scalar> Wg;
+  run_core(core_g, Wg);
+  auto lp_g = core_g.get_lp(exec_tags::host{});
+  const int es_g = core_g.e_split();
+
+  // ---- Every rank of a 4 x 2 decomposition must match on owned edges ----
+  const int A = 4, K = 2;
+  double max_diff = 0.0;
+  int n_checked = 0;
+  for (int rank = 0; rank < A * K; rank++) {
+    auto part_l = prismatic_partition::combined(L, N_r, A, K, rank);
+    part_l.set_topology(&topo);
+    auto mp_l = prismatic_mesh_partition::build(part_l, topo);
+    core_t core_l;
+    core_l.build(mesh, mp_l);
+    core_l.build_frame_drag(omega0, Scalar(1.0), p);
+
+    buffer<Scalar> Wl;
+    run_core(core_l, Wl);
+    auto lp_l = core_l.get_lp(exec_tags::host{});
+    const int es_l = core_l.e_split();
+
+    for (int e = 0; e < lp_l.n_owned_he; e++) {
+      const gidx_t g = lp_l.h_edge_l2g[e];
+      max_diff = std::max(max_diff,
+                          std::abs(double(Wl[e]) - double(Wg[int(g)])));
+      n_checked++;
+    }
+    for (int e = 0; e < lp_l.n_owned_ve; e++) {
+      const gidx_t g = lp_l.v_edge_l2g[e];
+      max_diff = std::max(
+          max_diff, std::abs(double(Wl[es_l + e]) - double(Wg[es_g + int(g)])));
+      n_checked++;
+    }
+  }
+  // Every owned edge of the decomposition must have been visited exactly
+  // once in aggregate (no gaps, no double coverage of owned rows).
+  INFO("edges checked: " << n_checked << ", max |W_local - W_global| = "
+                         << max_diff);
+  REQUIRE(n_checked == lp_g.n_owned_he + lp_g.n_owned_ve);
+  // Weight construction is per-edge deterministic; the only slack is
+  // float summation order in the Gram/quadrature, so this is tight.
+  REQUIRE(max_diff < 1e-5);
+}

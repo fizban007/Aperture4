@@ -8,7 +8,9 @@
 #include "utils/gauss_quadrature.h"
 #include "utils/hdf_wrapper.h"
 #include "utils/logger.h"
+#include "utils/util_functions.h"
 #include <cmath>
+#include <stdexcept>
 
 namespace Aperture {
 
@@ -80,10 +82,456 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   sim_env().params().get_value("use_static_background",
                                m_use_static_background);
 
+  // ---- Whitney Galerkin Hodge (B1b) ----
+  sim_env().params().get_value("use_whitney_hodge", m_use_whitney);
+  sim_env().params().get_value("whitney_cg_tol", m_cg_tol);
+  int64_t cg_iters = m_cg_max_iter;
+  sim_env().params().get_value("whitney_cg_max_iter", cg_iters);
+  m_cg_max_iter = int(cg_iters);
+  sim_env().params().get_value("whitney_use_chebyshev", m_use_cheby);
+  if (m_cg_tol <= 0.0) {
+    // Relative tolerance on ‖r‖ in the Jacobi norm.  1e-7 is chosen
+    // empirically: the L3 relaxation attractor at 1e-6 matches the
+    // 1e-10 baseline to 1.3e-5 relative over 11000 steps (identical
+    // ring, no drift), while warm-started solves drop from ~25-50
+    // iterations to ~2-5 — a ~13× step-cost reduction.  The default
+    // keeps a further 10× margin below the tested value.  The scheme's
+    // truncation error is orders of magnitude above either.
+    m_cg_tol = (sizeof(Scalar) == 8) ? 1.0e-7 : 2.0e-6;
+  }
+
+  if (m_use_whitney) {
+    // The assembly needs the same metric compute_metric() ran with; both
+    // read their parameters from the same config keys.
+    bool use_flat = false;
+    sim_env().params().get_value("use_flat_metric", use_flat);
+    if (use_flat) {
+      m_whitney.build(m_mesh, flat_spherical_metric{});
+    } else {
+      m_whitney.build(m_mesh, ks_spherical_metric{m_spin});
+    }
+    m_whitney_active = m_whitney.ready();
+    if (!m_whitney_active) {
+      Logger::err(
+          "dec_field_solver_gr_ks: Whitney Hodge build failed; refusing to "
+          "fall back silently to the O(1)-defective diagonal star.  Set "
+          "use_whitney_hodge = false explicitly if that is intended.");
+      throw std::runtime_error("whitney hodge build failed");
+    }
+
+    auto mem = ExecPolicy::data_mem_type();
+    auto alloc = [mem](buffer<Scalar>& b, size_t n) {
+      b.set_memtype(mem);
+      b.resize(n);
+      b.assign_host(0, n, Scalar(0));
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      if (mem == MemType::host_device) b.assign_dev(0, n, Scalar(0));
+#endif
+    };
+    size_t Ne = m_mesh.m_N_edges;
+    alloc(m_D_primal, Ne);
+    alloc(m_E_base, Ne);
+    alloc(m_wh_rhs, Ne);
+    alloc(m_cg_r, Ne);
+    alloc(m_cg_p, Ne);
+    alloc(m_cg_z, Ne);
+    alloc(m_cg_Ap, Ne);
+    m_dot_buf.set_memtype(mem);
+    m_dot_buf.resize(1);
+
+    if (m_use_cheby) whitney_estimate_spectrum();
+
+    bool dump_wh = false;
+    sim_env().params().get_value("dump_whitney_hodge", dump_wh);
+    if (dump_wh) {
+      std::string out_dir = "Data";
+      sim_env().params().get_value("output_dir", out_dir);
+      m_whitney.dump(out_dir + "/whitney.h5");
+    }
+  }
+
   m_time = 0.0;
   Logger::print_info(
-      "DEC GR field solver initialized: implicit={}, static_background={}",
-      m_use_implicit, m_use_static_background);
+      "DEC GR field solver initialized: implicit={}, static_background={}, "
+      "whitney_hodge={}",
+      m_use_implicit, m_use_static_background, m_whitney_active);
+}
+
+// =========================================================================
+// Whitney Galerkin Hodge primitives (B1b).  All matrices come from
+// prismatic_whitney_hodge; the kernels here are plain CSR SpMV, a
+// warp-aggregated dot product, and Jacobi-PCG on the SPD M1.
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_spmv_m1(
+    buffer<Scalar>& x, buffer<Scalar>& y, bool with_alpha) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [wp, with_alpha] LAMBDA(auto x_in, auto y_out) {
+        const Scalar* val = with_alpha ? wp.m1a_val : wp.m1_val;
+        ExecPolicy::loop(0, wp.N_edges, [&] LAMBDA(int i) {
+          Scalar acc = 0;
+          for (int j = wp.m1_row_ptr[i]; j < wp.m1_row_ptr[i + 1]; j++) {
+            acc += val[j] * x_in[wp.m1_col_idx[j]];
+          }
+          y_out[i] = acc;
+        });
+      },
+      x, y);
+}
+
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_spmv_m2a(
+    buffer<Scalar>& x, buffer<Scalar>& y) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [wp] LAMBDA(auto x_in, auto y_out) {
+        ExecPolicy::loop(0, wp.N_faces, [&] LAMBDA(int i) {
+          Scalar acc = 0;
+          for (int j = wp.m2_row_ptr[i]; j < wp.m2_row_ptr[i + 1]; j++) {
+            acc += wp.m2a_val[j] * x_in[wp.m2_col_idx[j]];
+          }
+          y_out[i] = acc;
+        });
+      },
+      x, y);
+}
+
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_spmv_c1_add(
+    buffer<Scalar>& x, buffer<Scalar>& y) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [wp] LAMBDA(auto x_in, auto y_out) {
+        ExecPolicy::loop(0, wp.N_edges, [&] LAMBDA(int i) {
+          Scalar acc = 0;
+          for (int j = wp.c1_row_ptr[i]; j < wp.c1_row_ptr[i + 1]; j++) {
+            acc += wp.c1_val[j] * x_in[wp.c1_col_idx[j]];
+          }
+          y_out[i] += acc;
+        });
+      },
+      x, y);
+}
+
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_spmv_c1t_add(
+    buffer<Scalar>& x, buffer<Scalar>& y) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [wp] LAMBDA(auto x_in, auto y_out) {
+        ExecPolicy::loop(0, wp.N_faces, [&] LAMBDA(int i) {
+          Scalar acc = 0;
+          for (int j = wp.c1t_row_ptr[i]; j < wp.c1t_row_ptr[i + 1]; j++) {
+            acc += wp.c1t_val[j] * x_in[wp.c1t_col_idx[j]];
+          }
+          y_out[i] += acc;
+        });
+      },
+      x, y);
+}
+
+// Double-precision dot product Σ a·b·(jacobi ? 1/diag(M1) : 1).  Each
+// thread accumulates its grid-stride slice locally, warp-reduces via
+// shuffles, and one lane per warp does the atomic — the single-address
+// contention is ~n/32 instead of n.  On the host policy the loop is
+// serial and the atomic_add degenerates to a plain add.
+template <typename ExecPolicy>
+double dec_field_solver_gr_ks<ExecPolicy>::whitney_dot(
+    buffer<Scalar>& a, buffer<Scalar>& b, bool jacobi) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  ExecPolicy::launch(
+      [] LAMBDA(auto out) {
+        ExecPolicy::loop(0, 1, [&] LAMBDA(int i) { out[i] = 0.0; });
+      },
+      m_dot_buf);
+  ExecPolicy::launch(
+      [wp, jacobi] LAMBDA(auto a_in, auto b_in, auto out) {
+        double local = 0.0;
+        ExecPolicy::loop(0, wp.N_edges, [&] LAMBDA(int i) {
+          double w = jacobi ? (double)wp.m1_jacobi[i] : 1.0;
+          local += (double)a_in[i] * (double)b_in[i] * w;
+        });
+#if defined(__CUDA_ARCH__)
+        for (int off = 16; off > 0; off >>= 1)
+          local += __shfl_down_sync(0xffffffff, local, off);
+        if ((threadIdx.x & 31) == 0) atomic_add(&out[0], local);
+#elif defined(__HIP_DEVICE_COMPILE__)
+        for (int off = warpSize / 2; off > 0; off >>= 1)
+          local += __shfl_down(local, off);
+        if ((threadIdx.x & (warpSize - 1)) == 0) atomic_add(&out[0], local);
+#else
+        out[0] += local;
+#endif
+      },
+      a, b, m_dot_buf);
+  ExecPolicy::sync();
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  m_dot_buf.copy_to_host(0, 1);
+#endif
+  return m_dot_buf[0];
+}
+
+// Jacobi-preconditioned CG on M1 x = b.  x carries the warm start (the
+// Picard corrector re-solves with nearly identical right-hand sides, so
+// warm-started solves typically converge in O(1) iterations).
+template <typename ExecPolicy>
+int dec_field_solver_gr_ks<ExecPolicy>::whitney_pcg_m1(
+    buffer<Scalar>& b, buffer<Scalar>& x,
+    std::vector<std::pair<double, double>>* lanczos) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  const int Ne = wp.N_edges;
+
+  double bnorm = whitney_dot(b, b, true);
+  if (bnorm <= 0.0) {
+    ExecPolicy::launch(
+        [Ne] LAMBDA(auto x_out) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) { x_out[i] = 0; });
+        },
+        x);
+    return 0;
+  }
+
+  // r = b − M1 x;  z = P⁻¹ r;  p = z.
+  whitney_spmv_m1(x, m_cg_Ap, false);
+  ExecPolicy::launch(
+      [wp, Ne] LAMBDA(auto b_in, auto Ap, auto r, auto z, auto p) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+          Scalar ri = b_in[i] - Ap[i];
+          r[i] = ri;
+          Scalar zi = wp.m1_jacobi[i] * ri;
+          z[i] = zi;
+          p[i] = zi;
+        });
+      },
+      b, m_cg_Ap, m_cg_r, m_cg_z, m_cg_p);
+
+  double rz = whitney_dot(m_cg_r, m_cg_z, false);
+  const double stop = m_cg_tol * m_cg_tol * bnorm;
+  int it = 0;
+  for (; it < m_cg_max_iter && rz > stop; it++) {
+    whitney_spmv_m1(m_cg_p, m_cg_Ap, false);
+    double pAp = whitney_dot(m_cg_p, m_cg_Ap, false);
+    if (pAp <= 0.0) break;  // cannot happen for SPD M1; guards round-off
+    Scalar alpha = Scalar(rz / pAp);
+    ExecPolicy::launch(
+        [wp, Ne, alpha] LAMBDA(auto x_io, auto p, auto r, auto z, auto Ap) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+            x_io[i] += alpha * p[i];
+            Scalar ri = r[i] - alpha * Ap[i];
+            r[i] = ri;
+            z[i] = wp.m1_jacobi[i] * ri;
+          });
+        },
+        x, m_cg_p, m_cg_r, m_cg_z, m_cg_Ap);
+    double rz_new = whitney_dot(m_cg_r, m_cg_z, false);
+    Scalar beta = Scalar(rz_new / rz);
+    if (lanczos) lanczos->emplace_back(rz / pAp, rz_new / rz);
+    rz = rz_new;
+    ExecPolicy::launch(
+        [Ne, beta] LAMBDA(auto p, auto z) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+            p[i] = z[i] + beta * p[i];
+          });
+        },
+        m_cg_p, m_cg_z);
+  }
+  if (it >= m_cg_max_iter) {
+    Logger::print_err(
+        "whitney_pcg_m1: no convergence in {} iterations (rel² = {:.3e})",
+        m_cg_max_iter, rz / bnorm);
+  }
+  return it;
+}
+
+// One-time spectral-interval estimate for Chebyshev, via one
+// capture-enabled PCG solve on a random right-hand side: the CG (α, β)
+// coefficients build the Lanczos tridiagonal whose extreme Ritz values
+// approximate λ_min / λ_max of P⁻¹M1 from the INSIDE.  Plain power
+// iteration is useless here: the spectrum has a dense soft tail
+// (measured at L3 with scipy: [0.065, 3.59], κ ≈ 55 — NOT the κ = 1.15
+// the plan quoted, which belonged to the offdiag lab's model matrix),
+// and an overestimated λ_min silently puts eigenmodes OUTSIDE the
+// Chebyshev interval, where the polynomial amplifies them.  Margins
+// therefore EXPAND the Ritz interval.
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_estimate_spectrum() {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  const int Ne = wp.N_edges;
+  // Random-ish rhs in m_wh_rhs, zero start in m_E_base (both are scratch
+  // at init time and are re-zeroed below).
+  ExecPolicy::launch(
+      [Ne] LAMBDA(auto b, auto x) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+          b[i] = Scalar(1) - Scalar(2) * Scalar((i * 2654435761u) % 4096) /
+                                 Scalar(4096);
+          x[i] = 0;
+        });
+      },
+      m_wh_rhs, m_E_base);
+  std::vector<std::pair<double, double>> co;
+  int its = whitney_pcg_m1(m_wh_rhs, m_E_base, &co);
+  ExecPolicy::launch(
+      [Ne] LAMBDA(auto b, auto x) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+          b[i] = 0;
+          x[i] = 0;
+        });
+      },
+      m_wh_rhs, m_E_base);
+  const int n = int(co.size());
+  if (n < 5) {
+    Logger::print_err(
+        "whitney_estimate_spectrum: probe converged in {} iterations — "
+        "too few Lanczos coefficients; falling back to PCG",
+        its);
+    m_use_cheby = false;
+    return;
+  }
+  // Lanczos tridiagonal from CG coefficients:
+  //   d[j] = 1/α_j + β_{j-1}/α_{j-1},   e[j] = √β_j / α_j.
+  std::vector<double> d(n), e(n, 0.0);
+  for (int j = 0; j < n; j++) {
+    d[j] = 1.0 / co[j].first +
+           (j > 0 ? co[j - 1].second / co[j - 1].first : 0.0);
+    if (j + 1 < n) e[j] = std::sqrt(co[j].second) / co[j].first;
+  }
+  // Extreme eigenvalues by Sturm-sequence bisection.
+  auto count_below = [&](double x) {
+    int cnt = 0;
+    double q = 1.0;
+    for (int i = 0; i < n; i++) {
+      double off = (i > 0) ? e[i - 1] * e[i - 1] / q : 0.0;
+      q = d[i] - x - off;
+      if (std::abs(q) < 1e-300) q = -1e-300;
+      if (q < 0) cnt++;
+    }
+    return cnt;
+  };
+  double glo = d[0], ghi = d[0];
+  for (int i = 0; i < n; i++) {
+    double r = (i > 0 ? std::abs(e[i - 1]) : 0.0) +
+               (i + 1 < n ? std::abs(e[i]) : 0.0);
+    glo = std::min(glo, d[i] - r);
+    ghi = std::max(ghi, d[i] + r);
+  }
+  auto kth_eig = [&](int k) {  // k-th smallest, 0-based
+    double lo = glo, hi = ghi;
+    for (int it2 = 0; it2 < 100; it2++) {
+      double mid = 0.5 * (lo + hi);
+      if (count_below(mid) > k)
+        hi = mid;
+      else
+        lo = mid;
+    }
+    return 0.5 * (lo + hi);
+  };
+  double ritz_min = kth_eig(0);
+  double ritz_max = kth_eig(n - 1);
+
+  // Ritz values sit inside the true spectrum: expand.
+  m_cheb_b = 1.05 * ritz_max;
+  m_cheb_a = 0.80 * ritz_min;
+  if (m_cheb_a <= 0 || m_cheb_a >= m_cheb_b) {
+    Logger::print_err(
+        "whitney_estimate_spectrum: degenerate interval [{}, {}] — "
+        "falling back to PCG",
+        m_cheb_a, m_cheb_b);
+    m_use_cheby = false;
+    return;
+  }
+  double kappa = m_cheb_b / m_cheb_a;
+  double cfac = (std::sqrt(kappa) - 1.0) / (std::sqrt(kappa) + 1.0);
+  m_cheb_lnc = std::log(cfac);
+  Logger::print_info(
+      "whitney chebyshev: {} Lanczos coeffs, Ritz [{:.4f}, {:.4f}] -> "
+      "interval [{:.4f}, {:.4f}] (cond {:.2f}), contraction {:.3f}/iter",
+      n, ritz_min, ritz_max, m_cheb_a, m_cheb_b, kappa, cfac);
+}
+
+template <typename ExecPolicy>
+int dec_field_solver_gr_ks<ExecPolicy>::whitney_cheby_m1(
+    buffer<Scalar>& b, buffer<Scalar>& x) {
+  auto wp = m_whitney.get_ptrs(typename ExecPolicy::exec_tag{});
+  const int Ne = wp.N_edges;
+
+  double bnorm = whitney_dot(b, b, true);
+  if (bnorm <= 0.0) {
+    ExecPolicy::launch(
+        [Ne] LAMBDA(auto x_out) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) { x_out[i] = 0; });
+        },
+        x);
+    return 0;
+  }
+  // Entry residual r = b − M1 x (the ONLY reduction in this solver).
+  whitney_spmv_m1(x, m_cg_Ap, false);
+  ExecPolicy::launch(
+      [Ne] LAMBDA(auto b_in, auto Ap, auto r) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+          r[i] = b_in[i] - Ap[i];
+        });
+      },
+      b, m_cg_Ap, m_cg_r);
+  double rr = whitney_dot(m_cg_r, m_cg_r, true);
+  double rel2 = rr / bnorm;
+  const double tol2 = m_cg_tol * m_cg_tol;
+  if (rel2 <= tol2) return 0;
+
+  // Iteration count from the Chebyshev error bound ‖e_k‖ ≤ 2 c^k ‖e_0‖.
+  int k = int(std::ceil(std::log(0.5 * m_cg_tol / std::sqrt(rel2)) /
+                        m_cheb_lnc));
+  if (k < 1) k = 1;
+  if (k > m_cg_max_iter) k = m_cg_max_iter;
+
+  const double theta = 0.5 * (m_cheb_b + m_cheb_a);
+  const double delta = 0.5 * (m_cheb_b - m_cheb_a);
+  const double sigma = theta / delta;
+  double rho = 1.0 / sigma;
+
+  // d = P⁻¹ r / θ;  x += d.
+  Scalar inv_theta = Scalar(1.0 / theta);
+  ExecPolicy::launch(
+      [wp, Ne, inv_theta] LAMBDA(auto r, auto d, auto x_io) {
+        ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+          Scalar di = wp.m1_jacobi[i] * r[i] * inv_theta;
+          d[i] = di;
+          x_io[i] += di;
+        });
+      },
+      m_cg_r, m_cg_p, x);
+
+  for (int it = 1; it < k; it++) {
+    whitney_spmv_m1(m_cg_p, m_cg_Ap, false);
+    double rho_new = 1.0 / (2.0 * sigma - rho);
+    Scalar c1 = Scalar(rho_new * rho);
+    Scalar c2 = Scalar(2.0 * rho_new / delta);
+    ExecPolicy::launch(
+        [wp, Ne, c1, c2] LAMBDA(auto r, auto Ap, auto d, auto x_io) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int i) {
+            Scalar ri = r[i] - Ap[i];
+            r[i] = ri;
+            Scalar di = c1 * d[i] + c2 * wp.m1_jacobi[i] * ri;
+            d[i] = di;
+            x_io[i] += di;
+          });
+        },
+        m_cg_r, m_cg_Ap, m_cg_p, x);
+    rho = rho_new;
+  }
+  return k;
+}
+
+template <typename ExecPolicy>
+int dec_field_solver_gr_ks<ExecPolicy>::whitney_solve_m1(
+    buffer<Scalar>& b, buffer<Scalar>& x) {
+  return m_use_cheby ? whitney_cheby_m1(b, x) : whitney_pcg_m1(b, x);
+}
+
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::whitney_update_D_primal(
+    buffer<Scalar>& D_in) {
+  whitney_solve_m1(D_in, m_D_primal);
 }
 
 // =========================================================================
@@ -142,17 +590,46 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_dB_dt(
     buffer<Scalar>& D_in, buffer<Scalar>& B_in, buffer<Scalar>& dB_out) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
-  // E_aux on vertical edges — pure lapse, no shift cross term.
-  ExecPolicy::launch(
-      [Nh = mp.N_h_edges, Ne = mp.N_edges, mp]
-      LAMBDA(auto D_e, auto E_aux) {
-        ExecPolicy::loop(Nh, Ne, [&] LAMBDA(int e) {
-          E_aux[e] = mp.edge_alpha[e] * mp.hodge1_inv[e] * D_e[e];
-        });
-      },
-      D_in, m_E_aux);
+  if (m_whitney_active) {
+    // Whitney Galerkin constitutive map (B1b), INCLUDING the shift:
+    // find E in the Whitney 1-form space with
+    //   ⟨E, W⟩₁ = ⟨α D + β×B, W⟩₁   for every edge basis function W,
+    // i.e. M1·E = M1α·D_primal + C1·B.  The lapse sits inside the M1α
+    // quadrature; the shift enters through the Galerkin coupling C1
+    // whose Ampère partner is exactly C1ᵀ (see prismatic_whitney_hodge),
+    // so both the Hodge part and the shift pair cancel exactly in the
+    // energy norm ½ D_pᵀ M1α D_p + ½ Bᵀ M2α B.  The legacy averaging
+    // shift below belongs to the diagonal path only — splicing it onto
+    // the Whitney base was measured to be either unstable (M1⁻¹D̃ input)
+    // or O(1)-inconsistent (hodge1_inv·D̃ input).
+    whitney_update_D_primal(D_in);
+    whitney_spmv_m1(m_D_primal, m_wh_rhs, true);
+    whitney_spmv_c1_add(B_in, m_wh_rhs);
+    whitney_solve_m1(m_wh_rhs, m_E_base);
+    ExecPolicy::launch(
+        [Ne = mp.N_edges] LAMBDA(auto E_base, auto E_aux) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
+            E_aux[e] = E_base[e];
+          });
+        },
+        m_E_base, m_E_aux);
+  } else {
+    // Diagonal (mass-lumped) base term.  O(1)-defective for a ≠ 0
+    // (GRPIC_PLAN B1); kept for A/B comparison via use_whitney_hodge.
+    ExecPolicy::launch(
+        [Ne = mp.N_edges, mp]
+        LAMBDA(auto D_e, auto E_aux) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
+            E_aux[e] = mp.edge_alpha[e] * mp.hodge1_inv[e] * D_e[e];
+          });
+        },
+        D_in, m_E_aux);
+  }
 
-  // E_aux on horizontal edges — lapse · D[e] + shift cross term.
+  // Legacy shift cross term on horizontal edges — DIAGONAL PATH ONLY
+  // (the Whitney path carries the shift inside C1 above).  Vertical
+  // edges have none: β ∥ r̂ and D_vert ∥ r̂ ⇒ β × B has no radial
+  // line-integral part.
   //
   // Circumcentric-dual identity: for every (horizontal edge, adjacent
   // rect face) pair, (r̂, n̂_f, t̂_e) is an orthonormal triad with
@@ -168,35 +645,35 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_dB_dt(
   // different (θ, r) positions and have O(1)-different √γ.  Uniform
   // 1/count averaging leaves an O(1) residual that masquerades as
   // first-order drift.
-  ExecPolicy::launch(
-      [Nh = mp.N_h_edges, mp]
-      LAMBDA(auto D_e, auto B_f, auto E_aux) {
-        ExecPolicy::loop(0, Nh, [&] LAMBDA(int e) {
-          Scalar e_aux = mp.edge_alpha[e] * mp.hodge1_inv[e] * D_e[e];
+  if (!m_whitney_active) {
+    ExecPolicy::launch(
+        [Nh = mp.N_h_edges, mp]
+        LAMBDA(auto B_f, auto E_aux) {
+          ExecPolicy::loop(0, Nh, [&] LAMBDA(int e) {
+            Scalar inv_sgma_e = Scalar(1) / mp.edge_sqrt_gamma[e];
 
-          Scalar inv_sgma_e = Scalar(1) / mp.edge_sqrt_gamma[e];
-
-          // Σ_f w_f · (√γ_f · β^r_f) · (B[f]/area_f)   /  Σ_f w_f.
-          // w_f = √γ at the face: the same weight used in the 2D solver.
-          // Tri faces contribute 0 (β ∥ r̂ and B_tri ∥ r̂ ⇒ β × B = 0).
-          Scalar num = Scalar(0);
-          Scalar den = Scalar(0);
-          for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
-            int f = mp.d1t_col_idx[j];
-            if (mp.is_tri_face(f)) continue;
-            Scalar w = mp.face_sqrt_gamma[f];
-            Scalar B_normal = B_f[f] / mp.face_area[f];
-            num += w * mp.face_sq_gamma_beta_r[f] * B_normal;
-            den += w;
-          }
-          if (den > Scalar(0)) {
-            Scalar edge_len = mp.edge_length[e];
-            e_aux += edge_len * inv_sgma_e * (num / den);
-          }
-          E_aux[e] = e_aux;
-        });
-      },
-      D_in, B_in, m_E_aux);
+            // Σ_f w_f · (√γ_f · β^r_f) · (B[f]/area_f)   /  Σ_f w_f.
+            // w_f = √γ at the face: the same weight used in the 2D
+            // solver.  Tri faces contribute 0 (β ∥ r̂ and B_tri ∥ r̂
+            // ⇒ β × B = 0).
+            Scalar num = Scalar(0);
+            Scalar den = Scalar(0);
+            for (int j = mp.d1t_row_ptr[e]; j < mp.d1t_row_ptr[e + 1]; j++) {
+              int f = mp.d1t_col_idx[j];
+              if (mp.is_tri_face(f)) continue;
+              Scalar w = mp.face_sqrt_gamma[f];
+              Scalar B_normal = B_f[f] / mp.face_area[f];
+              num += w * mp.face_sq_gamma_beta_r[f] * B_normal;
+              den += w;
+            }
+            if (den > Scalar(0)) {
+              Scalar edge_len = mp.edge_length[e];
+              E_aux[e] += edge_len * inv_sgma_e * (num / den);
+            }
+          });
+        },
+        B_in, m_E_aux);
+  }
 
   // Faraday: dB[f] = -Σ_e d1[f,e] · E_aux[e].  Pure topological curl.
   ExecPolicy::launch(
@@ -238,56 +715,78 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_dD_dt(
     buffer<Scalar>& D_in, buffer<Scalar>& B_in, buffer<Scalar>& dD_out) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
-  // H_aux_line on triangular faces — pure lapse · Hodge2 · B[f].
-  ExecPolicy::launch(
-      [Ntri = mp.N_tri_faces, mp]
-      LAMBDA(auto B_f, auto H_aux) {
-        ExecPolicy::loop(0, Ntri, [&] LAMBDA(int f) {
-          H_aux[f] = mp.face_alpha[f] * mp.hodge2[f] * B_f[f];
-        });
-      },
-      B_in, m_H_aux);
+  if (m_whitney_active) {
+    // Whitney Galerkin constitutive map (B1b), INCLUDING the shift:
+    //   H_aux = M2α·B + C1ᵀ·D_primal
+    // — the dual 1-cochain of αB − β×D with the lapse inside the M2α
+    // quadrature and the consistent Ampère shift pairing C2 = −C1ᵀ
+    // (see prismatic_whitney_hodge).  Applying α per-face on top of a
+    // non-diagonal star instead measured +50% and destroyed convergence
+    // (GRPIC_PLAN B1b, trap #2).  The warm-started D_primal refresh is
+    // O(1) iterations whenever compute_dB_dt already ran on this D_in.
+    whitney_update_D_primal(D_in);
+    whitney_spmv_m2a(B_in, m_H_aux);
+    whitney_spmv_c1t_add(m_D_primal, m_H_aux);
+  } else {
+    // Diagonal base term on ALL faces (tri + rect); O(1)-defective for
+    // a ≠ 0 (GRPIC_PLAN B1), kept for A/B comparison.
+    ExecPolicy::launch(
+        [Nf = mp.N_faces, mp]
+        LAMBDA(auto B_f, auto H_aux) {
+          ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
+            H_aux[f] = mp.face_alpha[f] * mp.hodge2[f] * B_f[f];
+          });
+        },
+        B_in, m_H_aux);
+  }
 
-  // H_aux_line on rectangular faces — lapse · Hodge2 · B[f] + shift cross term.
+  // Shift cross term on rectangular faces (tri faces have none: their
+  // dual edge ∥ ∂_r ⇒ det(r̂, t, dual_edge) = 0 identically).
   //
   // Symmetric argument to compute_dB_dt: the triad (r̂, t̂_e, n̂_f) is
   // orthonormal for every (rect face, adjacent horizontal edge) pair
   // with triple(r̂, t̂, n̂) = -1; combined with the overall -= in
   // H = αB − β×D this gives a net +=.
   //
-  // Shift term is a √γ-weighted average of √γ·β^r · D_tangent over the
-  // adjacent horizontal edges, matching the 2D solver's averaging
-  // scheme.  Uniform 1/count averaging was observed to produce an O(1)
-  // residual at the analytic stationary Kerr-Wald state.
-  ExecPolicy::launch(
-      [Ntri = mp.N_tri_faces, Nf = mp.N_faces, mp]
-      LAMBDA(auto D_e, auto B_f, auto H_aux) {
-        ExecPolicy::loop(Ntri, Nf, [&] LAMBDA(int f) {
-          Scalar h_aux = mp.face_alpha[f] * mp.hodge2[f] * B_f[f];
+  // Legacy shift term — DIAGONAL PATH ONLY (the Whitney path carries
+  // the shift inside C1ᵀ above; both splices of this local averaging
+  // onto the Whitney base failed — see prismatic_whitney_hodge.h).
+  // √γ-weighted average of √γ·β^r · D_tangent over the adjacent
+  // horizontal edges, matching the 2D solver's averaging scheme.
+  // Uniform 1/count averaging was observed to produce an O(1) residual
+  // at the analytic stationary Kerr-Wald state.  In the diagonal state
+  // convention hodge1_inv·D̃ IS the primal line integral, so this
+  // estimate is exact at the IC.  The geometric dual-edge length
+  // |f*| = hodge2·|f| is a property of the mesh's circumcentric dual.
+  if (!m_whitney_active) {
+    ExecPolicy::launch(
+        [Ntri = mp.N_tri_faces, Nf = mp.N_faces, mp]
+        LAMBDA(auto D_e, auto H_aux) {
+          ExecPolicy::loop(Ntri, Nf, [&] LAMBDA(int f) {
+            Scalar inv_sgma_f = Scalar(1) / mp.face_sqrt_gamma[f];
+            Scalar dual_len = mp.hodge2[f] * mp.face_area[f];
 
-          Scalar inv_sgma_f = Scalar(1) / mp.face_sqrt_gamma[f];
-          Scalar dual_len = mp.hodge2[f] * mp.face_area[f];
-
-          // Σ_e w_e · (√γ_e · β^r_e) · D_tangent(e)  /  Σ_e w_e.
-          // w_e = √γ at the horizontal edge.
-          // Vertical edges contribute 0 (β ∥ r̂ and D_vert ∥ r̂ ⇒ β × D = 0).
-          Scalar num = Scalar(0);
-          Scalar den = Scalar(0);
-          for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
-            int e = mp.d1_col_idx[j];
-            if (mp.is_vertical_edge(e)) continue;
-            Scalar w = mp.edge_sqrt_gamma[e];
-            Scalar D_tangent = mp.hodge1_inv[e] * D_e[e] / mp.edge_length[e];
-            num += w * mp.edge_sq_gamma_beta_r[e] * D_tangent;
-            den += w;
-          }
-          if (den > Scalar(0)) {
-            h_aux += dual_len * inv_sgma_f * (num / den);
-          }
-          H_aux[f] = h_aux;
-        });
-      },
-      D_in, B_in, m_H_aux);
+            // Σ_e w_e · (√γ_e · β^r_e) · D_tangent(e)  /  Σ_e w_e.
+            // w_e = √γ at the horizontal edge.  Vertical edges
+            // contribute 0 (β ∥ r̂ and D_vert ∥ r̂ ⇒ β × D = 0).
+            Scalar num = Scalar(0);
+            Scalar den = Scalar(0);
+            for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
+              int e = mp.d1_col_idx[j];
+              if (mp.is_vertical_edge(e)) continue;
+              Scalar w = mp.edge_sqrt_gamma[e];
+              Scalar D_tangent =
+                  mp.hodge1_inv[e] * D_e[e] / mp.edge_length[e];
+              num += w * mp.edge_sq_gamma_beta_r[e] * D_tangent;
+              den += w;
+            }
+            if (den > Scalar(0)) {
+              H_aux[f] += dual_len * inv_sgma_f * (num / den);
+            }
+          });
+        },
+        D_in, m_H_aux);
+  }
 
   // Ampère: dD̃[e] = Σ_f d1t[e,f] · H_aux_line[f] − J̃[e].
   // Pure topological curl on the dual mesh — NO Hodge star here.
@@ -731,11 +1230,12 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_outer_boundary(
 //
 //   A[e]   = ∫_e A_i(a_field) dx^i          (primal 1-cochain)
 //   B[f]   = Σ_{e ∈ ∂f} d1[f,e] · A[e]       (Stokes)
-//   D̃[e]  = D_primal[e] / hodge1_inv[e]     (dual 2-cochain)
+//   D̃[e]  = M1 · D_primal   (Whitney)  or  D_primal / hodge1_inv
+//            (diagonal) — the same constitutive map the evolution uses.
 //
 // D_primal integrates γ_{ij}(m_spin) D^j(a_field, m_spin) along the
-// edge; hodge1_inv[e] was already computed in compute_metric() with the
-// metric at spin m_spin, so all metric quantities are consistent.
+// edge; the constitutive map was built with the metric at spin m_spin,
+// so all metric quantities are consistent.
 // 10-point Gauss quadrature along the coord-linear edge path.
 // =========================================================================
 template <typename ExecPolicy>
@@ -824,17 +1324,19 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
       m_D->data(), m_B->data(), m_B_bg);
   ExecPolicy::sync();
 
-  // --------- Step 3: D̃[e] = D_primal[e] / hodge1_inv[e].  Overwrite m_D. ---
+  // --------- Step 3: D_primal[e] = ∫_e D_i dx^i, then D̃. -------------------
   // Integrate ∫_e D_i dx^i in (r, θ, φ) coord basis.  For horizontal
   // edges only (D_θ, D_φ) contribute; for vertical edges only D_r.
   // D^i (contravariant) uses a_field for the A_μ derivatives and
   // a_metric for the normal-observer projection (inside gr_wald_solution_D);
   // the index lowering to D_i uses γ_{ij}(a_metric) for consistency
-  // with the hodge1_inv[e] factor that was computed in compute_metric()
-  // at spin a_metric.
+  // with the constitutive map (hodge1_inv or M1) computed at spin
+  // a_metric.  The primal line integral lands in m_tmp_D; the conversion
+  // to the dual 2-cochain D̃ happens below and must match the map the
+  // evolution uses — Whitney: D̃ = M1·D_primal; diagonal: D̃ =
+  // D_primal / hodge1_inv.
   ExecPolicy::launch(
-      [a_field, a_metric, Bp, mp, Nh, set_background] LAMBDA(auto D_out,
-                                                             auto D_bg) {
+      [a_field, a_metric, Bp, mp, Nh] LAMBDA(auto Dp_out) {
         ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
           int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
@@ -902,14 +1404,39 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
                 },
                 0.0, 1.0);
           }
-          Scalar d_primal = (Scalar)integral;
-          Scalar h1inv = mp.hodge1_inv[e];
-          Scalar d_tilde = (h1inv > Scalar(0)) ? d_primal / h1inv : Scalar(0);
-          D_out[e] = d_tilde;
-          if (set_background) D_bg[e] = d_tilde;
+          Dp_out[e] = (Scalar)integral;
         });
       },
-      m_D->data(), m_D_bg);
+      m_tmp_D);
+  ExecPolicy::sync();
+
+  if (m_whitney_active) {
+    // D̃ = M1 · D_primal — one SpMV, no solve.  Using the diagonal
+    // conversion here instead would hand the Whitney evolution an IC
+    // that is O(1) off-shell near the horizon for a ≠ 0.
+    whitney_spmv_m1(m_tmp_D, m_D->data(), false);
+    ExecPolicy::launch(
+        [Ne = mp.N_edges, set_background]
+        LAMBDA(auto D_e, auto D_bg) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
+            if (set_background) D_bg[e] = D_e[e];
+          });
+        },
+        m_D->data(), m_D_bg);
+  } else {
+    ExecPolicy::launch(
+        [Ne = mp.N_edges, set_background, mp]
+        LAMBDA(auto Dp_in, auto D_e, auto D_bg) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
+            Scalar h1inv = mp.hodge1_inv[e];
+            Scalar d_tilde =
+                (h1inv > Scalar(0)) ? Dp_in[e] / h1inv : Scalar(0);
+            D_e[e] = d_tilde;
+            if (set_background) D_bg[e] = d_tilde;
+          });
+        },
+        m_tmp_D, m_D->data(), m_D_bg);
+  }
   ExecPolicy::sync();
 
   if (set_background) {
@@ -949,6 +1476,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
   m_B->data().copy_to_host();
   m_dD_dt.copy_to_host();
   m_dB_dt.copy_to_host();
+  if (m_whitney_active) m_D_primal.copy_to_host();
 #endif
 
   auto file = hdf_create(path);
@@ -958,6 +1486,15 @@ void dec_field_solver_gr_ks<ExecPolicy>::dump_aux_fields(
   file.write(m_B->data().host_ptr(), Nf, "B");
   file.write(m_dD_dt.host_ptr(), Ne, "dD_dt");
   file.write(m_dB_dt.host_ptr(), Nf, "dB_dt");
+  // Whitney path: the primal 1-cochain D_primal = M1⁻¹ D̃, refreshed by
+  // the compute_d*_dt calls above.  Diagnostics must use this (not
+  // hodge1_inv·D̃, which is O(1) off near the horizon for a ≠ 0).
+  if (m_whitney_active) {
+    file.write(m_D_primal.host_ptr(), Ne, "D_primal");
+    file.write(1, "whitney_hodge");
+  } else {
+    file.write(0, "whitney_hodge");
+  }
 
   Logger::print_info("dump_aux_fields: wrote aux state + drift rates to {}",
                      path);

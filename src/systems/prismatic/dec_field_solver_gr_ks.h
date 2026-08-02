@@ -2,9 +2,12 @@
 
 #include "core/typedefs_and_constants.h"
 #include "framework/system.h"
+#include <utility>
+#include <vector>
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_mesh_metric.h"
+#include "systems/prismatic/prismatic_whitney_hodge.h"
 #include "utils/nonown_ptr.hpp"
 
 namespace Aperture {
@@ -152,6 +155,90 @@ class dec_field_solver_gr_ks : public system_t {
   // then write them along with D, B to an HDF5 file so the raw values
   // can be compared against the analytic expectations off-line.
   void dump_aux_fields(const std::string& path);
+
+  // =======================================================================
+  // Whitney Galerkin Hodge (GRPIC_PLAN B1b) — config "use_whitney_hodge",
+  // default true.  Replaces the O(1)-defective diagonal constitutive maps
+  // (γ_rφ ≠ 0 breaks the primal ⟂ dual orthogonality they assume) with
+  // the SPD Whitney mass matrices assembled in prismatic_whitney_hodge:
+  //
+  //   D_primal = M1⁻¹ D̃                    (Jacobi-PCG, cond ≈ 1.15)
+  //   E_aux    = M1⁻¹ M1α M1⁻¹ D̃ + shift   (lapse inside the quadrature;
+  //   H_aux    = M2α B + shift               every factor symmetric ⇒ the
+  //                                          generator is exactly skew-
+  //                                          adjoint in the energy norm)
+  //
+  // The topological curls, shift cross terms, boundary conditions and
+  // damping are untouched; the diagonal path remains available with
+  // use_whitney_hodge = false for A/B comparison.  Scoped strictly to
+  // this GR solver — the flat-space solver and the mesh's diagonal
+  // hodge1_inv / hodge2 (still used here for the geometric dual-length
+  // factor in the shift terms) are unchanged.
+  //
+  // The helper methods are public for the same reason update_explicit
+  // is: extended __device__ lambdas cannot live inside private members.
+  // =======================================================================
+
+  // SpMV with the shared-pattern M1 / M1α or with M2α.
+  void whitney_spmv_m1(buffer<Scalar>& x, buffer<Scalar>& y, bool with_alpha);
+  void whitney_spmv_m2a(buffer<Scalar>& x, buffer<Scalar>& y);
+  // Accumulating SpMV with the shift couplings: y += C1·x (x on faces,
+  // y on edges) and y += C1ᵀ·x (x on edges, y on faces).
+  void whitney_spmv_c1_add(buffer<Scalar>& x, buffer<Scalar>& y);
+  void whitney_spmv_c1t_add(buffer<Scalar>& x, buffer<Scalar>& y);
+  // Weighted dot: Σ a[i]·b[i]·(jacobi ? m1_jacobi[i] : 1), in double.
+  double whitney_dot(buffer<Scalar>& a, buffer<Scalar>& b, bool jacobi);
+  // Jacobi-PCG solve of M1 x = b; x carries the warm start.  Returns the
+  // iteration count.  When lanczos != nullptr, captures the CG (alpha,
+  // beta) coefficients so the caller can build the Lanczos tridiagonal
+  // and extract extreme Ritz values (spectral bounds for Chebyshev).
+  int whitney_pcg_m1(buffer<Scalar>& b, buffer<Scalar>& x,
+                     std::vector<std::pair<double, double>>* lanczos = nullptr);
+  // Jacobi-preconditioned Chebyshev solve of M1 x = b (default solver).
+  // One entry residual check (a single dot product) decides how many
+  // fixed three-term iterations are needed from the contraction factor
+  // of the spectral interval [m_cheb_a, m_cheb_b]; the iterations
+  // themselves are pure SpMV + axpy — NO reductions, NO device syncs,
+  // NO host read-backs, which is what made PCG sync-bound (2 dots ×
+  // ~10 iters × 18 solves per step).  Warm starts exit at the entry
+  // check, so the redundant D_primal refresh in compute_dD_dt costs one
+  // SpMV + one dot.  Self-correcting: if a solve ever under-iterates,
+  // the next call's entry residual sees it and iterates more.
+  int whitney_cheby_m1(buffer<Scalar>& b, buffer<Scalar>& x);
+  // Dispatch to Chebyshev (config "whitney_use_chebyshev", default true)
+  // or PCG.
+  int whitney_solve_m1(buffer<Scalar>& b, buffer<Scalar>& x);
+  // Refresh m_D_primal = M1⁻¹ D_in (warm-started).
+  void whitney_update_D_primal(buffer<Scalar>& D_in);
+  // One-time power-iteration estimate of the spectral interval of the
+  // Jacobi-preconditioned M1 (via the similar symmetric operator
+  // √P⁻¹ M1 √P⁻¹), with safety margins folded in.
+  void whitney_estimate_spectrum();
+
+ private:
+  prismatic_whitney_hodge m_whitney;
+  bool m_use_whitney = true;
+  bool m_whitney_active = false;   // = m_use_whitney && build succeeded
+
+  // PCG state.  m_D_primal / m_E_base double as warm starts across the
+  // Picard iterations of the semi-implicit step (the fields move little
+  // between corrector passes, so re-solves converge in O(1) iterations).
+  buffer<Scalar> m_D_primal, m_E_base, m_wh_rhs;
+  buffer<Scalar> m_cg_r, m_cg_p, m_cg_z, m_cg_Ap;
+  buffer<double> m_dot_buf;        // 1-element device reduction target
+  double m_cg_tol = 0.0;           // 0 → precision-dependent default
+  int m_cg_max_iter = 200;
+  // Config "whitney_use_chebyshev", default false: with the REAL
+  // spectrum of the Jacobi-preconditioned Whitney mass matrix
+  // (κ ≈ 55, dense soft tail — measured; the κ = 1.15 in early planning
+  // belonged to a different matrix), fixed-iteration Chebyshev over the
+  // safety-widened interval needs ~2× PCG's adaptive iteration count,
+  // which outweighs its zero-reduction advantage at L4+ sizes (measured
+  // 129 vs 116 ms/step).  Kept as an option for latency-dominated
+  // environments.  The real speedup lever is a better preconditioner.
+  bool m_use_cheby = false;
+  double m_cheb_a = 0.0, m_cheb_b = 0.0;  // spectral interval of P⁻¹M1
+  double m_cheb_lnc = 0.0;         // ln of the Chebyshev contraction factor
 
  private:
   prismatic_mesh_metric& m_mesh;

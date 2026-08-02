@@ -36,3 +36,7 @@ sph_N_phi   = 180
 
 update_d = true
 update_b = true
+
+# GRPIC_PLAN B1: constitutive Hodge map.  Pinned explicitly so the config
+# means the same thing regardless of the solver's compiled-in default.
+use_whitney_hodge = false

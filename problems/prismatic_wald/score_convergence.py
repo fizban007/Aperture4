@@ -69,14 +69,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("levels", nargs="+", type=int)
     ap.add_argument("--window", nargs=2, type=float, default=[150.0, 220.0])
+    ap.add_argument("--suffix", default="",
+                    help="run-dir suffix, e.g. _whitney for the Whitney "
+                         "Galerkin Hodge family (GRPIC_PLAN B1b)")
     args = ap.parse_args()
     lo, hi = args.window
 
     rows = []
     cont = None
     for L in args.levels:
-        ana_dir = os.path.join(HERE, f"Data_conv_L{L}_ana")
-        rlx_dir = os.path.join(HERE, f"Data_conv_L{L}_relax")
+        ana_dir = os.path.join(HERE, f"Data_conv_L{L}_ana{args.suffix}")
+        rlx_dir = os.path.join(HERE, f"Data_conv_L{L}_relax{args.suffix}")
         a, c = analytic(ana_dir)
         cont = c
         entry = dict(L=L, ana=a, cont=c)

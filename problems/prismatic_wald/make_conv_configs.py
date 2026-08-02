@@ -23,6 +23,17 @@ Two configs per level:
                                            this mesh: the scoring target and
                                            the discrete-equilibrium residual.
   _relax field_spin = 0,  t = 220 M     -> the actual relaxation test.
+
+Hodge axis (GRPIC_PLAN B1): each config pins use_whitney_hodge explicitly so
+its meaning never depends on the code default.
+  (plain)   use_whitney_hodge = false -> the diagonal-star baseline that
+            produced the pre-B1 campaign data in Data_conv_L*_{ana,relax}.
+            Both diagonal stars are O(1)-defective for a != 0; kept for A/B.
+  _whitney  use_whitney_hodge = true  -> the Whitney Galerkin Hodge (B1b),
+            output in Data_conv_L*_{ana,relax}_whitney so the baseline data
+            is never clobbered.  The L3 ana run also dumps the assembled
+            CSR operators (whitney.h5) for the python cross-check against
+            hodge_lab_whitney.py.
 """
 import os
 
@@ -81,6 +92,10 @@ sph_N_phi   = 180
 
 update_d = true
 update_b = true
+
+# GRPIC_PLAN B1: constitutive Hodge map.  Pinned explicitly so the config
+# means the same thing regardless of the solver's compiled-in default.
+use_whitney_hodge = {use_whitney}{extra}
 """
 
 ANA_DESC = ("On-shell IC (field_spin = bh_spin): the analytic stationary "
@@ -97,25 +112,33 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     for L, N_r, dt, damp, out_M in LEVELS:
         for kind in ("ana", "relax"):
-            is_ana = kind == "ana"
-            name = f"config_conv_L{L}_{kind}.toml"
-            steps = 1 if is_ana else int(round(T_FINAL / dt))
-            out_int = 1 if is_ana else int(round(out_M / dt))
-            text = HEADER.format(
-                L=L, kind=("analytic reference" if is_ana
-                           else "relaxation run"),
-                desc=ANA_DESC if is_ana else RELAX_DESC,
-            ) + BODY.format(
-                L=L, N_r=N_r, dt=dt, bh_spin=BH_SPIN,
-                field_spin=BH_SPIN if is_ana else 0.0,
-                max_steps=steps, damping_length=damp,
-                out_interval=out_int,
-                output_dir=f"Data_conv_L{L}_{kind}",
-            )
-            with open(os.path.join(here, name), "w") as f:
-                f.write(text)
-            print(f"wrote {name}  (N_r={N_r}, dt={dt}, steps={steps}, "
-                  f"damp_len={damp})")
+            for whitney in (False, True):
+                is_ana = kind == "ana"
+                suffix = "_whitney" if whitney else ""
+                name = f"config_conv_L{L}_{kind}{suffix}.toml"
+                steps = 1 if is_ana else int(round(T_FINAL / dt))
+                out_int = 1 if is_ana else int(round(out_M / dt))
+                extra = ""
+                if whitney and is_ana and L == 3:
+                    extra = "\ndump_whitney_hodge = true"
+                text = HEADER.format(
+                    L=L, kind=("analytic reference" if is_ana
+                               else "relaxation run") +
+                              (" (Whitney Hodge)" if whitney else ""),
+                    desc=ANA_DESC if is_ana else RELAX_DESC,
+                ) + BODY.format(
+                    L=L, N_r=N_r, dt=dt, bh_spin=BH_SPIN,
+                    field_spin=BH_SPIN if is_ana else 0.0,
+                    max_steps=steps, damping_length=damp,
+                    out_interval=out_int,
+                    output_dir=f"Data_conv_L{L}_{kind}{suffix}",
+                    use_whitney="true" if whitney else "false",
+                    extra=extra,
+                )
+                with open(os.path.join(here, name), "w") as f:
+                    f.write(text)
+                print(f"wrote {name}  (N_r={N_r}, dt={dt}, steps={steps}, "
+                      f"damp_len={damp})")
 
 
 if __name__ == "__main__":

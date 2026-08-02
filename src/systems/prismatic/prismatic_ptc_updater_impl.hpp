@@ -230,6 +230,14 @@ void prismatic_ptc_updater<ExecPolicy>::init_gca_switch() {
     std::abort();
   }
 
+  // Everything below configures the hybrid switch itself, so a pure-Boris
+  // run must bail out first: requiring gca_switch_omegac when use_gca is
+  // off aborted every pre-rate-switch config for no reason.
+  if (!m_use_gca) {
+    Logger::print_info("Hybrid GCA switch: OFF (use_gca = false)");
+    return;
+  }
+
   if (!sim_env().params().has("gca_switch_omegac")) {
     Logger::print_err(
         "use_gca requires gca_switch_omegac (the hybrid switch rate, in "
@@ -245,11 +253,6 @@ void prismatic_ptc_updater<ExecPolicy>::init_gca_switch() {
     std::abort();
   }
   m_gca_switch_omegac = Scalar(omegac);
-
-  if (!m_use_gca) {
-    Logger::print_info("Hybrid GCA switch: OFF (use_gca = false)");
-    return;
-  }
 
   double dt = 0.0;
   sim_env().params().get_value("dt", dt);

@@ -186,6 +186,14 @@ class prismatic_mesh {
   // duals.  0 (default) preserves the historical mesh exactly.
   int sphere_optimize_iters = 0;
 
+  // Diagnostic alternative dual: place dual vertices at spherical
+  // centroids instead of circumcenters (config `mesh_dual_centroid`).
+  // Breaks the primal-edge ⟂ dual-face property the diagonal Hodge
+  // assumes; exists ONLY for the circumcenter-vs-centroid comparison
+  // in the methods paper.  false (default) = production circumcentric
+  // dual, bit-identical to the historical mesh.
+  bool dual_centroid = false;
+
  private:
   bool m_has_3d = false;
 

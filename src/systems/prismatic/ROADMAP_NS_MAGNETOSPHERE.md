@@ -11,6 +11,88 @@
    BH science. `dec_field_solver_gr_ks`, `prismatic_wald`, and the Wald/drift
    diagnostics are frozen — not deleted, not maintained. Do not resume them
    without revisiting this document.
+
+   **AMENDED 2026-08-01 — the stated reason for shelving was wrong, and the
+   principal cause is now identified and fixed.** The GR solver was shelved
+   because vacuum Kerr-Wald at L5 relaxed to a state with no Meissner flux
+   expulsion and a badly wrong toroidal field. That was attributed to the
+   mesh/discretization. It was not. Two defects, both now repaired:
+
+   - **Sign error in `apply_inner_boundary`** (`dec_field_solver_gr_ks_impl.hpp`,
+     4 sites). The intended BC is zero radial gradient on the perturbation,
+     `delta_0 = delta_1`, i.e. `X_0 = X_1 + bg_0 - bg_1`. The code had
+     `+ bg_1 - bg_0`, which maps an exact background `bg_0 -> 2*bg_1 - bg_0`
+     and so injected an O(h) error at shell 0 every step. Introduced in
+     `84bdf628`, present for the entire life of the solver.
+   - **No static background subtraction.** Expelled flux at a = 0.998 is
+     ~0.2% of the far-field flux, while the Ampere residual near the horizon
+     is percent-level — the truncation error is an order of magnitude larger
+     than the observable, so the relaxed state is dominated by it and
+     REFINING MAKES THE RELATIVE CORRUPTION WORSE (expulsion sharpens with
+     resolution faster than the error shrinks). This is why L5 looked worse
+     than lower resolutions.
+
+   Measured effect on the actual test (a_field = 0 relaxing to a = 0.998,
+   L3, damped, t = 60 M), reported as `Phi_cap(horizon)/Phi_cap(r=8)` with
+   analytic target **0.00180**:
+
+   | configuration | relaxed value | error |
+   |---|---|---|
+   | as shipped | 0.0168 | +833% (no expulsion) |
+   | + BC fix + background subtraction | 0.0020 | +9% |
+
+   With subtraction the exact on-shell state is now an **exact discrete fixed
+   point** (flux ratio constant to 5 decimals over 10 M; it previously swung
+   by ~800% of the expulsion signal). Toroidal/poloidal near the horizon
+   improves 0.126 -> 0.259 against an exact value of 0.345.
+
+   Note the O(1) objection does not apply: subtraction helps here not because
+   `delta` is small (vacuum -> rotating Wald is an O(1) change) but because
+   `delta = 0` becomes an exact fixed point, giving the relaxation the correct
+   attractor. Kerr-Wald is an exact stationary vacuum Maxwell solution on
+   Kerr, so holding it fixed deletes no physics — cleaner than the flat-space
+   case where only the aligned dipole component can be subtracted.
+
+   **Convergence, measured properly for the first time** (normalization-free
+   cancellation measure; `analyze_drift.py`'s `dD/dt` over `|D|` misreads the
+   order by one, since `D~` is a dual 2-cochain scaling as h^2):
+
+   | operator | order |
+   |---|---|
+   | Faraday `d1.E_aux` | +1.3 |
+   | Ampere `d1t.H_aux`, global | +0.65 |
+   | Ampere, excluding the outermost shell | **+0.90 to +0.95** |
+
+   The entire global deficit comes from ONE shell — the outermost, which is
+   a ghost layer (`n_ghost_outer = 1`) that `analyze_drift.py` nonetheless
+   includes, and whose one-sided shift stencil `834d15d2` flagged as needing
+   "a deeper fix". Spin-independent (Schwarzschild and Kerr identical), so
+   not frame-dragging. The bulk is a clean first order, matching the flat
+   solver's known diagonal-Hodge tier — the mesh is not the problem.
+
+   Also fixed/added while establishing the above:
+   - `field_spin` config (default 0, preserving the shipped off-shell IC) —
+     without it the on-shell residual could not be measured at all, so the
+     "discrete-equilibrium residual" `analyze_drift.py` was built for had
+     only ever been evaluated on data that is not an equilibrium.
+   - `background_spin` config (default = `field_spin`) so the subtracted
+     background can be on-shell while the IC is off-shell.
+   - `use_static_background` for the GR solver, mirroring
+     `dec_field_solver.h:202-209`.
+   - Latent inconsistency, not fixed: `use_flat_metric = true` makes the mesh
+     flat but `set_initial_kerr_wald` still lowers indices with `Metric_KS`
+     at `bh_spin`, so that combination is incoherent. Harmless at the default
+     (false); do not use it.
+
+   **What this does NOT establish.** The remaining ~9% flux error and the
+   ~25% toroidal error are consistent with the bulk first-order accuracy and
+   have not been driven down. Recovery interpolation is NOT the lever for
+   them: the Ampere residual is dominated 6:1 by the lapse term
+   `alpha * hodge2 * B`, not the shift cross-term, and second-order Ampere is
+   the reconstruction-Hodge route already measured unconditionally unstable
+   (see the mitigation matrix below). Whether the GR effort should resume is
+   still a scheduling question — but "the prismatic mesh cannot do GR" is no
+   longer a supported reason.
 2. **MPI field work continues to completion.** Phases 1–4.1a are done and
    tested; Phase 4.1b proceeds, but **retargeted at the flat
    `dec_field_solver`** instead of the GR solver. The flat solver has no

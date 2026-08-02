@@ -66,15 +66,39 @@ int main(int argc, char* argv[]) {
 
   env.init();
 
-  // --- Initial condition: Schwarzschild (non-rotating) Wald Maxwell field
-  // (a_field = 0 — A_φ = ½ B₀ sin²θ, A_r = 0) on the spinning Kerr KS
-  // background.  The metric spin used for γ_ij lowering and the
-  // hodge1_inv factor is read internally from the "bh_spin" config key
-  // (same key consumed by compute_metric above), so the two stay in
-  // sync.  This IC is off-shell for a ≠ 0; the system should radiate
-  // the mismatch away and relax to the rotating Wald asymptote.  The
-  // outer-damping background is stored as this IC.
-  solver->set_initial_kerr_wald(Scalar(0), Scalar(B0));
+  // --- Initial condition: Wald Maxwell field with spin parameter
+  // "field_spin" on the spinning Kerr KS background.  The metric spin
+  // used for γ_ij lowering and the hodge1_inv factor is read internally
+  // from the "bh_spin" config key (same key consumed by compute_metric
+  // above), so the two stay in sync.  The outer-damping background is
+  // stored as this IC.
+  //
+  // Default 0 — the Schwarzschild (non-rotating) Wald field
+  // (A_φ = ½ B₀ sin²θ, A_r = 0), which is off-shell for a ≠ 0: the
+  // system should radiate the mismatch away and relax to the rotating
+  // Wald asymptote.  This is the relaxation test.
+  //
+  // Setting field_spin = bh_spin instead gives the ON-SHELL state — the
+  // analytic stationary solution — so that dump_aux_fields writes the
+  // discrete-equilibrium residual ‖dD/dt‖, ‖dB/dt‖ of the operator
+  // evaluated at the exact solution.  That is the quantity whose
+  // convergence order says whether the analytic Wald state is a fixed
+  // point of the discretization at all (see analyze_drift.py).
+  //
+  // "background_spin" (default = field_spin) selects the Wald field held
+  // fixed by use_static_background.  It must be ON-SHELL (== bh_spin) for
+  // the subtraction to mean anything: only then is the background's
+  // discrete RHS pure truncation residual.  The relaxation test therefore
+  // wants background_spin = bh_spin with field_spin = 0 — establish the
+  // background first, then overwrite the IC without touching it.
+  double a_field = env.params().get_as<double>("field_spin", 0.0);
+  double a_bg = env.params().get_as<double>("background_spin", a_field);
+  if (a_bg != a_field) {
+    solver->set_initial_kerr_wald(Scalar(a_bg), Scalar(B0), true);
+    solver->set_initial_kerr_wald(Scalar(a_field), Scalar(B0), false);
+  } else {
+    solver->set_initial_kerr_wald(Scalar(a_field), Scalar(B0));
+  }
   solver->dump_aux_fields(env.params().get_as<std::string>("output_dir",
                                                            "Data") +
                           "/ic_aux.h5");

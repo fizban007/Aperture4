@@ -37,6 +37,8 @@ int main(int argc, char* argv[]) {
   prismatic_mesh mesh;
   mesh.sphere_optimize_iters =
       env.params().get_as<int64_t>("mesh_optimize_iters", 0);
+  mesh.dual_centroid =
+      env.params().get_as<bool>("mesh_dual_centroid", false);
   // 7D: distributed runs never build the global 3D mesh arrays — all
   // per-element geometry is computed locally from the sphere stage.
   if (world_size > 1) {

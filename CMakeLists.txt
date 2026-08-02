@@ -63,6 +63,16 @@ endif()
 
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_EXTRA_FLAGS}")
+# Host-side FP determinism.  The mesh-geometry bit-identity contract
+# (prismatic_mesh_geom.h reproducing the global build, pinned by
+# test_prismatic_mesh_geom) requires identical rounding for identical
+# expressions across inlining sites; the default -ffp-contract=fast lets
+# the compiler fuse a*b+c differently per site, which breaks the contract
+# at 1 ulp when Scalar is double (float builds only pass because the final
+# round-to-float masks it).
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-contract=off")
+endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
   set(CMAKE_CXX_FLAGS_RELEASE
       "${CMAKE_CXX_FLAGS_RELEASE} -xHost -no-prec-div")
@@ -154,8 +164,10 @@ if(use_cuda)
       set(CMAKE_CUDA_ARCHITECTURES 86)
     elseif(cuda_target_gpu STREQUAL "RTX4090" OR cuda_target_gpu STREQUAL "RTX6000")
       set(CMAKE_CUDA_ARCHITECTURES 89)
-    elseif(cuda_target_gpu STREQUAL "RTX5090")
-      set(CMAKE_CUDA_ARCHITECTURES 100)
+    elseif(cuda_target_gpu STREQUAL "RTX5090" OR cuda_target_gpu STREQUAL "RTXPro6000")
+      # Consumer/workstation Blackwell (RTX 50xx, RTX PRO 6000) is sm_120;
+      # sm_100 is datacenter Blackwell (B100/B200).
+      set(CMAKE_CUDA_ARCHITECTURES 120)
     elseif(cuda_target_gpu STREQUAL "H100" OR cuda_target_gpu STREQUAL "H200")
       set(CMAKE_CUDA_ARCHITECTURES 90)
     elseif(cuda_target_gpu STREQUAL "B100" OR cuda_target_gpu STREQUAL "B200")

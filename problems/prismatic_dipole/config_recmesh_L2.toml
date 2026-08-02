@@ -1,0 +1,16 @@
+# Gather-battery mesh (Sec 6.6): r in [1,2], N_r = 4*2^(L-2)
+dt = 0.001
+max_steps = 1
+subdivision_level = 2
+N_r = 4
+r_min = 1.0
+r_max = 2.0
+Bp = 1.0
+Omega = 0.0
+obliquity = 0.0
+damping_length = 0
+damping_coef = 0.0
+fld_output_interval = 1
+output_dir = "Data_recmesh/L2"
+sph_N_theta = 8
+sph_N_phi = 16

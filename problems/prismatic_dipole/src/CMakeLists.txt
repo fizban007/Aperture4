@@ -15,3 +15,6 @@ add_dependencies(problems streaming_test)
 
 add_aperture_executable(ns_rotator "ns_rotator.cpp")
 add_dependencies(problems ns_rotator)
+
+add_aperture_executable(ptc_orbit_test "ptc_orbit_test.cpp")
+add_dependencies(problems ptc_orbit_test)

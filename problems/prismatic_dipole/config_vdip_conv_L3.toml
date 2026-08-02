@@ -1,0 +1,17 @@
+# Vacuum dipole B_f flux-convergence family (paper Sec 6.3) - L=3
+# 1-step run; validate_vacuum_dipole.py reads the step-0 dump.
+dt = 0.01
+max_steps = 1
+subdivision_level = 3
+N_r = 20
+r_min = 1.0
+r_max = 20.0
+Bp = 1.0
+Omega = 1.0
+obliquity = 0.7854
+damping_length = 15
+damping_coef = 0.05
+fld_output_interval = 1
+output_dir = "Data_vdip_conv_L3"
+sph_N_theta = 90
+sph_N_phi = 180

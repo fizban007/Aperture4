@@ -1,0 +1,46 @@
+# A2 damped steady-state variant: 6 periods with the absorbing layer.
+# Used for luminosity / absorber studies (deutsch_luminosity.py), NOT for
+# convergence (use the causally clean config_deutsch_L* protocol).
+#
+# Absorber design (A2 study, 2026-07-16).  The old r_max=20, linear
+# sigma, coef=0.1 layer settled at L ~ 0.59 L_analytic (0.52 before the
+# flat-metric diagnostic fix): the layer-entrance reflection interferes
+# with the hard analytic inner BC at FIRST order in the reflected
+# amplitude rho, shifting the steady luminosity by ~ 2*rho*cos(2k*d_in)
+# (resonantly pumped when the entrance distance d_in hits n*lambda/2).
+# Measured on the entrance-kr scan: rho ~ 1.7/(k r_in)^2 — a physical
+# near-field impedance mismatch, resolution-independent, only weakly
+# reduced by taper smoothing.  Design rules:
+#   1. entrance radius with k*r_in >= 4 (else rho > 5%, and an absorber
+#      inside the induction zone corrupts the wave-zone L(r) profile);
+#   2. entrance at a quarter-point 2*k*d_in = (n + 1/2)*pi — i.e.
+#      d_in = (2n+1)*lambda/8 — to zero the first-order interference
+#      (here 19.8 = 5*lambda/8 for lambda = 2*pi/Omega = 31.4);
+#   3. cubic taper (damping_exponent = 3), coef ~ 1, thickness ~ 0.8
+#      lambda for total wall attenuation.
+# This config settles by period 3 at L/L_analytic = 0.957 vs 0.981 in
+# the clean domain at L=5 (absorber systematic ~ -2%, was -40%), with
+# period-1 mean = 0.982 reproducing the clean benchmark.  Recurrence
+# err(r<9) B/E = 1.15e-3 / 9.1e-3 — no longer floored by the absorber
+# (clean L5: 1.37e-3 / 1.17e-2).  Residual -1..-2% deficit is
+# second-order in the absorber; pushing the entrance to k*r_in ~ 10
+# (r_max = 110, entrance 51 = 13*lambda/8) measures -1.2% at L=4.
+dt = 0.009817477042468103
+max_steps = 19200
+subdivision_level = 5
+N_r = 102
+r_min = 1.0
+r_max = 45.0
+Bp = 1.0
+Omega = 0.2
+obliquity = 0.5235987755982988
+use_flat_metric = true
+use_deutsch_ic = true
+use_deutsch_bc = true
+damping_length = 22
+damping_coef = 1.0
+damping_exponent = 3.0
+fld_output_interval = 200
+output_dir = "Data_deutsch_damped_L5_a30"
+sph_N_theta = 64
+sph_N_phi = 128

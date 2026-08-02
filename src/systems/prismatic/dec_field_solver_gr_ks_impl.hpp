@@ -28,7 +28,9 @@ dec_field_solver_gr_ks<ExecPolicy>::dec_field_solver_gr_ks(
       m_dD_dt_new(mesh.m_N_edges, ExecPolicy::data_mem_type()),
       m_dB_dt_new(mesh.m_N_faces, ExecPolicy::data_mem_type()),
       m_D_bg(mesh.m_N_edges, ExecPolicy::data_mem_type()),
-      m_B_bg(mesh.m_N_faces, ExecPolicy::data_mem_type()) {}
+      m_B_bg(mesh.m_N_faces, ExecPolicy::data_mem_type()),
+      m_dD_bg(mesh.m_N_edges, ExecPolicy::data_mem_type()),
+      m_dB_bg(mesh.m_N_faces, ExecPolicy::data_mem_type()) {}
 
 template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::register_data_components() {
@@ -74,9 +76,36 @@ void dec_field_solver_gr_ks<ExecPolicy>::init() {
   // consistent index lowering and KS normal-observer projection.
   sim_env().params().get_value("bh_spin", m_spin);
 
+  // Static background subtraction — see the declaration in the header.
+  sim_env().params().get_value("use_static_background",
+                               m_use_static_background);
+
   m_time = 0.0;
-  Logger::print_info("DEC GR field solver initialized: implicit={}",
-                     m_use_implicit);
+  Logger::print_info(
+      "DEC GR field solver initialized: implicit={}, static_background={}",
+      m_use_implicit, m_use_static_background);
+}
+
+// =========================================================================
+// Precompute the background's own discrete RHS.
+//
+// The analytic background is exactly stationary, so its CONTINUUM time
+// derivative vanishes; whatever compute_rhs returns for it is pure
+// discretization residual.  Storing it here and subtracting it from every
+// subsequent update cancels that residual identically.  Because the vacuum
+// RHS is linear in (D, B), the result is algebraically the delta equation:
+//
+//   rhs(D, B) − rhs(D_bg, B_bg) = rhs(D − D_bg, B − B_bg)
+//
+// so no separate delta state, boundary rewrite, or damping change is needed.
+// =========================================================================
+template <typename ExecPolicy>
+void dec_field_solver_gr_ks<ExecPolicy>::compute_background_rhs() {
+  if (!m_has_background) return;
+  compute_rhs(m_D_bg, m_B_bg, m_dD_bg, m_dB_bg);
+  ExecPolicy::sync();
+  m_bg_rhs_ready = true;
+  Logger::print_info("GR solver: background RHS precomputed for subtraction");
 }
 
 // =========================================================================
@@ -289,6 +318,21 @@ void dec_field_solver_gr_ks<ExecPolicy>::compute_rhs(
     buffer<Scalar>& dD_dt, buffer<Scalar>& dB_dt) {
   compute_dB_dt(D_in, B_in, dB_dt);
   compute_dD_dt(D_in, B_in, dD_dt);
+  // Static background subtraction.  m_bg_rhs_ready is still false while
+  // compute_background_rhs() is itself calling this, so there is no
+  // recursion.  update_explicit does the same subtraction inline to keep
+  // its leapfrog structure; dump_aux_fields deliberately does NOT, so the
+  // residual diagnostic keeps measuring the raw operator.
+  if (m_use_static_background && m_bg_rhs_ready) {
+    auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [Ne = mp.N_edges, Nf = mp.N_faces] LAMBDA(auto dD, auto dB,
+                                                  auto dD_bg, auto dB_bg) {
+          ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) { dD[e] -= dD_bg[e]; });
+          ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) { dB[f] -= dB_bg[f]; });
+        },
+        dD_dt, dB_dt, m_dD_bg, m_dB_bg);
+  }
 }
 
 // =========================================================================
@@ -310,28 +354,34 @@ template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::update_explicit(double dt) {
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
+  // Static background subtraction is folded into the advance below rather
+  // than into compute_dB_dt / compute_dD_dt, so the leapfrog structure and
+  // the raw half-step kernels are untouched.  Linearity of the vacuum RHS
+  // makes this exactly the delta equation (see compute_background_rhs).
+  const bool sub_bg = m_use_static_background && m_bg_rhs_ready;
+
   // Step 1-2: Faraday — compute dB from current state, advance B.
   if (m_update_b) {
     compute_dB_dt(m_D->data(), m_B->data(), m_dB_dt);
     ExecPolicy::launch(
-        [Nf = mp.N_faces, dt] LAMBDA(auto B, auto dB) {
+        [Nf = mp.N_faces, dt, sub_bg] LAMBDA(auto B, auto dB, auto dB_bg) {
           ExecPolicy::loop(0, Nf, [&] LAMBDA(int f) {
-            B[f] += dt * dB[f];
+            B[f] += dt * (sub_bg ? dB[f] - dB_bg[f] : dB[f]);
           });
         },
-        m_B->data(), m_dB_dt);
+        m_B->data(), m_dB_dt, m_dB_bg);
   }
 
   // Step 3-4: Ampère — compute dD using the updated B (leapfrog), advance D.
   if (m_update_d) {
     compute_dD_dt(m_D->data(), m_B->data(), m_dD_dt);
     ExecPolicy::launch(
-        [Ne = mp.N_edges, dt] LAMBDA(auto D, auto dD) {
+        [Ne = mp.N_edges, dt, sub_bg] LAMBDA(auto D, auto dD, auto dD_bg) {
           ExecPolicy::loop(0, Ne, [&] LAMBDA(int e) {
-            D[e] += dt * dD[e];
+            D[e] += dt * (sub_bg ? dD[e] - dD_bg[e] : dD[e]);
           });
         },
-        m_D->data(), m_dD_dt);
+        m_D->data(), m_dD_dt, m_dD_bg);
   }
 
   apply_damping(m_D->data(), m_B->data(), dt);
@@ -551,6 +601,13 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_damping(
 template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
     buffer<Scalar>& D, buffer<Scalar>& B) {
+  // Zero radial gradient on the PERTURBATION: delta_0 = delta_1, where
+  // delta = field - background.  Expanding,
+  //     X_0 - bg_0 = X_1 - bg_1   =>   X_0 = X_1 + bg_0 - bg_1
+  // The background is an exact stationary solution, so this BC must leave
+  // it invariant: substituting X = bg returns bg_0 identically.  (The
+  // previous form used + bg_1 - bg_0, which maps bg_0 -> 2*bg_1 - bg_0 and
+  // therefore injected an O(h) error at shell 0 on every step.)
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   bool has_bg = m_has_background;
   int N_edge_s = mp.N_edge_s;
@@ -567,7 +624,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
           int e1 = e0 + N_edge_s;
           Scalar bg0 = has_bg ? D_bg[e0] : Scalar(0);
           Scalar bg1 = has_bg ? D_bg[e1] : Scalar(0);
-          D_e[e0] = D_e[e1] + bg1 - bg0;
+          D_e[e0] = D_e[e1] + bg0 - bg1;
         });
       },
       D, m_D_bg);
@@ -581,7 +638,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
           int e1 = e0 + N_vert_s;
           Scalar bg0 = has_bg ? D_bg[e0] : Scalar(0);
           Scalar bg1 = has_bg ? D_bg[e1] : Scalar(0);
-          D_e[e0] = D_e[e1] + bg1 - bg0;
+          D_e[e0] = D_e[e1] + bg0 - bg1;
         });
       },
       D, m_D_bg);
@@ -593,7 +650,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
           int f1 = f0 + N_tri;
           Scalar bg0 = has_bg ? B_bg[f0] : Scalar(0);
           Scalar bg1 = has_bg ? B_bg[f1] : Scalar(0);
-          B_f[f0] = B_f[f1] + bg1 - bg0;
+          B_f[f0] = B_f[f1] + bg0 - bg1;
         });
       },
       B, m_B_bg);
@@ -607,7 +664,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_inner_boundary(
           int f1 = f0 + N_edge_s;
           Scalar bg0 = has_bg ? B_bg[f0] : Scalar(0);
           Scalar bg1 = has_bg ? B_bg[f1] : Scalar(0);
-          B_f[f0] = B_f[f1] + bg1 - bg0;
+          B_f[f0] = B_f[f1] + bg0 - bg1;
         });
       },
       B, m_B_bg);
@@ -683,7 +740,7 @@ void dec_field_solver_gr_ks<ExecPolicy>::apply_outer_boundary(
 // =========================================================================
 template <typename ExecPolicy>
 void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
-    Scalar a_field, Scalar Bp) {
+    Scalar a_field, Scalar Bp, bool set_background) {
   const Scalar a_metric = m_spin;
   auto mp = m_mesh.get_ptrs(typename ExecPolicy::exec_tag{});
   int Nh = (mp.N_r + 1) * mp.N_edge_s;
@@ -754,14 +811,14 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
 
   // --------- Step 2: B[f] = d1 · A  (Stokes).  Writes m_B and m_B_bg. -------
   ExecPolicy::launch(
-      [mp] LAMBDA(auto A_in, auto B_out, auto B_bg) {
+      [mp, set_background] LAMBDA(auto A_in, auto B_out, auto B_bg) {
         ExecPolicy::loop(0, mp.N_faces, [&] LAMBDA(int f) {
           Scalar b = Scalar(0);
           for (int j = mp.d1_row_ptr[f]; j < mp.d1_row_ptr[f + 1]; j++) {
             b += mp.d1_val[j] * A_in[mp.d1_col_idx[j]];
           }
           B_out[f] = b;
-          B_bg[f] = b;
+          if (set_background) B_bg[f] = b;
         });
       },
       m_D->data(), m_B->data(), m_B_bg);
@@ -776,7 +833,8 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
   // with the hodge1_inv[e] factor that was computed in compute_metric()
   // at spin a_metric.
   ExecPolicy::launch(
-      [a_field, a_metric, Bp, mp, Nh] LAMBDA(auto D_out, auto D_bg) {
+      [a_field, a_metric, Bp, mp, Nh, set_background] LAMBDA(auto D_out,
+                                                             auto D_bg) {
         ExecPolicy::loop(0, mp.N_edges, [&] LAMBDA(int e) {
           int v0 = mp.edge_v0[e], v1 = mp.edge_v1[e];
           int k0 = v0 / mp.N_vert_s, k1 = v1 / mp.N_vert_s;
@@ -848,13 +906,16 @@ void dec_field_solver_gr_ks<ExecPolicy>::set_initial_kerr_wald(
           Scalar h1inv = mp.hodge1_inv[e];
           Scalar d_tilde = (h1inv > Scalar(0)) ? d_primal / h1inv : Scalar(0);
           D_out[e] = d_tilde;
-          D_bg[e] = d_tilde;
+          if (set_background) D_bg[e] = d_tilde;
         });
       },
       m_D->data(), m_D_bg);
   ExecPolicy::sync();
 
-  m_has_background = true;
+  if (set_background) {
+    m_has_background = true;
+    if (m_use_static_background) compute_background_rhs();
+  }
 }
 
 // =========================================================================

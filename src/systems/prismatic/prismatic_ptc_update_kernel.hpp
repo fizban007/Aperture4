@@ -155,6 +155,23 @@ HD_INLINE void gca_drift_velocity(
   }
 }
 
+// Parallel gradient of |B| from the recovery gradient: b·grad|B| with
+// grad|B|_j = b_i G[i][j].  Consumed by the mirror force in the u_par
+// update; same piecewise-constant first-order accuracy as the drifts.
+template <typename MP>
+HD_INLINE Scalar gca_grad_B_par(const MP& mp, const Scalar* Bv, int tri,
+                                int layer, const Scalar l[3], Scalar zeta) {
+  Scalar B[3], G[3][3];
+  interpolate_B_recovery_grad(mp, Bv, tri, layer, l, zeta, B, G);
+  Scalar Bmag = math::sqrt(B[0]*B[0] + B[1]*B[1] + B[2]*B[2]);
+  if (Bmag < Scalar(1e-15)) return Scalar(0);
+  Scalar b[3] = {B[0]/Bmag, B[1]/Bmag, B[2]/Bmag};
+  Scalar gBpar = Scalar(0);
+  for (int j = 0; j < 3; j++)
+    gBpar += b[j] * (b[0]*G[0][j] + b[1]*G[1][j] + b[2]*G[2][j]);
+  return gBpar;
+}
+
 struct GCAPushResult {
   Scalar new_x, new_y, new_z;
   Scalar u_par;   // updated parallel 4-velocity
@@ -195,10 +212,6 @@ HD_INLINE GCAPushResult gca_push(
   // E_par = E · b
   Scalar E_par = Ex*bx + Ey*by + Ez*bz;
 
-  // Step 1: update u_par (Eq 17)
-  Scalar u_par_new = u_par_half + (q/m) * dt * E_par;
-  result.u_par = u_par_new;
-
   // v_E = E×B drift velocity (Eq 5)
   // w_E = c E×B / (E² + B²), but in c=1 units:
   // w_E = E×B / (E² + B²)
@@ -236,9 +249,29 @@ HD_INLINE GCAPushResult gca_push(
   if (vE2 > Scalar(1) - Scalar(1e-6)) vE2 = Scalar(1) - Scalar(1e-6);
   Scalar kappa = Scalar(1) / std::sqrt(Scalar(1) - vE2);
 
+  // Step 1: update u_par (Eq 17): parallel electric force + mirror force.
+  // The mirror term follows from the Hamiltonian Gamma(u_par, mu, B):
+  //   du_par/dt = -m dGamma/ds|_{u,mu} = -(mu kappa^3 / (m Gamma)) d_s|B|,
+  // with Gamma evaluated at time n (u_par^{n-1/2}).  It vanishes
+  // identically for the mu = 0 locked-injection population, which is why
+  // its absence went unnoticed until the mu != 0 trajectory test; it is
+  // what mirrors trapped particles.  d_s|B| comes from the same recovery
+  // gradient as the curvature/grad-B drifts, but unlike those this term
+  // is NOT optional physics, so it is gated only on gradient
+  // availability, not on include_curvature.
+  Scalar u_perp_sq = Scalar(2) * mu * B * kappa / m;
+  Scalar u_par_new = u_par_half + (q/m) * dt * E_par;
+  if (Bv_rec != nullptr && tri0 >= 0 &&
+      l0 != nullptr && mu != Scalar(0)) {
+    Scalar Gamma_n = kappa * std::sqrt(Scalar(1) + u_par_half*u_par_half +
+                                       u_perp_sq);
+    Scalar gBpar = gca_grad_B_par(mp, Bv_rec, tri0, layer0, l0, zeta0);
+    u_par_new -= dt * (mu * kappa * kappa * kappa / (m * Gamma_n)) * gBpar;
+  }
+  result.u_par = u_par_new;
+
   // Lorentz factor: Gamma = kappa * sqrt(1 + (u_par² + 2*mu*B*kappa)/m)
   // In our units with m=1: Gamma = kappa * sqrt(1 + u_par² + 2*mu*B*kappa)
-  Scalar u_perp_sq = Scalar(2) * mu * B * kappa / m;
   Scalar Gamma = kappa * std::sqrt(Scalar(1) + u_par_new*u_par_new + u_perp_sq);
   result.gamma = Gamma;
 

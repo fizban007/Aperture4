@@ -149,6 +149,14 @@ class prismatic_ptc_updater : public system_t {
   // (device-packed, host-staged through MPI), receive staging.  Cells
   // travel in the 64-bit GLOBAL wire encoding.
   buffer<int> m_mig_count, m_mig_cursor;
+  // Migration integrity counters (see migrate / append_wire_arrivals).
+  // m_mig_bad is a 1-element device counter for corrupt-cell leavers;
+  // the misroute tolerance is config "ptc_misroute_tolerance" (default
+  // 0 = abort on the first one; -1 = never abort, for diagnosis runs).
+  buffer<int> m_mig_bad;
+  uint64_t m_n_bad_dest = 0;
+  uint64_t m_n_misrouted = 0;
+  int m_misroute_tolerance = 0;
   buffer<Scalar> m_snd_s[8];
   buffer<uint64_t> m_snd_cell;
   buffer<uint32_t> m_snd_flag;

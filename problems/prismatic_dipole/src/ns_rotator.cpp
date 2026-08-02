@@ -32,6 +32,7 @@
 #include "systems/prismatic/prismatic_mesh.h"
 #include "systems/prismatic/prismatic_mesh_partition.h"
 #include "systems/prismatic/prismatic_mpi_comm.h"
+#include "systems/prismatic/prismatic_pair_producer.hpp"
 #include "systems/prismatic/prismatic_ptc_updater.h"
 #include "systems/prismatic/prismatic_sph_output.h"
 #include "systems/prismatic/prismatic_surface_injector.h"
@@ -106,6 +107,10 @@ int main(int argc, char* argv[]) {
   }
 
   env.register_system<prismatic_surface_injector_t>(mesh, mp, pc);
+  // Stage-1 pair production (gamma-threshold instant pairs; config
+  // use_pair_production, OFF by default).  Between injector and updater
+  // so newborns are pushed and deposit in the same step.
+  env.register_system<prismatic_pair_producer_t>();
   env.register_system<prismatic_ptc_updater_t>(mesh, mp, pc);
   auto solver = env.register_system<dec_field_solver_t>(mesh, pc, mp);
   env.register_system<prismatic_data_exporter>(mesh, mp, pc);

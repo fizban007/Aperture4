@@ -139,6 +139,11 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
     m_mig_cursor.set_memtype(ExecPolicy::data_mem_type());
     m_mig_count.resize(m_world_size);
     m_mig_cursor.resize(m_world_size);
+    m_mig_bad.set_memtype(ExecPolicy::data_mem_type());
+    m_mig_bad.resize(1);
+    m_mig_bad.assign(0);
+    sim_env().params().get_value("ptc_misroute_tolerance",
+                                 m_misroute_tolerance);
     // Non-zero initial capacity so host_ptr() is valid even on steps
     // with nothing to send (MPI gets zero counts but a real pointer).
     for (auto& b : m_snd_s) {
@@ -554,16 +559,45 @@ void prismatic_ptc_updater<ExecPolicy>::migrate() {
   auto lmp = m_lmesh.get_ptrs(typename ExecPolicy::exec_tag{});
 
   // Pass 1: count leavers per destination.
+  //
+  // The `dest < ws` guard is not paranoia: migrate_dest indexes
+  // tri_ang_rank[tri] and derives the radial slab from k0 + lay, so a
+  // particle carrying a CORRUPT cell yields an out-of-range rank and
+  // atomic_add(&count[dest]) then writes past m_mig_count — silent heap
+  // corruption whose symptom appears arbitrarily far away.  Vacate such
+  // particles here instead, where the cause is still local; the count is
+  // reported by the caller.
   m_mig_count.assign(0);
+  const int ws_guard = m_world_size;
   ExecPolicy::launch(
-      [num, lmp] LAMBDA(auto ptc, auto count) {
+      [num, lmp, ws_guard] LAMBDA(auto ptc, auto count, auto bad) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
           if (ptc.cell[n] == empty_cell) return;
           int dest = lmp.migrate_dest(ptc.cell[n]);
-          if (dest >= 0) atomic_add(&count[dest], 1);
+          if (dest < 0) return;
+          if (dest >= ws_guard) {
+            atomic_add(&bad[0], 1);
+            ptc.cell[n] = empty_cell;  // vacate; do not route on garbage
+            return;
+          }
+          atomic_add(&count[dest], 1);
         });
       },
-      *m_ptc, m_mig_count);
+      *m_ptc, m_mig_count, m_mig_bad);
+  ExecPolicy::sync();
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+  m_mig_bad.copy_to_host();
+#endif
+  if (m_mig_bad[0] > 0) {
+    m_n_bad_dest += m_mig_bad[0];
+    Logger::print_err_all(
+        "migrate: {} particle(s) had a corrupt cell (destination rank >= "
+        "world_size {}) and were vacated; {} cumulative.  This indicates a "
+        "particle was created or moved into an invalid cell — check any "
+        "source that writes ptc.cell (injector, pair producer, restart).",
+        m_mig_bad[0], m_world_size, m_n_bad_dest);
+    m_mig_bad.assign(0);
+  }
   ExecPolicy::sync();
 #if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
   m_mig_count.copy_to_host();
@@ -692,9 +726,14 @@ void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
   const size_t num = m_ptc->number();
 
   if (num + n_recv > m_ptc->size()) {
-    Logger::print_err(
+    // print_err_all, not print_err: this fires on ONE rank and the
+    // rank-0-only logger would swallow it, leaving a bare SIGABRT with
+    // no message (which is exactly how the 2026-08-01 misroute had to be
+    // diagnosed from a core dump).
+    Logger::print_err_all(
         "prismatic_ptc_updater::append_wire_arrivals: particle buffer "
-        "overflow ({} + {} arrivals > {})",
+        "overflow ({} + {} arrivals > {}) — raise max_ptc_num or pull "
+        "ptc_absorb_radius inward",
         num, n_recv, m_ptc->size());
     std::abort();
   }
@@ -703,21 +742,48 @@ void prismatic_ptc_updater<ExecPolicy>::append_wire_arrivals(int n_recv) {
   const int n_tri_loc = m_lmesh.n_tri_local();
   const int k0 = m_lmesh.k0();
   auto hp = m_ptc->get_host_ptrs();
+  int n_bad = 0;
   for (int i = 0; i < n_recv; ++i) {
     const uint64_t wc = m_rcv_cell[i];
     const int glay = int(wc / N_tri_glob);
     const int gtri = int(wc % N_tri_glob);
-    const int ltri = g2l[gtri];
+    const int ltri = (gtri >= 0 && uint64_t(gtri) < N_tri_glob)
+                         ? g2l[gtri] : -1;
     const int llay = glay - k0;
     if (ltri < 0 || llay < 0) {
-      Logger::print_err(
-          "prismatic_ptc_updater::append_wire_arrivals: arrival misrouted "
-          "(global cell {} not in this rank's halo)",
-          wc);
-      std::abort();
+      // NON-FATAL by design.  A misrouted arrival means some particle
+      // carried a cell this rank cannot own — a correctness bug, but one
+      // stray particle must not take down a 320-rank job mid-campaign.
+      // Land it in an inert slot (the injector's convention; the periodic
+      // sort compacts it) and account for it.  A SYSTEMATIC failure still
+      // aborts via the tolerance below, so this cannot hide a real break.
+      if (m_n_misrouted < 20) {
+        Logger::print_err_all(
+            "append_wire_arrivals: MISROUTED arrival — wire cell {} "
+            "decodes to (glay {}, gtri {}); this rank has k0 {}, "
+            "n_tri_local {}, N_tri_global {} -> (llay {}, ltri {}). "
+            "Dropping the particle.",
+            wc, glay, gtri, k0, n_tri_loc, N_tri_glob, llay, ltri);
+      }
+      hp.cell[num + i] = empty_cell;
+      ++n_bad;
+      continue;
     }
     // Local cells fit uint32 by the lmesh build guard.
     hp.cell[num + i] = uint32_t(llay * n_tri_loc + ltri);
+  }
+  if (n_bad > 0) {
+    m_n_misrouted += n_bad;
+    const uint64_t tol = uint64_t(m_misroute_tolerance);
+    if (m_misroute_tolerance >= 0 && m_n_misrouted > tol) {
+      Logger::print_err_all(
+          "append_wire_arrivals: {} misrouted arrivals cumulative (> "
+          "ptc_misroute_tolerance = {}).  This is systematic, not a "
+          "stray — aborting.  Set ptc_misroute_tolerance = -1 to keep "
+          "running while diagnosing.",
+          m_n_misrouted, m_misroute_tolerance);
+      std::abort();
+    }
   }
 
   const Scalar* rs[8] = {m_rcv_s[0].data(), m_rcv_s[1].data(),

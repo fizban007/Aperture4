@@ -505,6 +505,101 @@ Fix G3 (edge_kind in the gather), apply the P0 normalization, add G6.
 mesh; a single charge on a circular orbit deposits a current whose discrete
 divergence matches −∂ρ/∂t to round-off.
 
+#### P2a — the deposit/E-gather adjointness question (analyzed 2026-08-02)
+
+Two exactness properties, often conflated, fare very differently under the
+Whitney Hodge:
+
+- **Charge conservation involves ONLY the deposit** — the trajectory
+  split's divergence identity is combinatorial (P0).  No Hodge, no gather,
+  no metric.  Never at risk under any constitutive map.
+- **Energy consistency (no secular heating) is a three-way contract**: the
+  field ledger's `−J̃` work term must equal the particle ledger's gathered
+  work.  Flat solver closes it EXACTLY: gather = deposit-transpose through
+  the same Whitney basis, applied to the same primal cochain `E_e` that the
+  field energy pairs with `J̃`.
+
+Under the GR Whitney solver this breaks in three layers:
+
+1. **Raw G3 bug (dimensional).**  The `"E"` slot holds `D̃` (dual-2, ~h²
+   scaling); `interpolate_fields` (prismatic_deposit.h:249) expands raw
+   slot values in the Whitney 1-form basis assuming line integrals (~h).
+   Any GR PIC run today gets O(1/h)-wrong forces.  Hard gate.
+2. **Conversion choice.**  The drop-in `hodge1_inv·D̃` computes
+   `hodge1_inv·M1·D_p` under the Whitney convention — measured 13–25% off
+   near the horizon (the same skew as B1c take-2).  The correct primal
+   cochain `D_p = M1⁻¹D̃` is ALREADY computed every step (`m_D_primal`,
+   warm-started) — the fix is plumbing (edge_kind-aware gather fed from
+   the solver), not a new solve.
+3. **The genuine adjointness gap.**  In the Whitney energy norm the field
+   loses energy against `E_base = M1⁻¹M1α M1⁻¹D̃` (also computed every
+   step), i.e. with the lapse INSIDE the element quadrature; the GR pusher
+   gathers D, B and applies α, γ_ij POINTWISE at the particle.  The two
+   ledgers agree only to O(h²), concentrated where α varies fastest in a
+   cell (near the horizon).  This is not classic grid heating (no random
+   row asymmetry — smooth bounded coefficients), and part of it is
+   physics: coordinate-time field energy is not conserved on Kerr; the
+   conserved ledger is the KILLING (red-shifted) energy, so α-weighting
+   between the books is expected.  **The open work: derive the discrete
+   Killing-energy ledger for the coupled Whitney-field + GR-pusher system,
+   choose the bookkeeping, and quantify the residual order.**  Expected
+   failure mode if ignored: slow near-horizon energy drift at O(h²), not
+   runaway.  Gate test: frozen-field orbit with a closed-loop audit —
+   deposit divergence vs −∂ρ/∂t (exact) AND work-done vs
+   field-energy-lost (2nd order, no secular trend).
+   Also bundled in G3: the vertex-recovery B-gather's `(r_ref/r_k)²`
+   weight rescaling assumes flat geometric shells — unverified on the
+   metric mesh.
+
+If the Whitney machinery is ever adopted on the FLAT side, Layer 3
+vanishes (α ≡ 1): exact adjointness is recoverable by gathering the
+`M1⁻¹`-converted cochain with the same basis.  The GR case is the only
+one where "exact" softens to "2nd-order consistent against the right
+conserved quantity" — intrinsic to 3+1 GR PIC, not to this mesh.
+
+#### Feasibility analysis of the M1 solve at scale (2026-08-02)
+
+Recorded from the step-back review with the user:
+
+- The M1 solve is spatially implicit in the sense of a CONSISTENT MASS
+  MATRIX, not an elliptic solve: κ is h-INDEPENDENT (≈55 at every L),
+  M1⁻¹ decays exponentially (effective stencil O(10) cells), and each
+  iteration distributes like one stencil apply (SpMV halo exchange) plus,
+  for CG only, one 16-byte allreduce.  Chebyshev — a loser single-GPU —
+  is the distributed winner: zero reductions (bounds from the init-time
+  Lanczos probe are global constants).  "Global solve" is NOT the
+  scaling blocker.
+- The real cost is a CONSTANT factor: measured 16× vs the diagonal GR
+  star at L4 (40 vs 2.5 ms/step, tol 1e-7).  Reduction path: explicit
+  leapfrog instead of semi-implicit (6 RHS evals → 2, ~3×, one config
+  away from testable — the C1 scheme is energy-consistent and deserves
+  the CFL test) and a real mass-matrix preconditioner (κ 55 → ~5, another
+  ~2-3×).  Plausible endpoint: 4–6× over diagonal.
+- Production perspective: PIC steps are PARTICLE-dominated (t15: 815
+  ms/step at L6).  Un-optimized Whitney fields at L6 ≈ 150–300 ms/step =
+  20–30% overhead on a PIC step, before the reductions above.
+- For percent-level (PIC-grade) accuracy there is also a HYBRID option:
+  Galerkin Hodge inside r ≲ 4–5 M (where k² = γ_rφ²/(γ_rr γ_φφ) is O(1)),
+  diagonal outside (k² < 1e-2) — caps the solve at ~1/3 of cells with a
+  sub-percent constitutive floor, but forfeits clean convergence.  Hold
+  unless the constant after optimization is still unacceptable.
+- What actually blocks L6+/L7: the GR solver is SINGLE-RANK (predates the
+  Phase-7 stack) and the L7 CSR is ~200 GB.  L6 fits one GCD (~25 GB) and
+  the workstation.  The Frontier work item is "port dec_field_solver_gr_ks
+  to the Phase-7 partition/halo machinery" — needed regardless of Hodge
+  choice; the distributed M1 SpMV then rides the same halo plans.
+- Flat-side adoption: NOT for production (diagonal is consistent in flat
+  space — the B1 defect is γ_rφ-specific; the two-tier order limitation
+  is invisible under PIC shot noise; the flat solver is the distributed,
+  validated, paper-committed one).  BUT the Whitney machinery is exactly
+  the "new theory" the July verdict ("reconstruction Hodge unconditionally
+  unstable — do not reopen without new theory") asked for: SPD by
+  construction, evolution-validated on the harder curved problem.  A
+  zero-new-code flat A/B exists today (dec_field_solver_gr_ks +
+  use_flat_metric + whitney on the frozen static dipole spurious-curl
+  probe) and would demonstrate "two-tier order resolved" as a paper
+  discussion item without touching the production path.
+
 ### P3 — GR moments + injection
 
 G5 and G7 together.

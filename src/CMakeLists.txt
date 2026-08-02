@@ -51,6 +51,7 @@ set(Aperture_src
   "systems/prismatic/prismatic_deposit.cpp"
   "systems/prismatic/prismatic_vertex_recovery.cpp"
   "systems/prismatic/prismatic_recon_hodge.cpp"
+  "systems/prismatic/prismatic_whitney_hodge.cpp"
   "systems/prismatic/prismatic_ptc_updater.cpp"
   "systems/prismatic/prismatic_checkpoint.cpp"
   "systems/prismatic/prismatic_data_exporter.cpp"

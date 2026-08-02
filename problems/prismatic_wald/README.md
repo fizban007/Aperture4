@@ -130,6 +130,16 @@ Convergence family (generated — edit `make_conv_configs.py`, not these):
   1 step. The analytic state sampled on that level's mesh: both the scoring
   target and the discrete-equilibrium residual in `ic_aux.h5`.
 - `config_conv_L{3..6}_relax.toml` — the relaxation test, t = 220 M.
+- `config_conv_L{3..6}_{ana,relax}_whitney.toml` — same, with the Whitney
+  Galerkin Hodge (`use_whitney_hodge = true`, GRPIC_PLAN B1b) instead of
+  the diagonal stars, writing to `Data_conv_L*_{ana,relax}_whitney`.  The
+  plain family is pinned to `use_whitney_hodge = false` so its dirs remain
+  the diagonal baseline.  Cross-check of the C++ operators against the
+  validated lab: `python/check_whitney_cpp.py 3 4 5` (needs the `_whitney`
+  ana runs; L3 also dumps `whitney.h5` for the entrywise matrix compare).
+  Note the Whitney runs store `D̃ = M1·D_primal`: converting to the primal
+  cochain needs `M1⁻¹` (dumped as `D_primal` in `ic_aux.h5`), NOT
+  `hodge1_inv·D̃`, which is O(1) off near the horizon for a ≠ 0.
 - `config_movie_L5.toml` — as L5_relax but with meridional-resolution
   spherical output (`sph_N_theta = 181`, `sph_N_phi = 4`) for the movie.
 

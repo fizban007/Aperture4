@@ -302,7 +302,16 @@ a ~20% floor.  Runtime 39 s at L5 in Python -- no port needed for the lab.
 3. **Cancel sin(theta) analytically at the axis** in `g^phph` and `sqrt(g)`,
    exactly as `prismatic_sph_output.cpp` already does.  Otherwise the polar
    prisms are 0/0.  Regular forms: `g^rr = P/(g_rr rho2)`, `g^rphi = a/rho2`,
-   `g^phph = g_rr/(rho2 sin^2)`, with `P = r^2+a^2+Z a^2 sin^2`.
+   `g^phph = 1/(rho2 sin^2)`, with `P = r^2+a^2+Z a^2 sin^2`.
+   (CORRECTED 2026-08-01: an earlier version of this line and of the lab
+   carried `g^phph = g_rr/(rho2 sin^2)` — a spurious `g_rr`; in
+   `det2 = g_rr g_phph − g_rphi² = sin²(1+Z)rho2` the `(1+Z)` cancels.
+   Both validation projections are blind to `g^phph` — the flux reads only
+   vertical M1 rows, whose Whitney basis has no phi component, and the
+   energy reads only M2 — so the lab could not catch it; the C++ port
+   (`Metric_KS::gu33`) disagreed on the horizontal M1 rows and a direct
+   numerical inversion of `gamma_ij` sided with the C++.  The lab's
+   published flux/energy table is unaffected.)
 
 **Two caveats on the reference itself:**
 
@@ -352,13 +361,130 @@ diagonal chart and its azimuthal shift `a/Delta` diverges at the horizon.
 **Gate (revised): B1 must be resolved before P2.** P1 is independent of it
 and can proceed in parallel.
 
-**STATUS 2026-08-01: B1 is diagnosed, and the fix is validated in the lab
-(B1b).  What remains is the C++ implementation** -- port the Whitney M1/M2
-into `prismatic_mesh_metric`, replace the diagonal `hodge1_inv`/`hodge2` in
-`dec_field_solver_gr_ks` only (the FLAT solver is unaffected: flat space has
-no off-diagonal spatial metric, and the NS paper runs on it), add a
-Jacobi-PCG for `M1^-1`, and re-run the vacuum campaign.  Scope the change to
-the GR solver.
+**STATUS 2026-08-01 (later): the C++ port is DONE and validated against the
+lab; the vacuum re-run campaign is the remaining check.**  Implementation
+(scoped strictly to the GR path per the flat-paper freeze — the flat solver,
+`prismatic_mesh_metric`, `spherical_metric.hpp` and `prismatic_exec_policy.hpp`
+are untouched):
+
+- `prismatic_whitney_hodge.{h,cpp}` — host assembly of THREE CSR operators:
+  `M1` (no lapse), `M1a` and `M2a` (lapse INSIDE the quadrature), shared
+  M1/M1a sparsity, double accumulation, symmetry + SPD checked at build
+  (defect 0.0 measured).  The rect-face −1 is folded into the RT0 basis.
+  Owned by `dec_field_solver_gr_ks` (NOT the mesh), so nothing on the flat
+  path even allocates it.
+- Constitutive maps in `dec_field_solver_gr_ks` (config `use_whitney_hodge`,
+  default true; `false` = old diagonal for A/B):
+  `E_aux = M1⁻¹ (M1a D_p + C1 B)`, `H_aux = M2a B + C1ᵀ D_p`,
+  IC `D̃ = M1 · D_primal`.  Every mass factor symmetric and the shift pair
+  mutually adjoint ⇒ the generator's cross terms cancel exactly in the
+  energy norm `½ D_pᵀ M1a D_p + ½ Bᵀ M2a B` — which is why the lapse lives
+  inside M1a rather than as a `√α` sandwich.  Jacobi-PCG on M1 only
+  (`whitney_cg_tol`, default 1e-11 double / 2e-6 float), warm-started
+  across Picard iterations.  Curls, BCs, damping: unchanged.
+- **B1c (found by the first relax campaign, 2026-08-01): the legacy shift
+  averaging CANNOT be spliced onto the Whitney base — "shift machinery
+  unchanged" was wrong.**  Both splices fail, in opposite ways:
+  feeding the legacy √γ-weighted average `M1⁻¹D̃` (the accurate primal
+  cochain) gives a slow EQUATORIAL instability straddling the horizon
+  (δB peaks at r≈0.82 inside r₊, δD at r≈1.19, equator 10–100× poles,
+  e-fold ~16 M at L4, rate growing with L: L3 stable ≥220 M, L4 blows
+  ~150 M, L5 ~45 M) — the β×B / β×D pair loses adjointness where β^r and
+  γ_rφ peak; feeding it `hodge1_inv·D̃` is stable but O(1)-inconsistent
+  (`hodge1_inv·M1 ≠ I` by 13–25% near the horizon since D̃ = M1·D_p now)
+  and parks the relaxed state +16% off the analytic-on-mesh value with a
+  persistent ±1% wobble.  FIX: the Galerkin shift coupling
+  `C1[e,f] = ⟨β×B_f, W_e⟩₁` assembled with the same wedge basis/quadrature;
+  the consistent Ampère pairing is `C2 = −C1ᵀ` analytically (both
+  integrands are the triple product ε(β,·,·) up to one transposition) —
+  verified numerically to 1.5e-15 by an independent C2 assembly in
+  `check_whitney_cpp.py`; C++ C1/C1ᵀ match the reference to 2.3e-14.
+  Bonus: the whitney path no longer touches the legacy averaging kernels
+  or `edge/face_sq_gamma_beta_r` at all.
+- Validation (python/check_whitney_cpp.py on Data_conv_L*_ana_whitney):
+  matrices match an independently corrected lab assembly to ~2e-14 at L3;
+  Gauss flux 4.5788e-2/-6.4425e-2/-6.9608e-2 (L3) through
+  3.5827e-3/-3.7790e-3/-4.3299e-3 (L5), orders +1.90/+1.98/+2.00; energy
+  +0.631%/+0.153%/+0.039% — the lab table digit for digit.
+- **The port caught a bug in the lab reference itself**: its `g^phph`
+  carried a spurious `g_rr` (see corrected caveat 3 above).  Both lab
+  projections are blind to `g^phph`, so only a genuinely independent
+  reimplementation could see it.  Lab + plan corrected; published table
+  unaffected.
+
+**RELAXATION CAMPAIGN RESULT (2026-08-02, overnight take-3 runs): the
+Whitney solver converges at SECOND ORDER at the evolution level — the
+first evolution-level convergence the GR solver has ever shown.**
+Relaxed vs analytic-on-mesh (window 150–220 M):
+
+| L | relaxed | (2) vs ana | (3) vs continuum |
+|---|---|---|---|
+| 3 | 9.045262e-3 | +41.17% | +41.01% |
+| 4 | 7.077593e-3 | +10.37% | +10.34% |
+| 5 | 6.551456e-3 | +2.14%  | +2.14%  |
+| **order** | | **+1.99, +2.27** | **+1.99, +2.28** |
+
+Contrast with the diagonal campaign, whose floor GREW with L (+1.6e-4 →
++2.0e-4 → +2.7e-4) — but note those small numbers were PINNED (B1a): with
+background subtraction the diagonal dynamics parked at the subtracted
+background regardless of operator error.  The Whitney numbers are honest
+dynamics: a large O(h²) constant (near-horizon/inner-boundary
+discretization, the region where the boundary-truncated rows sit — the
+on-shell shell-0 residual is ~150× the bulk) converging away at the
+operator's true order.  The bulk on-shell Faraday residual is 20–40×
+BELOW the diagonal solver's (7.5e-5 vs 2.2e-3 at r = 1.5, L3).
+
+Two caveats, both quantified:
+1. **The L5 window is not fully settled**: a bounded, non-growing ±3%
+   oscillation (period ~12 M) persists through 220 M, unlike the diagonal
+   runs' ring (<0.1% by 150 M).  The L5 mean (and the +2.27 order) carry
+   it as an error bar.  A weakly damped near-horizon mode of the Whitney
+   operator; the outer sponge cannot reach it and per-cochain inner
+   damping is NOT usable (below).
+2. **`apply_inner_damping` is INCOMPATIBLE with the Whitney maps**:
+   the L3 diagnostic with `inner_damping_length = 3` DIVERGED (ratio
+   → −867).  Per-slot exponential damping of D̃ toward the background is
+   not dissipative in the M1α/M2α energy norm once the constitutive maps
+   couple slots — the same lesson as B1c.  An in-horizon absorber for the
+   Whitney path must damp in the energy norm (e.g. relax D_p and B, then
+   remap D̃ = M1 D_p), or use more ghost shells below r₊ instead.
+
+**Solver performance (2026-08-02, measured; corrects another planning
+number).**  The Jacobi-preconditioned Whitney M1 has κ ≈ 55 with a DENSE
+soft tail of horizontal-edge modes ([0.065, 3.59] at L3 by scipy; a
+Lanczos probe at solver init reproduces it to 3 digits and logs it) —
+NOT the "cond = 1.15 / 7 iterations" of the planning notes, which
+belonged to the offdiag lab's model correction matrix, not to a
+consistent FEM mass matrix.  Consequences, all measured at L4:
+- PCG needs ~50 iterations cold; the step costs ~116 ms vs the diagonal
+  star's 2.5 ms (~45×).  This is FLOP/iteration-bound, not sync-bound —
+  the imagined 10× from removing reductions does not exist.
+- Fixed-iteration Chebyshev over the safety-widened Lanczos interval
+  (config `whitney_use_chebyshev`, default OFF) measures 129 ms — the
+  ~2× iteration count of the widened bound beats its zero-reduction
+  advantage.  WARNING: never feed Chebyshev a power-iteration λ_min —
+  the dense tail makes power iteration overestimate it (0.169 vs true
+  0.065 at L3), which silently puts eigenmodes outside the interval
+  where the polynomial AMPLIFIES them.
+- Solver default: PCG, `whitney_cg_tol` = 1e-7 (double).  **The decisive
+  lever was the TOLERANCE, not the algorithm**: warm-started solves enter
+  with residuals ~1e-4–1e-5, so at 1e-7 they finish in ~2–5 iterations
+  instead of the ~25–50 that 1e-10 demanded from a κ = 55 matrix.
+  Measured at L3: 3.8 ms/step at tol 1e-6 vs ~50 ms at 1e-11 (~13×), with
+  the relaxation attractor UNCHANGED to 1.3e-5 relative over 11000 steps
+  (9.047334e-3 vs 9.047219e-3, same ring, no drift) — the solve error is
+  a bounded per-step perturbation, not a random walk.  The default keeps
+  a 10× margin below the tested value.  The redundant D_primal refresh in
+  compute_dD_dt exits at the warm-start entry check.
+- If more speed is ever needed, the lever is a better preconditioner for
+  the Whitney mass matrix (κ 55 → O(few)); candidates: SSOR/Chebyshev-
+  Jacobi smoothing or aggregation-based two-level.  Open work item, not
+  blocking.
+
+Remaining before promoting the Whitney star to the GR default: decide the
+L5 ring treatment (longer runs to measure its decay time, energy-norm
+absorber, or accept as sub-percent noise for PIC purposes — shot noise is
+percent-level), and optionally the mass-matrix preconditioner above.
 
 ### P1 — Grid-free geodesic + GR push kernel (the bulk of the work)
 

@@ -98,7 +98,15 @@ ratio `||A x|| / || |A| |x| ||`:
 | **bulk** (ghost shell masked at **both** radial ends) | **1.03, 1.01, 1.01** | **0.97, 0.98, 0.98** |
 
 Both operators are clean, stable first order in the bulk; Ampere fits
-`C = 0.0805 h` with 2.1% residual and no meaningful floor. Everything that
+`C = 0.0805 h` with 2.1% residual and no meaningful floor.
+
+> **QUALIFIED 2026-08-01:** these orders measure the STENCIL's cancellation,
+> not the Hodge. The residual is a curl and annihilates curl-free error — a
+> diagonal Hodge and a convergent Galerkin one give identical C to 3 digits,
+> and rescaling `H_aux` by 2 moves C by exactly 0.0%. Both Hodge stars are
+> O(1)-defective for a != 0; see `src/systems/prismatic/GRPIC_PLAN.md` B1.
+
+Everything that
 looked sub-first-order and degrading was boundary rows: each radial end
 carries a ghost layer whose half-open dual loops make the residual identity
 fail by O(1), and at a ~1/N_r fraction they drag the global figure down and

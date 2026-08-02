@@ -30,10 +30,23 @@
    | 6 | 6.414366e-3 | −0.0018% | — | — |
 
    Order **+1.99 at every refinement** — the direct reversal of the old
-   "refining makes it worse" symptom. ~66% of the flux a non-rotating hole
-   would thread is expelled. The `H_phi -> 0` movie
-   (`problems/prismatic_wald/make_wald_movie.py`) shows the transient
-   radiating away and the field lines closing around the horizon.
+   "refining makes it worse" symptom.
+
+   > **SCOPED 2026-08-01 (later): this is the OBSERVABLE's discretization, not
+   > the solver's.** The "analytic on mesh vs continuum" column involves no
+   > evolution at all — it measures IC sampling plus cap-flux quadrature. And
+   > because `use_static_background` makes the evolution exactly `rhs(delta)`
+   > with vacuum Maxwell linear, `delta = 0` is an exact fixed point whatever
+   > the operator is, so the relaxation ENDPOINT is pinned to the analytic
+   > background by construction. The only column that tested the operator is
+   > `relaxed vs analytic on mesh` (+1.6e-4/+2.0e-4/+2.7e-4, settled but
+   > mildly growing) — and its non-convergence now has a mechanism (B1).
+   > Meissner expulsion is real and the solver is usable; the evidence base is
+   > narrower than this section originally implied.
+
+   ~66% of the flux a non-rotating hole would thread is expelled. The
+   `H_phi -> 0` movie (`problems/prismatic_wald/make_wald_movie.py`) shows the
+   transient radiating away and the field lines closing around the horizon.
 
    **What limits it.** Relaxed vs the mesh's own analytic state sits at
    +1.6e-4 / +2.0e-4 / +2.7e-4 (L3/L4/L5): settled, and mildly *growing*, so
@@ -49,6 +62,16 @@
    |---|---|---|
    | all | 1.27, 1.15, 1.08 | 0.66, 0.60, 0.56 |
    | **bulk**, ghost masked at **both** ends | **1.03, 1.01, 1.01** | **0.97, 0.98, 0.98** |
+
+   > **QUALIFIED 2026-08-01 (same day, later): these measure the STENCIL, not
+   > the Hodge.** The on-shell fixed-point residual is a *curl*, so it
+   > annihilates curl-free error. Scored on identical states, the diagonal
+   > Hodge and a convergent Galerkin Hodge give C = 7.964e-2/4.059e-2/2.060e-2
+   > versus 7.917e-2/4.060e-2/2.063e-2 — **identical to 3 digits**. Rescaling
+   > `H_aux` by 2 everywhere moves C by exactly 0.0%. So these orders are
+   > unchanged by a Hodge that is 20% wrong and non-convergent, and are not
+   > evidence about the constitutive relation. Both Hodge stars are in fact
+   > O(1)-defective for a != 0 — see GRPIC_PLAN.md B1/B1a.
 
    Both operators are clean, stable first order in the bulk. The
    sub-first-order Ampere order *and its apparent degradation with

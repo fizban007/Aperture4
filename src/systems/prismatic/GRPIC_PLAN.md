@@ -218,6 +218,77 @@ unconditionally unstable" verdict: its recorded diagnosis was
 "single-anchor row ASYMMETRY -> strongly non-normal", i.e. a fixable cause,
 not a property of wide stencils.
 
+#### B1b — REFERENCE IMPLEMENTATION: proper Whitney forms (validated)
+
+`python/hodge_lab_whitney.py` is the reference a C++ port should reproduce.
+Lowest-order triangular prism (wedge) element, triangle affine in
+(theta, phi), linear in `zeta = (r-r_k)/dr`:
+
+- **1-forms, 9 DOF** (covariant components in (r,th,ph)), with
+  `w_ij = lam_i grad lam_j - lam_j grad lam_i`:
+  - horizontal bottom / top: `w_ij * (1-zeta)` , `w_ij * zeta`
+  - vertical at vertex i:    `W_r = lam_i / dr`
+- **2-forms, 5 DOF**, using the DENSITIZED proxy `Bd^i = sqrt(g) B^i` -- that
+  is what has polynomial components and unit face flux:
+  - bottom / top tri: `Bd^r = (1-zeta)/A_c` , `zeta/A_c`
+  - rect on edge ij:  `Bd^(th,ph) = rot90(w_ij)/dr`   (triangle RT0)
+
+```
+M1[a,b] = \int g^{ij} W_a,i W_b,j sqrt(g)      dr dth dph
+M2[a,b] = \int g_ij  Bd_a^i Bd_b^j alpha/sqrt(g) dr dth dph
+```
+
+Both are Gram matrices of a real inner product => SYMMETRIC POSITIVE
+DEFINITE by construction, which is exactly the stability condition of B1.
+Quadrature used: 3-point edge-midpoint triangle rule (degree 2) x 2-point
+Gauss in zeta.
+
+**Validated, both stars, both non-blind projections:**
+
+| L | flux r=1.106 | r=3.093 | r=8.016 | energy err |
+|---|---|---|---|---|
+| 3 | 4.579e-2 | -6.443e-2 | -6.961e-2 | +0.631% |
+| 4 | 1.335e-2 | -1.495e-2 | -1.733e-2 | +0.153% |
+| 5 | 3.583e-3 | -3.779e-3 | -4.330e-3 | **+0.039%** |
+| **order** | **+1.90** | **+1.98** | **+2.00** | **~ +2** |
+
+versus diagonal stars: flux stuck at -16.6 (non-convergent), energy stuck at
+a ~20% floor.  Runtime 39 s at L5 in Python -- no port needed for the lab.
+
+**THREE THINGS THE PORT WILL GET WRONG SILENTLY IF NOT TOLD:**
+
+1. **Rect-face orientation is -1** relative to an RT0 basis built from
+   `tri_edge_signs`.  Getting it wrong gives +38.8% energy error that is
+   FLAT IN L -- it reads as a convergent scheme with a bad constant, not as
+   a sign error.  (Independently confirmed: stored `B[f]` / predicted flux
+   has median -0.99977 on rect faces, +0.994 on tri faces.)
+2. **alpha must be INSIDE the quadrature.**  Applying it per-face afterwards
+   gave +50% and destroyed convergence entirely.  It must also enter
+   symmetrically, `sqrt(alpha) M sqrt(alpha)` -- `diag(alpha) @ M` is
+   symmetric only while M is diagonal, and symmetry is the stability
+   condition.
+3. **Cancel sin(theta) analytically at the axis** in `g^phph` and `sqrt(g)`,
+   exactly as `prismatic_sph_output.cpp` already does.  Otherwise the polar
+   prisms are 0/0.  Regular forms: `g^rr = P/(g_rr rho2)`, `g^rphi = a/rho2`,
+   `g^phph = g_rr/(rho2 sin^2)`, with `P = r^2+a^2+Z a^2 sin^2`.
+
+**Two caveats on the reference itself:**
+
+- The triangle is treated as affine in (theta, phi), whereas the mesh's
+  actual cells are geodesic on the sphere and its stored DOFs come from
+  metric quadrature over the curved cells.  That is an O(h^2) mismatch in
+  the DOF definitions -- consistent at lowest order, but NOT identical to
+  the code's conventions.  A C++ implementation should either integrate over
+  the curved cells or adopt this as the definition deliberately.
+- Score against the ground truth over the ACTUAL radial extent the included
+  prisms cover ([1.1057, 1.4997] here), not the nominal band.  Using the
+  nominal [1.1, 1.5] charges the scheme ~1% for a band-selection difference
+  it did not make, and makes the error appear to GROW with L.
+
+**Inversion.**  The solver needs `M^-1` (state is `D~`, `E_aux` needs
+`D_primal`).  Jacobi-preconditioned `cond = 1.15`; PCG converges in 7
+iterations to 1e-10.  Cheap against the 5 Picard iterations already present.
+
 #### B1a — the diagnostics have null spaces (why none of this showed up)
 
 This is the important methodological finding, and it invalidates the way
@@ -280,6 +351,14 @@ diagonal chart and its azimuthal shift `a/Delta` diverges at the horizon.
 
 **Gate (revised): B1 must be resolved before P2.** P1 is independent of it
 and can proceed in parallel.
+
+**STATUS 2026-08-01: B1 is diagnosed, and the fix is validated in the lab
+(B1b).  What remains is the C++ implementation** -- port the Whitney M1/M2
+into `prismatic_mesh_metric`, replace the diagonal `hodge1_inv`/`hodge2` in
+`dec_field_solver_gr_ks` only (the FLAT solver is unaffected: flat space has
+no off-diagonal spatial metric, and the NS paper runs on it), add a
+Jacobi-PCG for `M1^-1`, and re-run the vacuum campaign.  Scope the change to
+the GR solver.
 
 ### P1 — Grid-free geodesic + GR push kernel (the bulk of the work)
 

@@ -63,7 +63,14 @@ def metric(r, th):
     gu_rr = P / (g_rr * rho2)          # axis-regular forms (sin^2 cancelled)
     gu_rph = A / rho2
     gu_tt = 1.0 / rho2
-    gu_pp = g_rr / (rho2 * np.maximum(s * s, 1e-300))
+    # g^pp = g_rr/det2 with det2 = g_rr*g_pp - g_rph^2 = s^2 (1+Z) rho2,
+    # so the (1+Z) cancels: g^pp = 1/(rho2 s^2).  An earlier version kept
+    # a spurious g_rr factor here; NEITHER validation projection can see
+    # that (flux reads only vertical M1 rows, whose basis has no phi
+    # component; energy reads only M2) -- it surfaced when the C++ port
+    # (via Metric_KS::gu33) disagreed on the horizontal M1 rows and a
+    # direct numerical inversion of gamma_ij sided with the C++.
+    gu_pp = 1.0 / (rho2 * np.maximum(s * s, 1e-300))
     al = 1.0 / np.sqrt(1.0 + Z)
     return dict(g_rr=g_rr, g_rph=g_rph, g_tt=g_tt, g_pp=g_pp, sqg=sqg, al=al,
                 gu_rr=gu_rr, gu_rph=gu_rph, gu_tt=gu_tt, gu_pp=gu_pp)

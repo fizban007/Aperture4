@@ -476,6 +476,12 @@ consistent FEM mass matrix.  Consequences, all measured at L4:
   a bounded per-step perturbation, not a random walk.  The default keeps
   a 10× margin below the tested value.  The redundant D_primal refresh in
   compute_dD_dt exits at the warm-start entry check.
+  **Cleared at L5 (2026-08-02): the full 44000-step relax at the 1e-7
+  default deviates from the 1e-10 baseline by ≤3.0e-6 relative over the
+  ENTIRE trajectory — ring phase included — with window means identical
+  to 7 digits (6.549999e-3 vs 6.549995e-3) and zero convergence
+  warnings.  Settled cost 94 ms/step vs ~430 (early transient ~300
+  ms/step while the solves genuinely iterate).**
 - If more speed is ever needed, the lever is a better preconditioner for
   the Whitney mass matrix (κ 55 → O(few)); candidates: SSOR/Chebyshev-
   Jacobi smoothing or aggregation-based two-level.  Open work item, not

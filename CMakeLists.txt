@@ -80,6 +80,10 @@ else()
   set(CMAKE_CXX_FLAGS_RELEASE
       "${CMAKE_CXX_FLAGS_RELEASE} -march=native ${CXX_EXTRA_FLAGS}")
 endif()
+# NOTE: since the add_executable() override further down, this variable no
+# longer says where a binary is LINKED -- it says where the finished binary is
+# COPIED TO.  Everything is linked into ${CMAKE_BINARY_DIR}/bin first.  The
+# per-problem CMakeLists still declare their destination the same way.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
@@ -312,6 +316,60 @@ if(use_hip)
     endif()
   endif()
 endif()
+
+# ---------------------------------------------------------------------------
+# Executable staging: link into the build tree, then copy to bin/
+#
+# Executables used to be linked DIRECTLY into a problem's source-tree bin/ via
+# CMAKE_RUNTIME_OUTPUT_DIRECTORY.  That path does not depend on the build tree,
+# so two trees configured from the same source -- e.g. build_frontier (fp32)
+# and build_frontier_double (-Duse_double=ON) -- write the same file and
+# whichever built last silently wins, with no way to tell the binaries apart
+# afterwards.
+#
+# Now every executable is linked into ${CMAKE_BINARY_DIR}/bin, which is private
+# to the build tree, and then copied to the bin/ directory the enclosing
+# CMakeLists declared.  The on-disk layout under bin/ is unchanged.
+#
+# This overrides add_executable() rather than only touching
+# add_aperture_executable(), so it also covers the ~24 targets in tests/ and
+# problems/*/src/ that call add_executable() directly.  It is defined AFTER the
+# add_subdirectory(deps/...) calls above, so bundled dependencies keep their own
+# output settings.  Overriding a command makes the builtin available under a
+# leading underscore; do not redefine add_executable again or _add_executable
+# will recurse.
+# ---------------------------------------------------------------------------
+set(aperture_stage_bin_dir "${CMAKE_BINARY_DIR}/bin"
+    CACHE INTERNAL "Build-tree directory that all executables are linked into")
+option(aperture_copy_binaries
+  "After linking, copy executables to the source-tree bin/ directories" ON)
+
+function(add_executable target_name)
+  _add_executable(${target_name} ${ARGN})
+
+  # ALIAS/IMPORTED forms only introduce a name -- there is nothing to stage.
+  list(FIND ARGN "ALIAS" _aperture_alias)
+  list(FIND ARGN "IMPORTED" _aperture_imported)
+  if(NOT _aperture_alias EQUAL -1 OR NOT _aperture_imported EQUAL -1)
+    return()
+  endif()
+
+  set_target_properties(${target_name} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${aperture_stage_bin_dir}")
+
+  # CMAKE_RUNTIME_OUTPUT_DIRECTORY resolves in the CALLING directory's scope,
+  # so this picks up each problem's own bin/.
+  if(aperture_copy_binaries AND CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory
+              "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<TARGET_FILE:${target_name}>"
+              "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+      COMMENT "Staging ${target_name} -> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+      VERBATIM)
+  endif()
+endfunction()
 
 function(add_aperture_executable target_name)
   if (use_cuda AND CMAKE_CUDA_COMPILER)

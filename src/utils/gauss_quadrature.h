@@ -33,6 +33,12 @@ gauss_quad_dev(const Func& f, double a, double b) {
   double xm = 0.5 * (b + a);
   double xr = 0.5 * (b - a);
   double result = 0.0;
+  // Do NOT unroll: these quadratures are routinely nested (a 5x5 face
+  // integral inlines the integrand 100 times).  With Scalar = double the
+  // unroller tips into full unrolling and the inner-BC face kernel explodes
+  // to ~165k instructions / 6.7 kB of spill per work-item, which makes the
+  // kernel run for tens of minutes.  See dec_solver_dist::apply_inner_bc.
+#pragma unroll 1
   for (int i = 0; i < 5; i++) {
     double dx = xr * dev_gauss_xs[i];
     result += dev_gauss_ws[i] * (f(xm + dx) + f(xm - dx));
@@ -56,6 +62,9 @@ gauss_quad(const Func& f, double a, double b) {
   double xm = 0.5 * (b + a);
   double xr = 0.5 * (b - a);
   double result = 0.0;
+  // See the note in gauss_quad_dev above -- nested quadratures must not be
+  // fully unrolled or the fp64 face kernels blow up in code size and spill.
+#pragma unroll 1
   for (int i = 0; i < 5; i++) {
     double dx = xr * gauss_xs[i];
     result += gauss_ws[i] * (f(xm + dx) + f(xm - dx));

@@ -443,25 +443,56 @@ HOST_DEVICE inline void update_single_particle(
              (Bmag > Scalar(1e-15));
     bool was_gca = check_flag(ptrs.flag[n], PtcFlagEx::gca_state);
     if (was_gca && !do_gca) {
-      // GCA -> Boris: reconstruct momentum.  Perpendicular part uses a
-      // deterministic gyrophase (arbitrary; exact when mu = 0).
+      // GCA -> Boris: reconstruct momentum.  The gyrophase is not carried
+      // by the GCA representation, so it has to be INVENTED here -- and it
+      // must be invented ISOTROPICALLY.  This used to place all of u_perp
+      // along e1 = b x a_hat with a_hat a fixed LAB axis, which gives every
+      // converting particle the same perpendicular direction regardless of
+      // charge: a net bulk momentum injection rather than a current.  In the
+      // equatorial plane beyond the light cylinder b lies in-plane, so that
+      // e1 is vertical and the kick pushes plasma alternately out of and
+      // into the current sheet -- the m=1 pile-up / one-sided sheet seen in
+      // the aligned-rotator runs (2026-08-03).  mu = 0 at injection and the
+      // GCA push conserves it, so the defect only bites after a
+      // Boris -> GCA recapture regenerates mu, i.e. hardest in the sheet.
+      //
+      // The phase is hashed from the particle id rather than drawn from the
+      // rng state pool, for two reasons: the pool is indexed by thread, so a
+      // draw would depend on thread scheduling and break the bitwise
+      // partition-invariance the solver relies on; and an id hash is
+      // dt-invariant, which the dispatch test requires.  The cost is that a
+      // given particle always converts at the same phase -- harmless, since
+      // what matters is that the phase is uncorrelated ACROSS particles.
       Scalar b0[3] = {Bx / Bmag, By / Bmag, Bz / Bmag};
       Scalar u_par = ptrs.p1[n];
       Scalar up2 = Scalar(2) * ptrs.p2[n] * Bmag / m;
       Scalar u_perp = math::sqrt(up2 > Scalar(0) ? up2 : Scalar(0));
+      // Orthonormal triad (e1, e2, b0).  With an isotropic phase the choice
+      // of reference axis only fixes where psi = 0, so it no longer matters;
+      // the branch is kept solely to stay clear of b0 || a_hat.
       Scalar ax = (math::abs(b0[0]) < Scalar(0.9)) ? Scalar(1) : Scalar(0);
       Scalar ay = Scalar(1) - ax;
-      Scalar e1[3] = {b0[1]*0 - b0[2]*ay, b0[2]*ax - b0[0]*0,
-                      b0[0]*ay - b0[1]*ax};
+      Scalar e1[3] = {-b0[2]*ay, b0[2]*ax, b0[0]*ay - b0[1]*ax};
       Scalar en = math::sqrt(e1[0]*e1[0] + e1[1]*e1[1] + e1[2]*e1[2]);
       if (en > Scalar(1e-15)) {
         e1[0] /= en; e1[1] /= en; e1[2] /= en;
       } else {
-        e1[0] = e1[1] = e1[2] = 0;
+        e1[0] = Scalar(1); e1[1] = Scalar(0); e1[2] = Scalar(0);
       }
-      ptrs.p1[n] = u_par * b0[0] + u_perp * e1[0];
-      ptrs.p2[n] = u_par * b0[1] + u_perp * e1[1];
-      ptrs.p3[n] = u_par * b0[2] + u_perp * e1[2];
+      Scalar e2[3] = {b0[1]*e1[2] - b0[2]*e1[1],
+                      b0[2]*e1[0] - b0[0]*e1[2],
+                      b0[0]*e1[1] - b0[1]*e1[0]};
+      // splitmix64 on the particle id -> uniform phase in [0, 2pi).
+      uint64_t h = ptrs.id[n] + 0x9e3779b97f4a7c15ull;
+      h = (h ^ (h >> 30)) * 0xbf58476d1ce4e5b9ull;
+      h = (h ^ (h >> 27)) * 0x94d049bb133111ebull;
+      h = h ^ (h >> 31);
+      Scalar psi = Scalar(6.283185307179586) *
+                   (Scalar)(h >> 11) * Scalar(1.0 / 9007199254740992.0);
+      Scalar w1 = u_perp * math::cos(psi), w2 = u_perp * math::sin(psi);
+      ptrs.p1[n] = u_par * b0[0] + w1 * e1[0] + w2 * e2[0];
+      ptrs.p2[n] = u_par * b0[1] + w1 * e1[1] + w2 * e2[1];
+      ptrs.p3[n] = u_par * b0[2] + w1 * e1[2] + w2 * e2[2];
       clear_flag(ptrs.flag[n], PtcFlagEx::gca_state);
     } else if (!was_gca && do_gca) {
       // Boris -> GCA: project onto b; remainder becomes mu (or is

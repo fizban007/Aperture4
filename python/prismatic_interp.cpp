@@ -202,10 +202,256 @@ static void interp_fields(const mesh_data& mp, int tri, int layer,
 }
 
 // =========================================================================
+// Double-precision sph-shell gathers (fast path for sph_from_dump.py).
+//
+// Mirrors prismatic_recovery.locate (central-projection barycentric via
+// the SAME precomputed per-triangle inverse matrices, passed in from
+// Python) and sph_from_dump.gather_at_shell (explicit layer/zeta per
+// shell — part of the output definition).  All math in float64 so the
+// results match the pure-Python path to storage precision.
+// =========================================================================
+namespace shellgather {
+
+using D = double;
+
+struct MeshD {
+  int N_r, N_tri, N_vert_s, N_edge_s;
+  const D* radii;           // (N_r+1)
+  const D* sv;              // (N_vert_s, 3) unit sphere vertices
+  const int* tri_verts;     // (N_tri, 3)
+  const int* tri_edges_s;   // (N_tri, 3)
+  const int* tri_edge_signs;// (N_tri, 3)
+  const int* tri_neighbor;  // (N_tri, 3)
+  const D* tri_vinv;        // (N_tri, 3, 3) = inv(V^T) per triangle
+
+  int h_edge_idx(int k, int e) const { return k * N_edge_s + e; }
+  int v_edge_idx(int k, int s) const {
+    return (N_r + 1) * N_edge_s + k * N_vert_s + s;
+  }
+  int tri_face_idx(int k, int t) const { return k * N_tri + t; }
+  int rect_face_idx(int k, int e) const {
+    return (N_r + 1) * N_tri + k * N_edge_s + e;
+  }
+};
+
+inline void bary_central(const MeshD& m, int t, const D p[3], D lam[3]) {
+  const D* Vi = m.tri_vinv + 9 * t;
+  D raw[3];
+  for (int a = 0; a < 3; a++)
+    raw[a] = Vi[3 * a] * p[0] + Vi[3 * a + 1] * p[1] + Vi[3 * a + 2] * p[2];
+  D s = std::abs(raw[0] + raw[1] + raw[2]);
+  lam[0] = raw[0] / s; lam[1] = raw[1] / s; lam[2] = raw[2] / s;
+}
+
+// Walk + clipped/renormalized lam; matches prismatic_recovery.locate.
+inline int locate_one(const MeshD& m, const D p[3], int hint, D lam[3]) {
+  static const int opp[3] = {1, 2, 0};
+  int t = (hint >= 0 && hint < m.N_tri) ? hint : 0;
+  bool found = false;
+  for (int it = 0; it < m.N_tri; it++) {
+    bary_central(m, t, p, lam);
+    if (lam[0] >= -1e-12 && lam[1] >= -1e-12 && lam[2] >= -1e-12) {
+      found = true;
+      break;
+    }
+    int mi = 0;
+    if (lam[1] < lam[mi]) mi = 1;
+    if (lam[2] < lam[mi]) mi = 2;
+    int nxt = m.tri_neighbor[3 * t + opp[mi]];
+    if (nxt < 0) break;
+    t = nxt;
+  }
+  if (!found) {  // global fallback, as in the Python locate
+    D best = -1e300;
+    int bt = 0;
+    D bl[3];
+    for (int tt = 0; tt < m.N_tri; tt++) {
+      bary_central(m, tt, p, bl);
+      D mn = std::min(bl[0], std::min(bl[1], bl[2]));
+      if (mn > best) { best = mn; bt = tt; }
+    }
+    t = bt;
+    bary_central(m, t, p, lam);
+  }
+  for (int a = 0; a < 3; a++) lam[a] = lam[a] < 0 ? 0 : lam[a];
+  D s = lam[0] + lam[1] + lam[2];
+  for (int a = 0; a < 3; a++) lam[a] /= s;
+  return t;
+}
+
+// Whitney E and B at one angular location with explicit (layer k, zeta);
+// line-by-line port of sph_from_dump.gather_at_shell.
+inline void gather_one(const MeshD& m, int t, const D l[3], int k, D zeta,
+                       const D* E_e, const D* B_f, D E[3], D B[3]) {
+  const int sv3[3] = {m.tri_verts[3 * t], m.tri_verts[3 * t + 1],
+                      m.tri_verts[3 * t + 2]};
+  const D r_mid = D(0.5) * (m.radii[k] + m.radii[k + 1]);
+  D p[3][3];
+  for (int i = 0; i < 3; i++)
+    for (int c = 0; c < 3; c++) p[i][c] = r_mid * m.sv[3 * sv3[i] + c];
+
+  const D e1[3] = {p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]};
+  const D e2[3] = {p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]};
+  const D n[3] = {e1[1] * e2[2] - e1[2] * e2[1],
+                  e1[2] * e2[0] - e1[0] * e2[2],
+                  e1[0] * e2[1] - e1[1] * e2[0]};
+  const D nn = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+
+  D gl[3][3];
+  for (int a = 0; a < 3; a++) {
+    const int b = (a + 1) % 3, c = (a + 2) % 3;
+    const D d[3] = {p[c][0] - p[b][0], p[c][1] - p[b][1], p[c][2] - p[b][2]};
+    gl[a][0] = (n[1] * d[2] - n[2] * d[1]) / nn;
+    gl[a][1] = (n[2] * d[0] - n[0] * d[2]) / nn;
+    gl[a][2] = (n[0] * d[1] - n[1] * d[0]) / nn;
+  }
+
+  D rh[3] = {0, 0, 0};
+  for (int a = 0; a < 3; a++)
+    for (int c = 0; c < 3; c++) rh[c] += l[a] * m.sv[3 * sv3[a] + c];
+  const D rn = std::sqrt(rh[0] * rh[0] + rh[1] * rh[1] + rh[2] * rh[2]);
+  const D dr = m.radii[k + 1] - m.radii[k];
+  D dz[3];
+  for (int c = 0; c < 3; c++) dz[c] = rh[c] / (rn * dr);
+
+  const D phi[2] = {D(1) - zeta, zeta};
+  E[0] = E[1] = E[2] = 0;
+  B[0] = B[1] = B[2] = 0;
+
+  for (int j = 0; j < 3; j++) {
+    const int fi = j, ti = (j + 1) % 3;
+    const int sign = m.tri_edge_signs[3 * t + j];
+    const int se = m.tri_edges_s[3 * t + j];
+    D w[3];
+    for (int c = 0; c < 3; c++) w[c] = l[fi] * gl[ti][c] - l[ti] * gl[fi][c];
+    for (int kk = 0; kk < 2; kk++) {
+      const D cc = D(sign) * E_e[m.h_edge_idx(k + kk, se)] * phi[kk];
+      for (int c = 0; c < 3; c++) E[c] += cc * w[c];
+    }
+    const D cb = D(sign) * B_f[m.rect_face_idx(k, se)];
+    B[0] += cb * (w[1] * dz[2] - w[2] * dz[1]);
+    B[1] += cb * (w[2] * dz[0] - w[0] * dz[2]);
+    B[2] += cb * (w[0] * dz[1] - w[1] * dz[0]);
+  }
+  for (int a = 0; a < 3; a++) {
+    const D cc = E_e[m.v_edge_idx(k, sv3[a])] * l[a];
+    for (int c = 0; c < 3; c++) E[c] += cc * dz[c];
+  }
+  const D dl12[3] = {gl[0][1] * gl[1][2] - gl[0][2] * gl[1][1],
+                     gl[0][2] * gl[1][0] - gl[0][0] * gl[1][2],
+                     gl[0][0] * gl[1][1] - gl[0][1] * gl[1][0]};
+  for (int kk = 0; kk < 2; kk++) {
+    const D cc = D(2) * B_f[m.tri_face_idx(k + kk, t)] * phi[kk];
+    for (int c = 0; c < 3; c++) B[c] += cc * dl12[c];
+  }
+}
+
+inline MeshD unpack_mesh(int N_r, int N_tri, int N_vert_s, int N_edge_s,
+                         const py::array_t<D>& radii,
+                         const py::array_t<D>& sphere_v,
+                         const py::array_t<int>& tri_verts,
+                         const py::array_t<int>& tri_edges_s,
+                         const py::array_t<int>& tri_edge_signs,
+                         const py::array_t<int>& tri_neighbor,
+                         const py::array_t<D>& tri_vinv) {
+  MeshD m;
+  m.N_r = N_r; m.N_tri = N_tri;
+  m.N_vert_s = N_vert_s; m.N_edge_s = N_edge_s;
+  m.radii = radii.data();
+  m.sv = sphere_v.data();
+  m.tri_verts = tri_verts.data();
+  m.tri_edges_s = tri_edges_s.data();
+  m.tri_edge_signs = tri_edge_signs.data();
+  m.tri_neighbor = tri_neighbor.data();
+  m.tri_vinv = tri_vinv.data();
+  return m;
+}
+
+}  // namespace shellgather
+
+// =========================================================================
 // Python module
 // =========================================================================
 PYBIND11_MODULE(prismatic_interp, m) {
   m.doc() = "Whitney-form field interpolation on the prismatic mesh";
+
+  m.def("locate_points",
+    [](int N_r, int N_tri, int N_vert_s, int N_edge_s,
+       py::array_t<double> radii, py::array_t<double> sphere_v,
+       py::array_t<int> tri_verts, py::array_t<int> tri_edges_s,
+       py::array_t<int> tri_edge_signs, py::array_t<int> tri_neighbor,
+       py::array_t<double> tri_vinv, py::array_t<double> s_hat) {
+      auto mp = shellgather::unpack_mesh(
+          N_r, N_tri, N_vert_s, N_edge_s, radii, sphere_v, tri_verts,
+          tri_edges_s, tri_edge_signs, tri_neighbor, tri_vinv);
+      auto pts = s_hat.unchecked<2>();
+      const int N = pts.shape(0);
+      py::array_t<int> tri_out(N);
+      py::array_t<double> lam_out({N, 3});
+      auto tri = tri_out.mutable_unchecked<1>();
+      auto lam = lam_out.mutable_unchecked<2>();
+      {
+        py::gil_scoped_release rel;
+        int hint = 0;
+        for (int i = 0; i < N; i++) {
+          const double p[3] = {pts(i, 0), pts(i, 1), pts(i, 2)};
+          double l[3];
+          hint = shellgather::locate_one(mp, p, hint, l);
+          tri(i) = hint;
+          lam(i, 0) = l[0]; lam(i, 1) = l[1]; lam(i, 2) = l[2];
+        }
+      }
+      return py::make_tuple(tri_out, lam_out);
+    },
+    "Locate unit directions on the sphere: (tri, lam) with the "
+    "central-projection barycentric convention of prismatic_recovery."
+    "locate.  tri_vinv = inv(V^T) per triangle, as cached by the Python "
+    "Mesh (_tri_vinv).");
+
+  m.def("gather_shells",
+    [](int N_r, int N_tri, int N_vert_s, int N_edge_s,
+       py::array_t<double> radii, py::array_t<double> sphere_v,
+       py::array_t<int> tri_verts, py::array_t<int> tri_edges_s,
+       py::array_t<int> tri_edge_signs, py::array_t<int> tri_neighbor,
+       py::array_t<double> tri_vinv,
+       py::array_t<int> tri_pts, py::array_t<double> lam_pts,
+       py::array_t<int> layers, py::array_t<double> zetas,
+       py::array_t<double> E_e, py::array_t<double> B_f) {
+      auto mp = shellgather::unpack_mesh(
+          N_r, N_tri, N_vert_s, N_edge_s, radii, sphere_v, tri_verts,
+          tri_edges_s, tri_edge_signs, tri_neighbor, tri_vinv);
+      auto tri = tri_pts.unchecked<1>();
+      auto lam = lam_pts.unchecked<2>();
+      auto lay = layers.unchecked<1>();
+      auto zet = zetas.unchecked<1>();
+      const int N = tri.shape(0);
+      const int NS = lay.shape(0);
+      py::array_t<double> E_out({NS, N, 3}), B_out({NS, N, 3});
+      auto Eo = E_out.mutable_unchecked<3>();
+      auto Bo = B_out.mutable_unchecked<3>();
+      const double* ee = E_e.data();
+      const double* bf = B_f.data();
+      {
+        py::gil_scoped_release rel;
+        for (int s = 0; s < NS; s++) {
+          const int k = lay(s);
+          const double z = zet(s);
+          for (int i = 0; i < N; i++) {
+            const double l[3] = {lam(i, 0), lam(i, 1), lam(i, 2)};
+            double E[3], B[3];
+            shellgather::gather_one(mp, tri(i), l, k, z, ee, bf, E, B);
+            for (int c = 0; c < 3; c++) {
+              Eo(s, i, c) = E[c];
+              Bo(s, i, c) = B[c];
+            }
+          }
+        }
+      }
+      return py::make_tuple(E_out, B_out);
+    },
+    "Whitney E and B at fixed angular points (tri, lam) for a list of "
+    "shells with explicit (layer, zeta) — the sph_from_dump.gather_at_"
+    "shell convention.  Returns (NS, N, 3) float64 arrays.");
 
   m.def("interpolate_slice",
     [](int N_r, int N_tri, int N_vert_s, int N_edge_s,

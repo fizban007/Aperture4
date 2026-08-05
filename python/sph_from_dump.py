@@ -45,6 +45,34 @@ from prismatic_recovery import (  # noqa: E402
     vertex_field,
 )
 
+# Optional compiled fast path (python/prismatic_interp.cpp, pybind11).
+# Same conventions as the pure-Python locate / gather_at_shell, all math
+# in float64 — results agree to storage precision.
+try:
+    import prismatic_interp as _FAST
+    if not hasattr(_FAST, "gather_shells"):
+        _FAST = None
+except ImportError:
+    _FAST = None
+
+
+def _fast_mesh_args(mesh):
+    """Marshal (and cache) the mesh arrays the compiled module needs."""
+    if not hasattr(mesh, "_fast_args"):
+        V = mesh.sphere_v[mesh.tri_verts]
+        vinv = np.ascontiguousarray(np.linalg.inv(V.transpose(0, 2, 1)))
+        c = np.ascontiguousarray
+        mesh._fast_args = (
+            mesh.N_r, mesh.N_tri, mesh.N_vert_s, mesh.N_edge_s,
+            c(mesh.radii), c(mesh.sphere_v),
+            c(mesh.tri_verts.astype(np.int32)),
+            c(mesh.tri_edges_s.astype(np.int32)),
+            c(mesh.tri_edge_signs.astype(np.int32)),
+            c(mesh.tri_neighbor.astype(np.int32)),
+            vinv,
+        )
+    return mesh._fast_args
+
 
 # =========================================================================
 # Analytic per-element geometry (mirrors prismatic_mesh_geom.h; needed
@@ -285,14 +313,35 @@ def process_step(mesh, step_path, out_path, n_theta, n_phi, use_recovery,
 
     # ONE angular location pass (triangle assignment is radius-
     # independent); explicit (layer, zeta) per shell below.
-    r_loc = 0.5 * (mesh.radii[0] + mesh.radii[1])
-    tri, _, lam, _ = locate(mesh, r_loc * s_hat)
+    if _FAST is not None:
+        fm = _fast_mesh_args(mesh)
+        tri, lam = _FAST.locate_points(*fm, np.ascontiguousarray(s_hat))
+    else:
+        r_loc = 0.5 * (mesh.radii[0] + mesh.radii[1])
+        tri, _, lam, _ = locate(mesh, r_loc * s_hat)
+
+    E_all = B_all = J_all = None
+    if _FAST is not None:
+        layers = np.array(
+            [k if k < mesh.N_r else mesh.N_r - 1 for k in range(N_shells)],
+            dtype=np.int32)
+        zetas = np.array(
+            [0.0 if k < mesh.N_r else 1.0 for k in range(N_shells)])
+        E_all, B_all = _FAST.gather_shells(
+            *fm, tri, lam, layers, zetas, E_e, B_f)
+        if J_e is not None:
+            J_all, _ = _FAST.gather_shells(
+                *fm, tri, lam, layers, zetas, J_e, B_f)
 
     for k in range(N_shells):
         r = mesh.radii[k]
         layer = k if k < mesh.N_r else mesh.N_r - 1
         zeta = 0.0 if k < mesh.N_r else 1.0
-        E, B = gather_at_shell(mesh, E_e, B_f, s_hat, tri, lam, layer, zeta)
+        if E_all is not None:
+            E, B = E_all[k], B_all[k]
+        else:
+            E, B = gather_at_shell(mesh, E_e, B_f, s_hat, tri, lam, layer,
+                                   zeta)
         if Bv is not None:
             B = recovery_at_shell(mesh, Bv, tri, lam, layer, zeta)
 
@@ -316,8 +365,11 @@ def process_step(mesh, step_path, out_path, n_theta, n_phi, use_recovery,
         out["Bph"][sl] = bph
 
         if J_e is not None:
-            J, _ = gather_at_shell(mesh, J_e, B_f, s_hat, tri, lam, layer,
-                                   zeta)
+            if J_all is not None:
+                J = J_all[k]
+            else:
+                J, _ = gather_at_shell(mesh, J_e, B_f, s_hat, tri, lam,
+                                       layer, zeta)
             J_or, J_ot, J_op, _ = project(J, s_hat, frame)
             out["Jr"][sl] = J_or
             out["Jth"][sl] = J_ot * r
@@ -408,17 +460,19 @@ def main():
     else:
         paths = sorted(glob.glob(os.path.join(args.data_dir, "step_*.h5")))
 
-    # Write the grid description alongside (matches sph_grid.h5).
-    with h5py.File(
-        os.path.join(args.data_dir, f"sph{args.suffix}_grid.h5"), "w"
-    ) as f:
-        f.create_dataset("N_theta", data=np.int32(n_theta))
-        f.create_dataset("N_phi", data=np.int32(n_phi))
-        f.create_dataset("N_r", data=np.int32(mesh.N_r))
-        f.create_dataset(
-            "theta", data=(np.pi * np.arange(n_theta) / (n_theta - 1)))
-        f.create_dataset("phi", data=(2 * np.pi * np.arange(n_phi) / n_phi))
-        f.create_dataset("radii", data=mesh.radii)
+    # Write the grid description alongside (matches sph_grid.h5).  Skip
+    # if present so parallel workers (disjoint --steps chunks) don't
+    # race on the shared file.
+    grid_path_out = os.path.join(args.data_dir, f"sph{args.suffix}_grid.h5")
+    if not os.path.exists(grid_path_out):
+        with h5py.File(grid_path_out, "w") as f:
+            f.create_dataset("N_theta", data=np.int32(n_theta))
+            f.create_dataset("N_phi", data=np.int32(n_phi))
+            f.create_dataset("N_r", data=np.int32(mesh.N_r))
+            f.create_dataset(
+                "theta", data=(np.pi * np.arange(n_theta) / (n_theta - 1)))
+            f.create_dataset("phi", data=(2 * np.pi * np.arange(n_phi) / n_phi))
+            f.create_dataset("radii", data=mesh.radii)
 
     for p in paths:
         m = re.search(r"step_(\d+)\.h5$", p)

@@ -39,6 +39,7 @@ set(test_src
   "test_prismatic_injector.cpp"
   "test_prismatic_pusher.cpp"
   "test_dec_frame_drag.cpp"
+  "test_dec_stellar_multipole.cpp"
   "test_prismatic_pair_prod.cpp"
   "test_icosphere_topology.cpp"
   "test_vec.cpp"

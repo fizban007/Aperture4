@@ -342,6 +342,144 @@ HD_INLINE void dipole_B_impl(Scalar x, Scalar y, Scalar z,
   Bz = factor*z - mz/r3;
 }
 
+// Point magnetic quadrupole from the scalar potential
+//     Phi = (1/2) x·Q·x / r^5,   B = -grad Phi
+// with Q a SYMMETRIC TRACELESS tensor (Qzz = -Qxx-Qyy).  Consistent with
+// dipole_B_impl (Phi_dip = m·x / r^3); far field ~ Q/r^4.  For a zonal
+// (axisymmetric) quadrupole the polar surface field is
+// B_z(0,0,R) = (3/2) Qzz / R^4.
+HD_INLINE void quadrupole_B_impl(Scalar x, Scalar y, Scalar z,
+                                 Scalar Qxx, Scalar Qxy, Scalar Qxz,
+                                 Scalar Qyy, Scalar Qyz, Scalar Qzz,
+                                 Scalar& Bx, Scalar& By, Scalar& Bz) {
+  Scalar r2 = x*x + y*y + z*z;
+  Scalar r = std::sqrt(r2);
+  Scalar r5 = r2*r2*r;
+  Scalar r7 = r5*r2;
+  // Q·x and x·Q·x
+  Scalar Qx = Qxx*x + Qxy*y + Qxz*z;
+  Scalar Qy = Qxy*x + Qyy*y + Qyz*z;
+  Scalar Qz = Qxz*x + Qyz*y + Qzz*z;
+  Scalar xQx = x*Qx + y*Qy + z*Qz;
+  Scalar factor = Scalar(2.5) * xQx / r7;
+  Bx = factor*x - Qx/r5;
+  By = factor*y - Qy/r5;
+  Bz = factor*z - Qz/r5;
+}
+
+// =========================================================================
+// Generalized stellar multipole: a (possibly shifted) point dipole plus a
+// (possibly shifted) point quadrupole, all rigidly corotating.
+//
+// stellar_extras holds the BODY-FRAME extensions beyond the centered
+// dipole; ALL-ZERO (the default) means "centered dipole" and every
+// consumer then takes an arithmetic path BITWISE IDENTICAL to the legacy
+// dipole-only code:
+//   - zero offsets stay exactly +0.0 (never rotated, so no -0.0 can
+//     appear) and x - (+0.0) is an exact identity for every x including
+//     -0.0;
+//   - the quadrupole term sits behind a has_quad branch, so no
+//     "+ 0.0" ever touches the dipole field values.
+//
+// Frame conventions (matching the legacy obliquity handling): the body
+// frame coincides with the lab frame at phase 0 and rotates about the
+// spin axis z by phase = Omega*t.  The obliquity applies to the DIPOLE
+// MOMENT ONLY, m_body = Bp (sin chi, 0, cos chi) — exactly the legacy
+// moment.  The quadrupole tensor and both offsets are specified raw in
+// the body frame (any orientation can be encoded directly in Q), and
+// Bp >= 0 is assumed as everywhere else in the code.
+// =========================================================================
+struct stellar_extras {
+  Scalar dip_off[3] = {0, 0, 0};   // dipole offset (body frame)
+  Scalar quad_Q[5] = {0, 0, 0, 0, 0};  // Qxx, Qxy, Qxz, Qyy, Qyz (traceless)
+  Scalar quad_off[3] = {0, 0, 0};  // quadrupole offset (body frame)
+};
+
+HD_INLINE bool stellar_has_dip_off(const stellar_extras& e) {
+  return e.dip_off[0] != Scalar(0) || e.dip_off[1] != Scalar(0) ||
+         e.dip_off[2] != Scalar(0);
+}
+
+HD_INLINE bool stellar_has_quad(const stellar_extras& e) {
+  return e.quad_Q[0] != Scalar(0) || e.quad_Q[1] != Scalar(0) ||
+         e.quad_Q[2] != Scalar(0) || e.quad_Q[3] != Scalar(0) ||
+         e.quad_Q[4] != Scalar(0);
+}
+
+HD_INLINE bool stellar_extras_present(const stellar_extras& e) {
+  return stellar_has_dip_off(e) || stellar_has_quad(e) ||
+         e.quad_off[0] != Scalar(0) || e.quad_off[1] != Scalar(0) ||
+         e.quad_off[2] != Scalar(0);
+}
+
+// Lab-frame snapshot of the rotated multipole at one instant — the value
+// type the field kernels capture.  Defaults describe a zero centered
+// dipole (offsets +0.0, has_quad false).
+struct stellar_moments {
+  Scalar mx = 0, my = 0, mz = 0;   // dipole moment
+  Scalar dx = 0, dy = 0, dz = 0;   // dipole offset
+  Scalar Qxx = 0, Qxy = 0, Qxz = 0, Qyy = 0, Qyz = 0, Qzz = 0;
+  Scalar qx = 0, qy = 0, qz = 0;   // quadrupole offset
+  bool has_quad = false;
+};
+
+// Rotate the body-frame configuration to the lab frame at the given spin
+// phase (= Omega*t, passed in DOUBLE like the legacy call sites so the
+// trig and the promotion order — (Scalar)·(double) then cast — reproduce
+// the legacy moment bitwise).
+HD_INLINE stellar_moments stellar_moments_at(Scalar Bp, Scalar obliquity,
+                                             const stellar_extras& e,
+                                             double phase) {
+  stellar_moments m;
+  double c = std::cos(phase);
+  double s = std::sin(phase);
+  // Legacy expressions, term for term.
+  m.mx = static_cast<Scalar>(Bp * std::sin(obliquity) * c);
+  m.my = static_cast<Scalar>(Bp * std::sin(obliquity) * s);
+  m.mz = Bp * std::cos(obliquity);
+  // Offsets are rotated ONLY when nonzero so the centered configuration
+  // keeps exact +0.0 components (c or s < 0 would otherwise mint -0.0,
+  // and x - (-0.0) flips the sign of a zero coordinate).
+  if (stellar_has_dip_off(e)) {
+    m.dx = static_cast<Scalar>(c * e.dip_off[0] - s * e.dip_off[1]);
+    m.dy = static_cast<Scalar>(s * e.dip_off[0] + c * e.dip_off[1]);
+    m.dz = e.dip_off[2];
+  }
+  if (stellar_has_quad(e)) {
+    m.has_quad = true;
+    double Qxx = e.quad_Q[0], Qxy = e.quad_Q[1], Qxz = e.quad_Q[2];
+    double Qyy = e.quad_Q[3], Qyz = e.quad_Q[4];
+    double c2 = c * c, s2 = s * s, cs = c * s;
+    // Q_lab = Rz(phase) Q Rz(phase)^T; the trace (and Qzz) is invariant.
+    m.Qxx = static_cast<Scalar>(c2 * Qxx - 2 * cs * Qxy + s2 * Qyy);
+    m.Qxy = static_cast<Scalar>(cs * (Qxx - Qyy) + (c2 - s2) * Qxy);
+    m.Qyy = static_cast<Scalar>(s2 * Qxx + 2 * cs * Qxy + c2 * Qyy);
+    m.Qxz = static_cast<Scalar>(c * Qxz - s * Qyz);
+    m.Qyz = static_cast<Scalar>(s * Qxz + c * Qyz);
+    m.Qzz = static_cast<Scalar>(-(Qxx + Qyy));
+    m.qx = static_cast<Scalar>(c * e.quad_off[0] - s * e.quad_off[1]);
+    m.qy = static_cast<Scalar>(s * e.quad_off[0] + c * e.quad_off[1]);
+    m.qz = e.quad_off[2];
+  }
+  return m;
+}
+
+// Total stellar B at a lab-frame point.  With default (centered-dipole)
+// moments this is bitwise dipole_B_impl — see the header note above.
+HD_INLINE void stellar_B_impl(Scalar x, Scalar y, Scalar z,
+                              const stellar_moments& m,
+                              Scalar& Bx, Scalar& By, Scalar& Bz) {
+  dipole_B_impl(x - m.dx, y - m.dy, z - m.dz, m.mx, m.my, m.mz, Bx, By, Bz);
+  if (m.has_quad) {
+    Scalar qbx, qby, qbz;
+    quadrupole_B_impl(x - m.qx, y - m.qy, z - m.qz, m.Qxx, m.Qxy, m.Qxz,
+                      m.Qyy, m.Qyz, m.Qzz, qbx, qby, qbz);
+    Bx += qbx;
+    By += qby;
+    Bz += qbz;
+  }
+}
+
 // Full retarded Deutsch solution for a rotating magnetic dipole (c = 1).
 // Derived from the Hertz potential Π = m(t_r)/r, with A = ∇×Π:
 //

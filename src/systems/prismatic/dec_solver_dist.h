@@ -47,6 +47,12 @@ struct dec_inner_bc_params {
   Scalar Bp = 1.0;
   Scalar Omega = 1.0;
   Scalar obliquity = 0.0;
+  // Body-frame multipole extensions (shifted dipole / quadrupole /
+  // shifted quadrupole; see stellar_extras in dec_solver_geometry.hpp).
+  // The all-zero default is the centered dipole and reproduces the
+  // legacy BC bitwise.  Incompatible with use_deutsch (the retarded
+  // solution is point-dipole only; dec_field_solver::init aborts).
+  stellar_extras stellar;
   bool use_deutsch = false;
   bool overwrite_b = true;
   // Frame dragging ("fake GR"): the corotation EMF is set by the star's
@@ -1101,17 +1107,19 @@ class dec_solver_dist {
     Scalar obliq = par.obliquity;
     bool deutsch = par.use_deutsch;
 
-    Scalar mx_B = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_B);
-    Scalar my_B = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_B);
-    Scalar mx_E = Bp_val * std::sin(obliq) * std::cos(Omega_val * time_E);
-    Scalar my_E = Bp_val * std::sin(obliq) * std::sin(Omega_val * time_E);
-    Scalar mz_i = Bp_val * std::cos(obliq);
+    // Lab-frame multipole snapshots at the two evaluation times.  For the
+    // default (centered-dipole) extras this computes exactly the legacy
+    // rotated moment and stellar_B_impl is bitwise dipole_B_impl.
+    stellar_moments mom_B =
+        stellar_moments_at(Bp_val, obliq, par.stellar, Omega_val * time_B);
+    stellar_moments mom_E =
+        stellar_moments_at(Bp_val, obliq, par.stellar, Omega_val * time_E);
     Scalar t_bc_B = static_cast<Scalar>(time_B);
     Scalar t_bc_E = static_cast<Scalar>(time_E);
 
     if (par.overwrite_b) {
       ExecPolicy::launch(
-          [lp, mp, mx_i = mx_B, my_i = my_B, mz_i, Bp_val, Omega_val, obliq,
+          [lp, mp, mom_i = mom_B, Bp_val, Omega_val, obliq,
            deutsch, t_bc = t_bc_B, bs = m_b_split]
           LAMBDA(auto B_f, auto B0_f) {
             ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
@@ -1135,7 +1143,7 @@ class dec_solver_dist {
                     deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq,
                                    bx, by, bz);
                   } else {
-                    dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+                    stellar_B_impl(x, y, z, mom_i, bx, by, bz);
                   }
                   return bx*nx + by*ny + bz*nz;
                 }, 0.0, 1.0);
@@ -1165,7 +1173,7 @@ class dec_solver_dist {
                     deutsch_B_impl(x, y, z, t_bc, Bp_val, Omega_val, obliq,
                                    bbx, bby, bbz);
                   } else {
-                    dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bbx, bby, bbz);
+                    stellar_B_impl(x, y, z, mom_i, bbx, bby, bbz);
                   }
                   return bbx*nx + bby*ny + bbz*nz;
                 }, 0.0, 1.0);
@@ -1181,7 +1189,7 @@ class dec_solver_dist {
     Scalar wlt_p = par.lt_p;
     Scalar lapse_c = par.lapse_compactness;
     ExecPolicy::launch(
-        [lp, mp, mx_i = mx_E, my_i = my_E, mz_i, Bp_val, Omega_val, obliq,
+        [lp, mp, mom_i = mom_E, Bp_val, Omega_val, obliq,
          deutsch, t_bc = t_bc_E, es = m_e_split, wlt0, wlt_rs, wlt_p, lapse_c,
          N_h_edges = (m_mesh->m_N_r + 1) * m_mesh->m_N_edge_s]
         LAMBDA(auto E_e) {
@@ -1201,7 +1209,7 @@ class dec_solver_dist {
                              ex, ey, ez);
             } else {
               Scalar bx, by, bz;
-              dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
+              stellar_B_impl(x, y, z, mom_i, bx, by, bz);
               Scalar om = Omega_val;
               if (wlt0 != Scalar(0) || lapse_c > Scalar(0)) {
                 Scalar r = std::sqrt(x * x + y * y + z * z);
@@ -1265,13 +1273,27 @@ class dec_solver_dist {
   // -----------------------------------------------------------------------
 
   // Exact point-dipole face fluxes of moment (mx, my, mz) via Gauss
-  // quadrature (ICs and the static background).
+  // quadrature (ICs and the static background).  Thin wrapper over
+  // fill_stellar_B: a centered dipole moment takes the identical
+  // arithmetic path (see the stellar_extras note in
+  // dec_solver_geometry.hpp), so this stays bit-compatible with the
+  // pre-multipole implementation.
   void fill_dipole_B(buffer<Scalar>& B, Scalar mx_v, Scalar my_v,
                      Scalar mz_v) {
+    stellar_moments mom;
+    mom.mx = mx_v;
+    mom.my = my_v;
+    mom.mz = mz_v;
+    fill_stellar_B(B, mom);
+  }
+
+  // Face fluxes of the full stellar multipole snapshot (shifted dipole +
+  // optional shifted quadrupole) via the same Gauss quadrature.
+  void fill_stellar_B(buffer<Scalar>& B, const stellar_moments& mom) {
     auto lp = get_lp(typename ExecPolicy::exec_tag{});
     auto mp = m_mesh->get_ptrs(typename ExecPolicy::exec_tag{});
     ExecPolicy::launch(
-        [lp, mp, mx_v, my_v, mz_v, bs = m_b_split] LAMBDA(auto B_f) {
+        [lp, mp, mom, bs = m_b_split] LAMBDA(auto B_f) {
           ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int l) {
             gidx_t g = lp.tri_face_l2g[l];
             gidx_t vi0, vi1, vi2;
@@ -1289,7 +1311,7 @@ class dec_solver_dist {
                                   static_cast<Scalar>(u), static_cast<Scalar>(t),
                                   x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
-                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                stellar_B_impl(x, y, z, mom, bx, by, bz);
                 return bx*nx + by*ny + bz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);
@@ -1311,7 +1333,7 @@ class dec_solver_dist {
                                    static_cast<Scalar>(u), static_cast<Scalar>(v),
                                    x, y, z, nx, ny, nz);
                 Scalar bx, by, bz;
-                dipole_B_impl(x, y, z, mx_v, my_v, mz_v, bx, by, bz);
+                stellar_B_impl(x, y, z, mom, bx, by, bz);
                 return bx*nx + by*ny + bz*nz;
               }, 0.0, 1.0);
             }, 0.0, 1.0);

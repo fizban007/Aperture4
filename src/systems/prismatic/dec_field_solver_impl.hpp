@@ -161,6 +161,45 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("Bp", m_Bp);
   sim_env().params().get_value("Omega", m_Omega);
   sim_env().params().get_value("obliquity", m_obliquity);
+
+  // ---- Stellar multipole extras (defaults = centered dipole) ----
+  // Body-frame (corotating) parameters; obliquity applies to the dipole
+  // moment only, the quadrupole orientation is encoded directly in Q.
+  {
+    double dip_off[3] = {0.0, 0.0, 0.0};
+    double quad_Q[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    double quad_off[3] = {0.0, 0.0, 0.0};
+    sim_env().params().get_array("dipole_offset", dip_off);
+    sim_env().params().get_array("quadrupole_moment", quad_Q);
+    sim_env().params().get_array("quadrupole_offset", quad_off);
+    for (int i = 0; i < 3; i++) {
+      m_stellar.dip_off[i] = Scalar(dip_off[i]);
+      m_stellar.quad_off[i] = Scalar(quad_off[i]);
+    }
+    for (int i = 0; i < 5; i++) m_stellar.quad_Q[i] = Scalar(quad_Q[i]);
+    if (stellar_extras_present(m_stellar)) {
+      double d2 = dip_off[0] * dip_off[0] + dip_off[1] * dip_off[1] +
+                  dip_off[2] * dip_off[2];
+      double q2 = quad_off[0] * quad_off[0] + quad_off[1] * quad_off[1] +
+                  quad_off[2] * quad_off[2];
+      double r_in = m_mesh.m_r_min;
+      if (d2 >= r_in * r_in || q2 >= r_in * r_in) {
+        Logger::print_err(
+            "Multipole offset outside the star: |dipole_offset| = {}, "
+            "|quadrupole_offset| = {}, r_min = {}.  The point singularities "
+            "must stay strictly inside the inner boundary.",
+            std::sqrt(d2), std::sqrt(q2), r_in);
+        std::abort();
+      }
+      Logger::print_info(
+          "Stellar multipole extras: dipole_offset = ({}, {}, {}), "
+          "quadrupole_moment = ({}, {}, {}, {}, {}), "
+          "quadrupole_offset = ({}, {}, {})",
+          dip_off[0], dip_off[1], dip_off[2], quad_Q[0], quad_Q[1],
+          quad_Q[2], quad_Q[3], quad_Q[4], quad_off[0], quad_off[1],
+          quad_off[2]);
+    }
+  }
   sim_env().params().get_value("damping_length", m_damping_length);
   sim_env().params().get_value("damping_coef", m_damping_coef);
   sim_env().params().get_value("damping_exponent", m_damping_exponent);
@@ -170,6 +209,14 @@ void dec_field_solver<ExecPolicy>::init() {
   sim_env().params().get_value("implicit_beta", m_beta);
   sim_env().params().get_value("implicit_iters", m_implicit_iters);
   sim_env().params().get_value("use_deutsch_bc", m_use_deutsch_bc);
+  if (m_use_deutsch_bc && stellar_extras_present(m_stellar)) {
+    Logger::print_err(
+        "use_deutsch_bc is point-dipole only (the retarded Deutsch "
+        "solution); it is incompatible with dipole_offset / "
+        "quadrupole_moment / quadrupole_offset.  Use the instantaneous "
+        "near-zone BC (use_deutsch_bc = false).");
+    std::abort();
+  }
   sim_env().params().get_value("use_pec_bc", m_use_pec_bc);
   sim_env().params().get_value("inner_bc_overwrite_b", m_inner_bc_overwrite_b);
   sim_env().params().get_value("use_reconstruction_hodge", m_use_recon_hodge);
@@ -248,7 +295,11 @@ void dec_field_solver<ExecPolicy>::init() {
           "boundary acts on the delta fields only); disabling background");
       m_use_static_background = false;
     } else {
-      // Aligned (static) dipole component only — see header note.
+      // Aligned (static) dipole component only — see header note.  Any
+      // multipole extras stay in the delta fields: correct for every
+      // configuration (delta = full - B0 in both the IC and the BC),
+      // merely not optimal for extras that happen to be axisymmetric
+      // about the spin axis.
       fill_dipole_B(m_B0->data(), Scalar(0), Scalar(0),
                     m_Bp * std::cos(m_obliquity));
       // Owned slots only were filled; refresh B0 ghosts once so
@@ -257,6 +308,11 @@ void dec_field_solver<ExecPolicy>::init() {
       Logger::print_info(
           "Static background enabled: aligned dipole mz = {}",
           m_Bp * std::cos(m_obliquity));
+      if (stellar_extras_present(m_stellar)) {
+        Logger::print_info(
+            "  (multipole extras are carried by the delta fields, not the "
+            "static background)");
+      }
     }
   }
   refresh_total_fields();
@@ -633,6 +689,7 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
   par.Bp = m_Bp;
   par.Omega = m_Omega;
   par.obliquity = m_obliquity;
+  par.stellar = m_stellar;
   par.use_deutsch = m_use_deutsch_bc;
   par.overwrite_b = m_inner_bc_overwrite_b;
   if (m_use_frame_drag) {
@@ -661,8 +718,12 @@ void dec_field_solver<ExecPolicy>::fill_dipole_B(
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_dipole() {
-  fill_dipole_B(m_B->data(), m_Bp * std::sin(m_obliquity), Scalar(0),
-                m_Bp * std::cos(m_obliquity));
+  // Full configured stellar field at spin phase 0.  With no multipole
+  // extras stellar_moments_at(..., 0.0) is exactly the legacy moment
+  // (Bp sin(chi), 0, Bp cos(chi)) and the fill is bitwise the old
+  // fill_dipole_B call.
+  m_dist.fill_stellar_B(
+      m_B->data(), stellar_moments_at(m_Bp, m_obliquity, m_stellar, 0.0));
 
   // Delta formulation: subtract the static background cochains (zero when
   // use_static_background is off).  E starts at zero.
@@ -682,6 +743,16 @@ void dec_field_solver<ExecPolicy>::set_initial_dipole() {
 
 template <typename ExecPolicy>
 void dec_field_solver<ExecPolicy>::set_initial_deutsch() {
+  if (stellar_extras_present(m_stellar)) {
+    // The retarded Deutsch solution is point-dipole only; a main asking
+    // for it alongside multipole extras is a config error even when
+    // use_deutsch_bc is off (the IC would not match the BC's field).
+    Logger::print_err(
+        "set_initial_deutsch is point-dipole only and incompatible with "
+        "dipole_offset / quadrupole_moment / quadrupole_offset; use "
+        "set_initial_dipole.");
+    std::abort();
+  }
   Scalar Bp_v = m_Bp;
   Scalar Omega_v = m_Omega;
   Scalar obl_v = m_obliquity;

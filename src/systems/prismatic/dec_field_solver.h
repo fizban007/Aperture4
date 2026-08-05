@@ -54,6 +54,10 @@ class dec_field_solver : public system_t {
   void dump_rank_fields(uint32_t step);
 
   // Initial condition helpers — call from main after env.init().
+  // set_initial_dipole fills the configured stellar field: the centered
+  // dipole by default, plus any multipole extras (dipole_offset /
+  // quadrupole_moment / quadrupole_offset in the config) evaluated at
+  // spin phase 0.  The name is kept for the existing problem mains.
   void set_initial_dipole();
   void set_initial_deutsch();
 
@@ -182,6 +186,13 @@ class dec_field_solver : public system_t {
   Scalar m_Bp = 1.0;
   Scalar m_Omega = 1.0;
   Scalar m_obliquity = 0.0;
+  // Multipole extensions of the stellar field (config "dipole_offset",
+  // "quadrupole_moment" = [Qxx, Qxy, Qxz, Qyy, Qyz], "quadrupole_offset";
+  // body frame, corotating).  All-zero default = centered dipole, which
+  // reproduces the legacy BC and IC bitwise.  Incompatible with
+  // use_deutsch_bc; offsets must satisfy |d| < r_min so the point
+  // singularities stay inside the stellar boundary (checked in init).
+  stellar_extras m_stellar;
 
   // Damping layer: sigma(k) = damping_coef * ramp^damping_exponent, with
   // ramp rising linearly 0 -> 1 across the last damping_length shells.

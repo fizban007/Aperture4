@@ -269,6 +269,30 @@ void dec_field_solver<ExecPolicy>::init() {
     m_Eeff.set_memtype(ExecPolicy::data_mem_type());
     m_Eeff.resize(m_dist.n_edges_local());
     m_Eeff.assign(Scalar(0));
+    sim_env().params().get_value("use_fd_adjoint", m_use_fd_adjoint);
+    if (m_use_fd_adjoint) {
+      for (auto* b : {&m_fd_F, &m_fd_Bold, &m_fd_Bmid}) {
+        b->set_memtype(ExecPolicy::data_mem_type());
+        b->resize(m_dist.n_faces_local());
+        b->assign(Scalar(0));
+      }
+      for (auto* b : {&m_fd_Eold, &m_fd_Emid}) {
+        b->set_memtype(ExecPolicy::data_mem_type());
+        b->resize(m_dist.n_edges_local());
+        b->assign(Scalar(0));
+      }
+      Logger::print_info(
+          "  adjoint pairing ON: Ampere carries H_aux = [alpha] h2 B + "
+          "W^T h1inv^-1 E, both couplings midpoint-centred (2 sweeps).  "
+          "The one-sided W coupling is a grid-scale instability -- see "
+          "the adjoint-pairing note in dec_solver_dist.h.");
+    } else {
+      Logger::print_info(
+          "  adjoint pairing OFF (use_fd_adjoint = false): one-sided "
+          "Faraday W coupling.  WARNING: unstable at grid scale near the "
+          "surface (vacuum growth gamma ~ 0.2 at L6); kept only to "
+          "reproduce pre-fix runs.");
+    }
     Logger::print_info(
         "Frame dragging ON: omega_LT(R*)/Omega = {:.4g} (compactness {}), "
         "profile (R*/r)^{}, R* = {}; surface rho_GJ reduced by {:.3g}",
@@ -367,11 +391,19 @@ void dec_field_solver<ExecPolicy>::compute_rhs(
     // Frame dragging: the Faraday rows of the RHS take the effective
     // circulation E + W(B).  Built from the CURRENT iterate (inside the
     // Picard loop), so the shift term is fully implicit-consistent.
-    // The Ampere rows read B and J only, so passing Eeff through is
-    // exact for them.
     m_dist.frame_drag_eff_E(E_in, B_in, m_B0->data(), m_Eeff);
     m_ex.exchange_edge(m_Eeff, m_dist.e_split());
-    m_dist.compute_rhs(m_Eeff, B_in, m_J->data(), dE_out, dB_out);
+    if (m_use_fd_adjoint) {
+      // Adjoint beta x E term in the Ampere rows, also built from the
+      // iterate — the Picard machinery centres it for free.
+      m_dist.frame_drag_aux_F(E_in, m_fd_F);
+      m_ex.reduce_face(m_fd_F, m_dist.b_split());
+      m_ex.exchange_face(m_fd_F, m_dist.b_split());
+      m_dist.compute_rhs_fd(m_Eeff, B_in, m_fd_F, m_J->data(), dE_out,
+                            dB_out);
+    } else {
+      m_dist.compute_rhs(m_Eeff, B_in, m_J->data(), dE_out, dB_out);
+    }
   } else {
     m_dist.compute_rhs(E_in, B_in, m_J->data(), dE_out, dB_out);
   }
@@ -394,7 +426,25 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
     m_ex.exchange_face(m_B->data(), m_dist.b_split());
     m_dist.frame_drag_eff_E(m_E->data(), m_B->data(), m_B0->data(), m_Eeff);
     m_ex.exchange_edge(m_Eeff, m_dist.e_split());
-    m_dist.faraday(m_Eeff, m_B->data(), dt);
+    if (m_use_fd_adjoint) {
+      // Midpoint-centred W: the coupling acts on (B^{n-1/2}+B^{n+1/2})/2,
+      // reached by one predictor + one corrector sweep.  Off-centring
+      // this term reintroduces the grid-scale growth the adjoint pair
+      // exists to remove (measured; see the dec_solver_dist note).
+      copy_local(m_fd_Bold, m_B->data(), m_dist.n_faces_local());
+      m_dist.faraday(m_Eeff, m_B->data(), dt);  // predictor B^{n+1/2}
+      // [halo sync point] candidate B ghosts, so the midpoint is valid
+      // on the full local range that frame_drag_eff_E reads.
+      m_ex.exchange_face(m_B->data(), m_dist.b_split());
+      average_local(m_fd_Bmid, m_fd_Bold, m_B->data(),
+                    m_dist.n_faces_local());
+      m_dist.frame_drag_eff_E(m_E->data(), m_fd_Bmid, m_B0->data(), m_Eeff);
+      m_ex.exchange_edge(m_Eeff, m_dist.e_split());
+      copy_local(m_B->data(), m_fd_Bold, m_dist.n_faces_local());
+      m_dist.faraday(m_Eeff, m_B->data(), dt);  // corrector
+    } else {
+      m_dist.faraday(m_Eeff, m_B->data(), dt);
+    }
   } else if (m_update_b) {
     m_ex.exchange_edge(m_E->data(), m_dist.e_split());
     m_dist.faraday(m_E->data(), m_B->data(), dt);
@@ -404,7 +454,27 @@ void dec_field_solver<ExecPolicy>::update_explicit(double dt) {
   // [halo sync point] exchange B (tri+rect).
   if (m_update_e && !m_use_recon_hodge) {
     m_ex.exchange_face(m_B->data(), m_dist.b_split());
-    m_dist.ampere(m_E->data(), m_B->data(), m_J->data(), dt);
+    if (m_use_frame_drag && m_use_fd_adjoint) {
+      // Adjoint beta x E term, midpoint-centred: H_aux = [alpha] h2 B + F
+      // with F = W^T h1inv^-1 E at (E^n + E^{n+1})/2.  frame_drag_aux_F
+      // reads owned edge slots only, so the midpoint needs no edge
+      // exchange; F needs reduce (sum the per-rank owned-edge partial
+      // transposes) + exchange (refill ghosts for the d1t gather).
+      copy_local(m_fd_Eold, m_E->data(), m_dist.n_edges_local());
+      m_dist.frame_drag_aux_F(m_E->data(), m_fd_F);
+      m_ex.reduce_face(m_fd_F, m_dist.b_split());
+      m_ex.exchange_face(m_fd_F, m_dist.b_split());
+      m_dist.ampere_fd(m_E->data(), m_B->data(), m_fd_F, m_J->data(), dt);
+      average_local(m_fd_Emid, m_fd_Eold, m_E->data(),
+                    m_dist.n_edges_local());
+      m_dist.frame_drag_aux_F(m_fd_Emid, m_fd_F);
+      m_ex.reduce_face(m_fd_F, m_dist.b_split());
+      m_ex.exchange_face(m_fd_F, m_dist.b_split());
+      copy_local(m_E->data(), m_fd_Eold, m_dist.n_edges_local());
+      m_dist.ampere_fd(m_E->data(), m_B->data(), m_fd_F, m_J->data(), dt);
+    } else {
+      m_dist.ampere(m_E->data(), m_B->data(), m_J->data(), dt);
+    }
   } else if (m_update_e) {
     // Reconstruction-corrected Ampere (see prismatic_recon_hodge.h):
     //   circ[f] = W2-row(f) . B          (dual-segment circulations)

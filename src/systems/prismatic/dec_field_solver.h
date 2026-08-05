@@ -73,6 +73,26 @@ class dec_field_solver : public system_t {
   void update_explicit(double dt);
   void update_semi_implicit(double dt);
 
+  // Full-local-range copy / two-point average (adjoint frame-drag
+  // midpoint scratch; public for the same HIP lambda reason).
+  void copy_local(buffer<Scalar>& dst, buffer<Scalar>& src, int n) {
+    ExecPolicy::launch(
+        [n] LAMBDA(auto d, auto s) {
+          ExecPolicy::loop(0, n, [&] LAMBDA(int i) { d[i] = s[i]; });
+        },
+        dst, src);
+  }
+  void average_local(buffer<Scalar>& dst, buffer<Scalar>& a,
+                     buffer<Scalar>& b, int n) {
+    ExecPolicy::launch(
+        [n] LAMBDA(auto d, auto x, auto y) {
+          ExecPolicy::loop(0, n, [&] LAMBDA(int i) {
+            d[i] = Scalar(0.5) * (x[i] + y[i]);
+          });
+        },
+        dst, a, b);
+  }
+
   // Fill a face-flux buffer with the exact cochains of a point dipole of
   // moment (mx, my, mz) via Gauss quadrature (used for ICs and the static
   // background).
@@ -209,8 +229,8 @@ class dec_field_solver : public system_t {
   bool m_use_static_background = false;
 
   // Frame dragging ("fake GR", config "use_frame_dragging"): slow-rotation
-  // Lense-Thirring shift, Faraday-side only (see dec_solver_dist's
-  // build_frame_drag header note).  omega_lt(r) = m_omega_lt0 *
+  // Lense-Thirring shift (see dec_solver_dist's build_frame_drag and
+  // adjoint-pairing header notes).  omega_lt(r) = m_omega_lt0 *
   // (r_star/r)^m_lt_exponent about the spin axis;
   // m_omega_lt0 = gr_omega_lt_frac * Omega with gr_omega_lt_frac
   // defaulting to (2/5) * gr_compactness (uniform-density moment of
@@ -230,6 +250,19 @@ class dec_field_solver : public system_t {
   Scalar m_lt_r_star = 1.0;
   int m_lt_exponent = 3;
   buffer<Scalar> m_Eeff;  // scratch: E + W(B) effective circulation
+  // Adjoint pairing of the frame-drag coupling (config "use_fd_adjoint",
+  // default true): Ampere gains the beta x E term as the exact energy
+  // transpose of W, and both couplings are midpoint-centred by two
+  // Picard sweeps in update_explicit.  Without it the one-sided W term
+  // is a grid-scale numerical instability (gamma ~ 0.2 at L6) that
+  // manifests as the near-surface tangential-E layer.  See the
+  // adjoint-pairing note in dec_solver_dist.h.
+  bool m_use_fd_adjoint = true;
+  buffer<Scalar> m_fd_F;     // scratch: W^T h1inv^-1 E face term
+  buffer<Scalar> m_fd_Bold;  // scratch: B^{n-1/2} for the Faraday midpoint
+  buffer<Scalar> m_fd_Bmid;
+  buffer<Scalar> m_fd_Eold;  // scratch: E^n for the Ampere midpoint
+  buffer<Scalar> m_fd_Emid;
 
   double m_time = 0.0;
 };

@@ -452,6 +452,7 @@ class dec_solver_dist {
     }
 #endif
     m_fd_built = true;
+    build_frame_drag_transpose();
   }
 
   // Eeff[e] = alpha_e E[e] + W_e(Bdelta + B0) on OWNED edges -- the full
@@ -501,6 +502,201 @@ class dec_solver_dist {
 
   bool frame_drag_built() const { return m_fd_built; }
   bool lapse_built() const { return m_lapse_built; }
+
+  // -----------------------------------------------------------------------
+  // Adjoint pairing of the frame-drag coupling (the Ampere-side beta x E
+  // term, restored for STABILITY rather than accuracy).
+  //
+  // The Faraday-only W coupling is not skew-adjoint in the discrete
+  // energy: sym(h2 d1 W) has O(1) grid-scale eigenvalues localized in
+  // the first shells above the star, and the resulting instability
+  // (gamma ~ 0.2 at L6, sign-independent, saturating at E/B ~ 0.6 with
+  // plasma) is what produced the near-surface tangential-E layer in
+  // every fake-GR run -- it grows in VACUUM, no plasma needed.  See
+  // problems/prismatic_dipole/frame_drag_instability/ for the evidence
+  // chain and the validating testbed.
+  //
+  // The cure needs no Whitney mass matrices: with the diagonal Hodge,
+  // the exact energy partner of W is its literal transpose.  Adding
+  //
+  //     H_aux[f] = h2 B[f] + F[f],   F = W^T h1inv^-1 E
+  //
+  // to Ampere makes
+  //
+  //     U_full = 1/2 E'h1inv^-1 E + 1/2 B'h2 B + E'h1inv^-1 W B
+  //
+  // an exact semi-discrete invariant for ANY W (every spurious quadratic
+  // cancels algebraically), and W^T h1inv^-1 is simultaneously the
+  // weak-form-consistent discretization of the beta x E face flux (the
+  // triple-product identity int (beta x B).E = -int (beta x E).B holds
+  // exactly under the diagonal masses).  The lapse, when built, scales
+  // h2 B only -- the continuum beta x E term carries no alpha.
+  //
+  // TIME CENTERING IS MANDATORY: under leapfrog, both couplings must
+  // act on their time midpoints (W on (B^{n-1/2}+B^{n+1/2})/2, W^T on
+  // (E^n+E^{n+1})/2, two Picard sweeps each; dec_field_solver's
+  // update_explicit orchestrates this).  Measured at L4 in vacuum:
+  // one-sided gamma = 0.038; explicit adjoint 0.2 (worse); Ampere-side
+  // centering only 0.015; both centered: monotone energy decay over
+  // 14 periods.
+  //
+  // DISTRIBUTED ASSEMBLY: the face-major transpose below carries only
+  // this rank's OWNED edges (the exact transpose of what this rank owns
+  // of W).  frame_drag_aux_F therefore produces a PARTIAL sum on every
+  // local face; the caller completes it with reduce_face (ghost slots
+  // accumulate to their owner -- each global edge is owned exactly once,
+  // so the reduced sum is the exact global W^T row) followed by
+  // exchange_face to refill ghosts.  Single-rank both are no-ops.
+  // -----------------------------------------------------------------------
+
+  // Face-major transpose of the W CSR blocks with 1/h1inv folded into
+  // the values (host, init-time; called by build_frame_drag).  Column
+  // indices address the E buffer directly (h edges as-is, v edges at
+  // e_split + e).
+  void build_frame_drag_transpose() {
+    auto lp = m_lp_host;
+    std::vector<int> t_row(size_t(lp.n_local_tri) + 1, 0);
+    std::vector<int> r_row(size_t(lp.n_local_rect) + 1, 0);
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1]; j++)
+        t_row[lp.d1t_h_tri_col[j] + 1]++;
+      for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1]; j++)
+        r_row[lp.d1t_h_rect_col[j] + 1]++;
+    }
+    for (int e = 0; e < lp.n_owned_ve; e++)
+      for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1]; j++)
+        r_row[lp.d1t_v_rect_col[j] + 1]++;
+    for (int f = 0; f < lp.n_local_tri; f++) t_row[f + 1] += t_row[f];
+    for (int f = 0; f < lp.n_local_rect; f++) r_row[f + 1] += r_row[f];
+
+    std::vector<int> t_col(t_row[lp.n_local_tri]);
+    std::vector<Scalar> t_val(t_row[lp.n_local_tri]);
+    std::vector<int> r_col(r_row[lp.n_local_rect]);
+    std::vector<Scalar> r_val(r_row[lp.n_local_rect]);
+    std::vector<int> pt(t_row.begin(), t_row.end() - 1);
+    std::vector<int> pr(r_row.begin(), r_row.end() - 1);
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      const Scalar wi = Scalar(1) / lp.h_edge_hodge1_inv[e];
+      for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1]; j++) {
+        int f = lp.d1t_h_tri_col[j];
+        t_col[pt[f]] = e;
+        t_val[pt[f]] = m_fd_h_tri_val[j] * wi;
+        pt[f]++;
+      }
+      for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1]; j++) {
+        int f = lp.d1t_h_rect_col[j];
+        r_col[pr[f]] = e;
+        r_val[pr[f]] = m_fd_h_rect_val[j] * wi;
+        pr[f]++;
+      }
+    }
+    for (int e = 0; e < lp.n_owned_ve; e++) {
+      const Scalar wi = Scalar(1) / lp.v_edge_hodge1_inv[e];
+      for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1]; j++) {
+        int f = lp.d1t_v_rect_col[j];
+        r_col[pr[f]] = m_e_split + e;
+        r_val[pr[f]] = m_fd_v_rect_val[j] * wi;
+        pr[f]++;
+      }
+    }
+
+    auto upload = [&](auto& dst, auto& src) {
+      dst.set_memtype(ExecPolicy::data_mem_type());
+      dst.resize(src.size());
+      for (size_t i = 0; i < src.size(); i++) dst[i] = src[i];
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+      if (ExecPolicy::data_mem_type() != MemType::host_only)
+        dst.copy_to_device();
+#endif
+    };
+    upload(m_fdt_tri_row, t_row);
+    upload(m_fdt_tri_col, t_col);
+    upload(m_fdt_tri_val, t_val);
+    upload(m_fdt_rect_row, r_row);
+    upload(m_fdt_rect_col, r_col);
+    upload(m_fdt_rect_val, r_val);
+    m_fdt_built = true;
+  }
+
+  // F[f] = this rank's owned-edge part of (W^T h1inv^-1 E)[f], on ALL
+  // local faces (gather over the face-major transpose; race-free).
+  // Reads OWNED edge slots of E only.  Caller must reduce_face +
+  // exchange_face before feeding F to ampere_fd / compute_rhs_fd.
+  void frame_drag_aux_F(buffer<Scalar>& E, buffer<Scalar>& F) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, bs = m_b_split]
+        LAMBDA(auto E_e, auto F_f, auto trow, auto tcol, auto tval,
+               auto rrow, auto rcol, auto rval) {
+          ExecPolicy::loop(0, lp.n_local_tri, [&] LAMBDA(int f) {
+            Scalar a = Scalar(0);
+            for (int j = trow[f]; j < trow[f + 1]; j++)
+              a += tval[j] * E_e[tcol[j]];
+            F_f[f] = a;
+          });
+          ExecPolicy::loop(0, lp.n_local_rect, [&] LAMBDA(int f) {
+            Scalar a = Scalar(0);
+            for (int j = rrow[f]; j < rrow[f + 1]; j++)
+              a += rval[j] * E_e[rcol[j]];
+            F_f[bs + f] = a;
+          });
+        },
+        E, F, m_fdt_tri_row, m_fdt_tri_col, m_fdt_tri_val, m_fdt_rect_row,
+        m_fdt_rect_col, m_fdt_rect_val);
+  }
+
+  // Ampere with the adjoint frame-drag term: H_aux = [alpha] h2 B + F.
+  // Separate from ampere_impl so the flat and one-sided kernels stay
+  // byte-identical (this file has been bitten by a codegen cliff,
+  // b3e4c17a).
+  template <bool WithLapse>
+  void ampere_fd_impl(buffer<Scalar>& E, buffer<Scalar>& B,
+                      buffer<Scalar>& F, buffer<Scalar>& J, double dt) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, dt, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto B_f, auto F_f, auto J_e, auto alpha_f) {
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1];
+                 j++) {
+              int f = lp.d1t_h_tri_col[j];
+              Scalar H = lp.tri_face_hodge2[f] * B_f[f];
+              if constexpr (WithLapse) H *= alpha_f[f];
+              curl_H += lp.d1t_h_tri_val[j] * (H + F_f[f]);
+            }
+            for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1];
+                 j++) {
+              int f = lp.d1t_h_rect_col[j];
+              Scalar H = lp.rect_face_hodge2[f] * B_f[bs + f];
+              if constexpr (WithLapse) H *= alpha_f[bs + f];
+              curl_H += lp.d1t_h_rect_val[j] * (H + F_f[bs + f]);
+            }
+            E_e[e] += dt * lp.h_edge_hodge1_inv[e] * (curl_H - J_e[e]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1];
+                 j++) {
+              int f = lp.d1t_v_rect_col[j];
+              Scalar H = lp.rect_face_hodge2[f] * B_f[bs + f];
+              if constexpr (WithLapse) H *= alpha_f[bs + f];
+              curl_H += lp.d1t_v_rect_val[j] * (H + F_f[bs + f]);
+            }
+            E_e[es + e] +=
+                dt * lp.v_edge_hodge1_inv[e] * (curl_H - J_e[es + e]);
+          });
+        },
+        E, B, F, J, m_alpha_f);
+  }
+
+  void ampere_fd(buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& F,
+                 buffer<Scalar>& J, double dt) {
+    if (m_lapse_built) ampere_fd_impl<true>(E, B, F, J, dt);
+    else ampere_fd_impl<false>(E, B, F, J, dt);
+  }
+
+  bool frame_drag_transpose_built() const { return m_fdt_built; }
 
   // -----------------------------------------------------------------------
   // Per-element lapse alpha(r) = sqrt(1 - compactness * r_star / r) for the
@@ -692,6 +888,62 @@ class dec_solver_dist {
           });
         },
         E_in, B_in, J, dE_out, dB_out);
+  }
+
+  // compute_rhs with the adjoint frame-drag face term folded into the
+  // Ampere rows: H_aux = h2 B + F (see the adjoint-pairing header note).
+  // F must be reduced + exchanged by the caller.  The Faraday rows are
+  // identical to compute_rhs (the caller passes Eeff there).
+  void compute_rhs_fd(buffer<Scalar>& E_in, buffer<Scalar>& B_in,
+                      buffer<Scalar>& F, buffer<Scalar>& J,
+                      buffer<Scalar>& dE_out, buffer<Scalar>& dB_out) {
+    auto lp = get_lp(typename ExecPolicy::exec_tag{});
+    ExecPolicy::launch(
+        [lp, es = m_e_split, bs = m_b_split]
+        LAMBDA(auto E_e, auto B_f, auto F_f, auto J_e, auto dE, auto dB) {
+          ExecPolicy::loop(0, lp.n_owned_tri, [&] LAMBDA(int f) {
+            Scalar curl_E = Scalar(0);
+            for (int j = lp.d1_tri_h_row[f]; j < lp.d1_tri_h_row[f + 1]; j++) {
+              curl_E += lp.d1_tri_h_val[j] * E_e[lp.d1_tri_h_col[j]];
+            }
+            dB[f] = -curl_E;
+          });
+          ExecPolicy::loop(0, lp.n_owned_rect, [&] LAMBDA(int f) {
+            Scalar curl_E = Scalar(0);
+            for (int j = lp.d1_rect_h_row[f]; j < lp.d1_rect_h_row[f + 1]; j++) {
+              curl_E += lp.d1_rect_h_val[j] * E_e[lp.d1_rect_h_col[j]];
+            }
+            for (int j = lp.d1_rect_v_row[f]; j < lp.d1_rect_v_row[f + 1]; j++) {
+              curl_E += lp.d1_rect_v_val[j] * E_e[es + lp.d1_rect_v_col[j]];
+            }
+            dB[bs + f] = -curl_E;
+          });
+          ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1]; j++) {
+              int f = lp.d1t_h_tri_col[j];
+              curl_H += lp.d1t_h_tri_val[j] *
+                        (lp.tri_face_hodge2[f] * B_f[f] + F_f[f]);
+            }
+            for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1]; j++) {
+              int f = lp.d1t_h_rect_col[j];
+              curl_H += lp.d1t_h_rect_val[j] *
+                        (lp.rect_face_hodge2[f] * B_f[bs + f] + F_f[bs + f]);
+            }
+            dE[e] = lp.h_edge_hodge1_inv[e] * (curl_H - J_e[e]);
+          });
+          ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
+            Scalar curl_H = Scalar(0);
+            for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1]; j++) {
+              int f = lp.d1t_v_rect_col[j];
+              curl_H += lp.d1t_v_rect_val[j] *
+                        (lp.rect_face_hodge2[f] * B_f[bs + f] + F_f[bs + f]);
+            }
+            dE[es + e] =
+                lp.v_edge_hodge1_inv[e] * (curl_H - J_e[es + e]);
+          });
+        },
+        E_in, B_in, F, J, dE_out, dB_out);
   }
 
   // -----------------------------------------------------------------------
@@ -1231,6 +1483,12 @@ class dec_solver_dist {
   // sparsity blocks (see build_frame_drag).
   buffer<Scalar> m_fd_h_tri_val, m_fd_h_rect_val, m_fd_v_rect_val;
   bool m_fd_built = false;
+  // Face-major transpose of W with 1/h1inv folded in (see
+  // build_frame_drag_transpose): rows are LOCAL faces, columns are this
+  // rank's OWNED edges addressed in E-buffer layout.
+  buffer<int> m_fdt_tri_row, m_fdt_tri_col, m_fdt_rect_row, m_fdt_rect_col;
+  buffer<Scalar> m_fdt_tri_val, m_fdt_rect_val;
+  bool m_fdt_built = false;
   // Per-element lapse (see build_lapse).  Edge layout matches E
   // ([0,e_split) h, [e_split,..) v); face layout matches B.  Allocated
   // only when the GR path is on, so flat runs pay nothing.

@@ -842,3 +842,231 @@ TEST_CASE("Frame-drag EMF: weights are partition-invariant",
   // float summation order in the Gram/quadrature, so this is tight.
   REQUIRE(max_diff < 1e-5);
 }
+
+// ===========================================================================
+// Adjoint pairing of the frame-drag coupling (the beta x E Ampere term).
+//
+// The one-sided Faraday W coupling is a grid-scale numerical instability:
+// sym(h2 d1 W) has O(1) eigenvalues localized in the first shells above
+// the star (measured +-1.4 at L3), growing in VACUUM at gamma ~ 0.04 (L4)
+// to ~0.2 (L6), sign-independent -- the near-surface tangential-E layer
+// seen in every fake-GR production run.  The cure is the exact energy
+// transpose: H_aux = h2 B + F with F = W^T h1inv^-1 E, which makes
+// U_full = 1/2 E'h1inv^-1 E + 1/2 B'h2 B + E'h1inv^-1 W B an exact
+// semi-discrete invariant, provided BOTH couplings are midpoint-centred
+// under leapfrog.  These cases pin (a) the transpose construction,
+// (b) the actual stability of the centred update, (c) partition
+// invariance of the distributed partial-transpose assembly.
+// ===========================================================================
+
+TEST_CASE("Frame-drag adjoint: F is the exact energy transpose of W",
+          "[prismatic][framedrag][adjoint]") {
+  fd_fixture fx(3);
+  fx.core.build_frame_drag(Scalar(0.25), Scalar(1.0), 3);
+  auto lp = fx.core.get_lp(exec_tags::host{});
+  const int ne = fx.core.n_edges_local(), nf = fx.core.n_faces_local();
+  const int es = fx.core.e_split(), bs = fx.core.b_split();
+
+  buffer<Scalar> E, Ez, B, B0, WB, F;
+  for (auto* b : {&E, &Ez, &WB}) { b->set_memtype(MemType::host_only); b->resize(ne); }
+  for (auto* b : {&B, &B0, &F}) { b->set_memtype(MemType::host_only); b->resize(nf); }
+  for (int e = 0; e < ne; e++) E[e] = std::sin(Scalar(0.013) * e) + Scalar(0.21);
+  for (int f = 0; f < nf; f++) B[f] = std::cos(Scalar(0.007) * f) - Scalar(0.13);
+  Ez.assign(0);
+  B0.assign(0);
+
+  // (W B)_e from the shipped operator with E = 0.
+  fx.core.frame_drag_eff_E(Ez, B, B0, WB);
+  // F from the shipped transpose.
+  fx.core.frame_drag_aux_F(E, F);
+
+  double lhs = 0.0, rhs = 0.0, scale = 0.0;
+  for (int e = 0; e < lp.n_owned_he; e++) {
+    lhs += double(E[e]) * double(WB[e]) / double(lp.h_edge_hodge1_inv[e]);
+    scale += std::abs(double(E[e]) * double(WB[e]) /
+                      double(lp.h_edge_hodge1_inv[e]));
+  }
+  for (int e = 0; e < lp.n_owned_ve; e++) {
+    lhs += double(E[es + e]) * double(WB[es + e]) /
+           double(lp.v_edge_hodge1_inv[e]);
+    scale += std::abs(double(E[es + e]) * double(WB[es + e]) /
+                      double(lp.v_edge_hodge1_inv[e]));
+  }
+  for (int f = 0; f < nf; f++) rhs += double(F[f]) * double(B[f]);
+  INFO("E.h1inv^-1.(W B) = " << lhs << ", F.B = " << rhs
+                             << ", |terms| = " << scale);
+  REQUIRE(std::abs(lhs - rhs) < 1e-5 * scale);
+}
+
+TEST_CASE("Frame-drag adjoint: the centred pair is stable where the "
+          "one-sided coupling grows",
+          "[prismatic][framedrag][adjoint]") {
+  // Vacuum leapfrog from noise, no BC, no damping, J = 0.  The drag is
+  // set strong (w0 = 0.4, still subluminal) so the one-sided instability
+  // is fast at this small size; the drift ratio is the assertion, so the
+  // case does not depend on absolute rate calibration.
+  // Drag strength and dt are chosen so BOTH arms sit in their asymptotic
+  // regimes: w0 = 0.2 (4x production) keeps the one-sided growth fast but
+  // finite in float over the run, and dt = 0.15 h keeps the 2-sweep
+  // Picard midpoint well inside its convergence radius (lambda dt / 2
+  // ~ 0.1 here vs ~3e-3 at production parameters).
+  constexpr int L = 2, N_r = 8;
+  const double dt = 0.15 * std::sqrt(4.0 * M_PI / 162.0);
+  const int n_steps = 4000;
+
+  auto run = [&](bool adjoint) -> double {
+    fd_fixture fx(L);
+    fx.core.build_frame_drag(Scalar(0.2), Scalar(1.0), 3);
+    auto lp = fx.core.get_lp(exec_tags::host{});
+    const int ne = fx.core.n_edges_local(), nf = fx.core.n_faces_local();
+    const int es = fx.core.e_split(), bs = fx.core.b_split();
+
+    buffer<Scalar> E, Eeff, Eold, Emid, B, B0, Bold, Bmid, F, J;
+    for (auto* b : {&E, &Eeff, &Eold, &Emid, &J}) {
+      b->set_memtype(MemType::host_only); b->resize(ne);
+    }
+    for (auto* b : {&B, &B0, &Bold, &Bmid, &F}) {
+      b->set_memtype(MemType::host_only); b->resize(nf);
+    }
+    J.assign(0);
+    B0.assign(0);
+    for (int e = 0; e < ne; e++)
+      E[e] = Scalar(1e-3) * std::sin(Scalar(0.917) * e + Scalar(0.3));
+    for (int f = 0; f < nf; f++)
+      B[f] = Scalar(1e-3) * std::cos(Scalar(1.331) * f);
+
+    auto energy = [&]() -> double {
+      double U = 0;
+      for (int e = 0; e < lp.n_owned_he; e++)
+        U += 0.5 * double(E[e]) * double(E[e]) /
+             double(lp.h_edge_hodge1_inv[e]);
+      for (int e = 0; e < lp.n_owned_ve; e++)
+        U += 0.5 * double(E[es + e]) * double(E[es + e]) /
+             double(lp.v_edge_hodge1_inv[e]);
+      for (int f = 0; f < lp.n_owned_tri; f++)
+        U += 0.5 * double(lp.tri_face_hodge2[f]) * double(B[f]) * double(B[f]);
+      for (int f = 0; f < lp.n_owned_rect; f++)
+        U += 0.5 * double(lp.rect_face_hodge2[f]) * double(B[bs + f]) *
+             double(B[bs + f]);
+      return U;
+    };
+    const double U0 = energy();
+
+    for (int s = 0; s < n_steps; s++) {
+      if (adjoint) {
+        for (int f = 0; f < nf; f++) Bold[f] = B[f];
+        fx.core.frame_drag_eff_E(E, B, B0, Eeff);
+        fx.core.faraday(Eeff, B, dt);
+        for (int f = 0; f < nf; f++)
+          Bmid[f] = Scalar(0.5) * (Bold[f] + B[f]);
+        fx.core.frame_drag_eff_E(E, Bmid, B0, Eeff);
+        for (int f = 0; f < nf; f++) B[f] = Bold[f];
+        fx.core.faraday(Eeff, B, dt);
+        for (int e = 0; e < ne; e++) Eold[e] = E[e];
+        fx.core.frame_drag_aux_F(E, F);
+        fx.core.ampere_fd(E, B, F, J, dt);
+        for (int e = 0; e < ne; e++)
+          Emid[e] = Scalar(0.5) * (Eold[e] + E[e]);
+        fx.core.frame_drag_aux_F(Emid, F);
+        for (int e = 0; e < ne; e++) E[e] = Eold[e];
+        fx.core.ampere_fd(E, B, F, J, dt);
+      } else {
+        fx.core.frame_drag_eff_E(E, B, B0, Eeff);
+        fx.core.faraday(Eeff, B, dt);
+        fx.core.ampere(E, B, J, dt);
+      }
+    }
+    return energy() / U0;
+  };
+
+  const double growth_onesided = run(false);
+  const double growth_adjoint = run(true);
+  INFO("U(T)/U(0): one-sided = " << growth_onesided
+                                 << ", adjoint centred = " << growth_adjoint);
+  // The one-sided coupling must exhibit its instability at this drag
+  // strength (an overflow to NaN counts -- that IS the instability), and
+  // the centred adjoint pair must hold energy to leapfrog wobble plus the
+  // Picard-2 residual at this exaggerated coupling.
+  REQUIRE((std::isnan(growth_onesided) || growth_onesided > 5.0));
+  REQUIRE(growth_adjoint < 1.25);
+}
+
+TEST_CASE("Frame-drag adjoint: partial-transpose F assembly is "
+          "partition-invariant",
+          "[prismatic][framedrag][adjoint]") {
+  constexpr int L = 2, N_r = 8;
+  const Scalar omega0 = 0.25;
+  const int p = 3;
+
+  prismatic_mesh mesh;
+  mesh.build(L, N_r, 1.0, 2.0);
+  auto topo = icosphere_topology::build_from_mesh(mesh);
+
+  std::vector<Scalar> Eg(mesh.m_N_edges);
+  for (int e = 0; e < mesh.m_N_edges; e++)
+    Eg[e] = std::sin(Scalar(0.013) * e) + Scalar(0.21);
+
+  // ---- Reference: single-rank F (complete: every edge owned) ----
+  auto part_g = prismatic_partition::single_rank(L, N_r);
+  part_g.set_topology(&topo);
+  auto mp_g = prismatic_mesh_partition::build(part_g, topo);
+  core_t core_g;
+  core_g.build(mesh, mp_g);
+  core_g.build_frame_drag(omega0, Scalar(1.0), p);
+  buffer<Scalar> E_ref, F_ref;
+  E_ref.set_memtype(MemType::host_only);
+  E_ref.resize(core_g.n_edges_local());
+  F_ref.set_memtype(MemType::host_only);
+  F_ref.resize(core_g.n_faces_local());
+  core_g.edge_from_global(Eg.data(), E_ref);
+  core_g.frame_drag_aux_F(E_ref, F_ref);
+  auto lp_g = core_g.get_lp(exec_tags::host{});
+  const int bs_g = core_g.b_split();
+
+  // ---- 4 x 2 decomposition: per-rank PARTIAL F, summed globally via
+  // face l2g -- exactly what reduce_face computes across ranks ----
+  std::vector<double> F_sum(mesh.m_N_faces, 0.0);
+  const int A = 4, K = 2;
+  for (int rank = 0; rank < A * K; rank++) {
+    auto part_l = prismatic_partition::combined(L, N_r, A, K, rank);
+    part_l.set_topology(&topo);
+    auto mp_l = prismatic_mesh_partition::build(part_l, topo);
+    core_t core_l;
+    core_l.build(mesh, mp_l);
+    core_l.build_frame_drag(omega0, Scalar(1.0), p);
+    buffer<Scalar> E_l, F_l;
+    E_l.set_memtype(MemType::host_only);
+    E_l.resize(core_l.n_edges_local());
+    F_l.set_memtype(MemType::host_only);
+    F_l.resize(core_l.n_faces_local());
+    core_l.edge_from_global(Eg.data(), E_l);
+    core_l.frame_drag_aux_F(E_l, F_l);
+    auto lp_l = core_l.get_lp(exec_tags::host{});
+    const int bs_l = core_l.b_split();
+    // All LOCAL faces carry contributions from this rank's owned edges.
+    for (int f = 0; f < lp_l.n_local_tri; f++)
+      F_sum[size_t(lp_l.tri_face_l2g[f])] += double(F_l[f]);
+    for (int f = 0; f < lp_l.n_local_rect; f++)
+      F_sum[size_t(mesh.m_N_r + 1) * size_t(mesh.m_N_tri) + size_t(lp_l.rect_face_l2g[f])] +=
+          double(F_l[bs_l + f]);
+  }
+
+  double max_diff = 0.0, scale = 0.0;
+  for (int f = 0; f < lp_g.n_owned_tri; f++) {
+    max_diff = std::max(
+        max_diff,
+        std::abs(F_sum[size_t(lp_g.tri_face_l2g[f])] - double(F_ref[f])));
+    scale = std::max(scale, std::abs(double(F_ref[f])));
+  }
+  for (int f = 0; f < lp_g.n_owned_rect; f++) {
+    max_diff = std::max(
+        max_diff,
+        std::abs(F_sum[size_t(mesh.m_N_r + 1) * size_t(mesh.m_N_tri) +
+                       size_t(lp_g.rect_face_l2g[f])] -
+                 double(F_ref[bs_g + f])));
+    scale = std::max(scale, std::abs(double(F_ref[bs_g + f])));
+  }
+  INFO("max |sum_ranks F_partial - F_single| = " << max_diff
+       << " (scale " << scale << ")");
+  REQUIRE(max_diff < 1e-5 * scale);
+}

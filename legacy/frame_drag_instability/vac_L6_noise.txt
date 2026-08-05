@@ -1,0 +1,8 @@
+Sphere mesh: 40962 vertices, 122880 edges, 81920 triangles
+Sphere data persisted: 81920 triangles, 245760 adjacency entries
+Geometric dual Hodge computed: hodge1_inv [14.7177, 563.4201], hodge2 [14.550831, 75.285103]
+Prismatic mesh built: L=6, N_r=64, 2662530 vertices, 10608768 edges, 13189120 faces
+# L=6 N_r=64 r_max=2 dt=0.00437879 steps=20000
+      0  2.499e-07  2.503e-07  2.495e-07  2.497e-07  2.494e-07  2.499e-07  2.496e-07  2.499e-07  2.491e-07  2.495e-07    2.5e-07  2.499e-07    2.5e-07
+    500          0  6.115e-06  7.622e-06  9.163e-06   1.01e-05  1.057e-05  1.074e-05  1.084e-05  1.101e-05  1.112e-05  1.112e-05  1.124e-05   1.13e-05
+   1000          0  4.429e-06  6.866e-06  9.274e-06  1.145e-05  1.291e-05   1.35e-05  1.354e-05  1.367e-05  1.374e-05  1.369e-05  1.385e-05   1.38e-05

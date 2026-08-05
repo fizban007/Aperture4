@@ -519,8 +519,8 @@ class dec_solver_dist {
   // (gamma ~ 0.2 at L6, sign-independent, saturating at E/B ~ 0.6 with
   // plasma) is what produced the near-surface tangential-E layer in
   // every fake-GR run -- it grows in VACUUM, no plasma needed.  See
-  // problems/prismatic_dipole/frame_drag_instability/ for the evidence
-  // chain and the validating testbed.
+  // legacy/frame_drag_instability/ for the evidence chain and the
+  // validating testbed.
   //
   // The cure needs no Whitney mass matrices: with the diagonal Hodge,
   // the exact energy partner of W is its literal transpose.  Adding

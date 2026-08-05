@@ -59,3 +59,38 @@ Doxyfile
 # vim files
 *.swp
 .aider*
+
+# ---- Machine-specific build/run files ----
+*.bak
+*.sbatch
+*.code-workspace
+/CMakeLists.txt.frontier
+/frontier_test/
+/machines/frontier.new
+/machines/summit_run
+/output
+
+# ---- Generated artifacts ----
+*.so
+*.pdf
+
+# ---- One-off run configs (tracked configs are unaffected) ----
+/problems/prismatic_dipole/config_ns_rotator_L6_a00_cool_fp.toml
+/problems/prismatic_dipole/config_ns_rotator_L6_a00_pairs_fp.toml
+/problems/prismatic_dipole/config_ns_rotator_L6_a00_sigma.toml
+/problems/prismatic_dipole/config_ns_rotator_L6_a60_frontier.toml
+
+# ---- One-off data-analysis scripts ----
+/problems/prismatic_dipole/analyze_plume_null.py
+/problems/prismatic_dipole/cap_rim_shape.py
+/problems/prismatic_dipole/gr_cap_voltage.py
+/problems/prismatic_dipole/make_rotating_meridional_movie_native.py
+/problems/prismatic_dipole/pairload_timeseries.py
+/problems/prismatic_dipole/rim_mode_track.py
+/problems/prismatic_dipole/ring_azimuth_scan.py
+/problems/prismatic_dipole/sheet_spacetime.py
+/python/plane_from_dump.py
+/python/plot_reconnection_2sheets.py
+/python/sphere_jr_html.py
+/python/volume_density_html.py
+/python/volume_movie_html.py

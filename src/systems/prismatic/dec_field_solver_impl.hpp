@@ -569,6 +569,12 @@ void dec_field_solver<ExecPolicy>::apply_inner_bc(
     par.omega_lt0 = m_omega_lt0;
     par.lt_r_star = m_lt_r_star;
     par.lt_p = m_lt_exponent;
+    // EFFECTIVE compactness: zero unless the lapse is actually active, so
+    // the BC never divides by a lapse the solver and pusher are not using.
+    // Same expression as prismatic_ptc_updater_impl's m_gr.compactness --
+    // if one of these changes the other must too.
+    par.lapse_compactness =
+        m_dist.lapse_built() ? m_gr_compactness : Scalar(0);
   }
   m_dist.apply_inner_bc(E, B, m_B0->data(), par, time_E, time_B);
 }

@@ -51,12 +51,30 @@ struct dec_inner_bc_params {
   bool overwrite_b = true;
   // Frame dragging ("fake GR"): the corotation EMF is set by the star's
   // rotation RELATIVE TO the local dragged frame,
-  // omega_eff(r) = Omega - omega_lt(r) with
+  // omega_eff(r) = (Omega - omega_lt(r)) / alpha(r) with
   // omega_lt(r) = omega_lt0 * (lt_r_star / r)^lt_p about the SPIN axis
   // (z).  omega_lt0 = 0 recovers flat spacetime exactly.
+  //
+  // THE 1/alpha IS NOT DECORATION.  The BC prescribes the FIDO electric
+  // field, and the FIDO velocity of material moving at COORDINATE rate
+  // Omega follows from inverting the transport law the pusher integrates,
+  // dx/dt = alpha v - beta:
+  //
+  //     v = (dx/dt - v_LT)/alpha = (Omega - omega_lt(r)) (zhat x r) / alpha
+  //
+  // so E = -v x B carries the 1/alpha.  Omitting it makes the imposed
+  // surface EMF 29% too small at compactness 0.5 -- a permanent
+  // boundary-vs-interior mismatch that pumps a boundary layer.  That is
+  // what killed job 5162728 (see that run dir's ABORTED.md).
+  //
+  // lapse_compactness MUST be the EFFECTIVE one: zero whenever the solver
+  // and pusher are running alpha == 1 (use_gr_lapse = false), or the BC
+  // would divide by a lapse the rest of the scheme does not use -- the
+  // same class of inconsistency in the opposite direction.
   Scalar omega_lt0 = 0.0;
   Scalar lt_r_star = 1.0;
   int lt_p = 3;
+  Scalar lapse_compactness = 0.0;
 };
 
 template <typename ExecPolicy>
@@ -895,17 +913,21 @@ class dec_solver_dist {
     Scalar wlt0 = par.omega_lt0;
     Scalar wlt_rs = par.lt_r_star;
     Scalar wlt_p = par.lt_p;
+    Scalar lapse_c = par.lapse_compactness;
     ExecPolicy::launch(
         [lp, mp, mx_i = mx_E, my_i = my_E, mz_i, Bp_val, Omega_val, obliq,
-         deutsch, t_bc = t_bc_E, es = m_e_split, wlt0, wlt_rs, wlt_p,
+         deutsch, t_bc = t_bc_E, es = m_e_split, wlt0, wlt_rs, wlt_p, lapse_c,
          N_h_edges = (m_mesh->m_N_r + 1) * m_mesh->m_N_edge_s]
         LAMBDA(auto E_e) {
-          // Corotation E = -(v × B) with v = (Ω - ω_LT(r)) × r, shared by
-          // both edge kinds.  ω_LT = 0 in flat spacetime; with frame
-          // dragging the star's EMF is set by its rotation relative to
-          // the local dragged frame (Muslimov & Tsygan 1992).  The
-          // Deutsch BC is flat-vacuum analytic and incompatible with
-          // ω_LT != 0 — the solver init aborts on that combination.
+          // Corotation E = -(v × B) with v = ((Ω - ω_LT(r))/α(r)) ẑ × r,
+          // shared by both edge kinds.  ω_LT = 0 and α = 1 in flat
+          // spacetime; with frame dragging the star's EMF is set by its
+          // rotation relative to the local dragged frame (Muslimov &
+          // Tsygan 1992), and the 1/α converts that COORDINATE rate into
+          // the FIDO velocity the ideal-MHD condition needs — see the
+          // derivation on dec_inner_bc_params.  The Deutsch BC is
+          // flat-vacuum analytic and incompatible with ω_LT != 0 — the
+          // solver init aborts on that combination.
           auto corot_E = [&] LAMBDA(Scalar x, Scalar y, Scalar z,
                                     Scalar& ex, Scalar& ey, Scalar& ez) {
             if (deutsch) {
@@ -915,9 +937,10 @@ class dec_solver_dist {
               Scalar bx, by, bz;
               dipole_B_impl(x, y, z, mx_i, my_i, mz_i, bx, by, bz);
               Scalar om = Omega_val;
-              if (wlt0 != Scalar(0)) {
+              if (wlt0 != Scalar(0) || lapse_c > Scalar(0)) {
                 Scalar r = std::sqrt(x * x + y * y + z * z);
                 om -= frame_drag_omega(r, wlt0, wlt_rs, wlt_p);
+                om /= gr_lapse(r, lapse_c, wlt_rs);
               }
               Scalar vx = -om * y, vy = om * x;
               ex = -(vy * bz);

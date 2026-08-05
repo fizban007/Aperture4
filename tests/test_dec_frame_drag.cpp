@@ -589,6 +589,141 @@ TEST_CASE("Lapse + shift: zero-strength GR is a bitwise no-op in the pusher",
   REQUIRE(bz == -vz);
 }
 
+// ===========================================================================
+// THE BC <-> PUSHER CONSISTENCY TEST.
+//
+// The inner BC prescribes the FIDO electric field on the stellar surface.
+// The pusher transports particles with dx/dt = alpha v - beta.  These are
+// two halves of one statement and nothing previously compared them: the
+// lapse was added to the solver and the pusher while the BC kept its
+// flat-space form, which made the imposed surface EMF 29% too small at
+// compactness 0.5 and diverged job 5162728 (see that run's ABORTED.md).
+//
+// The invariant, stated so it cannot drift: take the BC's E, read off the
+// ExB drift it implies, push that through the pusher's OWN transport law,
+// and the star's surface must come back rotating rigidly at exactly Omega
+// -- because that is what "the star spins at Omega" means in coordinate
+// terms.  Any lapse or shift factor missing from either side breaks it.
+//
+//   BC:       E = -(om_bc zhat x r) x B
+//   drift:    v_FIDO = E x B / B^2 = om_bc (zhat x r)
+//   pusher:   dx/dt  = alpha v_FIDO + v_LT
+//   REQUIRE:  dx/dt  = Omega (zhat x r)
+//
+// This drives the REAL apply_inner_bc kernel, so it covers the quadrature
+// and edge orientations too, not just the algebra.
+// ===========================================================================
+TEST_CASE("Inner BC and pusher transport agree on rigid corotation",
+          "[prismatic][framedrag][pusher]") {
+  const Scalar Omega = 0.25, Bp = 1.0, r_star = 1.0;
+  const int p = 3;
+
+  // (compactness, omega_lt(R*)/Omega): flat, shift-only, and the
+  // production GR setting where the lapse actually bites.
+  struct cfg { double C, ltf; const char* name; };
+  const cfg cfgs[] = {{0.0, 0.0, "flat"},
+                      {0.0, 0.2, "shift-only (alpha == 1)"},
+                      {0.5, 0.2, "shift + lapse (production)"}};
+
+  for (const auto& c : cfgs) {
+    fd_fixture fx(2);
+    const Scalar wlt0 = Scalar(c.ltf * Omega);
+    const Scalar comp = Scalar(c.C);
+
+    dec_inner_bc_params par;
+    par.Bp = Bp;
+    par.Omega = Omega;
+    par.obliquity = 0;
+    par.use_deutsch = false;
+    par.overwrite_b = false;      // leave B alone; only E is under test
+    par.omega_lt0 = wlt0;
+    par.lt_r_star = r_star;
+    par.lt_p = p;
+    par.lapse_compactness = comp;
+
+    const int ne = fx.core.n_edges_local(), nf = fx.core.n_faces_local();
+    buffer<Scalar> E, B, B0;
+    E.set_memtype(MemType::host_only); E.resize(ne); E.assign(0);
+    for (auto* b : {&B, &B0}) {
+      b->set_memtype(MemType::host_only); b->resize(nf); b->assign(0);
+    }
+    fx.core.apply_inner_bc(E, B, B0, par, 0.0, 0.0);
+
+    auto lp = fx.core.get_lp(exec_tags::host{});
+    auto mp = fx.mesh.host_ptrs();
+
+    // The BC wrote the circulation of -(om_bc zhat x r) x B_dipole, which
+    // is LINEAR in om_bc.  So build the same circulation at om = 1 and
+    // scale it by the rate the PUSHER's transport law demands:
+    //
+    //   alpha * om_fido + omega_lt(r) = Omega   =>   om_fido =
+    //       (Omega - omega_lt(r)) / alpha
+    //
+    // with alpha and omega_lt read from gr_metric_at -- the pusher's own
+    // helper, not the BC's expression -- then compare cochain to cochain.
+    //
+    // Compared against the MAX circulation, not per-edge: edges nearly
+    // perpendicular to the corotation direction carry a circulation near
+    // zero, and E is stored as float, so a per-edge relative comparison
+    // there is dominated by storage noise rather than by the physics.
+    int n_checked = 0;
+    double worst = 0.0, scale = 0.0;
+    const int NQ = 64;
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      if (lp.h_edge_boundary[e] != 1) continue;
+      gidx_t g = lp.h_edge_l2g[e];
+      gidx_t v0, v1;
+      h_edge_vertex_ids(mp, g, v0, v1);
+      Scalar r0, ax, ay, az, r1, bx, by, bz;
+      vertex_unit(mp, v0, r0, ax, ay, az);
+      vertex_unit(mp, v1, r1, bx, by, bz);
+
+      double unit_circ = 0;   // circulation at om = 1
+      for (int i = 0; i < NQ; i++) {
+        Scalar t = (i + Scalar(0.5)) / NQ;
+        Scalar x, y, z, dlx, dly, dlz;
+        h_edge_sphere_sample(r0, ax, ay, az, bx, by, bz, t, x, y, z,
+                             dlx, dly, dlz);
+        Scalar Bx, By, Bz;
+        dipole_B_impl(x, y, z, Scalar(0), Scalar(0), Bp, Bx, By, Bz);
+        // -(u x B) with u = 1 * (zhat x x)
+        double ux = -double(y), uy = double(x);
+        double ex = -(uy * Bz), ey = -(-ux * Bz),
+               ez = -(ux * By - uy * Bx);
+        unit_circ += (ex * dlx + ey * dly + ez * dlz) / NQ;
+      }
+      // The FIDO rate that makes the COORDINATE motion rigid at Omega,
+      // from the pusher's transport law.
+      gr_metric_params grp;
+      grp.enabled = true;
+      grp.omega_lt0 = wlt0;
+      grp.r_star = r_star;
+      grp.lt_p = p;
+      grp.compactness = comp;
+      Scalar alpha, vx, vy, vz;
+      // On the x axis at this shell v_LT = omega_lt * r * yhat, so the
+      // angular rate reads straight off the y component.
+      gr_metric_at(grp, r0, Scalar(0), Scalar(0), alpha, vx, vy, vz);
+      const double om_fido =
+          (double(Omega) - double(vy) / double(r0)) / double(alpha);
+
+      const double expect = om_fido * unit_circ;
+      worst = std::max(worst, std::abs(double(E[e]) - expect));
+      scale = std::max(scale, std::abs(expect));
+      n_checked++;
+    }
+    INFO(c.name << ": checked " << n_checked << " boundary h-edges, worst |E "
+                << "- E_required| = " << worst << " against scale " << scale
+                << " (" << worst / scale << ")");
+    REQUIRE(n_checked > 0);
+    REQUIRE(scale > 1e-6);
+    // Quadrature (the BC uses 5-point Gauss, the reference 64-point
+    // midpoint) plus float storage set the floor.  The defect this guards
+    // against is 29%, not 1e-3.
+    REQUIRE(worst < 1e-3 * scale);
+  }
+}
+
 TEST_CASE("Frame-drag EMF: zero drag is an exact no-op",
           "[prismatic][framedrag]") {
   fd_fixture fx(2);

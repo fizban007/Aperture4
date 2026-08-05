@@ -698,6 +698,10 @@ class dec_solver_dist {
 
   bool frame_drag_transpose_built() const { return m_fdt_built; }
 
+  // Test access: the per-element lapse arrays (edge / face layout as E / B).
+  const buffer<Scalar>& alpha_e() const { return m_alpha_e; }
+  const buffer<Scalar>& alpha_f() const { return m_alpha_f; }
+
   // -----------------------------------------------------------------------
   // Per-element lapse alpha(r) = sqrt(1 - compactness * r_star / r) for the
   // 3+1 constitutive relations
@@ -751,19 +755,29 @@ class dec_solver_dist {
       return Scalar(num / den);
     };
 
-    for (int e = 0; e < lp.n_owned_he; e++) {
+    // FULL LOCAL range, ghosts included: ampere_impl<WithLapse> and
+    // ampere_fd read alpha_f at d1t COLUMN indices, which reach ghost
+    // faces.  Filling owned slots only leaves alpha = 1 ghosts -- a
+    // permanent (1 - alpha(R*)) H_aux mismatch along every partition
+    // seam, which is what killed the first full-GR pilot (job 5166539:
+    // charge runaways at the pentagon-vertex seam corners, E/B > 100).
+    // alpha is deterministic geometry, so ghosts are computed directly
+    // from l2g -- no exchange needed, and every rank agrees exactly.
+    // Regression: "Lapse: alpha arrays are ghost-consistent across
+    // partitions" (tests/test_dec_frame_drag.cpp).
+    for (int e = 0; e < lp.n_local_he; e++) {
       const int k = int(lp.h_edge_l2g[e] / N_es);      // constant r
       m_alpha_e[e] = gr_lapse(mp.radii[k], compactness, r_star);
     }
-    for (int e = 0; e < lp.n_owned_ve; e++) {
+    for (int e = 0; e < lp.n_local_ve; e++) {
       const int k = int(lp.v_edge_l2g[e] / N_vs);
       m_alpha_e[m_e_split + e] = avg(mp.radii[k], mp.radii[k + 1], 0);
     }
-    for (int f = 0; f < lp.n_owned_tri; f++) {
+    for (int f = 0; f < lp.n_local_tri; f++) {
       const int k = int(lp.tri_face_l2g[f] / N_tri);   // constant r
       m_alpha_f[f] = gr_lapse(mp.radii[k], compactness, r_star);
     }
-    for (int f = 0; f < lp.n_owned_rect; f++) {
+    for (int f = 0; f < lp.n_local_rect; f++) {
       const int k = int(lp.rect_face_l2g[f] / N_es);
       m_alpha_f[m_b_split + f] = avg(mp.radii[k], mp.radii[k + 1], 1);
     }

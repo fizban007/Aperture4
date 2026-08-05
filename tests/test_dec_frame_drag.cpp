@@ -1070,3 +1070,86 @@ TEST_CASE("Frame-drag adjoint: partial-transpose F assembly is "
        << " (scale " << scale << ")");
   REQUIRE(max_diff < 1e-5 * scale);
 }
+
+// ===========================================================================
+// The lapse arrays must be correct on the FULL LOCAL range, ghosts
+// included: ampere_impl<WithLapse> and ampere_fd read alpha_f at d1t
+// COLUMN indices, which reach ghost faces.  Filling owned slots only
+// leaves alpha = 1 ghosts -- a permanent ~40% H_aux inconsistency along
+// every partition seam at compactness 0.5, strongest at the surface,
+// with the icosahedral partition corners (pentagon vertices) hit first.
+// That is precisely how the first full-GR pilot (job 5166539) died:
+// localized charge runaways at the pentagon-vertex seam corners, E/B
+// > 100, invisible to every single-rank test.  This case builds an
+// in-process decomposition and requires every rank's alpha to match the
+// single-rank reference on ALL local slots.
+// ===========================================================================
+TEST_CASE("Lapse: alpha arrays are ghost-consistent across partitions",
+          "[prismatic][framedrag][lapse]") {
+  constexpr int L = 2, N_r = 8;
+  const Scalar comp = 0.5;
+
+  prismatic_mesh mesh;
+  mesh.build(L, N_r, 1.0, 2.0);
+  auto topo = icosphere_topology::build_from_mesh(mesh);
+
+  // Single-rank reference: local == global == owned everywhere.
+  auto part_g = prismatic_partition::single_rank(L, N_r);
+  part_g.set_topology(&topo);
+  auto mp_g = prismatic_mesh_partition::build(part_g, topo);
+  core_t core_g;
+  core_g.build(mesh, mp_g);
+  core_g.build_frame_drag(Scalar(0.25), Scalar(1.0), 3);
+  core_g.build_lapse(comp, Scalar(1.0));
+  auto lp_g = core_g.get_lp(exec_tags::host{});
+  const int es_g = core_g.e_split(), bs_g = core_g.b_split();
+
+  const int A = 4, K = 2;
+  double max_diff = 0.0;
+  long n_ghost_checked = 0;
+  for (int rank = 0; rank < A * K; rank++) {
+    auto part_l = prismatic_partition::combined(L, N_r, A, K, rank);
+    part_l.set_topology(&topo);
+    auto mp_l = prismatic_mesh_partition::build(part_l, topo);
+    core_t core_l;
+    core_l.build(mesh, mp_l);
+    core_l.build_frame_drag(Scalar(0.25), Scalar(1.0), 3);
+    core_l.build_lapse(comp, Scalar(1.0));
+    auto lp_l = core_l.get_lp(exec_tags::host{});
+    const int es_l = core_l.e_split(), bs_l = core_l.b_split();
+    auto& ae = core_l.alpha_e();
+    auto& af = core_l.alpha_f();
+
+    for (int e = 0; e < lp_l.n_local_he; e++) {
+      const int g = int(lp_l.h_edge_l2g[e]);
+      max_diff = std::max(max_diff,
+                          std::abs(double(ae[e]) - double(core_g.alpha_e()[g])));
+      if (e >= lp_l.n_owned_he) n_ghost_checked++;
+    }
+    for (int e = 0; e < lp_l.n_local_ve; e++) {
+      const int g = int(lp_l.v_edge_l2g[e]);
+      max_diff = std::max(
+          max_diff, std::abs(double(ae[es_l + e]) -
+                             double(core_g.alpha_e()[es_g + g])));
+      if (e >= lp_l.n_owned_ve) n_ghost_checked++;
+    }
+    for (int f = 0; f < lp_l.n_local_tri; f++) {
+      const int g = int(lp_l.tri_face_l2g[f]);
+      max_diff = std::max(max_diff,
+                          std::abs(double(af[f]) - double(core_g.alpha_f()[g])));
+      if (f >= lp_l.n_owned_tri) n_ghost_checked++;
+    }
+    for (int f = 0; f < lp_l.n_local_rect; f++) {
+      const int g = int(lp_l.rect_face_l2g[f]);
+      max_diff = std::max(
+          max_diff, std::abs(double(af[bs_l + f]) -
+                             double(core_g.alpha_f()[bs_g + g])));
+      if (f >= lp_l.n_owned_rect) n_ghost_checked++;
+    }
+  }
+  INFO("ghost slots checked: " << n_ghost_checked
+       << ", max |alpha_local - alpha_global| = " << max_diff);
+  REQUIRE(n_ghost_checked > 0);
+  // alpha is deterministic pure geometry -- exact agreement expected.
+  REQUIRE(max_diff < 1e-12);
+}

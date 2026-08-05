@@ -18,3 +18,13 @@ export MPICH_OFI_NIC_POLICY=NUMA
 # Abort (rather than silently fall back to host staging) if a GPU pointer
 # cannot be registered — surfaces configuration mistakes early.
 export MPICH_GPU_NO_FALLBACK=${MPICH_GPU_NO_FALLBACK:-1}
+
+# WORKAROUND (2026-07-20, see src/systems/prismatic/FRONTIER_BRINGUP_2026-07-20.md §1):
+# cray-mpich 9.1.0's intra-node GPU IPC transport memory-faults on the
+# distributed prismatic PIC at the first desynchronized step (GPU page
+# fault inside a peer GCD's 2 MB IPC-imported window, surfacing in
+# MPI_Waitall of the J reduce).  Disabling GPU IPC routes intra-node
+# device-direct messages through the host/NIC path instead.  Remove
+# once OLCF ships a fixed cray-mpich (retest with diagnose2.sbatch:
+# it faults at step 10 within ~30 s when the bug is present).
+export MPICH_GPU_IPC_ENABLED=${MPICH_GPU_IPC_ENABLED:-0}

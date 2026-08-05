@@ -328,6 +328,12 @@ TEST_CASE("Hybrid switch dispatch is dt-invariant", "[pusher][prismatic]") {
         h.weight[n] = Scalar(1);
         h.cell[n] = uint32_t(k * mesh.m_N_tri + t);
         h.flag[n] = 0u;
+        // Defensive: the GCA -> Boris gyrophase hashes id (a50c2618), and
+        // each partition_at() below allocates a fresh buffer.  Harmless
+        // for THIS test (one step, and it compares only the dispatch flag,
+        // which is decided before any conversion) but it would silently
+        // desynchronise the arms the moment anyone adds a second step.
+        h.id[n] = uint64_t(n);
         n++;
       }
     }
@@ -383,6 +389,130 @@ TEST_CASE("Hybrid switch dispatch is dt-invariant", "[pusher][prismatic]") {
     REQUIRE(at_dt[n] == at_half[n]);
     REQUIRE(at_dt[n] == at_quarter[n]);
   }
+}
+
+// =========================================================================
+// GR no-op: enabling the 3+1 metric terms at ZERO strength must reproduce
+// the flat push BIT FOR BIT.
+//
+// alpha = 1 and v_LT = 0 are exact, and every GR expression in gca_push and
+// the Boris branch is written so 1.0*x == x and x + 0.0 == x collapse it to
+// the original token sequence.  This is what lets the GR path exist without
+// disturbing a single flat-space result -- the L6 inclination scan, the
+// convergence studies, partition- and dt-invariance.
+//
+// Failure mode this exists to catch: someone "tidies" the trapezoidal
+// position update in gca_push -- factoring an alpha out, or grouping each
+// endpoint's terms together -- which changes the SUMMATION ORDER and
+// silently perturbs every flat run at the last bit.  Nothing else in the
+// suite would notice.
+// =========================================================================
+TEST_CASE("Zero-strength GR terms are a bitwise no-op in the full push",
+          "[pusher][prismatic][framedrag]") {
+  constexpr int TL = 2, TN_r = 8;
+  prismatic_mesh mesh;
+  mesh.build(TL, TN_r, 1.0, 2.0);
+  auto mp = mesh.host_ptrs();
+
+  std::vector<Scalar> E(mesh.m_N_edges), B(mesh.m_N_faces);
+  for (int e = 0; e < mesh.m_N_edges; ++e)
+    E[e] = Scalar(0.01) * std::sin(Scalar(0.013) * e);
+  for (int f = 0; f < mesh.m_N_faces; ++f)
+    B[f] = Scalar(0.5) + Scalar(0.1) * std::cos(Scalar(0.007) * f);
+
+  const int n_ptc = 400;
+  const Scalar switch_omegac = 0.2;   // straddles: exercises BOTH branches
+  const Scalar dt = Scalar(2.0e-3);
+
+  auto seed = [&](prismatic_particles_t& p) {
+    auto h = p.get_host_ptrs();
+    int n = 0;
+    for (int t = 0; t < mesh.m_N_tri && n < n_ptc; t += 3) {
+      for (int k = 0; k < mesh.m_N_r && n < n_ptc; k += 2) {
+        const Scalar gam =
+            std::pow(Scalar(10), Scalar(4) * Scalar(n % 40) / Scalar(39));
+        const Scalar u = std::sqrt(gam * gam - Scalar(1));
+        const Scalar a = Scalar(0.3) * n, b = Scalar(0.5) * n;
+        h.x1[n] = Scalar(0.3); h.x2[n] = Scalar(0.3); h.x3[n] = Scalar(0.5);
+        h.p1[n] = u * std::sin(a) * std::cos(b);
+        h.p2[n] = u * std::sin(a) * std::sin(b);
+        h.p3[n] = u * std::cos(a);
+        h.E[n] = gam;
+        h.weight[n] = Scalar(1);
+        h.cell[n] = uint32_t(k * mesh.m_N_tri + t);
+        h.flag[n] = 0u;
+        // MUST be set explicitly.  The GCA -> Boris conversion draws its
+        // gyrophase from splitmix64(id) (commit a50c2618), so leaving id
+        // at whatever the freshly-allocated buffer happened to contain
+        // makes the two runs differ for any particle that converts with
+        // mu != 0 -- which looks exactly like a GR-path bug.
+        h.id[n] = uint64_t(n);
+        n++;
+      }
+    }
+    p.set_num(n);
+    return n;
+  };
+
+  // Ten steps, so any last-bit divergence has room to grow before the
+  // comparison.  Cooling ON: the drag is a force and carries the same
+  // alpha, so this covers that path too.
+  auto run = [&](gr_metric_params grp, prismatic_particles_t& ptc) {
+    const int n_seed = seed(ptc);
+    auto h = ptc.get_host_ptrs();
+    for (int step = 0; step < 10; ++step) {
+      for (int n = 0; n < n_seed; ++n) {
+        if (h.cell[n] == empty_cell) continue;
+        update_single_particle(mp, mp.N_tri, h, n, E.data(), B.data(),
+                               nullptr, nullptr, Scalar(-1), Scalar(1), dt,
+                               /*use_gca=*/true, /*include_curvature=*/false,
+                               /*Bv_rec=*/nullptr, /*absorb_r=*/Scalar(0),
+                               nullptr, nullptr, switch_omegac,
+                               /*zero_mu_on_capture=*/false,
+                               /*sync_cool_coef=*/Scalar(1e-3), grp);
+      }
+    }
+    return n_seed;
+  };
+
+  gr_metric_params off;                // enabled = false
+  gr_metric_params zero;               // machinery ON, strength ZERO
+  zero.enabled = true;
+  zero.omega_lt0 = Scalar(0);
+  zero.compactness = Scalar(0);
+  zero.r_star = Scalar(1);
+  zero.lt_p = 3;
+
+  prismatic_particles_t p_off(n_ptc, MemType::host_only);
+  prismatic_particles_t p_zero(n_ptc, MemType::host_only);
+  const int n_off = run(off, p_off);
+  const int n_zero = run(zero, p_zero);
+  REQUIRE(n_off == n_zero);
+
+  auto a = p_off.get_host_ptrs();
+  auto b = p_zero.get_host_ptrs();
+  int n_live = 0, n_gca = 0;
+  for (int n = 0; n < n_off; ++n) {
+    INFO("particle " << n);
+    REQUIRE(a.cell[n] == b.cell[n]);
+    REQUIRE(a.flag[n] == b.flag[n]);
+    if (a.cell[n] == empty_cell) continue;
+    n_live++;
+    if (check_flag(a.flag[n], PtcFlagEx::gca_state)) n_gca++;
+    REQUIRE(a.x1[n] == b.x1[n]);
+    REQUIRE(a.x2[n] == b.x2[n]);
+    REQUIRE(a.x3[n] == b.x3[n]);
+    REQUIRE(a.p1[n] == b.p1[n]);
+    REQUIRE(a.p2[n] == b.p2[n]);
+    REQUIRE(a.p3[n] == b.p3[n]);
+    REQUIRE(a.E[n] == b.E[n]);
+  }
+  // Both branches must actually have been exercised, or the bitwise
+  // comparison above is vacuous for whichever one was skipped.
+  INFO("live " << n_live << ", of which GCA " << n_gca);
+  REQUIRE(n_live > 0);
+  REQUIRE(n_gca > 0);
+  REQUIRE(n_gca < n_live);
 }
 
 // =========================================================================

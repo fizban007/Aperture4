@@ -202,7 +202,9 @@ HD_INLINE Scalar frame_drag_omega(Scalar r, Scalar w0, Scalar r_star,
   return w0 * f;
 }
 
-// v_LT = omega_lt(r) ẑ × x.
+// v_LT = omega_lt(r) ẑ × x — the PROGRADE dragging velocity of the local
+// inertial frame.  This is the physical drag, not the metric shift; see
+// frame_drag_shift below for the sign relation, which matters.
 HD_INLINE void frame_drag_velocity(Scalar x, Scalar y, Scalar z, Scalar w0,
                                    Scalar r_star, int p, Scalar& vx,
                                    Scalar& vy, Scalar& vz) {
@@ -211,6 +213,115 @@ HD_INLINE void frame_drag_velocity(Scalar x, Scalar y, Scalar z, Scalar w0,
   vx = -w * y;
   vy = w * x;
   vz = Scalar(0);
+}
+
+// =========================================================================
+// The 3+1 SHIFT VECTOR,  beta = -v_LT.
+//
+// THIS IS THE ONE PLACE THE FRAME-DRAG SIGN IS DECIDED.  Everything else
+// (Faraday's effective circulation, the particle position update) is
+// written in terms of beta, so the convention cannot drift apart between
+// the field solver and the pusher.
+//
+// In the standard 3+1 slow-rotation form (Philippov, Cerutti, Tchekhovskoy
+// & Spitkovsky 2015, arXiv:1510.01734, Eqs. 8-11) the metric drags
+// PROGRADE while the shift enters with the opposite sign, beta^phi =
+// -omega_LT.  The two consumers are then
+//
+//     Faraday :  curl(alpha E + beta x B) = -dB/dt   =>  E_eff = alpha E - v_LT x B
+//     particle:  dx/dt = alpha v - beta              =>  dx/dt = alpha v + v_LT
+//
+// WHY THE SIGN IS NOT COSMETIC.  Stationarity of Faraday (Ferraro
+// isorotation) forces the E_eff drift rate to be constant on flux
+// surfaces.  With beta = -v_LT the plasma's FIDO rate is
+// Omega_F - omega_lt(r) (the Muslimov-Tsygan reduction) and the shift adds
+// omega_lt back, so the COORDINATE rotation is rigid at Omega_F and the
+// state is stationary.  With the opposite sign the coordinate rate becomes
+// Omega_F + omega_lt(r), which varies ALONG a field line -- differential
+// rotation of a frozen-in plasma, i.e. NO stationary state exists at all.
+// Measured before the fix: a saturated ~50x tangential-E shell at
+// r = 1.02-1.2 in run ns_rotator_L6_a00_cool_fp32_gca10_mu0_gr.
+// Regression: tests/test_dec_frame_drag.cpp, "the MT state is stationary
+// under the solver".
+// =========================================================================
+HD_INLINE void frame_drag_shift(Scalar x, Scalar y, Scalar z, Scalar w0,
+                                Scalar r_star, int p, Scalar& bx,
+                                Scalar& by, Scalar& bz) {
+  frame_drag_velocity(x, y, z, w0, r_star, p, bx, by, bz);
+  bx = -bx;
+  by = -by;
+  bz = -bz;
+}
+
+// Lapse alpha(r) = sqrt(1 - r_s/r) with r_s = compactness * r_star
+// (Schwarzschild; the slow-rotation correction to alpha is O(a^2) and is
+// dropped alongside the gravitomagnetic tensor term, matching PCTS15's
+// "the last two terms may be justifiably neglected").
+//
+// compactness <= 0 returns exactly 1, so the whole GR path collapses to a
+// bitwise no-op in flat space -- the invariant asserted by
+// "Lapse + shift: gr_compactness = 0 is an exact no-op".
+//
+// Floored at r_s: r_min sits far outside the horizon for any neutron-star
+// compactness (C = 0.5 => alpha(R*) = 0.707), so the floor is a guard
+// against a mis-set config, never a physical regime.
+HD_INLINE Scalar gr_lapse(Scalar r, Scalar compactness, Scalar r_star) {
+  if (compactness <= Scalar(0)) return Scalar(1);
+  Scalar a2 = Scalar(1) - compactness * r_star / r;
+  if (a2 < Scalar(1e-4)) a2 = Scalar(1e-4);
+  return std::sqrt(a2);
+}
+
+// =========================================================================
+// 3+1 metric terms as seen by the PARTICLE pusher.
+//
+// PCTS15 Eq. 7:  dp/dt = alpha q (E + v x B) + alpha m gamma g + alpha H.p
+//                dx/dt = alpha v - beta   =   alpha v + v_LT
+// We keep the leading term of each and drop the gravitational acceleration
+// and gravitomagnetic tensor -- the paper's own stated approximation for
+// strong pulsar fields.
+//
+// The shift is a PURE TRANSPORT term: it advects every particle identically
+// regardless of momentum, never enters dp/dt, and so does not perturb the
+// gyration, mu, or the adiabaticity that the GCA dispatch tests.  That is
+// why it drops into the guiding-centre velocity without disturbing the
+// rest of the push.  alpha and v_LT are functions of POSITION ONLY (static
+// metric): no new particle state, no field interpolation, no checkpoint
+// schema change.
+// =========================================================================
+struct gr_metric_params {
+  bool enabled = false;
+  Scalar omega_lt0 = 0;    // omega_LT at r_star
+  Scalar r_star = 1;
+  int lt_p = 3;            // omega_LT ~ (r_star/r)^lt_p
+  Scalar compactness = 0;  // r_s / r_star; <= 0 => alpha == 1
+};
+
+// Is this parameter set the identity metric?  Zero-strength GR takes the
+// SAME code path as disabled GR rather than producing alpha = 1, v_LT = 0
+// and trusting the arithmetic to collapse.  It would not collapse in
+// general: x + 0.0 != x when x is -0.0 (it returns +0.0), and -0.0 is
+// precisely what `-w*y` yields at zero drag -- and a sign-of-zero reaching
+// the triangle walk is a discrete flip, not a rounding difference.
+// Callers branch on this, never on `enabled` alone.
+HD_INLINE bool gr_is_identity(const gr_metric_params& g) {
+  return !g.enabled ||
+         (g.omega_lt0 == Scalar(0) && g.compactness <= Scalar(0));
+}
+
+// alpha and v_LT = -beta at a Cartesian point.  Identity params return
+// exactly (1, 0).
+HD_INLINE void gr_metric_at(const gr_metric_params& g, Scalar x, Scalar y,
+                            Scalar z, Scalar& alpha, Scalar& vx, Scalar& vy,
+                            Scalar& vz) {
+  if (gr_is_identity(g)) {
+    alpha = Scalar(1);
+    vx = vy = vz = Scalar(0);
+    return;
+  }
+  Scalar r = std::sqrt(x * x + y * y + z * z);
+  alpha = gr_lapse(r, g.compactness, g.r_star);
+  frame_drag_velocity(x, y, z, g.omega_lt0, g.r_star, g.lt_p, vx, vy, vz);
 }
 
 // =========================================================================

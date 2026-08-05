@@ -122,6 +122,33 @@ void prismatic_ptc_updater<ExecPolicy>::init() {
   sim_env().params().get_value("ptc_absorb_radius", m_absorb_radius);
   sim_env().params().get_value("deposit_diagnostics", m_deposit_diagnostics);
   sim_env().params().get_value("step_timer_interval", m_timer_interval);
+
+  // ---- 3+1 metric terms ("fake GR"), read from the SAME keys as the
+  // field solver so the two can never disagree.  Both sides must be on or
+  // both off: the shift in dx/dt is what puts the -rho*beta transport
+  // current into the deposit that Ampere's operand assumes is there.
+  sim_env().params().get_value("use_frame_dragging", m_gr.enabled);
+  if (m_gr.enabled) {
+    double compactness = 0.0, lt_frac = -1.0, r_star = 0.0, Omega = 0.0;
+    int lt_p = 3;
+    bool use_lapse = true;
+    sim_env().params().get_value("gr_compactness", compactness);
+    sim_env().params().get_value("gr_omega_lt_frac", lt_frac);
+    sim_env().params().get_value("gr_lt_exponent", lt_p);
+    sim_env().params().get_value("use_gr_lapse", use_lapse);
+    sim_env().params().get_value("r_min", r_star);
+    sim_env().params().get_value("Omega", Omega);
+    if (lt_frac < 0.0) lt_frac = 0.4 * compactness;
+    if (r_star <= 0.0) r_star = 1.0;
+    m_gr.omega_lt0 = Scalar(lt_frac * Omega);
+    m_gr.r_star = Scalar(r_star);
+    m_gr.lt_p = lt_p;
+    m_gr.compactness = use_lapse ? Scalar(compactness) : Scalar(0);
+    Logger::print_info(
+        "Pusher GR terms ON: dx/dt = alpha v + v_LT, dp/dt scaled by "
+        "alpha; omega_LT(R*) = {:.4g}, lapse {}",
+        double(m_gr.omega_lt0), use_lapse ? "ON" : "OFF (alpha == 1)");
+  }
   if (m_absorb_radius > Scalar(0)) {
     Logger::print_info("Particle absorption radius: {}", m_absorb_radius);
   }
@@ -443,9 +470,11 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
   Scalar gca_omegac = m_gca_switch_omegac;
   bool gca_zero_mu = m_gca_zero_mu;
   Scalar sync_cool_coef = m_sync_cool_coef;
+  gr_metric_params grp = m_gr;
   ExecPolicy::launch(
       [num, N_tri, charge_e, mass_e, dt, lmp, use_gca, include_curvature,
-       Bv_rec, absorb_r, dep_diag, gca_omegac, gca_zero_mu, sync_cool_coef]
+       Bv_rec, absorb_r, dep_diag, gca_omegac, gca_zero_mu, sync_cool_coef,
+       grp]
       LAMBDA(auto ptc, auto E_e, auto B_f, auto J_e, auto rho,
              auto rho_abs, auto gamma_wsum) {
         ExecPolicy::loop(0, (int)num, [&] LAMBDA(int n) {
@@ -458,7 +487,8 @@ void prismatic_ptc_updater<ExecPolicy>::update(double dt, uint32_t step) {
                                  absorb_r,
                                  dep_diag ? (Scalar*)rho_abs : nullptr,
                                  dep_diag ? (Scalar*)gamma_wsum : nullptr,
-                                 gca_omegac, gca_zero_mu, sync_cool_coef);
+                                 gca_omegac, gca_zero_mu, sync_cool_coef,
+                                 grp);
         });
       },
       *m_ptc, m_E->data(), m_B->data(), m_J->data(), m_rho->data(),

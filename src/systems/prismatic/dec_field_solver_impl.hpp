@@ -225,6 +225,19 @@ void dec_field_solver<ExecPolicy>::init() {
     m_gr_compactness = Scalar(compactness);
     m_omega_lt0 = Scalar(lt_frac) * m_Omega;
     m_lt_r_star = Scalar(r_star);
+    // Lapse defaults ON with the shift (PCTS15 keep both).  Setting it
+    // false gives the shift-only slow-rotation scheme, which is
+    // self-consistent but drops a real O(30%) factor at the surface.
+    m_use_lapse = true;
+    sim_env().params().get_value("use_gr_lapse", m_use_lapse);
+    if (m_use_lapse && compactness <= 0.0) {
+      Logger::print_err(
+          "use_gr_lapse is on but gr_compactness = {} (<= 0), so the lapse "
+          "would be identically 1.  Set gr_compactness (r_s/R*), or set "
+          "gr_omega_lt_frac directly and use_gr_lapse = false for a "
+          "shift-only run.",
+          compactness);
+    }
   }
 
   sim_env().params().get_value("use_static_background", m_use_static_background);
@@ -250,6 +263,9 @@ void dec_field_solver<ExecPolicy>::init() {
 
   if (m_use_frame_drag) {
     m_dist.build_frame_drag(m_omega_lt0, m_lt_r_star, m_lt_exponent);
+    if (m_use_lapse && m_gr_compactness > Scalar(0)) {
+      m_dist.build_lapse(m_gr_compactness, m_lt_r_star);
+    }
     m_Eeff.set_memtype(ExecPolicy::data_mem_type());
     m_Eeff.resize(m_dist.n_edges_local());
     m_Eeff.assign(Scalar(0));
@@ -259,6 +275,25 @@ void dec_field_solver<ExecPolicy>::init() {
         double(m_omega_lt0) / double(m_Omega), m_gr_compactness,
         m_lt_exponent, m_lt_r_star,
         double(m_omega_lt0) / double(m_Omega));
+    Logger::print_info(
+        "  shift convention beta = -v_LT (PCTS15 3+1): Faraday operand is "
+        "alpha E - v_LT x B, particles get dx/dt = alpha v + v_LT");
+    if (m_dist.lapse_built()) {
+      Logger::print_info(
+          "  lapse ON: alpha(r) = sqrt(1 - {}*R*/r), alpha(R*) = {:.4g}, "
+          "alpha(R_LC) = {:.4g}",
+          m_gr_compactness,
+          double(gr_lapse(m_lt_r_star, m_gr_compactness, m_lt_r_star)),
+          double(gr_lapse(Scalar(1.0 / m_Omega), m_gr_compactness,
+                          m_lt_r_star)));
+    } else {
+      Logger::print_info(
+          "  lapse OFF (use_gr_lapse = false): shift-only slow-rotation "
+          "scheme, alpha == 1.  This is a documented approximation -- at "
+          "compactness {} the true alpha(R*) is {:.4g}.",
+          m_gr_compactness,
+          double(std::sqrt(std::max(1e-4, 1.0 - m_gr_compactness))));
+    }
   }
 
   m_time = 0.0;

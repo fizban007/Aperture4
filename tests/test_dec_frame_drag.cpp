@@ -172,7 +172,7 @@ struct fd_fixture {
         h_edge_sphere_sample(r0, ax, ay, az, bx, by, bz, t, x, y, z, dlx,
                              dly, dlz);
         Scalar vx, vy, vz;
-        frame_drag_velocity(x, y, z, omega0, Scalar(1.0), p, vx, vy, vz);
+        frame_drag_shift(x, y, z, omega0, Scalar(1.0), p, vx, vy, vz);
         ref += ((vy*Bv[2] - vz*Bv[1]) * dlx + (vz*Bv[0] - vx*Bv[2]) * dly +
                 (vx*Bv[1] - vy*Bv[0]) * dlz) / NQ;
       }
@@ -194,7 +194,7 @@ struct fd_fixture {
         double dl[3] = {double(r1 - r0) * ax, double(r1 - r0) * ay,
                         double(r1 - r0) * az};
         Scalar vx, vy, vz;
-        frame_drag_velocity(x, y, z, omega0, Scalar(1.0), p, vx, vy, vz);
+        frame_drag_shift(x, y, z, omega0, Scalar(1.0), p, vx, vy, vz);
         ref += ((vy*Bv[2] - vz*Bv[1]) * dl[0] +
                 (vz*Bv[0] - vx*Bv[2]) * dl[1] +
                 (vx*Bv[1] - vy*Bv[0]) * dl[2]) / NQ;
@@ -223,8 +223,11 @@ struct fd_fixture {
     // Bcurl[f] = +d1W[f] via the production Faraday with dt = -1.
     core.faraday(W, Bcurl, -1.0);
 
-    const double curl[3] = {-double(omega0) * Bv[1],
-                            double(omega0) * Bv[0], 0.0};
+    // curl(beta x B) for uniform drag (p = 0) and uniform B, with the
+    // SHIFT beta = -v_LT: identities give curl(v x B) = (B.grad)v = omega
+    // zhat x B for v = omega zhat x x, so beta contributes the negative.
+    const double curl[3] = {double(omega0) * Bv[1],
+                            -double(omega0) * Bv[0], 0.0};
     err = ref_max = 0;
     for (int f = 0; f < lp.n_owned_tri; f++) {
       double ref = curl[0]*Ntri[3*f] + curl[1]*Ntri[3*f+1] +
@@ -238,6 +241,145 @@ struct fd_fixture {
       err = std::max(err, std::abs(double(Bcurl[bs + f]) - ref));
       ref_max = std::max(ref_max, std::abs(ref));
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // SIGN / EQUILIBRIUM probe.  Everything above validates the DISCRETIZATION
+  // of W_e; all of it passes identically under v_LT -> -v_LT.  This one
+  // asks the physical question instead: which sign of the frame-drag term
+  // makes the Muslimov-Tsygan state stationary?
+  //
+  // Build the analytic MT state -- aligned dipole B, plasma drifting at
+  // omega_eff(r) = Omega - omega_lt(r), and the ideal-MHD field
+  // E = -(u x B) integrated exactly along every edge.  Then:
+  //
+  //   E - W = -(omega_eff + omega_lt)(zhat x x) x B = -Omega (zhat x x) x B
+  //           => RIGID rotation of an axisymmetric B  => curl = 0
+  //   E + W = -(omega_eff - omega_lt)(zhat x x) x B
+  //           = -(Omega - 2 omega_lt(r))(zhat x x) x B
+  //           => DIFFERENTIAL rotation => curl != 0, and roughly 2x the
+  //              curl of E alone (d/dr of Omega-2w_lt is -2 w_lt', vs -w_lt')
+  //
+  // d1 of an exactly-integrated edge cochain IS the face flux of curl by
+  // Stokes, so the residual on the vanishing branch is purely the W stencil
+  // truncation.  Returns the RMS of d1(.) over owned faces for E, E+W, E-W.
+  //
+  // NORM: rms, not max.  The two branches attain their maxima on DIFFERENT
+  // faces, so a max-norm reports ~0.5*curl(E) on the cancelling branch even
+  // when the cancellation is pointwise near-perfect.  (Measured: max-norm
+  // gives 2.04 / 0.50 where rms gives 2.00 / ~0.)
+  //
+  // FIELD: uniform_B = true uses B = B0 zhat.  The equilibrium argument
+  // needs only AXISYMMETRY ABOUT THE SPIN AXIS, which a uniform axial field
+  // has, and the W stencil is built to be exact for uniform B (v-edges to
+  // round-off) -- so the cancelling branch goes to zero at the truncation
+  // floor instead of being buried under the r^-3 dipole stencil error.
+  // uniform_B = false runs the same probe on the physical dipole, where the
+  // stencil error is real and the thresholds must be looser.
+  // -----------------------------------------------------------------------
+  // curl_E    : rms d1(E)              -- the differential-rotation signal
+  // curl_eff  : rms d1(frame_drag_eff_E(E,B))  -- THE SHIPPED OPERATOR
+  // curl_flip : rms d1(E - W)          -- the opposite sign convention
+  void mt_curl(Scalar Omega, Scalar omega_lt0, int p, bool uniform_B,
+               double& curl_E, double& curl_eff, double& curl_flip) {
+    auto lp = core.get_lp(exec_tags::host{});
+    auto mp = mesh.host_ptrs();
+    core.build_frame_drag(omega_lt0, Scalar(1.0), p);
+    const int ne = core.n_edges_local(), nfl = core.n_faces_local();
+    const int es = core.e_split(), bs = core.b_split();
+
+    buffer<Scalar> Eb, Bb, B0b, W, Ep, Em, cE, cP, cM;
+    for (auto* b : {&Eb, &W, &Ep, &Em}) {
+      b->set_memtype(MemType::host_only); b->resize(ne); b->assign(0);
+    }
+    for (auto* b : {&Bb, &B0b, &cE, &cP, &cM}) {
+      b->set_memtype(MemType::host_only); b->resize(nfl); b->assign(0);
+    }
+    const double Bu[3] = {0.0, 0.0, 1.0};
+    const Scalar mz = Scalar(1);
+    if (uniform_B) fill_uniform_B(Bu, Bb);
+    else core.fill_dipole_B(Bb, Scalar(0), Scalar(0), mz);
+
+    // E(x) = -(u x B) with u = (Omega - omega_lt(r)) zhat x x.
+    auto E_at = [&](Scalar x, Scalar y, Scalar z, double& ex, double& ey,
+                    double& ez) {
+      Scalar r = std::sqrt(x * x + y * y + z * z);
+      Scalar om = Omega - frame_drag_omega(r, omega_lt0, Scalar(1.0), p);
+      double ux = -double(om) * y, uy = double(om) * x, uz = 0.0;
+      double bx = Bu[0], by = Bu[1], bz = Bu[2];
+      if (!uniform_B) {
+        Scalar sx, sy, sz;
+        dipole_B_impl(x, y, z, Scalar(0), Scalar(0), mz, sx, sy, sz);
+        bx = sx; by = sy; bz = sz;
+      }
+      ex = -(uy * bz - uz * by);
+      ey = -(uz * bx - ux * bz);
+      ez = -(ux * by - uy * bx);
+    };
+
+    const int NQ = 200;
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      gidx_t g = lp.h_edge_l2g[e];
+      gidx_t v0, v1;
+      h_edge_vertex_ids(mp, g, v0, v1);
+      Scalar r0, ax, ay, az, r1, bx, by, bz;
+      vertex_unit(mp, v0, r0, ax, ay, az);
+      vertex_unit(mp, v1, r1, bx, by, bz);
+      double acc = 0;
+      for (int i = 0; i < NQ; i++) {
+        Scalar t = (i + Scalar(0.5)) / NQ;
+        Scalar x, y, z, dlx, dly, dlz;
+        h_edge_sphere_sample(r0, ax, ay, az, bx, by, bz, t, x, y, z, dlx,
+                             dly, dlz);
+        double ex, ey, ez;
+        E_at(x, y, z, ex, ey, ez);
+        acc += (ex * dlx + ey * dly + ez * dlz) / NQ;
+      }
+      Eb[e] = Scalar(acc);
+    }
+    for (int e = 0; e < lp.n_owned_ve; e++) {
+      gidx_t g = lp.v_edge_l2g[e];
+      gidx_t v0, v1;
+      v_edge_vertex_ids(mp, g, v0, v1);
+      Scalar r0, ax, ay, az, r1, a1x, a1y, a1z;
+      vertex_unit(mp, v0, r0, ax, ay, az);
+      vertex_unit(mp, v1, r1, a1x, a1y, a1z);
+      (void)a1x; (void)a1y; (void)a1z;
+      double dl[3] = {double(r1 - r0) * ax, double(r1 - r0) * ay,
+                      double(r1 - r0) * az};
+      double acc = 0;
+      for (int i = 0; i < NQ; i++) {
+        double t = (i + 0.5) / NQ;
+        double rt = (1.0 - t) * r0 + t * r1;
+        double ex, ey, ez;
+        E_at(Scalar(rt * ax), Scalar(rt * ay), Scalar(rt * az), ex, ey, ez);
+        acc += (ex * dl[0] + ey * dl[1] + ez * dl[2]) / NQ;
+      }
+      Eb[es + e] = Scalar(acc);
+    }
+
+    // Eeff exactly as the solver forms it -- no sign bookkeeping in the
+    // test, so this stays valid whichever convention the code adopts.
+    core.frame_drag_eff_E(Eb, Bb, B0b, W);
+    for (int e = 0; e < ne; e++) {
+      Ep[e] = W[e];                          // shipped Eeff
+      Em[e] = Scalar(2) * Eb[e] - W[e];      // E - (Eeff - E): flipped sign
+    }
+
+    core.faraday(Eb, cE, -1.0);              // c* <- +d1(.)
+    core.faraday(Ep, cP, -1.0);
+    core.faraday(Em, cM, -1.0);
+
+    auto rms = [&](buffer<Scalar>& c) {
+      double s = 0;
+      for (int f = 0; f < lp.n_owned_tri; f++) s += double(c[f]) * double(c[f]);
+      for (int f = 0; f < lp.n_owned_rect; f++)
+        s += double(c[bs + f]) * double(c[bs + f]);
+      return std::sqrt(s / (lp.n_owned_tri + lp.n_owned_rect));
+    };
+    curl_E = rms(cE);
+    curl_eff = rms(cP);
+    curl_flip = rms(cM);
   }
 };
 
@@ -285,6 +427,166 @@ TEST_CASE("Frame-drag EMF: discrete curl converges to analytic (Stokes)",
     REQUIRE(e2 < 0.15 * r2);
     REQUIRE(e2 / e3 > 2.0);
   }
+}
+
+// ===========================================================================
+// THE SIGN TEST.  Which sign of the frame-drag term admits the
+// Muslimov-Tsygan equilibrium the scheme is built to produce?
+//
+// dec_solver_dist's header states the design goal: "The steady corotation
+// state of a star spun at Omega with surface EMF (Omega - omega_lt) -- the
+// Muslimov-Tsygan reduced-rho_GJ configuration -- is an exact equilibrium of
+// this pair of modifications."  Stationarity means curl(E_eff) = 0.  With
+// the plasma drifting at omega_eff(r) = Omega - omega_lt(r) and E = -(u x B)
+// for an axisymmetric dipole, only ONE sign leaves a rigid rotation behind:
+//
+//     E - v_LT x B  =  -Omega (zhat x x) x B          -> curl = 0   OK
+//     E + v_LT x B  =  -(Omega - 2 w_lt(r)) (...) x B -> curl != 0  NOT
+//
+// The far-field limit is the same statement: the '+' branch relaxes to
+// Omega - 2 omega_lt(R*) at large r (0.6 Omega at the production
+// compactness), not to Omega.
+//
+// This is the physics check the other four cases in this file cannot make:
+// every one of them passes identically under v_LT -> -v_LT, because they
+// validate the DISCRETIZATION of the term against its own analytic form.
+// ===========================================================================
+TEST_CASE("Frame-drag EMF: the MT state is stationary under the solver",
+          "[prismatic][framedrag]") {
+  const Scalar Omega = 0.25, omega_lt0 = 0.05;   // w_lt(R*)/Omega = 0.2
+  const int p = 3;
+
+  // MEASURED 2026-08-04 with the CURRENT sign (Eeff = E + v_LT x B),
+  // rms d1 over owned faces, float storage, at L2 / L3:
+  //
+  //                     uniform axial B            aligned dipole B
+  //   curl(E)           5.530e-4 / 2.809e-4        6.344e-4 / 3.222e-4
+  //   curl(Eeff)        1.108e-3 / 5.620e-4        1.288e-3 / 6.489e-4
+  //                     = 2.0031x / 2.0005x        = 2.0299x / 2.0137x
+  //   curl(flipped)     3.557e-5 / 6.639e-6        1.794e-4 / 6.608e-5
+  //                     = 0.064x / 0.024x (r 5.4)  = 0.283x / 0.205x (r 2.7)
+  //
+  // Eeff lands on EXACTLY twice the differential-rotation curl and stays
+  // there under refinement -- a physical term, not truncation.  The
+  // flipped convention cancels to a floor that CONVERGES, which is what
+  // truncation does.  So the shipped sign makes the stationary state
+  // omega(r) = Omega + w_lt(r): rotation ENHANCED near the star, the
+  // opposite of the Muslimov-Tsygan reduction the scheme is built for.
+  //
+  // These assertions are on frame_drag_eff_E's OWN output, so they do not
+  // encode a sign convention and stay meaningful after the fix.
+
+  SECTION("uniform axial B (stencil-exact: the decisive case)") {
+    fd_fixture f2(2), f3(3);
+    double cE2, cEff2, cFl2, cE3, cEff3, cFl3;
+    f2.mt_curl(Omega, omega_lt0, p, true, cE2, cEff2, cFl2);
+    f3.mt_curl(Omega, omega_lt0, p, true, cE3, cEff3, cFl3);
+
+    INFO("L2: curl(E) = " << cE2 << ", curl(Eeff) = " << cEff2 << " ("
+         << cEff2 / cE2 << "x), flipped = " << cFl2 << " ("
+         << cFl2 / cE2 << "x)");
+    INFO("L3: curl(E) = " << cE3 << ", curl(Eeff) = " << cEff3 << " ("
+         << cEff3 / cE3 << "x), flipped = " << cFl3 << " ("
+         << cFl3 / cE3 << "x)");
+    INFO("If curl(Eeff) ~ 2x and flipped ~ 0, the frame-drag term has the "
+         "WRONG SIGN: swap it in frame_drag_eff_E / frame_drag_velocity.");
+
+    // Guard against a trivially-zero comparison: the differential-rotation
+    // curl of the MT state must be real and resolved.
+    REQUIRE(cE2 > 1e-6);
+    REQUIRE(cE3 > 1e-6);
+
+    // THE INVARIANT.  With the plasma drifting at omega_eff(r) =
+    // Omega - w_lt(r), the solver's own Eeff must be curl-free: that is
+    // precisely the claim in dec_solver_dist.h's header.  What may remain
+    // is the W stencil floor, so this is asserted against curl(E) and
+    // required to CONVERGE (truncation shrinks; a physical term does not).
+    REQUIRE(cEff2 < 0.10 * cE2);
+    REQUIRE(cEff3 < 0.04 * cE3);
+    REQUIRE(cEff2 / cEff3 > 3.0);
+  }
+
+  SECTION("aligned dipole B (physical field, looser stencil floor)") {
+    fd_fixture f2(2), f3(3);
+    double cE2, cEff2, cFl2, cE3, cEff3, cFl3;
+    f2.mt_curl(Omega, omega_lt0, p, false, cE2, cEff2, cFl2);
+    f3.mt_curl(Omega, omega_lt0, p, false, cE3, cEff3, cFl3);
+
+    INFO("L2: curl(E) = " << cE2 << ", curl(Eeff) = " << cEff2 << " ("
+         << cEff2 / cE2 << "x), flipped = " << cFl2 << " ("
+         << cFl2 / cE2 << "x)");
+    INFO("L3: curl(E) = " << cE3 << ", curl(Eeff) = " << cEff3 << " ("
+         << cEff3 / cE3 << "x), flipped = " << cFl3 << " ("
+         << cFl3 / cE3 << "x)");
+
+    // Same invariant on the real field.  W is built exact for UNIFORM B
+    // and the dipole varies as r^-3 across a cell, so the achievable floor
+    // is ~20-30% rather than a few percent -- hence the looser bound, with
+    // convergence still carrying the burden of proof.
+    REQUIRE(cE2 > 1e-6);
+    REQUIRE(cEff2 < 0.35 * cE2);
+    REQUIRE(cEff3 / cE3 < cEff2 / cE2);   // relative residual must shrink
+    REQUIRE(cEff2 / cEff3 > 2.0);
+  }
+}
+
+// ===========================================================================
+// THE NO-OP INVARIANT, particle side.
+//
+// Every flat-space result in the repo -- the L6 inclination scan, the
+// convergence studies, the partition- and dt-invariance guarantees -- was
+// produced by a pusher without any metric terms.  Turning the GR machinery
+// ON at ZERO strength must therefore reproduce the flat push BIT FOR BIT,
+// not merely to round-off: alpha = 1 and v_LT = 0 are exact, and every GR
+// expression in gca_push / the Boris branch is written so that 1.0*x == x
+// and x + 0.0 == x collapse it to the original token sequence.
+//
+// This is the test that catches a "harmless tidy-up" of those expressions
+// (factoring out an alpha, grouping each trapezoid endpoint together)
+// silently perturbing every flat run at the last bit.
+// ===========================================================================
+TEST_CASE("Lapse + shift: zero-strength GR is a bitwise no-op in the pusher",
+          "[prismatic][framedrag][pusher]") {
+  gr_metric_params off;                 // enabled = false
+  gr_metric_params zero;                // machinery ON, strength ZERO
+  zero.enabled = true;
+  zero.omega_lt0 = Scalar(0);
+  zero.compactness = Scalar(0);
+  zero.r_star = Scalar(1);
+  zero.lt_p = 3;
+
+  // The metric evaluator itself must return exact identity values.
+  for (double x : {0.3, 1.0, 2.7}) {
+    for (double z : {-1.1, 0.0, 2.0}) {
+      Scalar a, vx, vy, vz;
+      gr_metric_at(zero, Scalar(x), Scalar(0.7), Scalar(z), a, vx, vy, vz);
+      REQUIRE(a == Scalar(1));
+      REQUIRE(vx == Scalar(0));
+      REQUIRE(vy == Scalar(0));
+      REQUIRE(vz == Scalar(0));
+      Scalar a2, wx, wy, wz;
+      gr_metric_at(off, Scalar(x), Scalar(0.7), Scalar(z), a2, wx, wy, wz);
+      REQUIRE(a2 == a);
+    }
+  }
+
+  // A nonzero compactness must NOT be identity -- guards against the test
+  // above passing because gr_lapse always returns 1.
+  REQUIRE(gr_lapse(Scalar(1.0), Scalar(0.5), Scalar(1.0)) <
+          Scalar(0.71));
+  REQUIRE(gr_lapse(Scalar(1.0), Scalar(0.5), Scalar(1.0)) >
+          Scalar(0.70));
+  // ... and a nonzero drag must produce a nonzero v_LT with the SHIFT
+  // opposite to it (the one place the convention is decided).
+  Scalar vx, vy, vz, bx, by, bz;
+  frame_drag_velocity(Scalar(1), Scalar(0), Scalar(0), Scalar(0.05),
+                      Scalar(1), 3, vx, vy, vz);
+  frame_drag_shift(Scalar(1), Scalar(0), Scalar(0), Scalar(0.05),
+                   Scalar(1), 3, bx, by, bz);
+  REQUIRE(vy == Scalar(0.05));      // v_LT = omega zhat x xhat = +omega yhat
+  REQUIRE(bx == -vx);
+  REQUIRE(by == -vy);
+  REQUIRE(bz == -vz);
 }
 
 TEST_CASE("Frame-drag EMF: zero drag is an exact no-op",

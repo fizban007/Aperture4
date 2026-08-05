@@ -3,6 +3,7 @@
 #include "core/gpu_translation_layer.h"
 #include "core/typedefs_and_constants.h"
 #include "systems/physics/radiation_reaction.hpp"
+#include "systems/prismatic/dec_solver_geometry.hpp"
 #include "systems/prismatic/prismatic_deposit.h"
 #include "systems/prismatic/prismatic_mesh_ptrs.h"
 #include "systems/prismatic/prismatic_particles.h"
@@ -172,6 +173,31 @@ HD_INLINE Scalar gca_grad_B_par(const MP& mp, const Scalar* Bv, int tri,
   return gBpar;
 }
 
+// =========================================================================
+// 3+1 metric terms on the particle side ("fake GR").
+//
+// PCTS15 (arXiv:1510.01734) Eq. 7:
+//     dp/dt = alpha q (E + v x B) + alpha m gamma g + alpha H.p
+//     dx/dt = alpha v - beta
+// We keep the first term of each and drop the gravitational acceleration
+// and the gravitomagnetic tensor, which is the paper's own stated
+// approximation for strong pulsar fields.
+//
+// With beta = -v_LT (dec_solver_geometry.hpp) the position update is
+// dx/dt = alpha v + v_LT.  Note the shift is a PURE TRANSPORT term: it
+// advects every particle identically regardless of momentum, never enters
+// dp/dt, and so does not touch the gyration, mu, or the adiabaticity that
+// the GCA dispatch tests.  That is why it drops into the guiding-centre
+// velocity without disturbing anything else.
+//
+// alpha and v_LT are functions of POSITION ONLY (static metric), so there
+// is no new particle state, no field interpolation, and no checkpoint
+// schema change.
+// =========================================================================
+// gr_metric_params / gr_metric_at live in dec_solver_geometry.hpp, next to
+// frame_drag_shift and gr_lapse, so the field solver and the pusher read
+// the sign convention from one place.
+
 struct GCAPushResult {
   Scalar new_x, new_y, new_z;
   Scalar u_par;   // updated parallel 4-velocity
@@ -194,7 +220,8 @@ HD_INLINE GCAPushResult gca_push(
     bool include_curvature,
     const Scalar* Bv_rec = nullptr,
     int tri0 = -1, int layer0 = -1,
-    const Scalar* l0 = nullptr, Scalar zeta0 = Scalar(0)) {
+    const Scalar* l0 = nullptr, Scalar zeta0 = Scalar(0),
+    gr_metric_params grp = gr_metric_params{}) {
   GCAPushResult result;
   result.mu = mu;
   result.valid = true;
@@ -259,14 +286,36 @@ HD_INLINE GCAPushResult gca_push(
   // gradient as the curvature/grad-B drifts, but unlike those this term
   // is NOT optional physics, so it is gated only on gradient
   // availability, not on include_curvature.
+  // GR: the whole parallel force carries the lapse (dp/dt = alpha q E_par
+  // + ...), so scaling dt in the MOMENTUM update alone is exactly
+  // equivalent -- the force is linear in dt.  The position update below
+  // keeps the unscaled dt and applies alpha to the velocity instead,
+  // which is the dx/dt = alpha v - beta half of the pair.
+  // BITWISE NO-OP CONTRACT.  Every GR site below BRANCHES on gr_on and
+  // keeps the flat expression verbatim in the else, rather than relying on
+  // alpha = 1 / v_LT = 0 to collapse the GR form algebraically.
+  //
+  // The algebraic route would NOT be safe: x + 0.0 != x when x is -0.0 (it
+  // returns +0.0), and -0.0 is exactly what `-w*y` yields at zero drag.  A
+  // sign-of-zero reaching cartesian_to_local_impl can pick a different
+  // triangle in the walk, which is a discrete flip, not a rounding
+  // difference.  Branching makes the guarantee structural instead of an
+  // argument about IEEE corner cases; the branch is kernel-uniform, so it
+  // costs no divergence.  Pinned by "Zero-strength GR terms are a bitwise
+  // no-op in the full push".
+  Scalar alpha0, vlt0x, vlt0y, vlt0z;
+  gr_metric_at(grp, old_x, old_y, old_z, alpha0, vlt0x, vlt0y, vlt0z);
+  const bool gr_on = !gr_is_identity(grp);
+  const Scalar dt_f = gr_on ? alpha0 * dt : dt;
+
   Scalar u_perp_sq = Scalar(2) * mu * B * kappa / m;
-  Scalar u_par_new = u_par_half + (q/m) * dt * E_par;
+  Scalar u_par_new = u_par_half + (q/m) * dt_f * E_par;
   if (Bv_rec != nullptr && tri0 >= 0 &&
       l0 != nullptr && mu != Scalar(0)) {
     Scalar Gamma_n = kappa * std::sqrt(Scalar(1) + u_par_half*u_par_half +
                                        u_perp_sq);
     Scalar gBpar = gca_grad_B_par(mp, Bv_rec, tri0, layer0, l0, zeta0);
-    u_par_new -= dt * (mu * kappa * kappa * kappa / (m * Gamma_n)) * gBpar;
+    u_par_new -= dt_f * (mu * kappa * kappa * kappa / (m * Gamma_n)) * gBpar;
   }
   result.u_par = u_par_new;
 
@@ -287,9 +336,24 @@ HD_INLINE GCAPushResult gca_push(
   // Step 2: position update with fixed-point iteration (Eq 18)
   // R^{n+1} = R^n + dt * (u_par/Gamma * b + v_E)
   // Start with explicit Euler predict
-  Scalar Rx = old_x + dt * (u_par_new / Gamma * bx + vEx + vdr0[0]);
-  Scalar Ry = old_y + dt * (u_par_new / Gamma * by + vEy + vdr0[1]);
-  Scalar Rz = old_z + dt * (u_par_new / Gamma * bz + vEz + vdr0[2]);
+  // GR: dx/dt = alpha * v_gc + v_LT.  v_LT is added AFTER the guiding-centre
+  // velocity is assembled and must never be folded into v_E -- kappa above
+  // is the Lorentz factor of the LOCALLY MEASURED drift, and boosting it by
+  // a coordinate transport term would corrupt Gamma, u_perp and the
+  // cooling rate.
+  Scalar Rx, Ry, Rz;
+  if (gr_on) {
+    Rx = old_x + dt * (alpha0 * (u_par_new / Gamma * bx + vEx + vdr0[0])
+                       + vlt0x);
+    Ry = old_y + dt * (alpha0 * (u_par_new / Gamma * by + vEy + vdr0[1])
+                       + vlt0y);
+    Rz = old_z + dt * (alpha0 * (u_par_new / Gamma * bz + vEz + vdr0[2])
+                       + vlt0z);
+  } else {
+    Rx = old_x + dt * (u_par_new / Gamma * bx + vEx + vdr0[0]);
+    Ry = old_y + dt * (u_par_new / Gamma * by + vEy + vdr0[1]);
+    Rz = old_z + dt * (u_par_new / Gamma * bz + vEz + vdr0[2]);
+  }
 
   // Fixed-point iterations: evaluate b and v_E at the new position
   for (int iter = 0; iter < 3; iter++) {
@@ -348,13 +412,35 @@ HD_INLINE GCAPushResult gca_push(
                          u_par_new, mu, q, m, nGamma, nvdr);
     }
 
-    // Average b/Gamma, v_E, and the drifts between old/new (Eq 14)
-    Rx = old_x + dt * Scalar(0.5) * (
-        u_par_new * (bx/Gamma + nbx/nGamma) + vEx + nvEx + vdr0[0] + nvdr[0]);
-    Ry = old_y + dt * Scalar(0.5) * (
-        u_par_new * (by/Gamma + nby/nGamma) + vEy + nvEy + vdr0[1] + nvdr[1]);
-    Rz = old_z + dt * Scalar(0.5) * (
-        u_par_new * (bz/Gamma + nbz/nGamma) + vEz + nvEz + vdr0[2] + nvdr[2]);
+    // Average b/Gamma, v_E, and the drifts between old/new (Eq 14).  The
+    // metric terms ride the same trapezoid: alpha weights each endpoint's
+    // guiding-centre velocity, and v_LT (a velocity in its own right) is
+    // averaged directly.
+    //
+    // Branch, do not merge: see the bitwise no-op contract above.
+    if (gr_on) {
+      Scalar alpha1, vlt1x, vlt1y, vlt1z;
+      gr_metric_at(grp, Rx, Ry, Rz, alpha1, vlt1x, vlt1y, vlt1z);
+      Rx = old_x + dt * Scalar(0.5) * (
+          u_par_new * (alpha0*bx/Gamma + alpha1*nbx/nGamma) +
+          alpha0*vEx + alpha1*nvEx + alpha0*vdr0[0] + alpha1*nvdr[0] +
+          vlt0x + vlt1x);
+      Ry = old_y + dt * Scalar(0.5) * (
+          u_par_new * (alpha0*by/Gamma + alpha1*nby/nGamma) +
+          alpha0*vEy + alpha1*nvEy + alpha0*vdr0[1] + alpha1*nvdr[1] +
+          vlt0y + vlt1y);
+      Rz = old_z + dt * Scalar(0.5) * (
+          u_par_new * (alpha0*bz/Gamma + alpha1*nbz/nGamma) +
+          alpha0*vEz + alpha1*nvEz + alpha0*vdr0[2] + alpha1*nvdr[2] +
+          vlt0z + vlt1z);
+    } else {
+      Rx = old_x + dt * Scalar(0.5) * (
+          u_par_new * (bx/Gamma + nbx/nGamma) + vEx + nvEx + vdr0[0] + nvdr[0]);
+      Ry = old_y + dt * Scalar(0.5) * (
+          u_par_new * (by/Gamma + nby/nGamma) + vEy + nvEy + vdr0[1] + nvdr[1]);
+      Rz = old_z + dt * Scalar(0.5) * (
+          u_par_new * (bz/Gamma + nbz/nGamma) + vEz + nvEz + vdr0[2] + nvdr[2]);
+    }
   }
 
   result.new_x = Rx; result.new_y = Ry; result.new_z = Rz;
@@ -383,7 +469,8 @@ HOST_DEVICE inline void update_single_particle(
     const Scalar* Bv_rec = nullptr, Scalar absorb_r = Scalar(0),
     Scalar* rho_abs = nullptr, Scalar* gamma_wsum = nullptr,
     Scalar gca_switch_omegac = Scalar(20), bool zero_mu_on_capture = false,
-    Scalar sync_cool_coef = Scalar(0)) {
+    Scalar sync_cool_coef = Scalar(0),
+    gr_metric_params grp = gr_metric_params{}) {
   int tri_idx, layer_idx;
   prism_cell_decode(ptrs.cell[n], N_tri, tri_idx, layer_idx);
   Scalar l1 = ptrs.x1[n], l2 = ptrs.x2[n];
@@ -525,7 +612,7 @@ HOST_DEVICE inline void update_single_particle(
                         Ex, Ey, Ez, Bx, By, Bz,
                         q, m, dt, mp, E_e, B_f, tri_idx,
                         include_curvature, Bv_rec,
-                        tri_idx, layer_idx, l_old, zeta);
+                        tri_idx, layer_idx, l_old, zeta, grp);
 
     if (!res.valid) {
       ptrs.cell[n] = empty_cell;
@@ -538,9 +625,17 @@ HOST_DEVICE inline void update_single_particle(
     ptrs.p2[n] = res.mu;
     ptrs.E[n] = gamma;
   } else {
-    // Boris push
+    // Boris push.  GR: dp/dt = alpha q (E + v x B), and the force is
+    // linear in dt, so integrating over alpha*dt is exactly equivalent and
+    // leaves the Boris rotation itself untouched.  The synchrotron drag is
+    // a force too and carries the same factor.
+    Scalar alpha_b, vltx, vlty, vltz;
+    gr_metric_at(grp, old_x, old_y, old_z, alpha_b, vltx, vlty, vltz);
+    const bool gr_on = !gr_is_identity(grp);
+    const Scalar dt_f = gr_on ? alpha_b * dt : dt;
+
     Scalar px = ptrs.p1[n], py = ptrs.p2[n], pz = ptrs.p3[n];
-    gamma = boris_push(px, py, pz, Ex, Ey, Ez, Bx, By, Bz, q, m, dt);
+    gamma = boris_push(px, py, pz, Ex, Ey, Ez, Bx, By, Bz, q, m, dt_f);
 
     // Synchrotron drag, operator-split onto the Lorentz force above.
     // This is what makes the hybrid switch physical: the GCA side holds
@@ -560,16 +655,24 @@ HOST_DEVICE inline void update_single_particle(
     if (sync_cool_coef > Scalar(0) &&
         !check_flag(ptrs.flag[n], PtcFlag::ignore_radiation)) {
       sync_drag_substep(px, py, pz, gamma, Ex, Ey, Ez, Bx, By, Bz,
-                        sync_cool_coef, dt);
+                        sync_cool_coef, dt_f);
     }
 
     ptrs.p1[n] = px; ptrs.p2[n] = py; ptrs.p3[n] = pz;
     ptrs.E[n] = gamma;
 
+    // dx/dt = alpha v + v_LT  (= alpha v - beta).  Branch, do not merge:
+    // see the bitwise no-op contract in gca_push.
     Scalar vx = px/gamma, vy = py/gamma, vz = pz/gamma;
-    new_x = old_x + vx*dt;
-    new_y = old_y + vy*dt;
-    new_z = old_z + vz*dt;
+    if (gr_on) {
+      new_x = old_x + (alpha_b*vx + vltx)*dt;
+      new_y = old_y + (alpha_b*vy + vlty)*dt;
+      new_z = old_z + (alpha_b*vz + vltz)*dt;
+    } else {
+      new_x = old_x + vx*dt;
+      new_y = old_y + vy*dt;
+      new_z = old_z + vz*dt;
+    }
   }
 
   // Boundary absorption.  Particles leaving the radial domain are

@@ -4,6 +4,7 @@
 #include "data/rng_states.h"
 #include "framework/system.h"
 #include "systems/prismatic/icosphere_topology.h"
+#include "systems/prismatic/dec_solver_geometry.hpp"
 #include "systems/prismatic/prismatic_exec_policy.hpp"
 #include "systems/prismatic/prismatic_field_data.h"
 #include "systems/prismatic/prismatic_halo_exchanger.h"
@@ -213,6 +214,10 @@ class prismatic_ptc_updater : public system_t {
   // from "sync_gamma_rad" anchored at "sync_cool_b_lc", or directly by
   // "sync_cooling_coef" which overrides it.  0 disables the drag.
   Scalar m_sync_cool_coef = Scalar(0);
+  // 3+1 metric terms on the particle side; disabled (identity) unless
+  // use_frame_dragging is set.  See gr_metric_params in
+  // prismatic_ptc_update_kernel.hpp.
+  gr_metric_params m_gr;
 
   // 7E scaling harness: per-phase wall-time accumulators, reported as
   // min/mean/max across ranks every `step_timer_interval` steps

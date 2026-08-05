@@ -332,10 +332,14 @@ class dec_solver_dist {
       }
     };
 
+    // The circulation is built from the SHIFT beta = -v_LT, not from v_LT
+    // itself: Faraday advances B with curl(alpha E + beta x B).  See
+    // frame_drag_shift in dec_solver_geometry.hpp for why the sign is the
+    // difference between having a stationary state and having none.
     auto vlt = [&](double x, double y, double z, double v[3]) {
       Scalar vx, vy, vz;
-      frame_drag_velocity(Scalar(x), Scalar(y), Scalar(z), omega0, r_star,
-                          lt_p, vx, vy, vz);
+      frame_drag_shift(Scalar(x), Scalar(y), Scalar(z), omega0, r_star,
+                       lt_p, vx, vy, vz);
       v[0] = vx; v[1] = vy; v[2] = vz;
     };
 
@@ -432,16 +436,22 @@ class dec_solver_dist {
     m_fd_built = true;
   }
 
-  // Eeff[e] = E[e] + W_e(Bdelta + B0) on OWNED edges (caller exchanges
-  // Eeff ghosts, then feeds it to faraday()/compute_rhs() in place of E).
+  // Eeff[e] = alpha_e E[e] + W_e(Bdelta + B0) on OWNED edges -- the full
+  // 3+1 Faraday operand curl(alpha E + beta x B) (caller exchanges Eeff
+  // ghosts, then feeds it to faraday()/compute_rhs() in place of E).
   // Requires fresh Bdelta ghosts; B0 is static (exchanged once at init).
+  //
+  // W is built from the SHIFT beta = -v_LT (build_frame_drag), so this is
+  // alpha E - v_LT x B.  alpha is applied only when build_lapse has run;
+  // with gr_compactness = 0 it is identically 1 and skipped entirely, so
+  // the shift-only scheme and the flat scheme are both exactly recovered.
   void frame_drag_eff_E(buffer<Scalar>& E, buffer<Scalar>& Bdelta,
                         buffer<Scalar>& B0, buffer<Scalar>& Eeff) {
     auto lp = get_lp(typename ExecPolicy::exec_tag{});
     ExecPolicy::launch(
-        [lp, es = m_e_split, bs = m_b_split]
+        [lp, es = m_e_split, bs = m_b_split, lap = m_lapse_built]
         LAMBDA(auto E_e, auto Bd, auto B0_f, auto Ef, auto wht, auto whr,
-               auto wvr) {
+               auto wvr, auto alpha_e) {
           ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
             Scalar W = Scalar(0);
             for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1];
@@ -454,7 +464,7 @@ class dec_solver_dist {
               int f = lp.d1t_h_rect_col[j];
               W += whr[j] * (Bd[bs + f] + B0_f[bs + f]);
             }
-            Ef[e] = E_e[e] + W;
+            Ef[e] = (lap ? alpha_e[e] * E_e[e] : E_e[e]) + W;
           });
           ExecPolicy::loop(0, lp.n_owned_ve, [&] LAMBDA(int e) {
             Scalar W = Scalar(0);
@@ -463,35 +473,129 @@ class dec_solver_dist {
               int f = lp.d1t_v_rect_col[j];
               W += wvr[j] * (Bd[bs + f] + B0_f[bs + f]);
             }
-            Ef[es + e] = E_e[es + e] + W;
+            Ef[es + e] =
+                (lap ? alpha_e[es + e] * E_e[es + e] : E_e[es + e]) + W;
           });
         },
         E, Bdelta, B0, Eeff, m_fd_h_tri_val, m_fd_h_rect_val,
-        m_fd_v_rect_val);
+        m_fd_v_rect_val, m_alpha_e);
   }
 
   bool frame_drag_built() const { return m_fd_built; }
+  bool lapse_built() const { return m_lapse_built; }
+
+  // -----------------------------------------------------------------------
+  // Per-element lapse alpha(r) = sqrt(1 - compactness * r_star / r) for the
+  // 3+1 constitutive relations
+  //
+  //     E_aux = alpha E + (beta x B)      (Faraday, in frame_drag_eff_E)
+  //     H_aux = alpha (hodge2 B)          (Ampere, in ampere<true>)
+  //
+  // ACCURACY, and why it is better than it looks: alpha depends only on r,
+  // and this mesh is a sphere-cross-radius product, so
+  //   - h-edges lie at constant r  -> alpha is EXACT on them
+  //   - triangular faces likewise  -> EXACT
+  //   - v-edges span [r_k, r_k+1]  -> length-averaged (dl = dr)
+  //   - rect faces span the same   -> area-averaged (dA ~ r dr dphi)
+  // so the only approximation is a radial average over one log shell,
+  // O(h^2 alpha''), on the two element kinds that straddle shells.
+  //
+  // NOT exactly skew-adjoint.  The GR KS solver gets discrete energy
+  // conservation by folding the lapse inside the Whitney mass matrices
+  // (M1alpha sandwiched symmetrically); with this solver's DIAGONAL Hodge
+  // that is unavailable, and the residual is the commutator [d1, alpha],
+  // i.e. O(h * dlnalpha/dlnr) -- the same first-order tier as the
+  // solver's quasi-static truncation, but it means long GR runs should
+  // have their energy budget watched rather than assumed.
+  // -----------------------------------------------------------------------
+  void build_lapse(Scalar compactness, Scalar r_star) {
+    auto lp = m_lp_host;
+    auto mp = m_mesh->host_ptrs();
+    m_alpha_e.set_memtype(ExecPolicy::data_mem_type());
+    m_alpha_f.set_memtype(ExecPolicy::data_mem_type());
+    m_alpha_e.resize(n_edges_local());
+    m_alpha_f.resize(n_faces_local());
+    m_alpha_e.assign(Scalar(1));
+    m_alpha_f.assign(Scalar(1));
+
+    const int N_es = mp.N_edge_s, N_vs = mp.N_vert_s, N_tri = mp.N_tri;
+    // Radial average of alpha over [ra, rb] with weight r^wpow.
+    auto avg = [&](double ra, double rb, int wpow) {
+      double num = gauss_quad(
+          [&](double t) -> double {
+            double r = ra + t * (rb - ra);
+            double w = (wpow == 1) ? r : 1.0;
+            return w * double(gr_lapse(Scalar(r), compactness, r_star));
+          },
+          0.0, 1.0);
+      double den = gauss_quad(
+          [&](double t) -> double {
+            double r = ra + t * (rb - ra);
+            return (wpow == 1) ? r : 1.0;
+          },
+          0.0, 1.0);
+      return Scalar(num / den);
+    };
+
+    for (int e = 0; e < lp.n_owned_he; e++) {
+      const int k = int(lp.h_edge_l2g[e] / N_es);      // constant r
+      m_alpha_e[e] = gr_lapse(mp.radii[k], compactness, r_star);
+    }
+    for (int e = 0; e < lp.n_owned_ve; e++) {
+      const int k = int(lp.v_edge_l2g[e] / N_vs);
+      m_alpha_e[m_e_split + e] = avg(mp.radii[k], mp.radii[k + 1], 0);
+    }
+    for (int f = 0; f < lp.n_owned_tri; f++) {
+      const int k = int(lp.tri_face_l2g[f] / N_tri);   // constant r
+      m_alpha_f[f] = gr_lapse(mp.radii[k], compactness, r_star);
+    }
+    for (int f = 0; f < lp.n_owned_rect; f++) {
+      const int k = int(lp.rect_face_l2g[f] / N_es);
+      m_alpha_f[m_b_split + f] = avg(mp.radii[k], mp.radii[k + 1], 1);
+    }
+#if defined(CUDA_ENABLED) || defined(HIP_ENABLED)
+    m_alpha_e.copy_to_device();
+    m_alpha_f.copy_to_device();
+#endif
+    m_lapse_built = true;
+  }
 
   // -----------------------------------------------------------------------
   // Ampere half-step: E[e] += dt * h1inv[e] * ((d1^T h2 B)[e] - J[e]) on
   // owned edges.  Requires fresh B ghosts (tri + rect).
   // -----------------------------------------------------------------------
-  void ampere(buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& J,
-              double dt) {
+  // Dispatches on whether the GR lapse is active.  Templating rather than
+  // branching keeps the FLAT kernel byte-for-byte what it was -- this is
+  // the hot kernel, and this file has already been bitten once by a
+  // codegen cliff (the fp64 quadrature unroll, commit b3e4c17a).
+  //
+  // NOTE J carries NO alpha.  PCTS15's Ampere source is alpha*j - rho*beta
+  // with j the FIDO current; since alpha*j - rho*beta = sum q (alpha v -
+  // beta) delta = sum q (dx/dt) delta, a charge-conserving deposit along
+  // the actual COORDINATE displacement produces that combination already.
+  // Adding alpha here would double-count it (and break Gauss's law).  The
+  // pusher's shift term is therefore not optional for GR runs: it is what
+  // puts the -rho*beta current into J.
+  template <bool WithLapse>
+  void ampere_impl(buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& J,
+                   double dt) {
     auto lp = get_lp(typename ExecPolicy::exec_tag{});
     ExecPolicy::launch(
         [lp, dt, es = m_e_split, bs = m_b_split]
-        LAMBDA(auto E_e, auto B_f, auto J_e) {
+        LAMBDA(auto E_e, auto B_f, auto J_e, auto alpha_f) {
           ExecPolicy::loop(0, lp.n_owned_he, [&] LAMBDA(int e) {
             Scalar curl_H = Scalar(0);
             for (int j = lp.d1t_h_tri_row[e]; j < lp.d1t_h_tri_row[e + 1]; j++) {
               int f = lp.d1t_h_tri_col[j];
-              curl_H += lp.d1t_h_tri_val[j] * lp.tri_face_hodge2[f] * B_f[f];
+              Scalar H = lp.tri_face_hodge2[f] * B_f[f];
+              if constexpr (WithLapse) H *= alpha_f[f];
+              curl_H += lp.d1t_h_tri_val[j] * H;
             }
             for (int j = lp.d1t_h_rect_row[e]; j < lp.d1t_h_rect_row[e + 1]; j++) {
               int f = lp.d1t_h_rect_col[j];
-              curl_H +=
-                  lp.d1t_h_rect_val[j] * lp.rect_face_hodge2[f] * B_f[bs + f];
+              Scalar H = lp.rect_face_hodge2[f] * B_f[bs + f];
+              if constexpr (WithLapse) H *= alpha_f[bs + f];
+              curl_H += lp.d1t_h_rect_val[j] * H;
             }
             E_e[e] += dt * lp.h_edge_hodge1_inv[e] * (curl_H - J_e[e]);
           });
@@ -499,14 +603,21 @@ class dec_solver_dist {
             Scalar curl_H = Scalar(0);
             for (int j = lp.d1t_v_rect_row[e]; j < lp.d1t_v_rect_row[e + 1]; j++) {
               int f = lp.d1t_v_rect_col[j];
-              curl_H +=
-                  lp.d1t_v_rect_val[j] * lp.rect_face_hodge2[f] * B_f[bs + f];
+              Scalar H = lp.rect_face_hodge2[f] * B_f[bs + f];
+              if constexpr (WithLapse) H *= alpha_f[bs + f];
+              curl_H += lp.d1t_v_rect_val[j] * H;
             }
             E_e[es + e] +=
                 dt * lp.v_edge_hodge1_inv[e] * (curl_H - J_e[es + e]);
           });
         },
-        E, B, J);
+        E, B, J, m_alpha_f);
+  }
+
+  void ampere(buffer<Scalar>& E, buffer<Scalar>& B, buffer<Scalar>& J,
+              double dt) {
+    if (m_lapse_built) ampere_impl<true>(E, B, J, dt);
+    else ampere_impl<false>(E, B, J, dt);
   }
 
   // -----------------------------------------------------------------------
@@ -1097,6 +1208,11 @@ class dec_solver_dist {
   // sparsity blocks (see build_frame_drag).
   buffer<Scalar> m_fd_h_tri_val, m_fd_h_rect_val, m_fd_v_rect_val;
   bool m_fd_built = false;
+  // Per-element lapse (see build_lapse).  Edge layout matches E
+  // ([0,e_split) h, [e_split,..) v); face layout matches B.  Allocated
+  // only when the GR path is on, so flat runs pay nothing.
+  buffer<Scalar> m_alpha_e, m_alpha_f;
+  bool m_lapse_built = false;
 };
 
 }  // namespace Aperture

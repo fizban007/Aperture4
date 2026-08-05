@@ -220,6 +220,11 @@ class dec_field_solver : public system_t {
   // equilibrium.  Incompatible with use_deutsch_bc / use_pec_bc /
   // use_reconstruction_hodge (init aborts).
   bool m_use_frame_drag = false;
+  // 3+1 lapse alpha(r) = sqrt(1 - gr_compactness R*/r), config
+  // "use_gr_lapse" (default true when frame dragging is on).  Applied to
+  // the Faraday and Ampere flux operands via dec_solver_dist::build_lapse;
+  // the particle side scales the Lorentz force and dx/dt by the same alpha.
+  bool m_use_lapse = true;
   Scalar m_gr_compactness = 0.0;
   Scalar m_omega_lt0 = 0.0;
   Scalar m_lt_r_star = 1.0;

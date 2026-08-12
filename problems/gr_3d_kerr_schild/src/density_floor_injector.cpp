@@ -267,10 +267,10 @@ bh_density_floor_injector<Conf>::update(double dt, uint32_t step) {
           // https://theses.hal.science/tel-03406333v1/file/Thesis_Benjamin_Crinquand_final.pdf
           // The relevant expressions are given on pages 164-165
           // Note also that in the locally flat fluid rest frame, u^i = u_i
-          value_t h_11 = Metric_KS::g_11(r, theta, a);
-          value_t h_22 = Metric_KS::g_22(r, theta, a);
-          value_t h_33 = Metric_KS::g_33(r, theta, a);
-          value_t h_13 = Metric_KS::g_13(r, theta, a);
+          value_t h_11 = Metric_KS::g_11(a, r, theta);
+          value_t h_22 = Metric_KS::g_22(a, r, theta);
+          value_t h_33 = Metric_KS::g_33(a, r, theta);
+          value_t h_13 = Metric_KS::g_13(a, r, theta);
           value_t scriptA = math::sqrt(h_33 / (h_11 * h_33 - h_13 * h_13));
 
           value_t u_3 = math::sqrt(h_33) * u_d[2];

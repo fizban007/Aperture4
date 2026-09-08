@@ -349,7 +349,15 @@ class extent_t : public vec_t<uint32_t, Rank> {
 
   HOST_DEVICE extent_t<Rank>& operator=(const extent_t<Rank>& other) = default;
 
-  HOST_DEVICE uint32_t size() const { return this->product(); }
+  // Components are uint32_t (each axis fits comfortably) but the product
+  // overflows for global grids >= 2^32 cells (e.g. weak-scaling n=10 with
+  // 2048*1024*2048). Accumulate in size_t so the total stays correct, and
+  // return size_t so callers using `auto` propagate the wider type.
+  HOST_DEVICE size_t size() const {
+    size_t result = 1;
+    for (int i = 0; i < Rank; ++i) result *= size_t((*this)[i]);
+    return result;
+  }
 
   HOST_DEVICE const vec_t<int64_t, Rank>& strides() const {
     if (!has_strides) get_strides();

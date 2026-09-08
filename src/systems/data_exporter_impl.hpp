@@ -115,8 +115,12 @@ data_exporter<Conf, ExecPolicy>::init() {
   }
   if (m_comm != nullptr) m_comm->barrier();
 
-  // Write the grid in the simulation to the output directory
+  // Write the grid in the simulation to the output directory. Bracketed
+  // with a barrier-clamped timer so we can localize startup cost.
+  timer::stamp("write_grid");
   write_grid();
+  if (m_comm != nullptr) m_comm->barrier();
+  timer::show_duration_since_stamp("write_grid", "ms", "write_grid");
 
   // Register the graceful-stop checkpoint callback with the environment.
   sim_env().register_force_snapshot(

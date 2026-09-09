@@ -37,6 +37,15 @@ struct default_radiation_scheme_gr {
   value_t rH = 2.0f;
   value_t pair_rate = 1.0f;
   int ph_per_scatter = 1;
+  // Region in which pair production is allowed. Photons outside it are
+  // deleted. Defaults reproduce the previously hardcoded window
+  // (rH < r < 6.0, unrestricted in theta), so old runs are unchanged
+  // unless a config sets these explicitly. pair_r_min is set to rH in
+  // init() once the spin is known.
+  value_t pair_r_min = 0.0f;
+  value_t pair_r_max = 6.0f;
+  value_t pair_th_min = 0.0f;
+  value_t pair_th_max = M_PI;
 
   default_radiation_scheme_gr(const grid_t<Conf>& grid) {}
 
@@ -48,6 +57,14 @@ struct default_radiation_scheme_gr {
     sim_env().params().get_value("bh_spin", a);
     sim_env().params().get_value("pair_rate", pair_rate);
     rH = 1.0 + math::sqrt(1.0 - a * a);
+
+    // Default the inner edge to the horizon, then allow an override. Must
+    // come after rH is computed above.
+    pair_r_min = rH;
+    sim_env().params().get_value("pair_production_r_min", pair_r_min);
+    sim_env().params().get_value("pair_production_r_max", pair_r_max);
+    sim_env().params().get_value("pair_production_th_min", pair_th_min);
+    sim_env().params().get_value("pair_production_th_max", pair_th_max);
 
     if (E_s * 2.0f * ph_per_scatter > gamma_thr) {
       throw(std::runtime_error(
@@ -142,11 +159,12 @@ struct default_radiation_scheme_gr {
     // the sub-cell offsets must come from ph, not ptc. These two lines were
     // copied verbatim from emit_photon, where tid really is a particle index.
     auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ph.x1[tid]));
-    if (r < rH*1.0 || r > 6.0) {
+    auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ph.x2[tid]));
+    if (r < pair_r_min || r > pair_r_max || th < pair_th_min ||
+        th > pair_th_max) {
       ph.cell[tid] = empty_cell;
       return 0;
     }
-    auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ph.x2[tid]));
     auto alpha = Metric_KS::alpha(a, r, th);
 
     auto u = rng_uniform(state);

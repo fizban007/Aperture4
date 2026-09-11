@@ -138,12 +138,17 @@ struct default_radiation_scheme_gr {
     auto cell = ph.cell[tid];
     auto idx = Conf::idx(cell, ext);
     auto pos = get_pos(idx, ext);
-    auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ptc.x1[tid]));
+    // tid indexes the photon array here (this is called from the loop over
+    // photons), so the sub-cell offset must come from ph, not ptc. Taking it
+    // from ptc pairs photon #tid's cell with an unrelated particle's position
+    // within a cell -- and past the live particle count, ptc.x1/x2 are
+    // uninitialized (particles_base::resize only initializes cell).
+    auto r = grid_ks_t<Conf>::radius(grid.coord(0, pos[0], ph.x1[tid]));
     if (r < rH*1.0 || r > 6.0) {
       ph.cell[tid] = empty_cell;
       return 0;
     }
-    auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ptc.x2[tid]));
+    auto th = grid_ks_t<Conf>::theta(grid.coord(1, pos[1], ph.x2[tid]));
     auto alpha = Metric_KS::alpha(a, r, th);
 
     auto u = rng_uniform(state);

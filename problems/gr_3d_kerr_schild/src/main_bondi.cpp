@@ -174,10 +174,10 @@ main(int argc, char *argv[]) {
         // https://theses.hal.science/tel-03406333v1/file/Thesis_Benjamin_Crinquand_final.pdf
         // The relevant expressions are given on pages 164-165
         // Note also that in the locally flat fluid rest frame, u^i = u_i
-        value_t h_11 = Metric_KS::g_11(r, theta, spin);
-        value_t h_22 = Metric_KS::g_22(r, theta, spin);
-        value_t h_33 = Metric_KS::g_33(r, theta, spin);
-        value_t h_13 = Metric_KS::g_13(r, theta, spin);
+        value_t h_11 = Metric_KS::g_11(spin, r, theta);
+        value_t h_22 = Metric_KS::g_22(spin, r, theta);
+        value_t h_33 = Metric_KS::g_33(spin, r, theta);
+        value_t h_13 = Metric_KS::g_13(spin, r, theta);
         value_t scriptA = math::sqrt(h_33 / (h_11 * h_33 - h_13 * h_13));
 
         value_t u_3 = math::sqrt(h_33) * u_d[2];
@@ -185,10 +185,10 @@ main(int argc, char *argv[]) {
         value_t u_1 = u_d[0] / scriptA + (h_13 / h_33) * u_3;
 
         // The following are from an early implementation where the plasma was
-        // initialized cold. value_t uu0 = math::sqrt(-1.0 / Metric_KS::g_00(r,
-        // theta, spin)); value_t u_1 = Metric_KS::g_01(r, theta, spin) * uu0;
+        // initialized cold. value_t uu0 = math::sqrt(-1.0 / Metric_KS::g_00(spin,
+        // r, theta)); value_t u_1 = Metric_KS::g_01(spin, r, theta) * uu0;
         // value_t u_2 = 0.0;
-        // value_t u_3 = Metric_KS::g_03(r, theta, spin) * uu0;
+        // value_t u_3 = Metric_KS::g_03(spin, r, theta) * uu0;
 
         return vec_t<Scalar, 3>{u_1, u_2, u_3};
       },

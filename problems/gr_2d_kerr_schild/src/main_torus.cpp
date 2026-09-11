@@ -150,7 +150,7 @@ namespace Aperture {
     Scalar blS_t = prefactor * ( (Temp-Emax) * math::exp( -(Emax-E0)/Temp) - (Temp-Eminv) * math::exp( -(Eminv-E0)/Temp) );
     Scalar blS_phi = prefactor * (math::exp( -(Eminv-E0)/Temp) - math::exp( -(Emax-E0)/Temp) );
     Scalar blSt= - (Av * blS_t + 2.0 * a * r * blS_phi)/(Deltav * Sigmav);
-    return Metric_KS::alpha(r, th, a) * blSt;
+    return Metric_KS::alpha(a, r, th) * blSt;
   }
 
 }  // namespace Aperture

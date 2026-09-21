@@ -162,18 +162,21 @@ main(int argc, char *argv[]) {
       // d(log r) d(theta), so dividing the target density by it (and by ppc)
       // gives the per-particle weight.
       //
-      // The (r_H / r)^2 factor sets n ~ r^-2, normalized so that
-      // n(r_H) = init_num_dens = Bp^2 / sigma. Because the grid is logarithmic
-      // in r the cell width grows as dr ~ r, and n ~ r^-2 makes the skin depth
-      // d_e ~ n^(-1/2) ~ r grow at the same rate, holding d_e / dr fixed
-      // across the box. This sits between uniform density (sigma ~ r^-4) and
-      // uniform magnetization (n ~ r^-4).
+      // The (r_H / r)^4 factor sets n ~ r^-4, normalized so that
+      // n(r_H) = init_num_dens = Bp^2 / sigma. The monopole field falls as
+      // B ~ Bp / r^2, so B^2 / n is constant: the plasma is injected at a
+      // fixed magnetization. Bp normalizes the field at r = 1 rather than at
+      // r_H, so that magnetization is about sigma / r_H^4, not sigma itself.
+      // B ~ Bp / r^2 is exact for a = 0; at high spin the Kerr terms in the
+      // field are O(1) near the horizon, so the magnetization there is only
+      // approximately uniform.
       [ppc, spin, init_num_dens, r_H] LAMBDA(auto &x_global, PtcType type) {
         value_t r = grid_ks_t<Conf>::radius(x_global[0]);
         value_t th = grid_ks_t<Conf>::theta(x_global[1]);
         value_t sqrt_gamma = Metric_KS::sqrt_gamma(spin, r, th);
         value_t rat = r_H / r;
-        value_t w = (init_num_dens * rat * rat * r * sqrt_gamma) / ppc;
+        value_t rat2 = rat * rat;
+        value_t w = (init_num_dens * rat2 * rat2 * r * sqrt_gamma) / ppc;
         return w;
       });
 

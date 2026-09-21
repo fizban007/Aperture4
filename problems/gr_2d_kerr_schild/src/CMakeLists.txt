@@ -71,6 +71,10 @@ add_aperture_executable(torus_vertB "main_torus_vertB.cpp")
 target_link_libraries(torus_vertB gr_2d_kerr_schild)
 add_dependencies(problems torus_vertB)
 
+add_aperture_executable(torus_ei_vertB "main_torus_ei_vertB.cpp")
+target_link_libraries(torus_ei_vertB gr_2d_kerr_schild)
+add_dependencies(problems torus_ei_vertB)
+
 add_aperture_executable(bondi "main_bondi.cpp")
 target_link_libraries(bondi gr_2d_kerr_schild)
 add_dependencies(problems bondi)

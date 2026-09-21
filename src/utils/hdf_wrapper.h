@@ -96,6 +96,12 @@ class H5File {
                    size_t idx_src, size_t len, size_t idx_dst);
 
   void set_parallel(bool p) { m_is_parallel = p; }
+
+  /// True only if the underlying HDF5 file was successfully opened/created.
+  /// Callers that create a file MUST check this before writing: a failed
+  /// H5Fcreate/H5Fopen yields a negative hid_t, and every subsequent
+  /// operation on it fails while producing no return value of its own.
+  bool is_valid() const { return m_is_open && m_file_id >= 0; }
 };
 
 H5File hdf_create(const std::string& filename,

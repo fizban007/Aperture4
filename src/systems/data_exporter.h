@@ -78,9 +78,14 @@ class data_exporter : public system_t {
                              const typename Conf::multi_array_t& array,
                              stagger_t stagger, H5File& file);
 
-  void write_snapshot(const std::string& filename, uint32_t step, double time);
+  /// Write a snapshot. Returns true only if the file was created and closed
+  /// successfully on every rank; callers must not advance the snapshot
+  /// rotation or move the "latest" symlink when this returns false.
+  bool write_snapshot(const std::string& filename, uint32_t step, double time);
   void load_snapshot(const std::string& filename, uint32_t& step, double& time);
-  void force_snapshot(uint32_t step, double time);
+  /// Checkpoint-and-exit path used by the SIGUSR1 handler. Returns false if
+  /// the snapshot could not be written.
+  bool force_snapshot(uint32_t step, double time);
   void update_latest_symlink(const std::string& target_basename);
 
   bool is_root() const {
